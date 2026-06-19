@@ -3259,6 +3259,8 @@ const ROOMS = {
       /* v2.3.38 moduł „Numer zastrzeżony" — loża Kantara (prawa ściana, dolny róż; zero-overlap: VIP kończy y280, gość3 x914, gap >100px). Widoczne TYLKO gdy quest aktywny (_kantarPresent — gating w drawObjects/getNear, analog npc_fan/hof_statue). */
       {id:'velvet_loza',    wx:1060,wy:392, w:140, h:108, act:'velvet:kantar', prompt:'[E] 🛋️ Loża w neonie — podejdź', lbl:'Loża'},
       {id:'npc_kantar',     wx:1112,wy:404, w:34,  h:56,  act:null, prompt:'', lbl:''},
+      /* v2.3.38 Z2 — tylne wejście na parking (obserwacja); widoczne tylko gdy Z2 aktywne (_uwZ2Active). Lewy-dolny róg, gap od baru (y265). */
+      {id:'velvet_parking', wx:100, wy:430, w:150, h:104, act:'velvet:parking', prompt:'[E] 🚬 Tyły klubu — parking (obserwacja)', lbl:'Parking'},
       {id:'exit_striptiz',  wx:600, wy:590, w:64, h:62,  act:'goto:ulica:1255:3120', prompt:'[E] Wyjście', lbl:'Wyjście'},
     ]
   },
@@ -3563,6 +3565,8 @@ function drawObjects(room){
     if(obj.id==='npc_fan'&&(G.fans||0)<10) continue;
     /* v2.3.38: Kantar + loża widoczni TYLKO gdy quest aktywny (analog npc_fan) */
     if((obj.id==='velvet_loza'||obj.id==='npc_kantar') && !(typeof window._kantarPresent==='function'&&window._kantarPresent())) continue;
+    /* v2.3.38: wejście na parking (Z2) tylko gdy Z2 aktywne */
+    if(obj.id==='velvet_parking' && !(typeof window._uwZ2Active==='function'&&window._uwZ2Active())) continue;
     const sx=wx2sx(obj.wx),sy=wy2sy(obj.wy);
     // Clipping uwzględnia szerokość obiektu — dla długich ścian (np. wall_h2b lux: 1480px)
     // sam sx nie wystarczy: lewa krawędź może być daleko poza ekranem, a prawa wciąż widoczna.
@@ -3791,6 +3795,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'npc_sguest1': case 'npc_sguest2': case 'npc_sguest3': drawCasinoGuest(sx,sy,w,h,id);break;
     case 'velvet_loza':    drawVelvetLoza(sx,sy,w,h);break; /* v2.3.38 moduł „Numer zastrzeżony" */
     case 'npc_kantar':     drawKantar(sx,sy,w,h);break;
+    case 'velvet_parking': drawVelvetParkingDoor(sx,sy,w,h);break;
     case 'exit_striptiz':  drawInteriorExit(sx,sy,w,h);break;
     case 'merch_studio': drawBuilding(sx,sy,w,h,'#3a1a2a','Studio Merch','#e91e63','🧢',true,{commercial:true});break;
     case 'merch_designer': drawMerchDesignerObj(sx,sy,w,h);break;
@@ -13058,6 +13063,7 @@ function getNear(){
   // Przebieg 1: tylko budynki (wejście do budynku ważniejsze niż dialog NPC)
   for(const obj of room.objects){
     if(obj.id==='velvet_loza' && !(typeof window._kantarPresent==='function'&&window._kantarPresent())) continue; /* v2.3.38: loża Kantara tylko gdy quest aktywny */
+    if(obj.id==='velvet_parking' && !(typeof window._uwZ2Active==='function'&&window._uwZ2Active())) continue; /* v2.3.38: parking Z2 tylko gdy aktywne */
     const isParkObj=['fountain','pond','skate','bboying','freestyle_spot','apt2_fountain'].includes(obj.id);
     const isDecorOnly=!obj.act || obj.id.startsWith('park_lamp')||obj.id.startsWith('park_bush')||obj.id==='park_trash';
     const isBuilding=obj.w>60&&obj.h>60&&!obj.id.startsWith('npc_')&&!isParkObj&&!isDecorOnly;
@@ -13325,6 +13331,10 @@ function handleAct(act,objId){
   } else if(act==='velvet:kantar'){
     /* v2.3.38 moduł „Numer zastrzeżony" — podejście do loży Kantara (dialog §7/§8) */
     if(typeof window._uwKantarMeet==='function') window._uwKantarMeet();
+    return;
+  } else if(act==='velvet:parking'){
+    /* v2.3.38 Z2 — minigra obserwacji parkingu */
+    if(typeof window._uwZ2ParkingMG==='function') window._uwZ2ParkingMG();
     return;
   } else if(act.startsWith('gym:')){
     const parts=act.split(':');
@@ -48904,6 +48914,111 @@ window._uwZ1Resolve=function(res){
   }
   if(typeof saveGameSilent==='function') saveGameSilent();
 };
+/* ═══ TEST — Zadanie 2 „Oczy na parkingu" (§9-Z2) — MINIGRA PERCEPCJI NA CZAS (NIE click-spam) ═══ */
+/* Aktywne gdy Z1 zrobione i Z2 nie. Obserwuj parking za klubem; kliknij PODEJRZANY pojazd (radiowóz/
+   zardzewiały pickup/SUV z fotografem) spośród przejeżdżających. Klik w przypadkowe auto = fałszywy alarm
+   (kara) — to wymusza percepcję, NIE spam (reguła no-click-reward). Wynik → task.t2. */
+window._uwZ2Active=function(){ if(typeof window._underworldEnsure!=='function') return false; window._underworldEnsure(); const u=G.underworldIntro; return u.state==='testing' && !!u.task.t1 && !u.task.t2; };
+/* Logika wyniku wydzielona (testowalna niezależnie od RAF/canvas). */
+window._uwZ2Resolve=function(res){
+  window._underworldEnsure(); const u=G.underworldIntro;
+  if(u.task.t2) return; /* anti-dbl */
+  u.task.t2=res;
+  if(res==='clean'){
+    window._uwAddStat('kantar_trust',10); u.perceptionXp=(u.perceptionXp||0)+5; window._uwAddStat('street_heat',1);
+  } else if(res==='false'){
+    window._uwAddStat('kantar_trust',-3); window._uwAddStat('stress',5);
+    if(typeof window._smsSend==='function') window._smsSend('kantar','Nerwy masz jak tania zapalniczka. Niby działa, ale nie wiadomo kiedy pierdolnie.',{bypass:true});
+  } else { /* ignored */
+    window._uwAddStat('street_heat',5); window._uwAddStat('kantar_trust',-10);
+  }
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+window._uwZ2ParkingMG=function(){
+  window._underworldEnsure(); const u=G.underworldIntro;
+  const panel=document.getElementById('mg-job'); if(!panel) return;
+  panel.classList.add('on'); panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  const W=660,H=320,col='#c0392b';
+  const hard=(u.harderTest||0)>0;
+  const DUR=hard?22:28;
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="display:flex;flex-direction:column;align-items:center;gap:8px;width:100%">
+      ${_gigHeaderHtml('👁️','Oczy na parkingu',col)}
+      <div style="display:flex;gap:18px;align-items:center;font-size:13px"><span style="color:#7ec8e3">⏱ Czas: <span id="z2-time" style="color:#f1c40f;font-weight:700">${DUR}s</span></span></div>
+      <span style="color:#9ab;font-size:12px;max-width:620px;text-align:center">Obserwuj parking. Wypatrz i kliknij PODEJRZANY pojazd: radiowóz, zardzewiały pickup albo czarny SUV z kimś, kto robi zdjęcia. NIE klikaj przypadkowych aut — fałszywy alarm to wpadka. Masz spokojnie patrzeć.</span>
+      <canvas id="z2-cv" width="${W}" height="${H}" style="border-radius:8px;cursor:crosshair;background:linear-gradient(180deg,#0a0a12,#14141c)"></canvas>
+      <button class="cbtn" onclick="if(window._jobMgCleanup)window._jobMgCleanup()">← Wyjdź</button>
+    </div>`;
+  const cv=document.getElementById('z2-cv'); const ctx=_crispCanvas(cv,W,H);
+  let over=false,raf,t0=null,spawnT=0,susSpawned=0;
+  const cars=[]; const COLORS=['#3a6ea5','#7a3a3a','#3a7a4a','#888','#d0c060','#5a4a7a'];
+  function spawn(){
+    const dir=Math.random()<0.5?1:-1; const lane=Math.floor(Math.random()*3); const y=86+lane*64;
+    const speed=(hard?2.0:1.4)+Math.random()*0.8;
+    const elapsed=t0?(Date.now()-t0)/1000:0;
+    let type='normal',susKind=null;
+    const force=(elapsed>DUR*0.45 && susSpawned===0); /* gwarancja: min. 1 podejrzany */
+    if((force || (susSpawned<(hard?3:2) && elapsed>3 && Math.random()<0.16))){ type='sus'; susKind=['police','pickup','suv'][Math.floor(Math.random()*3)]; susSpawned++; }
+    cars.push({x:dir>0?-70:W+70,y,vx:dir*speed,w:54,h:26,dir,type,susKind,color:COLORS[Math.floor(Math.random()*COLORS.length)],clicked:false});
+  }
+  function endGame(result){
+    if(over)return; over=true; cancelAnimationFrame(raf); clearInterval(timer);
+    cv.removeEventListener('click',onClick); cv.removeEventListener('touchstart',onTouch);
+    window._uwZ2Resolve(result);
+    ctx.fillStyle='rgba(0,0,0,.85)';ctx.fillRect(0,0,W,H);ctx.textAlign='center';
+    const m=result==='clean'?['Czysto. Zgłosiłeś właściwy wóz.','#2ecc71','+10 zaufania']
+      :result==='false'?['Fałszywy alarm — spłoszyłeś niewinnego.','#e67e22','-3 zaufania, +stres']
+      :['Przegapiłeś obserwację pod klubem.','#e74c3c','+heat, -10 zaufania'];
+    ctx.fillStyle=m[1];ctx.font='bold 19px "Segoe UI",sans-serif';ctx.fillText('👁️ '+m[0],W/2,H/2-8);
+    ctx.font='bold 16px "Segoe UI",sans-serif';ctx.fillText(m[2],W/2,H/2+20);ctx.textAlign='left';
+    if(typeof updateHUD==='function')updateHUD();
+    const next=result==='clean'?'🛋️ Zadanie 2 zaliczone. Zostało: dług po koncercie.':result==='false'?'🛋️ Fałszywy alarm odnotowany. Zostało: dług po koncercie.':'🛋️ Obserwacja nieudana. Zostało: dług po koncercie.';
+    if(typeof showMsg==='function') setTimeout(()=>showMsg(next,'f',6000),300);
+    closeJobPanelAfter(2600);
+  }
+  function hitCar(mx,my){ for(let i=cars.length-1;i>=0;i--){ const c=cars[i]; if(c.clicked)continue; if(mx>=c.x&&mx<=c.x+c.w&&my>=c.y&&my<=c.y+c.h) return c; } return null; }
+  function onClick(e){ if(over||t0===null)return; const r=cv.getBoundingClientRect(); const mx=(e.clientX-r.left)*(W/r.width),my=(e.clientY-r.top)*(H/r.height); const c=hitCar(mx,my); if(!c) return; /* klik w pustkę = patrzysz, brak kary (anti-spam: tylko zgłoszenie auta liczy się) */ c.clicked=true; endGame(c.type==='sus'?'clean':'false'); }
+  function onTouch(e){ e.preventDefault(); const tt=e.touches&&e.touches[0]; if(!tt)return; onClick({clientX:tt.clientX,clientY:tt.clientY}); }
+  cv.addEventListener('click',onClick); cv.addEventListener('touchstart',onTouch,{passive:false});
+  const timer=setInterval(()=>{ if(over){clearInterval(timer);return;} if(t0===null)return; const rem=Math.max(0,DUR-Math.floor((Date.now()-t0)/1000)); const e=document.getElementById('z2-time'); if(e)e.textContent=rem+'s'; if(rem<=0) endGame('ignored'); },250);
+  function drawCar(c){
+    ctx.save();
+    ctx.fillStyle=c.type==='sus'?(c.susKind==='police'?'#1a2a6a':c.susKind==='pickup'?'#5a3a20':'#101014'):c.color;
+    ctx.fillRect(c.x,c.y,c.w,c.h);
+    ctx.fillStyle='rgba(255,255,255,.12)'; ctx.fillRect(c.x+12,c.y+4,c.w-24,c.h-12);
+    if(c.type==='sus'){
+      if(c.susKind==='police'){ ctx.fillStyle='#e74c3c';ctx.fillRect(c.x+c.w/2-8,c.y-4,7,4); ctx.fillStyle='#3498db';ctx.fillRect(c.x+c.w/2+1,c.y-4,7,4); }
+      else if(c.susKind==='pickup'){ ctx.fillStyle='#3a2615';ctx.fillRect(c.x+c.w-20,c.y+2,18,c.h-4); ctx.strokeStyle='#7a5a30';ctx.lineWidth=1;ctx.strokeRect(c.x,c.y,c.w,c.h); }
+      else { ctx.fillStyle='#cfe8ff';ctx.beginPath();ctx.arc(c.x+(c.dir>0?c.w-8:8),c.y+8,3,0,Math.PI*2);ctx.fill(); }
+    }
+    ctx.fillStyle='#111';ctx.fillRect(c.x+6,c.y+c.h-3,10,4);ctx.fillRect(c.x+c.w-16,c.y+c.h-3,10,4);
+    ctx.restore();
+  }
+  function draw(){
+    if(over)return; if(t0===null)t0=Date.now();
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#16161e';ctx.fillRect(0,70,W,H-70);
+    ctx.strokeStyle='#2a2a36';ctx.lineWidth=2;
+    for(let ly=0;ly<3;ly++){ const yy=86+ly*64+30; ctx.setLineDash([18,16]); ctx.beginPath();ctx.moveTo(0,yy);ctx.lineTo(W,yy);ctx.stroke(); }
+    ctx.setLineDash([]);
+    ctx.fillStyle='#e91e8c';ctx.font='bold 12px "Segoe UI",sans-serif';ctx.textAlign='center';ctx.shadowColor='#e91e8c';ctx.shadowBlur=8;ctx.fillText('— TYŁY VELVET ROOM —',W/2,30);ctx.shadowBlur=0;ctx.textAlign='left';
+    spawnT++; if(spawnT>(hard?16:22) && cars.length<10){ spawnT=0; spawn(); }
+    for(let i=cars.length-1;i>=0;i--){ const c=cars[i]; c.x+=c.vx; drawCar(c); if(c.x<-90||c.x>W+90) cars.splice(i,1); }
+    raf=requestAnimationFrame(draw);
+  }
+  window._jobMgCleanup=()=>{over=true;cancelAnimationFrame(raf);clearInterval(timer);cv.removeEventListener('click',onClick);cv.removeEventListener('touchstart',onTouch);panel.classList.remove('on');panel.style.display='none';document.getElementById('mg-job-content').innerHTML='';};
+  raf=requestAnimationFrame(draw);
+};
+/* Rysunek tylnego wejścia na parking (drzwi + znak P). */
+function drawVelvetParkingDoor(sx,sy,w,h){
+  X.save();
+  X.fillStyle='#14141c'; X.fillRect(sx,sy,w,h);
+  X.strokeStyle='#c0392b'; X.lineWidth=2; X.shadowColor='#e74c3c'; X.shadowBlur=8; X.strokeRect(sx+2,sy+2,w-4,h-4); X.shadowBlur=0;
+  X.fillStyle='#0a0a10'; X.fillRect(sx+w/2-18,sy+h-46,36,46); /* drzwi */
+  X.fillStyle='#c0392b'; X.font='bold 11px sans-serif'; X.textAlign='center'; X.fillText('TYŁY · P',sx+w/2,sy+22); X.textAlign='left';
+  X.restore();
+}
 /* Rysunek loży Kantara (aksamit + neon) i samej postaci (płaszcz, ciemna koszula, szklanka z lodem). */
 function drawVelvetLoza(sx,sy,w,h){
   X.save();
