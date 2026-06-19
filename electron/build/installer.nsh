@@ -1,45 +1,53 @@
 ; Custom NSIS include (electron-builder) — widoczne checkboxy skrótów: pulpit + menu Start.
-; Obie domyślnie ZAZNACZONE. Strona pojawia się po wyborze katalogu instalacji.
-; electron-builder dostarcza w kontekście: nsDialogs, LogicLib, MUI2, WinMessages,
-; oraz definicje PRODUCT_NAME i APP_EXECUTABLE_FILENAME.
+; Obie domyślnie ZAZNACZONE. Strona pojawia się po wyborze katalogu (customPageAfterChangeDir
+; wstawiany przez electron-builder w assistedInstaller.nsh, TYLKO w przebiegu instalatora).
+; PRODUCT_NAME / APP_EXECUTABLE_FILENAME definiuje electron-builder. Standardowe nagłówki
+; mają include-guardy (!ifndef), więc ponowny !include jest bezpieczny.
+!include "LogicLib.nsh"
+!include "nsDialogs.nsh"
 
-Var UW_DeskCB
-Var UW_MenuCB
-Var UW_DeskState
-Var UW_MenuState
+; Funkcje strony + zmienne TYLKO dla instalatora — w przebiegu uninstallera
+; (BUILD_UNINSTALLER) customPageAfterChangeDir nie jest wstawiany, więc bez tego guardu
+; makensis zgłasza warning 6010 „install function not referenced" = błąd buildu.
+!ifndef BUILD_UNINSTALLER
+  Var UW_DeskCB
+  Var UW_MenuCB
+  Var UW_DeskState
+  Var UW_MenuState
 
-!macro customPageAfterChangeDir
-  Page custom uwShortcutsPageCreate uwShortcutsPageLeave
-!macroend
+  !macro customPageAfterChangeDir
+    Page custom uwShortcutsPageCreate uwShortcutsPageLeave
+  !macroend
 
-Function uwShortcutsPageCreate
-  !insertmacro MUI_HEADER_TEXT "Skróty" "Wybierz, gdzie utworzyć skróty do gry."
-  nsDialogs::Create 1018
-  Pop $0
-  ${If} $0 == error
-    Abort
-  ${EndIf}
-  ${NSD_CreateLabel} 0 0 100% 22u "Gdzie utworzyć skróty do Trap Simulator?"
-  Pop $1
-  ${NSD_CreateCheckbox} 0 30u 100% 14u "Utwórz skrót na pulpicie"
-  Pop $UW_DeskCB
-  ${NSD_Check} $UW_DeskCB
-  ${NSD_CreateCheckbox} 0 50u 100% 14u "Utwórz skrót w menu Start"
-  Pop $UW_MenuCB
-  ${NSD_Check} $UW_MenuCB
-  nsDialogs::Show
-FunctionEnd
+  Function uwShortcutsPageCreate
+    nsDialogs::Create 1018
+    Pop $0
+    ${If} $0 == error
+      Abort
+    ${EndIf}
+    ${NSD_CreateLabel} 0 0 100% 24u "Gdzie utworzyć skróty do Trap Simulator?"
+    Pop $1
+    ${NSD_CreateCheckbox} 0 34u 100% 14u "Utwórz skrót na pulpicie"
+    Pop $UW_DeskCB
+    ${NSD_Check} $UW_DeskCB
+    ${NSD_CreateCheckbox} 0 54u 100% 14u "Utwórz skrót w menu Start"
+    Pop $UW_MenuCB
+    ${NSD_Check} $UW_MenuCB
+    nsDialogs::Show
+  FunctionEnd
 
-Function uwShortcutsPageLeave
-  ${NSD_GetState} $UW_DeskCB $UW_DeskState
-  ${NSD_GetState} $UW_MenuCB $UW_MenuState
-FunctionEnd
+  Function uwShortcutsPageLeave
+    ${NSD_GetState} $UW_DeskCB $UW_DeskState
+    ${NSD_GetState} $UW_MenuCB $UW_MenuState
+  FunctionEnd
+!endif
 
 !macro customInstall
-  ${If} $UW_DeskState == ${BST_CHECKED}
+  ; stan checkboxa: 1 = zaznaczony (domyślnie oba zaznaczone)
+  ${If} $UW_DeskState == 1
     CreateShortcut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
   ${EndIf}
-  ${If} $UW_MenuState == ${BST_CHECKED}
+  ${If} $UW_MenuState == 1
     CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
     CreateShortcut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME}.lnk" "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
   ${EndIf}
