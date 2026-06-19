@@ -44908,6 +44908,8 @@ function startFreestyleMG(){
     if(score>0){
       if(!G.careers.raper) G.careers.raper={level:0,freestyles:0,tracks:0,xp:0,skillPts:0};
       G.careers.raper.freestyles=(G.careers.raper.freestyles||0)+1;
+      /* v2.3.38 moduł „Numer zastrzeżony": sprawdź trigger SMS od razu po freestyle (self-gated — wyśle tylko gdy warunki §3 spełnione). */
+      if(typeof window._underworldCheckTrigger==='function') window._underworldCheckTrigger();
       /* v2.1.860 (user „3 freestyle na dzień możliwe"): licznik DZIENNY freestyle — pierwsze 3/dobę zawsze pełna stawka (bez taperu). */
       if(!G._fsCountToday||G._fsCountToday.day!==G.day) G._fsCountToday={day:G.day,n:0}; G._fsCountToday.n++;
       // #78 NERF 10× — gracz dostawał ~266 raperXP / 106 fanów / 133 follow / 88 rep za 30s freestyle (absurd)
@@ -48590,6 +48592,7 @@ const SMS_CONTACTS={
   /* v2.1.228 audit-fix #48: Crew BYL physical:false ale istnieje fizyczny NPC `npc_crew` na chodniku H2 north (wx:2499, wy:1781) — gracz tam rekrutuje DJ/grafika/menadżera. */
   crew:      {name:'Ekipa',                    em:'👥', color:'#3498db', physical:true},
   gymbro:    {name:'Gym Bro',                  em:'💪', color:'#e67e22', physical:false}, /* v2.1.179: Gym Bro SMS contact (wcześniej osobny G.gymBroMessages array, NIE pojawiał się w Wiadomości) */
+  kantar:    {name:'Numer zastrzeżony',         em:'📵', color:'#9b59b6', physical:true}, /* v2.3.38 moduł „Numer zastrzeżony" — nadawca SMS (broker Kantar w Velvet Room); name→„Kantar” po ukończeniu questa (mutowane w TIER 8) */
 };
 function _ensureSMS(){
   if(!G.sms||typeof G.sms!=='object') G.sms={conversations:{},unread:0,_triggeredEvents:{}};
@@ -48690,8 +48693,78 @@ window._smsTriggerOnce=function(triggerId,contactId,text,opts){
   return true;
 };
 // Sprawdź eventy które powinny wywołać SMS — wywoływany w nextPeriod (rzadko, ~co dzień)
+/* ═══ MODUŁ „Numer zastrzeżony" — trigger SMS + obsługa wyborów (v2.3.38, PDF §3-5) ═══ */
+/* Trigger pierwszej wiadomości (§3) — PODSTAWOWY niezawodny: 3 freestyle + ≥10 min sesji + pierwsza kasa
+   + 1-3 streetRep/sławy + street_heat poniżej krytycznego. Szybki OR: 10 fanów + 3 freestyle. Raz w grze. */
+window._underworldCheckTrigger=function(){
+  if(!window._UW_MODULE_ENABLED) return; /* v2.3.38: bramka modułu — quest dormant aż cały łańcuch (TIER 1-8) gotowy + audyt E. Flip = TIER 10. Chroni przed ghost „idź do Velvet Room" zanim klub istnieje. */
+  if(typeof window._underworldEnsure!=='function') return;
+  window._underworldEnsure();
+  const u=G.underworldIntro;
+  if(u.state!=='none') return; /* już wysłany/przyjęty/odrzucony/zablokowany */
+  if(G.sms&&G.sms._triggeredEvents&&G.sms._triggeredEvents.numer_zastrzezony) return;
+  const freestyles=(G.careers&&G.careers.raper&&G.careers.raper.freestyles)||0;
+  const sessionMin=window._sessionStartMs?((Date.now()-window._sessionStartMs)/60000):0;
+  const earnedSomething=(G.totalEarned||0)>0;
+  const someFame=(G.streetRep||0)>=1 || (G.fame||0)>=1;
+  const heatOk=(G.streetHeat||0)<60;
+  const basic = freestyles>=3 && sessionMin>=10 && earnedSomething && someFame && heatOk;
+  const fast  = (G.fans||0)>=10 && freestyles>=3 && heatOk; /* szybki OR (§3 opcjonalne) */
+  if(!(basic||fast)) return;
+  const sent=window._smsSend('kantar','W mieście nie jesteś tak niewidzialny, jak ci się wydaje. Ktoś mówił, że masz ambicję. Ambicja bez kontaktów to tylko ładne słowo na biedę. Dziś 23:40. Velvet Room. Loża w neonie. Nie bierz kolegów, nie pytaj bramki.',{bypass:true});
+  if(!sent) return;
+  if(!G.sms._triggeredEvents) G.sms._triggeredEvents={};
+  G.sms._triggeredEvents.numer_zastrzezony=G.day||0;
+  u.state='sms_sent'; u.smsDay=G.day||0; u.smsMs=Date.now();
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+/* Tick okresowy: odpowiedź Kantara po opcji B (3 min real). Timeout 2h sesji = TIER 9. */
+window._underworldTick=function(){
+  if(typeof window._underworldEnsure!=='function') return;
+  window._underworldEnsure();
+  const u=G.underworldIntro;
+  if(u._bReplyPending && u.bMs && (Date.now()-u.bMs)>=180000){
+    u._bReplyPending=false;
+    window._smsSend('kantar','Ktoś, kto nie lubi pisać dwa razy. Przyjdź albo usuń wiadomość i wróć do noszenia pizzy.',{bypass:true});
+  }
+};
+/* Obsługa 4 wyborów po SMS-ie (§5). Wierne teksty + skutki (curiosity/patience/insulted/blocked). */
+window._uwSmsChoice=function(opt){
+  if(typeof window._underworldEnsure!=='function') return;
+  window._underworldEnsure();
+  const u=G.underworldIntro;
+  if(u.state!=='sms_sent') return; /* wybór tylko póki SMS otwarty */
+  const _reply=(t)=>{ if(typeof window._smsReply==='function') window._smsReply('kantar',t); };
+  const _rndDays=()=>(14+Math.floor(Math.random()*17)); /* 14-30 dni gry */
+  if(opt==='A'){
+    _reply('Będę.');
+    u.curiosityFlag=true; u.state='accepted'; u._clubUnlocked=true;
+    if(typeof showMsg==='function') showMsg('🗺️ Nowy cel: Velvet Room (Strip Club). Loża w neonie, dziś 23:40.','f',6500);
+  } else if(opt==='B'){
+    _reply('Z kim mam do czynienia?');
+    u.kantarPatience=Math.max(0,(u.kantarPatience||10)-5);
+    if(u._bAsked){
+      window._smsSend('kantar','Pisałem raz. Dwa razy nie piszę. Szkoda mojego czasu.',{bypass:true});
+      u._bReplyPending=false; u.state='insulted'; u.returnDay=(G.day||0)+_rndDays(); window._uwTag('insulted_kantar');
+    } else {
+      u._bAsked=1; u._bReplyPending=true; u.bMs=Date.now();
+    }
+  } else if(opt==='C'){
+    _reply('Spierdalaj.');
+    u._bReplyPending=false; u.state='insulted'; u.returnDay=(G.day||0)+_rndDays(); window._uwTag('insulted_kantar');
+    if(typeof showMsg==='function') showMsg('📵 Numer zastrzeżony już nie odpisuje na tę wiadomość.','i',5000);
+  } else if(opt==='D'){
+    _reply('Blokuj numer.');
+    u._bReplyPending=false; u.state='blocked'; window._uwTag('blocked_kantar');
+    if(typeof showMsg==='function') showMsg('🚫 Zablokowałeś numer. Ten kontakt już się nie odezwie.','i',5000);
+  }
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  if(typeof window.renderSMSConversation==='function') window.renderSMSConversation('kantar');
+};
 window._smsCheckTriggers=function(){
   _ensureSMS();
+  if(typeof window._underworldCheckTrigger==='function') window._underworldCheckTrigger();
+  if(typeof window._underworldTick==='function') window._underworldTick();
   /* v2.1.37 [Amper]: SMS panel używa G.fans lojalnych (spójność) */
   const fans=(G.fans||0);
   const tracks=G.careers?.raper?.tracks||0;
@@ -49125,6 +49198,15 @@ window.renderSMSConversation=function(contactId){
     <div style="padding:6px 12px;border-top:1px solid #1a2535">
       ${actionBtn}
       ${(()=>{
+        /* v2.3.38 moduł „Numer zastrzeżony": 4 wybory fabularne (§5) zamiast generycznych quick-replies, póki SMS otwarty. */
+        if(contactId==='kantar' && G.underworldIntro && G.underworldIntro.state==='sms_sent'){
+          const _b=(opt,label,sub,col)=>`<button onclick="_uwSmsChoice('${opt}')" style="width:100%;text-align:left;background:#1a1226;border:1px solid ${col}66;border-left:4px solid ${col};color:#e8def5;padding:9px 11px;border-radius:8px;cursor:pointer;font-size:12.5px;margin-bottom:6px"><b>${label}</b><div style="color:#9a8ab5;font-size:10.5px;margin-top:2px">${sub}</div></button>`;
+          return `<div style="background:#0a0512;border:1px solid #3a2a4a;border-radius:6px;padding:6px 9px;margin-bottom:7px;font-size:10.5px;color:#b59ad5;text-align:center">📵 Numer zastrzeżony. Co odpisujesz?</div>
+            ${_b('A','„Będę.”','Pójdziesz na spotkanie — Velvet Room, dziś 23:40.','#27ae60')}
+            ${_b('B','„Z kim mam do czynienia?”','Dopytujesz, kto pisze. Może mu się to nie spodobać.','#f1c40f')}
+            ${_b('C','„Spierdalaj.”','Olewasz kontakt. Zniknie na jakiś czas.','#e67e22')}
+            ${_b('D','„Blokuj numer.”','Blokujesz na zawsze — ten kontakt nigdy nie wróci.','#c0392b')}`;
+        }
         if(_unrepliedCount===0){
           return `<div style="background:#0a1a0a;border:1px solid #1a4a1a;border-radius:6px;padding:8px 10px;font-size:11px;color:#7ec87e;text-align:center;font-style:italic">✓ Wszystkie wiadomości od ${(SMS_CONTACTS[contactId]||{}).name||contactId} odpowiedziane. Poczekaj na nowe.</div>`;
         }
