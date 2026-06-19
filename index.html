@@ -55624,6 +55624,12 @@ function showHelp(){
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
  {
+ ver:'v2.3.39',date:'2026-06-19',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'🔄 Okienko aktualizacji w aplikacji desktop (pasek pobierania + restart)',
+ items:[
+ {t:'feature',d:'🔄 Aplikacja desktop (Windows) pokazuje teraz ładne okienko aktualizacji: gdy w tle pobiera się nowa wersja, w rogu widać kartę z paskiem postępu i procentami, a po pobraniu pojawia się przycisk „Uruchom ponownie, by zainstalować”. Wcześniej aktualizacja schodziła po cichu — teraz wiesz co się dzieje i sam decydujesz kiedy zrestartować. Możesz też schować okienko — aktualizacja i tak doinstaluje się przy następnym zamknięciu gry. W wersji przeglądarkowej nic się nie zmienia.'},
+ ],
+ },
+ {
  ver:'v2.3.38',date:'2026-06-19',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'📵 Nowy wątek fabularny: „Numer zastrzeżony” — pierwsze wejście w półświatek',
  items:[
  {t:'feature',d:'📵 Po kilku freestyleach na mieście (i gdy zaczynasz być rozpoznawalny) możesz dostać SMS od „Numeru zastrzeżonego”. Ktoś Cię zauważył. Wiadomość prowadzi nocą do klubu Velvet Room, gdzie czeka cichy broker półświatka. Możesz przyjść, dopytać, olać albo zablokować numer — każda reakcja ma swoje skutki.'},
@@ -75966,5 +75972,68 @@ loop();
   </div>
   <div id="adm-msg" style="margin-top:10px;font-size:12px;color:#27ae60;text-align:center"></div>
 </div>
+<script>
+/* ═══ OKIENKO AKTUALIZACJI IN-APP (Electron auto-update GUI) v2.3.39 ═══
+   Słucha eventów z main.js (przez preload window.electronUpdater) i pokazuje ładną kartę:
+   dostępna aktualizacja → pasek pobierania → „Uruchom ponownie, by zainstalować".
+   W wersji web (brak window.electronUpdater) cały moduł jest bezczynny (zero wpływu). */
+(function(){
+  function _uwFmtMB(b){ return (Math.max(0,b||0)/1048576).toFixed(1)+' MB'; }
+  /* Pojedyncza karta — tworzona leniwie, dół-lewo (SMS popup jest w dół-prawo, brak kolizji). */
+  function _uwUpdCard(){
+    var el=document.getElementById('uw-update-card');
+    if(el) return el;
+    el=document.createElement('div'); el.id='uw-update-card';
+    el.style.cssText='position:fixed;left:14px;bottom:96px;z-index:245;width:300px;max-width:88vw;background:linear-gradient(160deg,rgba(10,16,30,.98),rgba(16,12,30,.98));border:2px solid #27ae60;border-left:5px solid #27ae60;border-radius:14px;padding:12px 14px;box-shadow:0 8px 30px rgba(39,174,96,.33),0 0 0 1px rgba(0,0,0,.4);font-family:inherit;display:none;pointer-events:all';
+    el.innerHTML='<div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">'
+      +'<span id="uw-upd-emoji" style="font-size:22px">🔄</span>'
+      +'<div style="flex:1;min-width:0"><div id="uw-upd-title" style="color:#7ee89e;font-weight:800;font-size:13px">Aktualizacja</div>'
+      +'<div id="uw-upd-sub" style="color:#aac;font-size:11px;margin-top:1px"></div></div>'
+      +'<span id="uw-upd-x" style="color:#7a8a9a;cursor:pointer;font-size:16px;line-height:1;padding:2px 4px" title="Ukryj">✕</span></div>'
+      +'<div id="uw-upd-barwrap" style="height:8px;background:rgba(255,255,255,.08);border-radius:6px;overflow:hidden;margin:4px 0 8px;display:none">'
+      +'<div id="uw-upd-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#27ae60,#2ecc71);transition:width .25s;border-radius:6px"></div></div>'
+      +'<button id="uw-upd-btn" style="display:none;width:100%;background:linear-gradient(135deg,#27ae60,#1e9e54);border:none;color:#04210f;font-weight:800;padding:10px;border-radius:8px;cursor:pointer;font-size:13px">🔁 Uruchom ponownie, by zainstalować</button>';
+    (document.body||document.documentElement).appendChild(el);
+    el.querySelector('#uw-upd-x').onclick=function(){ el.style.display='none'; };
+    el.querySelector('#uw-upd-btn').onclick=function(){ try{ if(window.electronUpdater&&window.electronUpdater.restart) window.electronUpdater.restart(); }catch(_){ } };
+    return el;
+  }
+  /* Render stanu aktualizacji. Eksponowane dla testów runtime (#9). */
+  window._uwRenderUpdate=function(type,data){
+    data=data||{};
+    /* checking / none / error → nie zawracaj głowy gracza (karta schowana) */
+    if(type==='none'||type==='error'||type==='checking'){ var c0=document.getElementById('uw-update-card'); if(c0) c0.style.display='none'; return; }
+    var card=_uwUpdCard();
+    var emoji=card.querySelector('#uw-upd-emoji'), title=card.querySelector('#uw-upd-title'), sub=card.querySelector('#uw-upd-sub');
+    var barwrap=card.querySelector('#uw-upd-barwrap'), bar=card.querySelector('#uw-upd-bar'), btn=card.querySelector('#uw-upd-btn');
+    var ver=data.version?(' v'+data.version):'';
+    if(type==='available'){
+      emoji.textContent='🔄'; title.textContent='Dostępna aktualizacja'+ver;
+      sub.textContent='Pobieram w tle…'; barwrap.style.display='block'; bar.style.width='3%'; btn.style.display='none';
+      card.style.display='block';
+    } else if(type==='progress'){
+      var pct=Math.max(0,Math.min(100,Math.round(data.percent||0)));
+      emoji.textContent='⬇️'; title.textContent='Pobieram aktualizację';
+      var spd=data.bytesPerSecond?(' · '+_uwFmtMB(data.bytesPerSecond)+'/s'):'';
+      sub.textContent=pct+'%'+(data.total?(' ('+_uwFmtMB(data.transferred)+' / '+_uwFmtMB(data.total)+')'):'')+spd;
+      barwrap.style.display='block'; bar.style.width=pct+'%'; btn.style.display='none';
+      card.style.display='block';
+    } else if(type==='downloaded'){
+      emoji.textContent='✅'; title.textContent='Aktualizacja'+ver+' gotowa';
+      sub.textContent='Zainstaluje się po ponownym uruchomieniu.'; barwrap.style.display='block'; bar.style.width='100%';
+      btn.style.display='block'; card.style.display='block';
+    }
+  };
+  /* Subskrypcja eventów z main (idempotentna). Tylko w Electronie. */
+  window._uwUpdateInit=function(){
+    if(window._uwUpdateBound) return;
+    if(!(window.electronUpdater&&typeof window.electronUpdater.on==='function')) return;
+    window._uwUpdateBound=true;
+    window.electronUpdater.on(function(d){ try{ window._uwRenderUpdate(d&&d.type, d); }catch(_){ } });
+  };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', window._uwUpdateInit);
+  else window._uwUpdateInit();
+})();
+</script>
 </body>
 </html>
