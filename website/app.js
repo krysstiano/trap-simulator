@@ -305,3 +305,40 @@
       metaEl.textContent = '';
     });
 })();
+
+/* ===================== LIGHTBOX ZRZUTOW ===================== */
+(function () {
+  var imgs = [
+    { src: 'screeny/01-mieszkanie.png', cap: 'Mieszkanie — wnętrze traphouse' },
+    { src: 'screeny/02-studio.png',     cap: 'Studio nagrań — mikser i produkcja' },
+    { src: 'screeny/03-kasyno.png',     cap: 'Kasyno — piętro high-roller' },
+    { src: 'screeny/04-park.png',       cap: 'Park miejski — życie ulicy' },
+    { src: 'screeny/05-miasto.png',     cap: 'Miasto — sklepy i sala koncertowa' },
+    { src: 'screeny/06-ulica.png',      cap: 'Ulica — usługi i kariera' }
+  ];
+  var lb = document.getElementById('lb');
+  if (!lb) return;
+  var lbImg = document.getElementById('lbImg'), lbCounter = document.getElementById('lbCounter');
+  var cur = 0;
+  function show(i) {
+    cur = (i + imgs.length) % imgs.length;
+    lbImg.style.backgroundImage = "url('" + imgs[cur].src + "')";
+    lbImg.setAttribute('aria-label', imgs[cur].cap);
+    lbCounter.textContent = (cur + 1) + ' / ' + imgs.length + ' — ' + imgs[cur].cap;
+  }
+  function open(i) { show(i); lb.hidden = false; lb.setAttribute('aria-hidden', 'false'); document.body.style.overflow = 'hidden'; }
+  function close() { lb.hidden = true; lb.setAttribute('aria-hidden', 'true'); document.body.style.overflow = ''; }
+  document.querySelectorAll('.shot[data-i]').forEach(function (b) {
+    b.addEventListener('click', function () { open(parseInt(b.getAttribute('data-i'), 10) || 0); });
+  });
+  document.getElementById('lbClose').addEventListener('click', close);
+  document.getElementById('lbPrev').addEventListener('click', function () { show(cur - 1); });
+  document.getElementById('lbNext').addEventListener('click', function () { show(cur + 1); });
+  lb.addEventListener('click', function (e) { if (e.target === lb) close(); });
+  document.addEventListener('keydown', function (e) {
+    if (lb.hidden) return;
+    if (e.key === 'Escape') close();
+    else if (e.key === 'ArrowLeft') show(cur - 1);
+    else if (e.key === 'ArrowRight') show(cur + 1);
+  });
+})();
