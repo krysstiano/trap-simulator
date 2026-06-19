@@ -1021,6 +1021,9 @@ const G = {
   car:null,
   apartment:'traphouse',
   streetRep:0,
+  /* v2.3.38 MODUŁ „Numer zastrzeżony" — staty półświatka (save-safe, ensure-init w _underworldEnsure). publicImage start 100. */
+  kantarTrust:0, publicImage:100, mediaHeat:0, violenceHeat:0, streetCredibility:0, streetHeat:0,
+  underworldIntro:{state:'none',curiosityFlag:false,kantarPatience:10,ambitionFlag:false,underworldAccess:0,gangIntroAvailable:false,memoryTags:[],smsDay:0,smsMs:0,returnDay:0,task:{t1:null,t2:null,t3:null},reward:0,pathChosen:null,completed:false,bDay:0},
   careers:{
     youtuber:{unlocked:false, xpReq:50},
     beatmaker:{unlocked:false, xpReq:120, beats:0, beatsSold:0},
@@ -18988,6 +18991,54 @@ function getPublicStatus(){
   if(img>=55 && G.publicRep.brandSafety>=60) return {key:'czysty', label:'Czysty zawodnik', emoji:'✨', color:'#27ae60', desc:'Wysoki wizerunek — sponsorzy, festiwale, legalne kontrakty.'};
   return {key:'neutral', label:'Bez wyraźnego wizerunku', emoji:'➖', color:'#7f8c8d', desc:'Buduj sławę lub uliczną wiarygodność — na razie nikt nie wyrobił zdania.'};
 }
+/* ═══ MODUŁ FABULARNY „Numer zastrzeżony" (v2.3.38, PDF „Zastrzeżony numer") — staty + quest state machine ═══
+   Pierwszy miękki kontakt z półświatkiem: SMS od „Numer zastrzeżony" → NPC Roch „Kantar" Nawrot (Velvet Room,
+   adaptacja striptiz_club) → test „Trzy ciche sprawy" → ścieżki A/B/C/D (hooki przyszłych modułów).
+   SAVE-SAFE (reguła #1): defensywny init — stary save = quest NIEROZPOCZĘTY (state 'none'), staty default,
+   ZERO naliczania wstecz. ADAPTACJA istniejących systemów (#6): dirty_cash → window._addDirty (narkobiznes D1),
+   infamy → G._underworldRespect, street_respect → G.streetRep, stress/money istniejące.
+   NOWE pola (brak w grze): G.kantarTrust, G.publicImage(start 100), G.mediaHeat, G.violenceHeat,
+   G.streetCredibility, G.streetHeat (osobny od trap.heat, bo quest odpala się PRZED odblokowaniem trapu). */
+window._underworldEnsure=function(){
+  if(!G.underworldIntro||typeof G.underworldIntro!=='object'){
+    G.underworldIntro={state:'none',curiosityFlag:false,kantarPatience:10,ambitionFlag:false,underworldAccess:0,gangIntroAvailable:false,memoryTags:[],smsDay:0,smsMs:0,returnDay:0,task:{t1:null,t2:null,t3:null},reward:0,pathChosen:null,completed:false,bDay:0};
+  }
+  const u=G.underworldIntro;
+  if(typeof u.state!=='string') u.state='none';
+  if(!Array.isArray(u.memoryTags)) u.memoryTags=[];
+  if(!u.task||typeof u.task!=='object') u.task={t1:null,t2:null,t3:null};
+  ['curiosityFlag','ambitionFlag','gangIntroAvailable','completed'].forEach(k=>{ if(typeof u[k]!=='boolean') u[k]=false; });
+  [['kantarPatience',10],['underworldAccess',0],['smsDay',0],['smsMs',0],['returnDay',0],['reward',0],['bDay',0]].forEach(([k,d])=>{ if(typeof u[k]!=='number'||!isFinite(u[k])) u[k]=d; });
+  if(u.pathChosen!==null && typeof u.pathChosen!=='string') u.pathChosen=null;
+  /* Globalne staty modułu (NOWE pola — istniejące streetRep/_underworldRespect/money/stress NIE ruszane) */
+  if(typeof G.kantarTrust!=='number'||!isFinite(G.kantarTrust)) G.kantarTrust=0;
+  if(typeof G.publicImage!=='number'||!isFinite(G.publicImage)) G.publicImage=100;
+  [['mediaHeat',0],['violenceHeat',0],['streetCredibility',0],['streetHeat',0]].forEach(([k,d])=>{ if(typeof G[k]!=='number'||!isFinite(G[k])) G[k]=d; });
+  G.kantarTrust=Math.max(-50,Math.min(100,G.kantarTrust));
+  G.publicImage=Math.max(0,Math.min(100,G.publicImage));
+  G.mediaHeat=Math.max(0,G.mediaHeat); G.violenceHeat=Math.max(0,G.violenceHeat);
+  G.streetHeat=Math.max(0,G.streetHeat); G.streetCredibility=Math.max(0,G.streetCredibility);
+};
+/* Centralny aplikator efektów stat z PDF (klamp + ADAPTACJA aliasów). Używany przez dialogi/zadania (TIER 4+). */
+window._uwAddStat=function(key,delta){
+  _underworldEnsure();
+  delta=(+delta)||0;
+  switch(key){
+    case 'kantar_trust': case 'kantarTrust': G.kantarTrust=Math.max(-50,Math.min(100,(G.kantarTrust||0)+delta)); break;
+    case 'infamy': G._underworldRespect=Math.max(0,Math.min(100,(G._underworldRespect||0)+delta)); break;
+    case 'street_respect': case 'streetRep': G.streetRep=Math.max(0,Math.min(100,(G.streetRep||0)+delta)); break;
+    case 'street_credibility': case 'streetCredibility': G.streetCredibility=Math.max(0,(G.streetCredibility||0)+delta); break;
+    case 'public_image': case 'publicImage': G.publicImage=Math.max(0,Math.min(100,(G.publicImage||100)+delta)); break;
+    case 'media_heat': case 'mediaHeat': G.mediaHeat=Math.max(0,(G.mediaHeat||0)+delta); break;
+    case 'violence_heat': case 'violenceHeat': G.violenceHeat=Math.max(0,(G.violenceHeat||0)+delta); break;
+    case 'street_heat': case 'streetHeat': G.streetHeat=Math.max(0,(G.streetHeat||0)+delta); break;
+    case 'stress': G.stress=Math.max(0,Math.min(100,(G.stress||0)+delta)); break;
+    case 'dirty_cash': if(typeof window._addDirty==='function'){ if(delta>0){ G.money=(G.money||0)+delta; window._addDirty(delta); } } else { G.money=(G.money||0)+Math.max(0,delta); } break;
+    default: break;
+  }
+};
+/* Dopisz memory_tag raz (bez duplikatów) */
+window._uwTag=function(tag){ _underworldEnsure(); if(tag && G.underworldIntro.memoryTags.indexOf(tag)<0) G.underworldIntro.memoryTags.push(tag); };
 /* v2.1.639 AN.8: czy gracz jest na głodzie (withdrawal) — addiction ≥50 i nie zażył ≥1 dzień. Ten sam warunek co tick mood-penalty. */
 function _inWithdrawal(){
   if(!G.addictions) return false;
@@ -51604,6 +51655,9 @@ window.doPrestige=()=>{
   G._forbesQuizWins=0;
   G._underworldRespect=0;
   G._coastVibeDay=0;
+  /* v2.3.38: moduł „Numer zastrzeżony" reset na Prestige (parytet z _underworldRespect — quest intro re-triggeruje w nowym playthrough; anti-carry stat kantarTrust/publicImage itd.). */
+  G.kantarTrust=0; G.publicImage=100; G.mediaHeat=0; G.violenceHeat=0; G.streetCredibility=0; G.streetHeat=0;
+  G.underworldIntro=null; if(typeof window._underworldEnsure==='function') window._underworldEnsure();
   G._lastForbesQuizDay=0;
   G._lastCoastPlazaDay=0;G._lastCoastPhotoshootDay=0;G._lastCoastSurfDay=0;G._lastCoastSpaDay=0;G._lastMarinaDay=0;
   G._lastCypherDay=0;G._lastMuralDay=0;G._lastSpeakeasyDay=0;G._lastSmolarniaDay=0;G._lastPiwnicaDay=0;G._lastSteakhouseDay=0;G._lastPRCampaignDay=0;
@@ -68472,6 +68526,7 @@ function loadGame(){
   /* v2.3.33: ROOT sanitacja list gracza po wczytaniu — uszkodzony save z null wpisami crashowal
      render apek/paneli (inventory/studioTracks/notifications/workers...) + trapInv/safes guard. */
   if(typeof window._sanitizePlayerLists==='function') window._sanitizePlayerLists();
+  if(typeof window._underworldEnsure==='function') window._underworldEnsure(); /* v2.3.38: save-safe init modułu „Numer zastrzeżony" — stary save = quest nierozpoczęty, ZERO wstecz */
   if(_oldFansObj){
     G.haters=_oldFansObj.haters||0;
     G.fans=(_oldFansObj.casual||0)+(_oldFansObj.hardcore||0);
@@ -69431,6 +69486,7 @@ function startGame(){
   const name=_rawName.length>=2?_rawName:'Traper'; /* fallback if pusty lub <2 chars */
   resetG();
   G._econVersion=2;
+  if(typeof window._underworldEnsure==='function') window._underworldEnsure(); /* v2.3.38: init stat modułu „Numer zastrzeżony" po resetG (nowa gra) */
   G.name=name;G.hair=creatorState.hair;G.cloth=creatorState.cloth;G.pants=creatorState.pants||'#1a2a3a';G.shoes=creatorState.shoes||'#0a0a0a';
   G.gender=creatorState.gender||'m'; /* v2.1.931 (Vegan): płeć gracza → awatar + treści */
   P.skin=creatorState.skin;P.hair=creatorState.hair;P.cloth=creatorState.cloth;P.pants=creatorState.pants||'#1a2a3a';P.shoes=creatorState.shoes||'#0a0a0a';P.gender=G.gender;
