@@ -262,6 +262,9 @@
       if (!Array.isArray(data)) throw new Error('Nieprawidłowy format danych');
       if (loadingEl) loadingEl.remove();
       prepare(data);
+      // Dynamiczny badge wersji — zawsze najnowszy wpis (nigdy się nie zestarzeje).
+      var _topVer = (data[0] && data[0].ver) ? data[0].ver : null;
+      if (_topVer) { var _vb = document.querySelectorAll('.badge-ver'); for (var _i = 0; _i < _vb.length; _i++) _vb[_i].textContent = _topVer; }
       buildFilters();
       initSearch();
       applyFilters();

@@ -136,8 +136,8 @@ function setupAutoUpdate(wc) {
   if (!app.isPackaged) return;
   try {
     const { autoUpdater } = require('electron-updater');
-    autoUpdater.autoDownload = true;
-    autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.autoDownload = true;          // pobiera w tle, GUI pokazuje postep
+    autoUpdater.autoInstallOnAppQuit = false; // NIE instaluj po cichu przy zamknieciu — tylko widocznie przez przycisk w oknie
     const send = (type, data) => { try { if (wc && !wc.isDestroyed()) wc.send('uw-update', Object.assign({ type }, data || {})); } catch (_) {} };
     autoUpdater.on('checking-for-update', () => send('checking'));
     autoUpdater.on('update-available', (info) => send('available', { version: info && info.version }));
@@ -153,7 +153,7 @@ function setupAutoUpdate(wc) {
     // Renderer prosi o restart+instalacje (przycisk „Uruchom ponownie") — raz zarejestrowany handler
     if (!setupAutoUpdate._ipcBound) {
       setupAutoUpdate._ipcBound = true;
-      ipcMain.on('uw-restart-install', () => { try { autoUpdater.quitAndInstall(); } catch (_) {} });
+      ipcMain.on('uw-restart-install', () => { try { autoUpdater.quitAndInstall(false, true); } catch (_) {} }); // false=NIE silent (pokaż instalator), true=uruchom po instalacji
     }
     autoUpdater.checkForUpdates(); // autoDownload=true → pobiera w tle; eventy lecą do GUI
   } catch (_) { /* electron-updater niedostepny — ignoruj */ }
