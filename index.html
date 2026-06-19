@@ -13318,6 +13318,8 @@ function handleAct(act,objId){
     if(typeof window._addLifestyleDebt==='function') window._addLifestyleDebt(2);
     window._striptizVipMG && window._striptizVipMG();
   } else if(act==='striptiz:bar'){
+    /* v2.3.38 moduł „Numer zastrzeżony" — Zadanie 1 (koperta z baru) przejmuje bar gdy test w toku */
+    if(typeof window._uwZ1Active==='function' && window._uwZ1Active()){ window._uwZ1Bar(); return; }
     if(typeof window._addLifestyleDebt==='function') window._addLifestyleDebt(2);
     window._striptizBarMG && window._striptizBarMG();
   } else if(act==='velvet:kantar'){
@@ -48870,6 +48872,36 @@ window._uwClubDeclineCalm=function(){
   window._underworldEnsure(); const u=G.underworldIntro;
   window._uwTag('refused_in_club_calm'); u.state='walked_away'; u.returnDay=(G.day||0)+(20+Math.floor(Math.random()*11)); u._clubUnlocked=false;
   window._uwShowDlg('Jeszcze. Ale dobrze. Lepiej wyjść, niż wejść i potem płakać, że za ciemno.',[{text:'Wychodzę',fn:()=>{closeNPCDlg(); if(typeof showMsg==='function')showMsg('🚪 Wyszedłeś spokojnie. Kantar może jeszcze wróci.','i',5500);}}]);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+/* ═══ TEST „Trzy ciche sprawy" — Zadanie 1 „Koperta z baru" (§9-Z1) ═══ */
+/* Aktywne gdy quest w trakcie testu i Z1 nierozwiązane. Intercept act striptiz:bar (adaptacja, bez nowego obiektu). */
+window._uwZ1Active=function(){ if(typeof window._underworldEnsure!=='function') return false; window._underworldEnsure(); const u=G.underworldIntro; return u.state==='testing' && !u.task.t1; };
+window._uwZ1Bar=function(){
+  window._underworldEnsure();
+  window._uwShowDlg('Podchodzisz do baru. „Zostawiłem tutaj portmonetkę" — rzucasz hasło. Barman bez słowa wsuwa ci zamkniętą kopertę. Masz ją zanieść do auta przed klubem i wrzucić do schowka. Nie otwierać.',[
+    {text:'Bierzesz kopertę, wychodzisz i wrzucasz do schowka — nie otwierasz.', fn:()=>window._uwZ1Resolve('clean')},
+    {text:'Zaglądasz do środka, zanim ją oddasz.', fn:()=>window._uwZ1Resolve('open')},
+    {text:'Olewasz temat — gubisz / zwlekasz z kopertą.', fn:()=>window._uwZ1Resolve('lost')},
+  ]);
+};
+window._uwZ1Resolve=function(res){
+  window._underworldEnsure(); const u=G.underworldIntro;
+  if(u.task.t1){ closeNPCDlg(); return; } /* anti-dbl: zadanie już rozwiązane */
+  u.task.t1=res;
+  if(res==='clean'){
+    window._uwAddStat('kantar_trust',8); window._uwAddStat('street_heat',1); u.digitalTrace=(u.digitalTrace||0)+1;
+    if(typeof earn==='function') earn(800,false); else { G.money=(G.money||0)+800; G.totalEarned=(G.totalEarned||0)+800; }
+    window._uwShowDlg('Zanosisz kopertę do auta, wrzucasz do schowka. Czysto. Telefon brzęczy: „Grzeczny chłopiec. 800 w kieszeni."',[{text:'(idziesz dalej)',fn:()=>{closeNPCDlg(); if(typeof showMsg==='function')showMsg('🛋️ Zadanie 1 zaliczone czysto (+800 zł). Następnie: obserwacja parkingu za klubem.','f',6500);}}]);
+  } else if(res==='open'){
+    window._uwAddStat('kantar_trust',-15); u.curiosityTrait=(u.curiosityTrait||0)+1; u.evidenceRisk=(u.evidenceRisk||0)+2;
+    /* Kantar komentuje (PDF §9-Z1) — wysyłamy w resolve, nie w przycisku, by zawsze doszło */
+    if(typeof window._smsSend==='function') window._smsSend('kantar','Ciekawość to nie inteligencja. To często tylko szybka droga do worka.',{bypass:true});
+    window._uwShowDlg('Otwierasz. Zdjęcie, jakiś rachunek, kartka z inicjałami. Nic konkretnego. Zaklejasz najlepiej jak umiesz i odnosisz do auta.',[{text:'(idziesz dalej)',fn:()=>{closeNPCDlg(); if(typeof showMsg==='function')showMsg('🛋️ Zadanie 1 zaliczone, ale otworzyłeś kopertę — to zostawia ślad. Następnie: obserwacja parkingu.','f',7000);}}]);
+  } else { /* lost */
+    window._uwAddStat('kantar_trust',-20); u.evidenceRisk=(u.evidenceRisk||0)+1;
+    window._uwShowDlg('Zwlekasz, odkładasz kopertę „na potem". Ktoś już o tym wie. To się nie spodoba.',[{text:'(idziesz dalej)',fn:()=>{closeNPCDlg(); if(typeof showMsg==='function')showMsg('🛋️ Spartoliłeś pierwsze zadanie — koperta przepadła. To może pogrążyć cały test.','r',7000);}}]);
+  }
   if(typeof saveGameSilent==='function') saveGameSilent();
 };
 /* Rysunek loży Kantara (aksamit + neon) i samej postaci (płaszcz, ciemna koszula, szklanka z lodem). */
