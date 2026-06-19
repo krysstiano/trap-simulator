@@ -48764,6 +48764,18 @@ window._underworldTick=function(){
     u._bReplyPending=false;
     window._smsSend('kantar','Ktoś, kto nie lubi pisać dwa razy. Przyjdź albo usuń wiadomość i wróć do noszenia pizzy.',{bypass:true});
   }
+  /* §12 — timeout: brak odpowiedzi na SMS przez 2h sesji realnej → Kantar znika (ignorowanie zaproszenia). */
+  if(u.state==='sms_sent' && u.smsMs && (Date.now()-u.smsMs)>=7200000){
+    u.state='ignored'; u.returnDay=(G.day||0)+(14+Math.floor(Math.random()*17)); window._uwTag('ignored_underworld_invite');
+    if(typeof saveGameSilent==='function') saveGameSilent();
+  }
+  /* §12 — alt-kontakt po 14-30 dniach gry: po odmowie/ignorowaniu/porażce Kantar może odezwać się ponownie
+     (mniej korzystnie). Reset do 'none' pozwala triggerowi wysłać ponowny SMS. Jednorazowo (_altOffered). blocked = NIGDY. */
+  if(['insulted','ignored','walked_away','failed'].includes(u.state) && u.returnDay && (G.day||0)>=u.returnDay && !u._altOffered){
+    u._altOffered=true; u._altLessFavorable=true; /* HOOK: mniej korzystny ponowny kontakt */
+    u.state='none'; if(G.sms&&G.sms._triggeredEvents) delete G.sms._triggeredEvents.numer_zastrzezony;
+    if(typeof saveGameSilent==='function') saveGameSilent();
+  }
 };
 /* Obsługa 4 wyborów po SMS-ie (§5). Wierne teksty + skutki (curiosity/patience/insulted/blocked). */
 window._uwSmsChoice=function(opt){
@@ -48881,7 +48893,8 @@ window._uwOfferPick=function(opt){
     window._uwShowDlg('Trzy ciche sprawy. Koperta z baru, oczy na parkingu i jeden dłużnik po koncercie. Nic, co rozsypie ci życie — jeśli nie jesteś idiotą.',[{text:'(wracasz do tematu)',fn:window._uwKantarOffer}]);
   } else if(opt==='refuse'){
     window._uwShowDlg('To nie rób. Tylko pamiętaj: w tym mieście światło świeci głównie na tych, którzy już przegrali.',[
-      {text:'„To nie mój świat i nie moja bajka…” (wyjdź)', fn:window._uwClubDeclineCalm},
+      {text:'„To nie mój świat i nie moja bajka…” (spokojnie wyjdź)', fn:window._uwClubDeclineCalm},
+      {text:'„Nie robię dla brudnych ludzi z loży.” (obraźliwie)', fn:window._uwClubDeclineRude},
       {text:'(jednak zostań i słuchaj)', fn:window._uwKantarOffer},
     ]);
   }
@@ -48898,6 +48911,14 @@ window._uwClubDeclineCalm=function(){
   window._underworldEnsure(); const u=G.underworldIntro;
   window._uwTag('refused_in_club_calm'); u.state='walked_away'; u.returnDay=(G.day||0)+(20+Math.floor(Math.random()*11)); u._clubUnlocked=false;
   window._uwShowDlg('Jeszcze. Ale dobrze. Lepiej wyjść, niż wejść i potem płakać, że za ciemno.',[{text:'Wychodzę',fn:()=>{closeNPCDlg(); if(typeof showMsg==='function')showMsg('🚪 Wyszedłeś spokojnie. Kantar może jeszcze wróci.','i',5500);}}]);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+/* §12 — obraźliwa odmowa w klubie: kontakt spalony na długo + drożej przy ewentualnym powrocie. */
+window._uwClubDeclineRude=function(){
+  window._underworldEnsure(); const u=G.underworldIntro;
+  window._uwAddStat('kantar_trust',-25); u.futurePriceMult=Math.max(u.futurePriceMult||1, 1.10); /* HOOK: future_underworld_prices +10% */
+  window._uwTag('insulted_kantar'); u.state='insulted'; u.returnDay=(G.day||0)+30; u._clubUnlocked=false;
+  window._uwShowDlg('Zwyczajnie jeszcze nie wiesz, dla kogo robisz, Młody... I to jest twój problem.',[{text:'Wychodzę',fn:()=>{closeNPCDlg(); if(typeof showMsg==='function')showMsg('🔥 Spaliłeś kontakt na długo. Półświatek będzie Cię traktować chłodniej.','r',6500);}}]);
   if(typeof saveGameSilent==='function') saveGameSilent();
 };
 /* ═══ POWRÓT DO KANTARA (§10-11-13-15) — ocena testu + nagrody + 4 ścieżki + kontakt w telefonie ═══ */
@@ -48992,11 +49013,22 @@ window._uwFinalizeIntro=function(){
   window._underworldEnsure(); const u=G.underworldIntro;
   G._underworldIntroCompleted=true; u.smallJobsUnlocked=true; /* HOOK: drobne zlecenia (realny moduł = przyszły PDF) */
   try{ if(typeof SMS_CONTACTS!=='undefined' && SMS_CONTACTS.kantar) SMS_CONTACTS.kantar.name='Roch „Kantar” Nawrot'; }catch(_e){}
+  /* §14 — POWIĄZANIA Z PRZYSZŁYMI MODUŁAMI (HOOKI, nie realne moduły — przyszłe PDF):
+     • gangi terytorialne → flaga u.gangIntroAvailable (ścieżka B). Kantar kieruje do kapitana dzielnicy.
+     • chop-shop → przyszły moduł (znajomy mechanik); brak realnego kodu, tylko zapowiedź dialogowa.
+     • legalny front / pranie → częściowo istnieje (narko D2 launderAssets); Kantar zapowiada „faktury".
+     • muzyka jako parawan → systemowo: brutalne wybory↑infamy, czyste�↔public_image, wysoki media_heat
+       blokuje sponsorów/booking (hook do systemu sponsorów — realne wpięcie = przyszły moduł).
+     underworldAccess / ambitionFlag / smallJobsUnlocked = punkty zaczepienia dla kolejnych modułów. */
   if(u._laterSmsSent) return; u._laterSmsSent=true;
   const r=u._result;
   const msg = r==='brutal' ? 'Niczym Uber! Tylko następnym razem mniej teatru, chłopcze. Nie jesteś jeszcze legendą. Jesteś kosztem, a koszty mogą się zwracać.'
     : 'Pięknie. Nie idealnie, ale pięknie. Idealni ludzie kłamią, albo są dwa metry pod ziemią. Odezwę się, jeśli coś się dla Ciebie znajdzie.';
   if(typeof window._smsSend==='function') window._smsSend('kantar',msg,{bypass:true});
+  /* §14 zapowiedź gangu — tylko ścieżka B (gangIntroAvailable). Hook do przyszłego modułu dzielnic. */
+  if(u.pathChosen==='B' && typeof window._smsSend==='function'){
+    window._smsSend('kantar','Ktoś z dzielnicy może się do Ciebie odezwać. Nie dzwoń pierwszy. Jak się odezwie „Sierżant" albo „Bryła" — to ode mnie.',{bypass:true});
+  }
 };
 /* ═══ TEST „Trzy ciche sprawy" — Zadanie 1 „Koperta z baru" (§9-Z1) ═══ */
 /* Aktywne gdy quest w trakcie testu i Z1 nierozwiązane. Intercept act striptiz:bar (adaptacja, bez nowego obiektu). */
