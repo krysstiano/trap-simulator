@@ -19052,6 +19052,9 @@ window._underworldEnsure=function(){
   G.publicImage=Math.max(0,Math.min(100,G.publicImage));
   G.mediaHeat=Math.max(0,G.mediaHeat); G.violenceHeat=Math.max(0,G.violenceHeat);
   G.streetHeat=Math.max(0,G.streetHeat); G.streetCredibility=Math.max(0,G.streetCredibility);
+  /* Sync nazwy kontaktu w telefonie wg stanu (SMS_CONTACTS to runtime const — mutacja nie przeżywa reloadu,
+     więc odtwarzamy ją z save'a tutaj): „Numer zastrzeżony" → „Roch Kantar Nawrot" po ukończeniu questa. */
+  try{ if(typeof SMS_CONTACTS!=='undefined' && SMS_CONTACTS.kantar) SMS_CONTACTS.kantar.name=(u.state==='completed')?'Roch „Kantar” Nawrot':'Numer zastrzeżony'; }catch(_e){}
 };
 /* Centralny aplikator efektów stat z PDF (klamp + ADAPTACJA aliasów). Używany przez dialogi/zadania (TIER 4+). */
 window._uwAddStat=function(key,delta){
@@ -48842,7 +48845,7 @@ window._uwKantarOpening=function(){
 window._uwOpenPick=function(opt){
   window._underworldEnsure(); const u=G.underworldIntro;
   if(u._openingPicked) return; /* anti-farm: jednorazowy wybór otwierający */
-  if(opt!=='D') u._openingPicked=true;
+  if(opt!=='D'){ u._openingPicked=true; u._openingChoice=opt; } /* zapamiętaj ton (C=arogancki → ścieżka C TIER8) */
   if(opt==='A'){
     window._uwAddStat('kantar_trust',5);
     window._uwShowDlg('Dobrze. Nie głupi. Jeszcze nie wiem, czy mądry, ale nie głupi.',[{text:'(słuchasz dalej)',fn:window._uwKantarOffer}]);
@@ -48896,6 +48899,104 @@ window._uwClubDeclineCalm=function(){
   window._uwTag('refused_in_club_calm'); u.state='walked_away'; u.returnDay=(G.day||0)+(20+Math.floor(Math.random()*11)); u._clubUnlocked=false;
   window._uwShowDlg('Jeszcze. Ale dobrze. Lepiej wyjść, niż wejść i potem płakać, że za ciemno.',[{text:'Wychodzę',fn:()=>{closeNPCDlg(); if(typeof showMsg==='function')showMsg('🚪 Wyszedłeś spokojnie. Kantar może jeszcze wróci.','i',5500);}}]);
   if(typeof saveGameSilent==='function') saveGameSilent();
+};
+/* ═══ POWRÓT DO KANTARA (§10-11-13-15) — ocena testu + nagrody + 4 ścieżki + kontakt w telefonie ═══ */
+/* Klasyfikacja wyniku testu: porażka / brutalnie-ale-skutecznie / czysto. */
+window._uwClassify=function(){
+  window._underworldEnsure(); const u=G.underworldIntro; const t=u.task;
+  const failed = t.t1==='lost' || t.t2==='ignored' || (t.t3==='lied'&&u._liedCaught) || (G.kantarTrust||0)<0;
+  if(failed) return 'failed';
+  if(t.t3==='hard' || t.t3==='aggro') return 'brutal';
+  return 'clean';
+};
+window._uwKantarReturn=function(){
+  window._underworldEnsure(); const u=G.underworldIntro;
+  if(u.state==='completed'){
+    window._uwShowDlg('Numer masz. Jak coś się dla Ciebie znajdzie — odezwę się. Teraz idź, nie rób tłumu przy stoliku.',[{text:'Wychodzę',fn:closeNPCDlg}]); return;
+  }
+  if(!u._result) u._result=window._uwClassify();
+  /* wznowienie po przerwaniu w połowie (nagroda już dana, ścieżka jeszcze nie wybrana) */
+  if(u._rewardGiven){ if(u._result==='failed'){ closeNPCDlg(); } else { window._uwPathChoice(); } return; }
+  const r=u._result;
+  const txt = r==='clean' ? 'Można? Można... Bez krzyku, płaczu, bez robienia z siebie kukły po dwóch shotach... Twoje wynagrodzenie. I numer. Pieniędzy możesz jutro nie mieć, a numer zostanie.'
+    : r==='brutal' ? 'Dowiozłeś. Tylko narobiłeś burdelu, że pół miasta mogłoby kupić na to bilet. Tacy jak Ty zarabiają szybko. Za to też szybko kończą jako temat dla prawników.'
+    : 'Wiesz, co jest najgorsze? Każdy coś czasem zjebie. Najgorsze jest to, że się wyeksponowałeś.';
+  window._uwShowDlg(txt,[{text:r==='failed'?'(przyjmujesz reprymendę)':'(odbierasz numer)',fn:window._uwApplyReward}]);
+};
+window._uwApplyReward=function(){
+  window._underworldEnsure(); const u=G.underworldIntro;
+  if(u._rewardGiven){ if(u._result!=='failed') window._uwPathChoice(); else closeNPCDlg(); return; }
+  u._rewardGiven=true;
+  const r=u._result, R=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+  if(r==='clean'){
+    const zl=R(5000,8000); u.reward=zl; window._uwAddStat('dirty_cash',zl);
+    window._uwAddStat('kantar_trust',20); window._uwAddStat('street_respect',3); window._uwAddStat('infamy',1);
+    window._uwAddStat('street_heat',2); window._uwAddStat('street_credibility',3);
+    if(typeof updateHUD==='function')updateHUD();
+    window._uwShowDlg(`Bierzesz kopertę z kasą (${zl.toLocaleString('pl')} zł) i numer. „Numer jest ważniejszy" — powtarzasz w głowie.`,[{text:'(dalej)',fn:window._uwPathChoice}]);
+  } else if(r==='brutal'){
+    const zl=R(7000,10000); u.reward=zl; window._uwAddStat('dirty_cash',zl);
+    window._uwAddStat('street_respect',6); window._uwAddStat('street_credibility',6); window._uwAddStat('infamy',5);
+    window._uwAddStat('media_heat',3); window._uwAddStat('violence_heat',3); window._uwAddStat('kantar_trust',5); window._uwAddStat('public_image',-2);
+    if(typeof updateHUD==='function')updateHUD();
+    window._uwShowDlg(`Dostajesz grubszą kopertę (${zl.toLocaleString('pl')} zł) — i numer. Ale czujesz, że odbiło się to echem szerzej, niż chciałeś.`,[{text:'(dalej)',fn:window._uwPathChoice}]);
+  } else { /* failed */
+    const zl=Math.random()<0.5?R(500,1000):0; u.reward=zl; if(zl>0) window._uwAddStat('dirty_cash',zl);
+    window._uwAddStat('kantar_trust',-20); window._uwAddStat('street_heat',R(3,8));
+    u.state='failed'; u.returnDay=(G.day||0)+14; window._uwTag('failed_first_test');
+    const loud = (u.task.t3==='aggro' || u.task.t2==='ignored');
+    if(loud){ window._uwAddStat('media_heat',R(2,5)); window._uwAddStat('infamy',2); window._uwAddStat('public_image',-3); }
+    else { window._uwAddStat('stress',5); }
+    /* późniejszy SMS §15 po porażce */
+    if(typeof window._smsSend==='function') window._smsSend('kantar','Pierwsza zasada: jak już coś pierdolisz, to nie rób z tego wydarzenia kulturalnego. Zniknij, wyparuj. Może mi przejdzie. Albo i nie…',{bypass:true});
+    if(typeof updateHUD==='function')updateHUD();
+    window._uwShowDlg(zl>0?`„Masz na taksówkę" — rzuca ${zl} zł. Numeru nie dostajesz. Kantar znika na jakiś czas.`:'Nie dostajesz nic poza radą, żeby zniknąć. Kantar znika na jakiś czas.',[{text:'Wychodzę',fn:()=>{closeNPCDlg(); if(typeof showMsg==='function')showMsg('💔 Test oblany. Kantar zniknął na ~14 dni gry.','r',6500);}}]);
+  }
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+window._uwPathChoice=function(){
+  window._underworldEnsure();
+  window._uwShowDlg('Numer masz. Teraz słuchaj, bo to powiem raz. Jak chcesz, możemy się dogadać dalej.',[
+    {text:'„Wolę tylko drobne roboty — koperty, obserwacje, przewózki.”', fn:()=>window._uwPathPick('A')},
+    {text:'„Chcę poznać ludzi z dzielnicy.”', fn:()=>window._uwPathPick('B')},
+    {text:'„Robota zrobiona, kasa wzięta. Dalej w to nie idę.”', fn:()=>window._uwPathPick('C')},
+    {text:'„Potrzebuję teraz czegoś większego.”', fn:()=>window._uwPathPick('D')},
+  ]);
+};
+window._uwPathPick=function(p){
+  window._underworldEnsure(); const u=G.underworldIntro;
+  if(u.pathChosen){ closeNPCDlg(); return; } /* anti-dbl */
+  u.pathChosen=p;
+  let reply='';
+  if(p==='A'){
+    u.underworldAccess=Math.max(u.underworldAccess||0,1); u.gangCommitment=0; window._uwAddStat('kantar_trust',5); window._uwAddStat('street_credibility',2);
+    reply='Możesz dla mnie robić małe rzeczy. Koperty, obserwacje, przewózki, rozmowy. Bez deklaracji. Bez barw. Tylko robota i wynagrodzenie.';
+  } else if(p==='B'){
+    u.underworldAccess=2; u.gangIntroAvailable=true; window._uwAddStat('street_credibility',5); window._uwAddStat('infamy',3); window._uwAddStat('violence_heat',2);
+    reply='Są ludzie, którzy trzymają kilka ulic. Mogę Cię wyeksponować. Reszta zależy od tego, czy nie jesteś z papieru.';
+  } else if(p==='C'){
+    const arrogant = (u._openingChoice==='C' || u.task.t3==='aggro');
+    window._uwAddStat('kantar_trust', arrogant?-5:2); u._noJobsUntil=(G.day||0)+(10+Math.floor(Math.random()*11));
+    reply='Najlepsza i najgorsza zarazem decyzja... Najlepsza, bo jeszcze śpisz spokojnie. Najgorsza, bo teraz już wiesz, gdzie są drzwi.';
+  } else { /* D */
+    u.ambitionFlag=true; window._uwAddStat('kantar_trust',-5);
+    reply='Lekcja numer jeden: ludzie, którzy chcą za szybko, zwykle są za tani, żeby opłacało się ich ratować...';
+  }
+  u.state='completed'; u.completed=true;
+  window._uwFinalizeIntro();
+  window._uwShowDlg(reply,[{text:'(koniec rozmowy)',fn:()=>{closeNPCDlg(); if(typeof showMsg==='function')showMsg('📵 Kontakt „Kantar" zapisany w telefonie. Wstęp do półświatka za Tobą.','f',7000);}}]);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+/* Finalizacja: odblokuj kontakt/ksywę, ustaw flagę completed, wyślij późniejszy SMS §15. */
+window._uwFinalizeIntro=function(){
+  window._underworldEnsure(); const u=G.underworldIntro;
+  G._underworldIntroCompleted=true; u.smallJobsUnlocked=true; /* HOOK: drobne zlecenia (realny moduł = przyszły PDF) */
+  try{ if(typeof SMS_CONTACTS!=='undefined' && SMS_CONTACTS.kantar) SMS_CONTACTS.kantar.name='Roch „Kantar” Nawrot'; }catch(_e){}
+  if(u._laterSmsSent) return; u._laterSmsSent=true;
+  const r=u._result;
+  const msg = r==='brutal' ? 'Niczym Uber! Tylko następnym razem mniej teatru, chłopcze. Nie jesteś jeszcze legendą. Jesteś kosztem, a koszty mogą się zwracać.'
+    : 'Pięknie. Nie idealnie, ale pięknie. Idealni ludzie kłamią, albo są dwa metry pod ziemią. Odezwę się, jeśli coś się dla Ciebie znajdzie.';
+  if(typeof window._smsSend==='function') window._smsSend('kantar',msg,{bypass:true});
 };
 /* ═══ TEST „Trzy ciche sprawy" — Zadanie 1 „Koperta z baru" (§9-Z1) ═══ */
 /* Aktywne gdy quest w trakcie testu i Z1 nierozwiązane. Intercept act striptiz:bar (adaptacja, bez nowego obiektu). */
