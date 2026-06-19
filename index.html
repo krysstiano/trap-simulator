@@ -3256,6 +3256,9 @@ const ROOMS = {
       {id:'npc_sguest2',    wx:650, wy:420, w:34, h:56,  act:null, prompt:'', lbl:''},
       {id:'npc_sguest3',    wx:880, wy:400, w:34, h:56,  act:null, prompt:'', lbl:''},
       {id:'striptiz_dj',    wx:560, wy:470, w:120, h:80,  act:null, prompt:'', lbl:'DJ'},
+      /* v2.3.38 moduł „Numer zastrzeżony" — loża Kantara (prawa ściana, dolny róż; zero-overlap: VIP kończy y280, gość3 x914, gap >100px). Widoczne TYLKO gdy quest aktywny (_kantarPresent — gating w drawObjects/getNear, analog npc_fan/hof_statue). */
+      {id:'velvet_loza',    wx:1060,wy:392, w:140, h:108, act:'velvet:kantar', prompt:'[E] 🛋️ Loża w neonie — podejdź', lbl:'Loża'},
+      {id:'npc_kantar',     wx:1112,wy:404, w:34,  h:56,  act:null, prompt:'', lbl:''},
       {id:'exit_striptiz',  wx:600, wy:590, w:64, h:62,  act:'goto:ulica:1255:3120', prompt:'[E] Wyjście', lbl:'Wyjście'},
     ]
   },
@@ -3558,6 +3561,8 @@ function drawObjects(room){
   for(const obj of room.objects){
     // NPC fan only visible when player has fans
     if(obj.id==='npc_fan'&&(G.fans||0)<10) continue;
+    /* v2.3.38: Kantar + loża widoczni TYLKO gdy quest aktywny (analog npc_fan) */
+    if((obj.id==='velvet_loza'||obj.id==='npc_kantar') && !(typeof window._kantarPresent==='function'&&window._kantarPresent())) continue;
     const sx=wx2sx(obj.wx),sy=wy2sy(obj.wy);
     // Clipping uwzględnia szerokość obiektu — dla długich ścian (np. wall_h2b lux: 1480px)
     // sam sx nie wystarczy: lewa krawędź może być daleko poza ekranem, a prawa wciąż widoczna.
@@ -3784,6 +3789,8 @@ function drawSprite(id,sx,sy,w,h){
     case 'npc_dancer1': case 'npc_dancer2': drawStripDancer(sx,sy,w,h,id);break;
     case 'npc_barman2':    drawBarman(sx,sy,w,h);break;
     case 'npc_sguest1': case 'npc_sguest2': case 'npc_sguest3': drawCasinoGuest(sx,sy,w,h,id);break;
+    case 'velvet_loza':    drawVelvetLoza(sx,sy,w,h);break; /* v2.3.38 moduł „Numer zastrzeżony" */
+    case 'npc_kantar':     drawKantar(sx,sy,w,h);break;
     case 'exit_striptiz':  drawInteriorExit(sx,sy,w,h);break;
     case 'merch_studio': drawBuilding(sx,sy,w,h,'#3a1a2a','Studio Merch','#e91e63','🧢',true,{commercial:true});break;
     case 'merch_designer': drawMerchDesignerObj(sx,sy,w,h);break;
@@ -13050,6 +13057,7 @@ function getNear(){
   // Budynki mają priorytet nad NPC — dwa przebiegi
   // Przebieg 1: tylko budynki (wejście do budynku ważniejsze niż dialog NPC)
   for(const obj of room.objects){
+    if(obj.id==='velvet_loza' && !(typeof window._kantarPresent==='function'&&window._kantarPresent())) continue; /* v2.3.38: loża Kantara tylko gdy quest aktywny */
     const isParkObj=['fountain','pond','skate','bboying','freestyle_spot','apt2_fountain'].includes(obj.id);
     const isDecorOnly=!obj.act || obj.id.startsWith('park_lamp')||obj.id.startsWith('park_bush')||obj.id==='park_trash';
     const isBuilding=obj.w>60&&obj.h>60&&!obj.id.startsWith('npc_')&&!isParkObj&&!isDecorOnly;
@@ -13312,6 +13320,10 @@ function handleAct(act,objId){
   } else if(act==='striptiz:bar'){
     if(typeof window._addLifestyleDebt==='function') window._addLifestyleDebt(2);
     window._striptizBarMG && window._striptizBarMG();
+  } else if(act==='velvet:kantar'){
+    /* v2.3.38 moduł „Numer zastrzeżony" — podejście do loży Kantara (dialog §7/§8) */
+    if(typeof window._uwKantarMeet==='function') window._uwKantarMeet();
+    return;
   } else if(act.startsWith('gym:')){
     const parts=act.split(':');
     const t=parts[1];
@@ -48761,6 +48773,125 @@ window._uwSmsChoice=function(opt){
   if(typeof saveGameSilent==='function') saveGameSilent();
   if(typeof window.renderSMSConversation==='function') window.renderSMSConversation('kantar');
 };
+/* ═══ MODUŁ „Numer zastrzeżony" — Kantar w Velvet Room: obecność + dialog §7 (otwierający) + §8 (oferta) ═══ */
+/* Kantar obecny w loży tylko gdy quest aktywny (gating drawObjects/getNear — analog npc_fan/hof_statue, #7). */
+window._kantarPresent=function(){ if(!G.underworldIntro) return false; return ['accepted','at_club','meeting','testing','returned'].includes(G.underworldIntro.state); };
+/* Imię: gracz zna go jako „Nieznany" do ukończenia questa (PDF §16). */
+window._uwKantarName=function(){ return (G.underworldIntro&&G.underworldIntro.state==='completed')?'Roch „Kantar” Nawrot':'Nieznany'; };
+/* Renderer dialogu reużywający okna #npc-dlg (jak openNPCDialogue, ale bez cooldownów — wybory fabularne). */
+window._uwShowDlg=function(text,opts){
+  const dlg=document.getElementById('npc-dlg'); if(!dlg) return;
+  dlg.dataset.emoji='🕴️';
+  const nm=document.getElementById('npc-dlg-name'); if(nm) nm.textContent=window._uwKantarName();
+  const tx=document.getElementById('npc-dlg-text'); if(tx) tx.textContent='"'+text+'"';
+  const od=document.getElementById('npc-dlg-opts'); if(od){ od.innerHTML=''; (opts||[]).forEach(o=>{ const b=document.createElement('button'); b.className='npc-opt'; b.textContent=o.text; b.onclick=o.fn; od.appendChild(b); }); }
+  dlg.classList.add('on');
+};
+/* Wejście do loży (act velvet:kantar) — routuje wg stanu questa. */
+window._uwKantarMeet=function(){
+  if(typeof window._underworldEnsure!=='function') return;
+  window._underworldEnsure(); const u=G.underworldIntro;
+  if(u.state==='testing'){
+    if(typeof window._uwTestStatusDlg==='function'){ window._uwTestStatusDlg(); return; }
+    window._uwShowDlg('Masz zadanie. Wróć, jak będzie zrobione.',[{text:'Wychodzę',fn:closeNPCDlg}]); return;
+  }
+  if(u.state==='returned'){
+    if(typeof window._uwKantarReturn==='function'){ window._uwKantarReturn(); return; }
+    window._uwShowDlg('Pogadamy za chwilę.',[{text:'Wychodzę',fn:closeNPCDlg}]); return;
+  }
+  if(u.state==='accepted'||u.state==='at_club'){ u.state='meeting'; }
+  /* anti-farm: dialog otwierający (z gainami stat) tylko RAZ; potem od razu oferta */
+  if(u._openingPicked){ window._uwKantarOffer(); return; }
+  window._uwKantarOpening();
+};
+/* §7 — dialog otwierający, 4 opcje (ostrożna/agresywna/arogancka/wycofanie). */
+window._uwKantarOpening=function(){
+  window._underworldEnsure();
+  window._uwShowDlg('Siadaj. Nie stój jak słup przy wojewódzkiej. Wiesz, dlaczego Cię tu zaprosiłem?',[
+    {text:'„Nie. Ale skoro masz mój numer, to pewnie zdążyłeś sobie odpowiedzieć za mnie.”', fn:()=>window._uwOpenPick('A')},
+    {text:'„Mów konkretnie, bo nie przyszedłem tu pić z obcym typem po północy.”', fn:()=>window._uwOpenPick('B')},
+    {text:'„Pewnie słyszałeś, że zaczynam robić ruch w mieście.”', fn:()=>window._uwOpenPick('C')},
+    {text:'„Nie jestem zainteresowany.”', fn:()=>window._uwOpenPick('D')},
+  ]);
+};
+window._uwOpenPick=function(opt){
+  window._underworldEnsure(); const u=G.underworldIntro;
+  if(u._openingPicked) return; /* anti-farm: jednorazowy wybór otwierający */
+  if(opt!=='D') u._openingPicked=true;
+  if(opt==='A'){
+    window._uwAddStat('kantar_trust',5);
+    window._uwShowDlg('Dobrze. Nie głupi. Jeszcze nie wiem, czy mądry, ale nie głupi.',[{text:'(słuchasz dalej)',fn:window._uwKantarOffer}]);
+  } else if(opt==='B'){
+    window._uwAddStat('street_respect',2); window._uwAddStat('kantar_trust',1); u.harderTest=(u.harderTest||0)+5;
+    window._uwShowDlg('Jednak przyszedłeś. I właśnie spożywasz moje powietrze. Ale lubię ludzi, którzy się nie ślinią do stołu.',[{text:'(słuchasz dalej)',fn:window._uwKantarOffer}]);
+  } else if(opt==='C'){
+    window._uwAddStat('kantar_trust',-5); window._uwAddStat('infamy',1); u.harderTest=(u.harderTest||0)+5;
+    window._uwShowDlg('Ruch robi tramwaj. Ty na razie stoisz w miejscu.',[{text:'(słuchasz dalej)',fn:window._uwKantarOffer}]);
+  } else if(opt==='D'){
+    window._uwTag('walked_away'); u.state='walked_away'; u.returnDay=(G.day||0)+(20+Math.floor(Math.random()*11)); u._clubUnlocked=false;
+    window._uwShowDlg('Hmm… Powiem tak, szanuję ludzi, którzy wiedzą, czego nie chcą. Wyjście jest tam, gdzie było.',[{text:'Wychodzę',fn:()=>{closeNPCDlg(); if(typeof showMsg==='function')showMsg('🚪 Kantar zniknął z klubu. Może wróci, jeśli zyskasz sławę lub uliczny respekt (≥80).','i',6500);}}]);
+  }
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+/* §8 — oferta Kantara, 4 opcje (akceptacja/stawka/konkrety/odmowa-bez-obrazy). */
+window._uwKantarOffer=function(){
+  window._underworldEnsure();
+  window._uwShowDlg('Nie szukam żołnierza. Żołnierze są tani, głośni i szybko idą siedzieć. Szukam człowieka, który potrafi zrobić trzy proste rzeczy i nie zamienić ich w paradę debili. Jak dowieziesz temat, dostaniesz pieniądze i numer. Numer jest ważniejszy niż pieniądze, ale to zrozumiesz później.',[
+    {text:'„A więc, co trzeba zrobić?”', fn:window._uwOfferAccept},
+    {text:'„No dobra, ale ile za to płacisz?”', fn:()=>window._uwOfferPick('pay')},
+    {text:'„Najpierw konkrety, potem decyzja.”', fn:()=>window._uwOfferPick('details')},
+    {text:'„Nie robię nic w ciemno.”', fn:()=>window._uwOfferPick('refuse')},
+  ]);
+};
+window._uwOfferPick=function(opt){
+  window._underworldEnsure(); const u=G.underworldIntro;
+  if(opt==='pay'){
+    u._negotiated=true;
+    window._uwShowDlg('Widzisz… To jest najuczciwsze pytanie. Zajebiście brudne, ale uczciwe.',[{text:'(wracasz do tematu)',fn:window._uwKantarOffer}]);
+  } else if(opt==='details'){
+    if(!u._detailsGiven){ window._uwAddStat('kantar_trust',3); u._detailsGiven=true; } /* anti-farm: +3 raz */
+    window._uwShowDlg('Trzy ciche sprawy. Koperta z baru, oczy na parkingu i jeden dłużnik po koncercie. Nic, co rozsypie ci życie — jeśli nie jesteś idiotą.',[{text:'(wracasz do tematu)',fn:window._uwKantarOffer}]);
+  } else if(opt==='refuse'){
+    window._uwShowDlg('To nie rób. Tylko pamiętaj: w tym mieście światło świeci głównie na tych, którzy już przegrali.',[
+      {text:'„To nie mój świat i nie moja bajka…” (wyjdź)', fn:window._uwClubDeclineCalm},
+      {text:'(jednak zostań i słuchaj)', fn:window._uwKantarOffer},
+    ]);
+  }
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+window._uwOfferAccept=function(){
+  window._underworldEnsure(); const u=G.underworldIntro;
+  u.state='testing';
+  window._uwShowDlg('Pierwsza sprawa: podejdź do baru i powiedz, że zostawiłeś tu portmonetkę. Barman da ci kopertę. Nie otwierasz. Zanosisz do auta przed klubem, do schowka. Tyle.',[{text:'Rozumiem',fn:()=>{closeNPCDlg(); if(typeof showMsg==='function')showMsg('🛋️ Test „Trzy ciche sprawy" rozpoczęty. Zadanie 1: koperta z baru.','f',6500);}}]);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+/* §12 — spokojna odmowa w klubie (możliwy powrót). Pełna obsługa odmów/timeout = TIER 9. */
+window._uwClubDeclineCalm=function(){
+  window._underworldEnsure(); const u=G.underworldIntro;
+  window._uwTag('refused_in_club_calm'); u.state='walked_away'; u.returnDay=(G.day||0)+(20+Math.floor(Math.random()*11)); u._clubUnlocked=false;
+  window._uwShowDlg('Jeszcze. Ale dobrze. Lepiej wyjść, niż wejść i potem płakać, że za ciemno.',[{text:'Wychodzę',fn:()=>{closeNPCDlg(); if(typeof showMsg==='function')showMsg('🚪 Wyszedłeś spokojnie. Kantar może jeszcze wróci.','i',5500);}}]);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+/* Rysunek loży Kantara (aksamit + neon) i samej postaci (płaszcz, ciemna koszula, szklanka z lodem). */
+function drawVelvetLoza(sx,sy,w,h){
+  X.save();
+  X.fillStyle='#1a0a1f'; X.fillRect(sx,sy,w,h);
+  X.strokeStyle='#9b59b6'; X.lineWidth=2; X.shadowColor='#c39bd3'; X.shadowBlur=12; X.strokeRect(sx+2,sy+2,w-4,h-4); X.shadowBlur=0;
+  X.fillStyle='#3a1530'; X.beginPath(); X.moveTo(sx+12,sy+h-12); X.lineTo(sx+12,sy+34); X.quadraticCurveTo(sx+w/2,sy+12,sx+w-12,sy+34); X.lineTo(sx+w-12,sy+h-12); X.closePath(); X.fill();
+  X.fillStyle='#5a2545'; X.fillRect(sx+12,sy+h-24,w-24,12);
+  X.fillStyle='#241019'; X.beginPath(); X.ellipse(sx+w/2,sy+h-24,22,9,0,0,Math.PI*2); X.fill();
+  X.fillStyle='#e91e8c'; X.font='bold 9px sans-serif'; X.textAlign='center'; X.shadowColor='#e91e8c'; X.shadowBlur=8; X.fillText('VELVET',sx+w/2,sy+20); X.shadowBlur=0; X.textAlign='left';
+  X.restore();
+}
+function drawKantar(sx,sy,w,h){
+  X.save();
+  X.fillStyle='#15151a'; X.fillRect(sx+4,sy+18,w-8,h-18);
+  X.fillStyle='#0d0d12'; X.fillRect(sx+8,sy+22,w-16,h-22);
+  X.fillStyle='#c8a583'; X.beginPath(); X.arc(sx+w/2,sy+12,9,0,Math.PI*2); X.fill();
+  X.fillStyle='#2a2a2a'; X.beginPath(); X.arc(sx+w/2,sy+9,9,Math.PI,Math.PI*2); X.fill();
+  X.fillStyle='#a8d8e8'; X.fillRect(sx+w-7,sy+30,5,8);
+  X.restore();
+}
 window._smsCheckTriggers=function(){
   _ensureSMS();
   if(typeof window._underworldCheckTrigger==='function') window._underworldCheckTrigger();
