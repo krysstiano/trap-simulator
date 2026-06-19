@@ -55002,6 +55002,7 @@ function togglePause(){
         <div style="font-size:11px;color:#556;margin-bottom:14px;font-style:italic">Czas, głód, energia i postęp stoją w miejscu.</div>
         <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
           <button onclick="togglePause()" style="background:#0a3a1a;border:1px solid #27ae60;color:#7ec87e;padding:11px 28px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:700">▶ Wznów  ·  Esc</button>
+          <button onclick="if(window._openGameSettings)window._openGameSettings()" style="background:#0a1f3a;border:1px solid #3498db;color:#9fd0f5;padding:11px 28px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:700">⚙️ Ustawienia</button>
           <button onclick="returnToMenu()" style="background:#3a0a1a;border:1px solid #c01020;color:#f4a097;padding:11px 28px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:700">🏠 Powrót do menu</button>
         </div>
         <div style="font-size:10px;color:#556;margin-top:10px">Powrót do menu zapisuje grę automatycznie.</div>
@@ -55623,6 +55624,14 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.40',date:'2026-06-19',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'⚙️ Ustawienia grafiki i efektów (ESC) — render scale, FPS, wygładzanie, shadery',
+ items:[
+ {t:'feature',d:'⚙️ Pod ESC (Pauza → Ustawienia) jest teraz panel ustawień jak w prawdziwych grach, z zakładkami Wideo i Efekty. Wszystko działa od razu i zapisuje się na Twoim urządzeniu.'},
+ {t:'feature',d:'🖥️ Wideo: Skala renderowania (50-150% — niżej daje płynniejszą grę na słabszym sprzęcie, wyżej ostrzejszy obraz), Limit FPS (30/60/120/bez limitu — oszczędza prąd i CPU) oraz Wygładzanie krawędzi (Wył/FXAA/MSAA). To realne ustawienia, nie atrapy — naprawdę zmieniają rozdzielczość renderowania i wydajność.'},
+ {t:'feature',d:'✨ Efekty / Shadery: filtr kolorów (Noir, Ciepły, Zimny, Żywy, Cyberpunk), Poświata (Bloom) dla neonów, Winieta, Skanlinie CRT i Ziarno filmowe. Każdy efekt można włączać/wyłączać osobno i nadać grze własny klimat. W wersji przeglądarkowej i desktop działa tak samo.'},
+ ],
+ },
  {
  ver:'v2.3.39',date:'2026-06-19',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'🔄 Okienko aktualizacji w aplikacji desktop (pasek pobierania + restart)',
  items:[
@@ -74346,6 +74355,11 @@ function startRoomFade(id,wx,wy){
 // ═══════════════════════════════════════════════════════════════════
 function loop(){
   try{
+  /* v2.3.40 USTAWIENIA WIDEO: limit FPS (frame-skip) */
+  if(window._gfxFpsInterval){ const _n=Date.now(); if(window._gfxLastFrame && (_n-window._gfxLastFrame)<window._gfxFpsInterval){ requestAnimationFrame(loop); return; } window._gfxLastFrame=_n; }
+  /* render scale: bazowy transform (kamera save/restore nestuje się w nim) + wygładzanie egzekwowane co klatkę */
+  const _gfxRs=window._gfxRenderScale||1; X.setTransform(_gfxRs,0,0,_gfxRs,0,0);
+  if(window._gfxSmoothing!==undefined){ X.imageSmoothingEnabled=(window._gfxSmoothing!=='off'); if(window._gfxSmoothQ) X.imageSmoothingQuality=window._gfxSmoothQ; }
   X.clearRect(0,0,1280,720);
   const menuEl=document.getElementById('menu');
   const isMenu=menuEl.style.display==='flex'||menuEl.style.display==='';
@@ -76033,6 +76047,129 @@ loop();
   };
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', window._uwUpdateInit);
   else window._uwUpdateInit();
+})();
+</script>
+<script>
+/* ═══ USTAWIENIA WIDEO/GRAFIKA + SHADERY (ESC → Pauza → ⚙️ Ustawienia) v2.3.40 ═══
+   Realny wpływ na render canvasu #gc (X): render scale (backing res), limit FPS (gate w loop),
+   wygładzanie (imageSmoothing), oraz post-FX „shadery" przez CSS/SVG filtry + overlaye.
+   Ustawienia per-urzadzenie (osobny localStorage 'snowy_gfx', NIE w save gry). */
+(function(){
+  var KEY='snowy_gfx';
+  var DEF={ renderScale:1, fpsLimit:0, smoothing:'high', colorGrade:'none', bloom:false, vignette:false, scanlines:false, grain:false };
+  /* presety filtra koloru (CSS filter — realny GPU post-process) */
+  var GRADES={
+    none:'', noir:'grayscale(1) contrast(1.12)', cieply:'sepia(.34) saturate(1.32) brightness(1.03)',
+    zimny:'hue-rotate(-12deg) saturate(1.15) brightness(1.02) contrast(1.05)', zywy:'saturate(1.55) contrast(1.08)',
+    cyberpunk:'saturate(1.65) hue-rotate(8deg) contrast(1.14) brightness(1.05)'
+  };
+  var GRADE_NAMES={none:'Brak',noir:'Noir (cz-b)',cieply:'Ciepły',zimny:'Zimny',zywy:'Żywy',cyberpunk:'Cyberpunk'};
+  function load(){ var s={}; try{ s=JSON.parse(localStorage.getItem(KEY)||'{}')||{}; }catch(_){ s={}; } var o={}; for(var k in DEF) o[k]=(s[k]!==undefined)?s[k]:DEF[k]; return o; }
+  function save(s){ try{ localStorage.setItem(KEY, JSON.stringify(s)); }catch(_){ } }
+  window._gfxGet=load;
+  /* Definicje SVG (bloom) + kontener overlayów — tworzone raz, w #wrap by skalowały się z grą. */
+  function _ensureGfxDom(){
+    if(!document.getElementById('uw-gfx-svg')){
+      var svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+      svg.id='uw-gfx-svg'; svg.setAttribute('width','0'); svg.setAttribute('height','0');
+      svg.style.cssText='position:absolute;width:0;height:0;pointer-events:none';
+      svg.innerHTML='<defs><filter id="uw-bloom" x="-20%" y="-20%" width="140%" height="140%">'
+        +'<feGaussianBlur in="SourceGraphic" stdDeviation="2.2" result="b"/>'
+        +'<feColorMatrix in="b" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1.4 0" result="bb"/>'
+        +'<feMerge><feMergeNode in="bb"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
+      document.body.appendChild(svg);
+    }
+    var wrap=document.getElementById('wrap'); if(!wrap) return;
+    var ov=document.getElementById('uw-gfx-overlays');
+    if(!ov){
+      ov=document.createElement('div'); ov.id='uw-gfx-overlays';
+      ov.style.cssText='position:absolute;left:0;top:0;width:1280px;height:720px;pointer-events:none;z-index:6;overflow:hidden';
+      ov.innerHTML='<div id="uw-fx-vignette" style="position:absolute;inset:0;display:none;background:radial-gradient(ellipse at center,transparent 52%,rgba(0,0,0,.55) 100%)"></div>'
+        +'<div id="uw-fx-scan" style="position:absolute;inset:0;display:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0px,rgba(0,0,0,.16) 1px,transparent 2px,transparent 3px);mix-blend-mode:multiply"></div>'
+        +'<div id="uw-fx-grain" style="position:absolute;inset:0;display:none;opacity:.06;background-image:url(\'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%22120%22><filter id=%22n%22><feTurbulence type=%22fractalNoise%22 baseFrequency=%220.9%22 numOctaves=%222%22/></filter><rect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23n)%22/></svg>\');background-size:180px 180px"></div>';
+      wrap.appendChild(ov);
+    }
+    return ov;
+  }
+  /* Aplikacja ustawień — REALNY wpływ. */
+  window._applyGfxSettings=function(s){
+    s=s||load();
+    var C=document.getElementById('gc'); if(!C) return;
+    /* 1) Render scale — zmiana backing-res canvasu (mniej pikseli=szybciej/miękko, wiecej=ostro/drozej). CSS display 1280x720 zablokowany. */
+    var rs=Math.max(0.5,Math.min(1.5, +s.renderScale||1));
+    window._gfxRenderScale=rs;
+    var bw=Math.round(1280*rs), bh=Math.round(720*rs);
+    if(C.width!==bw||C.height!==bh){ C.width=bw; C.height=bh; }
+    C.style.width='1280px'; C.style.height='720px';
+    /* 2) Limit FPS — gate w loop() */
+    window._gfxFpsInterval = (s.fpsLimit>0)?(1000/s.fpsLimit):0;
+    /* 3) Wygładzanie (imageSmoothing) — loop() egzekwuje co klatke */
+    window._gfxSmoothing = s.smoothing; // 'off'|'fxaa'|'high'
+    window._gfxSmoothQ = (s.smoothing==='high')?'high':(s.smoothing==='fxaa'?'low':'low');
+    /* 4) Shadery: CSS/SVG filtr na canvasie (kolor + bloom) */
+    _ensureGfxDom();
+    var f=[]; if(s.bloom) f.push('url(#uw-bloom)'); if(GRADES[s.colorGrade]) f.push(GRADES[s.colorGrade]);
+    C.style.filter=f.join(' ');
+    /* 5) Overlaye post-FX */
+    var vg=document.getElementById('uw-fx-vignette'), sc=document.getElementById('uw-fx-scan'), gr=document.getElementById('uw-fx-grain');
+    if(vg) vg.style.display=s.vignette?'block':'none';
+    if(sc) sc.style.display=s.scanlines?'block':'none';
+    if(gr) gr.style.display=s.grain?'block':'none';
+    save(s);
+  };
+  /* ── Overlay ustawień (tabs Wideo/Efekty) ── */
+  function _row(label,desc,controlHtml){
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 4px;border-bottom:1px solid #1a2535">'
+      +'<div style="flex:1;min-width:0"><div style="color:#dfe7f0;font-size:13px;font-weight:600">'+label+'</div>'
+      +(desc?'<div style="color:#6a7a8a;font-size:10.5px;margin-top:2px">'+desc+'</div>':'')+'</div>'
+      +'<div style="flex-shrink:0">'+controlHtml+'</div></div>';
+  }
+  function _seg(id,opts,cur){ /* segmented buttons */
+    return '<div data-seg="'+id+'" style="display:inline-flex;border:1px solid #2a3a52;border-radius:8px;overflow:hidden">'
+      +opts.map(function(o){ var on=String(o.v)===String(cur); return '<button data-v="'+o.v+'" style="background:'+(on?'#27ae60':'#0e1726')+';color:'+(on?'#04210f':'#aac')+';border:none;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">'+o.l+'</button>'; }).join('')+'</div>';
+  }
+  function _tog(id,on){ return '<button data-tog="'+id+'" style="width:54px;height:26px;border-radius:14px;border:1px solid '+(on?'#27ae60':'#3a4a5a')+';background:'+(on?'#1e7e44':'#1a2535')+';position:relative;cursor:pointer"><span style="position:absolute;top:2px;'+(on?'right:3px':'left:3px')+';width:18px;height:18px;border-radius:50%;background:'+(on?'#bff0d0':'#7a8a9a')+';transition:all .15s"></span></button>'; }
+  window._openGameSettings=function(tab){
+    var s=load(); tab=tab||window._gfxTab||'wideo'; window._gfxTab=tab;
+    document.getElementById('gfx-settings')?.remove();
+    var ov=document.createElement('div'); ov.id='gfx-settings';
+    ov.style.cssText='position:absolute;inset:0;z-index:60;background:rgba(4,8,16,.82);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;font-family:inherit';
+    var tabBtn=function(id,label){ var on=tab===id; return '<button data-tab="'+id+'" style="background:'+(on?'#16263c':'transparent')+';color:'+(on?'#7ec8e3':'#7a8a9a')+';border:none;border-bottom:2px solid '+(on?'#7ec8e3':'transparent')+';padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">'+label+'</button>'; };
+    var body='';
+    if(tab==='wideo'){
+      body=_row('Skala renderowania','Niżej = płynniej (mniej pikseli), wyżej = ostrzej.',_seg('renderScale',[{v:0.5,l:'50%'},{v:0.75,l:'75%'},{v:1,l:'100%'},{v:1.25,l:'125%'},{v:1.5,l:'150%'}],s.renderScale))
+        +_row('Limit FPS','Ogranicza klatki — oszczędza prąd/CPU.',_seg('fpsLimit',[{v:30,l:'30'},{v:60,l:'60'},{v:120,l:'120'},{v:0,l:'Bez limitu'}],s.fpsLimit))
+        +_row('Wygładzanie krawędzi','Antyaliasing skalowanych grafik.',_seg('smoothing',[{v:'off',l:'Wył'},{v:'fxaa',l:'FXAA'},{v:'high',l:'MSAA'}],s.smoothing));
+    } else {
+      body=_row('Filtr kolorów','Korekcja barwna całego obrazu (shader).',_seg('colorGrade',[{v:'none',l:'Brak'},{v:'noir',l:'Noir'},{v:'cieply',l:'Ciepły'},{v:'zimny',l:'Zimny'},{v:'zywy',l:'Żywy'},{v:'cyberpunk',l:'Cyber'}],s.colorGrade))
+        +_row('Poświata (Bloom)','Świetlisty blask jasnych miejsc i neonów.',_tog('bloom',s.bloom))
+        +_row('Winieta','Przyciemnione rogi ekranu — kinowy klimat.',_tog('vignette',s.vignette))
+        +_row('Skanlinie (CRT)','Retro efekt starego monitora.',_tog('scanlines',s.scanlines))
+        +_row('Ziarno filmowe','Subtelny szum jak na taśmie.',_tog('grain',s.grain));
+    }
+    ov.innerHTML='<div style="width:560px;max-width:94vw;max-height:88vh;overflow:auto;background:#0a0f1a;border:2px solid #2a3a52;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.6)">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #1a2535"><div style="font-size:17px;font-weight:900;color:#fff;letter-spacing:1px">⚙️ USTAWIENIA</div>'
+      +'<button id="gfx-close" style="background:#2a1015;border:1px solid #c0392b;color:#f4a097;padding:6px 14px;border-radius:8px;cursor:pointer;font-weight:700;font-family:inherit">✕ Zamknij (Esc)</button></div>'
+      +'<div style="display:flex;gap:2px;padding:0 12px;border-bottom:1px solid #1a2535">'+tabBtn('wideo','🖥️ Wideo')+tabBtn('efekty','✨ Efekty / Shadery')+'</div>'
+      +'<div style="padding:8px 18px 4px">'+body+'</div>'
+      +'<div style="padding:10px 18px 16px;display:flex;justify-content:space-between;gap:10px">'
+      +'<button id="gfx-reset" style="background:#1a2535;border:1px solid #3a4a5a;color:#9ab;padding:9px 16px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px">↺ Domyślne</button>'
+      +'<div style="font-size:10.5px;color:#566;align-self:center;text-align:right">Dźwięk: w telefonie → Ustawienia.<br>Zmiany działają od razu i zapisują się.</div></div></div>';
+    (document.getElementById('wrap')||document.body).appendChild(ov);
+    /* interakcje */
+    ov.querySelectorAll('[data-seg]').forEach(function(seg){ seg.querySelectorAll('button').forEach(function(b){ b.onclick=function(){ var k=seg.getAttribute('data-seg'); var v=b.getAttribute('data-v'); var cur=load(); cur[k]=(k==='renderScale'||k==='fpsLimit')?(+v):v; window._applyGfxSettings(cur); window._openGameSettings(tab); }; }); });
+    ov.querySelectorAll('[data-tog]').forEach(function(b){ b.onclick=function(){ var k=b.getAttribute('data-tog'); var cur=load(); cur[k]=!cur[k]; window._applyGfxSettings(cur); window._openGameSettings(tab); }; });
+    ov.querySelectorAll('[data-tab]').forEach(function(b){ b.onclick=function(){ window._openGameSettings(b.getAttribute('data-tab')); }; });
+    ov.querySelector('#gfx-close').onclick=window._closeGameSettings;
+    ov.querySelector('#gfx-reset').onclick=function(){ var d={}; for(var k in DEF) d[k]=DEF[k]; window._applyGfxSettings(d); window._openGameSettings(tab); };
+  };
+  window._closeGameSettings=function(){ document.getElementById('gfx-settings')?.remove(); };
+  window._gameSettingsOpen=function(){ return !!document.getElementById('gfx-settings'); };
+  /* ESC zamyka okno ustawień (capture, zanim kaskada ESC zrobi cokolwiek innego) */
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape' && window._gameSettingsOpen()){ e.stopImmediatePropagation(); window._closeGameSettings(); } }, true);
+  /* Aplikacja na starcie */
+  function _init(){ try{ window._applyGfxSettings(load()); }catch(_){ } }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_init); else _init();
 })();
 </script>
 </body>
