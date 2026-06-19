@@ -3261,6 +3261,8 @@ const ROOMS = {
       {id:'npc_kantar',     wx:1112,wy:404, w:34,  h:56,  act:null, prompt:'', lbl:''},
       /* v2.3.38 Z2 — tylne wejście na parking (obserwacja); widoczne tylko gdy Z2 aktywne (_uwZ2Active). Lewy-dolny róg, gap od baru (y265). */
       {id:'velvet_parking', wx:100, wy:430, w:150, h:104, act:'velvet:parking', prompt:'[E] 🚬 Tyły klubu — parking (obserwacja)', lbl:'Parking'},
+      /* v2.3.38 Z3 — NPC OKRESOWY Brokat (promotor-dłużnik); widoczny tylko gdy Z3 aktywne (_uwZ3Active). Między sceną (x820) a VIP (x1000), gap >50px. */
+      {id:'npc_brokat',     wx:870, wy:150, w:40,  h:60,  act:'velvet:brokat', prompt:'[E] 🕺 Promotor „Brokat" — pogadaj', lbl:'Brokat'},
       {id:'exit_striptiz',  wx:600, wy:590, w:64, h:62,  act:'goto:ulica:1255:3120', prompt:'[E] Wyjście', lbl:'Wyjście'},
     ]
   },
@@ -3567,6 +3569,8 @@ function drawObjects(room){
     if((obj.id==='velvet_loza'||obj.id==='npc_kantar') && !(typeof window._kantarPresent==='function'&&window._kantarPresent())) continue;
     /* v2.3.38: wejście na parking (Z2) tylko gdy Z2 aktywne */
     if(obj.id==='velvet_parking' && !(typeof window._uwZ2Active==='function'&&window._uwZ2Active())) continue;
+    /* v2.3.38: Brokat (Z3) — NPC okresowy, tylko gdy Z3 aktywne (znika po misji) */
+    if(obj.id==='npc_brokat' && !(typeof window._uwZ3Active==='function'&&window._uwZ3Active())) continue;
     const sx=wx2sx(obj.wx),sy=wy2sy(obj.wy);
     // Clipping uwzględnia szerokość obiektu — dla długich ścian (np. wall_h2b lux: 1480px)
     // sam sx nie wystarczy: lewa krawędź może być daleko poza ekranem, a prawa wciąż widoczna.
@@ -3796,6 +3800,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'velvet_loza':    drawVelvetLoza(sx,sy,w,h);break; /* v2.3.38 moduł „Numer zastrzeżony" */
     case 'npc_kantar':     drawKantar(sx,sy,w,h);break;
     case 'velvet_parking': drawVelvetParkingDoor(sx,sy,w,h);break;
+    case 'npc_brokat':     drawBrokat(sx,sy,w,h);break;
     case 'exit_striptiz':  drawInteriorExit(sx,sy,w,h);break;
     case 'merch_studio': drawBuilding(sx,sy,w,h,'#3a1a2a','Studio Merch','#e91e63','🧢',true,{commercial:true});break;
     case 'merch_designer': drawMerchDesignerObj(sx,sy,w,h);break;
@@ -13109,6 +13114,7 @@ function getNear(){
        Bez tego guardu pusty plac podświetlał się + pokazywał prompt + łapał [E] = niewidzialny ghost (reguła #7).
        Pomijamy w wykrywaniu dopóki nieodblokowana — spójnie z rysowaniem i interakcją. */
     if(obj.id==='hof_statue'&&!G._hasHallOfFameStatue) continue;
+    if(obj.id==='npc_brokat' && !(typeof window._uwZ3Active==='function'&&window._uwZ3Active())) continue; /* v2.3.38: Brokat tylko w oknie Z3 */
     if(!obj.act) continue; // pomiń dekoracyjne (lampy, krzewy, kosz)
     const isParkObj=['fountain','pond','skate','bboying','freestyle_spot','apt2_fountain'].includes(obj.id);
     const isDecorOnly=!obj.act || obj.id.startsWith('park_lamp')||obj.id.startsWith('park_bush')||obj.id==='park_trash';
@@ -13335,6 +13341,10 @@ function handleAct(act,objId){
   } else if(act==='velvet:parking'){
     /* v2.3.38 Z2 — minigra obserwacji parkingu */
     if(typeof window._uwZ2ParkingMG==='function') window._uwZ2ParkingMG();
+    return;
+  } else if(act==='velvet:brokat'){
+    /* v2.3.38 Z3 — dialog z Brokatem (dłużnik) */
+    if(typeof window._uwBrokatDialog==='function') window._uwBrokatDialog();
     return;
   } else if(act.startsWith('gym:')){
     const parts=act.split(':');
@@ -48804,8 +48814,11 @@ window._uwKantarMeet=function(){
   if(typeof window._underworldEnsure!=='function') return;
   window._underworldEnsure(); const u=G.underworldIntro;
   if(u.state==='testing'){
-    if(typeof window._uwTestStatusDlg==='function'){ window._uwTestStatusDlg(); return; }
-    window._uwShowDlg('Masz zadanie. Wróć, jak będzie zrobione.',[{text:'Wychodzę',fn:closeNPCDlg}]); return;
+    if(u.task.t1 && u.task.t2 && u.task.t3){ /* wszystkie 3 zadania zrobione → powrót/ocena (TIER 8) */
+      if(typeof window._uwKantarReturn==='function'){ window._uwKantarReturn(); return; }
+      window._uwShowDlg('Zrobione? Siadaj. (ocena testu — wkrótce)',[{text:'OK',fn:closeNPCDlg}]); return;
+    }
+    window._uwShowDlg('Masz robotę. Wróć, jak wszystko będzie zrobione — koperta, parking i ten dłużnik.',[{text:'Wychodzę',fn:closeNPCDlg}]); return;
   }
   if(u.state==='returned'){
     if(typeof window._uwKantarReturn==='function'){ window._uwKantarReturn(); return; }
@@ -49017,6 +49030,64 @@ function drawVelvetParkingDoor(sx,sy,w,h){
   X.strokeStyle='#c0392b'; X.lineWidth=2; X.shadowColor='#e74c3c'; X.shadowBlur=8; X.strokeRect(sx+2,sy+2,w-4,h-4); X.shadowBlur=0;
   X.fillStyle='#0a0a10'; X.fillRect(sx+w/2-18,sy+h-46,36,46); /* drzwi */
   X.fillStyle='#c0392b'; X.font='bold 11px sans-serif'; X.textAlign='center'; X.fillText('TYŁY · P',sx+w/2,sy+22); X.textAlign='left';
+  X.restore();
+}
+/* ═══ TEST — Zadanie 3 „Dług po koncercie" (§9-Z3) — NPC OKRESOWY Damian „Brokat" Lesicki ═══ */
+/* Promotor zalegający kasą ludziom Kantara. Dialog 4 opcje. NPC widoczny tylko w oknie zadania (gated). */
+window._uwZ3Active=function(){ if(typeof window._underworldEnsure!=='function') return false; window._underworldEnsure(); const u=G.underworldIntro; return u.state==='testing' && !!u.task.t1 && !!u.task.t2 && !u.task.t3; };
+window._uwBrokatDialog=function(){
+  window._underworldEnsure();
+  const dlg=document.getElementById('npc-dlg'); if(!dlg) return;
+  dlg.dataset.emoji='🕺';
+  const nm=document.getElementById('npc-dlg-name'); if(nm) nm.textContent='Damian „Brokat” Lesicki';
+  const tx=document.getElementById('npc-dlg-text'); if(tx) tx.textContent='"Nie znam cię. Jak chcesz wejściówkę, to napisz do mnie na Insta."';
+  const od=document.getElementById('npc-dlg-opts'); if(od){ od.innerHTML='';
+    const opts=[
+      {text:'„Nie po wejściówkę. Masz niedomknięty temat z ludźmi z Velvet. Przypominam, zanim ktoś zrobi to mniej kulturalnie.”', fn:()=>window._uwZ3Pick('soft')},
+      {text:'„Nie jestem komornikiem. Masz oddać, co wisisz — następna rozmowa nie odbędzie się przy barze.”', fn:()=>window._uwZ3Pick('hard')},
+      {text:'„Wyskakuj kurwa z kasy albo zaraz skrócę Ci ten event w 3 sekundy.”', fn:()=>window._uwZ3Pick('aggro')},
+      {text:'(Odpuść i skłam Kantarowi, że było załatwione.)', fn:()=>window._uwZ3Pick('lied')},
+    ];
+    opts.forEach(o=>{ const b=document.createElement('button'); b.className='npc-opt'; b.textContent=o.text; b.onclick=o.fn; od.appendChild(b); });
+  }
+  dlg.classList.add('on');
+};
+window._uwZ3Pick=function(opt){
+  window._underworldEnsure(); const u=G.underworldIntro;
+  if(u.task.t3){ closeNPCDlg(); return; } /* anti-dbl */
+  u.task.t3=opt;
+  let reply='', sub='';
+  if(opt==='soft'){
+    window._uwAddStat('kantar_trust',8); window._uwAddStat('street_heat',1);
+    reply='„Spokojnie, spokojnie. Oddam. Powiedz im, że to nieporozumienie."'; sub='🛋️ Załatwione kulturalnie. Wróć do loży Kantara.';
+  } else if(opt==='hard'){
+    window._uwAddStat('street_respect',4); window._uwAddStat('infamy',2); window._uwAddStat('violence_heat',2);
+    reply='„Dobra, dobra. Bez nerwów. Jutro wszystko gra."'; sub='🛋️ Twardo, ale skutecznie. Wróć do loży Kantara.';
+  } else if(opt==='aggro'){
+    window._uwAddStat('infamy',5); window._uwAddStat('media_heat',3); window._uwAddStat('public_image',-3); window._uwAddStat('kantar_trust',-2);
+    reply='„Dobra! Jezu, weź wyluzuj, ludzie patrzą..."'; sub='🛋️ Narobiłeś szumu. Wróć do loży Kantara.';
+  } else { /* lied */
+    window._uwAddStat('stress',10); window._uwTag('lied_to_kantar');
+    const caught = Math.random()<0.2;
+    u._liedCaught=caught;
+    if(caught){ window._uwAddStat('kantar_trust',-20); }
+    reply='(Mijasz Brokata bez słowa. Powiesz Kantarowi, że temat zamknięty.)'; sub=caught?'🛋️ Coś czujesz, że to był zły pomysł... Wróć do loży.':'🛋️ Na razie nikt nie wie. Wróć do loży Kantara.';
+  }
+  const dlg=document.getElementById('npc-dlg');
+  const tx=document.getElementById('npc-dlg-text'); if(tx) tx.textContent='"'+reply+'"';
+  const od=document.getElementById('npc-dlg-opts'); if(od){ od.innerHTML=''; const b=document.createElement('button'); b.className='npc-opt'; b.textContent='(odchodzisz)'; b.onclick=()=>{ closeNPCDlg(); if(typeof showMsg==='function') showMsg(sub,'f',6500); }; od.appendChild(b); }
+  if(dlg) dlg.classList.add('on');
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+/* Rysunek Brokata — krzykliwy promotor (złoty łańcuch, jaskrawa kurtka, okulary). */
+function drawBrokat(sx,sy,w,h){
+  X.save();
+  X.fillStyle='#7a1fa0'; X.fillRect(sx+4,sy+18,w-8,h-18); /* jaskrawa kurtka */
+  X.fillStyle='#111'; X.fillRect(sx+8,sy+22,w-16,h-22); /* podkoszulek */
+  X.fillStyle='#f1c40f'; X.fillRect(sx+w/2-6,sy+24,12,3); /* złoty łańcuch */
+  X.fillStyle='#d8b48a'; X.beginPath(); X.arc(sx+w/2,sy+12,9,0,Math.PI*2); X.fill(); /* głowa */
+  X.fillStyle='#222'; X.fillRect(sx+w/2-7,sy+9,14,4); /* okulary */
+  X.fillStyle='#3a2a1a'; X.beginPath(); X.arc(sx+w/2,sy+8,9,Math.PI,Math.PI*2); X.fill(); /* włosy */
   X.restore();
 }
 /* Rysunek loży Kantara (aksamit + neon) i samej postaci (płaszcz, ciemna koszula, szklanka z lodem). */
