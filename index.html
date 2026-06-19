@@ -55625,6 +55625,13 @@ function showHelp(){
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
  {
+ ver:'v2.3.41',date:'2026-06-19',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'🖥️ Instalator: wybór skrótów (pulpit + menu Start) + ładniejsze, animowane okno aktualizacji',
+ items:[
+ {t:'feature',d:'🖥️ Instalator pokazuje teraz wyraźne opcje do zaznaczenia: „Utwórz skrót na pulpicie" oraz „Utwórz skrót w menu Start" — obie domyślnie włączone. Sam decydujesz, czy chcesz skróty, tak jak w normalnych instalatorach.'},
+ {t:'feature',d:'🔄 Okno aktualizacji w aplikacji desktop jest teraz ładniejsze i animowane: wjeżdża z dołu, pulsuje ikona i delikatna poświata, pasek pobierania ma animowany efekt, a po pobraniu przycisk „Uruchom ponownie, by zainstalować" pulsuje, żebyś wiedział że aktualizacja jest gotowa. Widać wyraźnie postęp wgrywania.'},
+ ],
+ },
+ {
  ver:'v2.3.40',date:'2026-06-19',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'⚙️ Ustawienia grafiki i efektów (ESC) — render scale, FPS, wygładzanie, shadery',
  items:[
  {t:'feature',d:'⚙️ Pod ESC (Pauza → Ustawienia) jest teraz panel ustawień jak w prawdziwych grach, z zakładkami Wideo i Efekty. Wszystko działa od razu i zapisuje się na Twoim urządzeniu.'},
@@ -75994,18 +76001,34 @@ loop();
 (function(){
   function _uwFmtMB(b){ return (Math.max(0,b||0)/1048576).toFixed(1)+' MB'; }
   /* Pojedyncza karta — tworzona leniwie, dół-lewo (SMS popup jest w dół-prawo, brak kolizji). */
+  function _uwUpdStyle(){
+    if(document.getElementById('uw-upd-style')) return;
+    var st=document.createElement('style'); st.id='uw-upd-style';
+    st.textContent='@keyframes uwUpdIn{from{transform:translateY(24px) scale(.96);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}'
+      +'@keyframes uwUpdPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}'
+      +'@keyframes uwUpdGlow{0%,100%{box-shadow:0 8px 30px rgba(39,174,96,.30),0 0 0 1px rgba(0,0,0,.4)}50%{box-shadow:0 8px 40px rgba(46,204,113,.65),0 0 0 1px rgba(0,0,0,.4)}}'
+      +'@keyframes uwUpdShimmer{0%{background-position:-180px 0}100%{background-position:180px 0}}'
+      +'@keyframes uwUpdBtn{0%,100%{box-shadow:0 0 0 0 rgba(46,204,113,.55)}50%{box-shadow:0 0 0 6px rgba(46,204,113,0)}}'
+      +'#uw-update-card{animation:uwUpdIn .42s cubic-bezier(.34,1.4,.64,1),uwUpdGlow 2.4s ease-in-out infinite}'
+      +'#uw-update-card.uw-done{border-color:#2ecc71}'
+      +'#uw-upd-emoji.uw-spin{animation:uwUpdPulse 1.1s ease-in-out infinite}'
+      +'#uw-upd-bar{background-image:linear-gradient(90deg,#1e9e54,#2ecc71,#9ff5c0,#2ecc71,#1e9e54);background-size:180px 100%;animation:uwUpdShimmer 1.1s linear infinite}'
+      +'#uw-upd-btn.uw-attn{animation:uwUpdBtn 1.6s ease-in-out infinite}';
+    (document.head||document.documentElement).appendChild(st);
+  }
   function _uwUpdCard(){
     var el=document.getElementById('uw-update-card');
     if(el) return el;
+    _uwUpdStyle();
     el=document.createElement('div'); el.id='uw-update-card';
-    el.style.cssText='position:fixed;left:14px;bottom:96px;z-index:245;width:300px;max-width:88vw;background:linear-gradient(160deg,rgba(10,16,30,.98),rgba(16,12,30,.98));border:2px solid #27ae60;border-left:5px solid #27ae60;border-radius:14px;padding:12px 14px;box-shadow:0 8px 30px rgba(39,174,96,.33),0 0 0 1px rgba(0,0,0,.4);font-family:inherit;display:none;pointer-events:all';
+    el.style.cssText='position:fixed;left:14px;bottom:96px;z-index:245;width:312px;max-width:88vw;background:linear-gradient(160deg,rgba(10,16,30,.98),rgba(16,12,30,.98));border:2px solid #27ae60;border-left:5px solid #27ae60;border-radius:14px;padding:13px 15px;font-family:inherit;display:none;pointer-events:all';
     el.innerHTML='<div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">'
-      +'<span id="uw-upd-emoji" style="font-size:22px">🔄</span>'
+      +'<span id="uw-upd-emoji" class="uw-spin" style="font-size:22px;display:inline-block">🔄</span>'
       +'<div style="flex:1;min-width:0"><div id="uw-upd-title" style="color:#7ee89e;font-weight:800;font-size:13px">Aktualizacja</div>'
       +'<div id="uw-upd-sub" style="color:#aac;font-size:11px;margin-top:1px"></div></div>'
       +'<span id="uw-upd-x" style="color:#7a8a9a;cursor:pointer;font-size:16px;line-height:1;padding:2px 4px" title="Ukryj">✕</span></div>'
-      +'<div id="uw-upd-barwrap" style="height:8px;background:rgba(255,255,255,.08);border-radius:6px;overflow:hidden;margin:4px 0 8px;display:none">'
-      +'<div id="uw-upd-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#27ae60,#2ecc71);transition:width .25s;border-radius:6px"></div></div>'
+      +'<div id="uw-upd-barwrap" style="height:9px;background:rgba(255,255,255,.08);border-radius:6px;overflow:hidden;margin:4px 0 9px;display:none">'
+      +'<div id="uw-upd-bar" style="height:100%;width:0%;transition:width .3s ease;border-radius:6px"></div></div>'
       +'<button id="uw-upd-btn" style="display:none;width:100%;background:linear-gradient(135deg,#27ae60,#1e9e54);border:none;color:#04210f;font-weight:800;padding:10px;border-radius:8px;cursor:pointer;font-size:13px">🔁 Uruchom ponownie, by zainstalować</button>';
     (document.body||document.documentElement).appendChild(el);
     el.querySelector('#uw-upd-x').onclick=function(){ el.style.display='none'; };
@@ -76022,20 +76045,23 @@ loop();
     var barwrap=card.querySelector('#uw-upd-barwrap'), bar=card.querySelector('#uw-upd-bar'), btn=card.querySelector('#uw-upd-btn');
     var ver=data.version?(' v'+data.version):'';
     if(type==='available'){
-      emoji.textContent='🔄'; title.textContent='Dostępna aktualizacja'+ver;
+      emoji.textContent='🔄'; emoji.classList.add('uw-spin'); card.classList.remove('uw-done'); btn.classList.remove('uw-attn');
+      title.textContent='Dostępna aktualizacja'+ver;
       sub.textContent='Pobieram w tle…'; barwrap.style.display='block'; bar.style.width='3%'; btn.style.display='none';
       card.style.display='block';
     } else if(type==='progress'){
       var pct=Math.max(0,Math.min(100,Math.round(data.percent||0)));
-      emoji.textContent='⬇️'; title.textContent='Pobieram aktualizację';
+      emoji.textContent='⬇️'; emoji.classList.add('uw-spin'); card.classList.remove('uw-done'); btn.classList.remove('uw-attn');
+      title.textContent='Pobieram aktualizację';
       var spd=data.bytesPerSecond?(' · '+_uwFmtMB(data.bytesPerSecond)+'/s'):'';
       sub.textContent=pct+'%'+(data.total?(' ('+_uwFmtMB(data.transferred)+' / '+_uwFmtMB(data.total)+')'):'')+spd;
       barwrap.style.display='block'; bar.style.width=pct+'%'; btn.style.display='none';
       card.style.display='block';
     } else if(type==='downloaded'){
-      emoji.textContent='✅'; title.textContent='Aktualizacja'+ver+' gotowa';
+      emoji.textContent='✅'; emoji.classList.remove('uw-spin'); card.classList.add('uw-done');
+      title.textContent='Aktualizacja'+ver+' gotowa';
       sub.textContent='Zainstaluje się po ponownym uruchomieniu.'; barwrap.style.display='block'; bar.style.width='100%';
-      btn.style.display='block'; card.style.display='block';
+      btn.style.display='block'; btn.classList.add('uw-attn'); card.style.display='block';
     }
   };
   /* Subskrypcja eventów z main (idempotentna). Tylko w Electronie. */
