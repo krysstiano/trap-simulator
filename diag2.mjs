@@ -1,0 +1,15 @@
+import { chromium } from 'playwright';
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const gameFile = 'file:///' + path.join(__dirname, 'index.html').replace(/\\/g, '/');
+const browser = await chromium.launch({ headless: true });
+const page = await browser.newPage();
+await page.setViewportSize({ width: 1280, height: 720 });
+const jsErrors = [];
+page.on('pageerror', err => jsErrors.push({msg: err.message, stack: err.stack}));
+page.on('console', msg => { if(msg.type()==='error') jsErrors.push({msg: 'CONSOLE: '+msg.text()}); });
+await page.goto(gameFile);
+await page.waitForTimeout(3000);
+console.log('JS Errors:', JSON.stringify(jsErrors, null, 2));
+await browser.close();

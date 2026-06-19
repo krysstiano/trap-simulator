@@ -1,0 +1,67 @@
+{
+  "name": "trap-simulator",
+  "version": "2.3.34",
+  "description": "Trap Simulator — aplikacja desktop (Electron) ladujaca gre z game/index.html",
+  "main": "main.js",
+  "author": "Snowy Dev",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "prepare-game": "node tools/prepare.js",
+    "gen-icon": "electron tools/gen-icon.js",
+    "dist": "npm run prepare-game && electron-builder",
+    "pack": "npm run prepare-game && electron-builder --dir"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.snowydev.trapsimulator",
+    "productName": "Trap Simulator",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "krysstiano",
+        "repo": "trap-simulator"
+      }
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "icon.png",
+      "game/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Trap Simulator"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "build/icon.png",
+      "category": "public.app-category.games"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "build/icon.png",
+      "category": "Game"
+    }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  }
+}
