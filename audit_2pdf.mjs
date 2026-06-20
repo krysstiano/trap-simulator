@@ -916,6 +916,21 @@ try{
     if(!(p3q.gain>0 && p3q.claimedAfter===true && p3q.xpGained)) fail('P3 quest: claim gain='+p3q.gain+' claimed='+p3q.claimedAfter+' xp='+p3q.xpGained); else ok('P3 quest: odbiór nagrody (kasa +'+p3q.gain+' + XP, claimed=true)');
     if(p3q.doubleGain!==0) fail('P3 quest: anti-double-claim doubleGain='+p3q.doubleGain); else ok('P3 quest: anti-double-claim (drugi odbiór = 0)'); }
 
+  // ============ P3 — getPracaBonus (job multiplier: baza, item-bonus, outfit-tylko-fizyczne) ============
+  const p3jb = await page.evaluate(()=>{
+    if(typeof getPracaBonus!=='function') return {missing:true};
+    G.skills={}; G.equipped={}; G.outfit={top:'default'}; G.activeHoliday=null;
+    const base=getPracaBonus('pizza');
+    G.equipped={r:{bonus:{job:0.12}}}; const withItem=getPracaBonus('pizza');
+    G.equipped={}; G.outfit={top:'sport'}; const sportPhys=getPracaBonus('construction'); const sportNonPhys=getPracaBonus('pizza');
+    return {base,withItem,sportPhys,sportNonPhys};
+  });
+  if(p3jb.missing) fail('P3 praca-bonus: getPracaBonus niedostępny');
+  else { if(Math.abs(p3jb.base-1.0)>0.001) fail('P3 praca-bonus: baza='+p3jb.base+' (oczek 1.0)'); else ok('P3 praca-bonus: baza ×1.0 (bez skilli/itemów/outfitu)');
+    if(Math.abs(p3jb.withItem-1.12)>0.001) fail('P3 praca-bonus: withItem='+p3jb.withItem+' (oczek 1.12)'); else ok('P3 praca-bonus: bonus przedmiotu multiplikatywny (job 0.12 → ×1.12)');
+    if(Math.abs(p3jb.sportPhys-1.03)>0.001) fail('P3 praca-bonus: sportPhys='+p3jb.sportPhys+' (oczek 1.03)'); else ok('P3 praca-bonus: outfit sport na pracy fizycznej (construction ×1.03)');
+    if(Math.abs(p3jb.sportNonPhys-1.0)>0.001) fail('P3 praca-bonus: sportNonPhys='+p3jb.sportNonPhys+' (oczek 1.0)'); else ok('P3 praca-bonus: outfit sport NIE na pracy nie-fizycznej (pizza ×1.0)'); }
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
