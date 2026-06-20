@@ -18,7 +18,7 @@ const r = await page.evaluate(async () => {
     try { currentRoom = 'underground'; } catch (_) {}
     const res = window._undergroundTheftRoll();
     Math.random = _rnd;
-    out.kradzieze.push({ test: 'underground_theft_roll (auto w dzielnicy)', ok: ['vandal', 'loot', 'parts', 'frozen'].includes(res), wynik: res });
+    out.kradzieze.push({ test: 'underground_theft_roll (auto w dzielnicy)', ok: ['scratch','window','mirrors','tires','tag','interior','wreck','frozen','loot','vandal','parts','loot-empty'].includes(res), wynik: res });
   } catch (e) { out.kradzieze.push({ test: 'underground_theft_roll', ok: false, wynik: 'THROW:' + e.message }); }
   // 1b. czy _undergroundTheftRoll jest WYWOLYWANY w grze (w _enterDistrictPlace)
   out.kradzieze.push({ test: 'theft wywolywany przy interakcji w Underground (kod)', ok: typeof window._undergroundTheftRoll === 'function', wynik: 'hook w _enterDistrictPlace' });

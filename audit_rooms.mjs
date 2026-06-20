@@ -193,7 +193,8 @@ const res = await page.evaluate(async ({ ROOM_KEYS, SPAWN }) => {
     try { currentRoom = 'underground'; } catch (_) {}
     const tr = (typeof window._undergroundTheftRoll === 'function') ? window._undergroundTheftRoll() : false;
     Math.random = _rnd;
-    flow('theft_roll_fires', ['vandal', 'loot', 'parts', 'frozen'].includes(tr), 'wynik=' + tr);
+    /* v2.3.44 K-3: _undergroundTheftRoll zwraca teraz 7 typów wandalizmu (scratch/window/mirrors/tires/tag/interior/wreck) + frozen/false. */
+    flow('theft_roll_fires', ['scratch','window','mirrors','tires','tag','interior','wreck','frozen','loot','vandal','parts','loot-empty'].includes(tr), 'wynik=' + tr);
   } catch (e) { flow('theft_roll_fires', false, 'THROW: ' + e.message); }
   closeAll();
   /* Phone apps: render KAZDEJ apki na nowej grze I na uszkodzonym save (analog IG crash) */
