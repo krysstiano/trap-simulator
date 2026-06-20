@@ -63,6 +63,30 @@ try{
   if(!/wymóg/.test(u14.koncLock0)) fail('U14: DJ koncertowy NIE locked przy 0 koncertów: '+u14.koncLock0); else ok('U14: DJ koncertowy locked przy 0');
   if(/wymóg/.test(u14.koncUnlock10)) fail('U14: DJ koncertowy nadal locked przy 10: '+u14.koncUnlock10); else ok('U14: DJ koncertowy odblokowany przy 10');
 
+  // ============ U5 — ukrywanie powiadomień podczas interakcji ============
+  const u5a = await page.evaluate(()=>{
+    const out={};
+    if(typeof phoneOpen==='function' && phoneOpen()) togglePhone();
+    out.busyClosed = window._busyInteraction();
+    window._deferredMsgs=[];
+    if(typeof togglePhone==='function') togglePhone();
+    out.busyPhone = window._busyInteraction();
+    showMsg('U5TEST_AMBIENT','i',3000);
+    const msgEl=document.getElementById('msg');
+    out.msgTextDuring = msgEl?(msgEl.textContent||''):'';
+    out.deferredHas = (window._deferredMsgs||[]).some(m=>m.t==='U5TEST_AMBIENT');
+    return out;
+  });
+  if(u5a.busyClosed) fail('U5: _busyInteraction true mimo zamkniętego UI'); else ok('U5: brak interakcji = nie busy');
+  if(!u5a.busyPhone) fail('U5: telefon otwarty ale _busyInteraction false'); else ok('U5: telefon otwarty = busy');
+  if(/U5TEST_AMBIENT/.test(u5a.msgTextDuring)) fail('U5: powiadomienie POKAZANE podczas interakcji (#msg) — powinno być odłożone'); else ok('U5: powiadomienie NIE na pierwszym planie podczas interakcji');
+  if(!u5a.deferredHas) fail('U5: powiadomienie NIE odłożone do kolejki'); else ok('U5: powiadomienie odłożone do kolejki');
+  await page.evaluate(()=>{ if(typeof phoneOpen==='function'&&phoneOpen()) togglePhone(); });
+  await page.waitForTimeout(1000);
+  const u5b = await page.evaluate(()=> ({ stillDeferred:(window._deferredMsgs||[]).some(m=>m.t==='U5TEST_AMBIENT'), busy:window._busyInteraction() }));
+  if(u5b.busy) fail('U5: po zamknięciu telefonu nadal busy'); else ok('U5: po zamknięciu = nie busy');
+  if(u5b.stillDeferred) fail('U5: odłożone powiadomienie NIE wyflushowane po zamknięciu interakcji'); else ok('U5: odłożone powiadomienie wyflushowane po zamknięciu (drugi plan→pierwszy)');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }

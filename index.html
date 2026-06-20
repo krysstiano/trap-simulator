@@ -55659,6 +55659,8 @@ const PATCH_NOTES = [
  {t:'change',d:'🐾 Informacja o adopcji psa przychodzi teraz od systemu gry (TrapInfo), a nie od Marcina — to komunikat informacyjny o korzyściach z posiadania zwierzaka i o czym pamiętać.'},
  {t:'change',d:'🎬 Poprawione wskazanie Schroniska (adopcja psa) w przelocie kamerą po mieście — znacznik jest teraz wycentrowany między Schroniskiem, Sklepem Zoo i Weterynarzem.'},
  {t:'change',d:'📋 We Wprowadzeniu do gry dopisano nową linię boczną „Nielegalny Front" i zaktualizowano ich łączną liczbę.'},
+ {t:'change',d:'👥 Rekrutacja ekipy ma teraz sensowne wymagania: grafika i sound engineera zatrudnisz od początku, ale DJ-a do bitów dopiero przy 2 000 fanów, hype-mana przy 50 000 fanów, junior managera po 5 koncertach, a DJ-a koncertowego po 10 koncertach. Gdy nie spełniasz warunku — usłyszysz konkretną odpowiedź, a o każdym odblokowaniu dostaniesz SMS.'},
+ {t:'change',d:'🔕 Zielone powiadomienia nie zasłaniają już tego, co robisz: podczas korzystania z telefonu (np. publikacji posta na Instagramie), ekwipunku, freestyle’u, koncertu czy preparowania wyrobów w kamperze/laboratorium powiadomienie chowa się na drugi plan i pojawia dopiero po zamknięciu danej czynności.'},
  ],
  },
  {
@@ -66808,6 +66810,26 @@ window._subtleMsg=function(text,ms){
   if(_subtleMsgTimer) clearTimeout(_subtleMsgTimer);
   _subtleMsgTimer=setTimeout(()=>{ el.style.opacity='0'; setTimeout(()=>{ try{ if(el.style.opacity==='0') el.style.display='none'; }catch(e){} },650); }, ms||3000);
 };
+/* U5 (v2.3.44 PDF): podczas aktywnej interakcji (telefon/IG/ekwipunek/freestyle/koncert/kamper/lab/minigra)
+   zielone okno powiadomienia NIE pokazuje się na pierwszym planie — trafia do kolejki i wyświetla się PO
+   zamknięciu interakcji (na drugim planie). NPC-dialog WYŁĄCZONY (jego komunikaty = feedback rozmowy, muszą być widoczne). */
+function _busyInteraction(){
+  try{
+    return (typeof mgOpen==='function'&&mgOpen())
+      || (typeof overlayOpen==='function'&&overlayOpen())
+      || (typeof phoneOpen==='function'&&phoneOpen());
+  }catch(e){ return false; }
+}
+window._busyInteraction=_busyInteraction;
+window._deferredMsgs=window._deferredMsgs||[];
+setInterval(function(){
+  try{
+    if(window._deferredMsgs && window._deferredMsgs.length && !_busyInteraction()){
+      const m=window._deferredMsgs.shift();
+      if(typeof showMsg==='function') showMsg(m.t,m.type,m.duration);
+    }
+  }catch(e){}
+}, 600);
 /* ═══ v2.3.30 (user: „okna informacyjne i komunikaty nakładają się — message delay") ═══
    Kolejka komunikatów #msg z minimalnym odstępem: kolejny toast NIE zastępuje poprzedniego zanim gracz
    zdąży go przeczytać (min ~3.5 s między komunikatami). Pojedyncze komunikaty pokazują się natychmiast;
@@ -66829,6 +66851,14 @@ function showMsg(t,type,duration){
     /* v2.1.903 (audyt startu): kolejkuj toasty TAKŻE gdy widoczna oferta Wprowadzenia (po przelocie) — wcześniej tipy 6s/8s wyskakiwały NA modalu oferty. Flush po zamknięciu oferty (Pomiń / koniec slajdów). */
     if(!window._cinemQueuedMsgs) window._cinemQueuedMsgs=[];
     window._cinemQueuedMsgs.push({t,type,duration});
+    return;
+  }
+  /* U5 (v2.3.44 PDF): aktywna interakcja → powiadomienie na drugi plan (odłóż, pokaż po zamknięciu). */
+  if(_busyInteraction()){
+    if(!window._deferredMsgs) window._deferredMsgs=[];
+    const _last=window._deferredMsgs.length?window._deferredMsgs[window._deferredMsgs.length-1]:null;
+    if(!_last || _last.t!==t) window._deferredMsgs.push({t,type,duration});
+    if(window._deferredMsgs.length>8) window._deferredMsgs.shift();
     return;
   }
   /* v2.3.30: jeśli poprzedni komunikat jest jeszcze „świeży" (gracz go czyta) — odłóż kolejny do kolejki. */
