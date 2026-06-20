@@ -87,6 +87,22 @@ try{
   if(u5b.busy) fail('U5: po zamknięciu telefonu nadal busy'); else ok('U5: po zamknięciu = nie busy');
   if(u5b.stillDeferred) fail('U5: odłożone powiadomienie NIE wyflushowane po zamknięciu interakcji'); else ok('U5: odłożone powiadomienie wyflushowane po zamknięciu (drugi plan→pierwszy)');
 
+  // ============ U7 — rename Velvet Room ============
+  const u7 = await page.evaluate(()=>{
+    const out={};
+    const obj=(ROOMS.ulica.objects||[]).find(o=>o.id==='striptiz');
+    out.lbl=obj?obj.lbl:null; out.prompt=obj?obj.prompt:null;
+    out.hoursName=(typeof PLACE_HOURS!=='undefined'&&PLACE_HOURS.striptiz)?PLACE_HOURS.striptiz.name:null;
+    out.signFn=(typeof drawVelvetSign==='function');
+    out.landmark=(typeof MAP_LANDMARKS!=='undefined')?((MAP_LANDMARKS.find(l=>l.name&&l.name.includes('striptiz'))||{}).name||null):null;
+    return out;
+  });
+  if(u7.lbl!=='Klub ze striptizem') fail('U7: map lbl='+u7.lbl+' (oczek. „Klub ze striptizem")'); else ok('U7: mapa lbl „Klub ze striptizem"');
+  if(!/Velvet Room/.test(u7.prompt||'')) fail('U7: prompt nie ma „Velvet Room": '+u7.prompt); else ok('U7: prompt blisko = Velvet Room');
+  if(u7.hoursName!=='Velvet Room') fail('U7: PLACE_HOURS name='+u7.hoursName); else ok('U7: nazwa własna Velvet Room (PLACE_HOURS)');
+  if(!u7.signFn) fail('U7: brak funkcji drawVelvetSign'); else ok('U7: drawVelvetSign (szyld neon) istnieje');
+  if(!/Klub ze striptizem/.test(u7.landmark||'')) fail('U7: minimap landmark='+u7.landmark); else ok('U7: minimap „Klub ze striptizem"');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }

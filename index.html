@@ -2746,7 +2746,7 @@ const ROOMS = {
       /* v2.1.918 (PDF — nowa lokacja): Lumpeks — tania odzież, pod JYSK (wschodni cluster, skaner-free dbg_v916). */
       {id:'pepco',        wx:2848, wy:133, w:150,h:155, act:'shop:pepco',               prompt:'[E] 🛍️ Lumpeks — tania odzież', lbl:'Lumpeks'},
       /* v2.1.919 (PDF — nowa lokacja 18+): Klub Striptiz — nocna lokacja (20:00-04:00, PLACE_HOURS), pod złomowiskiem (skaner-free 4400,1016). */
-      {id:'striptiz',     wx:1180, wy:3168,w:150,h:155, act:'striptiz',                 prompt:'[E] 💃 Klub Striptiz (noc)',    lbl:'Klub Striptiz'},
+      {id:'striptiz',     wx:1180, wy:3168,w:150,h:155, act:'striptiz',                 prompt:'[E] 💃 Velvet Room (noc)',    lbl:'Klub ze striptizem'}, /* U7 (v2.3.44 PDF): mapa „Klub ze striptizem", blisko szyld „Velvet Room" */
       // ── PARK — rozszerzony do lewej krawędzi (x:0-672, y:864-1248) ──
       // GÓRA parku (wy=880-960): pond + ławka + breakdance — strefa relaksu
       {id:'pond',         wx:50,   wy:880, w:160,h:80,  act:'pond',                     prompt:'[E] Staw',                      lbl:''},
@@ -3788,7 +3788,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'zlomowisko':   drawBuilding(sx,sy,w,h,'#2a2620','Złomowisko','#95a5a6','♻️',true,{commercial:true});drawScrapyardExtras(sx,sy,w,h);break; /* v2.1.916 PDF */
     case 'jysk':         drawBuilding(sx,sy,w,h,'#0a3a6a','JYSK','#ffffff','🛒',true,{commercial:true});break; /* v2.1.917 PDF — niebiesko-biały brand */
     case 'pepco':        drawBuilding(sx,sy,w,h,'#5a1030','Lumpeks','#ffffff','🛍️',true,{commercial:true});break; /* v2.1.918 PDF — magenta brand */
-    case 'striptiz':     drawBuilding(sx,sy,w,h,'#1a0820','Klub Striptiz','#e91e8c','💃',true,{commercial:true});break; /* v2.1.919 PDF — neon różowy nocny klub */
+    case 'striptiz':     drawBuilding(sx,sy,w,h,'#1a0820','','#e91e8c','💃',true,{commercial:true});drawVelvetSign(sx,sy,w,h);break; /* U7 (v2.3.44 PDF): szyld neon handwritten „Velvet Room" zamiast generycznej nazwy */
     /* v2.1.930: wnętrze klubu striptiz */
     case 'striptiz_stage': drawStripStage(sx,sy,w,h);break;
     case 'striptiz_vip':   drawStripVip(sx,sy,w,h);break;
@@ -8132,6 +8132,19 @@ function drawStripDancer(sx,sy,w,h,id){
   X.restore();
 }
 /* Dekoracje wnętrza klubu — podłoga + neony + światła disco (drawRoomDecorations dispatch). */
+/* U7 (v2.3.44 PDF): elegancki neonowy szyld handwritten „Velvet Room" — zewnętrzny (na fasadzie) i wewnętrzny. */
+function drawVelvetSign(sx,sy,w,h){
+  X.save();
+  const t=Date.now()/600, fl=0.7+0.3*Math.abs(Math.sin(t*0.8));
+  const fs=Math.max(12,Math.round(w*0.16));
+  X.font="italic bold "+fs+"px 'Brush Script MT','Segoe Script','Comic Sans MS',cursive";
+  X.textAlign='center'; X.textBaseline='middle';
+  const cx=sx+w/2, cy=sy+h*0.30;
+  X.shadowColor='#e91e8c'; X.shadowBlur=16*fl;
+  X.fillStyle='rgba(255,120,200,'+(0.82*fl+0.12)+')'; X.fillText('Velvet Room',cx,cy);
+  X.shadowBlur=6; X.fillStyle='rgba(255,212,240,0.95)'; X.fillText('Velvet Room',cx,cy);
+  X.restore();
+}
 function drawStriptizDecorations(){
   // podłoga klubu (ciemna z połyskiem)
   X.fillStyle='#160812';X.fillRect(0,62,1280,658);
@@ -8142,6 +8155,15 @@ function drawStriptizDecorations(){
   for(let i=0;i<8;i++){const a=0.25+0.25*Math.sin(t+i*0.7);X.fillStyle=`rgba(233,30,140,${a})`;X.fillRect(40+i*150,70,110,4);}
   // światła disco (kropki na podłodze)
   for(let i=0;i<14;i++){const dx=120+(i*83)%1040;const dy=320+((i*137)%220);const a=0.12+0.12*Math.sin(t*1.5+i);X.fillStyle=`hsla(${(i*40)%360},80%,60%,${a})`;X.beginPath();X.arc(dx,dy,18,0,Math.PI*2);X.fill();}
+  // U7 (v2.3.44 PDF): handwritten neonowy szyld „Velvet Room" na ścianie klubu
+  X.save();
+  const _vf=0.7+0.3*Math.abs(Math.sin(t*0.9));
+  X.font="italic bold 46px 'Brush Script MT','Segoe Script','Comic Sans MS',cursive";
+  X.textAlign='center'; X.textBaseline='middle';
+  X.shadowColor='#e91e8c'; X.shadowBlur=26*_vf;
+  X.fillStyle='rgba(255,140,210,0.88)'; X.fillText('Velvet Room',640,150);
+  X.shadowBlur=10; X.fillStyle='rgba(255,214,242,0.96)'; X.fillText('Velvet Room',640,150);
+  X.restore();
 }
 /* v2.1.609 (user): biznesmen 4. piętra — ciemny garnitur, krawat, okulary, WALIZKA w ręce. */
 function drawBusinessmanNPC(sx,sy,w,h,id){
@@ -13154,7 +13176,7 @@ function tryInteract(){
 //  GODZINY OTWARCIA
 // ═══════════════════════════════════════════════════════════════════
 const PLACE_HOURS={
-  'striptiz':        {o:20, c:4,  name:'Klub Striptiz'}, /* v2.1.919 PDF: nocny klub 20:00-04:00 (overnight) */
+  'striptiz':        {o:20, c:4,  name:'Velvet Room'}, /* v2.1.919 PDF: nocny klub 20:00-04:00 (overnight); U7 v2.3.44 nazwa własna Velvet Room */
   'underground_prostytutki': {o:21, c:3, name:'Nocny zaułek'}, /* v2.1.920 PDF l.57: 21:00-03:00 (overnight) */
   // Drip district / butiki
   'shop:lv':         {o:10, c:20, name:'Louis Vuitton'},
@@ -54577,7 +54599,7 @@ const MAP_LANDMARKS=[
   {wx:4515,wy:749, name:'♻️ Złomowisko', cat:'job'}, /* v2.1.916 PDF: centrum budynku (4400+75, 850+75) */
   {wx:2865,wy:749, name:'🛒 JYSK', cat:'shop'}, /* v2.1.917 PDF: centrum (4616+75, 850+75) */
   {wx:2923,wy:210, name:'🛍️ Lumpeks', cat:'shop'}, /* v2.1.918 PDF: centrum (4616+75, 1016+75) */
-  {wx:1255,wy:3245, name:'💃 Klub Striptiz', cat:'shop'}, /* v2.1.919 PDF: centrum (4400+75, 1016+75) */
+  {wx:1255,wy:3245, name:'💃 Klub ze striptizem', cat:'shop'}, /* v2.1.919 PDF: centrum; U7 v2.3.44 mapa „Klub ze striptizem" */
   {wx:384, wy:1032, name:'🌳 Park', cat:'park'},
   {wx:1180,wy:752, name:'🧢 Studio Merch', cat:'merch'},
   {wx:1974,wy:752, name:'🏥 Szpital', cat:'health'},
@@ -55661,6 +55683,7 @@ const PATCH_NOTES = [
  {t:'change',d:'📋 We Wprowadzeniu do gry dopisano nową linię boczną „Nielegalny Front" i zaktualizowano ich łączną liczbę.'},
  {t:'change',d:'👥 Rekrutacja ekipy ma teraz sensowne wymagania: grafika i sound engineera zatrudnisz od początku, ale DJ-a do bitów dopiero przy 2 000 fanów, hype-mana przy 50 000 fanów, junior managera po 5 koncertach, a DJ-a koncertowego po 10 koncertach. Gdy nie spełniasz warunku — usłyszysz konkretną odpowiedź, a o każdym odblokowaniu dostaniesz SMS.'},
  {t:'change',d:'🔕 Zielone powiadomienia nie zasłaniają już tego, co robisz: podczas korzystania z telefonu (np. publikacji posta na Instagramie), ekwipunku, freestyle’u, koncertu czy preparowania wyrobów w kamperze/laboratorium powiadomienie chowa się na drugi plan i pojawia dopiero po zamknięciu danej czynności.'},
+ {t:'change',d:'💃 Klub ze striptizem ma teraz nazwę własną „Velvet Room": na mapie widnieje jako „Klub ze striptizem", a z bliska — na fasadzie budynku i w środku — świeci elegancki, neonowy, odręczny szyld „Velvet Room".'},
  ],
  },
  {
