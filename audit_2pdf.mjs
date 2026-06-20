@@ -696,6 +696,32 @@ try{
   if(!(p3pb.repayMoney===8000&&p3pb.repayLoan===4000)) fail('P3 parabank: spłata money='+p3pb.repayMoney+' loan='+p3pb.repayLoan); else ok('P3 parabank: spłata częściowa (kasa −2000, dług 6000→4000)');
   if(!(p3pb.overMoney===9000&&p3pb.overLoan===0)) fail('P3 parabank: anti-overpay money='+p3pb.overMoney+' loan='+p3pb.overLoan); else ok('P3 parabank: anti-overpay — spłata max do długu (kasa −1000, dług→0, nie ujemny)');
 
+  // ============ P3 — zażycie substancji (_doUseSubstance: efekty + addiction-clamp + overdose) ============
+  const p3d = await page.evaluate(()=>{
+    const out={};
+    window.showMilestoneCinematic=()=>{}; window.saveGameSilent=()=>{};
+    G.addictions={weed:0,meth:0,mushrooms:0,cocaine:0};
+    // weed: mood→stress+30, hunger+10, energy-10
+    G.stress=20; G.hunger=20; G.energy=50; G.health=100; G.day=5;
+    window._doUseSubstance('weed');
+    out.weedStress=G.stress; out.weedEnergy=G.energy; out.weedHunger=G.hunger; out.weedAdd=G.addictions.weed;
+    // meth: healthLoss 15, energy+60
+    G.energy=20; G.health=100; window._doUseSubstance('meth');
+    out.methHealth=G.health; out.methEnergy=G.energy; out.methAdd=G.addictions.meth;
+    // addiction clamp 100
+    G.addictions.weed=98; window._doUseSubstance('weed'); out.addClamp=G.addictions.weed;
+    // cocaine overdose (wymuszony RNG <0.01)
+    const _r=Math.random; Math.random=()=>0.005; G.money=10000; G.health=100;
+    window._doUseSubstance('cocaine'); Math.random=_r;
+    out.odMoney=G.money; out.odHealth=G.health;
+    return out;
+  });
+  if(!(p3d.weedStress===50&&p3d.weedEnergy===40&&p3d.weedHunger===30&&p3d.weedAdd===5)) fail('P3 drug: weed stress='+p3d.weedStress+' en='+p3d.weedEnergy+' hun='+p3d.weedHunger+' add='+p3d.weedAdd); else ok('P3 substancje: weed efekty (mood→stress+30, energia−10, głód+10, addiction+5)');
+  if(!(p3d.methHealth===85&&p3d.methEnergy===80&&p3d.methAdd===15)) fail('P3 drug: meth hp='+p3d.methHealth+' en='+p3d.methEnergy+' add='+p3d.methAdd); else ok('P3 substancje: meth (−15 HP, +60 energia, addiction+15)');
+  if(p3d.addClamp!==100) fail('P3 drug: addiction clamp='+p3d.addClamp); else ok('P3 substancje: addiction cap 100 (98+5→100, nie 103)');
+  /* health===70 = deterministyczny dowód overdose (−30 HP); money directional (checkAchievements w _doUseSubstance może doliczyć nagrodę osiągnięcia — szum jak passive/ach-XP). */
+  if(!(p3d.odMoney<10000&&p3d.odHealth===70)) fail('P3 drug: overdose money='+p3d.odMoney+' hp='+p3d.odHealth); else ok('P3 substancje: cocaine overdose (RNG<0.01 → kara −HP do '+p3d.odHealth+', kasa spadła)');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
