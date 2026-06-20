@@ -483,6 +483,29 @@ try{
   if(u16bad.length) fail('U16-sub2: lbl niezmienione: '+u16bad.join(', ')); else ok('U16-sub2: sklepy generyczne → fikcyjne brandy (carwash/shelter/salon/muzyczny/sala/zoo + 10 dalszych)');
   if(!u16b.lmBeat||!u16b.lmPaw||!u16b.lmSplash) fail('U16-sub2: minimap niezmieniony (beat='+u16b.lmBeat+' paw='+u16b.lmPaw+' splash='+u16b.lmSplash+')'); else ok('U16-sub2: minimap MAP_LANDMARKS przemianowany');
 
+  // ============ P2 — spot-check poprzedniego PDF (narkobiznes: systemy nazwane nie-ghost) ============
+  const p2 = await page.evaluate(()=>{
+    const out={};
+    // H5 — 3 nazwane ekipy produkcyjne z pasmami jakości
+    const crews=(typeof WORKER_NPCS!=='undefined')?WORKER_NPCS.filter(w=>['crew_samir','crew_ramin','crew_heisenberg'].includes(w.id)):[];
+    out.crews=crews.length; out.crewsBand=crews.every(c=>Array.isArray(c.crewBand)&&c.crewBand.length===2);
+    // H2 — fillery
+    out.fillers=(typeof TRAP_FILLERS!=='undefined')?TRAP_FILLERS.length:0;
+    out.fillersOk=(typeof TRAP_FILLERS!=='undefined')&&TRAP_FILLERS.every(f=>f&&f.id);
+    // H3 — system łapówek
+    out.bribeFn=(typeof window._offerBribe==='function');
+    // _trapFillersEnsure init
+    G.trapInv=G.trapInv||{}; let feErr=null;
+    try{ if(typeof _trapFillersEnsure==='function') _trapFillersEnsure(); }catch(e){ feErr=e.message; }
+    out.feErr=feErr;
+    out.fillersInit=(typeof TRAP_FILLERS!=='undefined')?TRAP_FILLERS.every(f=>typeof G.trapInv[f.id]==='number'):false;
+    return out;
+  });
+  if(!(p2.crews===3&&p2.crewsBand)) fail('P2 narko: ekipy produkcyjne H5='+p2.crews+' band='+p2.crewsBand); else ok('P2 narko: 3 nazwane ekipy produkcyjne (H5) z pasmami jakości');
+  if(!(p2.fillers>0&&p2.fillersOk)) fail('P2 narko: fillery H2='+p2.fillers); else ok('P2 narko: fillery (H2) zarejestrowane ('+p2.fillers+')');
+  if(!p2.bribeFn) fail('P2 narko: brak _offerBribe (system łapówek H3)'); else ok('P2 narko: system łapówek _offerBribe (H3) wired');
+  if(p2.feErr||!p2.fillersInit) fail('P2 narko: _trapFillersEnsure err='+p2.feErr+' init='+p2.fillersInit); else ok('P2 narko: _trapFillersEnsure inicjuje fillery save-safe');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
