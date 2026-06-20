@@ -525,6 +525,27 @@ try{
   if(p3.emptyGain!==0||!p3.moneyFinite) fail('P3 muzyka: pusta pula gain='+p3.emptyGain+' finite='+p3.moneyFinite); else ok('P3 muzyka: pusta pula → brak zmiany, brak NaN (anti-double-pay)');
   if(!(p3.ytGain>0&&p3.ytPool===0&&p3.ytFinite)) fail('P3 muzyka: yt adsense gain='+p3.ytGain+' pool='+p3.ytPool+' finite='+p3.ytFinite); else ok('P3 muzyka: YouTube AdSense (pole adsense, nie royalties) — kasa +'+p3.ytGain+', brak NaN');
 
+  // ============ P3 — bank/lokaty (invest→zwrot, anti-cheat) ============
+  const p3b = await page.evaluate(()=>{
+    const out={};
+    G.bank=G.bank||{}; G.bank.investments=[]; G.bank.investHistory=G.bank.investHistory||[]; G.day=10; G.money=100000;
+    // tworzenie lokaty
+    const m0=G.money; window.invest(10000,7,10);
+    const inv=(G.bank.investments||[])[0]||{};
+    out.moneyDrop=m0-G.money; out.invAmount=inv.amount; out.invReturn=inv.returnAmount; out.invReturnDay=inv.returnDay;
+    // anti-cheat: ujemna kwota nie daje kasy
+    const m1=G.money; window.invest(-5000,7,10); out.cheatGain=G.money-m1; out.cheatCount=(G.bank.investments||[]).length;
+    // dojrzewanie: ustaw returnDay<=day, nextPeriod usuwa + investHistory rośnie
+    G.bank.investments=[{amount:10000,returnAmount:11000,returnDay:G.day,days:7,pct:10}];
+    const hist0=(G.bank.investHistory||[]).length;
+    let npErr=null; try{ if(typeof nextPeriod==='function') nextPeriod(); }catch(e){ npErr=e.message; }
+    out.npErr=npErr; out.matRemoved=!(G.bank.investments||[]).some(i=>i.returnAmount===11000); out.histGrew=((G.bank.investHistory||[]).length>hist0);
+    return out;
+  });
+  if(!(p3b.moneyDrop===10000&&p3b.invAmount===10000&&p3b.invReturn===11000&&p3b.invReturnDay===17)) fail('P3 bank: lokata drop='+p3b.moneyDrop+' amount='+p3b.invAmount+' return='+p3b.invReturn+' day='+p3b.invReturnDay); else ok('P3 bank: lokata tworzona (−10k, zwrot 11k @ dzień 17)');
+  if(p3b.cheatGain>0||p3b.cheatCount!==1) fail('P3 bank: anti-cheat ujemna kwota gain='+p3b.cheatGain+' count='+p3b.cheatCount); else ok('P3 bank: anti-cheat — ujemna kwota odrzucona (brak gain)');
+  if(p3b.npErr) fail('P3 bank: nextPeriod rzucił: '+p3b.npErr); else if(!(p3b.matRemoved&&p3b.histGrew)) fail('P3 bank: dojrzewanie removed='+p3b.matRemoved+' histGrew='+p3b.histGrew); else ok('P3 bank: dojrzewanie lokaty → wypłata + historia (usunięta z aktywnych)');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
