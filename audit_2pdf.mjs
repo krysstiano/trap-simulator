@@ -630,6 +630,20 @@ try{
   if(!p3cr.afterCd) fail('P3 crew: akcja nie działa po cooldownie'); else ok('P3 crew: akcja znów dostępna po cooldownie');
   if(!p3cr.noWorker) fail('P3 crew: akcja zadziałała bez workera'); else ok('P3 crew: gate — brak sound_eng w ekipie blokuje akcję');
 
+  // ============ P3 — item equip bonus (getItemBonus: sumowanie + cap 0.45 + read-w-earn) ============
+  const p3i = await page.evaluate(()=>{
+    const out={};
+    G.equipped={}; out.empty=getItemBonus('job');
+    G.equipped={a:{bonus:{job:0.12}}, b:{bonus:{job:0.20}}}; out.sum=getItemBonus('job');
+    G.equipped={a:{bonus:{job:0.30}}, b:{bonus:{job:0.30}}}; out.cap=getItemBonus('job');
+    G.equipped={a:{bonus:{fame:0.15}}}; out.fame=getItemBonus('fame'); out.jobZero=getItemBonus('job');
+    return out;
+  });
+  if(p3i.empty!==0) fail('P3 item: brak equip getItemBonus='+p3i.empty); else ok('P3 item: brak equip → bonus 0');
+  if(Math.abs(p3i.sum-0.32)>0.001) fail('P3 item: sumowanie='+p3i.sum+' (oczek 0.32)'); else ok('P3 item: bonusy equip sumują się (0.12+0.20=0.32)');
+  if(p3i.cap!==0.45) fail('P3 item: cap='+p3i.cap+' (oczek 0.45)'); else ok('P3 item: cap bonusu 0.45 (0.30+0.30→0.45)');
+  if(!(Math.abs(p3i.fame-0.15)<0.001&&p3i.jobZero===0)) fail('P3 item: per-stat fame='+p3i.fame+' job='+p3i.jobZero); else ok('P3 item: bonus per-stat (fame osobno od job; czytane w earn/addFame/stream)');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
