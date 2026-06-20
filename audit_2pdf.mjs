@@ -125,6 +125,30 @@ try{
   if(!/speed=7\.5\+i\*0\.5/.test(src)) fail('U11: wskaźnik cegły nie 7.5'); else ok('U11: wskaźnik cegły szybszy (speed 7.5)');
   if(/fillText\('PERFEKCJA',110\+TRACK\/2/.test(src)) fail('U11: napis PERFEKCJA wciąż renderowany w trakcie'); else ok('U11: napis PERFEKCJA usunięty z pola w trakcie (info na wstępie)');
 
+  // ============ U12+U13 — gęstość NPC pora dnia/pogoda ============
+  const u12 = await page.evaluate(()=>{
+    const out={};
+    const setT=(gm,w)=>{ gameMin=gm; G.weather=w; };
+    setT(180,0);  out.pedNight=window._cityPedDensity(); out.carNight=window._cityCarDensity();
+    setT(1020,0); out.pedPeak=window._cityPedDensity();  out.carPeak=window._cityCarDensity();
+    setT(1020,2); out.pedRain=window._cityPedDensity();  out.carRain=window._cityCarDensity();
+    setT(660,0);  out.carClear11=window._cityCarDensity();
+    setT(660,2);  out.carRain11=window._cityCarDensity();
+    out.rankPed=(cityPeds[0]&&typeof cityPeds[0]._rank==='number');
+    out.rankCar=(cityCars[0]&&typeof cityCars[0]._rank==='number');
+    setT(180,0); // zostaw noc — przetestuj że draw nie rzuca przy niskiej gęstości
+    return out;
+  });
+  await page.waitForTimeout(500); // pozwól drawCityLife renderować przy niskiej gęstości (guardy aktywne)
+  if(!(u12.pedNight>0.1&&u12.pedNight<0.2)) fail('U12: pedNight='+u12.pedNight+' (oczek ~0.15)'); else ok('U12: piesi noc ~15% szczytu ('+u12.pedNight.toFixed(2)+')');
+  if(!(u12.pedPeak>=0.99)) fail('U12: pedPeak='+u12.pedPeak); else ok('U12: piesi szczyt 16-18:30 = 100% ('+u12.pedPeak.toFixed(2)+')');
+  if(!(u12.carNight<0.2)) fail('U12: carNight='+u12.carNight); else ok('U12: auta noc niskie ('+u12.carNight.toFixed(2)+')');
+  if(!(u12.carPeak>=0.88&&u12.carPeak<=0.92)) fail('U12: carPeak='+u12.carPeak+' (oczek ~0.90 rush)'); else ok('U12: auta szczyt ruchu ~0.90 ('+u12.carPeak.toFixed(2)+')');
+  if(!(u12.pedRain<u12.pedPeak&&u12.pedRain<0.7)) fail('U13: pedRain='+u12.pedRain+' (oczek -40% vs szczyt)'); else ok('U13: deszcz -40% pieszych ('+u12.pedRain.toFixed(2)+' vs '+u12.pedPeak.toFixed(2)+')');
+  if(!(u12.carRain>=u12.carPeak)) fail('U13: carRain='+u12.carRain+' nie >= carPeak '+u12.carPeak); else ok('U13: deszcz +auta w szczycie ('+u12.carRain.toFixed(2)+')');
+  if(!(u12.carRain11>u12.carClear11)) fail('U13: auta deszcz 11:00 ('+u12.carRain11+') nie > pogoda jasna ('+u12.carClear11+')'); else ok('U13: deszcz +20% aut (11:00 '+u12.carRain11.toFixed(2)+' > '+u12.carClear11.toFixed(2)+')');
+  if(!u12.rankPed||!u12.rankCar) fail('U12: brak stałych _rank (ped='+u12.rankPed+' car='+u12.rankCar+')'); else ok('U12: stałe _rank przypisane (ped+car)');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }

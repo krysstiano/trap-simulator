@@ -1444,7 +1444,33 @@ function initCityLife(){
   // F+ Punkt #12: 2 autobusy miejskie (większe, długie, na H2 i H3)
   cityCars.push({wx:rnd(0,4200), wy:1960, dx:-2.8, color:'#3498db', anim:0, shape:'bus', bus:true, lbl:'12'});
   cityCars.push({wx:rnd(0,4200), wy:2912, dx:-3.0, color:'#e67e22', anim:0, shape:'bus', bus:true, lbl:'5'});
+  /* U12+U13 (v2.3.44 PDF): stały _rank per NPC (0..n-1) — niezależny od sortowania z-order; gęstość ukrywa NPC o ranku >= aktywna_liczba. */
+  cityPeds.forEach((p,i)=>{ p._rank=i; });
+  cityCars.forEach((c,i)=>{ c._rank=i; });
 }
+/* U12+U13 (v2.3.44 PDF): gęstość NPC miasta zależna od pory dnia i pogody (0..1 = frakcja aktywnych; pool spawnu 30/12 bez zmian). */
+function _npcTimeDensity(h){
+  if(h>=22||h<6) return 0.15;                  // noc 22-6: 15% szczytu
+  if(h<9)  return 0.30+(h-6)/3*0.30;           // 6-9: 0.30→0.60 stopniowo
+  if(h<13) return 0.70;                         // 9-13: o ~30% mniej niż szczyt popołudniowy
+  if(h<16) return 0.70+(h-13)/3*0.30;          // 13-16: narasta do szczytu
+  if(h<18.5) return 1.0;                        // 16-18:30: szczyt
+  return Math.max(0.15,1.0-(h-18.5)/3.5*0.85); // 18:30-22: spada do 0.15
+}
+function _cityHourDec(){ return (Math.floor(gameMin)%1440)/60; }
+function _cityOpady(){ return G.weather===2||G.weather===3||G.weather===5; } // deszcz/śnieg/burza(grad)
+window._cityPedDensity=function(){
+  let d=_npcTimeDensity(_cityHourDec());
+  if(_cityOpady()) d*=0.60;                     // U13: opady -40% pieszych
+  return Math.max(0.06,Math.min(1,d));
+};
+window._cityCarDensity=function(){
+  const h=_cityHourDec();
+  let d=_npcTimeDensity(h)*0.85;                // auta ~85% wzorca pieszych
+  if((h>=7.5&&h<8.5)||(h>=16&&h<18.5)) d=Math.max(d,0.90); // szczyt ruchu aut 7:30-8:30 i 16-18:30
+  if(_cityOpady()){ d*=1.20; if((h>=6.5&&h<8.5)||(h>=16&&h<19)) d*=1.10; } // U13: +20% aut (zwł. szczyty)
+  return Math.max(0.12,Math.min(1,d));
+};
 
 // ── Ptaki ──
 const cityBirds=[];
@@ -55683,6 +55709,7 @@ const PATCH_NOTES = [
  {t:'change',d:'🔕 Zielone powiadomienia nie zasłaniają już tego, co robisz: podczas korzystania z telefonu (np. publikacji posta na Instagramie), ekwipunku, freestyle’u, koncertu czy preparowania wyrobów w kamperze/laboratorium powiadomienie chowa się na drugi plan i pojawia dopiero po zamknięciu danej czynności.'},
  {t:'change',d:'💃 Klub ze striptizem ma teraz nazwę własną „Velvet Room": na mapie widnieje jako „Klub ze striptizem", a z bliska — na fasadzie budynku i w środku — świeci elegancki, neonowy, odręczny szyld „Velvet Room".'},
  {t:'change',d:'🏗 Praca dorywcza „Budowa" jest teraz trudniejsza: wskaźnik przy układaniu cegieł porusza się szybciej, zielone pole PERFEKCJA zostało mocno zwężone (a napis widać tylko na wstępie, nie w trakcie pracy), a etap mieszania betonu wymaga 30 ruchów zamiast 20.'},
+ {t:'change',d:'🌆 Miasto żyje rytmem doby i pogody: liczba przechodniów i aut zmienia się w ciągu dnia — najwięcej po południu (16:00–18:30) oraz w godzinach szczytu komunikacyjnego, a najmniej nocą. Podczas deszczu, śniegu czy gradu na chodnikach jest wyraźnie mniej pieszych, za to na ulicach pojawia się więcej samochodów.'},
  ],
  },
  {
@@ -70997,7 +71024,9 @@ function drawCityLife(){
   const _nightBlink=G.timeOfDay===3;
   const carsMustStop=!_nightBlink && (trafficL.cars==='red'||trafficL.cars==='yellow');
   const intersWx=[864,2304,3552];
+  const _aC=Math.round(cityCars.length*(window._cityCarDensity?window._cityCarDensity():1)); /* U12/U13 gęstość aut */
   for(const car of cityCars){
+    if((car._rank||0)>=_aC) continue; /* U12/U13: auto poza aktywną gęstością — nie rysuj/nie ruszaj */
     // Inicjalizacja nowych pól (dla starych save'ów)
     if(typeof car.baseSpd!=='number'){car.baseSpd=car.dx;}
     if(typeof car.accel!=='number'){car.accel=0.06;}
@@ -71063,6 +71092,7 @@ function drawCityLife(){
     // Stop distance zależny od rozmiaru aut: bus potrzebuje większego odstępu.
     for(const other of cityCars){
       if(other===car) continue;
+      if((other._rank||0)>=_aC) continue; /* U12/U13: pomiń ukryte auta w kolizji */
       if(Math.abs(other.wy-car.wy)>40) continue;
       if(Math.sign(other.baseSpd||other.dx)!==dirSign) continue;
       const distToOther=dirSign>0?(other.wx-car.wx):(car.wx-other.wx);
@@ -71407,12 +71437,15 @@ function drawCityLife(){
     return _crosswalkYs.some(sy=>Math.abs(p.wy-sy)<=25);
   };
   /* v2.1.143: NPC z-ordering — sort cityPeds po Y żeby NPC z dołu ekranu (wyższe Y) rysowali się NA WIERZCHU NPC z góry (niższe Y). Wcześniej array insertion order = NPC za budynkami pojawiali się na wierzchu (visual glitch). Single sort per frame, n≈30-50, trivial cost. */
+  const _aP=Math.round(cityPeds.length*(window._cityPedDensity?window._cityPedDensity():1)); /* U12/U13 gęstość pieszych */
   cityPeds.sort((a,b)=>(a.wy||0)-(b.wy||0));
   for(let i=0;i<cityPeds.length;i++){
     const pa=cityPeds[i];
+    if((pa._rank||0)>=_aP) continue; /* U12/U13: ped poza aktywną gęstością */
     if(!_inCrosswalkArea(pa)) continue;
     for(let j=i+1;j<cityPeds.length;j++){
       const pb=cityPeds[j];
+      if((pb._rank||0)>=_aP) continue; /* U12/U13 */
       if(!_inCrosswalkArea(pb)) continue;
       const dwx=pa.wx-pb.wx, dwy=pa.wy-pb.wy;
       if(Math.abs(dwx)<35 && Math.abs(dwy)<25){
@@ -71429,6 +71462,7 @@ function drawCityLife(){
     }
   }
   for(const ped of cityPeds){
+    if((ped._rank||0)>=_aP) continue; /* U12/U13: ped poza aktywną gęstością — nie rysuj/nie ruszaj */
     if(typeof ped.idleTimer!=='number') ped.idleTimer=0;
     // v1.8.27: bug fix — baseSpd==0 to "finite number" więc poprzedni guard (isFinite) jej nie wymieniał.
     if(typeof ped.baseSpd!=='number'||!isFinite(ped.baseSpd)||ped.baseSpd<0.3) ped.baseSpd=0.9;
