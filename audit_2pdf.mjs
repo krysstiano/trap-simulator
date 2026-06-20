@@ -264,6 +264,28 @@ try{
   if(!/ACCESS TIER|INBOX/.test(nx.upHtml)) fail('NX: dashboard bez treści'); else ok('NX: dashboard z treścią (tier+inbox)');
   if(!nx.heatBlocks) fail('NX: krytyczny heat nie blokuje odblokowania'); else ok('NX: krytyczny heat (90) blokuje kontakt');
 
+  // ============ NX sub-batch 2 — dashboard + oferty ============
+  const nx2 = await page.evaluate(()=>{
+    G.trap=G.trap||{}; G.trap.front={type:'pharma',name:'X',paperTrailQuality:0.5,tier:1}; G.workers=[{role:'chemist'}]; G.trap.cooked=1; G.trap.heat=10;
+    G.nox=undefined; window._noxEnsure(); G.nox.unlocked=true; G.nox.handshakeDone=true;
+    const offers=generateNoxOffers(); const o0=offers[0]||{};
+    const fields=['id','typ','costMin','costMax','dniMin','skMin','reqRep','cooldown','betrayal','heatCh','heatImpact','operator'];
+    const hasFields=fields.every(f=>f in o0);
+    const risk=calculateRouteRisk(o0);
+    const riskNums=(typeof risk.route_noise==='number'&&typeof risk.trace_level==='number'&&typeof risk.betrayal==='number'&&typeof risk.heatImpact==='number'&&risk.route_noise>=0&&risk.route_noise<=100);
+    G.nox.reputation=0; G.nox.accessLevel=1; const lowN=generateNoxOffers().length;
+    G.nox.reputation=30; G.nox.accessLevel=3; const hiN=generateNoxOffers().length;
+    let err=null; try{ renderNoxDashboard(); }catch(e){ err=e.message; }
+    const html=(document.getElementById('ph-content')||{}).innerHTML||'';
+    return { count:offers.length, hasFields, o0id:o0.id, riskNums, lowN, hiN, err, html };
+  });
+  if(!(nx2.count>=1)) fail('NX-2: generateNoxOffers zwróciło '+nx2.count+' ofert'); else ok('NX-2: generateNoxOffers ('+nx2.count+' ofert, np. '+nx2.o0id+')');
+  if(!nx2.hasFields) fail('NX-2: oferta nie ma wszystkich pól PDF'); else ok('NX-2: oferta z polami (koszt/czas/skuteczność/heat/cooldown/betrayal/operator)');
+  if(!nx2.riskNums) fail('NX-2: calculateRouteRisk nie zwraca poprawnych liczb'); else ok('NX-2: calculateRouteRisk (route_noise/trace/betrayal/heat liczbowo)');
+  if(!(nx2.hiN>nx2.lowN)) fail('NX-2: gating — rep30/tier3 ('+nx2.hiN+') nie > rep0/tier1 ('+nx2.lowN+')'); else ok('NX-2: oferty gated reputacją/tierem ('+nx2.lowN+'→'+nx2.hiN+')');
+  if(nx2.err) fail('NX-2: renderNoxDashboard rzucił: '+nx2.err); else ok('NX-2: dashboard renderuje bez błędu');
+  if(!/MARKET BOARD/.test(nx2.html)||!/RISK PANEL/.test(nx2.html)) fail('NX-2: dashboard bez Market Board/Risk Panel'); else ok('NX-2: Market Board + Risk Panel w dashboardzie');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
