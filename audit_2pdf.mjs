@@ -663,6 +663,20 @@ try{
   if(!p3f.brokeBlocked) fail('P3 food: anti-exploit brak-kasy nie zablokował'); else ok('P3 sklep-jedzenie: anti-exploit — brak kasy blokuje zakup');
   if(!p3f.capBlocked) fail('P3 food: cap ekwipunku nie zablokował'); else ok('P3 sklep-jedzenie: pełny ekwipunek (cap 6) blokuje zakup do inv');
 
+  // ============ P3 — lombard invPawn (sprzedaż przedmiotu→kasa+/inv- + blokada quest) ============
+  const p3p2 = await page.evaluate(()=>{
+    const out={};
+    window.gameConfirm=(m,fn)=>fn(); window.openInventory=()=>{}; // auto-confirm + izolacja DOM
+    G.inventory=[{id:'gold',type:'item',name:'Sztabka',emoji:'🪙',qty:1,value:5000}]; G.money=1000;
+    window.invPawn('gold'); out.money=G.money; out.removed=!(G.inventory||[]).some(i=>i.id==='gold');
+    // quest item — NIE sprzedawalny
+    G.inventory=[{id:'q',type:'item',kind:'quest',name:'Dowód',emoji:'📄',qty:1,value:9999}]; const m=G.money;
+    window.invPawn('q'); out.questBlocked=(G.money===m && (G.inventory||[]).some(i=>i.id==='q'));
+    return out;
+  });
+  if(!(p3p2.money===6000&&p3p2.removed)) fail('P3 lombard: money='+p3p2.money+' removed='+p3p2.removed); else ok('P3 lombard: sprzedaż przedmiotu (kasa 1000→6000, usunięty z inv)');
+  if(!p3p2.questBlocked) fail('P3 lombard: quest-item NIE zablokowany'); else ok('P3 lombard: przedmiot zadaniowy nie sprzedawalny (anti-loss)');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
