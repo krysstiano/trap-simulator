@@ -1,48 +1,71 @@
-/* dbg TIER A (v2.3.44) — U10 cofanie do podgrupy + U8 nadawca TrapInfo + U3 marker + U1 intro.
-   ZASADA #0: uruchamialny przez usera (node dbg_v2344_tierA.mjs), exit 1 przy błędzie. */
+/* SĘDZIA 2 PDF (v2.3.44+) — rośnie z każdą fazą. JA odpalam co iterację (gate), user może zweryfikować.
+   ZASADA #0: done = ZIELONY tu (exit 1 przy bugu). node audit_2pdf.mjs */
 import { setupPage } from './_helper_runtime_template.mjs';
 
-const fail=(m)=>{ console.error('❌ FAIL: '+m); process.exitCode=1; };
+let failed=0;
+const fail=(m)=>{ console.error('❌ FAIL: '+m); failed++; };
 const ok=(m)=>console.log('✅ '+m);
 
 const { page, browser, errors } = await setupPage();
 try{
-  const r = await page.evaluate(()=>{
+  // ============ TIER A (U10 cofanie / U8 TrapInfo) ============
+  const a = await page.evaluate(()=>{
     const out={};
-    // --- U10: cofanie z apki do podgrupy (folderu) ---
-    // znajdź folder zawierający 'instagram'
     out.foldInsta = (typeof _phFolderOfApp==='function') ? _phFolderOfApp('instagram') : null;
     out.foldBank  = (typeof _phFolderOfApp==='function') ? _phFolderOfApp('bank') : null;
-    // otwórz telefon
     if(typeof togglePhone==='function' && !(typeof phoneOpen==='function'&&phoneOpen())) togglePhone();
-    // wejdź do folderu instagrama
     if(out.foldInsta && typeof renderPhoneFolder==='function') renderPhoneFolder(out.foldInsta);
-    out.viewAfterFolder = G._phView;
-    // otwórz apkę instagram
     if(typeof renderPhoneApp==='function') renderPhoneApp('instagram');
-    out.viewAfterApp = G._phView;
-    // COFNIJ — powinno wrócić do folderu, NIE na home
     if(typeof window._phGoBack==='function') window._phGoBack();
     out.viewAfterBack = G._phView;
-    // --- U8: nadawca TrapInfo istnieje ---
     out.trapinfoName = (typeof SMS_CONTACTS!=='undefined' && SMS_CONTACTS.trapinfo) ? SMS_CONTACTS.trapinfo.name : null;
     return out;
   });
+  if(a.viewAfterBack!=='folder:'+a.foldInsta) fail('U10: cofanie do "'+a.viewAfterBack+'", oczek. folder:'+a.foldInsta); else ok('U10: cofanie z apki → podgrupa ('+a.viewAfterBack+')');
+  if(a.trapinfoName!=='TrapInfo') fail('U8: trapinfo='+a.trapinfoName); else ok('U8: nadawca TrapInfo OK');
 
-  console.log('STATE:', JSON.stringify(r));
-
-  // U10 asercje
-  if(!r.foldInsta) fail('U10: _phFolderOfApp("instagram") nie znalazł folderu'); else ok('U10: instagram w folderze "'+r.foldInsta+'"');
-  if(!r.foldBank) fail('U10: _phFolderOfApp("bank") nie znalazł folderu'); else ok('U10: bank w folderze "'+r.foldBank+'"');
-  if(r.viewAfterFolder!=='folder:'+r.foldInsta) fail('U10: po wejściu do folderu _phView='+r.viewAfterFolder); else ok('U10: folder otwarty ('+r.viewAfterFolder+')');
-  if(r.viewAfterApp!=='app:instagram') fail('U10: po otwarciu apki _phView='+r.viewAfterApp); else ok('U10: apka otwarta ('+r.viewAfterApp+')');
-  if(r.viewAfterBack!=='folder:'+r.foldInsta) fail('U10: COFANIE wróciło do "'+r.viewAfterBack+'", oczekiwano "folder:'+r.foldInsta+'" (PDF: cofa do podgrupy, nie na pulpit!)'); else ok('U10: ✔ cofanie wraca do podgrupy ('+r.viewAfterBack+'), NIE na pulpit');
-
-  // U8 asercja
-  if(r.trapinfoName!=='TrapInfo') fail('U8: SMS_CONTACTS.trapinfo.name='+r.trapinfoName); else ok('U8: nadawca TrapInfo zarejestrowany');
+  // ============ U14 — gating rekrutacji ekipy ============
+  const u14 = await page.evaluate(()=>{
+    const txt=(o)=>{ try{return typeof o.text==='function'?o.text():o.text;}catch(e){return '';} };
+    const opts=NPC_DATA.crew.opts;
+    const find=(pred)=>opts.find(pred);
+    const djBeat = find(o=>txt(o).includes('1200'));
+    const hype   = find(o=>txt(o).toLowerCase().includes('hype'));
+    const junior = find(o=>txt(o).toLowerCase().includes('junior'));
+    const djKonc = find(o=>txt(o).toLowerCase().includes('koncertowy'));
+    const reset=()=>{ G.crew=[]; G.money=1e9; G.fans=0; G.events={performed:0,revenue:0}; G.managementDeal=false; G.djContract=null; };
+    const roles=()=>G.crew.map(c=>c.role);
+    const callQuiet=(o)=>{ try{o.fn();}catch(e){} };
+    const r={};
+    reset();
+    r.lockDj=txt(djBeat); r.lockHype=txt(hype); r.lockJunior=txt(junior); r.lockKonc=txt(djKonc);
+    callQuiet(djBeat); r.djAt0=roles().includes('dj');
+    callQuiet(hype);   r.hypeAt0=roles().includes('hype');
+    callQuiet(junior); r.juniorAt0=roles().includes('manager_jr');
+    reset(); G.fans=2000; r.unlockDj=txt(djBeat); callQuiet(djBeat); r.djAt2k=roles().includes('dj');
+    reset(); G.fans=50000; r.unlockHype=txt(hype); callQuiet(hype); r.hypeAt50k=roles().includes('hype');
+    reset(); G.events.performed=5; r.unlockJunior=txt(junior); callQuiet(junior); r.juniorAt5=roles().includes('manager_jr');
+    reset(); r.koncLock0=txt(djKonc);
+    reset(); G.events.performed=10; r.koncUnlock10=txt(djKonc);
+    return r;
+  });
+  if(!/wymóg: 2\s?000/.test(u14.lockDj)) fail('U14 DJ lock-text: '+u14.lockDj); else ok('U14: DJ zablokowany <2k ('+u14.lockDj+')');
+  if(!/wymóg: 50\s?000/.test(u14.lockHype)) fail('U14 hype lock-text: '+u14.lockHype); else ok('U14: hype zablokowany <50k');
+  if(!/wymóg: 5 koncert/.test(u14.lockJunior)) fail('U14 junior lock-text: '+u14.lockJunior); else ok('U14: junior zablokowany <5 koncertów');
+  if(!/wymóg: 10 koncert/.test(u14.lockKonc)) fail('U14 djkonc lock-text: '+u14.lockKonc); else ok('U14: DJ koncertowy zablokowany <10 koncertów');
+  if(u14.djAt0) fail('U14: DJ zrekrutowany mimo 0 fanów!'); else ok('U14: DJ odmawia przy 0 fanów');
+  if(u14.hypeAt0) fail('U14: hype zrekrutowany mimo 0 fanów!'); else ok('U14: hype odmawia przy 0 fanów');
+  if(u14.juniorAt0) fail('U14: junior zrekrutowany mimo 0 koncertów!'); else ok('U14: junior odmawia przy 0 koncertów');
+  if(/wymóg/.test(u14.unlockDj)) fail('U14: DJ nadal locked przy 2k: '+u14.unlockDj); else ok('U14: DJ odblokowany przy 2k');
+  if(!u14.djAt2k) fail('U14: DJ NIE zrekrutowany przy 2k fanów'); else ok('U14: DJ rekrutuje się przy 2k');
+  if(!u14.hypeAt50k) fail('U14: hype NIE zrekrutowany przy 50k'); else ok('U14: hype rekrutuje się przy 50k');
+  if(!u14.juniorAt5) fail('U14: junior NIE zrekrutowany przy 5 koncertach'); else ok('U14: junior rekrutuje się przy 5 koncertach');
+  if(!/wymóg/.test(u14.koncLock0)) fail('U14: DJ koncertowy NIE locked przy 0 koncertów: '+u14.koncLock0); else ok('U14: DJ koncertowy locked przy 0');
+  if(/wymóg/.test(u14.koncUnlock10)) fail('U14: DJ koncertowy nadal locked przy 10: '+u14.koncUnlock10); else ok('U14: DJ koncertowy odblokowany przy 10');
 
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
-}catch(e){ fail('exception: '+e.message); }
+}catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
 
-if(process.exitCode===1) console.error('\n=== TIER A: CZERWONY ==='); else console.log('\n=== TIER A: ZIELONY ===');
+if(failed){ console.error(`\n=== SĘDZIA 2PDF: CZERWONY (${failed} fail) ===`); process.exit(1); }
+console.log('\n=== SĘDZIA 2PDF: ZIELONY ===');

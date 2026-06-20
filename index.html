@@ -24461,20 +24461,26 @@ const NPC_DATA = {
         G.money-=900;G.crew.push({role:'grafik',name:'Bartek',bonus:'yt_quality'});
         notify('👥 Bartek (Grafik) dołączył do ekipy! +10% jakość filmów YT.');updateHUD();openNPCDialogue('crew');
       }},
-      {text:`Rekrutuj DJ-a (1200 zł) — +15% zarobek z bitów`, fn:()=>{
+      {text:()=>((G.fans||0)<2000)?`🔒 DJ (1200 zł) — wymóg: 2 000 fanów`:`Rekrutuj DJ-a (1200 zł) — +15% zarobek z bitów`, fn:()=>{
+        /* U14 (v2.3.44 PDF): DJ ogólny wymaga 2 tyś. fanów (+wydane utwory implikowane przez fanów). Odmowa = cytat PDF. */
+        if((G.fans||0)<2000){showMsg('🎧 „Z wielką chęcią, ale mam za dużo takich propozycji. Przebieram, ale nie bez powodu. Popracuj jeszcze i odezwij się za jakiś czas." (wymóg: 2 000 fanów)','i',6500);return;}
         if(G.money<1200){showMsg('Za mało pieniędzy!','r');return;}
         if(G.crew.some(c=>c.role==='dj')){showMsg('Masz już DJ-a w ekipie!','r');return;}
         G.money-=1200;G.crew.push({role:'dj',name:'Olek',bonus:'beat_income'});
         notify('🎧 Olek (DJ) dołączył do ekipy! +15% zarobek ze sprzedaży bitów.');updateHUD();openNPCDialogue('crew');
       }},
-      {text:`Rekrutuj hype mana (750 zł) — +20% wzrost obserwujących`, fn:()=>{
+      {text:()=>((G.fans||0)<50000)?`🔒 Hype man (750 zł) — wymóg: 50 000 fanów`:`Rekrutuj hype mana (750 zł) — +20% wzrost obserwujących`, fn:()=>{
+        /* U14 (v2.3.44 PDF): hype-man wymaga łącznie 50 tyś. fanów. Odmowa = cytat PDF. */
+        if((G.fans||0)<50000){showMsg('📢 „Dla kogo mam grać? Dla powietrza? Mordo, jeszcze trochę pohulaj…" (wymóg: 50 000 fanów)','i',6500);return;}
         if(G.money<750){showMsg('Za mało pieniędzy!','r');return;}
         if(G.crew.some(c=>c.role==='hype')){showMsg('Masz już hype mana!','r');return;}
         G.money-=750;G.crew.push({role:'hype',name:'Seba',bonus:'follower_growth'});
         notify('📢 Seba (Hype Man) dołączył do ekipy! +20% wzrost obserwujących.');updateHUD();openNPCDialogue('crew');
       }},
       /* v2.1.314 polish: 2 nowe role — junior manager + sound engineer (user feedback "F3 może dostać 2 nowe role") */
-      {text:`Rekrutuj junior managera (4000 zł) — +5% wszystkie zarobki`, fn:()=>{
+      {text:()=>(((G.events&&G.events.performed)||0)<5)?`🔒 Junior manager (4000 zł) — wymóg: 5 koncertów`:`Rekrutuj junior managera (4000 zł) — +5% wszystkie zarobki`, fn:()=>{
+        /* U14 (v2.3.44 PDF): junior manager po 5. koncercie (dowolnego typu). Odmowa = cytat PDF. */
+        if(((G.events&&G.events.performed)||0)<5){showMsg('🤵 „Ten człowiek będzie dostępny w chwili, gdy odbębnisz co najmniej pięć komercyjnych występów. Teraz nie masz na co liczyć." (wymóg: 5 koncertów)','i',6500);return;}
         if(G.money<4000){showMsg('Za mało pieniędzy!','r');return;}
         if(G.crew.some(c=>c.role==='manager_jr')){showMsg('Masz już junior managera!','r');return;}
         if(G.managementDeal){showMsg('Masz już głównego menadżera (Kamil) — junior nie potrzebny.','r');return;}
@@ -24489,7 +24495,9 @@ const NPC_DATA = {
         notify('🎛️ Mariusz (Sound Engineer) dołączył do ekipy! Akcja: remaster katalogu (przychód rosnący z zasięgiem) + 10 do jakości następnego wydania, cooldown 5 dni — w crew panel.');updateHUD();openNPCDialogue('crew');
       }},
       /* v2.1.924 (PDF l.32): DJ koncertowy na KONTRAKT — osobny od stałego DJ-a do bitów (powyżej). Tiery + dni + odstępne. */
-      {text:()=>(G.djContract&&G.djContract.daysLeft>0)?`🎧 DJ koncertowy — kontrakt aktywny (${G.djContract.daysLeft} dni)`:`🎧 Zatrudnij DJ-a koncertowego (kontrakt na występy)`, fn:()=>{
+      {text:()=>(G.djContract&&G.djContract.daysLeft>0)?`🎧 DJ koncertowy — kontrakt aktywny (${G.djContract.daysLeft} dni)`:((((G.events&&G.events.performed)||0)<10)?`🔒 DJ koncertowy — wymóg: 10 koncertów`:`🎧 Zatrudnij DJ-a koncertowego (kontrakt na występy)`), fn:()=>{
+        /* U14 (v2.3.44 PDF): DJ koncertowy od 10. koncertu (dowolnego typu). Odmowa = cytat PDF. */
+        if(!(G.djContract&&G.djContract.daysLeft>0) && (((G.events&&G.events.performed)||0)<10)){showMsg('🎧 „Warunkiem współpracy jest Twoje uczestnictwo w co najmniej dziesięciu wydarzeniach komercyjnych, mój drogi. Wtedy gadamy." (wymóg: 10 koncertów)','i',6500);return;}
         closeNPCDlg();
         if(typeof window._djContractDialog==='function') window._djContractDialog();
       }},
@@ -49301,6 +49309,11 @@ window._smsCheckTriggers=function(){
   // — Pierwszy koncert
   if(concerts>=1) _smsTriggerOnce('first_concert','marcin',`Świetny występ ${G.name||'kolego'}! Ludzie pytają kiedy nastepny. Daj znać jak chcesz wbic większą scenę 🎤`);
   if(concerts>=5) _smsTriggerOnce('5_concerts','marcin','5 koncertów masz na koncie, jesteś już rozpoznawalny w mieście. Festiwal może być następnym krokiem — myśl o tym');
+  // — U14 (v2.3.44 PDF): odblokowania progów rekrutacji ekipy (powiadomienia w konkretnych momentach)
+  if((G.fans||0)>=2000) _smsTriggerOnce('crew_dj_unlocked','crew','🎧 Masz już 2 000 fanów — mogę Ci załatwić DJ-a do bitów (+15% zarobek ze sprzedaży bitów). Wbij do mnie na chodnik (H2 north).');
+  if((G.fans||0)>=50000) _smsTriggerOnce('crew_hype_unlocked','crew','📢 50 tysięcy fanów! Teraz hype-man ma dla kogo robić szum (+20% wzrost obserwujących). Odezwij się.');
+  if(concerts>=5) _smsTriggerOnce('crew_junior_unlocked','crew','🤵 Pięć występów za Tobą — junior manager jest dostępny (+5% wszystkie zarobki). Wpadnij zrekrutować.');
+  if(concerts>=10) _smsTriggerOnce('crew_djkonc_unlocked','crew','🎧 Dziesięć koncertów! DJ koncertowy na kontrakt wchodzi w grę. Pogadamy o tym przy ekipie.');
   // — Sława
   /* v2.1.228 audit-fix #46: SMS texts dopasowane do fizycznej obecności NPC.
      Manager (physical:true) — fizycznie na chodniku H1 obok Szpitala (NIE pod salą koncertową — zła wskazówka).
