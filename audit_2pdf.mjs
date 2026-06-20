@@ -609,6 +609,27 @@ try{
   /* anti-exploit: po quit-load (achievements wyczyszczone, claimed zachowane) ponowny check NIE dopłaca nagrody (money===m0) + claimed nie rośnie. */
   if(!(p3a.reUnlocked>0&&p3a.claimedStable&&p3a.moneyAfterReclaim===p3a.m0)) fail('P3 ach: anti-exploit reUnlocked='+p3a.reUnlocked+' claimedStable='+p3a.claimedStable+' money='+p3a.moneyAfterReclaim+' m0='+p3a.m0); else ok('P3 osiągnięcia: lifetime-claim anti-exploit (quit-load NIE wypłaca nagrody 2×, money stabilne)');
 
+  // ============ P3 — crew-akcje (sound_eng mastering → buff + cooldown + gate) ============
+  const p3cr = await page.evaluate(()=>{
+    const out={};
+    G.money=1e9; G.fans=2e6; G.followers=1e6; G.day=10; G._crewActionDay={}; G._soundEngBuff=null;
+    G.crew=[{role:'sound_eng',name:'Mariusz'}];
+    // akcja → ustawia buff +10 jakości następnego wydania
+    let e1=null; try{ window._crewAction('sound_eng'); }catch(e){ e1=e.message; }
+    out.e1=e1; out.buffSet=!!(G._soundEngBuff&&G._soundEngBuff.active); out.actDay=G._crewActionDay.sound_eng;
+    // cooldown: dzień 12 (<cd 5) → zablokowane, buff NIE ustawiony ponownie
+    G.day=12; G._soundEngBuff=null; window._crewAction('sound_eng'); out.cdBlocked=!(G._soundEngBuff&&G._soundEngBuff.active);
+    // po cooldownie dzień 16 (>=5) → znów działa
+    G.day=16; window._crewAction('sound_eng'); out.afterCd=!!(G._soundEngBuff&&G._soundEngBuff.active);
+    // brak workera → gate
+    G.crew=[]; G._soundEngBuff=null; G.day=30; window._crewAction('sound_eng'); out.noWorker=!(G._soundEngBuff&&G._soundEngBuff.active);
+    return out;
+  });
+  if(p3cr.e1||!p3cr.buffSet||p3cr.actDay!==10) fail('P3 crew: err='+p3cr.e1+' buff='+p3cr.buffSet+' day='+p3cr.actDay); else ok('P3 crew: sound_eng mastering → buff +10 jakości następnego wydania (cooldown ustawiony)');
+  if(!p3cr.cdBlocked) fail('P3 crew: cooldown nie zablokował akcji'); else ok('P3 crew: cooldown 5 dni blokuje ponowną akcję');
+  if(!p3cr.afterCd) fail('P3 crew: akcja nie działa po cooldownie'); else ok('P3 crew: akcja znów dostępna po cooldownie');
+  if(!p3cr.noWorker) fail('P3 crew: akcja zadziałała bez workera'); else ok('P3 crew: gate — brak sound_eng w ekipie blokuje akcję');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
