@@ -864,6 +864,22 @@ try{
   if(p3r.doubleGain!==0) fail('P3 radio: double-pay doubleGain='+p3r.doubleGain); else ok('P3 radio: anti-double-pay (drugie zebranie = 0, single-pay collect-only)');
   if(!/if\(plays>_budget\)\s*plays=_budget/.test(_idxSrc2)) fail('P3 radio: maxPlays budżet-clamp NIE w kodzie'); else ok('P3 radio: maxPlays — odtworzenia capowane budżetem bitów (anti-infinite, source-confirmed)');
 
+  // ============ P3 — albumy/label royalty-cut (_labelRoyaltyCut single-source + wygaśnięcie kontraktu) ============
+  const p3l = await page.evaluate(()=>{
+    if(typeof _labelRoyaltyCut!=='function') return {missing:true};
+    G.label={}; G.day=10;
+    G.label.type=null; const none=_labelRoyaltyCut();
+    G.label.type='major'; const major=_labelRoyaltyCut();
+    G.label.type='global'; G.label.contractEndsDay=100; const gActive=_labelRoyaltyCut();
+    G.label.type='global'; G.label.contractEndsDay=5; const gExpired=_labelRoyaltyCut(); // dzień 10 > 5 → wygasły (0 to sentinel „brak daty", nie wygaśnięcie)
+    return {none,major,gActive,gExpired};
+  });
+  if(p3l.missing) fail('P3 label: _labelRoyaltyCut niedostępny');
+  else { if(p3l.none!==1.0) fail('P3 label: brak labela none='+p3l.none); else ok('P3 label: bez wytwórni → 100% tantiem (×1.0)');
+    if(p3l.major!==0.5) fail('P3 label: major='+p3l.major); else ok('P3 label: major → 50% tantiem (cut 50%)');
+    if(p3l.gActive!==0.3) fail('P3 label: global aktywny='+p3l.gActive); else ok('P3 label: global aktywny → 30% tantiem (cut 70%)');
+    if(p3l.gExpired!==1.0) fail('P3 label: global wygasły='+p3l.gExpired); else ok('P3 label: kontrakt global wygasły → tantiemy wracają do 100% (×1.0)'); }
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
