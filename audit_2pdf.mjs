@@ -546,6 +546,30 @@ try{
   if(p3b.cheatGain>0||p3b.cheatCount!==1) fail('P3 bank: anti-cheat ujemna kwota gain='+p3b.cheatGain+' count='+p3b.cheatCount); else ok('P3 bank: anti-cheat — ujemna kwota odrzucona (brak gain)');
   if(p3b.npErr) fail('P3 bank: nextPeriod rzucił: '+p3b.npErr); else if(!(p3b.matRemoved&&p3b.histGrew)) fail('P3 bank: dojrzewanie removed='+p3b.matRemoved+' histGrew='+p3b.histGrew); else ok('P3 bank: dojrzewanie lokaty → wypłata + historia (usunięta z aktywnych)');
 
+  // ============ P3 — kryptowaluty (buy/sell, anti-exploit) ============
+  const p3c = await page.evaluate(()=>{
+    const out={};
+    const coinId=(typeof CRYPTO_COINS!=='undefined'&&CRYPTO_COINS[0])?CRYPTO_COINS[0].id:'hype';
+    G.trader=G.trader||{}; G.trader.unlocked=true; G.trader.tradesCount=0;
+    G.crypto=G.crypto||{}; G.crypto.holdings={}; G.crypto.history=[]; G.crypto.prices=G.crypto.prices||{}; G.crypto.prevPrices=G.crypto.prevPrices||{};
+    G.crypto.prices[coinId]=25; G.crypto.prevPrices[coinId]=25; G.day=10; G.money=100000;
+    // buy
+    const m0=G.money; const okBuy=window._cryptoBuy(coinId,10000);
+    const h=G.crypto.holdings[coinId]||{}; out.okBuy=okBuy; out.buyDrop=m0-G.money; out.qtyAfterBuy=h.qty||0;
+    // sell wszystko
+    const m1=G.money; const okSell=window._cryptoSell(coinId,h.qty||0);
+    out.okSell=okSell; out.sellGain=G.money-m1; out.qtyAfterSell=(G.crypto.holdings[coinId]||{}).qty||0;
+    // anti-exploit: kup za wiecej niz masz
+    G.money=5000; const m2=G.money; const cheatBuy=window._cryptoBuy(coinId,1e9); out.cheatBuy=cheatBuy; out.cheatBuyDrop=m2-G.money;
+    // anti-exploit: sprzedaj wiecej niz masz
+    G.crypto.holdings[coinId]={qty:1,avgPrice:25,buyDay:10}; const m3=G.money; const cheatSell=window._cryptoSell(coinId,1e9); out.cheatSell=cheatSell; out.cheatSellGain=G.money-m3;
+    return out;
+  });
+  if(!(p3c.okBuy&&p3c.buyDrop>0&&p3c.qtyAfterBuy>0)) fail('P3 crypto: buy ok='+p3c.okBuy+' drop='+p3c.buyDrop+' qty='+p3c.qtyAfterBuy); else ok('P3 crypto: zakup coina (kasa −'+Math.round(p3c.buyDrop)+', holdings +'+p3c.qtyAfterBuy.toFixed(3)+')');
+  if(!(p3c.okSell&&p3c.sellGain>0&&p3c.qtyAfterSell<0.001)) fail('P3 crypto: sell ok='+p3c.okSell+' gain='+p3c.sellGain+' qty='+p3c.qtyAfterSell); else ok('P3 crypto: sprzedaż coina (kasa +'+Math.round(p3c.sellGain)+', holdings→0)');
+  if(p3c.cheatBuy!==false||p3c.cheatBuyDrop!==0) fail('P3 crypto: anti-exploit over-buy='+p3c.cheatBuy+' drop='+p3c.cheatBuyDrop); else ok('P3 crypto: anti-exploit — kup ponad stan odrzucony');
+  if(p3c.cheatSell!==false||p3c.cheatSellGain!==0) fail('P3 crypto: anti-exploit over-sell='+p3c.cheatSell+' gain='+p3c.cheatSellGain); else ok('P3 crypto: anti-exploit — sprzedaż ponad holdings odrzucona');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
