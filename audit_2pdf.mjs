@@ -473,11 +473,11 @@ try{
     const lbl=(id)=>{ const o=(ROOMS.ulica.objects||[]).find(x=>x.id===id); return o?o.lbl:null; };
     const lm=(frag)=>(MAP_LANDMARKS||[]).some(l=>(l.name||'').includes(frag));
     return {
-      carwash:lbl('carwash'), shelter:lbl('shelter'), salon:lbl('salon'), muzyczny:lbl('muzyczny'), sala:lbl('sala_konce'), zoo:lbl('zoo_shop'),
+      carwash:lbl('carwash'), shelter:lbl('shelter'), salon:lbl('salon'), muzyczny:lbl('muzyczny'), sala:lbl('sala_konce'), zoo:lbl('zoo_shop'), pepco:lbl('pepco'), szpital:lbl('szpital'),
       lmBeat:lm('BeatPoint'), lmPaw:lm('Dom dla Łapy'), lmSplash:lm('Splash & Go'),
     };
   });
-  const exp={carwash:'Splash & Go',shelter:'Dom dla Łapy',salon:'CityDrive Motors',muzyczny:'BeatPoint',sala:'808 Arena',zoo:'PetSide Market'};
+  const exp={carwash:'Splash & Go',shelter:'Dom dla Łapy',salon:'CityDrive Motors',muzyczny:'BeatPoint',sala:'808 Arena',zoo:'PetSide Market',pepco:'Backstreet Thrift',szpital:'Nova Cura'};
   let u16bad=[];
   for(const k of Object.keys(exp)){ if(u16b[k]!==exp[k]) u16bad.push(k+'='+u16b[k]); }
   if(u16bad.length) fail('U16-sub2: lbl niezmienione: '+u16bad.join(', ')); else ok('U16-sub2: sklepy generyczne → fikcyjne brandy (carwash/shelter/salon/muzyczny/sala/zoo + 10 dalszych)');
