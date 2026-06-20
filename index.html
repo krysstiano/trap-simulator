@@ -35706,12 +35706,13 @@ window.buyToFridge=(id)=>{
   const food=FOOD_CATALOG.find(f=>f.id===id);
   if(!food)return; /* v2.1.769 (audyt Faza A): null-check PRZED food.price (find moze zwrocic undefined → TypeError) */
   const _price=applyShopDiscount(food.price); // F3-FIX: negocjacje skill
-  if(G.money<_price){if(typeof sfxDenied==='function')sfxDenied();document.getElementById('shop-res').textContent='Za mało pieniędzy!';return;}
+  const resEl=document.getElementById('shop-res'); /* v2.3.44 (audyt P3): null-guard jak w buyToInventory — bez tego .textContent na null rzuca gdy shop-res nie w DOM (spójność defensywna). */
+  if(G.money<_price){if(typeof sfxDenied==='function')sfxDenied();if(resEl)resEl.textContent='Za mało pieniędzy!';return;}
   G.money-=_price;
   const existing=G.fridgeItems.find(i=>i.id===id);
   if(existing){ _foodMergeFresh(existing,1); existing.qty++; } /* N2: świeżość — średnia ważona przy dokupieniu */
   else G.fridgeItems.push(_foodStampFresh({...food,qty:1})); /* N2: 100% świeżości od dnia zakupu */
-  document.getElementById('shop-res').textContent=`✅ ${food.emoji} ${food.name} → lodówka! -${food.price} zł`;
+  if(resEl)resEl.textContent=`✅ ${food.emoji} ${food.name} → lodówka! -${food.price} zł`;
   renderFoodShop();
 };
 

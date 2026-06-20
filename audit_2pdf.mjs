@@ -644,6 +644,25 @@ try{
   if(p3i.cap!==0.45) fail('P3 item: cap='+p3i.cap+' (oczek 0.45)'); else ok('P3 item: cap bonusu 0.45 (0.30+0.30→0.45)');
   if(!(Math.abs(p3i.fame-0.15)<0.001&&p3i.jobZero===0)) fail('P3 item: per-stat fame='+p3i.fame+' job='+p3i.jobZero); else ok('P3 item: bonus per-stat (fame osobno od job; czytane w earn/addFame/stream)');
 
+  // ============ P3 — sklep jedzenia (kup→ekwipunek/lodówka + merge + anti-exploit) ============
+  const p3f = await page.evaluate(()=>{
+    const out={};
+    window.renderFoodShop=()=>{}; // izolacja DOM
+    G.money=100000; G.inventory=[]; G.fridgeItems=[]; G.backpack=20;
+    const m0=G.money; window.buyToInventory('pizza');
+    out.invHasPizza=(G.inventory||[]).some(i=>i.id==='pizza'&&i.type==='food'); out.invMoneyDrop=m0-G.money;
+    const m1=G.money; window.buyToFridge('pizza'); window.buyToFridge('pizza');
+    const fr=(G.fridgeItems||[]).find(i=>i.id==='pizza'); out.fridgeQty=fr?fr.qty:0; out.fridgeMoneyDrop=m1-G.money;
+    G.money=0; window.buyToInventory('water'); out.brokeBlocked=(G.money===0 && !(G.inventory||[]).some(i=>i.id==='water'));
+    G.money=100000; G.backpack=0; G.inventory=[]; for(let i=0;i<6;i++) G.inventory.push({id:'x'+i,type:'food',name:'x',qty:1});
+    const m3=G.money; window.buyToInventory('burger'); out.capBlocked=(G.money===m3 && !(G.inventory||[]).some(i=>i.id==='burger'));
+    return out;
+  });
+  if(!(p3f.invHasPizza&&p3f.invMoneyDrop>0)) fail('P3 food: ekwipunek hasPizza='+p3f.invHasPizza+' drop='+p3f.invMoneyDrop); else ok('P3 sklep-jedzenie: kup→ekwipunek (kasa −'+p3f.invMoneyDrop+', pizza w inv)');
+  if(p3f.fridgeQty!==2||!(p3f.fridgeMoneyDrop>0)) fail('P3 food: lodówka qty='+p3f.fridgeQty+' drop='+p3f.fridgeMoneyDrop); else ok('P3 sklep-jedzenie: kup×2→lodówka (merge qty=2, kasa −'+p3f.fridgeMoneyDrop+')');
+  if(!p3f.brokeBlocked) fail('P3 food: anti-exploit brak-kasy nie zablokował'); else ok('P3 sklep-jedzenie: anti-exploit — brak kasy blokuje zakup');
+  if(!p3f.capBlocked) fail('P3 food: cap ekwipunku nie zablokował'); else ok('P3 sklep-jedzenie: pełny ekwipunek (cap 6) blokuje zakup do inv');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
