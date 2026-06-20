@@ -897,6 +897,25 @@ try{
     if(p3o.reDrop!==0) fail('P3 ubrania: anti-double-charge reDrop='+p3o.reDrop); else ok('P3 ubrania: anti-double-charge — ponowne założenie posiadanego outfitu DARMOWE');
     if(!(p3o.hairDrop===300 && p3o.hair==='h1')) fail('P3 ubrania: haircut drop='+p3o.hairDrop+' hair='+p3o.hair); else ok('P3 ubrania: fryzura (kasa −300, G.hair ustawione)'); }
 
+  // ============ P3 — quest dnia (progressQuest match/complete + claim anti-double) ============
+  const p3q = await page.evaluate(()=>{
+    if(typeof progressQuest!=='function'||typeof claimQuestReward!=='function') return {missing:true};
+    window.checkAchievements=()=>{}; window.closeOverlay=()=>{}; window.checkStoryline=()=>{};
+    G.dailyQuest={target:'eat',count:3,progress:0,completed:false,claimed:false,reward:1000,xp:50,desc:'Zjedz'};
+    progressQuest('xyz'); const afterWrong=G.dailyQuest.progress;
+    progressQuest('eat'); progressQuest('eat'); const mid=G.dailyQuest.progress, midDone=G.dailyQuest.completed;
+    progressQuest('eat'); const done=G.dailyQuest.completed, claimedBefore=G.dailyQuest.claimed;
+    G.money=10000; G.xp=0; claimQuestReward(); const gain=G.money-10000, claimedAfter=G.dailyQuest.claimed, xpGained=G.xp>0;
+    const m=G.money; claimQuestReward(); const doubleGain=G.money-m;
+    return {afterWrong,mid,midDone,done,claimedBefore,gain,claimedAfter,xpGained,doubleGain};
+  });
+  if(p3q.missing) fail('P3 quest: progressQuest/claimQuestReward niedostępne');
+  else { if(p3q.afterWrong!==0) fail('P3 quest: zły target progress='+p3q.afterWrong); else ok('P3 quest: zły target → brak postępu (tylko pasujący target liczy)');
+    if(!(p3q.mid===2 && p3q.midDone===false)) fail('P3 quest: postęp mid='+p3q.mid+' done='+p3q.midDone); else ok('P3 quest: postęp narasta (2/3, jeszcze nieukończony)');
+    if(!(p3q.done===true && p3q.claimedBefore===false)) fail('P3 quest: complete done='+p3q.done+' claimed='+p3q.claimedBefore); else ok('P3 quest: ukończenie przy count (completed, claimed=false)');
+    if(!(p3q.gain>0 && p3q.claimedAfter===true && p3q.xpGained)) fail('P3 quest: claim gain='+p3q.gain+' claimed='+p3q.claimedAfter+' xp='+p3q.xpGained); else ok('P3 quest: odbiór nagrody (kasa +'+p3q.gain+' + XP, claimed=true)');
+    if(p3q.doubleGain!==0) fail('P3 quest: anti-double-claim doubleGain='+p3q.doubleGain); else ok('P3 quest: anti-double-claim (drugi odbiór = 0)'); }
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
