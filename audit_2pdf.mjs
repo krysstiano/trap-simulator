@@ -880,6 +880,23 @@ try{
     if(p3l.gActive!==0.3) fail('P3 label: global aktywny='+p3l.gActive); else ok('P3 label: global aktywny → 30% tantiem (cut 70%)');
     if(p3l.gExpired!==1.0) fail('P3 label: global wygasły='+p3l.gExpired); else ok('P3 label: kontrakt global wygasły → tantiemy wracają do 100% (×1.0)'); }
 
+  // ============ P3 — sklep-ubrań (buyOutfit anti-double-charge + buyHaircut) ============
+  const p3o = await page.evaluate(()=>{
+    if(typeof buyOutfit!=='function') return {missing:true};
+    if(!document.getElementById('shop-res')) document.body.insertAdjacentHTML('beforeend','<div id="shop-res"></div>');
+    window.renderClothingShop=()=>{}; window.renderPepcoShop=()=>{}; window.checkAchievements=()=>{}; // izolacja DOM+szum nagród
+    G.outfit={top:'default'}; G._ownedOutfits=[]; G.money=10000; G.streetRep=0;
+    buyOutfit('street','Street',500);
+    const firstDrop=10000-G.money, owned=(G._ownedOutfits||[]).includes('street'), top=G.outfit.top;
+    const m=G.money; buyOutfit('street','Street',500); const reDrop=m-G.money; // re-wear anti-double-charge
+    G.money=10000; let hairDrop=0,hair=null; if(typeof buyHaircut==='function'){ buyHaircut('h1',300); hairDrop=10000-G.money; hair=G.hair; }
+    return {firstDrop,owned,top,reDrop,hairDrop,hair};
+  });
+  if(p3o.missing) fail('P3 ubrania: buyOutfit niedostępny');
+  else { if(!(p3o.firstDrop>0 && p3o.firstDrop<=500 && p3o.owned && p3o.top==='street')) fail('P3 ubrania: pierwszy zakup drop='+p3o.firstDrop+' owned='+p3o.owned+' top='+p3o.top); else ok('P3 ubrania: pierwszy zakup outfitu (kasa −'+p3o.firstDrop+', założony + w _ownedOutfits)');
+    if(p3o.reDrop!==0) fail('P3 ubrania: anti-double-charge reDrop='+p3o.reDrop); else ok('P3 ubrania: anti-double-charge — ponowne założenie posiadanego outfitu DARMOWE');
+    if(!(p3o.hairDrop===300 && p3o.hair==='h1')) fail('P3 ubrania: haircut drop='+p3o.hairDrop+' hair='+p3o.hair); else ok('P3 ubrania: fryzura (kasa −300, G.hair ustawione)'); }
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
