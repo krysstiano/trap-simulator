@@ -813,6 +813,26 @@ try{
     if(p3c3.minesFull!==null) fail('P3 kasyno-step: minesFull='+p3c3.minesFull+' (oczek null)'); else ok('P3 kasyno-step: Mines null-guard — brak bezpiecznych pól (safe=0) = null');
     if(!(p3c3.minesMid>p3c3.mines0)) fail('P3 kasyno-step: monotoniczność mid='+p3c3.minesMid+' vs 0='+p3c3.mines0); else ok('P3 kasyno-step: Mines mnożnik rośnie z odsłoniętymi (monotoniczny)'); }
 
+  // ============ P3 — narko pricing-modyfikatory (purity/jakość/rynek: ograniczenia + NaN-guard) ============
+  const p3t = await page.evaluate(()=>{
+    if(typeof _trapPurityMult!=='function'||typeof _trapQMult!=='function'||typeof _trapMarketMult!=='function') return {missing:true};
+    G.trapInv=G.trapInv||{}; G.trapInv.purity={}; G.trapInv.quality={}; G.trapInv.danger={};
+    G.trapInv.purity.weed=1.0; const pm1=_trapPurityMult('weed');
+    G.trapInv.purity.weed=0;   const pm0=_trapPurityMult('weed');
+    G.trapInv.purity.weed=NaN; const pmNaN=_trapPurityMult('weed'); // NaN-guard → default purity 1.0 → 1.0
+    G.trapInv.quality.weed=0.72; const qm72=_trapQMult('weed');
+    G.trapInv.quality.weed=1.0;  const qmHi=_trapQMult('weed');
+    G.trapInv.quality.weed=0;    const qmLo=_trapQMult('weed');
+    G.trap=G.trap||{}; G.trap.market={weed:99};   const mmHi=_trapMarketMult('weed');
+    G.trap.market={weed:0.01}; const mmLo=_trapMarketMult('weed');
+    return {pm1,pm0,pmNaN,qm72,qmHi,qmLo,mmHi,mmLo};
+  });
+  if(p3t.missing) fail('P3 narko-pricing: funkcje niedostępne');
+  else { if(!(Math.abs(p3t.pm1-1.0)<0.001 && Math.abs(p3t.pm0-0.35)<0.001)) fail('P3 narko-pricing: purityMult pm1='+p3t.pm1+' pm0='+p3t.pm0); else ok('P3 narko-pricing: purity-mult ograniczony 0.35–1.0 (cut opłacalny krótko, nie eksploit)');
+    if(Math.abs(p3t.pmNaN-1.0)>0.001) fail('P3 narko-pricing: NaN-guard pmNaN='+p3t.pmNaN); else ok('P3 narko-pricing: NaN-guard purity (uszkodzony save → default 1.0, nie NaN-cena)');
+    if(!(Math.abs(p3t.qm72-1.0)<0.001 && p3t.qmHi<=1.22 && p3t.qmLo>=0.78)) fail('P3 narko-pricing: qMult 72='+p3t.qm72+' hi='+p3t.qmHi+' lo='+p3t.qmLo); else ok('P3 narko-pricing: jakość-mult clamp 0.78–1.22 (neutralny 1.0 @ grade 0.72)');
+    if(!(Math.abs(p3t.mmHi-1.4)<0.001 && Math.abs(p3t.mmLo-0.6)<0.001)) fail('P3 narko-pricing: marketMult hi='+p3t.mmHi+' lo='+p3t.mmLo); else ok('P3 narko-pricing: rynek-mult clamp 0.6–1.4 (anti-exploit: brak nieskończonej ceny)'); }
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
