@@ -986,6 +986,16 @@ try{
   const _hasGeneric=/odkryjesz|odkrywasz|przekonasz się|bez spoilerów|do odkrycia/i.test(_pn);
   if(!_hasGeneric) fail('PATCHNOTES: brak generycznych wzmianek „do odkrycia"'); else ok('PATCHNOTES: wpisy generyczne obecne (informują że dodano treść, bez szczegółów fabuły)');
 
+  // ============ P3 — koncert soft-cap hiperboliczny (reguła #11: poniżej progu pełny, monotoniczny, asymptota) ============
+  const fConcert = (earn)=>{ if(earn<=25000) return earn; const _e=earn-25000; return 25000+Math.floor(_e/(1+_e/5200)); };
+  const p3kc = { below:fConcert(10000), at:fConcert(25000), mid:fConcert(100000), big:fConcert(200000), huge:fConcert(1e9) };
+  const _idxKC = fs.readFileSync('index.html','utf8');
+  const _kcSrc = /25000\+Math\.floor\(_excess\/\(1\+_excess\/5200\)\)/.test(_idxKC);
+  if(!_kcSrc) fail('P3 koncert: formuła hiperboliczna 25000/5200 NIE w kodzie (zmieniona?)'); else ok('P3 koncert: gra stosuje hiperboliczną kompresję 25k/5200 w endConcert (source-confirmed)');
+  if(p3kc.below!==10000||p3kc.at!==25000) fail('P3 koncert: poniżej progu below='+p3kc.below+' at='+p3kc.at); else ok('P3 koncert: do 25k zarobek pełny 100% (reguła #11 — brak odbierania)');
+  if(!(p3kc.mid>25000 && p3kc.mid<30200 && p3kc.big>p3kc.mid)) fail('P3 koncert: kompresja mid='+p3kc.mid+' big='+p3kc.big); else ok('P3 koncert: powyżej 25k kompresja monotoniczna (100k→'+p3kc.mid+', 200k→'+p3kc.big+', rośnie)');
+  if(!(p3kc.huge>30000 && p3kc.huge<=30201)) fail('P3 koncert: asymptota huge='+p3kc.huge+' (oczek ~30200)'); else ok('P3 koncert: asymptota ~30,2k (25k+5,2k) — ogromny zarobek wciąż rośnie ale ograniczony (anti-runaway)');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
