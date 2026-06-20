@@ -833,6 +833,24 @@ try{
     if(!(Math.abs(p3t.qm72-1.0)<0.001 && p3t.qmHi<=1.22 && p3t.qmLo>=0.78)) fail('P3 narko-pricing: qMult 72='+p3t.qm72+' hi='+p3t.qmHi+' lo='+p3t.qmLo); else ok('P3 narko-pricing: jakość-mult clamp 0.78–1.22 (neutralny 1.0 @ grade 0.72)');
     if(!(Math.abs(p3t.mmHi-1.4)<0.001 && Math.abs(p3t.mmLo-0.6)<0.001)) fail('P3 narko-pricing: marketMult hi='+p3t.mmHi+' lo='+p3t.mmLo); else ok('P3 narko-pricing: rynek-mult clamp 0.6–1.4 (anti-exploit: brak nieskończonej ceny)'); }
 
+  // ============ P3 — career soft-cap (reguła #11: poniżej progu pełny, powyżej tłumiony, monotoniczny, NIGDY 0) ============
+  const p3sc = await page.evaluate(()=>{
+    if(typeof _careerSoftCap!=='function'||typeof _careerDailyCap!=='function') return {missing:true};
+    G.fame=0; const T=_careerDailyCap('gamer');
+    G._careerEarnedToday={day:G.day}; const a=_careerSoftCap('gamer',5000,5000);                 // poniżej progu → pełny
+    G._careerEarnedToday={day:G.day}; _careerSoftCap('gamer',T,T); const b1=_careerSoftCap('gamer',10000,10000); const b2=_careerSoftCap('gamer',10000,10000); // nad progiem: tłumione + malejące
+    G._careerEarnedToday={day:G.day}; _careerSoftCap('gamer',T,T); const d=_careerSoftCap('gamer',1e9,1e9); // ogromna nadwyżka → wciąż >0
+    G._careerEarnedToday={day:G.day}; _careerSoftCap('gamer',T,T); const m10=_careerSoftCap('gamer',10000,10000);
+    G._careerEarnedToday={day:G.day}; _careerSoftCap('gamer',T,T); const m20=_careerSoftCap('gamer',20000,20000);
+    return {T,a,b1,b2,d,m10,m20};
+  });
+  if(p3sc.missing) fail('P3 soft-cap: _careerSoftCap niedostępny');
+  else { if(p3sc.a!==5000) fail('P3 soft-cap: poniżej progu a='+p3sc.a+' (oczek 5000 pełny)'); else ok('P3 soft-cap: poniżej progu pełna stawka (gra nietknięta, reguła #11)');
+    if(!(p3sc.b1<10000 && p3sc.b1>0)) fail('P3 soft-cap: nad progiem b1='+p3sc.b1); else ok('P3 soft-cap: nad progiem tłumione ale >0 (×'+(p3sc.b1/10000).toFixed(2)+', nigdy 0 — gładko)');
+    if(!(p3sc.b2<p3sc.b1 && p3sc.b2>0)) fail('P3 soft-cap: diminishing b2='+p3sc.b2+' vs b1='+p3sc.b1); else ok('P3 soft-cap: malejące zwroty (kolejna akcja '+p3sc.b2+'<'+p3sc.b1+', monotonicznie maleje)');
+    if(!(p3sc.d>0 && p3sc.d<1e9)) fail('P3 soft-cap: huge d='+p3sc.d); else ok('P3 soft-cap: ogromna nadwyżka silnie tłumiona ale >0 (anti-spam, nie odbiera)');
+    if(!(p3sc.m20>p3sc.m10)) fail('P3 soft-cap: monotoniczność m20='+p3sc.m20+' vs m10='+p3sc.m10); else ok('P3 soft-cap: monotoniczny (większa baza → większa wypłata)'); }
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
