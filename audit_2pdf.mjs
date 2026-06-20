@@ -746,6 +746,24 @@ try{
   if(!(p3m.okSell&&p3m.sellGain>0&&p3m.cleared)) fail('P3 metale: sell ok='+p3m.okSell+' gain='+p3m.sellGain+' cleared='+p3m.cleared); else ok('P3 metale: sprzedaż (kasa +'+Math.round(p3m.sellGain)+', holdings usunięte)');
   if(!p3m.overSell) fail('P3 metale: anti-exploit over-sell nie zablokował'); else ok('P3 metale: anti-exploit — sprzedaż ponad stan odrzucona');
 
+  // ============ P3 — hospital heal (koszt skalowany z HP + cooldown anti-spam) ============
+  const p3h = await page.evaluate(()=>{
+    const out={};
+    if(!document.getElementById('shop-res')) document.body.insertAdjacentHTML('beforeend','<div id="shop-res"></div>');
+    window.renderHospital=()=>{};
+    G.day=5; try{ gameMin=100; }catch(_){}
+    G._lastHealAbs=-9999; G.health=40; G.money=10000;
+    window.heal(100); out.fullHealth=G.health; out.fullDrop=10000-G.money; out.cdSet=(G._lastHealAbs>-9999);
+    // cooldown blokuje natychmiastowe leczenie
+    G.health=40; const m=G.money; window.heal(100); out.cdBlocked=(G.health===40 && G.money===m);
+    // częściowe leczenie (+30), reset cooldown
+    G._lastHealAbs=-9999; G.health=40; G.money=10000; window.heal(30); out.partHealth=G.health; out.partDrop=10000-G.money;
+    return out;
+  });
+  if(!(p3h.fullHealth===100&&p3h.fullDrop===480&&p3h.cdSet)) fail('P3 hospital: full hp='+p3h.fullHealth+' koszt='+p3h.fullDrop); else ok('P3 hospital: pełne leczenie (HP→100, koszt (100−40)×8=480)');
+  if(!p3h.cdBlocked) fail('P3 hospital: cooldown nie zablokował'); else ok('P3 hospital: cooldown 30 gameMin blokuje spam leczenia');
+  if(!(p3h.partHealth===70&&p3h.partDrop===180)) fail('P3 hospital: partial hp='+p3h.partHealth+' koszt='+p3h.partDrop); else ok('P3 hospital: częściowe leczenie (+30 HP=70, koszt (100−40)×3=180)');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
