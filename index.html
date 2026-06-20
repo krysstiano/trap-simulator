@@ -16884,8 +16884,12 @@ function sponsorBrandAvailable(b){
   /* v2.1.874 (PDF): wysokie zniesławienie odstrasza marki (mainstream stroni od kontrowersji).
      ≥80 = skreślony całkowicie; ≥50 = zostają tylko duże/edgy marki (reqFame≥100), mniejsze rezygnują. */
   const _def=G.defamation||0;
-  if(_def>=80) return false;
-  if(_def>=50 && (b.reqFame||0)<100) return false;
+  /* K-4 (PDF2 sekcja 13): 6 progów. toksyczny(86+)=skreślony; spalony(66-85)=tylko top-edgy(reqFame≥200); czarna-rep(46-65)=edgy(reqFame≥100); podejrzany(26-45)=małe marki rezygnują(reqFame<50). */
+  const _dt=(typeof _defamationTier==='function')?_defamationTier(_def).id:(_def>=80?'toxic':(_def>=50?'blacklist':'clean'));
+  if(_dt==='toxic') return false;
+  if(_dt==='burned' && (b.reqFame||0)<200) return false;
+  if(_dt==='blacklist' && (b.reqFame||0)<100) return false;
+  if(_dt==='suspect' && (b.reqFame||0)<50) return false;
   return true;
 }
 /* PR drama messages — różnice osobowości NPCs */
@@ -17761,7 +17765,7 @@ window._checkIgSponsorshipOffer=function(){
     payoutMin=2000; payoutMax=10000;
     brandList=['Audi Premium','Gucci Lux','LV Vintage','Rolex Watches','Maybach Tour'];
   }
-  const payout=Math.floor((payoutMin + Math.random()*(payoutMax-payoutMin))*0.75); /* v2.1.834: sponsoring IG -25% (rebalans ekonomii Vegan) */
+  const payout=Math.floor((payoutMin + Math.random()*(payoutMax-payoutMin))*0.75*((typeof _defamationCareerMods==='function')?_defamationCareerMods().payoutMult:1)); /* v2.1.834: sponsoring IG -25% (rebalans Vegan). K-4: skalowane przez zniesławienie (gorsze stawki) */
   const brand=brandList[Math.floor(Math.random()*brandList.length)];
   /* Save offer state */
   G._igSponsorshipPendingOffer={brand, payout, expireDay:G.day+2};
@@ -17881,7 +17885,7 @@ window._checkTwitterSponsorshipOffer=function(){
     payoutMin=5000; payoutMax=15000;
     brandList=['Tesla Premium','Rolls Royce','Bugatti','Hermès'];
   }
-  const payout=Math.floor((payoutMin + Math.random()*(payoutMax-payoutMin))*0.75); /* v2.1.834: sponsoring Twitter -25% (rebalans ekonomii Vegan) */
+  const payout=Math.floor((payoutMin + Math.random()*(payoutMax-payoutMin))*0.75*((typeof _defamationCareerMods==='function')?_defamationCareerMods().payoutMult:1)); /* v2.1.834: sponsoring Twitter -25% (rebalans Vegan). K-4: skalowane przez zniesławienie */
   const brand=brandList[Math.floor(Math.random()*brandList.length)];
   G._twitterSponsorshipPendingOffer={brand, payout, expireDay:G.day+2};
   if(typeof addNotif==='function') addNotif(`💼 Twitter sponsorship: ${brand} oferuje ${payout} zł za promocję w next tweet (24h).`);
@@ -26483,10 +26487,26 @@ function addDefamation(n){
   if(n>0){
     /* notoriety → szacunek ulicy (mały bonus, nie psuje balansu) */
     G.streetRep=Math.min(100,(G.streetRep||0)+Math.max(1,Math.round(n/4)));
-    if(old<50 && G.defamation>=50 && typeof addNotif==='function') addNotif('⚠️ Zniesławienie 50 — sponsorzy zaczynają stronić, ale ulica Cię szanuje.');
-    if(old<80 && G.defamation>=80 && typeof addNotif==='function') addNotif('🚫 Zniesławienie 80 — mainstream Cię skreśla (brak sponsorów), za to legenda undergroundu.');
+    /* K-4 (PDF2 sekcja 13): 6 progów zniesławienia — powiadomienie przy przekroczeniu progu. */
+    const _t0=_defamationTier(old).id, _t1=_defamationTier(G.defamation).id;
+    if(_t0!==_t1 && typeof addNotif==='function'){
+      const _msgs={rumors:'💬 Zniesławienie: Plotki — drobne spadki zaufania, pojawiają się hejterzy.',suspect:'🤨 Zniesławienie: Podejrzany typ — mniej propozycji sponsorowanych, gorsze reakcje legalnych NPC.',blacklist:'🖤 Zniesławienie: Czarna reputacja — spadek bookingów, niższe stawki, częstsze odmowy współpracy.',burned:'🔥 Zniesławienie: Spalony wizerunkowo — sponsorzy odpadają, public image leci w dół, media grzeją temat.',toxic:'☠️ Zniesławienie: Toksyczny brand — legalna kariera mocno zablokowana; tylko underground reaguje pozytywnie.'};
+      if(_msgs[_t1]) addNotif(_msgs[_t1]);
+    }
   }
 }
+/* K-4 (PDF2 sekcja 13): 6 progów zniesławienia + mnożniki kariery (sponsorzy/booking/stawki). */
+function _defamationTier(score){ score=score||0;
+  if(score<=10) return {id:'clean',     name:'Czysty wizerunek',    sponsorMult:1.0,  bookingMult:1.0,  payoutMult:1.0};
+  if(score<=25) return {id:'rumors',    name:'Plotki',              sponsorMult:0.9,  bookingMult:1.0,  payoutMult:1.0};
+  if(score<=45) return {id:'suspect',   name:'Podejrzany typ',      sponsorMult:0.6,  bookingMult:0.9,  payoutMult:0.95};
+  if(score<=65) return {id:'blacklist', name:'Czarna reputacja',    sponsorMult:0.35, bookingMult:0.7,  payoutMult:0.85};
+  if(score<=85) return {id:'burned',    name:'Spalony wizerunkowo', sponsorMult:0.15, bookingMult:0.45, payoutMult:0.7};
+  return {id:'toxic', name:'Toksyczny brand', sponsorMult:0.0, bookingMult:0.2, payoutMult:0.55};
+}
+window._defamationTier=_defamationTier;
+function _defamationCareerMods(){ return _defamationTier(G.defamation||0); }
+window._defamationCareerMods=_defamationCareerMods;
 /* v2.1.875 (PDF): BROŃ PALNA — pistolet od anonimowego handlarza (nocny uliczny random-event).
    Odstrasza zbirów w napadzie (zużywa 1 użycie/raz), ale ryzyko przy kontroli policji → zniesławienie (reuse addDefamation→gate sponsorów).
    Nie do naprawy — gdy durability=0 pistolet pęka. Można zutylizować za opłatą. */
@@ -26582,6 +26602,19 @@ function canPlayerRobNpc(hour, locKey){
   return {ok:false, reason:'predawn', msg:'O tej porze ulice są martwe — sami patrolujący i kamery. Odpuść.'};
 }
 window.canPlayerRobNpc=canPlayerRobNpc;
+/* K-4 (PDF2 sekcja 19): anty-exploit „czujna okolica" — po 3 kradzieżach w dzielnicy w 24h rośnie czujność (patrole/świadkowie), maleją łupy. */
+function _theftDistrictAlerted(d){ _theftStateEnsure(); d=d||currentRoom||'ulica'; return ((G._theft.alertUntil[d]||0)>(G.day||0)); }
+window._theftDistrictAlerted=_theftDistrictAlerted;
+function _theftDistrictAlertCheck(d){
+  _theftStateEnsure(); d=d||currentRoom||'ulica';
+  if(G._theft.robsDay!==G.day){ G._theft.robsDay=G.day; G._theft.robsByDistrict={}; }
+  if((G._theft.robsByDistrict[d]||0)>=3 && !((G._theft.alertUntil[d]||0)>(G.day||0))){
+    G._theft.alertUntil[d]=(G.day||1)+rnd(2,4);
+    G._theft.districtWitness[d]=(G._theft.districtWitness[d]||0)+rnd(15,30);
+    if(typeof showMsg==='function') showMsg('👁️ „Czujna okolica" — po serii skoków w tej dzielnicy zaroiło się od patroli i obserwatorów. Łupy spadają, ryzyko rośnie (kilka dni).','r',7000);
+  }
+}
+window._theftDistrictAlertCheck=_theftDistrictAlertCheck;
 /* K-2 (v2.3.44 PDF2): 4 typy kradzieży ulicznej gracza (sekcja 6) + formuła sukcesu (sekcja 17). */
 const ROBBERY_TYPES={
   pickpocket: {name:'Kieszonkowa',       emoji:'🤏', lootMin:50,  lootMax:400,  vis:'low'},
@@ -26607,6 +26640,7 @@ function _robberySuccessChance(method, loc){
   base -= Math.min(0.15,(G.streetHeat||0)*0.0015);                 // street heat
   const underInfluence=((G._alcoholAddictionUntil||0)>(G.day||0)) || !!G.activeSubstance || !!G._highUntil;
   if(underInfluence) base-=0.10;                                   // clarity penalty (pod wpływem)
+  if(typeof _theftDistrictAlerted==='function' && _theftDistrictAlerted(loc)) base-=0.15; // K-4: czujna okolica
   if(method==='intimidate') base+=0.05; else if(method==='shoplift') base-=0.08; else if(method==='bag') base-=0.04;
   return Math.max(0.05,Math.min(0.95,base));
 }
@@ -26715,6 +26749,7 @@ window._attemptTheft=function(method){
   G._theftsToday=(G._theftsToday||0)+1;
   if(G._theft.robsDay!==G.day){ G._theft.robsDay=G.day; G._theft.robsByDistrict={}; }
   G._theft.robsByDistrict[loc]=(G._theft.robsByDistrict[loc]||0)+1;
+  if(typeof _theftDistrictAlertCheck==='function') _theftDistrictAlertCheck(loc); /* K-4: czujna okolica po 3 skokach */
   const chance=_robberySuccessChance(method,loc);
   const success=Math.random()<chance;
   const risk=DISTRICT_THEFT_RISK[loc]||DISTRICT_THEFT_RISK.ulica;
@@ -26728,7 +26763,7 @@ window._attemptTheft=function(method){
       const added=(typeof invAdd==='function') && invAdd({id:it.id,type:'item',kind:'valuable',name:it.name,emoji:it.emoji,value:it.value,stolen:true,desc:'Łup z kradzieży — spieniężysz w Lombardzie lub na OLX.'},1);
       if(added) itemMsg=' + '+it.emoji+' '+it.name+' (sprzedasz w Lombardzie)'; else loot=it.value;
     } else {
-      loot=Math.round(rnd(t.lootMin,t.lootMax)*((risk.lootMult||1)));
+      loot=Math.round(rnd(t.lootMin,t.lootMax)*((risk.lootMult||1))*((typeof _theftDistrictAlerted==='function'&&_theftDistrictAlerted(loc))?0.5:1)); /* K-4: malejące łupy w czujnej okolicy */
     }
   }
   const res={method, success, seen, recorded, loot, loc};
@@ -56209,7 +56244,7 @@ const PATCH_NOTES = [
  {t:'change',d:'🏪 Nazwy sklepów oparte na prawdziwych markach zastąpiono fikcyjnymi odpowiednikami w świecie gry: sklep meblowy to teraz „NorthRoom", tani sklep meblowo-AGD „Meblux", a sklep z elektroniką „VoltHouse". Wszystkie wzmianki w grze — mapa, podpowiedzi, wiadomości i szyldy — zostały ujednolicone.'},
  {t:'feature',d:'🍺 Nowość: można się przedawkować alkoholem. Po wypiciu 10 napojów w ciągu jednej doby Twoja postać może stracić przytomność — ekran gaśnie, a budzisz się przy fontannie w parku z dużą utratą zdrowia i nastroju. Nie zdarza się to za każdym razem, ale regularne picie do nieprzytomności prowadzi do uzależnienia, które przez kilka dni trzyma nastrój w dole. Mieszanie wielu różnych trunków przez kilka dni z rzędu kończy się ostrzeżeniem.'},
  {t:'feature',d:'🛰️ Nowość: w folderze Kariera w telefonie pojawia się NOX Route — zaszyfrowany komunikator czarnorynkowy dla nielegalnego frontu. Na starcie jest zablokowany; otwiera się dopiero, gdy masz zarejestrowany legalny front, zatrudnioną ekipę produkcyjną i realną potrzebę dystrybucji (a heat nie jest krytyczny). Wtedy odzywa się pierwszy broker — Emir „NOX". Ciemny, techniczny interfejs z własnymi wskaźnikami zaufania i ryzyka, tablicą ofert (Market Board) z trasami, kosztami i skutecznością oraz Risk Panel ostrzegającym o śladach. Od wyższego poziomu dostępu (budujesz go reputacją) bierzesz zlecenia przez depozyt escrow: udane podnoszą reputację i zaufanie brokerów, nieudane lub zdrady pochłaniają depozyt i podnoszą heat. Z czasem odblokowujesz kolejnych brokerów — od Emira „NOX" po Mirę „Rysę", Grzegorza „Sanepida", Leilę „404", Sashę „Drumline" i Doriana „Cysternę".'},
- {t:'feature',d:'🌃 Nowość: kradzieże uliczne mają teraz rytm dnia i nocy. Okradanie przechodniów możliwe jest tylko po zmroku i w ryzykownych sektorach — w dzień gra zablokuje próbę z komunikatem (za dużo świadków, kamer i patroli). Każda dzielnica ma własny poziom ryzyka kradzieży, bycia okradzionym i wandalizmu pojazdów — Underground jest najniebezpieczniejszy, a Centrum najspokojniejsze. Do wyboru są różne sposoby: szybka kieszonkowa, wyrwanie torby, brutalne wymuszenie (wymaga ulicznej reputacji) czy kradzież sklepowa. Szansa powodzenia zależy od pory, dzielnicy, liczby świadków, Twojej rozpoznawalności i tego, czy jesteś trzeźwy — a każda wpadka uderza w wizerunek i podnosi heat. Ulica działa też w drugą stronę: w Underground (zwłaszcza nocą, z dużą gotówką przy sobie, po alkoholu, bez ochrony) sam możesz zostać okradziony przez kieszonkowca, ćpuna, fałszywego fana czy ekipę — wtedy decydujesz, czy odpuścić, gonić sprawcę, zadzwonić po kontakt z ulicy, zgłosić sprawę służbom albo wysłać ochronę. Auto zostawione w Underground może też oberwać na różne sposoby: porysowany lakier, wybita szyba, skradzione lusterka, przebite opony, tag wrogiej ekipy, splądrowane wnętrze albo poważne zniszczenie.'},
+ {t:'feature',d:'🌃 Nowość: kradzieże uliczne mają teraz rytm dnia i nocy. Okradanie przechodniów możliwe jest tylko po zmroku i w ryzykownych sektorach — w dzień gra zablokuje próbę z komunikatem (za dużo świadków, kamer i patroli). Każda dzielnica ma własny poziom ryzyka kradzieży, bycia okradzionym i wandalizmu pojazdów — Underground jest najniebezpieczniejszy, a Centrum najspokojniejsze. Do wyboru są różne sposoby: szybka kieszonkowa, wyrwanie torby, brutalne wymuszenie (wymaga ulicznej reputacji) czy kradzież sklepowa. Szansa powodzenia zależy od pory, dzielnicy, liczby świadków, Twojej rozpoznawalności i tego, czy jesteś trzeźwy — a każda wpadka uderza w wizerunek i podnosi heat. Ulica działa też w drugą stronę: w Underground (zwłaszcza nocą, z dużą gotówką przy sobie, po alkoholu, bez ochrony) sam możesz zostać okradziony przez kieszonkowca, ćpuna, fałszywego fana czy ekipę — wtedy decydujesz, czy odpuścić, gonić sprawcę, zadzwonić po kontakt z ulicy, zgłosić sprawę służbom albo wysłać ochronę. Auto zostawione w Underground może też oberwać na różne sposoby: porysowany lakier, wybita szyba, skradzione lusterka, przebite opony, tag wrogiej ekipy, splądrowane wnętrze albo poważne zniszczenie. Twoje zniesławienie ma teraz 6 poziomów — od czystego wizerunku po toksyczny brand — i im wyżej, tym mniej sponsorów, niższe stawki i więcej odmów współpracy (ale underground szanuje Cię bardziej). A jeśli przesadzisz z kradzieżami w jednej dzielnicy, robi się „czujna okolica": więcej patroli i świadków, mniejsze łupy przez kilka dni.'},
  ],
  },
  {

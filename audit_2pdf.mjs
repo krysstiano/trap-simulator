@@ -438,6 +438,26 @@ try{
   if(!(k3.protection.fear>0)) fail('K-3: reakcja Ochrona nie podniosła fear'); else ok('K-3: reakcja „Użyj ochrony" → +fear/+violence_heat/odzysk');
   if(k3.pErr) fail('K-3: reakcje police/letgo rzuciły: '+k3.pErr); else ok('K-3: reakcje „Zgłoś służbom" / „Odpuść" działają');
 
+  // ============ K-4 — progi defamation + kariera + anty-exploit ============
+  const k4 = await page.evaluate(()=>{
+    const out={};
+    out.tiers=[5,20,35,55,75,95].map(s=>_defamationTier(s).id);
+    G.defamation=95; out.modToxic=_defamationCareerMods();
+    G.defamation=0; out.modClean=_defamationCareerMods();
+    G.day=5; window._theftStateEnsure(); G._theft.robsDay=5; G._theft.robsByDistrict={underground:3}; G._theft.alertUntil={}; G._theft.districtWitness={};
+    const chBefore=window._robberySuccessChance('pickpocket','underground');
+    window._theftDistrictAlertCheck('underground');
+    out.alerted=window._theftDistrictAlerted('underground'); out.alertUntil=G._theft.alertUntil.underground;
+    out.alertLowersChance=(window._robberySuccessChance('pickpocket','underground')<chBefore);
+    return out;
+  });
+  const TIERS=['clean','rumors','suspect','blacklist','burned','toxic'];
+  if(JSON.stringify(k4.tiers)!==JSON.stringify(TIERS)) fail('K-4: progi defamation='+JSON.stringify(k4.tiers)); else ok('K-4: 6 progów zniesławienia (clean→toxic)');
+  if(k4.modToxic.id!=='toxic'||!(k4.modToxic.payoutMult<0.6)||k4.modToxic.sponsorMult!==0) fail('K-4: toksyczny mods='+JSON.stringify(k4.modToxic)); else ok('K-4: toksyczny brand → sponsorzy 0, stawki '+Math.round(k4.modToxic.payoutMult*100)+'%');
+  if(k4.modClean.id!=='clean'||k4.modClean.payoutMult!==1) fail('K-4: czysty mods='+JSON.stringify(k4.modClean)); else ok('K-4: czysty wizerunek → pełne stawki (mnożniki kariery)');
+  if(!k4.alerted||!(k4.alertUntil>5)) fail('K-4: czujna okolica nie aktywowana po 3 kradzieżach (alerted='+k4.alerted+')'); else ok('K-4: anty-exploit „czujna okolica" po 3 kradzieżach (do dnia '+k4.alertUntil+')');
+  if(!k4.alertLowersChance) fail('K-4: czujna okolica nie obniża szansy kradzieży'); else ok('K-4: czujna okolica obniża szansę (+patrole/świadkowie)');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
