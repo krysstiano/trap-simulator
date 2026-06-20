@@ -851,6 +851,19 @@ try{
     if(!(p3sc.d>0 && p3sc.d<1e9)) fail('P3 soft-cap: huge d='+p3sc.d); else ok('P3 soft-cap: ogromna nadwyżka silnie tłumiona ale >0 (anti-spam, nie odbiera)');
     if(!(p3sc.m20>p3sc.m10)) fail('P3 soft-cap: monotoniczność m20='+p3sc.m20+' vs m10='+p3sc.m10); else ok('P3 soft-cap: monotoniczny (większa baza → większa wypłata)'); }
 
+  // ============ P3 — radio (tantiemy collect-only single-pay + maxPlays budżet) ============
+  const p3r = await page.evaluate(()=>{
+    window.renderPhoneApp=()=>{};
+    G.radio=G.radio||{}; G.radio.royalties=3000; G.money=10000;
+    window.collectRoyalties('radio'); const m1=G.money, pool1=G.radio.royalties;
+    window.collectRoyalties('radio'); const m2=G.money; // drugie zebranie = pusta pula
+    return {gain:m1-10000, pool1, doubleGain:m2-m1};
+  });
+  const _idxSrc2 = fs.readFileSync('index.html','utf8');
+  if(!(p3r.gain>0 && p3r.pool1===0)) fail('P3 radio: collect gain='+p3r.gain+' pool='+p3r.pool1); else ok('P3 radio: zbieranie tantiem (kasa +'+p3r.gain+', pula→0)');
+  if(p3r.doubleGain!==0) fail('P3 radio: double-pay doubleGain='+p3r.doubleGain); else ok('P3 radio: anti-double-pay (drugie zebranie = 0, single-pay collect-only)');
+  if(!/if\(plays>_budget\)\s*plays=_budget/.test(_idxSrc2)) fail('P3 radio: maxPlays budżet-clamp NIE w kodzie'); else ok('P3 radio: maxPlays — odtworzenia capowane budżetem bitów (anti-infinite, source-confirmed)');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
