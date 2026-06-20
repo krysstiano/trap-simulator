@@ -591,6 +591,24 @@ try{
   if(!(p3p.rank10===10&&p3p.mMultCap===1.20)) fail('P3 prestige: cap rank='+p3p.rank10+' mMult='+p3p.mMultCap); else ok('P3 prestige: bonus money capowany na 1.20 (rank 10)');
   if(!p3p.over) fail('P3 prestige: rank >10 nie odrzucony'); else ok('P3 prestige: max prestige 10 (ponad odrzucone)');
 
+  // ============ P3 — osiągnięcia (unlock→nagroda + lifetime-claim anti-exploit) ============
+  const p3a = await page.evaluate(()=>{
+    const out={};
+    G.money=1e9; G.fame=500; G.fans=2e6; G.followers=1e6; G.level=50; G.xp=0; G.streetRep=100; G.drip=200; G.studioTracks=G.studioTracks||[];
+    // świeży claim
+    G.achievements=[]; G._achievementsClaimed=[];
+    const xp0=G.xp; checkAchievements();
+    out.unlocked=G.achievements.length; out.claimed=G._achievementsClaimed.length; out.xpGained=(G.xp>xp0);
+    // anti-exploit quit-load: wyczyść achievements (NIE claimed), nagroda NIE wypłacana ponownie
+    G.achievements=[]; const m0=G.money; const cl0=G._achievementsClaimed.length;
+    checkAchievements();
+    out.reUnlocked=G.achievements.length; out.m0=m0; out.moneyAfterReclaim=G.money; out.claimedStable=(G._achievementsClaimed.length===cl0);
+    return out;
+  });
+  if(!(p3a.unlocked>0&&p3a.claimed>0&&p3a.xpGained)) fail('P3 ach: unlocked='+p3a.unlocked+' claimed='+p3a.claimed+' xp='+p3a.xpGained); else ok('P3 osiągnięcia: unlock w MAXED ('+p3a.unlocked+' odblokowanych, '+p3a.claimed+' z nagrodą +XP)');
+  /* anti-exploit: po quit-load (achievements wyczyszczone, claimed zachowane) ponowny check NIE dopłaca nagrody (money===m0) + claimed nie rośnie. */
+  if(!(p3a.reUnlocked>0&&p3a.claimedStable&&p3a.moneyAfterReclaim===p3a.m0)) fail('P3 ach: anti-exploit reUnlocked='+p3a.reUnlocked+' claimedStable='+p3a.claimedStable+' money='+p3a.moneyAfterReclaim+' m0='+p3a.m0); else ok('P3 osiągnięcia: lifetime-claim anti-exploit (quit-load NIE wypłaca nagrody 2×, money stabilne)');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
