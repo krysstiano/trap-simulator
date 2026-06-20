@@ -722,6 +722,30 @@ try{
   /* health===70 = deterministyczny dowód overdose (−30 HP); money directional (checkAchievements w _doUseSubstance może doliczyć nagrodę osiągnięcia — szum jak passive/ach-XP). */
   if(!(p3d.odMoney<10000&&p3d.odHealth===70)) fail('P3 drug: overdose money='+p3d.odMoney+' hp='+p3d.odHealth); else ok('P3 substancje: cocaine overdose (RNG<0.01 → kara −HP do '+p3d.odHealth+', kasa spadła)');
 
+  // ============ P3 — metale/kantor kruszcu (buy/sell, gate lvl 8, anti-exploit) ============
+  const p3m = await page.evaluate(()=>{
+    const out={};
+    window.renderPhoneApp=()=>{}; window.updateHUD=()=>{};
+    const mid=(typeof METALS_COMMODITIES!=='undefined'&&METALS_COMMODITIES[0])?METALS_COMMODITIES[0].id:'gold';
+    G.metals=G.metals||{}; G.metals.holdings={}; G.metals.history=[]; G.metals.prices=G.metals.prices||{}; G.metals.prices[mid]=300; G.day=10;
+    // gate lvl 8: poniżej → odrzucone
+    G.level=5; G.money=100000; const cnt0=Object.keys(G.metals.holdings).length;
+    window._metalsBuy(mid,10000); out.gateBlocked=(Object.keys(G.metals.holdings).length===cnt0);
+    // buy
+    G.level=50; const m0=G.money; const okBuy=window._metalsBuy(mid,10000);
+    const h=G.metals.holdings[mid]||{}; out.okBuy=okBuy; out.buyDrop=m0-G.money; out.qty=h.qty||0;
+    // sell wszystko
+    const m1=G.money; const okSell=window._metalsSell(mid,h.qty||0);
+    out.okSell=okSell; out.sellGain=G.money-m1; out.cleared=!G.metals.holdings[mid];
+    // anti-exploit: sprzedaj ponad stan
+    G.metals.holdings[mid]={qty:1,avgPrice:300}; const m2=G.money; const cheat=window._metalsSell(mid,1e9); out.overSell=(cheat===false && G.money===m2);
+    return out;
+  });
+  if(!p3m.gateBlocked) fail('P3 metale: gate lvl8 nie zablokował'); else ok('P3 metale: gate — kantor od poziomu 8 (lvl 5 odrzucony)');
+  if(!(p3m.okBuy&&p3m.buyDrop>0&&p3m.qty>0)) fail('P3 metale: buy ok='+p3m.okBuy+' drop='+p3m.buyDrop+' qty='+p3m.qty); else ok('P3 metale: zakup kruszcu (kasa −'+Math.round(p3m.buyDrop)+', '+p3m.qty.toFixed(2)+' g)');
+  if(!(p3m.okSell&&p3m.sellGain>0&&p3m.cleared)) fail('P3 metale: sell ok='+p3m.okSell+' gain='+p3m.sellGain+' cleared='+p3m.cleared); else ok('P3 metale: sprzedaż (kasa +'+Math.round(p3m.sellGain)+', holdings usunięte)');
+  if(!p3m.overSell) fail('P3 metale: anti-exploit over-sell nie zablokował'); else ok('P3 metale: anti-exploit — sprzedaż ponad stan odrzucona');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
