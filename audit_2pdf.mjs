@@ -506,6 +506,25 @@ try{
   if(!p2.bribeFn) fail('P2 narko: brak _offerBribe (system łapówek H3)'); else ok('P2 narko: system łapówek _offerBribe (H3) wired');
   if(p2.feErr||!p2.fillersInit) fail('P2 narko: _trapFillersEnsure err='+p2.feErr+' init='+p2.fillersInit); else ok('P2 narko: _trapFillersEnsure inicjuje fillery save-safe');
 
+  // ============ P3 — głęboki audyt: łańcuch tantiemów muzycznych (collect-only, anti-NaN/double-pay) ============
+  const p3 = await page.evaluate(()=>{
+    const out={};
+    // spotify: zbierz pulę → kasa rośnie, pula 0
+    G.money=100000; G.spotify=G.spotify||{}; G.spotify.royalties=5000; G.spotify.listeners=0; G.spotify.streams=0;
+    const m0=G.money; window.collectRoyalties('spotify');
+    out.spotGain=G.money-m0; out.spotPool=G.spotify.royalties;
+    // pusta pula → brak zmiany, brak NaN
+    const m1=G.money; window.collectRoyalties('spotify');
+    out.emptyGain=G.money-m1; out.moneyFinite=Number.isFinite(G.money);
+    // yt: pole adsense (NIE royalties) — historyczny bug undefined/NaN
+    G.yt=G.yt||{}; G.yt.adsense=3000; const m2=G.money; window.collectRoyalties('yt');
+    out.ytGain=G.money-m2; out.ytPool=G.yt.adsense; out.ytFinite=Number.isFinite(G.money);
+    return out;
+  });
+  if(!(p3.spotGain>0&&p3.spotPool===0)) fail('P3 muzyka: collect spotify gain='+p3.spotGain+' pool='+p3.spotPool); else ok('P3 muzyka: zbieranie tantiem Spotify (kasa +'+p3.spotGain+', pula→0)');
+  if(p3.emptyGain!==0||!p3.moneyFinite) fail('P3 muzyka: pusta pula gain='+p3.emptyGain+' finite='+p3.moneyFinite); else ok('P3 muzyka: pusta pula → brak zmiany, brak NaN (anti-double-pay)');
+  if(!(p3.ytGain>0&&p3.ytPool===0&&p3.ytFinite)) fail('P3 muzyka: yt adsense gain='+p3.ytGain+' pool='+p3.ytPool+' finite='+p3.ytFinite); else ok('P3 muzyka: YouTube AdSense (pole adsense, nie royalties) — kasa +'+p3.ytGain+', brak NaN');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
