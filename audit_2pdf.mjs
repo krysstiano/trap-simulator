@@ -468,6 +468,21 @@ try{
   });
   if(u9.err) fail('U9: showWelcomePopup rzucił: '+u9.err); else if(u9.mw!=='468px') fail('U9: welcome-popup max-width='+u9.mw+' (oczek 468px = -10%)'); else ok('U9: „Wall powitalny" zwężony o 10% (520→468px)');
 
+  // ============ U16-sub2 — flavor rename generycznych sklepów ============
+  const u16b = await page.evaluate(()=>{
+    const lbl=(id)=>{ const o=(ROOMS.ulica.objects||[]).find(x=>x.id===id); return o?o.lbl:null; };
+    const lm=(frag)=>(MAP_LANDMARKS||[]).some(l=>(l.name||'').includes(frag));
+    return {
+      carwash:lbl('carwash'), shelter:lbl('shelter'), salon:lbl('salon'), muzyczny:lbl('muzyczny'), sala:lbl('sala_konce'), zoo:lbl('zoo_shop'),
+      lmBeat:lm('BeatPoint'), lmPaw:lm('Dom dla Łapy'), lmSplash:lm('Splash & Go'),
+    };
+  });
+  const exp={carwash:'Splash & Go',shelter:'Dom dla Łapy',salon:'CityDrive Motors',muzyczny:'BeatPoint',sala:'808 Arena',zoo:'PetSide Market'};
+  let u16bad=[];
+  for(const k of Object.keys(exp)){ if(u16b[k]!==exp[k]) u16bad.push(k+'='+u16b[k]); }
+  if(u16bad.length) fail('U16-sub2: lbl niezmienione: '+u16bad.join(', ')); else ok('U16-sub2: sklepy generyczne → fikcyjne brandy (carwash/shelter/salon/muzyczny/sala/zoo + 10 dalszych)');
+  if(!u16b.lmBeat||!u16b.lmPaw||!u16b.lmSplash) fail('U16-sub2: minimap niezmieniony (beat='+u16b.lmBeat+' paw='+u16b.lmPaw+' splash='+u16b.lmSplash+')'); else ok('U16-sub2: minimap MAP_LANDMARKS przemianowany');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
