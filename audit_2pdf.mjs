@@ -570,6 +570,27 @@ try{
   if(p3c.cheatBuy!==false||p3c.cheatBuyDrop!==0) fail('P3 crypto: anti-exploit over-buy='+p3c.cheatBuy+' drop='+p3c.cheatBuyDrop); else ok('P3 crypto: anti-exploit — kup ponad stan odrzucony');
   if(p3c.cheatSell!==false||p3c.cheatSellGain!==0) fail('P3 crypto: anti-exploit over-sell='+p3c.cheatSell+' gain='+p3c.cheatSellGain); else ok('P3 crypto: anti-exploit — sprzedaż ponad holdings odrzucona');
 
+  // ============ P3 — prestige (reset→permanentny bonus, cap, anti-exploit crew/career reset) ============
+  const p3p = await page.evaluate(()=>{
+    const out={};
+    G.prestige=0; G.prestigeBonus={moneyMult:1,fameMult:1}; G.level=999; G.fans=1e9; G.xp=5000; G.money=100000; G.crew=[{role:'dj'}]; G.contract=null; G.prestigePoints=0;
+    window.doPrestige();
+    out.rank1=G.prestige; out.levelReset=G.level; out.mMult1=G.prestigeBonus.moneyMult; out.fMult1=G.prestigeBonus.fameMult; out.crewReset=(G.crew||[]).length; out.points=G.prestigePoints;
+    // earn aplikuje bonus permanentny (read w earn) — directional
+    const eb=(typeof earn==='function')?earn(1000,false):1000; out.earnApplied=(eb>=1000);
+    // cap przy rank 10
+    G.prestige=9; G.level=999; G.fans=1e9; window.doPrestige();
+    out.rank10=G.prestige; out.mMultCap=G.prestigeBonus.moneyMult;
+    // ponad cap — rank 11 odrzucony
+    G.prestige=10; G.level=999; G.fans=1e9; const before=G.prestige; window.doPrestige(); out.over=(G.prestige===before);
+    return out;
+  });
+  /* lvl resetuje do 1; checkAchievements() po prestige może doliczyć XP z odblokowanego osiągnięcia (nudge do 2) — reset = drop z 999 do ≤2 (nie exact-1, analog szumu passive). */
+  if(!(p3p.rank1===1&&p3p.levelReset<=2&&p3p.mMult1>1&&p3p.fMult1>1)) fail('P3 prestige: rank='+p3p.rank1+' lvl='+p3p.levelReset+' mMult='+p3p.mMult1+' fMult='+p3p.fMult1); else ok('P3 prestige: reset poziomu (999→'+p3p.levelReset+') + permanentny bonus (money×'+p3p.mMult1.toFixed(2)+', fame×'+p3p.fMult1.toFixed(2)+')');
+  if(!(p3p.crewReset===0&&p3p.points>=1)) fail('P3 prestige: anti-exploit crew='+p3p.crewReset+' points='+p3p.points); else ok('P3 prestige: anti-exploit — ekipa zresetowana + prestige point przyznany');
+  if(!(p3p.rank10===10&&p3p.mMultCap===1.20)) fail('P3 prestige: cap rank='+p3p.rank10+' mMult='+p3p.mMultCap); else ok('P3 prestige: bonus money capowany na 1.20 (rank 10)');
+  if(!p3p.over) fail('P3 prestige: rank >10 nie odrzucony'); else ok('P3 prestige: max prestige 10 (ponad odrzucone)');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
