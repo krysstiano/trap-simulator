@@ -286,6 +286,48 @@ try{
   if(nx2.err) fail('NX-2: renderNoxDashboard rzucił: '+nx2.err); else ok('NX-2: dashboard renderuje bez błędu');
   if(!/MARKET BOARD/.test(nx2.html)||!/RISK PANEL/.test(nx2.html)) fail('NX-2: dashboard bez Market Board/Risk Panel'); else ok('NX-2: Market Board + Risk Panel w dashboardzie');
 
+  // ============ NX sub-batch 3 — kontrakty + escrow + NPC + heatCh ============
+  const nx3 = await page.evaluate(()=>{
+    const _rand=Math.random;
+    try{
+      G.trap=G.trap||{}; G.trap.unlocked=true; G.trap.heat=10; G.trap.heatCh=undefined;
+      G.workers=[{role:'chemist'}]; G.trap.front={type:'pharma',tier:1}; G.money=10000000; G.day=5;
+      G.nox=undefined; window._noxEnsure(); G.nox.unlocked=true; G.nox.handshakeDone=true; G.nox.reputation=30; G.nox.brokerTrust=50;
+      const out={};
+      G.nox.accessLevel=1; out.acceptTier1=window.acceptNoxContract('ROUTE-17A');
+      G.nox.accessLevel=2;
+      const mB=G.money; out.accept=window.acceptNoxContract('ROUTE-17A');
+      out.escrowAfter=G.nox.escrowBalance; out.moneyDrop=mB-G.money; out.activeLen=(G.nox.active||[]).length; out.cooldown=G.nox.cooldownGlobal;
+      // SUCCESS
+      const c={offerId:'ROUTE-17A',typ:'Logistyka',cost:150000,skMin:100,skMax:100,betrayal:0,heatCh:'customs',heatImpact:6};
+      G.nox.reputation=30; G.nox.escrowBalance=150000; G.nox.traceLevel=0; G.trap.heatCh=undefined;
+      Math.random=()=>0.01; window.resolveNoxContract(c);
+      out.succRep=G.nox.reputation; out.succEscrow=G.nox.escrowBalance; out.succHeatCh=(G.trap.heatCh&&G.trap.heatCh.customs)||0;
+      // FAILURE
+      const c2={offerId:'UTIL-07',typ:'Utylizacja',cost:100000,skMin:50,skMax:50,betrayal:0,heatCh:'env',heatImpact:9};
+      G.nox.reputation=30; G.nox.escrowBalance=100000; const m2=G.money;
+      Math.random=()=>0.99; window.resolveNoxContract(c2);
+      out.failRep=G.nox.reputation; out.failEscrow=G.nox.escrowBalance; out.failMoneyReturned=G.money-m2;
+      // NPC unlock tier2
+      window._noxUnlockContactsForTier(2); out.hasMira=(G.nox.contacts||[]).some(x=>x.id==='mira'); out.npcCount=NOX_NPCS.length;
+      // dashboard buttons tier2
+      G.nox.accessLevel=2; let de=null; try{ window.renderNoxDashboard(); }catch(e){ de=e.message; }
+      out.dashErr=de; out.dashHtml=(document.getElementById('ph-content')||{}).innerHTML||'';
+      return out;
+    } finally { Math.random=_rand; }
+  });
+  if(nx3.acceptTier1!==false) fail('NX-3: accept przy tier1 nie odmówił ('+nx3.acceptTier1+')'); else ok('NX-3: tier1 read-only — accept odmawia');
+  if(nx3.accept!==true) fail('NX-3: acceptNoxContract nie przyjął przy tier2'); else ok('NX-3: accept tier2 przyjmuje trasę');
+  if(nx3.escrowAfter!==150000||nx3.moneyDrop!==150000) fail('NX-3: escrow='+nx3.escrowAfter+' moneyDrop='+nx3.moneyDrop+' (oczek 150000)'); else ok('NX-3: escrow blokuje koszt 150k zł');
+  if(nx3.activeLen!==1||nx3.cooldown!==11) fail('NX-3: active='+nx3.activeLen+' cooldown='+nx3.cooldown+' (oczek 1/11)'); else ok('NX-3: aktywne zlecenie + cooldown (dzień 11)');
+  if(nx3.succRep!==36) fail('NX-3: sukces reputacja='+nx3.succRep+' (oczek 36)'); else ok('NX-3: sukces → reputacja +6 (36)');
+  if(nx3.succEscrow!==0||!(nx3.succHeatCh>0)) fail('NX-3: sukces escrow='+nx3.succEscrow+' heatCh.customs='+nx3.succHeatCh); else ok('NX-3: sukces → escrow zwolnione + heatCh customs +'+nx3.succHeatCh);
+  if(nx3.failRep!==22) fail('NX-3: porażka reputacja='+nx3.failRep+' (oczek 22)'); else ok('NX-3: porażka → reputacja -8 (22)');
+  if(nx3.failEscrow!==0||nx3.failMoneyReturned!==0) fail('NX-3: porażka escrow='+nx3.failEscrow+' zwrot='+nx3.failMoneyReturned+' (escrow ma przepaść)'); else ok('NX-3: porażka → escrow przepada (brak zwrotu)');
+  if(!nx3.hasMira||nx3.npcCount!==6) fail('NX-3: NPC mira='+nx3.hasMira+' liczba='+nx3.npcCount); else ok('NX-3: 6 NPC brokerów, tier2 odblokowuje Mira Rysa');
+  if(nx3.dashErr) fail('NX-3: renderNoxDashboard rzucił: '+nx3.dashErr); else ok('NX-3: dashboard tier2 renderuje bez błędu');
+  if(!/Akceptuj przez escrow/.test(nx3.dashHtml)) fail('NX-3: brak przycisków akceptacji w dashboardzie tier2'); else ok('NX-3: przyciski Akceptuj aktywne przy tier2');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }

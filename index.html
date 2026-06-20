@@ -14342,6 +14342,95 @@ function calculateRouteRisk(offer){
   return { route_noise:Math.round(route_noise), trace_level:Math.round(trace_level), heatCh:offer.heatCh||'street', heatImpact:offer.heatImpact||0, betrayal };
 }
 window.calculateRouteRisk=calculateRouteRisk;
+/* NX-3 (v2.3.44 PDF): NPC brokerzy + kontrakty (escrow/resolve) + reputacja/tiery + integracja heatCh. */
+const NOX_NPCS=[
+  {id:'emir',   name:'Emir „NOX” Haddad',        role:'Broker / Route Operator', tier:1, spec:'posrednictwo i dobor ludzi'},
+  {id:'mira',   name:'Mira „Rysa” Konarska',     role:'Cleanup / usuwanie sladow', tier:2, spec:'cleanup i przygotowanie lokacji'},
+  {id:'sanepid',name:'Grzegorz „Sanepid” Toporny',role:'Dokumenty / kontrole',    tier:3, spec:'protokoly, kontrole, formalne oslony'},
+  {id:'leila',  name:'Leila „404” Rahmani',      role:'Hakerka-logistyczka',     tier:4, spec:'cyfrowe maskowanie, trasy, sygnaly'},
+  {id:'sasha',  name:'Sasha „Drumline” Volkov',  role:'Premium logistyka',       tier:4, spec:'duza logistyka, kontenery'},
+  {id:'dorian', name:'Dorian „Cysterna” Kula',   role:'Premium / cysterny',      tier:5, spec:'transport ciezki, odpady'},
+];
+window.NOX_NPCS=NOX_NPCS;
+function _noxUnlockContactsForTier(tier){
+  _noxEnsure();
+  for(const npc of NOX_NPCS){ if((npc.tier||1)<=tier && !G.nox.contacts.some(c=>c.id===npc.id)){ G.nox.contacts.push({id:npc.id, name:npc.name, role:npc.role, trust:'Nowy', spec:npc.spec}); } }
+}
+window._noxUnlockContactsForTier=_noxUnlockContactsForTier;
+function _noxNow(){ try{ const tm=Math.floor(gameMin)%1440; return String(Math.floor(tm/60)).padStart(2,'0')+':'+String(tm%60).padStart(2,'0'); }catch(e){ return ''; } }
+function updateNoxReputation(){
+  _noxEnsure();
+  const rep=G.nox.reputation||0;
+  let tier=1;
+  if(rep>=80) tier=5; else if(rep>=60) tier=4; else if(rep>=40) tier=3; else if(rep>=20) tier=2; else tier=Math.max(1,G.nox.accessLevel||1);
+  if(tier>(G.nox.accessLevel||1)){
+    G.nox.accessLevel=tier; _noxUnlockContactsForTier(tier);
+    if(typeof showMsg==='function') showMsg('🛰️ NOX: nowy poziom dostepu — Tier '+tier+'. Odblokowano nowe kontakty i trasy.','f',6000);
+  }
+}
+window.updateNoxReputation=updateNoxReputation;
+window.acceptNoxContract=function(offerId){
+  _noxEnsure();
+  const tier=G.nox.accessLevel||1;
+  if(tier<2){ if(typeof showMsg==='function')showMsg('🛰️ NOX: na razie tylko podglad. Tier 2 (wyzsza reputacja) odblokuje branie tras.','i',5500); return false; }
+  const o=(typeof NOX_OFFER_POOL!=='undefined')?NOX_OFFER_POOL.find(x=>x.id===offerId):null; if(!o) return false;
+  if((G.nox.reputation||0)<(o.reqRep||0)){ if(typeof showMsg==='function')showMsg('🛰️ NOX: Za malo historii. Za duzo pytan. (wymagana reputacja '+o.reqRep+')','i',5000); return false; }
+  if((G.nox.cooldownGlobal||0)>(G.day||0)){ if(typeof showMsg==='function')showMsg('🛰️ NOX: brokerzy potrzebuja przerwy — sprobuj za '+((G.nox.cooldownGlobal||0)-(G.day||0))+' dni.','i',5000); return false; }
+  const cost=Math.round((o.costMin+o.costMax)/2);
+  if((G.money||0)<cost){ if(typeof showMsg==='function')showMsg('🛰️ NOX: escrow wymaga '+cost.toLocaleString('pl')+' zl — brak srodkow na depozyt.','r',5000); return false; }
+  if(!Array.isArray(G.nox.active)) G.nox.active=[];
+  if(G.nox.active.some(a=>a.offerId===offerId)){ if(typeof showMsg==='function')showMsg('🛰️ NOX: ta trasa jest juz w toku.','i',4000); return false; }
+  G.money-=cost; if(typeof spent==='function')spent(cost);
+  G.nox.escrowBalance=(G.nox.escrowBalance||0)+cost;
+  const dni=Math.max(1,o.dniMin||1);
+  G.nox.active.push({offerId, typ:o.typ, cost, deadlineDay:(G.day||1)+dni, skMin:o.skMin, skMax:o.skMax, betrayal:o.betrayal, heatCh:o.heatCh, heatImpact:o.heatImpact});
+  G.nox.cooldownGlobal=(G.day||1)+(o.cooldown||4);
+  G.nox.routeNoise=Math.min(100,(G.nox.routeNoise||0)+5);
+  if(typeof showMsg==='function')showMsg('🛰️ NOX: trasa '+offerId+' przyjeta przez escrow ('+cost.toLocaleString('pl')+' zl zamrozone). Operator potwierdzi za '+dni+' dni.','f',6000);
+  if(typeof renderNoxApp==='function' && G._phView==='app:nox') renderNoxApp();
+  return true;
+};
+function resolveNoxContract(c){
+  _noxEnsure();
+  if(!c) return;
+  const trust=G.nox.brokerTrust||0;
+  const baseSucc=((c.skMin+c.skMax)/2)/100;
+  const succChance=Math.max(0.4,Math.min(0.97, baseSucc + trust*0.001 - (c.betrayal||0)*0.005));
+  const betrayed = Math.random() < ((c.betrayal||0)/100)*(1-Math.min(0.5,(G.nox.reputation||0)*0.005));
+  const success = !betrayed && Math.random() < succChance;
+  G.nox.escrowBalance=Math.max(0,(G.nox.escrowBalance||0)-c.cost);
+  const heatAdd=(ch,n)=>{ if(typeof window._trapHeatChAdd==='function') window._trapHeatChAdd(ch,n); if(G.trap) G.trap.heat=Math.min(100,(G.trap.heat||0)+Math.round(n*0.5)); };
+  if(success){
+    G.nox.reputation=Math.min(100,(G.nox.reputation||0)+6);
+    G.nox.brokerTrust=Math.min(100,(G.nox.brokerTrust||0)+5);
+    G.nox.traceLevel=Math.min(100,(G.nox.traceLevel||0)+Math.round((c.heatImpact||0)*0.4));
+    heatAdd(c.heatCh, Math.round((c.heatImpact||0)*0.6));
+    let payout=0;
+    if(c.typ==='Dystrybucja') payout=Math.round(c.cost*1.6);
+    else if(c.typ==='Dostawca') payout=Math.round(c.cost*0.3);
+    if(payout>0 && typeof G.money==='number') G.money+=payout;
+    G.nox.inbox.push({from:'NOX', time:_noxNow(), text:'Route closed. Operator potwierdzil wykonanie. Twoja reputacja wzrosla.'+(payout>0?(' Wyplata: '+payout.toLocaleString('pl')+' zl.'):'')});
+    if(typeof showMsg==='function') showMsg('🛰️ NOX: '+c.offerId+' — Route closed. Reputacja +6'+(payout>0?(', wyplata '+payout.toLocaleString('pl')+' zl'):'')+'.','g',6500);
+  } else {
+    G.nox.reputation=Math.max(0,(G.nox.reputation||0)-8);
+    G.nox.brokerTrust=Math.max(0,(G.nox.brokerTrust||0)-6);
+    G.nox.disputeCount=(G.nox.disputeCount||0)+1;
+    G.nox.traceLevel=Math.min(100,(G.nox.traceLevel||0)+Math.round((c.heatImpact||0)*0.8));
+    heatAdd(c.heatCh, (c.heatImpact||0)+6);
+    G.nox.inbox.push({from:'NOX', time:_noxNow(), text:betrayed?'Route burned. Operator zniknal. Escrow naruszone — rynek pamieta dluzej niz ludzie.':'Route burned. Zlecenie nieudane. Niektore drzwi zamkna sie same.'});
+    if(typeof showMsg==='function') showMsg('🛰️ NOX: '+c.offerId+' — Route burned. Escrow przepadlo, reputacja -8, heat rosnie.','r',7000);
+  }
+  updateNoxReputation();
+}
+window.resolveNoxContract=resolveNoxContract;
+function _noxTickContracts(){
+  if(!G.nox||!Array.isArray(G.nox.active)||!G.nox.active.length) return;
+  const due=G.nox.active.filter(c=>(G.day||1)>=c.deadlineDay);
+  if(!due.length) return;
+  G.nox.active=G.nox.active.filter(c=>(G.day||1)<c.deadlineDay);
+  for(const c of due){ try{ resolveNoxContract(c); }catch(e){} }
+}
+window._noxTickContracts=_noxTickContracts;
 window.renderNoxDashboard=function(){
   _noxEnsure();
   const n=G.nox;
@@ -14349,10 +14438,12 @@ window.renderNoxDashboard=function(){
   const inbox=(n.inbox||[]).slice(-6).reverse().map(m=>`<div style="border-left:2px solid #1ad9c0;padding:6px 8px;margin:6px 0;background:#0a1216"><div style="color:#1ad9c0;font-size:10px;font-weight:700">${m.from||'NOX'} <span style="color:#5a6a70">· ${m.time||''}</span></div><div style="color:#aeb8c4;font-size:11px;margin-top:2px">${m.text||''}</div></div>`).join('')||'<div style="color:#5a6a70;font-size:11px">Inbox pusty.</div>';
   const offers=generateNoxOffers();
   const tier=n.accessLevel||1;
+  const active=(n.active||[]).map(c=>`<div style="background:#0c1a16;border:1px solid #1a4a3a;border-radius:6px;padding:7px 9px;margin:6px 0;font-size:10px;color:#7ec8a0">⏳ ${c.offerId} (${c.typ}) — wynik za ${Math.max(0,c.deadlineDay-(G.day||1))} dni · escrow ${Math.round(c.cost/1000)}k zl</div>`).join('');
+  const contacts=(n.contacts||[]).map(c=>`<div style="font-size:10px;color:#9fb0b8;padding:2px 0">▸ <span style="color:#1ad9c0">${c.name}</span> <span style="color:#5a6a70">· ${c.role}</span></div>`).join('')||'<div style="color:#5a6a70;font-size:10px">Brak kontaktow.</div>';
   const cards=offers.map(o=>{ const r=calculateRouteRisk(o); return `<div style="background:#0a1216;border:1px solid #143038;border-radius:8px;padding:10px;margin:8px 0">
       <div style="display:flex;justify-content:space-between"><span style="color:#1ad9c0;font-weight:700;font-size:11px">${o.id}</span><span style="color:#7a8a90;font-size:10px">${o.typ}</span></div>
       <div style="color:#7a8a90;font-size:10px;margin-top:4px;line-height:1.7">Operator: ukryty<br>Koszt: ${Math.round(o.costMin/1000)}k–${Math.round(o.costMax/1000)}k zł · Czas: ${o.dniMin}–${o.dniMax} dni<br>Skutecznosc: ${o.skMin}–${o.skMax}% · Trace: ${o.trace} · Heat: ${r.heatCh} +${r.heatImpact}<br>Wymagana reputacja: ${o.reqRep} · Cooldown: ${o.cooldown} dni · Ryzyko zdrady: ${r.betrayal}%</div>
-      <div style="color:#5a6a70;font-size:9px;margin-top:6px;font-style:italic">${tier>=2?'Akceptacja trasy przez kanal kontaktu.':'Tier 2 odblokowuje akceptacje tras (teraz: podglad rynku).'}</div>
+      ${tier>=2?`<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"><button onclick="window.acceptNoxContract&&window.acceptNoxContract('${o.id}')" style="background:#0c2a22;border:1px solid #1ad9c0;color:#1ad9c0;font-size:10px;padding:5px 9px;border-radius:5px;cursor:pointer">Akceptuj przez escrow</button><button onclick="window.renderNoxApp&&window.renderNoxApp()" style="background:#15181c;border:1px solid #2a3a40;color:#9fb0b8;font-size:10px;padding:5px 9px;border-radius:5px;cursor:pointer">Inna trasa</button></div>`:`<div style="color:#5a6a70;font-size:9px;margin-top:6px;font-style:italic">Tier 2 (wyzsza reputacja) odblokowuje branie tras — teraz podglad rynku.</div>`}
     </div>`; }).join('')||'<div style="color:#5a6a70;font-size:11px">Brak ofert dla Twojego poziomu dostepu.</div>';
   const evid=(n.traceLevel||0)>50?'<span style="color:#e25555">high</span>':(n.traceLevel||0)>25?'<span style="color:#e2a045">moderate</span>':'<span style="color:#1ad9c0">low</span>';
   const ph=document.getElementById('ph-content'); if(!ph) return;
@@ -14367,11 +14458,14 @@ window.renderNoxDashboard=function(){
       <div>reputacja ${n.reputation||0}/100${bar(n.reputation||0,'#7ec8e3')}</div></div>
     <div style="color:#7ec8e3;font-size:11px;font-weight:700;margin:6px 0">[ INBOX ]</div>
     ${inbox}
+    ${active?`<div style="color:#7ec8a0;font-size:11px;font-weight:700;margin:12px 0 2px;border-top:1px solid #11343a;padding-top:8px">[ ZLECENIA W TOKU ] <span style="color:#5a6a70;font-weight:400">escrow ${Math.round((n.escrowBalance||0)/1000)}k zl</span></div>${active}`:''}
     <div style="color:#7ec8e3;font-size:11px;font-weight:700;margin:12px 0 2px;border-top:1px solid #11343a;padding-top:8px">[ MARKET BOARD ]</div>
     ${cards}
     <div style="color:#e2a045;font-size:11px;font-weight:700;margin:12px 0 4px;border-top:1px solid #11343a;padding-top:8px">[ RISK PANEL ]</div>
     <div style="font-size:10px;color:#9fb0b8;line-height:1.9">route_noise: ${n.routeNoise||0} / 100<br>trace_level: ${n.traceLevel||0} / 100<br>broker_trust: ${n.brokerTrust||0} / 100<br>market_access: Tier ${tier}<br>open_disputes: ${n.disputeCount||0}<br>evidence risk: ${evid}</div>
     <div style="color:#e2a045;font-size:10px;margin-top:8px;font-style:italic;line-height:1.6">Ta trasa jest tania, bo ktos juz na niej krwawil. Mozesz ja wziac. Tylko nie udawaj potem, ze nie bylo ostrzezenia.</div>
+    <div style="color:#7ec8e3;font-size:11px;font-weight:700;margin:12px 0 4px;border-top:1px solid #11343a;padding-top:8px">[ CONTACTS ]</div>
+    ${contacts}
   </div>`;
 };
 window.renderNoxApp=function(){
@@ -25584,6 +25678,7 @@ function nextPeriod(){
   if(typeof _alcoholEnsure==='function'){ _alcoholEnsure(); if(G._alcoholAddictionUntil>(G.day||0) && (G.stress||0)>35) G.stress=35; }
   if(G.timeOfDay>=4){
     G.timeOfDay=0;G.day++;G.hunger=clampStat('hunger', G.hunger-15);
+    if(typeof _noxTickContracts==='function') _noxTickContracts(); /* NX-3 (v2.3.44 PDF): rozstrzygnij zlecenia NOX po deadline */
     if((G.defamation||0)>0) G.defamation=Math.max(0,G.defamation-2); /* v2.1.874: zniesławienie opada powoli (-2/dobę) */
     if(G.car){G.car.condition=Math.max(0,(G.car.condition==null?100:G.car.condition)-4);} /* T3.2 / v2.1.843 (Vegan: auto psuło się za rzadko — pełne zużycie 5h gry): zużycie od czasu 2%→4%/dzień gry (v844: 5→4). Dodatkowo zużycie od JEŻDŻENIA w updatePlayer (aktywni kierowcy serwisują częściej). Przegląd w warsztacie przywraca pełny stan +20% przyspieszenia. */
     /* v2.1.627: wygaśnięcie nieddostarczonej "Pilnej przesyłki" po deadline (gdy gracz nie zrobił kolejnej trasy kuriera). */
@@ -55912,7 +56007,7 @@ const PATCH_NOTES = [
  {t:'change',d:'🏖 Dzielnica Marina Coast wygląda teraz jak prawdziwe wybrzeże: zniknęły samochody NPC (które wcześniej jeździły po piasku), a po promenadzie spacerują wolnym krokiem wczasowicze ubrani plażowo — w szortach, kolorowych strojach i bikini, kapeluszach oraz okularach słonecznych.'},
  {t:'change',d:'🏪 Nazwy sklepów oparte na prawdziwych markach zastąpiono fikcyjnymi odpowiednikami w świecie gry: sklep meblowy to teraz „NorthRoom", tani sklep meblowo-AGD „Meblux", a sklep z elektroniką „VoltHouse". Wszystkie wzmianki w grze — mapa, podpowiedzi, wiadomości i szyldy — zostały ujednolicone.'},
  {t:'feature',d:'🍺 Nowość: można się przedawkować alkoholem. Po wypiciu 10 napojów w ciągu jednej doby Twoja postać może stracić przytomność — ekran gaśnie, a budzisz się przy fontannie w parku z dużą utratą zdrowia i nastroju. Nie zdarza się to za każdym razem, ale regularne picie do nieprzytomności prowadzi do uzależnienia, które przez kilka dni trzyma nastrój w dole. Mieszanie wielu różnych trunków przez kilka dni z rzędu kończy się ostrzeżeniem.'},
- {t:'feature',d:'🛰️ Nowość: w folderze Kariera w telefonie pojawia się NOX Route — zaszyfrowany komunikator czarnorynkowy dla nielegalnego frontu. Na starcie jest zablokowany; otwiera się dopiero, gdy masz zarejestrowany legalny front, zatrudnioną ekipę produkcyjną i realną potrzebę dystrybucji (a heat nie jest krytyczny). Wtedy odzywa się pierwszy broker — Emir „NOX". Ciemny, techniczny interfejs z własnymi wskaźnikami zaufania i ryzyka, tablicą ofert (Market Board) z trasami, kosztami i skutecznością oraz Risk Panel ostrzegającym o śladach i poziomie ryzyka.'},
+ {t:'feature',d:'🛰️ Nowość: w folderze Kariera w telefonie pojawia się NOX Route — zaszyfrowany komunikator czarnorynkowy dla nielegalnego frontu. Na starcie jest zablokowany; otwiera się dopiero, gdy masz zarejestrowany legalny front, zatrudnioną ekipę produkcyjną i realną potrzebę dystrybucji (a heat nie jest krytyczny). Wtedy odzywa się pierwszy broker — Emir „NOX". Ciemny, techniczny interfejs z własnymi wskaźnikami zaufania i ryzyka, tablicą ofert (Market Board) z trasami, kosztami i skutecznością oraz Risk Panel ostrzegającym o śladach. Od wyższego poziomu dostępu (budujesz go reputacją) bierzesz zlecenia przez depozyt escrow: udane podnoszą reputację i zaufanie brokerów, nieudane lub zdrady pochłaniają depozyt i podnoszą heat. Z czasem odblokowujesz kolejnych brokerów — od Emira „NOX" po Mirę „Rysę", Grzegorza „Sanepida", Leilę „404", Sashę „Drumline" i Doriana „Cysternę".'},
  ],
  },
  {
