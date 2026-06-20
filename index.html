@@ -26551,6 +26551,9 @@ function _theftStateEnsure(){
   if(typeof t.robsDay!=='number') t.robsDay=G.day||1;
   if(typeof t.digitalTrace!=='number') t.digitalTrace=0;
   if(!t.shopBans||typeof t.shopBans!=='object') t.shopBans={};
+  if(typeof t.robbedDay!=='number') t.robbedDay=-1;
+  if(typeof t.fear!=='number') t.fear=0;
+  if(typeof t.gangTension!=='number') t.gangTension=0;
 }
 window._theftStateEnsure=_theftStateEnsure;
 function _theftHour(){ try{ return (Math.floor(gameMin)%1440)/60; }catch(e){ return 12; } }
@@ -26630,6 +26633,74 @@ function applyRobberyConsequences(r){
   }
 }
 window.applyRobberyConsequences=applyRobberyConsequences;
+/* K-3 (v2.3.44 PDF2 sekcja 9): bycie okradzionym przez NPC — 6 typów + 5 reakcji gracza. */
+const NPC_ROBBER_TYPES=[
+  {id:'pickpocket',  name:'Kieszonkowiec',                emoji:'🕵️', cashMin:50,  cashMax:500},
+  {id:'junkie',      name:'Lokalny ćpun',                 emoji:'💉', cashMin:20,  cashMax:150},
+  {id:'fakefan',     name:'Fałszywy fan',                 emoji:'🤳', cashMin:100, cashMax:600},
+  {id:'nightcontact',name:'Nocny kontakt',                emoji:'🌙', cashMin:80,  cashMax:400},
+  {id:'ugcrew',      name:'Drobna ekipa z Undergroundu',  emoji:'👥', cashMin:300, cashMax:1200},
+  {id:'gangmember',  name:'Członek wrogiego gangu',       emoji:'🔫', cashMin:500, cashMax:2000, carDamage:true},
+];
+window.NPC_ROBBER_TYPES=NPC_ROBBER_TYPES;
+function rollNpcRobberyAgainstPlayer(loc, hour){
+  _theftStateEnsure();
+  loc=loc||(typeof currentRoom!=='undefined'?currentRoom:'ulica'); hour=(typeof hour==='number')?hour:_theftHour();
+  if(G._theft.robbedDay===G.day) return false; /* raz na dobę */
+  const night=(hour>=22||hour<6);
+  const risk=DISTRICT_THEFT_RISK[loc]||DISTRICT_THEFT_RISK.ulica;
+  let score=0;
+  if(loc==='underground') score+=0.30; else if(risk.robbed && /wysok/.test(risk.robbed)) score+=0.20; else score+=0.04;
+  if(night) score+=0.15;
+  if((G.money||0)>50000) score+=0.10;                                                  /* dużo gotówki przy sobie */
+  if((G._alcoholAddictionUntil||0)>(G.day||0)||G.activeSubstance||G._highUntil) score+=0.10; /* pod wpływem / niski clarity */
+  if((G.energy||100)<30) score+=0.05;                                                  /* zmęczony */
+  if((G.streetCredibility||0)<20) score+=0.10;                                         /* niski street cred */
+  if((G.drip||0)>100) score+=0.08;                                                     /* drogie ubrania */
+  const hasProtection=Array.isArray(G.crew)&&G.crew.some(c=>c.role==='guard'||c.role==='ochrona'||c.role==='bodyguard');
+  if(hasProtection) score-=0.20;                                                       /* ochrona / zaufana ekipa */
+  score=Math.max(0,Math.min(0.85,score));
+  if(Math.random()>=score) return false;
+  G._theft.robbedDay=G.day;
+  const pool=NPC_ROBBER_TYPES.slice(0, loc==='underground'?6:4);
+  const npc=pool[Math.floor(Math.random()*pool.length)];
+  const cash=Math.min(G.money||0, rnd(npc.cashMin,npc.cashMax));
+  G.money=(G.money||0)-cash;
+  if(npc.carDamage && G.car){ G.car.condition=Math.max(0,(G.car.condition==null?100:G.car.condition)-8); }
+  G._theft._lastRobbery={npc:npc.id, name:npc.name, emoji:npc.emoji, cash, loc, recoverable:Math.floor(cash*0.6), carDmg:!!npc.carDamage};
+  if(typeof window._npcRobberyModal==='function') window._npcRobberyModal();
+  return npc.id;
+}
+window.rollNpcRobberyAgainstPlayer=rollNpcRobberyAgainstPlayer;
+window._npcRobberyModal=function(){
+  const _mg=document.getElementById('mg-job'); const _mc=document.getElementById('mg-job-content'); if(!_mg||!_mc) return;
+  _theftStateEnsure();
+  const rb=G._theft._lastRobbery||{};
+  const hasContact=!!(G._trapDealerMet || (typeof SMS_CONTACTS!=='undefined' && G.sms && G.sms.conversations && (G.sms.conversations.kantar||G.sms.conversations.crew)));
+  const hasGuard=Array.isArray(G.crew)&&G.crew.some(c=>c.role==='guard'||c.role==='ochrona'||c.role==='bodyguard');
+  const _b=(en,id,label)=>`<button class="bbtn" style="width:100%;margin-bottom:6px;text-align:left;font-size:12px${en?'':';opacity:.45;cursor:not-allowed'}" ${en?`onclick="window._npcRobberyReact('${id}')"`:'disabled'}>${label}</button>`;
+  _mc.innerHTML=`<div style="background:#0a0a0a;border:2px solid #6a2a2a;border-radius:10px;padding:18px;max-width:470px;margin:0 auto;color:#ddd">
+    <h2 style="color:#e07a7a;margin-top:0;text-align:center">${rb.emoji||'🚨'} Okradziono Cię!</h2>
+    <div style="font-size:12px;color:#caa;margin-bottom:12px;line-height:1.5">${rb.name||'Ktoś'} dorwał Cię w ciemnym zaułku. Zniknęło ${rb.cash?rb.cash.toLocaleString('pl')+' zł':'trochę gotówki'}${rb.carDmg?', a Twoje auto oberwało':''}. Co robisz?</div>
+    ${_b(true,'letgo','1. Odpuść — strata zostaje, mniej heatu')}
+    ${_b(true,'chase','2. Szukaj sprawcy sam — szansa odzysku, +violence_heat')}
+    ${_b(hasContact,'contact','3. Zadzwoń do kontaktu z ulicy'+(hasContact?'':' (brak kontaktu)'))}
+    ${_b(true,'police','4. Zgłoś sprawę służbom (ryzykowne przy nielegalnym życiu)')}
+    ${_b(hasGuard,'protection','5. Użyj ochrony / ekipy'+(hasGuard?'':' (brak ochrony)'))}
+  </div>`;
+  _mg.classList.add('on');
+};
+window._npcRobberyReact=function(r){
+  _theftStateEnsure();
+  const rb=G._theft._lastRobbery||{};
+  const _close=()=>{ const m=document.getElementById('mg-job'); if(m){m.classList.remove('on'); const c=document.getElementById('mg-job-content'); if(c)c.innerHTML='';} };
+  if(r==='letgo'){ G.stress=Math.max(0,Math.min(100,(G.stress||50)-5)); G.streetCredibility=Math.max(0,(G.streetCredibility||0)-rnd(0,3)); if(typeof notify==='function')notify('😮‍💨 Odpuściłeś. Strata zostaje, ale unikasz eskalacji.','i',5000); }
+  else if(r==='chase'){ G.violenceHeat=(G.violenceHeat||0)+rnd(4,10); if(Math.random()<0.45 && rb.recoverable){ G.money=(G.money||0)+rb.recoverable; if(typeof notify==='function')notify('🏃 Dogoniłeś go! Odzyskałeś '+rb.recoverable.toLocaleString('pl')+' zł. (+violence_heat)','g',5500); } else if(typeof notify==='function')notify('🏃 Uciekł w zaułki. Nic nie odzyskałeś, za to narobiłeś hałasu. (+violence_heat)','r',5500); }
+  else if(r==='contact'){ const cost=Math.min(G.money||0,rnd(300,1000)); G.money=(G.money||0)-cost; if(Math.random()<0.6 && rb.recoverable){ G.money+=rb.recoverable; if(typeof notify==='function')notify('📞 Ludzie z ulicy namierzyli sprawcę. Koszt '+cost.toLocaleString('pl')+' zł, odzyskano '+rb.recoverable.toLocaleString('pl')+' zł.','g',6000);} else if(typeof notify==='function')notify('📞 Kontakt wziął '+cost.toLocaleString('pl')+' zł, ale trop się urwał. Bywa.','i',5500); }
+  else if(r==='police'){ if(Math.random()<0.5 && rb.recoverable){ G.money=(G.money||0)+Math.floor(rb.recoverable*0.5); } let extra=''; if((G.defamation||0)>20||(G.streetHeat||0)>0||(G.trap&&G.trap.unlocked)){ G.streetHeat=(G.streetHeat||0)+rnd(4,10); extra=' Ale przy Twoim stylu życia służby zaczęły się Tobą interesować (+street_heat).'; } if(typeof notify==='function')notify('🚓 Zgłoszono sprawę służbom.'+extra,'i',6000); }
+  else if(r==='protection'){ G.violenceHeat=(G.violenceHeat||0)+rnd(3,8); G._theft.fear=(G._theft.fear||0)+rnd(3,8); if(rb.recoverable){ G.money=(G.money||0)+rb.recoverable; } if(typeof notify==='function')notify('💪 Twoja ekipa odzyskała łup. Strach na ulicy rośnie (+fear, +violence_heat).','g',5500); }
+  _close(); if(typeof updateHUD==='function')updateHUD();
+};
 window._attemptTheft=function(method){
   method=method||'pickpocket';
   const _mg=document.getElementById('mg-job'); if(_mg){_mg.classList.remove('on'); const _c=document.getElementById('mg-job-content'); if(_c)_c.innerHTML='';}
@@ -41377,34 +41448,48 @@ window._undergroundTheftRoll=function(){
   const chance=0.05 + (0.05 + 0.05*valueFrac); /* 0.10 (tanie) .. 0.15 (drogie) */
   if(Math.random()>=chance) return false;
   const frozen = !!(G._harnold && (G._harnold.theftFrozenUntil||0) > (G.day||0));
-  const r=Math.random(); let type = r<0.60?'vandal' : (r<0.90?'loot':'parts');
-  /* Harnold zamraża ULICZNĄ (loot/parts), NIE wandalizm */
-  if(frozen && (type==='loot'||type==='parts')){
-    if(typeof notify==='function') notify('🧔 Ludzie Harnolda przepłoszyli złodziei kręcących się przy Twoim aucie — nic nie zginęło.');
+  /* K-3 (v2.3.44 PDF2 sekcja 10.2): 7 typów wandalizmu auta. Harnold zamraża typy z kradzieżą (loot:true), NIE czysty wandalizm. */
+  if(typeof _theftStateEnsure==='function') _theftStateEnsure();
+  const VEHICLE_VANDAL_TYPES=[
+    {id:'scratch',  w:22, dmg:3,  fx:{stress:3},                       msg:'🔑 Wracasz do auta — ktoś przejechał kluczem po lakierze. Underground przywitał Cię po swojemu. (sprawność −3%, naprawa ~500–3000 zł)'},
+    {id:'window',   w:14, dmg:8,  fx:{streetHeat:1}, loot:true,        msg:'🪟 Wybita szyba i przekopane wnętrze auta w Underground. (sprawność −8%, naprawa ~800–5000 zł)'},
+    {id:'mirrors',  w:14, dmg:6,  fx:{},                                msg:'🪞 Zniknęły lusterka i elementy z Twojego auta — pewnie trafią do chop-shopu. (sprawność −6%, naprawa ~1000–7000 zł)'},
+    {id:'tires',    w:14, dmg:7,  fx:{},                                msg:'🛞 Przebite opony — auto chwilowo ledwo jeździ. (sprawność −7%, naprawa ~600–4000 zł)'},
+    {id:'tag',      w:14, dmg:5,  fx:{violenceHeat:3, gangTension:5},   msg:'🎨 Na masce masz świeży tag wrogiej ekipy. To nie bazgroł. To wiadomość. (sprawność −5%, +napięcie z gangiem)'},
+    {id:'interior', w:14, dmg:4,  fx:{stress:10}, loot:true,            msg:'🧳 Wnętrze przekopane, bagażnik splądrowany.'},
+    {id:'wreck',    w:8,  dmg:15, fx:{stress:10, violenceHeat:5},       msg:'💥 Auto stoi krzywo. Szyba wybita, wnętrze przekopane. Ktoś nie szukał radia — chciał, żebyś to zobaczył. (sprawność −15%)'},
+  ];
+  let pool=VEHICLE_VANDAL_TYPES;
+  if(frozen) pool=pool.filter(t=>!t.loot); /* Harnold przepłasza złodziei (kradzież), wandalizm zostaje */
+  if(frozen && pool.length<VEHICLE_VANDAL_TYPES.length && Math.random()<0.5){
+    if(typeof notify==='function') notify('🧔 Ludzie Harnolda przepłoszyli złodziei kręcących się przy Twoim aucie — nic nie zginęło z wnętrza.');
     return 'frozen';
   }
+  const _tw=pool.reduce((s,t)=>s+t.w,0); let _rr=Math.random()*_tw, vt=pool[0];
+  for(const t of pool){ _rr-=t.w; if(_rr<=0){ vt=t; break; } }
   const _dmg=(n)=>{ const before=(G.car.condition==null?100:G.car.condition); G.car.condition=Math.max(0,before-n); if(G._carCond&&G.car.name&&G._carCond[G.car.name]) G._carCond[G.car.name].cond=G.car.condition; };
-  if(type==='vandal'){
-    _dmg(10);
-    if(typeof notify==='function') notify('🔧 Wandale uszkodzili Twoje auto w Underground! Stan techniczny −10% — napraw w Warsztacie.');
-    return 'vandal';
-  } else if(type==='loot'){
+  _dmg(vt.dmg);
+  const fx=vt.fx||{};
+  if(fx.stress) G.stress=Math.max(0,Math.min(100,(G.stress||50)-fx.stress)); /* stress jako MOOD: szkoda obniża nastrój */
+  if(fx.streetHeat) G.streetHeat=(G.streetHeat||0)+fx.streetHeat;
+  if(fx.violenceHeat) G.violenceHeat=(G.violenceHeat||0)+fx.violenceHeat;
+  if(fx.gangTension) G._theft.gangTension=(G._theft.gangTension||0)+fx.gangTension;
+  let lootMsg='';
+  if(vt.loot){
     _carInvEnsure();
     let stoleCash=0, stoleItems=0;
     if((G.carInv.cash||0)>0){ stoleCash=Math.min(G.carInv.cash, Math.max(1,Math.floor(G.carInv.cash*(0.15+Math.random()*0.20)))); G.carInv.cash-=stoleCash; }
     if(G.carInv.items.length>0){ const idx=Math.floor(Math.random()*G.carInv.items.length); const it=G.carInv.items[idx]; it.qty--; stoleItems=1; if(it.qty<=0) G.carInv.items.splice(idx,1); }
-    if(stoleCash||stoleItems){ if(typeof notify==='function') notify(`🚨 Splądrowano bagażnik Twojego auta w Underground!${stoleCash?` Skradziono ${stoleCash.toLocaleString('pl')} zł`:''}${stoleItems?((stoleCash?' i ':' Skradziono ')+'1 przedmiot'):''}.`); return 'loot'; }
-    if(typeof notify==='function') notify('🚨 Ktoś próbował okraść Twoje auto, ale bagażnik był pusty — masz szczęście.');
-    return 'loot-empty';
-  } else { /* parts */
-    _dmg(15);
-    if(typeof notify==='function') notify('🔩 Złodzieje ukradli części z Twojego auta w Underground! Stan techniczny −15% — wymagana naprawa w Warsztacie.');
-    return 'parts';
+    if(stoleCash||stoleItems) lootMsg=` Z bagażnika zniknęło${stoleCash?` ${stoleCash.toLocaleString('pl')} zł`:''}${stoleItems?((stoleCash?' i ':' ')+'1 przedmiot'):''}.`;
   }
+  if(typeof notify==='function') notify(vt.msg+lootMsg+' — napraw w Warsztacie.','r',8000);
+  return vt.id;
 };
 window._enterDistrictPlace=(districtId,placeId)=>{
   /* N7 (v2.3.26): przy interakcji z miejscem Underground — szansa zdarzenia kradzieży (gdy masz auto w dzielnicy). */
   if(districtId==='underground' && typeof window._undergroundTheftRoll==='function'){ try{ window._undergroundTheftRoll(); }catch(e){} }
+  /* K-3 (PDF2): w Underground gracz też może zostać okradziony (ryzyko wg warunków: noc/kasa/pod-wpływem/streetCred/ochrona). */
+  if(districtId==='underground' && typeof window.rollNpcRobberyAgainstPlayer==='function'){ try{ window.rollNpcRobberyAgainstPlayer('underground'); }catch(e){} }
   const key=`${districtId}_${placeId}`;
   switch(key){
     /* ── UNDERGROUND ── */
@@ -56124,7 +56209,7 @@ const PATCH_NOTES = [
  {t:'change',d:'🏪 Nazwy sklepów oparte na prawdziwych markach zastąpiono fikcyjnymi odpowiednikami w świecie gry: sklep meblowy to teraz „NorthRoom", tani sklep meblowo-AGD „Meblux", a sklep z elektroniką „VoltHouse". Wszystkie wzmianki w grze — mapa, podpowiedzi, wiadomości i szyldy — zostały ujednolicone.'},
  {t:'feature',d:'🍺 Nowość: można się przedawkować alkoholem. Po wypiciu 10 napojów w ciągu jednej doby Twoja postać może stracić przytomność — ekran gaśnie, a budzisz się przy fontannie w parku z dużą utratą zdrowia i nastroju. Nie zdarza się to za każdym razem, ale regularne picie do nieprzytomności prowadzi do uzależnienia, które przez kilka dni trzyma nastrój w dole. Mieszanie wielu różnych trunków przez kilka dni z rzędu kończy się ostrzeżeniem.'},
  {t:'feature',d:'🛰️ Nowość: w folderze Kariera w telefonie pojawia się NOX Route — zaszyfrowany komunikator czarnorynkowy dla nielegalnego frontu. Na starcie jest zablokowany; otwiera się dopiero, gdy masz zarejestrowany legalny front, zatrudnioną ekipę produkcyjną i realną potrzebę dystrybucji (a heat nie jest krytyczny). Wtedy odzywa się pierwszy broker — Emir „NOX". Ciemny, techniczny interfejs z własnymi wskaźnikami zaufania i ryzyka, tablicą ofert (Market Board) z trasami, kosztami i skutecznością oraz Risk Panel ostrzegającym o śladach. Od wyższego poziomu dostępu (budujesz go reputacją) bierzesz zlecenia przez depozyt escrow: udane podnoszą reputację i zaufanie brokerów, nieudane lub zdrady pochłaniają depozyt i podnoszą heat. Z czasem odblokowujesz kolejnych brokerów — od Emira „NOX" po Mirę „Rysę", Grzegorza „Sanepida", Leilę „404", Sashę „Drumline" i Doriana „Cysternę".'},
- {t:'feature',d:'🌃 Nowość: kradzieże uliczne mają teraz rytm dnia i nocy. Okradanie przechodniów możliwe jest tylko po zmroku i w ryzykownych sektorach — w dzień gra zablokuje próbę z komunikatem (za dużo świadków, kamer i patroli). Każda dzielnica ma własny poziom ryzyka kradzieży, bycia okradzionym i wandalizmu pojazdów — Underground jest najniebezpieczniejszy, a Centrum najspokojniejsze. Do wyboru są różne sposoby: szybka kieszonkowa, wyrwanie torby, brutalne wymuszenie (wymaga ulicznej reputacji) czy kradzież sklepowa. Szansa powodzenia zależy od pory, dzielnicy, liczby świadków, Twojej rozpoznawalności i tego, czy jesteś trzeźwy — a każda wpadka uderza w wizerunek i podnosi heat.'},
+ {t:'feature',d:'🌃 Nowość: kradzieże uliczne mają teraz rytm dnia i nocy. Okradanie przechodniów możliwe jest tylko po zmroku i w ryzykownych sektorach — w dzień gra zablokuje próbę z komunikatem (za dużo świadków, kamer i patroli). Każda dzielnica ma własny poziom ryzyka kradzieży, bycia okradzionym i wandalizmu pojazdów — Underground jest najniebezpieczniejszy, a Centrum najspokojniejsze. Do wyboru są różne sposoby: szybka kieszonkowa, wyrwanie torby, brutalne wymuszenie (wymaga ulicznej reputacji) czy kradzież sklepowa. Szansa powodzenia zależy od pory, dzielnicy, liczby świadków, Twojej rozpoznawalności i tego, czy jesteś trzeźwy — a każda wpadka uderza w wizerunek i podnosi heat. Ulica działa też w drugą stronę: w Underground (zwłaszcza nocą, z dużą gotówką przy sobie, po alkoholu, bez ochrony) sam możesz zostać okradziony przez kieszonkowca, ćpuna, fałszywego fana czy ekipę — wtedy decydujesz, czy odpuścić, gonić sprawcę, zadzwonić po kontakt z ulicy, zgłosić sprawę służbom albo wysłać ochronę. Auto zostawione w Underground może też oberwać na różne sposoby: porysowany lakier, wybita szyba, skradzione lusterka, przebite opony, tag wrogiej ekipy, splądrowane wnętrze albo poważne zniszczenie.'},
  ],
  },
  {

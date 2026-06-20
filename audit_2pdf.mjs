@@ -395,6 +395,49 @@ try{
   if(!k2.intiAllowed) fail('K-2: wymuszenie nie przeszło przy streetRep 50'); else ok('K-2: wymuszenie dozwolone przy streetRep 50');
   if(!(k2.banKeys>=1&&k2.banVal>5)) fail('K-2: sklepowa wpadka nie dała bana (keys='+k2.banKeys+' val='+k2.banVal+')'); else ok('K-2: sklepowa wpadka → ban w sklepie (do dnia '+k2.banVal+')');
 
+  // ============ K-3 — bycie okradzionym + wandalizm auta (7 typów) ============
+  const k3 = await page.evaluate(()=>{
+    const _rand=Math.random;
+    const setSeq=(arr)=>{ let i=0; Math.random=()=>{ const v=(i<arr.length)?arr[i]:0.5; i++; return v; }; };
+    try{
+      const out={};
+      currentRoom='underground'; G.day=5; G.car={name:'TestCar',condition:100,price:500000}; G._inCar=true; G._carCond={}; G._harnold=null;
+      if(typeof _carInvEnsure==='function') _carInvEnsure();
+      window._theftStateEnsure();
+      G._ugTheftDay=-1; G.car.condition=100; setSeq([0.01,0.01]);
+      out.v1=window._undergroundTheftRoll(); out.cond1=G.car.condition;
+      G._ugTheftDay=-1; G.car.condition=100; setSeq([0.01,0.99]);
+      out.v2=window._undergroundTheftRoll(); out.cond2=G.car.condition;
+      Math.random=_rand;
+      // bycie okradzionym — wysokie ryzyko fires
+      G._theft.robbedDay=-1; G.money=200000; G.streetCredibility=0; G.crew=[]; gameMin=120; G.drip=0; G.energy=100; G._alcoholAddictionUntil=0; G.activeSubstance=null; G._highUntil=0;
+      setSeq([0.01,0.3]);
+      out.rbFired=!!window.rollNpcRobberyAgainstPlayer('underground',2); out.moneyAfterRob=G.money; out.lastRob=G._theft._lastRobbery?G._theft._lastRobbery.npc:null;
+      Math.random=_rand;
+      // niskie ryzyko — brak
+      G._theft.robbedDay=-1; G.money=1000; G.streetCredibility=80; G.crew=[]; setSeq([0.99]);
+      out.rb2=window.rollNpcRobberyAgainstPlayer('business',12);
+      Math.random=_rand;
+      // 5 reakcji
+      const react=(id)=>{ G._theft._lastRobbery={npc:'x',name:'X',emoji:'🚨',cash:1000,loc:'underground',recoverable:600}; const b={vio:G.violenceHeat||0,money:G.money||0,fear:G._theft.fear||0}; window._npcRobberyReact(id); return {vio:(G.violenceHeat||0)-b.vio, dmoney:(G.money||0)-b.money, fear:(G._theft.fear||0)-b.fear}; };
+      G.violenceHeat=0; G.streetHeat=0; G._theft.fear=0; G.money=100000; G.crew=[{role:'guard'}]; G._trapDealerMet=true;
+      out.chase=react('chase'); out.contact=react('contact'); out.protection=react('protection');
+      let pErr=null; try{ react('police'); react('letgo'); }catch(e){ pErr=e.message; } out.pErr=pErr;
+      out.npcTypes=NPC_ROBBER_TYPES.length;
+      return out;
+    } finally { Math.random=_rand; }
+  });
+  const VIDS=['scratch','window','mirrors','tires','tag','interior','wreck','frozen'];
+  if(!VIDS.includes(k3.v1)||!(k3.cond1<100)) fail('K-3: wandalizm v1='+k3.v1+' cond='+k3.cond1); else ok('K-3: wandalizm auta — typ "'+k3.v1+'" (sprawność '+k3.cond1+'%)');
+  if(!VIDS.includes(k3.v2)||!(k3.cond2<k3.cond1)) fail('K-3: wandalizm v2='+k3.v2+' cond='+k3.cond2+' (oczek cięższy niż v1)'); else ok('K-3: cięższy wandalizm "'+k3.v2+'" (sprawność '+k3.cond2+'% < '+k3.cond1+'%)');
+  if(k3.npcTypes!==6) fail('K-3: NPC_ROBBER_TYPES='+k3.npcTypes+' (oczek 6)'); else ok('K-3: 6 typów NPC okradających');
+  if(!k3.rbFired||!(k3.moneyAfterRob<200000)||!k3.lastRob) fail('K-3: wysokie ryzyko nie okradło (fired='+k3.rbFired+' money='+k3.moneyAfterRob+')'); else ok('K-3: bycie okradzionym przy wysokim ryzyku ('+k3.lastRob+', strata)');
+  if(k3.rb2!==false) fail('K-3: niskie ryzyko (business/dzień) okradło ('+k3.rb2+')'); else ok('K-3: brak kradzieży przy niskim ryzyku (business/dzień)');
+  if(!(k3.chase.vio>0)) fail('K-3: reakcja Szukaj-sprawcy nie podniosła violence_heat'); else ok('K-3: reakcja „Szukaj sprawcy" → +violence_heat');
+  if(k3.contact.dmoney===0) fail('K-3: reakcja Kontakt nie zmieniła kasy'); else ok('K-3: reakcja „Zadzwoń do kontaktu" → koszt/odzysk');
+  if(!(k3.protection.fear>0)) fail('K-3: reakcja Ochrona nie podniosła fear'); else ok('K-3: reakcja „Użyj ochrony" → +fear/+violence_heat/odzysk');
+  if(k3.pErr) fail('K-3: reakcje police/letgo rzuciły: '+k3.pErr); else ok('K-3: reakcje „Zgłoś służbom" / „Odpuść" działają');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
