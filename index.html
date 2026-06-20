@@ -14189,10 +14189,71 @@ window.casinoBuyDrink=(type,cost,moodGain,energyGain)=>{
     G._lastChampagneDay=G.day;
     msg+=' +5 sławy! (1× dziennie)';
   }
+  if(typeof window._registerAlcohol==='function') window._registerAlcohol(type); /* NA (v2.3.44 PDF): licznik alkoholu + przedawkowanie */
   document.getElementById('bar-result').innerHTML=`<span style="color:#27ae60">${msg}</span>`;
   if(typeof updateHUD==='function')updateHUD();
   if(typeof sfxCash==='function')sfxCash();
 };
+
+/* ═══ NA (v2.3.44 PDF): PRZEDAWKOWANIE ALKOHOLU ═══
+   10 pozycji alkoholowych/dobę → przedawkowanie (ekran gaśnie ~2s + czerń ~5s + rozjaśnia ~2s, teleport do parku
+   przy fontannie, -70 zdrowia, -80 nastroju). Event raz na dobę i tylko raz na 3 próby (pozostałe udaremnione).
+   Regularne (3+ przedawkowania) → uzależnienie: nastrój obniżony (~35) przez 7 dób. Komunikat na 5-ty dzień z 3+ typami. */
+function _alcoholEnsure(){
+  if(typeof G._alcoholToday!=='number') G._alcoholToday=0;
+  if(!Array.isArray(G._alcoholTypesToday)) G._alcoholTypesToday=[];
+  if(typeof G._alcoholDay!=='number') G._alcoholDay=G.day||1;
+  if(typeof G._alcoholAttempts!=='number') G._alcoholAttempts=0;
+  if(typeof G._alcoholOverdoseDay!=='number') G._alcoholOverdoseDay=-1;
+  if(typeof G._alcoholOverdoses!=='number') G._alcoholOverdoses=0;
+  if(typeof G._alcohol3TypeDays!=='number') G._alcohol3TypeDays=0;
+  if(typeof G._alcoholAddictionUntil!=='number') G._alcoholAddictionUntil=0;
+}
+window._alcoholEnsure=_alcoholEnsure;
+window._registerAlcohol=function(type){
+  _alcoholEnsure();
+  if(G._alcoholDay!==G.day){ G._alcoholDay=G.day; G._alcoholToday=0; G._alcoholTypesToday=[]; }
+  G._alcoholToday++;
+  if(type && G._alcoholTypesToday.indexOf(type)<0){
+    G._alcoholTypesToday.push(type);
+    if(G._alcoholTypesToday.length===3){
+      G._alcohol3TypeDays++;
+      if(G._alcohol3TypeDays===5 && typeof showMsg==='function') showMsg('🍷 Jesteś na dobrej drodze do uzależnienia! Odsapnij trochę.','i',7000);
+    }
+  }
+  if(G._alcoholToday>=10) _alcoholOverdoseCheck();
+};
+function _alcoholOverdoseCheck(){
+  if(G._alcoholOverdoseDay===G.day) return; /* raz na dobę */
+  G._alcoholAttempts++;
+  G._alcoholOverdoseDay=G.day; /* blokuj kolejne próby dziś */
+  if(G._alcoholAttempts%3!==0){ /* 2 z 3 prób udaremnione */
+    if(typeof showMsg==='function') showMsg('🥴 Kręci Ci się w głowie... ale tym razem udało Ci się dojść o własnych siłach.','i',6000);
+    return;
+  }
+  _alcoholOverdoseEvent(); /* co 3. próba — realne przedawkowanie */
+}
+function _alcoholOverdoseEvent(){
+  G._alcoholOverdoses++;
+  let ov=document.getElementById('alco-blackout');
+  if(!ov){ ov=document.createElement('div'); ov.id='alco-blackout'; document.body.appendChild(ov); }
+  ov.style.cssText='position:fixed;inset:0;background:#000;opacity:0;z-index:99999;transition:opacity 2s ease;pointer-events:all';
+  requestAnimationFrame(()=>{ if(ov) ov.style.opacity='1'; });
+  setTimeout(()=>{ try{
+    if(typeof changeRoom==='function') changeRoom('ulica',280,1070); /* park przy fontannie (fountain wx280 wy1010) */
+    else if(typeof P!=='undefined'){ P.wx=280; P.wy=1070; }
+    G.health=Math.max(0,(G.health==null?100:G.health)-70);
+    G.stress=Math.max(0,(G.stress==null?50:G.stress)-80);
+    if(typeof updateHUD==='function') updateHUD();
+  }catch(e){} }, 2000);
+  setTimeout(()=>{ const b=document.getElementById('alco-blackout'); if(b) b.style.opacity='0'; if(typeof showMsg==='function') showMsg('🥴 Budzisz się przy fontannie w parku. Przesadziłeś z alkoholem — zdrowie (-70) i nastrój (-80) mocno ucierpiały.','r',8000); }, 7000);
+  setTimeout(()=>{ try{ document.getElementById('alco-blackout')?.remove(); }catch(e){} }, 9400);
+  if(G._alcoholOverdoses>=3){
+    G._alcoholAddictionUntil=(G.day||1)+7;
+    setTimeout(()=>{ if(typeof showMsg==='function') showMsg('⚠️ Wpadłeś w silne uzależnienie alkoholowe — przez 7 dni nastrój pozostanie obniżony, a jego poprawa będzie utrudniona.','r',8500); }, 8200);
+  }
+}
+window._alcoholOverdoseEvent=_alcoholOverdoseEvent; /* test/diagnostyka */
 
 /* ═══ HI-LO ROYAL — Wyżej/Niżej (nowa gra kasyna, v2.1.568) ═══
    Turowa (klik, bez pętli animacji), żetony Royal. Karta 1-13; zgadnij czy następna wyższa/niższa.
@@ -25387,6 +25448,8 @@ function nextPeriod(){
   /* v2.1.113: Wave 2 S15 — sanity clamp G.money za każdy tick (chroni przed ujemnymi wartościami z konsoli / corrupted save / race conditions) */
   if((G.money||0)<0) G.money=0;
   G.timeOfDay++;
+  /* NA (v2.3.44 PDF): uzależnienie alkoholowe — nastrój stale obniżony (~35) przez 7 dób od ostatniego przedawkowania. */
+  if(typeof _alcoholEnsure==='function'){ _alcoholEnsure(); if(G._alcoholAddictionUntil>(G.day||0) && (G.stress||0)>35) G.stress=35; }
   if(G.timeOfDay>=4){
     G.timeOfDay=0;G.day++;G.hunger=clampStat('hunger', G.hunger-15);
     if((G.defamation||0)>0) G.defamation=Math.max(0,G.defamation-2); /* v2.1.874: zniesławienie opada powoli (-2/dobę) */
@@ -55712,6 +55775,7 @@ const PATCH_NOTES = [
  {t:'change',d:'🌆 Miasto żyje rytmem doby i pogody: liczba przechodniów i aut zmienia się w ciągu dnia — najwięcej po południu (16:00–18:30) oraz w godzinach szczytu komunikacyjnego, a najmniej nocą. Podczas deszczu, śniegu czy gradu na chodnikach jest wyraźnie mniej pieszych, za to na ulicach pojawia się więcej samochodów.'},
  {t:'change',d:'🏖 Dzielnica Marina Coast wygląda teraz jak prawdziwe wybrzeże: zniknęły samochody NPC (które wcześniej jeździły po piasku), a po promenadzie spacerują wolnym krokiem wczasowicze ubrani plażowo — w szortach, kolorowych strojach i bikini, kapeluszach oraz okularach słonecznych.'},
  {t:'change',d:'🏪 Nazwy sklepów oparte na prawdziwych markach zastąpiono fikcyjnymi odpowiednikami w świecie gry: sklep meblowy to teraz „NorthRoom", tani sklep meblowo-AGD „Meblux", a sklep z elektroniką „VoltHouse". Wszystkie wzmianki w grze — mapa, podpowiedzi, wiadomości i szyldy — zostały ujednolicone.'},
+ {t:'feature',d:'🍺 Nowość: można się przedawkować alkoholem. Po wypiciu 10 napojów w ciągu jednej doby Twoja postać może stracić przytomność — ekran gaśnie, a budzisz się przy fontannie w parku z dużą utratą zdrowia i nastroju. Nie zdarza się to za każdym razem, ale regularne picie do nieprzytomności prowadzi do uzależnienia, które przez kilka dni trzyma nastrój w dole. Mieszanie wielu różnych trunków przez kilka dni z rzędu kończy się ostrzeżeniem.'},
  ],
  },
  {

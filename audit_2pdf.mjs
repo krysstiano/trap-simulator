@@ -197,6 +197,36 @@ try{
   src16.forEach((l,i)=>{ if(skip(l)) return; let c=l; const ci=l.indexOf('//'); if(ci>=0)c=l.slice(0,ci); if(/Media Markt|MediaMarkt|\bIKEA\b|\bJYSK\b/.test(c)) leak.push((i+1)+':'+l.trim().slice(0,60)); });
   if(leak.length) fail('U16: realna marka player-facing pozostała: '+leak.join(' || ')); else ok('U16: ZERO player-facing realnych marek (IKEA/JYSK/Media Markt)');
 
+  // ============ NA — przedawkowanie alkoholu ============
+  // Faza 1: 10 alkoholi/dobę + 3. próba = realne przedawkowanie
+  const naMid = await page.evaluate(()=>{
+    if(typeof window._alcoholEnsure==='function') window._alcoholEnsure();
+    G.day=5; G._alcoholDay=5; G._alcoholToday=0; G._alcoholTypesToday=[];
+    G._alcoholAttempts=2; G._alcoholOverdoseDay=-1; G._alcoholOverdoses=0; G._alcoholAddictionUntil=0;
+    G.health=100; G.stress=80;
+    const types=['beer','cocktail','whiskey','champagne','beer','cocktail','whiskey','champagne','beer','cocktail'];
+    for(let i=0;i<10;i++) window._registerAlcohol(types[i]);
+    return { today:G._alcoholToday, attempts:G._alcoholAttempts, odDay:G._alcoholOverdoseDay };
+  });
+  await page.waitForTimeout(2600); // event: teleport+kary po 2s
+  const na1 = await page.evaluate(()=> ({ health:G.health, stress:G.stress, room:currentRoom, px:(typeof P!=='undefined'?P.wx:null), py:(typeof P!=='undefined'?P.wy:null), blackout:!!document.getElementById('alco-blackout') }));
+  if(naMid.today!==10) fail('NA: licznik alkoholu='+naMid.today); else ok('NA: licznik 10 pozycji/dobę');
+  if(naMid.attempts!==3||naMid.odDay!==5) fail('NA: attempts='+naMid.attempts+' odDay='+naMid.odDay); else ok('NA: 3. próba = przedawkowanie (raz na 3)');
+  if(na1.health!==30) fail('NA: zdrowie po przedawkowaniu='+na1.health+' (oczek 30)'); else ok('NA: -70 zdrowia (100→30)');
+  if(na1.stress!==0) fail('NA: nastrój po przedawkowaniu='+na1.stress+' (oczek 0)'); else ok('NA: -80 nastroju (80→0)');
+  if(na1.room!=='ulica'||!(na1.px>250&&na1.px<310&&na1.py>1030&&na1.py<1110)) fail('NA: teleport room='+na1.room+' px='+na1.px+' py='+na1.py+' (oczek park ~280,1070)'); else ok('NA: teleport do parku przy fontannie ('+na1.px+','+na1.py+')');
+  if(!na1.blackout) fail('NA: brak overlay czarnego ekranu'); else ok('NA: czarny ekran (blackout) podczas przedawkowania');
+  // Faza 2: druga próba tego samego dnia udaremniona (raz na dobę)
+  const na2 = await page.evaluate(()=>{ G.health=30; window._registerAlcohol('beer'); return { health:G.health }; });
+  if(na2.health!==30) fail('NA: druga próba tego dnia obniżyła zdrowie ('+na2.health+') — powinna być zablokowana'); else ok('NA: druga próba tego samego dnia udaremniona (raz na dobę)');
+  // Faza 3: uzależnienie po 3 przedawkowaniach
+  const na3 = await page.evaluate(()=>{ G.day=10; G._alcoholOverdoses=2; G._alcoholAddictionUntil=0; window._alcoholOverdoseEvent(); return { addUntil:G._alcoholAddictionUntil, day:G.day }; });
+  if(!(na3.addUntil===na3.day+7)) fail('NA: uzależnienie addUntil='+na3.addUntil+' (oczek day+7='+(na3.day+7)+')'); else ok('NA: uzależnienie 7 dób po 3 przedawkowaniach (do dnia '+na3.addUntil+')');
+  // clamp uzależnienia w nextPeriod (source — guard w hot-path)
+  const srcNA=fs.readFileSync('index.html','utf8');
+  if(!/_alcoholAddictionUntil>\(G\.day\|\|0\) && \(G\.stress\|\|0\)>35\) G\.stress=35/.test(srcNA)) fail('NA: brak clampa uzależnienia w nextPeriod'); else ok('NA: clamp nastroju ~35 podczas uzależnienia (nextPeriod)');
+  await page.evaluate(()=>{ try{ document.getElementById('alco-blackout')?.remove(); }catch(e){} });
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
