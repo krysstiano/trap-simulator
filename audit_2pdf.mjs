@@ -797,6 +797,22 @@ try{
     if(p3c2.r9!==9.70) fail('P3 kasyno-limbo: determinizm r9='+p3c2.r9); else ok('P3 kasyno-limbo: deterministyczny RNG (u=0.9→×9.70)');
     if(!p3c2.allGE1) fail('P3 kasyno-limbo: floor-guard złamany w 2000 próbkach'); else ok('P3 kasyno-limbo: floor-guard trzyma w 2000 próbkach (zawsze ≥1.00)'); }
 
+  // ============ P3 — kasyno HiLo/Mines step-mnożniki (uczciwe odds + edge + null-guard + monotoniczność) ============
+  const p3c3 = await page.evaluate(()=>{
+    if(typeof _hiloStepMult!=='function'||typeof _minesStep!=='function') return {missing:true};
+    return {
+      hiloHi:_hiloStepMult(7,'hi'), hiloImposs:_hiloStepMult(2,'lo'), hiloRisky:_hiloStepMult(13,'hi'),
+      mines0:_minesStep(0,3), minesFull:_minesStep(22,3), minesMid:_minesStep(10,3),
+    };
+  });
+  if(p3c3.missing) fail('P3 kasyno-step: _hiloStepMult/_minesStep niedostępne');
+  else { if(!(Math.abs(p3c3.hiloHi-1.792)<0.01 && p3c3.hiloHi<13/7)) fail('P3 kasyno-step: hiloHi='+p3c3.hiloHi); else ok('P3 kasyno-step: HiLo mnożnik (13/7)×(1−0.035)=×1.79, edge 3.5% zastosowany');
+    if(p3c3.hiloImposs!==null) fail('P3 kasyno-step: hiloImposs='+p3c3.hiloImposs+' (oczek null)'); else ok('P3 kasyno-step: HiLo null-guard — niemożliwy zakład (karta 2 „niżej") = null');
+    if(!(Math.abs(p3c3.hiloRisky-12.545)<0.02)) fail('P3 kasyno-step: hiloRisky='+p3c3.hiloRisky); else ok('P3 kasyno-step: HiLo ryzykowny zakład wysoki mnożnik (×12.55)');
+    if(!(Math.abs(p3c3.mines0-1.102)<0.01 && p3c3.mines0<25/22)) fail('P3 kasyno-step: mines0='+p3c3.mines0); else ok('P3 kasyno-step: Mines mnożnik (25/22)×(1−0.03)=×1.10, edge 3% zastosowany');
+    if(p3c3.minesFull!==null) fail('P3 kasyno-step: minesFull='+p3c3.minesFull+' (oczek null)'); else ok('P3 kasyno-step: Mines null-guard — brak bezpiecznych pól (safe=0) = null');
+    if(!(p3c3.minesMid>p3c3.mines0)) fail('P3 kasyno-step: monotoniczność mid='+p3c3.minesMid+' vs 0='+p3c3.mines0); else ok('P3 kasyno-step: Mines mnożnik rośnie z odsłoniętymi (monotoniczny)'); }
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
