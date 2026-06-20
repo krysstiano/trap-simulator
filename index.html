@@ -26549,6 +26549,8 @@ function _theftStateEnsure(){
   if(!t.robsByDistrict||typeof t.robsByDistrict!=='object') t.robsByDistrict={};
   if(!t.alertUntil||typeof t.alertUntil!=='object') t.alertUntil={};
   if(typeof t.robsDay!=='number') t.robsDay=G.day||1;
+  if(typeof t.digitalTrace!=='number') t.digitalTrace=0;
+  if(!t.shopBans||typeof t.shopBans!=='object') t.shopBans={};
 }
 window._theftStateEnsure=_theftStateEnsure;
 function _theftHour(){ try{ return (Math.floor(gameMin)%1440)/60; }catch(e){ return 12; } }
@@ -26577,47 +26579,109 @@ function canPlayerRobNpc(hour, locKey){
   return {ok:false, reason:'predawn', msg:'O tej porze ulice są martwe — sami patrolujący i kamery. Odpuść.'};
 }
 window.canPlayerRobNpc=canPlayerRobNpc;
-window._attemptTheft=function(){
+/* K-2 (v2.3.44 PDF2): 4 typy kradzieży ulicznej gracza (sekcja 6) + formuła sukcesu (sekcja 17). */
+const ROBBERY_TYPES={
+  pickpocket: {name:'Kieszonkowa',       emoji:'🤏', lootMin:50,  lootMax:400,  vis:'low'},
+  bag:        {name:'Torba / zakupy',    emoji:'👜', item:true,                 vis:'med'},
+  intimidate: {name:'Wymuszenie',        emoji:'😠', lootMin:300, lootMax:1500, vis:'high', reqStreetRep:30},
+  shoplift:   {name:'Kradzież sklepowa', emoji:'🏪', lootMin:30,  lootMax:300,  vis:'med', shopOnly:true},
+};
+window.ROBBERY_TYPES=ROBBERY_TYPES;
+function _robberySuccessChance(method, loc){
+  _theftStateEnsure();
+  loc = loc || (typeof currentRoom!=='undefined'?currentRoom:'ulica');
+  const risk = DISTRICT_THEFT_RISK[loc] || DISTRICT_THEFT_RISK.ulica;
+  const hour=_theftHour();
+  const night=(hour>=22||hour<6);
+  let base=0.55;
+  base += Math.min(0.20,(G._theft.stealthXp||0)*0.01);              // stealth
+  base += Math.min(0.15,(G.streetRep||0)*0.0015);                  // street experience
+  base += night?0.12:0.04;                                          // darkness bonus
+  base += (loc==='underground')?0.10:0;                            // ryzykowna dzielnica
+  base -= ((risk.witnessBase||50)+(G._theft.districtWitness[loc]||0))*0.0025; // witnesses
+  base -= (risk.police||50)*0.002;                                 // police presence
+  base -= Math.min(0.20,(G.fame||0)*0.0004);                       // fame visibility
+  base -= Math.min(0.15,(G.streetHeat||0)*0.0015);                 // street heat
+  const underInfluence=((G._alcoholAddictionUntil||0)>(G.day||0)) || !!G.activeSubstance || !!G._highUntil;
+  if(underInfluence) base-=0.10;                                   // clarity penalty (pod wpływem)
+  if(method==='intimidate') base+=0.05; else if(method==='shoplift') base-=0.08; else if(method==='bag') base-=0.04;
+  return Math.max(0.05,Math.min(0.95,base));
+}
+window._robberySuccessChance=_robberySuccessChance;
+function applyRobberyConsequences(r){
+  _theftStateEnsure();
+  const loc=r.loc||currentRoom||'ulica';
+  if(r.success){
+    if(r.loot>0) G.money=(G.money||0)+r.loot;
+    G._theft.stealthXp=(G._theft.stealthXp||0)+1;
+    if(loc==='underground') G.streetRep=Math.min(100,(G.streetRep||0)+(r.method==='intimidate'?5:2));
+    if(r.method==='intimidate'){ G.violenceHeat=(G.violenceHeat||0)+rnd(5,15); G.streetCredibility=Math.min(100,(G.streetCredibility||0)+rnd(4,8)); G.infamy=(G.infamy||0)+rnd(2,5); }
+    else { G.streetCredibility=Math.min(100,(G.streetCredibility||0)+rnd(1,3)); }
+    if(r.seen){ G.streetHeat=(G.streetHeat||0)+rnd(3,8); if(typeof addDefamation==='function')addDefamation(rnd(2,5)); G._theft.districtWitness[loc]=(G._theft.districtWitness[loc]||0)+rnd(3,8); }
+  } else {
+    const fine=Math.min(G.money||0,rnd(200,800)); G.money=(G.money||0)-fine; r._fine=fine;
+    G.streetHeat=(G.streetHeat||0)+rnd(5,12);
+    if(typeof addDefamation==='function')addDefamation(r.method==='intimidate'?rnd(5,12):rnd(3,8));
+    G.haters=(G.haters||0)+rnd(10,30);
+    G.fame=Math.max(0,(G.fame||0)-rnd(2,5));
+    if(r.recorded){ G.mediaHeat=(G.mediaHeat||0)+rnd(4,10); G._theft.digitalTrace=(G._theft.digitalTrace||0)+rnd(2,8); G.publicImage=Math.max(0,(G.publicImage==null?100:G.publicImage)-rnd(4,8)); }
+    if(r.method==='shoplift'){ const days=rnd(3,14); G._theft.shopBans[loc]=(G.day||1)+days; r._banDays=days; }
+    if((r.method==='intimidate'||r.method==='shoplift') && Math.random()<0.25){ if(!G.trap||typeof G.trap!=='object') G.trap={}; const d=rnd(1,2); G.trap._jailUntilDay=(G.day||1)+d; r._jail=d; }
+  }
+}
+window.applyRobberyConsequences=applyRobberyConsequences;
+window._attemptTheft=function(method){
+  method=method||'pickpocket';
   const _mg=document.getElementById('mg-job'); if(_mg){_mg.classList.remove('on'); const _c=document.getElementById('mg-job-content'); if(_c)_c.innerHTML='';}
-  /* K-1 (PDF2): bramka dobowa — w dzień brak kradzieży ulicznej (komunikat blokady). */
   const _can=(typeof canPlayerRobNpc==='function')?canPlayerRobNpc():{ok:true};
   if(!_can.ok){ if(typeof showMsg==='function') showMsg('🌞 '+(_can.msg||'Nie teraz.'),'i',5500); return; }
   _theftStateEnsure();
+  const loc=(typeof currentRoom!=='undefined'?currentRoom:'ulica');
+  const t=ROBBERY_TYPES[method]||ROBBERY_TYPES.pickpocket;
+  if(t.reqStreetRep && (G.streetRep||0)<t.reqStreetRep && loc!=='underground'){ if(typeof showMsg==='function')showMsg('😠 Wymuszenie wymaga ulicznej reputacji ('+t.reqStreetRep+') albo działania w Underground.','i',5500); return; }
   if(G._theftDay!==G.day){ G._theftDay=G.day; G._theftsToday=0; }
   if((G._theftsToday||0)>=4){ if(typeof showMsg==='function') showMsg('🥷 Za dużo skoków dziś — za gorąco, odpuść do jutra.','r',4000); return; }
   G._theftsToday=(G._theftsToday||0)+1;
-  if(Math.random()<0.65){
-    /* sukces */
-    const cash=rnd(60,250); G.money=(G.money||0)+cash;
-    G.streetRep=Math.min(100,(G.streetRep||0)+1);
-    let itemMsg='';
-    if(Math.random()<0.35){
+  if(G._theft.robsDay!==G.day){ G._theft.robsDay=G.day; G._theft.robsByDistrict={}; }
+  G._theft.robsByDistrict[loc]=(G._theft.robsByDistrict[loc]||0)+1;
+  const chance=_robberySuccessChance(method,loc);
+  const success=Math.random()<chance;
+  const risk=DISTRICT_THEFT_RISK[loc]||DISTRICT_THEFT_RISK.ulica;
+  const wl=(risk.witnessBase||50)+(G._theft.districtWitness[loc]||0)+Math.min(40,(G.fame||0)*0.08);
+  const seen=Math.random()<(wl/250);
+  const recorded=!success && seen && Math.random()<0.5;
+  let loot=0, itemMsg='';
+  if(success){
+    if(t.item){
       const it=STOLEN_ITEMS[Math.floor(Math.random()*STOLEN_ITEMS.length)];
-      const added=(typeof invAdd==='function') && invAdd({id:it.id,type:'item',kind:'valuable',name:it.name,emoji:it.emoji,value:it.value,stolen:true,desc:'Łup z kradzieży — spieniężysz w Lombardzie (bezpiecznie) lub na OLX (drożej, ale ryzyko wykrycia).'},1);
-      if(added) itemMsg=` + ${it.emoji} ${it.name} (sprzedasz w Lombardzie)`;
-      else { G.money+=it.value; itemMsg=` + spieniężony fant +${it.value} zł (plecak pełny)`; }
+      const added=(typeof invAdd==='function') && invAdd({id:it.id,type:'item',kind:'valuable',name:it.name,emoji:it.emoji,value:it.value,stolen:true,desc:'Łup z kradzieży — spieniężysz w Lombardzie lub na OLX.'},1);
+      if(added) itemMsg=' + '+it.emoji+' '+it.name+' (sprzedasz w Lombardzie)'; else loot=it.value;
+    } else {
+      loot=Math.round(rnd(t.lootMin,t.lootMax)*((risk.lootMult||1)));
     }
-    if(typeof notify==='function') notify(`🥷 Udany skok! +${cash} zł${itemMsg}. Nikt nie zauważył.`,'g',5500);
-  } else {
-    /* wykrycie */
-    const fine=Math.min(G.money||0, rnd(200,800)); G.money=(G.money||0)-fine;
-    if(typeof addDefamation==='function') addDefamation(15);
-    G.haters=(G.haters||0)+rnd(15,40);
-    G.fame=Math.max(0,(G.fame||0)-rnd(2,5));
-    let jailMsg='';
-    if(Math.random()<0.25){ if(!G.trap||typeof G.trap!=='object') G.trap={}; const d=rnd(1,2); G.trap._jailUntilDay=(G.day||1)+d; jailMsg=` Areszt ${d} dni (interesy podziemne wstrzymane).`; }
-    if(typeof notify==='function') notify(`🚨 ZŁAPANY na kradzieży! Mandat −${fine} zł, +zniesławienie, +hejterzy, −sława.${jailMsg}`,'r',8000);
   }
+  const res={method, success, seen, recorded, loot, loc};
+  applyRobberyConsequences(res);
+  if(success){ if(typeof notify==='function') notify('🥷 '+t.emoji+' '+t.name+' — udany skok!'+(loot>0?(' +'+loot+' zł'):'')+itemMsg+(seen?' (ktoś patrzył...)':' Nikt nie zauważył.'), seen?'i':'g', 5500); }
+  else { let extra=''; if(res._fine) extra+=' Mandat −'+res._fine+' zł.'; if(recorded) extra+=' Ktoś to NAGRAŁ — trafi do sieci.'; if(method==='shoplift'&&res._banDays) extra+=' Sklep zablokował Ci wejście na '+res._banDays+' dni.'; if(res._jail) extra+=' Areszt '+res._jail+' dni.'; if(typeof notify==='function') notify('🚨 '+t.emoji+' '+t.name+' — wpadka!'+extra, 'r', 8000); }
   if(typeof updateHUD==='function') updateHUD();
 };
 window._theftOpportunity=function(){
   const _mg=document.getElementById('mg-job'); const _mc=document.getElementById('mg-job-content'); if(!_mg||!_mc) return;
-  _mc.innerHTML=`<div style="background:#0a0a0a;border:2px solid #555;border-radius:10px;padding:18px;max-width:440px;margin:0 auto;color:#ddd">
+  _theftStateEnsure();
+  const loc=(typeof currentRoom!=='undefined'?currentRoom:'ulica');
+  const _can=(typeof canPlayerRobNpc==='function')?canPlayerRobNpc():{ok:true};
+  if(!_can.ok){ if(typeof showMsg==='function')showMsg('🌞 '+(_can.msg||'Nie teraz.'),'i',5000); return; }
+  /* K-2 (PDF2): wybór typu kradzieży zależnie od kontekstu (wymuszenie gated streetRep/Underground). */
+  const types=['pickpocket','bag'];
+  if((G.streetRep||0)>=30 || loc==='underground') types.push('intimidate');
+  const chanceTxt=(m)=>Math.round(_robberySuccessChance(m,loc)*100)+'%';
+  const btns=types.map(m=>{ const t=ROBBERY_TYPES[m]; const loot=t.item?'przedmiot do sprzedaży':(t.lootMin+'–'+t.lootMax+' zł'); return `<button class="bbtn" style="width:100%;margin-bottom:6px;text-align:left;font-size:12px" onclick="window._attemptTheft('${m}')">${t.emoji} ${t.name} — łup ${loot} · szansa ~${chanceTxt(m)}</button>`; }).join('');
+  _mc.innerHTML=`<div style="background:#0a0a0a;border:2px solid #555;border-radius:10px;padding:18px;max-width:470px;margin:0 auto;color:#ddd">
     <h2 style="color:#bbb;margin-top:0;text-align:center">👀 Okazja...</h2>
-    <div style="font-size:12px;color:#9aa;margin-bottom:12px;line-height:1.5">Nieuważny przechodzień z odstającym portfelem albo otwarta torba na ławce. Nikt nie patrzy. Spróbować? <b>Ryzyko wykrycia</b> — wpadka = mandat, zniesławienie, hejterzy, może areszt.</div>
-    <div style="font-size:11px;color:#778;margin-bottom:10px">🥷 ~65% powodzenia · łup: gotówka (czasem fant do Lombardu) · limit 4 skoki/dobę (dziś: ${_theftCountToday()}/4)</div>
-    <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._attemptTheft()">🥷 Kradnij (ryzyko)</button>
-    <button class="cbtn" style="width:100%;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">Odpuść — nie ryzykuję</button>
+    <div style="font-size:12px;color:#9aa;margin-bottom:12px;line-height:1.5">Nieuważny przechodzień z odstającym portfelem, otwarta torba na ławce... albo ktoś, kogo można przycisnąć. Wybierz sposób. <b>Ryzyko wykrycia</b> — wpadka = mandat, zniesławienie, hejterzy, czasem areszt. (Dziś: ${_theftCountToday()}/4 skoki)</div>
+    ${btns}
+    <button class="cbtn" style="width:100%;color:#fff;margin-top:4px" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">Odpuść — nie ryzykuję</button>
   </div>`;
   _mg.classList.add('on');
 };
@@ -56060,7 +56124,7 @@ const PATCH_NOTES = [
  {t:'change',d:'🏪 Nazwy sklepów oparte na prawdziwych markach zastąpiono fikcyjnymi odpowiednikami w świecie gry: sklep meblowy to teraz „NorthRoom", tani sklep meblowo-AGD „Meblux", a sklep z elektroniką „VoltHouse". Wszystkie wzmianki w grze — mapa, podpowiedzi, wiadomości i szyldy — zostały ujednolicone.'},
  {t:'feature',d:'🍺 Nowość: można się przedawkować alkoholem. Po wypiciu 10 napojów w ciągu jednej doby Twoja postać może stracić przytomność — ekran gaśnie, a budzisz się przy fontannie w parku z dużą utratą zdrowia i nastroju. Nie zdarza się to za każdym razem, ale regularne picie do nieprzytomności prowadzi do uzależnienia, które przez kilka dni trzyma nastrój w dole. Mieszanie wielu różnych trunków przez kilka dni z rzędu kończy się ostrzeżeniem.'},
  {t:'feature',d:'🛰️ Nowość: w folderze Kariera w telefonie pojawia się NOX Route — zaszyfrowany komunikator czarnorynkowy dla nielegalnego frontu. Na starcie jest zablokowany; otwiera się dopiero, gdy masz zarejestrowany legalny front, zatrudnioną ekipę produkcyjną i realną potrzebę dystrybucji (a heat nie jest krytyczny). Wtedy odzywa się pierwszy broker — Emir „NOX". Ciemny, techniczny interfejs z własnymi wskaźnikami zaufania i ryzyka, tablicą ofert (Market Board) z trasami, kosztami i skutecznością oraz Risk Panel ostrzegającym o śladach. Od wyższego poziomu dostępu (budujesz go reputacją) bierzesz zlecenia przez depozyt escrow: udane podnoszą reputację i zaufanie brokerów, nieudane lub zdrady pochłaniają depozyt i podnoszą heat. Z czasem odblokowujesz kolejnych brokerów — od Emira „NOX" po Mirę „Rysę", Grzegorza „Sanepida", Leilę „404", Sashę „Drumline" i Doriana „Cysternę".'},
- {t:'feature',d:'🌃 Nowość: kradzieże uliczne mają teraz rytm dnia i nocy. Okradanie przechodniów możliwe jest tylko po zmroku i w ryzykownych sektorach — w dzień gra zablokuje próbę z komunikatem (za dużo świadków, kamer i patroli). Każda dzielnica ma własny poziom ryzyka kradzieży, bycia okradzionym i wandalizmu pojazdów — Underground jest najniebezpieczniejszy, a Centrum najspokojniejsze.'},
+ {t:'feature',d:'🌃 Nowość: kradzieże uliczne mają teraz rytm dnia i nocy. Okradanie przechodniów możliwe jest tylko po zmroku i w ryzykownych sektorach — w dzień gra zablokuje próbę z komunikatem (za dużo świadków, kamer i patroli). Każda dzielnica ma własny poziom ryzyka kradzieży, bycia okradzionym i wandalizmu pojazdów — Underground jest najniebezpieczniejszy, a Centrum najspokojniejsze. Do wyboru są różne sposoby: szybka kieszonkowa, wyrwanie torby, brutalne wymuszenie (wymaga ulicznej reputacji) czy kradzież sklepowa. Szansa powodzenia zależy od pory, dzielnicy, liczby świadków, Twojej rozpoznawalności i tego, czy jesteś trzeźwy — a każda wpadka uderza w wizerunek i podnosi heat.'},
  ],
  },
  {

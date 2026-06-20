@@ -361,6 +361,40 @@ try{
   if(k1.dayTheftsAfter!==0||k1.dayMoney!==1000) fail('K-1: _attemptTheft w dzień zadziałał (thefts='+k1.dayTheftsAfter+' money='+k1.dayMoney+')'); else ok('K-1: _attemptTheft w dzień zablokowany (brak skoku)');
   if(k1.nightTheftsAfter!==1) fail('K-1: _attemptTheft w nocy nie policzył skoku ('+k1.nightTheftsAfter+')'); else ok('K-1: _attemptTheft w nocy przechodzi (skok policzony)');
 
+  // ============ K-2 — gracz okrada NPC (4 typy + formuła) ============
+  const k2 = await page.evaluate(()=>{
+    const _rand=Math.random;
+    try{
+      const out={};
+      currentRoom='ulica';
+      out.typeCount=Object.keys(ROBBERY_TYPES).length;
+      gameMin=120; G.day=5; G._theftDay=5; G._theftsToday=0; G.fame=0; G.streetHeat=0; G._alcoholAddictionUntil=0; G.activeSubstance=null; G._highUntil=0;
+      window._theftStateEnsure(); G._theft.districtWitness={}; G._theft.stealthXp=0;
+      const chUg=window._robberySuccessChance('pickpocket','underground');
+      const chBus=window._robberySuccessChance('pickpocket','business');
+      out.chRange=(chUg>=0.05&&chUg<=0.95&&chBus>=0.05&&chBus<=0.95); out.ugGtBus=chUg>chBus;
+      // pickpocket sukces → kasa
+      G._theftsToday=0; G.money=1000; Math.random=()=>0.01;
+      window._attemptTheft('pickpocket'); out.ppMoney=G.money;
+      // intimidate gated (streetRep 0, ulica) → odmowa (brak skoku)
+      G._theftsToday=0; G.streetRep=0; { const m0=G.money,t0=G._theftsToday; window._attemptTheft('intimidate'); out.intiRefused=(t0===G._theftsToday); }
+      // intimidate dozwolone (streetRep 50)
+      G._theftsToday=0; G.streetRep=50; { const t1=G._theftsToday; window._attemptTheft('intimidate'); out.intiAllowed=(G._theftsToday===t1+1); }
+      // shoplift wpadka → ban
+      G._theftsToday=0; Math.random=()=>0.99; window._theftStateEnsure(); G._theft.shopBans={};
+      window._attemptTheft('shoplift');
+      out.banKeys=Object.keys(G._theft.shopBans).length; out.banVal=Object.values(G._theft.shopBans)[0]||0;
+      return out;
+    } finally { Math.random=_rand; }
+  });
+  if(k2.typeCount!==4) fail('K-2: ROBBERY_TYPES ma '+k2.typeCount+' typów (oczek 4)'); else ok('K-2: 4 typy kradzieży (kieszonkowa/torba/wymuszenie/sklepowa)');
+  if(!k2.chRange) fail('K-2: _robberySuccessChance poza 0.05-0.95'); else ok('K-2: szansa sukcesu w zakresie 0.05-0.95');
+  if(!k2.ugGtBus) fail('K-2: Underground nie łatwiejszy niż Centrum/business'); else ok('K-2: formuła — Underground łatwiejszy niż pilnowane dzielnice');
+  if(!(k2.ppMoney>1000)) fail('K-2: kieszonkowa sukces nie dała kasy ('+k2.ppMoney+')'); else ok('K-2: kieszonkowa sukces → dirty_cash (+'+(k2.ppMoney-1000)+' zł)');
+  if(!k2.intiRefused) fail('K-2: wymuszenie nie zablokowane przy streetRep<30 poza Underground'); else ok('K-2: wymuszenie gated (streetRep<30 + nie-Underground → odmowa)');
+  if(!k2.intiAllowed) fail('K-2: wymuszenie nie przeszło przy streetRep 50'); else ok('K-2: wymuszenie dozwolone przy streetRep 50');
+  if(!(k2.banKeys>=1&&k2.banVal>5)) fail('K-2: sklepowa wpadka nie dała bana (keys='+k2.banKeys+' val='+k2.banVal+')'); else ok('K-2: sklepowa wpadka → ban w sklepie (do dnia '+k2.banVal+')');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
