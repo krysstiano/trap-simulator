@@ -458,6 +458,16 @@ try{
   if(!k4.alerted||!(k4.alertUntil>5)) fail('K-4: czujna okolica nie aktywowana po 3 kradzieżach (alerted='+k4.alerted+')'); else ok('K-4: anty-exploit „czujna okolica" po 3 kradzieżach (do dnia '+k4.alertUntil+')');
   if(!k4.alertLowersChance) fail('K-4: czujna okolica nie obniża szansy kradzieży'); else ok('K-4: czujna okolica obniża szansę (+patrole/świadkowie)');
 
+  // ============ U9 — welcome wall -10% szerokości ============
+  const u9 = await page.evaluate(()=>{
+    try{ showWelcomePopup('Test','Body'); }catch(e){ return {err:e.message}; }
+    const el=document.getElementById('welcome-popup');
+    const mw=el?el.style.maxWidth:null;
+    if(el) el.remove(); const bd=document.getElementById('welcome-backdrop'); if(bd) bd.remove();
+    return { mw };
+  });
+  if(u9.err) fail('U9: showWelcomePopup rzucił: '+u9.err); else if(u9.mw!=='468px') fail('U9: welcome-popup max-width='+u9.mw+' (oczek 468px = -10%)'); else ok('U9: „Wall powitalny" zwężony o 10% (520→468px)');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
