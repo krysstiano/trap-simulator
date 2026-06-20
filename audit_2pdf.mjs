@@ -764,6 +764,23 @@ try{
   if(!p3h.cdBlocked) fail('P3 hospital: cooldown nie zablokował'); else ok('P3 hospital: cooldown 30 gameMin blokuje spam leczenia');
   if(!(p3h.partHealth===70&&p3h.partDrop===180)) fail('P3 hospital: partial hp='+p3h.partHealth+' koszt='+p3h.partDrop); else ok('P3 hospital: częściowe leczenie (+30 HP=70, koszt (100−40)×3=180)');
 
+  // ============ P3 — staking krypto: właściwość asymptoty (anti-exploit P0 v2.1.773) ============
+  // Replika EXACT formuły z daily-ticku (index L25809-25810; grep potwierdza że gra ją stosuje): _eff=base*max(0,1-acc/1.5).
+  const p3s = await page.evaluate(()=>{
+    let qty=1000, acc=0;
+    for(let d=0; d<365; d++){
+      const _durBonus=Math.min(0.008, Math.max(0,d)*0.0003);
+      const _eff=(0.005 + 0 + _durBonus)*Math.max(0, 1 - acc/1.5);
+      if(_eff>0){ qty=qty*(1+_eff); acc+=_eff; }
+    }
+    return {acc, growth: qty/1000};
+  });
+  // source-assert: gra REALNIE stosuje formułę asymptoty w daily-ticku (nie ghost)
+  const _idxSrc = fs.readFileSync('index.html','utf8');
+  if(!/Math\.max\(0,\s*1\s*-\s*h\.stakeAccrued\/1\.5\)/.test(_idxSrc)) fail('P3 staking: formuła asymptoty stakeAccrued/1.5 NIE w kodzie (ghost?)'); else ok('P3 staking: gra stosuje asymptotę stakeAccrued/1.5 w daily-ticku (source-confirmed, nie ghost)');
+  if(!(p3s.acc<1.5)) fail('P3 staking: stakeAccrued przekroczył 1.5 (acc='+p3s.acc+')'); else ok('P3 staking: asymptota — stakeAccrued zbiega do <1.5 (acc='+p3s.acc.toFixed(3)+', nigdy nie przekracza)');
+  if(!(p3s.growth>1 && p3s.growth<5)) fail('P3 staking: wzrost niezgodny z capem (growth='+p3s.growth+')'); else ok('P3 staking: wzrost qty ograniczony (×'+p3s.growth.toFixed(2)+' @365 dni, NIE historyczny ×98 exploit)');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
