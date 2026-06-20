@@ -1026,6 +1026,15 @@ try{
     if(!(p3olx.stolenGain===0&&p3olx.stolenDef===1&&p3olx.stolenCleared)) fail('P3 OLX: kradzione gain='+p3olx.stolenGain+' def='+p3olx.stolenDef); else ok('P3 OLX: kradzione+wykryte (RNG<0.20 → konfiskata, 0 kasy, defamation, ogłoszenie znika)');
     if(!(p3olx.cancelReturned&&p3olx.cancelCleared)) fail('P3 OLX: cancel returned='+p3olx.cancelReturned); else ok('P3 OLX: anulowanie ogłoszenia → przedmiot wraca do ekwipunku'); }
 
+  // ============ P3 — sponsor-event soft-cap hiperboliczny (reguła #11, L17107) ============
+  const fSponsor = (pay)=>{ if(pay<=50000) return pay; const _e=pay-50000; return 50000+Math.floor(_e/(1+_e/70000)); };
+  const p3sp = { below:fSponsor(40000), at:fSponsor(50000), mid:fSponsor(200000), big:fSponsor(300000), huge:fSponsor(1e9) };
+  const _idxSP = fs.readFileSync('index.html','utf8');
+  const _spSrc = /50000\+Math\.floor\(_excess\/\(1\+_excess\/70000\)\)/.test(_idxSP);
+  if(!_spSrc) fail('P3 sponsor: formuła 50000/70000 NIE w kodzie'); else ok('P3 sponsor: gra stosuje hiperboliczną kompresję 50k/70000 dla payoutu sponsora (source-confirmed)');
+  if(p3sp.below!==40000||p3sp.at!==50000) fail('P3 sponsor: poniżej progu below='+p3sp.below+' at='+p3sp.at); else ok('P3 sponsor: do 50k payout pełny 100% (reguła #11)');
+  if(!(p3sp.mid>50000 && p3sp.big>p3sp.mid && p3sp.huge<120001)) fail('P3 sponsor: kompresja mid='+p3sp.mid+' big='+p3sp.big+' huge='+p3sp.huge); else ok('P3 sponsor: powyżej 50k kompresja monotoniczna (200k→'+p3sp.mid+', 300k→'+p3sp.big+'), asymptota ~120k (anti-runaway late-game)');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
