@@ -26529,8 +26529,60 @@ const STOLEN_ITEMS=[
   {id:'stolen_bag',   name:'Skradziona torebka',emoji:'👜',value:220},
 ];
 function _theftCountToday(){ return (G._theftDay===G.day)?(G._theftsToday||0):0; }
+/* ═══ K (v2.3.44 PDF2): System kradzieży ulicznych — K-1 fundament + blokada dzienna + ryzyko dzielnic. ═══
+   Rozbudowa istniejącego _attemptTheft/_theftOpportunity (NIE duplikat). Zmienne defamation/streetHeat/mediaHeat/
+   violenceHeat/streetCredibility/publicImage JUŻ istnieją (G defaults). Dodajemy stan dzielnicowy + bramkę dobową. */
+const DISTRICT_THEFT_RISK={
+  ulica:      {rob:'niskie/średnie',   robbed:'niskie',         vandal:'niskie',          witnessBase:60, police:55, lootMult:1.0},
+  underground:{rob:'wysokie',          robbed:'wysokie',        vandal:'bardzo wysokie',  witnessBase:20, police:15, lootMult:1.6},
+  coast:      {rob:'niskie',           robbed:'niskie',         vandal:'niskie',          witnessBase:55, police:50, lootMult:1.2},
+  business:   {rob:'niskie',           robbed:'niskie',         vandal:'niskie',          witnessBase:75, police:70, lootMult:0.8},
+};
+window.DISTRICT_THEFT_RISK=DISTRICT_THEFT_RISK;
+function _theftStateEnsure(){
+  if(typeof G.defamation!=='number') G.defamation=0; /* K (PDF2): defamation lazy-init na nowej grze → ustal liczbę (progi K-4 jej wymagają) */
+  if(!G._theft||typeof G._theft!=='object') G._theft={};
+  const t=G._theft;
+  if(typeof t.stealthXp!=='number') t.stealthXp=0;
+  if(!t.robberyCooldown||typeof t.robberyCooldown!=='object') t.robberyCooldown={};
+  if(!t.districtWitness||typeof t.districtWitness!=='object') t.districtWitness={};
+  if(!t.robsByDistrict||typeof t.robsByDistrict!=='object') t.robsByDistrict={};
+  if(!t.alertUntil||typeof t.alertUntil!=='object') t.alertUntil={};
+  if(typeof t.robsDay!=='number') t.robsDay=G.day||1;
+}
+window._theftStateEnsure=_theftStateEnsure;
+function _theftHour(){ try{ return (Math.floor(gameMin)%1440)/60; }catch(e){ return 12; } }
+const _THEFT_DAY_MSGS=[
+  'Za jasno. Za dużo ludzi. Spróbuj po zmroku.',
+  'Tu nie jesteś niewidzialny. Kamery, matki z dziećmi, autobusy, sklepikarze. Odpuść.',
+  'Kradzież uliczna dostępna tylko nocą lub w sektorach wysokiego ryzyka.',
+];
+function canPlayerRobNpc(hour, locKey){
+  hour = (typeof hour==='number')?hour:_theftHour();
+  locKey = locKey||(typeof currentRoom!=='undefined'?currentRoom:'ulica');
+  /* 06:00–20:00 — brak możliwości aktywnej kradzieży */
+  if(hour>=6 && hour<20) return {ok:false, reason:'day', msg:_THEFT_DAY_MSGS[Math.floor(Math.random()*_THEFT_DAY_MSGS.length)]};
+  /* 20:00–22:00 — tylko wybrane dzielnice (Underground / bloki w mieście), niskie łupy */
+  if(hour>=20 && hour<22){
+    const allowed=(locKey==='underground'||locKey==='ulica');
+    if(!allowed) return {ok:false, reason:'earlynight_loc', msg:'Za wcześnie i za spokojnie w tej okolicy. Wróć po 22:00 albo idź w Underground.'};
+    return {ok:true, lootBand:'low', patrol:false, locKey};
+  }
+  /* 22:00–04:00 — pełna dostępność w ryzykownych lokacjach (03:00–04:30 więcej patroli) */
+  if(hour>=22 || hour<4){
+    const patrol=(hour>=3 && hour<4.5);
+    return {ok:true, lootBand:'full', patrol, locKey};
+  }
+  /* 04:00–06:00 — martwe ulice, patrole i kamery */
+  return {ok:false, reason:'predawn', msg:'O tej porze ulice są martwe — sami patrolujący i kamery. Odpuść.'};
+}
+window.canPlayerRobNpc=canPlayerRobNpc;
 window._attemptTheft=function(){
   const _mg=document.getElementById('mg-job'); if(_mg){_mg.classList.remove('on'); const _c=document.getElementById('mg-job-content'); if(_c)_c.innerHTML='';}
+  /* K-1 (PDF2): bramka dobowa — w dzień brak kradzieży ulicznej (komunikat blokady). */
+  const _can=(typeof canPlayerRobNpc==='function')?canPlayerRobNpc():{ok:true};
+  if(!_can.ok){ if(typeof showMsg==='function') showMsg('🌞 '+(_can.msg||'Nie teraz.'),'i',5500); return; }
+  _theftStateEnsure();
   if(G._theftDay!==G.day){ G._theftDay=G.day; G._theftsToday=0; }
   if((G._theftsToday||0)>=4){ if(typeof showMsg==='function') showMsg('🥷 Za dużo skoków dziś — za gorąco, odpuść do jutra.','r',4000); return; }
   G._theftsToday=(G._theftsToday||0)+1;
@@ -56008,6 +56060,7 @@ const PATCH_NOTES = [
  {t:'change',d:'🏪 Nazwy sklepów oparte na prawdziwych markach zastąpiono fikcyjnymi odpowiednikami w świecie gry: sklep meblowy to teraz „NorthRoom", tani sklep meblowo-AGD „Meblux", a sklep z elektroniką „VoltHouse". Wszystkie wzmianki w grze — mapa, podpowiedzi, wiadomości i szyldy — zostały ujednolicone.'},
  {t:'feature',d:'🍺 Nowość: można się przedawkować alkoholem. Po wypiciu 10 napojów w ciągu jednej doby Twoja postać może stracić przytomność — ekran gaśnie, a budzisz się przy fontannie w parku z dużą utratą zdrowia i nastroju. Nie zdarza się to za każdym razem, ale regularne picie do nieprzytomności prowadzi do uzależnienia, które przez kilka dni trzyma nastrój w dole. Mieszanie wielu różnych trunków przez kilka dni z rzędu kończy się ostrzeżeniem.'},
  {t:'feature',d:'🛰️ Nowość: w folderze Kariera w telefonie pojawia się NOX Route — zaszyfrowany komunikator czarnorynkowy dla nielegalnego frontu. Na starcie jest zablokowany; otwiera się dopiero, gdy masz zarejestrowany legalny front, zatrudnioną ekipę produkcyjną i realną potrzebę dystrybucji (a heat nie jest krytyczny). Wtedy odzywa się pierwszy broker — Emir „NOX". Ciemny, techniczny interfejs z własnymi wskaźnikami zaufania i ryzyka, tablicą ofert (Market Board) z trasami, kosztami i skutecznością oraz Risk Panel ostrzegającym o śladach. Od wyższego poziomu dostępu (budujesz go reputacją) bierzesz zlecenia przez depozyt escrow: udane podnoszą reputację i zaufanie brokerów, nieudane lub zdrady pochłaniają depozyt i podnoszą heat. Z czasem odblokowujesz kolejnych brokerów — od Emira „NOX" po Mirę „Rysę", Grzegorza „Sanepida", Leilę „404", Sashę „Drumline" i Doriana „Cysternę".'},
+ {t:'feature',d:'🌃 Nowość: kradzieże uliczne mają teraz rytm dnia i nocy. Okradanie przechodniów możliwe jest tylko po zmroku i w ryzykownych sektorach — w dzień gra zablokuje próbę z komunikatem (za dużo świadków, kamer i patroli). Każda dzielnica ma własny poziom ryzyka kradzieży, bycia okradzionym i wandalizmu pojazdów — Underground jest najniebezpieczniejszy, a Centrum najspokojniejsze.'},
  ],
  },
  {

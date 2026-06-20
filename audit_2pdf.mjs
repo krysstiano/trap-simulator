@@ -328,6 +328,39 @@ try{
   if(nx3.dashErr) fail('NX-3: renderNoxDashboard rzucił: '+nx3.dashErr); else ok('NX-3: dashboard tier2 renderuje bez błędu');
   if(!/Akceptuj przez escrow/.test(nx3.dashHtml)) fail('NX-3: brak przycisków akceptacji w dashboardzie tier2'); else ok('NX-3: przyciski Akceptuj aktywne przy tier2');
 
+  // ============ K-1 — blokada dzienna kradzieży + ryzyko dzielnic ============
+  const k1 = await page.evaluate(()=>{
+    const out={};
+    out.day12 = canPlayerRobNpc(12,'ulica');             // false (dzień)
+    out.night2ug = canPlayerRobNpc(2,'underground');     // true full
+    out.e21ug = canPlayerRobNpc(21,'underground');       // true low
+    out.e21bus = canPlayerRobNpc(21,'business');         // false (zła lokacja early-night)
+    out.predawn5 = canPlayerRobNpc(5,'ulica');           // false predawn
+    out.ugRisk = (typeof DISTRICT_THEFT_RISK!=='undefined') ? DISTRICT_THEFT_RISK.underground : null;
+    window._theftStateEnsure();
+    out.stateOk = !!(G._theft && typeof G._theft.stealthXp==='number' && G._theft.robberyCooldown && G._theft.robsByDistrict);
+    out.varsExist = (typeof G.defamation==='number' && typeof G.streetHeat==='number' && typeof G.streetCredibility==='number');
+    // _attemptTheft day-block (12:00) — brak skoku
+    gameMin=720; G.day=5; G._theftDay=5; G._theftsToday=0; G.money=1000;
+    try{ window._attemptTheft(); }catch(e){ out.dayErr=e.message; }
+    out.dayTheftsAfter=G._theftsToday; out.dayMoney=G.money;
+    // _attemptTheft night (2:00) — skok się liczy
+    gameMin=120; G._theftDay=5; G._theftsToday=0;
+    try{ window._attemptTheft(); }catch(e){ out.nightErr=e.message; }
+    out.nightTheftsAfter=G._theftsToday;
+    return out;
+  });
+  if(k1.day12.ok!==false||!/Za jasno|niewidzialny|tylko nocą/.test(k1.day12.msg||'')) fail('K-1: dzień(12) ok='+k1.day12.ok+' msg='+k1.day12.msg); else ok('K-1: 06-20 blokada kradzieży (komunikat PDF)');
+  if(k1.night2ug.ok!==true) fail('K-1: noc(2,underground) nie pozwala'); else ok('K-1: 22-04 pełna dostępność w Underground');
+  if(k1.e21ug.ok!==true||k1.e21ug.lootBand!=='low') fail('K-1: 21:00 underground band='+JSON.stringify(k1.e21ug)); else ok('K-1: 20-22 wybrane dzielnice, niskie łupy');
+  if(k1.e21bus.ok!==false) fail('K-1: 21:00 business powinno być zablokowane'); else ok('K-1: 20-22 zła lokacja (business) zablokowana');
+  if(k1.predawn5.ok!==false) fail('K-1: 5:00 powinno być zablokowane'); else ok('K-1: 04-06 martwe ulice (patrole) — blokada');
+  if(!k1.ugRisk||k1.ugRisk.rob!=='wysokie') fail('K-1: DISTRICT_THEFT_RISK.underground='+JSON.stringify(k1.ugRisk)); else ok('K-1: DISTRICT_THEFT_RISK (underground=wysokie)');
+  if(!k1.stateOk) fail('K-1: G._theft nie zainicjowany'); else ok('K-1: G._theft stan save-safe');
+  if(!k1.varsExist) fail('K-1: brak istniejących zmiennych (defamation/streetHeat) — coś zepsute'); else ok('K-1: istniejące zmienne nietknięte (defamation/streetHeat/streetCredibility)');
+  if(k1.dayTheftsAfter!==0||k1.dayMoney!==1000) fail('K-1: _attemptTheft w dzień zadziałał (thefts='+k1.dayTheftsAfter+' money='+k1.dayMoney+')'); else ok('K-1: _attemptTheft w dzień zablokowany (brak skoku)');
+  if(k1.nightTheftsAfter!==1) fail('K-1: _attemptTheft w nocy nie policzył skoku ('+k1.nightTheftsAfter+')'); else ok('K-1: _attemptTheft w nocy przechodzi (skok policzony)');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
