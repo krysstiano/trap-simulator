@@ -149,6 +149,30 @@ try{
   if(!(u12.carRain11>u12.carClear11)) fail('U13: auta deszcz 11:00 ('+u12.carRain11+') nie > pogoda jasna ('+u12.carClear11+')'); else ok('U13: deszcz +20% aut (11:00 '+u12.carRain11.toFixed(2)+' > '+u12.carClear11.toFixed(2)+')');
   if(!u12.rankPed||!u12.rankCar) fail('U12: brak stałych _rank (ped='+u12.rankPed+' car='+u12.rankCar+')'); else ok('U12: stałe _rank przypisane (ped+car)');
 
+  // ============ U15 — Marina Coast bez aut + piesi plażowi ============
+  const u15 = await page.evaluate(()=>{
+    const out={};
+    out.cfgCars=DISTRICT_LIFE_CFG.coast.cars;
+    if(typeof initDistrictLife==='function') initDistrictLife('coast');
+    out.coastCars=districtCars.length;
+    out.coastPeds=districtPeds.length;
+    out.coastBeach=districtPeds.filter(p=>p.beach).length;
+    if(typeof initDistrictLife==='function') initDistrictLife('underground');
+    out.ugBeach=districtPeds.filter(p=>p.beach).length;
+    out.ugCars=districtCars.length;
+    return out;
+  });
+  if(u15.cfgCars!==0) fail('U15: DISTRICT_LIFE_CFG.coast.cars='+u15.cfgCars); else ok('U15: coast cfg cars=0');
+  if(u15.coastCars!==0) fail('U15: coast districtCars='+u15.coastCars); else ok('U15: coast bez aut NPC (0)');
+  if(!(u15.coastBeach>=1)) fail('U15: coast brak pieszych plażowych ('+u15.coastBeach+'/'+u15.coastPeds+')'); else ok('U15: piesi plażowi na coast ('+u15.coastBeach+'/'+u15.coastPeds+')');
+  if(u15.ugBeach!==0) fail('U15: underground ma plażowych ('+u15.ugBeach+') — plażowi tylko coast'); else ok('U15: underground bez plażowych (kontrast)');
+  if(u15.ugCars<=0) fail('U15: underground stracił auta ('+u15.ugCars+')'); else ok('U15: inne dzielnice mają auta dalej (underground '+u15.ugCars+')');
+  // render coast (beach peds) bez błędu
+  await page.evaluate(()=>{ try{ if(typeof changeRoom==='function') changeRoom('coast',720,800); }catch(e){} });
+  await page.waitForTimeout(500);
+  const u15b = await page.evaluate(()=> ({ room:currentRoom, cars:districtCars.length }));
+  if(u15b.room==='coast' && u15b.cars!==0) fail('U15: w coast (render) są auta ('+u15b.cars+')'); else ok('U15: coast render bez aut (room='+u15b.room+')');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
