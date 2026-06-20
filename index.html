@@ -42354,7 +42354,7 @@ function _startCarwashGame(){
 
 function startConstructionMG(){
   showJobIntro({icon:'🏗️',name:'Plac Budowy',wage:'30–60',difficulty:'Trudna',diffColor:'#e74c3c',
-    desc:'3 etapy: układanie cegieł (timing), mieszanie betonu (klikaj szybko), montaż belek (SPACJA). Każdy etap punktowany!',
+    desc:'3 etapy: układanie cegieł (timing — trafienie wskaźnikiem w wąskie ZIELONE POLE = PERFEKCJA: idealnie ułożona cegła i maksimum punktów), mieszanie betonu (klikaj szybko), montaż belek (SPACJA). Każdy etap punktowany!',
     skillKey:'construction'},()=>_startConstructionGame());
 }
 function _startConstructionGame(){
@@ -42364,7 +42364,7 @@ function _startConstructionGame(){
   // 3 zadania: cegły (timing), beton (klikanie), belki (trzymaj+pozycja)
   const TASKS=[
     {id:'brick',name:'🧱 Mur — Układaj cegły!',hint:'Kliknij gdy wskaźnik w zielonej strefie',total:8},
-    {id:'cement',name:'🏗 Beton — Mieszaj cement!',hint:'Klikaj szybko żeby wymieszać beton',total:20},
+    {id:'cement',name:'🏗 Beton — Mieszaj cement!',hint:'Klikaj szybko żeby wymieszać beton',total:30}, /* U11 (v2.3.44 PDF): mieszanie 20→30 */
     {id:'beam',name:'🔩 Belka — Ustaw na miejscu!',hint:'Trzymaj SPACJĘ żeby podnosić (puść = opada). ENTER lub przycisk = zatwierdź pozycję.',total:3},
   ];
   let taskIdx=0,taskDone=0,totalScore=0,over=false,raf;
@@ -42373,7 +42373,7 @@ function _startConstructionGame(){
   let clickCount=0,clickCombo=0,lastClickTime=0;
   let beamY=270,beamTarget=100,beamLifted=false,beamPlaced=0;
   let spaceHeld=false,beamSuccessFlash=0;
-  const TRACK=440,GL=170,GR=270;
+  const TRACK=440,GL=200,GR=240; /* U11 (v2.3.44 PDF): zielone pole PERFEKCJA zwężone o 60% (było 170-270 szer.100 → 200-240 szer.40) */
   // Particle systems — iskry przy belce, pył przy cegle, krople przy betonie
   const particles=[];
   function emitSparks(x,y,n,color){
@@ -42467,7 +42467,7 @@ function _startConstructionGame(){
 
   function setTask(i){
     /* v2.1.175: stage 1 wskaźnik szybszy — speed 3.5→5.5 base + i*0.5 (5.5/6.0/6.5) */
-    taskIdx=i;taskDone=0;clickCount=0;clickCombo=0;beamPlaced=0;beamY=270;pos=0;dir=1;speed=5.5+i*0.5;
+    taskIdx=i;taskDone=0;clickCount=0;clickCombo=0;beamPlaced=0;beamY=270;pos=0;dir=1;speed=7.5+i*0.5; /* U11 (v2.3.44 PDF): wskaźnik cegły szybszy (5.5→7.5 baza) */
     const undoBtn=document.getElementById('con-undo');if(undoBtn)undoBtn.style.display='none';
     for(let j=0;j<3;j++){
       const el=document.getElementById('cont-'+j);if(!el)return;
@@ -42498,7 +42498,7 @@ function _startConstructionGame(){
     if(taskIdx===0){// Cegły — timing
       const center=pos+5;const dist=Math.abs(center-(TRACK/2));
       let pts=0,lbl='',col='';
-      if(dist<30){pts=25;lbl='💯 PERFEKCJA! +25pkt';col='#f1c40f';}
+      if(dist<12){pts=25;lbl='💯 PERFEKCJA! +25pkt';col='#f1c40f';} /* U11 (v2.3.44 PDF): strefa perfekcji zwężona o 60% (30→12) wraz z zielonym polem */
       else if(dist<70){pts=15;lbl='✅ Dobra robota! +15pkt';col='#27ae60';}
       else if(dist<120){pts=6;lbl='⚠️ Ujdzie +6pkt';col='#f39c12';}
       else{pts=0;lbl='❌ Chybiony!';col='#e74c3c';}
@@ -42570,9 +42570,7 @@ function _startConstructionGame(){
       ctx.fillStyle='#0a1020';ctx.fillRect(110,20,TRACK,44);
       ctx.fillStyle='rgba(39,174,96,.22)';ctx.fillRect(110+GL,20,GR-GL,44);
       ctx.strokeStyle='#27ae60';ctx.lineWidth=2;ctx.strokeRect(110+GL,20,GR-GL,44);
-      ctx.shadowBlur=0;ctx.font='bold 14px "Segoe UI",Arial,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.strokeStyle='rgba(0,0,0,.5)';ctx.lineWidth=2;ctx.lineJoin='round';ctx.strokeText('PERFEKCJA',110+TRACK/2,42);
-      ctx.fillStyle='#27ae60';ctx.fillText('PERFEKCJA',110+TRACK/2,42);ctx.textAlign='left';ctx.textBaseline='alphabetic';
+      /* U11 (v2.3.44 PDF): napis „PERFEKCJA" usunięty z pola w trakcie pracy (pole zbyt wąskie + info jest tylko na wstępie). */
       pos+=dir*speed;if(pos>=TRACK-10||pos<=0)dir=-dir;
       ctx.fillStyle='#e74c3c';ctx.shadowBlur=10;ctx.shadowColor='#e74c3c';ctx.fillRect(110+pos,24,10,36);ctx.shadowBlur=0;
     } else if(taskIdx===1){// Cement mixer animation
@@ -55684,6 +55682,7 @@ const PATCH_NOTES = [
  {t:'change',d:'👥 Rekrutacja ekipy ma teraz sensowne wymagania: grafika i sound engineera zatrudnisz od początku, ale DJ-a do bitów dopiero przy 2 000 fanów, hype-mana przy 50 000 fanów, junior managera po 5 koncertach, a DJ-a koncertowego po 10 koncertach. Gdy nie spełniasz warunku — usłyszysz konkretną odpowiedź, a o każdym odblokowaniu dostaniesz SMS.'},
  {t:'change',d:'🔕 Zielone powiadomienia nie zasłaniają już tego, co robisz: podczas korzystania z telefonu (np. publikacji posta na Instagramie), ekwipunku, freestyle’u, koncertu czy preparowania wyrobów w kamperze/laboratorium powiadomienie chowa się na drugi plan i pojawia dopiero po zamknięciu danej czynności.'},
  {t:'change',d:'💃 Klub ze striptizem ma teraz nazwę własną „Velvet Room": na mapie widnieje jako „Klub ze striptizem", a z bliska — na fasadzie budynku i w środku — świeci elegancki, neonowy, odręczny szyld „Velvet Room".'},
+ {t:'change',d:'🏗 Praca dorywcza „Budowa" jest teraz trudniejsza: wskaźnik przy układaniu cegieł porusza się szybciej, zielone pole PERFEKCJA zostało mocno zwężone (a napis widać tylko na wstępie, nie w trakcie pracy), a etap mieszania betonu wymaga 30 ruchów zamiast 20.'},
  ],
  },
  {

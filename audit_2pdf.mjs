@@ -1,6 +1,7 @@
 /* SĘDZIA 2 PDF (v2.3.44+) — rośnie z każdą fazą. JA odpalam co iterację (gate), user może zweryfikować.
    ZASADA #0: done = ZIELONY tu (exit 1 przy bugu). node audit_2pdf.mjs */
 import { setupPage } from './_helper_runtime_template.mjs';
+import fs from 'fs';
 
 let failed=0;
 const fail=(m)=>{ console.error('❌ FAIL: '+m); failed++; };
@@ -102,6 +103,27 @@ try{
   if(u7.hoursName!=='Velvet Room') fail('U7: PLACE_HOURS name='+u7.hoursName); else ok('U7: nazwa własna Velvet Room (PLACE_HOURS)');
   if(!u7.signFn) fail('U7: brak funkcji drawVelvetSign'); else ok('U7: drawVelvetSign (szyld neon) istnieje');
   if(!/Klub ze striptizem/.test(u7.landmark||'')) fail('U7: minimap landmark='+u7.landmark); else ok('U7: minimap „Klub ze striptizem"');
+
+  // ============ U11 — praca Budowa trudniejsza ============
+  // runtime: wystartuj minigrę, ułóż 8 cegieł → etap betonu pokazuje /30 (mieszanie 20→30)
+  await page.evaluate(()=>{
+    try{
+      if(typeof startConstructionMG==='function'){
+        startConstructionMG();
+        const b=document.getElementById('job-intro-start'); if(b) b.click();
+        for(let i=0;i<8;i++){ if(typeof window._conAction==='function') window._conAction(); }
+      }
+    }catch(e){}
+  });
+  await page.waitForTimeout(700);
+  const u11r = await page.evaluate(()=> ({ prog:(document.getElementById('con-progress')||{}).textContent||null }));
+  if(!/\/30/.test(u11r.prog||'')) fail('U11: etap betonu nie pokazuje /30 (got '+u11r.prog+')'); else ok('U11: betoniarka 30 mieszań (runtime '+u11r.prog+')');
+  // source-assert stałych wizualnych/timingowych (closure-local — niedostępne w runtime)
+  const src=fs.readFileSync('index.html','utf8');
+  if(!/const TRACK=440,GL=200,GR=240;/.test(src)) fail('U11: zielone pole nie 200-240'); else ok('U11: zielone pole PERFEKCJA -60% (GL=200,GR=240)');
+  if(!/if\(dist<12\)\{pts=25/.test(src)) fail('U11: perfekcja nie dist<12'); else ok('U11: strefa perfekcji zwężona (dist<12)');
+  if(!/speed=7\.5\+i\*0\.5/.test(src)) fail('U11: wskaźnik cegły nie 7.5'); else ok('U11: wskaźnik cegły szybszy (speed 7.5)');
+  if(/fillText\('PERFEKCJA',110\+TRACK\/2/.test(src)) fail('U11: napis PERFEKCJA wciąż renderowany w trakcie'); else ok('U11: napis PERFEKCJA usunięty z pola w trakcie (info na wstępie)');
 
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
