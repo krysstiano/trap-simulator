@@ -931,6 +931,21 @@ try{
     if(Math.abs(p3jb.sportPhys-1.03)>0.001) fail('P3 praca-bonus: sportPhys='+p3jb.sportPhys+' (oczek 1.03)'); else ok('P3 praca-bonus: outfit sport na pracy fizycznej (construction ×1.03)');
     if(Math.abs(p3jb.sportNonPhys-1.0)>0.001) fail('P3 praca-bonus: sportNonPhys='+p3jb.sportNonPhys+' (oczek 1.0)'); else ok('P3 praca-bonus: outfit sport NIE na pracy nie-fizycznej (pizza ×1.0)'); }
 
+  // ============ P3 — skill-bonusy (baza neutralna 1.0 + clamp getOdpornoscMult floor 0.05 anti-invincible) ============
+  const p3sk = await page.evaluate(()=>{
+    if(typeof getOdpornoscMult!=='function'||typeof getDripFameBonus!=='function'||typeof getCharyzmaBonus!=='function') return {missing:true};
+    window.getSkillLvl=()=>0; window.getSkillPowerUps=()=>0; window.hasSkillEvolution=()=>false;
+    const dripBase=getDripFameBonus(), charBase=getCharyzmaBonus(), odpBase=getOdpornoscMult();
+    window.getSkillLvl=()=>99; window.getSkillPowerUps=()=>99; window.hasSkillEvolution=()=>true;
+    const odpMax=getOdpornoscMult(), dripMax=getDripFameBonus(), charMax=getCharyzmaBonus();
+    window.getSkillLvl=()=>0; window.getSkillPowerUps=()=>0; window.hasSkillEvolution=()=>false;
+    return {dripBase,charBase,odpBase,odpMax,dripMax,charMax};
+  });
+  if(p3sk.missing) fail('P3 skille: funkcje bonusów niedostępne');
+  else { if(!(Math.abs(p3sk.dripBase-1.0)<0.001 && Math.abs(p3sk.charBase-1.0)<0.001 && Math.abs(p3sk.odpBase-1.0)<0.001)) fail('P3 skille: baza drip='+p3sk.dripBase+' char='+p3sk.charBase+' odp='+p3sk.odpBase); else ok('P3 skille: baza neutralna ×1.0 (bez skilli — brak phantom-bonusu)');
+    if(p3sk.odpMax!==0.05) fail('P3 skille: odpornosc clamp='+p3sk.odpMax+' (oczek floor 0.05)'); else ok('P3 skille: getOdpornoscMult clamp floor 0.05 (anti-invincible — min 5% obrażeń)');
+    if(!(p3sk.dripMax>1 && p3sk.charMax>1)) fail('P3 skille: maxed drip='+p3sk.dripMax+' char='+p3sk.charMax); else ok('P3 skille: maxed skille podnoszą bonus (drip ×'+p3sk.dripMax.toFixed(1)+', charyzma ×'+p3sk.charMax.toFixed(1)+')'); }
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
