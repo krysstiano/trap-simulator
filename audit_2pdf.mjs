@@ -677,6 +677,25 @@ try{
   if(!(p3p2.money===6000&&p3p2.removed)) fail('P3 lombard: money='+p3p2.money+' removed='+p3p2.removed); else ok('P3 lombard: sprzedaż przedmiotu (kasa 1000→6000, usunięty z inv)');
   if(!p3p2.questBlocked) fail('P3 lombard: quest-item NIE zablokowany'); else ok('P3 lombard: przedmiot zadaniowy nie sprzedawalny (anti-loss)');
 
+  // ============ P3 — parabank/chwilówka (pożyczka→dług, cap, spłata anti-overpay) ============
+  const p3pb = await page.evaluate(()=>{
+    const out={};
+    window.renderPhoneApp=()=>{}; window.updateHUD=()=>{};
+    G.parabank={loan:0}; G.money=1000;
+    window._parabankBorrow(5000,6000); out.borrowMoney=G.money; out.borrowLoan=G.parabank.loan;
+    // cap długu 40k
+    G.parabank.loan=38000; const m=G.money, l=G.parabank.loan; window._parabankBorrow(5000,6000); out.capBlocked=(G.money===m && G.parabank.loan===l);
+    // spłata częściowa
+    G.parabank.loan=6000; G.money=10000; window._parabankRepay(2000); out.repayMoney=G.money; out.repayLoan=G.parabank.loan;
+    // anti-overpay: spłać więcej niż dług → max do długu
+    G.parabank.loan=1000; G.money=10000; window._parabankRepay(5000); out.overMoney=G.money; out.overLoan=G.parabank.loan;
+    return out;
+  });
+  if(!(p3pb.borrowMoney===6000&&p3pb.borrowLoan===6000)) fail('P3 parabank: pożyczka money='+p3pb.borrowMoney+' loan='+p3pb.borrowLoan); else ok('P3 parabank: pożyczka (kasa 1000→6000, dług 6000)');
+  if(!p3pb.capBlocked) fail('P3 parabank: cap długu 40k nie zablokował'); else ok('P3 parabank: cap długu 40 000 zł blokuje nadmierną pożyczkę');
+  if(!(p3pb.repayMoney===8000&&p3pb.repayLoan===4000)) fail('P3 parabank: spłata money='+p3pb.repayMoney+' loan='+p3pb.repayLoan); else ok('P3 parabank: spłata częściowa (kasa −2000, dług 6000→4000)');
+  if(!(p3pb.overMoney===9000&&p3pb.overLoan===0)) fail('P3 parabank: anti-overpay money='+p3pb.overMoney+' loan='+p3pb.overLoan); else ok('P3 parabank: anti-overpay — spłata max do długu (kasa −1000, dług→0, nie ujemny)');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
