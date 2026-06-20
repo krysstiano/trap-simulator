@@ -781,6 +781,22 @@ try{
   if(!(p3s.acc<1.5)) fail('P3 staking: stakeAccrued przekroczył 1.5 (acc='+p3s.acc+')'); else ok('P3 staking: asymptota — stakeAccrued zbiega do <1.5 (acc='+p3s.acc.toFixed(3)+', nigdy nie przekracza)');
   if(!(p3s.growth>1 && p3s.growth<5)) fail('P3 staking: wzrost niezgodny z capem (growth='+p3s.growth+')'); else ok('P3 staking: wzrost qty ograniczony (×'+p3s.growth.toFixed(2)+' @365 dni, NIE historyczny ×98 exploit)');
 
+  // ============ P3 — kasyno Limbo: RNG payout (floor-guard + house-edge + determinizm) ============
+  const p3c2 = await page.evaluate(()=>{
+    if(typeof _limboRoll!=='function') return {missing:true};
+    const _r=Math.random; const out={};
+    Math.random=()=>0;   out.r0=_limboRoll();   // 0.97/1=0.97 → floor-guard → 1.00
+    Math.random=()=>0.5; out.r5=_limboRoll();   // 0.97/0.5=1.94 (edge: bez edge byłoby 2.00)
+    Math.random=()=>0.9; out.r9=_limboRoll();   // 0.97/0.1=9.70
+    let allGE1=true; for(let i=0;i<2000;i++){ const u=i/2000*0.999; Math.random=()=>u; if(_limboRoll()<1.00) allGE1=false; }
+    Math.random=_r; out.allGE1=allGE1; return out;
+  });
+  if(p3c2.missing) fail('P3 kasyno-limbo: _limboRoll niedostępny');
+  else { if(p3c2.r0!==1.00) fail('P3 kasyno-limbo: floor-guard r0='+p3c2.r0); else ok('P3 kasyno-limbo: floor-guard — mnożnik nigdy <1.00 (rand0→1.00)');
+    if(!(p3c2.r5===1.94&&p3c2.r5<2.00)) fail('P3 kasyno-limbo: house-edge r5='+p3c2.r5); else ok('P3 kasyno-limbo: house-edge 3% zastosowany (u=0.5→×1.94, nie ×2.00)');
+    if(p3c2.r9!==9.70) fail('P3 kasyno-limbo: determinizm r9='+p3c2.r9); else ok('P3 kasyno-limbo: deterministyczny RNG (u=0.9→×9.70)');
+    if(!p3c2.allGE1) fail('P3 kasyno-limbo: floor-guard złamany w 2000 próbkach'); else ok('P3 kasyno-limbo: floor-guard trzyma w 2000 próbkach (zawsze ≥1.00)'); }
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
