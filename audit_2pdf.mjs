@@ -996,6 +996,36 @@ try{
   if(!(p3kc.mid>25000 && p3kc.mid<30200 && p3kc.big>p3kc.mid)) fail('P3 koncert: kompresja mid='+p3kc.mid+' big='+p3kc.big); else ok('P3 koncert: powyżej 25k kompresja monotoniczna (100k→'+p3kc.mid+', 200k→'+p3kc.big+', rośnie)');
   if(!(p3kc.huge>30000 && p3kc.huge<=30201)) fail('P3 koncert: asymptota huge='+p3kc.huge+' (oczek ~30200)'); else ok('P3 koncert: asymptota ~30,2k (25k+5,2k) — ogromny zarobek wciąż rośnie ale ograniczony (anti-runaway)');
 
+  // ============ P3 — OLX (wystaw→sprzedaż-tick / kradzione-wykryte / cancel) ============
+  const p3olx = await page.evaluate(()=>{
+    if(typeof window._olxList!=='function'||typeof window._olxTick!=='function') return {missing:true};
+    window.renderPhoneApp=()=>{}; window.saveGameSilent=()=>{}; window.showMsg=()=>{}; window.addNotif=()=>{}; window.updateHUD=()=>{};
+    let defCalls=0; window.addDefamation=()=>{defCalls++;};
+    const _r=Math.random; const out={};
+    G.olx={listings:[]}; G.inventory=[{id:'gold',type:'item',name:'Sztabka',emoji:'🪙',qty:1,value:1000}]; G.day=10; G.money=5000; G._olxLid=0; G.backpack=20;
+    Math.random=()=>0.5; // days=1+floor(0.5*3)=2 → sellsDay=12
+    out.okList=window._olxList('gold'); const lst=G.olx.listings[0]||{};
+    out.ask=lst.ask; out.sellDay=lst.sellsDay; out.invRemoved=!(G.inventory||[]).some(i=>i.id==='gold');
+    G.inventory=[{id:'q',type:'item',name:'Dowod',kind:'quest',qty:1,value:9999}];
+    out.questBlocked=(window._olxList('q')===false)&&G.olx.listings.length===1;
+    // tick sprzedaż (nie kradzione)
+    G.olx.listings=[{lid:1,id:'gold',name:'Sztabka',emoji:'🪙',value:1000,ask:1300,sellsDay:10,stolen:false}]; G.day=11; G.money=5000;
+    window._olxTick(); out.sellGain=G.money-5000; out.sellCleared=G.olx.listings.length===0;
+    // tick kradzione wykryte (RNG<0.20)
+    G.olx.listings=[{lid:2,id:'rolex',name:'Rolex',emoji:'⌚',value:2000,ask:2600,sellsDay:10,stolen:true}]; G.day=11; G.money=5000; defCalls=0; Math.random=()=>0.05;
+    window._olxTick(); out.stolenGain=G.money-5000; out.stolenDef=defCalls; out.stolenCleared=G.olx.listings.length===0;
+    // cancel zwrot
+    G.olx.listings=[{lid:3,id:'gold',name:'Sztabka',emoji:'🪙',value:1000,ask:1300,sellsDay:20,stolen:false}]; G.inventory=[];
+    window._olxCancel(3); out.cancelReturned=(G.inventory||[]).some(i=>i.id==='gold'); out.cancelCleared=G.olx.listings.length===0;
+    Math.random=_r; return out;
+  });
+  if(p3olx.missing) fail('P3 OLX: funkcje niedostępne');
+  else { if(!(p3olx.okList&&p3olx.ask===1300&&p3olx.sellDay===12&&p3olx.invRemoved)) fail('P3 OLX: wystaw ask='+p3olx.ask+' day='+p3olx.sellDay+' invRemoved='+p3olx.invRemoved); else ok('P3 OLX: wystawienie (ask 1000×1.3=1300, sprzedaż za 2 dni, item z ekwipunku zdjęty)');
+    if(!p3olx.questBlocked) fail('P3 OLX: quest-item nie zablokowany'); else ok('P3 OLX: przedmiot zadaniowy nie do wystawienia (anti-loss)');
+    if(!(p3olx.sellGain===1300&&p3olx.sellCleared)) fail('P3 OLX: sprzedaż gain='+p3olx.sellGain+' cleared='+p3olx.sellCleared); else ok('P3 OLX: tick sprzedaży (kasa +1300, ogłoszenie znika)');
+    if(!(p3olx.stolenGain===0&&p3olx.stolenDef===1&&p3olx.stolenCleared)) fail('P3 OLX: kradzione gain='+p3olx.stolenGain+' def='+p3olx.stolenDef); else ok('P3 OLX: kradzione+wykryte (RNG<0.20 → konfiskata, 0 kasy, defamation, ogłoszenie znika)');
+    if(!(p3olx.cancelReturned&&p3olx.cancelCleared)) fail('P3 OLX: cancel returned='+p3olx.cancelReturned); else ok('P3 OLX: anulowanie ogłoszenia → przedmiot wraca do ekwipunku'); }
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
