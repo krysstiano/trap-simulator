@@ -227,6 +227,43 @@ try{
   if(!/_alcoholAddictionUntil>\(G\.day\|\|0\) && \(G\.stress\|\|0\)>35\) G\.stress=35/.test(srcNA)) fail('NA: brak clampa uzależnienia w nextPeriod'); else ok('NA: clamp nastroju ~35 podczas uzależnienia (nextPeriod)');
   await page.evaluate(()=>{ try{ document.getElementById('alco-blackout')?.remove(); }catch(e){} });
 
+  // ============ NX sub-batch 1 — szkielet NOX Route ============
+  const nx = await page.evaluate(()=>{
+    const out={};
+    G.nox=undefined; window._noxEnsure();
+    out.init=(G.nox && typeof G.nox.accessLevel==='number' && Array.isArray(G.nox.inbox) && G.nox.unlocked===false && typeof G.nox.brokerTrust==='number');
+    const fold=_getPhoneFolders().career;
+    out.appInFolder=(fold&&fold.apps||[]).some(a=>a&&typeof a.fn==='string'&&a.fn.indexOf('renderNoxApp')>=0);
+    // LOCKED — brak frontu/ekipy
+    G.trap=G.trap||{}; G.trap.front=null; G.workers=[]; G.trap.cooked=0; if(G.trapInv) G.trapInv.products={}; G.trap.heat=10;
+    G.nox=undefined; window._noxEnsure();
+    out.unlockBefore=checkNoxUnlock();
+    let le=null; try{ renderNoxApp(); }catch(e){ le=e.message; }
+    out.lockErr=le; out.lockHtml=(document.getElementById('ph-content')||{}).innerHTML||'';
+    // UNLOCKED — spełnij warunki
+    G.trap.front={type:'pharma',name:'Apteka X',paperTrailQuality:0.5,auditRisk:0.2,upkeep:100,tier:1};
+    G.workers=[{role:'chemist',name:'Walter',npcId:'walter_c'}];
+    G.trap.cooked=1; G.trap.heat=10;
+    G.nox=undefined; window._noxEnsure();
+    out.unlockAfter=checkNoxUnlock();
+    let ue=null; try{ renderNoxApp(); }catch(e){ ue=e.message; }
+    out.upErr=ue; out.upUnlocked=G.nox.unlocked; out.upHandshake=G.nox.handshakeDone; out.upInbox=G.nox.inbox.length;
+    out.upHtml=(document.getElementById('ph-content')||{}).innerHTML||'';
+    // heat krytyczny blokuje
+    G.trap.heat=90; out.heatBlocks=!checkNoxUnlock();
+    return out;
+  });
+  if(!nx.init) fail('NX: G.nox nie zainicjowany poprawnie'); else ok('NX: G.nox stan zainicjowany (save-safe)');
+  if(!nx.appInFolder) fail('NX: brak apki NOX Route w folderze Kariera'); else ok('NX: apka NOX Route w folderze Kariera');
+  if(nx.unlockBefore) fail('NX: checkNoxUnlock true bez frontu/ekipy'); else ok('NX: zablokowany bez frontu+ekipy+potrzeby');
+  if(nx.lockErr) fail('NX: renderNoxApp rzucił (locked): '+nx.lockErr); else ok('NX: locked screen renderuje bez błędu');
+  if(!/ACCESS LOCKED/.test(nx.lockHtml)) fail('NX: locked screen bez „ACCESS LOCKED"'); else ok('NX: ekran blokady (ACCESS LOCKED + checklista)');
+  if(!nx.unlockAfter) fail('NX: checkNoxUnlock false mimo frontu+ekipy+produktu'); else ok('NX: odblokowanie po froncie+ekipie+potrzebie');
+  if(nx.upErr) fail('NX: renderNoxApp rzucił (unlocked): '+nx.upErr); else ok('NX: dashboard renderuje bez błędu');
+  if(!nx.upUnlocked||!nx.upHandshake||!(nx.upInbox>=1)) fail('NX: po odblokowaniu unlocked='+nx.upUnlocked+' handshake='+nx.upHandshake+' inbox='+nx.upInbox); else ok('NX: handshake Emir NOX + inbox ('+nx.upInbox+' wiad.)');
+  if(!/ACCESS TIER|INBOX/.test(nx.upHtml)) fail('NX: dashboard bez treści'); else ok('NX: dashboard z treścią (tier+inbox)');
+  if(!nx.heatBlocks) fail('NX: krytyczny heat nie blokuje odblokowania'); else ok('NX: krytyczny heat (90) blokuje kontakt');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }

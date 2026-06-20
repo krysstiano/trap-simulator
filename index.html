@@ -14255,6 +14255,98 @@ function _alcoholOverdoseEvent(){
 }
 window._alcoholOverdoseEvent=_alcoholOverdoseEvent; /* test/diagnostyka */
 
+/* ═══ NX (v2.3.44 PDF): NOX Route — czarnorynkowy komunikator (folder Kariera). Sub-batch 1: szkielet (stan + blokada + handshake + dashboard). ═══ */
+function _noxEnsure(){
+  if(!G.nox||typeof G.nox!=='object') G.nox={};
+  const d=G.nox;
+  if(typeof d.accessLevel!=='number') d.accessLevel=0;
+  if(typeof d.reputation!=='number') d.reputation=0;
+  if(typeof d.brokerTrust!=='number') d.brokerTrust=0;
+  if(typeof d.routeNoise!=='number') d.routeNoise=0;
+  if(typeof d.traceLevel!=='number') d.traceLevel=0;
+  if(typeof d.disputeCount!=='number') d.disputeCount=0;
+  if(typeof d.escrowBalance!=='number') d.escrowBalance=0;
+  if(typeof d.cooldownGlobal!=='number') d.cooldownGlobal=0;
+  if(typeof d.unlocked!=='boolean') d.unlocked=false;
+  if(typeof d.handshakeDone!=='boolean') d.handshakeDone=false;
+  if(!Array.isArray(d.inbox)) d.inbox=[];
+  if(!Array.isArray(d.contacts)) d.contacts=[];
+  if(!Array.isArray(d.offers)) d.offers=[];
+}
+window._noxEnsure=_noxEnsure;
+function _noxHasProducts(){ try{ const p=G.trapInv&&G.trapInv.products; return !!(p&&Object.values(p).some(v=>(v||0)>0)); }catch(e){ return false; } }
+function checkNoxUnlock(){
+  const front=(typeof _trapHasFront==='function')&&_trapHasFront();
+  const crew=Array.isArray(G.workers)&&G.workers.length>0;
+  const need=!!(G.trap&&(((G.trap.cooked||0)>0)||_noxHasProducts()));
+  const heatOk=(((G.trap&&G.trap.heat)||0)<85);
+  return !!(front&&crew&&need&&heatOk);
+}
+window.checkNoxUnlock=checkNoxUnlock;
+window.initNoxHandshake=function(){
+  _noxEnsure();
+  if(G.nox.handshakeDone) return;
+  G.nox.handshakeDone=true; G.nox.unlocked=true;
+  G.nox.accessLevel=Math.max(1,G.nox.accessLevel||0);
+  let t=''; try{ const tm=Math.floor(gameMin)%1440; t=String(Math.floor(tm/60)).padStart(2,'0')+':'+String(tm%60).padStart(2,'0'); }catch(e){}
+  G.nox.inbox.push({from:'Emir NOX Haddad', time:t, text:'Masz firme. Masz ludzi. Masz problem, ktory dopiero zacznie kosztowac. Nie pisz nazw, nie wysylaj zdjec, nie pytaj o twarze. Wybierasz potrzebe, nie osobe. Ja dobieram trase.'});
+  if(!G.nox.contacts.some(c=>c.id==='emir')) G.nox.contacts.push({id:'emir', name:'Emir NOX Haddad', role:'Broker / Route Operator', trust:'Nieznany'});
+  if(typeof showMsg==='function') showMsg('🛰️ NOX Route: HANDSHAKE REQUEST — ktos dodal cie do trasy. Otworz NOX Route w folderze Kariera.','f',7000);
+};
+window.renderNoxLockedScreen=function(){
+  _noxEnsure();
+  const front=(typeof _trapHasFront==='function')&&_trapHasFront();
+  const crew=Array.isArray(G.workers)&&G.workers.length>0;
+  const need=!!(G.trap&&(((G.trap.cooked||0)>0)||_noxHasProducts()));
+  const heat=((G.trap&&G.trap.heat)||0);
+  const chk=(ok)=>ok?'<span style="color:#1ad9c0">[x]</span>':'<span style="color:#e25555">[ ]</span>';
+  const ph=document.getElementById('ph-content'); if(!ph) return;
+  ph.innerHTML=`<div style="background:#06080c;border:1px solid #11343a;border-radius:10px;padding:18px 16px;color:#9fb0b8;font-family:'Consolas','Courier New',monospace">
+    <div style="text-align:center;margin-bottom:12px"><div style="font-size:34px">🛰️</div>
+      <div style="font-size:15px;letter-spacing:3px;color:#1ad9c0;font-weight:800">NOX ROUTE</div>
+      <div style="font-size:12px;letter-spacing:4px;color:#e2a045;margin-top:4px">ACCESS LOCKED 🔒</div></div>
+    <div style="font-size:11px;line-height:1.7;color:#8a98a0;border-top:1px solid #11343a;border-bottom:1px solid #11343a;padding:10px 0;margin:8px 0">
+      Nie znaleziono aktywnej warstwy operacyjnej.<br>Wymagane: zarejestrowany front, aktywna ekipa, pierwszy powod do kontaktu.</div>
+    <div style="font-size:12px;line-height:2">
+      ${chk(front)} Zarejestrowana fikcyjna firma / legalny front<br>
+      ${chk(crew)} Zatrudniona ekipa produkcyjna<br>
+      ${chk(need)} Potrzeba dystrybucji, dostaw lub obslugi zlecen</div>
+    ${heat>=85?'<div style="color:#e25555;font-size:11px;margin-top:8px">[!] Zbyt wysoki heat — brokerzy widza dym, nikt rozsadny nie chce kontaktu.</div>':''}
+    <div style="font-size:10px;color:#5a6a70;margin-top:12px;font-style:italic;line-height:1.6">
+      Aplikacja nie jest sklepem. Aplikacja nie jest czatem.<br>Aplikacja otwiera sie, kiedy ktos uzna, ze masz po co pisac.</div>
+  </div>`;
+};
+window.renderNoxDashboard=function(){
+  _noxEnsure();
+  const n=G.nox;
+  const bar=(v,col)=>`<div style="background:#0c1418;border-radius:3px;height:6px;overflow:hidden;margin-top:2px"><div style="width:${Math.max(0,Math.min(100,v))}%;height:100%;background:${col}"></div></div>`;
+  const inbox=(n.inbox||[]).slice(-6).reverse().map(m=>`<div style="border-left:2px solid #1ad9c0;padding:6px 8px;margin:6px 0;background:#0a1216"><div style="color:#1ad9c0;font-size:10px;font-weight:700">${m.from||'NOX'} <span style="color:#5a6a70">· ${m.time||''}</span></div><div style="color:#aeb8c4;font-size:11px;margin-top:2px">${m.text||''}</div></div>`).join('')||'<div style="color:#5a6a70;font-size:11px">Inbox pusty.</div>';
+  const ph=document.getElementById('ph-content'); if(!ph) return;
+  ph.innerHTML=`<div style="background:#06080c;border:1px solid #11343a;border-radius:10px;padding:14px;color:#9fb0b8;font-family:'Consolas','Courier New',monospace">
+    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #11343a;padding-bottom:8px;margin-bottom:10px">
+      <div style="color:#1ad9c0;font-weight:800;letter-spacing:2px">NOX ROUTE <span style="font-size:9px">● secure</span></div>
+      <div style="color:#e2a045;font-size:10px">ACCESS TIER ${n.accessLevel||1}</div></div>
+    <div style="font-size:10px;color:#7a8a90;display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-bottom:12px">
+      <div>broker trust ${n.brokerTrust||0}/100${bar(n.brokerTrust||0,'#1ad9c0')}</div>
+      <div>route noise ${n.routeNoise||0}/100${bar(n.routeNoise||0,'#e2a045')}</div>
+      <div>trace level ${n.traceLevel||0}/100${bar(n.traceLevel||0,'#e25555')}</div>
+      <div>reputacja ${n.reputation||0}/100${bar(n.reputation||0,'#7ec8e3')}</div></div>
+    <div style="color:#7ec8e3;font-size:11px;font-weight:700;margin:6px 0">[ INBOX ]</div>
+    ${inbox}</div>`;
+};
+window.renderNoxApp=function(){
+  _noxEnsure();
+  G._phView='app:nox';
+  const _bb=document.getElementById('ph-back-top'); if(_bb)_bb.style.display='inline-block';
+  window._phGoBack=()=>{ if(typeof renderPhoneFolder==='function') renderPhoneFolder('career'); else if(typeof renderPhoneHome==='function') renderPhoneHome(); };
+  window._phHotkeys={};
+  const _ttl=document.getElementById('ph-title'); if(_ttl)_ttl.textContent='🛰️ NOX Route';
+  const unlocked = G.nox.unlocked || checkNoxUnlock();
+  if(!unlocked){ renderNoxLockedScreen(); return; }
+  if(!G.nox.handshakeDone) initNoxHandshake(); else G.nox.unlocked=true;
+  renderNoxDashboard();
+};
+
 /* ═══ HI-LO ROYAL — Wyżej/Niżej (nowa gra kasyna, v2.1.568) ═══
    Turowa (klik, bez pętli animacji), żetony Royal. Karta 1-13; zgadnij czy następna wyższa/niższa.
    Trafienie → mnożnik rośnie wg szans z house edge 5%; remis (ta sama) = przegrana. Cashout kiedy chcesz.
@@ -46319,6 +46411,8 @@ function _getPhoneFolders(){
       _phApp('🎨','Atelier','#1a0a14','#c8a520',"renderPhoneApp('atelier')", !((G.fame||0)>=400), '🎨 Atelier (Crown of Hip-Hop) odblokujesz przy 400 sławy.'),
       /* v2.1.911 (user): Trap ZAWSZE widoczne — szare do poznania dealera (zamiast ukryte). */
       _phApp('🤝',`Trap${G._trapDealerMet&&G.trap&&G.trap.unlocked?(' · L'+G.trap.level):''}`,'#1a0a0a','#e91e8c',"renderPhoneApp('trap')", !G._trapDealerMet, '🤝 Trap odblokujesz po spotkaniu dealera w mieście.'),
+      /* NX (v2.3.44 PDF): NOX Route — czarnorynkowy komunikator. Widoczny od początku; klik → ekran blokady z checklistą (renderNoxApp dispatcher) dopóki nie spełnisz warunków. */
+      _phApp('🛰️','NOX Route','#06080c','#1ad9c0',"renderNoxApp()"),
     ]},
     finance:{em:'💰',label:'Finanse',preview:['🏦','💸','💰','📈'],apps:[
       _phApp('🏦','Bank','#12100a','#f1c40f',"renderPhoneApp('bank')"),
@@ -49423,6 +49517,8 @@ window._smsCheckTriggers=function(){
   if((G.fans||0)>=50000) _smsTriggerOnce('crew_hype_unlocked','crew','📢 50 tysięcy fanów! Teraz hype-man ma dla kogo robić szum (+20% wzrost obserwujących). Odezwij się.');
   if(concerts>=5) _smsTriggerOnce('crew_junior_unlocked','crew','🤵 Pięć występów za Tobą — junior manager jest dostępny (+5% wszystkie zarobki). Wpadnij zrekrutować.');
   if(concerts>=10) _smsTriggerOnce('crew_djkonc_unlocked','crew','🎧 Dziesięć koncertów! DJ koncertowy na kontrakt wchodzi w grę. Pogadamy o tym przy ekipie.');
+  // NX (v2.3.44 PDF): proaktywny handshake NOX Route gdy gracz spełni warunki (front + ekipa + potrzeba dystrybucji)
+  if(typeof checkNoxUnlock==='function' && checkNoxUnlock()){ if(typeof _noxEnsure==='function')_noxEnsure(); if(G.nox && !G.nox.handshakeDone && typeof initNoxHandshake==='function') initNoxHandshake(); }
   // — Sława
   /* v2.1.228 audit-fix #46: SMS texts dopasowane do fizycznej obecności NPC.
      Manager (physical:true) — fizycznie na chodniku H1 obok Szpitala (NIE pod salą koncertową — zła wskazówka).
@@ -55776,6 +55872,7 @@ const PATCH_NOTES = [
  {t:'change',d:'🏖 Dzielnica Marina Coast wygląda teraz jak prawdziwe wybrzeże: zniknęły samochody NPC (które wcześniej jeździły po piasku), a po promenadzie spacerują wolnym krokiem wczasowicze ubrani plażowo — w szortach, kolorowych strojach i bikini, kapeluszach oraz okularach słonecznych.'},
  {t:'change',d:'🏪 Nazwy sklepów oparte na prawdziwych markach zastąpiono fikcyjnymi odpowiednikami w świecie gry: sklep meblowy to teraz „NorthRoom", tani sklep meblowo-AGD „Meblux", a sklep z elektroniką „VoltHouse". Wszystkie wzmianki w grze — mapa, podpowiedzi, wiadomości i szyldy — zostały ujednolicone.'},
  {t:'feature',d:'🍺 Nowość: można się przedawkować alkoholem. Po wypiciu 10 napojów w ciągu jednej doby Twoja postać może stracić przytomność — ekran gaśnie, a budzisz się przy fontannie w parku z dużą utratą zdrowia i nastroju. Nie zdarza się to za każdym razem, ale regularne picie do nieprzytomności prowadzi do uzależnienia, które przez kilka dni trzyma nastrój w dole. Mieszanie wielu różnych trunków przez kilka dni z rzędu kończy się ostrzeżeniem.'},
+ {t:'feature',d:'🛰️ Nowość: w folderze Kariera w telefonie pojawia się NOX Route — zaszyfrowany komunikator czarnorynkowy dla nielegalnego frontu. Na starcie jest zablokowany; otwiera się dopiero, gdy masz zarejestrowany legalny front, zatrudnioną ekipę produkcyjną i realną potrzebę dystrybucji (a heat nie jest krytyczny). Wtedy odzywa się pierwszy broker — Emir „NOX". Ciemny, techniczny interfejs z własnymi wskaźnikami zaufania i ryzyka.'},
  ],
  },
  {
