@@ -173,6 +173,30 @@ try{
   const u15b = await page.evaluate(()=> ({ room:currentRoom, cars:districtCars.length }));
   if(u15b.room==='coast' && u15b.cars!==0) fail('U15: w coast (render) są auta ('+u15b.cars+')'); else ok('U15: coast render bez aut (room='+u15b.room+')');
 
+  // ============ U16 — rename realnych marek (sub-batch 1: trademarki) ============
+  const u16 = await page.evaluate(()=>{
+    const find=(id)=>(ROOMS.ulica.objects||[]).find(o=>o.id===id)||{};
+    return {
+      mm:find('mediamarkt').lbl, meble:find('meble').lbl, jysk:find('jysk').lbl,
+      hoursMeble:(PLACE_HOURS['shop:meble']||{}).name, hoursMm:(PLACE_HOURS['shop:mediamarkt']||{}).name,
+      fnVolt:(typeof renderVoltHouse==='function'), fnSign:(typeof drawNorthRoomSign==='function'),
+      lmVolt:(MAP_LANDMARKS||[]).some(l=>(l.name||'').includes('VoltHouse')),
+      lmNorth:(MAP_LANDMARKS||[]).some(l=>(l.name||'').includes('NorthRoom')),
+    };
+  });
+  if(u16.mm!=='VoltHouse') fail('U16: mediamarkt lbl='+u16.mm); else ok('U16: Media Markt → VoltHouse (lbl)');
+  if(u16.meble!=='NorthRoom') fail('U16: meble lbl='+u16.meble); else ok('U16: IKEA → NorthRoom (lbl)');
+  if(u16.jysk!=='Meblux') fail('U16: jysk lbl='+u16.jysk); else ok('U16: JYSK → Meblux (lbl)');
+  if(u16.hoursMeble!=='NorthRoom'||u16.hoursMm!=='VoltHouse') fail('U16: PLACE_HOURS meble='+u16.hoursMeble+' mm='+u16.hoursMm); else ok('U16: PLACE_HOURS przemianowane');
+  if(!u16.fnVolt||!u16.fnSign) fail('U16: funkcje renderVoltHouse='+u16.fnVolt+' drawNorthRoomSign='+u16.fnSign); else ok('U16: funkcje przemianowane spójnie');
+  if(!u16.lmVolt||!u16.lmNorth) fail('U16: minimap VoltHouse='+u16.lmVolt+' NorthRoom='+u16.lmNorth); else ok('U16: minimap przemianowany');
+  // source: ZERO player-facing realnych marek (poza komentarzami/patch notes)
+  const src16=fs.readFileSync('index.html','utf8').split('\n');
+  const skip=(l)=>{ const t=l.trim(); return /^(\*|\/\*|\/\/)/.test(t)||/ver:'v|cats:\s*\[|reporter:|\{t:'(feature|change|fix|add|info|critical)'/.test(l); };
+  let leak=[];
+  src16.forEach((l,i)=>{ if(skip(l)) return; let c=l; const ci=l.indexOf('//'); if(ci>=0)c=l.slice(0,ci); if(/Media Markt|MediaMarkt|\bIKEA\b|\bJYSK\b/.test(c)) leak.push((i+1)+':'+l.trim().slice(0,60)); });
+  if(leak.length) fail('U16: realna marka player-facing pozostała: '+leak.join(' || ')); else ok('U16: ZERO player-facing realnych marek (IKEA/JYSK/Media Markt)');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
