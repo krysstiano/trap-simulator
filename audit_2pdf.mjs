@@ -946,6 +946,46 @@ try{
     if(p3sk.odpMax!==0.05) fail('P3 skille: odpornosc clamp='+p3sk.odpMax+' (oczek floor 0.05)'); else ok('P3 skille: getOdpornoscMult clamp floor 0.05 (anti-invincible — min 5% obrażeń)');
     if(!(p3sk.dripMax>1 && p3sk.charMax>1)) fail('P3 skille: maxed drip='+p3sk.dripMax+' char='+p3sk.charMax); else ok('P3 skille: maxed skille podnoszą bonus (drip ×'+p3sk.dripMax.toFixed(1)+', charyzma ×'+p3sk.charMax.toFixed(1)+')'); }
 
+  // ============ ZADANIE 2 — okienko aktualizacji in-app (electron-updater GUI) ============
+  const p3uw = await page.evaluate(()=>{
+    if(typeof window._uwRenderUpdate!=='function') return {missing:true};
+    const card=()=>document.getElementById('uw-update-card');
+    const out={};
+    // available → karta widoczna, pasek widoczny, przycisk ukryty, blokada
+    window._uwRenderUpdate('available',{version:'2.3.44'});
+    let c=card(); out.availShown=!!c&&c.style.display==='flex'; out.availBlocking=window._uwBlocking===true;
+    out.availTitle=(c&&c.querySelector('#uw-upd-title').textContent||'').indexOf('aktualizacja')>=0||((c&&c.querySelector('#uw-upd-title').textContent||'').indexOf('ktualiz')>=0);
+    out.availBtnHidden=c&&c.querySelector('#uw-upd-btn').style.display==='none';
+    // progress 42% → pasek 42%
+    window._uwRenderUpdate('progress',{percent:42,transferred:42e6,total:100e6,bytesPerSecond:5e6});
+    c=card(); out.barPct=c&&c.querySelector('#uw-upd-bar').style.width;
+    // downloaded → przycisk widoczny, pasek 100%
+    window._uwRenderUpdate('downloaded',{version:'2.3.44'});
+    c=card(); out.dlBtnShown=c&&c.querySelector('#uw-upd-btn').style.display==='block'; out.dlBar=c&&c.querySelector('#uw-upd-bar').style.width;
+    // none → karta ukryta, odblokowane (offline/brak update wpuszcza do gry)
+    window._uwRenderUpdate('none',{});
+    c=card(); out.noneHidden=c&&c.style.display==='none'; out.noneUnblocked=window._uwBlocking===false;
+    return out;
+  });
+  if(p3uw.missing) fail('UPDATE-GUI: window._uwRenderUpdate niedostępny (okno aktualizacji nie istnieje!)');
+  else { if(!(p3uw.availShown&&p3uw.availBlocking&&p3uw.availBtnHidden)) fail('UPDATE-GUI: available shown='+p3uw.availShown+' blocking='+p3uw.availBlocking+' btnHidden='+p3uw.availBtnHidden); else ok('UPDATE-GUI: „dostępna aktualizacja" → karta blokująca + pasek (przycisk ukryty do pobrania)');
+    if(p3uw.barPct!=='42%') fail('UPDATE-GUI: pasek postępu='+p3uw.barPct+' (oczek 42%)'); else ok('UPDATE-GUI: pasek pobierania pokazuje realny % (42%)');
+    if(!(p3uw.dlBtnShown&&p3uw.dlBar==='100%')) fail('UPDATE-GUI: downloaded btn='+p3uw.dlBtnShown+' bar='+p3uw.dlBar); else ok('UPDATE-GUI: „pobrano" → pasek 100% + przycisk „Zainstaluj i uruchom ponownie"');
+    if(!(p3uw.noneHidden&&p3uw.noneUnblocked)) fail('UPDATE-GUI: none hidden='+p3uw.noneHidden+' unblocked='+p3uw.noneUnblocked); else ok('UPDATE-GUI: brak aktualizacji/offline → karta ukryta, gra odblokowana (nie blokuje gdy aktualny)'); }
+
+  // ============ ZADANIE 3 — patchnotes BEZ spoilerów fabuły (source-assert) ============
+  const _idxPN = fs.readFileSync('index.html','utf8');
+  const _pnStart=_idxPN.indexOf('const PATCH_NOTES');
+  const _pnEnd=_idxPN.indexOf('\n];', _pnStart);
+  const _pn=(_pnStart>=0&&_pnEnd>_pnStart)?_idxPN.slice(_pnStart,_pnEnd):'';
+  const _spoilers=['Emir','Mira „','Grzegorz „','Leila','Sasha','Dorian','Norbert','Bartosz','Oskar','Viktor','Maksymilian','Nadia „','Joanna „','„NOX','„Rysa','„404','„Cysterna','„Drumline','„Sanepid','„Paragraf','„Aukcja','Kantar'];
+  const _found=_spoilers.filter(w=>_pn.indexOf(w)>=0);
+  if(!_pn) fail('PATCHNOTES: nie znaleziono regionu PATCH_NOTES');
+  else if(_found.length) fail('PATCHNOTES: spoilery fabuły wciąż obecne: '+_found.join(', ')); else ok('PATCHNOTES: zero spoilerów fabuły (imiona brokerów/prawników/questów usunięte — fabuła = niespodzianka do odkrycia w grze)');
+  // wpisy generyczne nadal informują że coś dodano (nie puste)
+  const _hasGeneric=/odkryjesz|odkrywasz|przekonasz się|bez spoilerów|do odkrycia/i.test(_pn);
+  if(!_hasGeneric) fail('PATCHNOTES: brak generycznych wzmianek „do odkrycia"'); else ok('PATCHNOTES: wpisy generyczne obecne (informują że dodano treść, bez szczegółów fabuły)');
+
   if(errors.length) fail('page errors: '+errors.join(' | ')); else ok('brak page-errors');
 }catch(e){ fail('exception: '+e.message+'\n'+e.stack); }
 finally{ await browser.close(); }
