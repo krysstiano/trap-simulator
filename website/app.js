@@ -345,3 +345,43 @@
     else if (e.key === 'ArrowRight') show(cur + 1);
   });
 })();
+
+/* ---------- v2.3.46: hero neon skyline (canvas) ---------- */
+(function heroSkyline() {
+  var cv = document.getElementById('hero-skyline');
+  if (!cv || !cv.getContext) return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var ctx = cv.getContext('2d'), raf = 0, t = 0, layers = [], stars = [], ember = [];
+  var neon = ['#f1c40f', '#e91e8c', '#7ec8e3', '#9b59b6'], cols = ['#0a1430', '#0d1a3d', '#11224e'];
+  function build() {
+    cv.width = cv.offsetWidth || cv.parentElement.offsetWidth; cv.height = cv.offsetHeight || cv.parentElement.offsetHeight;
+    layers = []; stars = []; ember = [];
+    for (var L = 0; L < 3; L++) { var b = [], x = -60, maxH = cv.height * (0.18 + L * 0.12); while (x < cv.width + 90) { var w = 34 + Math.random() * 76, h = maxH * (0.45 + Math.random() * 0.75); b.push({ x: x, w: w, h: h, seed: Math.floor(Math.random() * 97) }); x += w + 6 + Math.random() * 16; } layers.push({ b: b, col: cols[L] }); }
+    for (var i = 0; i < 60; i++) stars.push({ x: Math.random(), y: Math.random() * 0.6, s: Math.random() * 1.5 + 0.4, p: Math.random() * 6.28 });
+    for (var j = 0; j < 26; j++) ember.push({ x: Math.random() * cv.width, y: Math.random() * cv.height, vy: -(0.2 + Math.random() * 0.7), r: Math.random() * 2 + 0.5, a: Math.random() });
+  }
+  build();
+  function draw() {
+    t++; var W = cv.width, H = cv.height, base = H, k, s, ly, bld, cx, cy, e;
+    ctx.clearRect(0, 0, W, H);
+    var g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, 'rgba(7,10,24,0)'); g.addColorStop(1, '#070a18'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    for (k = 0; k < stars.length; k++) { s = stars[k]; var tw = 0.5 + 0.5 * Math.sin(t * 0.04 + s.p); ctx.fillStyle = 'rgba(180,210,255,' + (0.1 + tw * 0.4) + ')'; ctx.fillRect(s.x * W, s.y * H, s.s, s.s); }
+    for (var li = 0; li < layers.length; li++) { ly = layers[li]; for (var bi = 0; bi < ly.b.length; bi++) { bld = ly.b[bi]; ctx.fillStyle = ly.col; ctx.fillRect(bld.x, base - bld.h, bld.w, bld.h);
+      var cc = Math.max(2, Math.floor(bld.w / 12)), rr = Math.max(3, Math.floor(bld.h / 16));
+      for (cx = 0; cx < cc; cx++) for (cy = 0; cy < rr; cy++) { if (((cx * 7 + cy * 13 + bld.seed) % 5) === 0) { var tw2 = 0.4 + 0.6 * Math.sin(t * 0.06 + cx + cy + bld.x); ctx.fillStyle = neon[(cx + cy + bld.seed) % neon.length]; ctx.globalAlpha = 0.2 + tw2 * 0.5; ctx.fillRect(bld.x + 6 + cx * 12, base - bld.h + 8 + cy * 16, 4, 5); ctx.globalAlpha = 1; } } } }
+    for (k = 0; k < ember.length; k++) { e = ember[k]; e.y += e.vy; e.a -= 0.003; if (e.y < 0 || e.a <= 0) { e.y = H + 5; e.x = Math.random() * W; e.a = 0.5 + Math.random() * 0.4; } ctx.fillStyle = 'rgba(241,196,15,' + (Math.max(0, e.a) * 0.5) + ')'; ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, 6.283); ctx.fill(); }
+    raf = requestAnimationFrame(draw);
+  }
+  draw();
+  var rt; window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(build, 200); });
+})();
+
+/* ---------- v2.3.46: trailer play button ---------- */
+(function trailerPlay() {
+  var v = document.getElementById('trailer-video'), btn = document.getElementById('trailer-play');
+  if (!v || !btn) return;
+  function play() { v.muted = false; v.controls = true; v.play().catch(function () { v.muted = true; v.play(); }); btn.classList.add('hidden'); }
+  btn.addEventListener('click', play);
+  v.addEventListener('play', function () { btn.classList.add('hidden'); });
+  v.addEventListener('pause', function () { if (v.currentTime < 0.1) btn.classList.remove('hidden'); });
+})();

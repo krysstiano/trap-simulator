@@ -53387,7 +53387,8 @@ function showIntroCinematic(name,onDone){
   ov.style.cssText='position:fixed;top:0;left:0;width:100vw;height:100vh;background:#000;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#fff;font-family:inherit;overflow:hidden';
   // Animowane tło — gradient + particles
   ov.innerHTML=`
-    <div id="ic-bg" style="position:absolute;top:0;left:0;width:100%;height:100%;background:radial-gradient(circle at 50% 50%, rgba(241,196,15,.15), rgba(0,0,0,1) 70%);opacity:0;transition:opacity 1s ease-out"></div>
+    <canvas id="ic-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;z-index:0;display:block"></canvas>
+    <div id="ic-bg" style="position:absolute;top:0;left:0;width:100%;height:100%;background:radial-gradient(circle at 50% 38%, rgba(241,196,15,.12), rgba(0,0,0,0) 60%);opacity:0;transition:opacity 1s ease-out;z-index:1"></div>
     <div id="ic-particles" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:hidden"></div>
     <div id="ic-stage" style="position:relative;text-align:center;z-index:2">
       <!-- STAGE 1: Logo "TRAP SIMULATOR" -->
@@ -53401,6 +53402,32 @@ function showIntroCinematic(name,onDone){
     <button id="ic-skip" style="position:absolute;bottom:30px;right:30px;background:transparent;border:1px solid #555;color:#778;padding:8px 16px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:11px;letter-spacing:2px;opacity:.6;transition:opacity .2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.6">POMIŃ ►►</button>
   `;
   document.body.appendChild(ov);
+  // v2.3.46: cinematic neon skyline w tle (canvas) — "od ulicy do sławy", bez zewnętrznych assetów
+  (function _icSkyline(){
+    const cv=document.getElementById('ic-canvas'); if(!cv||!cv.getContext) return;
+    const ctx=cv.getContext('2d'); let raf=0,t=0;
+    const size=()=>{ cv.width=ov.clientWidth||window.innerWidth; cv.height=ov.clientHeight||window.innerHeight; };
+    size();
+    const neon=['#f1c40f','#e91e8c','#7ec8e3','#9b59b6'];
+    const layers=[]; const cols=['#0a1430','#0d1a3d','#11224e'];
+    for(let L=0;L<3;L++){ const b=[]; let x=-60; const maxH=cv.height*(0.20+L*0.13); while(x<cv.width+90){ const w=34+Math.random()*76; const h=maxH*(0.45+Math.random()*0.75); b.push({x,w,h,seed:Math.floor(Math.random()*97)}); x+=w+6+Math.random()*16; } layers.push({b,col:cols[L]}); }
+    const stars=[]; for(let i=0;i<70;i++) stars.push({x:Math.random(),y:Math.random()*0.55,s:Math.random()*1.6+0.4,p:Math.random()*6.28});
+    const ember=[]; for(let i=0;i<34;i++) ember.push({x:Math.random()*cv.width,y:Math.random()*cv.height,vy:-(0.25+Math.random()*0.8),r:Math.random()*2+0.6,a:Math.random()});
+    function draw(){ t++; const W=cv.width,H=cv.height,base=H;
+      const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#070a18'); g.addColorStop(.55,'#0a1226'); g.addColorStop(1,'#05060d'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+      const pulse=0.5+0.5*Math.sin(t*0.05); const rg=ctx.createRadialGradient(W*0.5,H*0.42,0,W*0.5,H*0.42,H*0.65); rg.addColorStop(0,`rgba(241,196,15,${0.04+pulse*0.05})`); rg.addColorStop(1,'rgba(0,0,0,0)'); ctx.fillStyle=rg; ctx.fillRect(0,0,W,H);
+      for(const s of stars){ const tw=0.5+0.5*Math.sin(t*0.04+s.p); ctx.fillStyle=`rgba(180,210,255,${0.12+tw*0.45})`; ctx.fillRect(s.x*W,s.y*H,s.s,s.s); }
+      for(const ly of layers){ for(const bld of ly.b){ ctx.fillStyle=ly.col; ctx.fillRect(bld.x,base-bld.h,bld.w,bld.h);
+        const cc=Math.max(2,Math.floor(bld.w/12)), rr=Math.max(3,Math.floor(bld.h/16));
+        for(let cx=0;cx<cc;cx++)for(let cy=0;cy<rr;cy++){ if(((cx*7+cy*13+bld.seed)%5)===0){ const tw=0.4+0.6*Math.sin(t*0.06+cx+cy+bld.x); ctx.fillStyle=neon[(cx+cy+bld.seed)%neon.length]; ctx.globalAlpha=0.22+tw*0.5; ctx.fillRect(bld.x+6+cx*12,base-bld.h+8+cy*16,4,5); ctx.globalAlpha=1; } } } }
+      for(const e of ember){ e.y+=e.vy; e.a-=0.003; if(e.y<0||e.a<=0){ e.y=H+5; e.x=Math.random()*W; e.a=0.6+Math.random()*0.4; } ctx.fillStyle=`rgba(241,196,15,${Math.max(0,e.a)*0.55})`; ctx.beginPath(); ctx.arc(e.x,e.y,e.r,0,6.283); ctx.fill(); }
+      const vg=ctx.createRadialGradient(W/2,H/2,H*0.3,W/2,H/2,H*0.78); vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,0.72)'); ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+      raf=requestAnimationFrame(draw);
+    }
+    draw();
+    const onR=()=>size(); window.addEventListener('resize',onR);
+    ov._icFxStop=()=>{ try{cancelAnimationFrame(raf);}catch(_){} window.removeEventListener('resize',onR); };
+  })();
   // Particle stars w tle
   const partCt=document.getElementById('ic-particles');
   for(let i=0;i<40;i++){
@@ -53417,6 +53444,7 @@ function showIntroCinematic(name,onDone){
   let skipped=false;
   const finish=()=>{
     if(skipped) return;skipped=true;
+    try{ if(ov._icFxStop) ov._icFxStop(); }catch(_){}
     ov.style.transition='opacity .5s';ov.style.opacity='0';
     setTimeout(()=>{ov.remove();if(typeof onDone==='function')onDone();},500);
   };
