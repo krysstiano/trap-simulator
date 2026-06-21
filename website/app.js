@@ -376,13 +376,34 @@
   var rt; window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(build, 200); });
 })();
 
-/* Sekcja „Zobacz grę w akcji": pętla gameplayu (gameplay-preview.webm) nagrana przez canvas.captureStream()+
-   MediaRecorder (pełna klatka, zero szarego — w przeciwieństwie do recordVideo). Plik z MediaRecorder ma
-   duration=Infinity, więc zapętlamy ręcznie na 'ended'; autoplay muted wznawiamy też przy 1. interakcji. */
-(function trailerLoop() {
-  var v = document.querySelector('.trailer-vid');
-  if (!v) return;
-  v.addEventListener('ended', function () { try { v.currentTime = 0; v.play(); } catch (e) {} });
-  v.play && v.play().catch(function () {});
-  document.addEventListener('click', function () { if (v.paused) v.play().catch(function () {}); }, { once: true });
+/* Zwiastun: w sekcji gra wyciszona pętla-teaser (gameplay-preview.webm, MediaRecorder → duration=Infinity,
+   zapętlamy ręcznie). Klik → lightbox: wideo + film.mp3 startują RAZEM (sync 155 BPM), zapętlane razem. */
+(function trailer() {
+  var teaser = document.querySelector('.trailer-vid');
+  if (teaser) {
+    teaser.addEventListener('ended', function () { try { teaser.currentTime = 0; teaser.play(); } catch (e) {} });
+    teaser.play && teaser.play().catch(function () {});
+    document.addEventListener('click', function () { if (teaser.paused) teaser.play().catch(function () {}); }, { once: true });
+  }
+  var open = document.getElementById('trailerOpen'), vlb = document.getElementById('vlb');
+  var vid = document.getElementById('vlbVideo'), aud = document.getElementById('vlbAudio'), closeBtn = document.getElementById('vlbClose');
+  if (!open || !vlb || !vid || !aud) return;
+  function syncStart() { try { vid.currentTime = 0; aud.currentTime = 0; } catch (e) {} var p = aud.play(); if (p && p.catch) p.catch(function () {}); vid.play().catch(function () {}); }
+  function openLb() {
+    vlb.hidden = false; vlb.setAttribute('aria-hidden', 'false'); document.body.style.overflow = 'hidden';
+    try { teaser && teaser.pause(); } catch (e) {}
+    syncStart();
+  }
+  function closeLb() {
+    vlb.hidden = true; vlb.setAttribute('aria-hidden', 'true'); document.body.style.overflow = '';
+    try { vid.pause(); aud.pause(); aud.currentTime = 0; } catch (e) {}
+    try { teaser && teaser.play(); } catch (e) {}
+  }
+  /* wideo (23,2s = 60 bitów) krótsze niż mp3 (~25s) — gdy wideo się kończy, restart OBA razem → re-sync co pętlę */
+  vid.addEventListener('ended', syncStart);
+  open.addEventListener('click', openLb);
+  open.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLb(); } });
+  closeBtn.addEventListener('click', closeLb);
+  vlb.addEventListener('click', function (e) { if (e.target === vlb) closeLb(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !vlb.hidden) closeLb(); });
 })();
