@@ -29,3 +29,16 @@ try { arr = new Function('return ' + arrText)(); } catch (e) { console.error('Ev
 if (!Array.isArray(arr) || !arr.length) { console.error('PATCH_NOTES nie jest niepustą tablicą'); process.exit(1); }
 fs.writeFileSync(path.join(__dirname, 'patchnotes.json'), JSON.stringify(arr, null, 1));
 console.log('patchnotes.json zapisany:', arr.length, 'wpisów, top =', arr[0].ver);
+
+// ── WEB-DEMO: skopiuj single-source index.html do website/play/ (grywalna wersja w przeglądarce) ──
+// Generowane przy KAŻDYM deployu Netlify → nigdy się nie zestarzeje względem gry (zero ręcznych kopii,
+// szanuje „single source = index.html"). Gra wykrywa brak window.electronUpdater → moduł auto-update bezczynny.
+try {
+  const playDir = path.join(__dirname, 'play');
+  fs.mkdirSync(playDir, { recursive: true });
+  fs.writeFileSync(path.join(playDir, 'index.html'), html);
+  console.log('web-demo zapisany: website/play/index.html (' + (html.length / 1048576).toFixed(1) + ' MB)');
+} catch (e) {
+  console.error('web-demo copy failed:', e.message);
+  process.exit(1);
+}

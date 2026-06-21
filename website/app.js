@@ -376,12 +376,13 @@
   var rt; window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(build, 200); });
 })();
 
-/* ---------- v2.3.46: trailer play button ---------- */
-(function trailerPlay() {
-  var v = document.getElementById('trailer-video'), btn = document.getElementById('trailer-play');
-  if (!v || !btn) return;
-  function play() { v.muted = false; v.controls = true; v.play().catch(function () { v.muted = true; v.play(); }); btn.classList.add('hidden'); }
-  btn.addEventListener('click', play);
-  v.addEventListener('play', function () { btn.classList.add('hidden'); });
-  v.addEventListener('pause', function () { if (v.currentTime < 0.1) btn.classList.remove('hidden'); });
+/* Sekcja „Zobacz grę w akcji": pętla gameplayu (gameplay-preview.webm) nagrana przez canvas.captureStream()+
+   MediaRecorder (pełna klatka, zero szarego — w przeciwieństwie do recordVideo). Plik z MediaRecorder ma
+   duration=Infinity, więc zapętlamy ręcznie na 'ended'; autoplay muted wznawiamy też przy 1. interakcji. */
+(function trailerLoop() {
+  var v = document.querySelector('.trailer-vid');
+  if (!v) return;
+  v.addEventListener('ended', function () { try { v.currentTime = 0; v.play(); } catch (e) {} });
+  v.play && v.play().catch(function () {});
+  document.addEventListener('click', function () { if (v.paused) v.play().catch(function () {}); }, { once: true });
 })();
