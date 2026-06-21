@@ -376,53 +376,27 @@
   var rt; window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(build, 200); });
 })();
 
-/* Zwiastun: w sekcji gra wyciszona pętla-teaser (gameplay-preview.webm, MediaRecorder → duration=Infinity,
-   zapętlamy ręcznie). Klik → lightbox: wideo + film.mp3 startują RAZEM (sync 155 BPM), zapętlane razem. */
+/* Zwiastun = JEDEN plik gameplay-preview.webm z WBUDOWANĄ muzyką (obraz+dźwięk w jednym, sync wtopiony,
+   realna długość → natywny loop). Sekcja: wyciszony teaser (loop). Klik → lightbox: ten sam plik odciszony.
+   Zero oddzielnego audio / logiki sync / buforowania = brak desync u kogokolwiek, nawet na słabym necie. */
 (function trailer() {
   var teaser = document.querySelector('.trailer-vid');
-  if (teaser) {
-    teaser.addEventListener('ended', function () { try { teaser.currentTime = 0; teaser.play(); } catch (e) {} });
-    teaser.play && teaser.play().catch(function () {});
-    document.addEventListener('click', function () { if (teaser.paused) teaser.play().catch(function () {}); }, { once: true });
-  }
+  if (teaser) { teaser.play && teaser.play().catch(function () {}); document.addEventListener('click', function () { if (teaser.paused) teaser.play().catch(function () {}); }, { once: true }); }
   var open = document.getElementById('trailerOpen'), vlb = document.getElementById('vlb');
-  var vid = document.getElementById('vlbVideo'), aud = document.getElementById('vlbAudio'), closeBtn = document.getElementById('vlbClose');
-  if (!open || !vlb || !vid || !aud) return;
-  /* Wczytaj film.mp3 W CAŁOŚCI do pamięci (blob) — na żywym CDN mp3 buforował się ~2s i startował późno
-     (desync). Z blobu odtwarzanie i seek są natychmiastowe → tight sync. */
-  var audReady = false;
-  try {
-    fetch(aud.currentSrc || aud.src).then(function (r) { return r.blob(); }).then(function (bl) {
-      try { aud.src = URL.createObjectURL(bl); aud.load(); audReady = true; } catch (e) {}
-    }).catch(function () {});
-  } catch (e) {}
-  /* wideo = master (cięcia na bity); audio dociągamy do wideo. Czekamy aż audio ma dane, potem start RAZEM. */
-  function syncStart() {
-    try { vid.currentTime = 0; aud.currentTime = 0; } catch (e) {}
-    vid.play().catch(function () {});
-    var p = aud.play(); if (p && p.catch) p.catch(function () {});
-    /* dociągnij audio do wideo gdy gotowe (kilka prób na wypadek buforowania) */
-    var tries = 0;
-    var iv = setInterval(function () {
-      tries++;
-      if (vlb.hidden || tries > 30) { clearInterval(iv); return; }
-      if (!aud.paused && !vid.paused && Math.abs(aud.currentTime - vid.currentTime) > 0.05) {
-        try { aud.currentTime = vid.currentTime; } catch (e) {}
-      }
-    }, 200);
-  }
+  var vid = document.getElementById('vlbVideo'), closeBtn = document.getElementById('vlbClose');
+  if (!open || !vlb || !vid) return;
   function openLb() {
     vlb.hidden = false; vlb.setAttribute('aria-hidden', 'false'); document.body.style.overflow = 'hidden';
     try { teaser && teaser.pause(); } catch (e) {}
-    syncStart();
+    try { vid.currentTime = 0; } catch (e) {}
+    vid.muted = false;            // odcisz — muzyka jest w pliku, więc sync jest perfekcyjny zawsze
+    vid.play().catch(function () { vid.muted = true; vid.play().catch(function () {}); });
   }
   function closeLb() {
     vlb.hidden = true; vlb.setAttribute('aria-hidden', 'true'); document.body.style.overflow = '';
-    try { vid.pause(); aud.pause(); aud.currentTime = 0; } catch (e) {}
+    try { vid.pause(); vid.muted = true; } catch (e) {}
     try { teaser && teaser.play(); } catch (e) {}
   }
-  /* wideo (23,2s = 60 bitów) krótsze niż mp3 (~25s) — gdy wideo się kończy, restart OBA razem → re-sync co pętlę */
-  vid.addEventListener('ended', syncStart);
   open.addEventListener('click', openLb);
   open.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLb(); } });
   closeBtn.addEventListener('click', closeLb);
