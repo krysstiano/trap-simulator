@@ -39,6 +39,6 @@ try {
   fs.writeFileSync(path.join(playDir, 'index.html'), html);
   console.log('web-demo zapisany: website/play/index.html (' + (html.length / 1048576).toFixed(1) + ' MB)');
 } catch (e) {
-  console.error('web-demo copy failed:', e.message);
-  process.exit(1);
+  // NIE-fatalne: kopia web-demo NIE może blokować deployu strony (changelog/wideo/FAQ ważniejsze).
+  console.error('web-demo copy pominięte (nie blokuje deployu):', e.message);
 }
