@@ -388,7 +388,15 @@
   var open = document.getElementById('trailerOpen'), vlb = document.getElementById('vlb');
   var vid = document.getElementById('vlbVideo'), aud = document.getElementById('vlbAudio'), closeBtn = document.getElementById('vlbClose');
   if (!open || !vlb || !vid || !aud) return;
-  function syncStart() { try { vid.currentTime = 0; aud.currentTime = 0; } catch (e) {} var p = aud.play(); if (p && p.catch) p.catch(function () {}); vid.play().catch(function () {}); }
+  function syncStart() {
+    try { vid.currentTime = 0; aud.currentTime = 0; } catch (e) {}
+    var p = aud.play(); if (p && p.catch) p.catch(function () {});
+    vid.play().catch(function () {});
+    /* wideo = master wizualny (cięcia na bity); audio dociągamy do wideo, by cięcia trafiały w bit */
+    setTimeout(function () { try { if (Math.abs(aud.currentTime - vid.currentTime) > 0.02) aud.currentTime = vid.currentTime; } catch (e) {} }, 280);
+  }
+  /* drobna korekta dryfu w trakcie (rzadko się odpala — oba grają z tego samego zegara) */
+  setInterval(function () { if (vlb && !vlb.hidden && vid && aud && !vid.paused && !aud.paused) { if (Math.abs(aud.currentTime - vid.currentTime) > 0.07) { try { aud.currentTime = vid.currentTime; } catch (e) {} } } }, 2000);
   function openLb() {
     vlb.hidden = false; vlb.setAttribute('aria-hidden', 'false'); document.body.style.overflow = 'hidden';
     try { teaser && teaser.pause(); } catch (e) {}
