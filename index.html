@@ -51696,6 +51696,11 @@ async function renderPhoneLeaderboard(){
         <button class="cbtn" style="flex:1;min-width:90px" onclick="renderTitlesGuide()">🏅 Tytuły</button>
         <button class="cbtn" style="flex:1;min-width:90px" onclick="renderPhoneHome()">← Wróć</button>
       </div>
+      <!-- v2.3.46: prywatność + RODO (usuń moje dane) -->
+      <div style="padding:0 0 6px;display:flex;gap:6px;flex-wrap:wrap">
+        <button class="cbtn" style="flex:1;min-width:90px;font-size:11px" onclick="window._showPrivacyInfo()">🔒 Prywatność</button>
+        <button class="cbtn" style="flex:1;min-width:90px;font-size:11px;border-color:#5a2a2a;color:#e08a8a" onclick="window._deleteMyData()">🗑 Usuń moje dane</button>
+      </div>
     </div>`;
   // Live ticker: top 5 latest updates globalnie (wszystkie kategorie)
   _lbFetch(`leaderboard?order=updated_at.desc&limit=5`).then(latest=>{
@@ -56262,6 +56267,13 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.46',date:'2026-06-21',cats:['feature','change'],title:'🔒 Prywatność, „Usuń moje dane" i szybsze funkcje online',
+ items:[
+ {t:'feature',d:'Dodano sekcję Prywatność oraz przycisk „Usuń moje dane" (Telefon → Online → Tablica wyników). W każdej chwili możesz trwale skasować z serwera swój nick, wyniki w rankingu, rekordy kasyna oraz treści społeczności. Twój lokalny zapis gry pozostaje nietknięty.'},
+ {t:'change',d:'Funkcje online (tablica wyników, społeczność) ładują się teraz szybciej i oszczędniej dzięki podręcznej pamięci — mniej transferu przy przełączaniu zakładek i ponownym otwieraniu paneli.'}
+ ],
+ },
  {
  ver:'v2.3.45',date:'2026-06-21',cats:['fix'],title:'🔧 Drobne poprawki techniczne i stabilności',
  items:[
@@ -75554,6 +75566,14 @@ function _initPlayerUUID(){
       'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0,v=c==='x'?r:(r&0x3|0x8);return v.toString(16);});
   }
 }
+/* v2.3.46: CACHE GET feedów/rankingu (TTL) — tnie egress Supabase przy ponownym otwieraniu paneli/zakładek.
+   Tylko display-heavy tabele (feed/ranking). Korektność (nick_claims/friendships/crew/messages) NIE cache'owana.
+   Zapis (POST/PATCH) do cache'owanej tabeli bustuje jej wpisy → gracz widzi własny wpis natychmiast. */
+const _LB_CACHE_TTL=60000; // 60s
+const _LB_CACHE_TABLES=['ig_photos','ig_comments','leaderboard','casino_records'];
+const _lbCache=new Map(); // path -> {t,data}
+function _lbCacheTable(path){ const t=String(path).split('?')[0].split('/')[0]; return _LB_CACHE_TABLES.includes(t)?t:null; }
+function _lbCacheBust(table){ for(const k of [..._lbCache.keys()]){ if(k.split('?')[0].split('/')[0]===table) _lbCache.delete(k); } }
 async function _lbFetch(path,opts={}){
   try{
     /* v2.1.669 (T1.2): GET = SIMPLE REQUEST (tylko apikey+Authorization) → NIE wyzwala preflightu CORS.
@@ -75561,6 +75581,9 @@ async function _lbFetch(path,opts={}){
        ktory u czesci graczy/originow moze failowac (test file:// tego nie odtwarza, dlatego dzialal).
        Mutacje (POST/PATCH/DELETE/body) nadal dostaja pelne LB_HEADERS — upserty/Prefer nietkniete. */
     const _isMut = !!(opts.body || (opts.method && opts.method!=='GET'));
+    /* v2.3.46: odczyt z cache dla GET na display-heavy tabelach (skraca egress) */
+    const _cacheT = (!_isMut && !opts.noCache) ? _lbCacheTable(path) : null;
+    if(_cacheT){ const _c=_lbCache.get(path); if(_c && (Date.now()-_c.t)<_LB_CACHE_TTL){ try{return JSON.parse(JSON.stringify(_c.data));}catch(_e){return _c.data;} } }
     const _baseH = _isMut ? {...LB_HEADERS} : {apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY};
     /* v2.1.714 FIX (społeczność IG „permission denied for table ig_photos"): `resolution=merge-duplicates`
        = UPSERT → wymaga GRANT UPDATE + on_conflict. Dla ZWYKŁEGO INSERT bez on_conflict (ig_photos/ig_likes/
@@ -75578,11 +75601,13 @@ async function _lbFetch(path,opts={}){
       _lbNotifyOnce();
       return null;
     }
+    /* v2.3.46: udany zapis → zbij cache tej tabeli (gracz widzi własny wpis natychmiast) */
+    if(_isMut){ const _mt=_lbCacheTable(path); if(_mt) _lbCacheBust(_mt); }
     if(opts.method==='POST' && (opts.headers?.Prefer||LB_HEADERS.Prefer)?.includes('return=minimal')) return true;
     if(r.status===204) return true;
     const txt=await r.text();
     if(!txt) return [];
-    try{return JSON.parse(txt);}catch(e){console.warn('🌍 JSON parse error',e.message);return null;}
+    try{const _j=JSON.parse(txt); if(_cacheT) _lbCache.set(path,{t:Date.now(),data:_j}); return _j;}catch(e){console.warn('🌍 JSON parse error',e.message);return null;}
   }catch(e){
     /* v1.9.16: REMOVED stack trace exposure — log tylko message, użytkownik widzi toast */
     console.warn('🌍 LB network error:',e.message,'path:',path);
@@ -75596,6 +75621,64 @@ function _lbNotifyOnce(){
   window._lbOfflineToastShown=true;
   if(typeof showMsg==='function') showMsg('🌍 Brak połączenia z tablicą wyników (gra offline)','y',4000);
 }
+/* v2.3.46: PRYWATNOŚĆ + RODO. Modal informacyjny + usunięcie wszystkich danych online gracza (RPC delete_my_data). */
+window._showPrivacyInfo=function(){
+  if(document.getElementById('privacy-modal')) return;
+  const ov=document.createElement('div');
+  ov.id='privacy-modal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,8,.82);z-index:100000;display:flex;align-items:center;justify-content:center;font-family:inherit';
+  ov.innerHTML=`<div style="background:#0a0f1a;border:2px solid #7ec8e3;border-radius:14px;padding:22px 24px;max-width:460px;width:90%;max-height:82vh;overflow-y:auto;color:#dfe;box-shadow:0 12px 50px rgba(0,0,0,.8)">
+    <div style="color:#7ec8e3;font-weight:800;font-size:17px;margin-bottom:12px">🔒 Prywatność i Twoje dane</div>
+    <div style="font-size:13px;line-height:1.6;color:#b9c6d4">
+      <p style="margin:0 0 10px">Trap Simulator to gra single-player. Cała rozgrywka i zapisy są <b>lokalnie na Twoim komputerze</b>.</p>
+      <p style="margin:0 0 8px"><b style="color:#fff">Funkcje online są opcjonalne</b> (tablica wyników, społeczność). Gdy z nich korzystasz, na serwer trafia tylko:</p>
+      <ul style="margin:0 0 10px;padding-left:18px">
+        <li>losowy identyfikator urządzenia (nie powiązany z Tobą),</li>
+        <li>wybrany nick i flaga kraju,</li>
+        <li>Twoje wyniki w grze,</li>
+        <li>treści które sam publikujesz (zdjęcia/komentarze społeczności).</li>
+      </ul>
+      <p style="margin:0 0 10px">Nie zbieramy danych osobowych, e-maili ani lokalizacji. Gra w pełni działa offline.</p>
+      <p style="margin:0 0 10px">Przyciskiem <b style="color:#e08a8a">„Usuń moje dane"</b> w każdej chwili kasujesz wszystkie swoje treści i wyniki z serwera (RODO / prawo do usunięcia).</p>
+      <p style="margin:0;color:#8aa">Pełna polityka prywatności i regulamin: <span style="color:#7ec8e3">trapsimulator.netlify.app/prywatnosc.html</span></p>
+    </div>
+    <div style="text-align:center;margin-top:16px"><button class="cbtn" onclick="document.getElementById('privacy-modal').remove()">Zamknij</button></div>
+  </div>`;
+  ov.addEventListener('mousedown',e=>{ if(e.target===ov) ov.remove(); });
+  document.body.appendChild(ov);
+};
+window._deleteMyData=function(){
+  if(document.getElementById('rodo-modal')) return;
+  const ov=document.createElement('div');
+  ov.id='rodo-modal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,8,.85);z-index:100001;display:flex;align-items:center;justify-content:center;font-family:inherit';
+  ov.innerHTML=`<div style="background:#140a0a;border:2px solid #e74c3c;border-radius:14px;padding:22px 24px;max-width:400px;width:90%;color:#fee;box-shadow:0 12px 50px rgba(0,0,0,.85)">
+    <div style="color:#e74c3c;font-weight:800;font-size:16px;margin-bottom:12px">🗑 Usunąć Twoje dane online?</div>
+    <div style="font-size:13px;line-height:1.6;color:#e8c4c4">Trwale usuniemy z serwera: Twój nick, wyniki w rankingu, rekordy kasyna, zdjęcia, komentarze i polubienia powiązane z tym urządzeniem. <b>Tej operacji nie można cofnąć.</b> Twój lokalny zapis gry pozostaje nietknięty.</div>
+    <div id="rodo-status" style="font-size:12px;color:#f1c40f;min-height:16px;margin:10px 2px 0"></div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button id="rodo-confirm" class="cbtn" style="flex:1;border-color:#e74c3c;color:#ff9b8a">Tak, usuń</button>
+      <button class="cbtn" style="flex:1" onclick="document.getElementById('rodo-modal').remove()">Anuluj</button>
+    </div>
+  </div>`;
+  ov.addEventListener('mousedown',e=>{ if(e.target===ov) ov.remove(); });
+  document.body.appendChild(ov);
+  document.getElementById('rodo-confirm').onclick=async function(){
+    const st=document.getElementById('rodo-status'); if(st) st.textContent='⏳ Usuwanie...';
+    if(typeof _initPlayerUUID==='function') _initPlayerUUID();
+    const uuid=G.playerUUID;
+    if(!uuid){ if(st) st.textContent='Brak danych online do usunięcia.'; return; }
+    const res=await _lbFetch('rpc/delete_my_data',{method:'POST',headers:{'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({p_uuid:uuid})});
+    if(res!==null){
+      G.globalNick=''; G.leaderboardOptIn=false;
+      try{ G._igCommunityFeed=[]; }catch(_){}
+      document.getElementById('rodo-modal')?.remove();
+      if(typeof showMsg==='function') showMsg('🗑 Twoje dane online zostały usunięte z serwera.','g',4500);
+    } else {
+      if(st) st.textContent='Nie udało się (offline lub funkcja serwera nie wdrożona). Spróbuj później.';
+    }
+  };
+};
 // Sprawdza czy nick jest dostępny (zwraca true jeśli wolny, false jeśli zajęty przez kogoś innego)
 async function checkNickAvailable(nick){
   if(!nick||!/^[A-Za-z0-9 _-]{1,16}$/.test(nick)) return false;
