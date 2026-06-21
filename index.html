@@ -51691,6 +51691,7 @@ async function renderPhoneLeaderboard(){
       <div id="lb-ticker" style="display:none"></div>
       <div id="lb-list" style="text-align:center;color:#778;font-size:12px;padding:20px">⏳ Ładowanie...</div>
       <div style="color:#667;font-size:10px;text-align:center;padding:6px 0;font-style:italic">Twój wynik aktualizuje się automatycznie co minutę gry</div>
+      <div style="padding:4px 0 6px"><button class="cbtn" style="width:100%;background:linear-gradient(135deg,#e91e8c,#9b59b6);color:#fff;font-weight:800" onclick="window._showFlexCard()">📸 Pochwal się — udostępnij swój sukces</button></div>
       <div style="padding:4px 0;display:flex;gap:6px;flex-wrap:wrap">
         <button class="cbtn" style="flex:1;min-width:90px" onclick="renderHallOfFame()">🏛 Hall of Fame</button>
         <button class="cbtn" style="flex:1;min-width:90px" onclick="renderTitlesGuide()">🏅 Tytuły</button>
@@ -75649,6 +75650,66 @@ function _lbNotifyOnce(){
   window._lbOfflineToastShown=true;
   if(typeof showMsg==='function') showMsg('🌍 Brak połączenia z tablicą wyników (gra offline)','y',4000);
 }
+/* v2.3.46: KARTA "POCHWAL SIĘ" (share/flex) — generuje brandowany PNG 1080x1080 z osiągnięciami gracza
+   (nick + staty + neon skyline + logo + link). Gracz pobiera/kopiuje → darmowy UGC z linkiem do gry. */
+window._flexCardCanvas=function(){
+  const C=document.createElement('canvas'); C.width=1080; C.height=1080; const x=C.getContext('2d');
+  const g=x.createLinearGradient(0,0,0,1080); g.addColorStop(0,'#0a1226'); g.addColorStop(0.6,'#0a0f1f'); g.addColorStop(1,'#05060d'); x.fillStyle=g; x.fillRect(0,0,1080,1080);
+  // poświata
+  const rg=x.createRadialGradient(540,360,0,540,360,640); rg.addColorStop(0,'rgba(241,196,15,0.10)'); rg.addColorStop(1,'rgba(0,0,0,0)'); x.fillStyle=rg; x.fillRect(0,0,1080,1080);
+  // skyline (statyczny) z neonami
+  const neon=['#f1c40f','#e91e8c','#7ec8e3','#9b59b6']; const cols=['#0c1838','#0f1f47']; const base=1080;
+  for(let L=0;L<2;L++){ let bx=-40; const maxH=(L?420:300); let i=0; while(bx<1120 && i<80){ i++; const w=60+Math.abs((i*53)%90); const h=maxH*(0.5+(Math.abs((i*29)%50)/100)); x.fillStyle=cols[L]; x.fillRect(bx,base-h,w,h);
+    const wc=Math.floor(w/16), hr=Math.floor(h/22);
+    for(let cx=0;cx<wc;cx++)for(let cy=0;cy<hr;cy++){ if(((cx*7+cy*13+i*3)%5)===0){ x.fillStyle=neon[(cx+cy+i)%neon.length]; x.globalAlpha=0.5; x.fillRect(bx+8+cx*16,base-h+10+cy*22,6,7); x.globalAlpha=1; } }
+    bx+=w+10; } }
+  // ciemny pas pod tekst
+  x.fillStyle='rgba(5,7,15,0.55)'; x.fillRect(0,120,1080,560);
+  // logo TRAP SIMULATOR
+  x.textAlign='center';
+  const lg=x.createLinearGradient(200,0,880,0); lg.addColorStop(0,'#f1c40f'); lg.addColorStop(0.5,'#e91e8c'); lg.addColorStop(1,'#9b59b6');
+  x.fillStyle=lg; x.font='900 96px Russo One, Impact, sans-serif'; x.fillText('TRAP', 540, 250);
+  x.font='900 60px Russo One, Impact, sans-serif'; x.save(); x.strokeStyle='#f1c40f'; x.lineWidth=2; x.strokeText('S I M U L A T O R', 540, 320); x.restore();
+  // nick
+  const nick=(typeof G!=='undefined' && (G.globalNick||G.name))||'MC';
+  x.fillStyle='#fff'; x.font='800 64px Russo One, Arial, sans-serif'; x.fillText(String(nick).slice(0,18), 540, 440);
+  x.fillStyle='#7ec8e3'; x.font='600 28px Inter, Arial, sans-serif'; x.fillText('OD ULICY DO SŁAWY', 540, 484);
+  // staty
+  const fmt=n=>{ n=Math.floor(n||0); if(n>=1e6)return (n/1e6).toFixed(n>=1e7?0:1)+'M'; if(n>=1e3)return (n/1e3).toFixed(n>=1e4?0:1)+'k'; return ''+n; };
+  const G_=(typeof G!=='undefined')?G:{};
+  const stats=[['POZIOM',fmt(G_.level||1)],['SŁAWA',fmt(G_.fame||0)],['FANI',fmt(G_.fans||0)],['KASA',fmt(G_.money||0)+' zł'],['DZIEŃ',fmt(G_.day||1)],['REP',fmt(G_.streetRep||0)]];
+  const cols2=3, cw=320, ch=110, gx=(1080-cols2*cw)/2, gy=540;
+  stats.forEach((s,i)=>{ const cxp=gx+(i%cols2)*cw, cyp=gy+Math.floor(i/cols2)*ch;
+    x.fillStyle='rgba(126,200,227,0.08)'; x.strokeStyle='rgba(126,200,227,0.25)'; x.lineWidth=1; x.beginPath(); x.rect(cxp+10,cyp,cw-20,ch-16); x.fill(); x.stroke();
+    x.fillStyle='#9fb3c8'; x.font='600 22px Inter, Arial'; x.textAlign='center'; x.fillText(s[0], cxp+cw/2, cyp+38);
+    x.fillStyle='#f1c40f'; x.font='800 40px Russo One, Arial'; x.fillText(s[1], cxp+cw/2, cyp+82); });
+  // footer link
+  x.fillStyle='rgba(5,7,15,0.7)'; x.fillRect(0,1000,1080,80);
+  x.fillStyle='#fff'; x.font='700 34px Inter, Arial'; x.textAlign='center'; x.fillText('▲ trapsimulator.netlify.app', 540, 1052);
+  return C;
+};
+window._showFlexCard=function(){
+  if(document.getElementById('flex-modal')) return;
+  let dataUrl=''; try{ dataUrl=window._flexCardCanvas().toDataURL('image/png'); }catch(e){ if(typeof showMsg==='function') showMsg('Nie udało się wygenerować karty.','r'); return; }
+  const ov=document.createElement('div'); ov.id='flex-modal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,8,.85);z-index:100000;display:flex;align-items:center;justify-content:center;font-family:inherit;padding:16px';
+  ov.innerHTML=`<div style="background:#0a0f1a;border:2px solid #7ec8e3;border-radius:14px;padding:16px;max-width:440px;width:100%;text-align:center;box-shadow:0 12px 50px rgba(0,0,0,.8)">
+    <div style="color:#7ec8e3;font-weight:800;font-size:15px;margin-bottom:10px">📸 Pochwal się — udostępnij swój sukces</div>
+    <img src="${dataUrl}" alt="karta" style="width:100%;border-radius:10px;display:block;margin-bottom:12px">
+    <div style="display:flex;gap:8px">
+      <a id="flex-dl" href="${dataUrl}" download="trap-simulator-flex.png" class="cbtn" style="flex:1;text-decoration:none">⬇ Pobierz PNG</a>
+      <button id="flex-copy" class="cbtn" style="flex:1">📋 Kopiuj</button>
+      <button class="cbtn" style="flex:0 0 auto" onclick="document.getElementById('flex-modal').remove()">✕</button>
+    </div>
+    <div id="flex-status" style="font-size:11px;color:#7ec87e;min-height:14px;margin-top:8px"></div>
+  </div>`;
+  ov.addEventListener('mousedown',e=>{ if(e.target===ov) ov.remove(); });
+  document.body.appendChild(ov);
+  const copyBtn=document.getElementById('flex-copy');
+  if(copyBtn) copyBtn.onclick=async function(){ const st=document.getElementById('flex-status');
+    try{ const blob=await (await fetch(dataUrl)).blob(); if(navigator.clipboard && window.ClipboardItem){ await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]); if(st)st.textContent='✅ Skopiowano do schowka — wklej na social media!'; } else { if(st)st.textContent='Schowek obrazków niedostępny — użyj „Pobierz PNG".'; } }
+    catch(e){ if(st)st.textContent='Nie udało się skopiować — użyj „Pobierz PNG".'; } };
+};
 /* v2.3.46: PRYWATNOŚĆ + RODO. Modal informacyjny + usunięcie wszystkich danych online gracza (RPC delete_my_data). */
 window._showPrivacyInfo=function(){
   if(document.getElementById('privacy-modal')) return;
