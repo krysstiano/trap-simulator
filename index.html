@@ -1602,6 +1602,39 @@ const K = {};
 let _adminSeq='',_adminTargets=['snowy','amper'];
 /* v2.1.763 (przed publikacją): panel admina/cheat TYLKO w trybie dev — gracze NIE odpalą go wpisując nazwę gry „snowy". Dev/beta-tester: dodaj ?dev=1 do URL (lub localStorage snowy_dev=1). */
 function _snowyDevMode(){ try{ return /[?&]dev=1(\b|&|$)/.test(location.search) || (typeof localStorage!=='undefined' && localStorage.getItem('snowy_dev')==='1'); }catch(e){ return false; } }
+/* v2.3.45: gate hasłowy panelu — działa w apce Electron (loadFile, brak ?dev=1) i w przeglądarce. Sekwencja otwiera gate; tylko poprawne hasło wpuszcza. */
+const _ADMIN_PASS='7snowyveganamper13';
+function _adminPasswordGate(){
+  try{
+    _adminSeq='';
+    if(document.getElementById('admin-gate')) return; // gate już otwarty
+    const _ap=document.getElementById('admin-panel');
+    if(_ap && _ap.style.display==='block') return; // panel już otwarty
+    const ov=document.createElement('div');
+    ov.id='admin-gate';
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:100000;display:flex;align-items:center;justify-content:center;font-family:monospace';
+    const box=document.createElement('div');
+    box.style.cssText='background:#0a0a12;border:2px solid #e74c3c;border-radius:12px;padding:22px 24px;width:320px;max-width:90vw;color:#fff;box-shadow:0 10px 40px rgba(0,0,0,.8)';
+    box.innerHTML='<div style="color:#e74c3c;font-weight:700;font-size:15px;margin-bottom:14px">🔒 Dostęp ograniczony</div>'+
+      '<input id="admin-gate-pass" type="password" autocomplete="off" placeholder="Hasło" style="width:100%;box-sizing:border-box;background:#111;border:1px solid #333;color:#fff;padding:9px 10px;border-radius:6px;font-size:14px;font-family:monospace">'+
+      '<div id="admin-gate-err" style="color:#e74c3c;font-size:12px;min-height:16px;margin:8px 2px 0"></div>'+
+      '<div style="display:flex;gap:8px;margin-top:6px">'+
+        '<button id="admin-gate-ok" style="flex:1;background:#e74c3c;border:none;color:#fff;padding:9px;border-radius:6px;cursor:pointer;font-weight:700;font-family:monospace">OK</button>'+
+        '<button id="admin-gate-cancel" style="flex:1;background:#222;border:1px solid #444;color:#aaa;padding:9px;border-radius:6px;cursor:pointer;font-family:monospace">Anuluj</button>'+
+      '</div>';
+    ov.appendChild(box);
+    document.body.appendChild(ov);
+    const inp=document.getElementById('admin-gate-pass');
+    const err=document.getElementById('admin-gate-err');
+    const close=()=>{ try{ ov.remove(); }catch(_){ if(ov.parentNode)ov.parentNode.removeChild(ov); } };
+    const submit=()=>{ if(inp.value===_ADMIN_PASS){ close(); if(typeof openAdminPanel==='function') openAdminPanel(); } else { err.textContent='Nieprawidłowe hasło'; inp.value=''; inp.focus(); } };
+    document.getElementById('admin-gate-ok').onclick=submit;
+    document.getElementById('admin-gate-cancel').onclick=close;
+    inp.addEventListener('keydown',ev=>{ ev.stopPropagation(); if(ev.key==='Enter'){ ev.preventDefault(); submit(); } else if(ev.key==='Escape'){ ev.preventDefault(); close(); } });
+    ov.addEventListener('mousedown',ev=>{ if(ev.target===ov) close(); });
+    setTimeout(()=>{ try{ inp.focus(); }catch(_){} },30);
+  }catch(e){}
+}
 document.addEventListener('keydown', e => {
   // Jeśli gracz pisze w polu tekstowym (np. nick) — ignoruj globalne skróty (M/P/S/E, secret admin, ruch)
   // Escape zostawiamy aktywne — pozwala wyjść z menu
@@ -1744,12 +1777,12 @@ document.addEventListener('keydown', e => {
     else openHelpPanel();
   }
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
-  /* v2.1.763: skrót panelu dev — aktywny TYLKO w trybie dev (?dev=1). Publiczny gracz nie uruchomi panelu klawiaturą. */
+  /* v2.3.45: sekwencja otwiera GATE HASŁOWY (nie panel) — działa też w apce Electron bez ?dev=1. Panel dopiero po poprawnym haśle. */
   /* v1.9.58: guard !_typing żeby sekwencja nie budowała się gdy gracz pisze w input/textarea (audyt keyboard shortcuts) */
-  if(_snowyDevMode() && !_busyMG && !_typing && e.key.length===1&&!e.ctrlKey&&!e.altKey){
+  if(!_busyMG && !_typing && e.key.length===1&&!e.ctrlKey&&!e.altKey){
     const maxLen=Math.max(..._adminTargets.map(t=>t.length));
     _adminSeq=(_adminSeq+e.key.toLowerCase()).slice(-maxLen);
-    if(_adminTargets.some(t=>_adminSeq.endsWith(t))) openAdminPanel();
+    if(_adminTargets.some(t=>_adminSeq.endsWith(t))) _adminPasswordGate();
   }
 });
 /* v1.9.22: BUG FIX shift-stuck-key — usuwamy obie wersje case (Shift+W stores K['W']=true, releaseShift+W generuje keyup 'w' → K['W'] zostawało true forever, postać szła sama) */
@@ -56229,6 +56262,12 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.45',date:'2026-06-21',cats:['fix'],title:'🔧 Drobne poprawki techniczne i stabilności',
+ items:[
+ {t:'fix',d:'Porządki i usprawnienia techniczne pod maską. Bez zmian w rozgrywce.'}
+ ],
+ },
  {
  ver:'v2.3.44',date:'2026-06-20',cats:['change','feature'],title:'📱 Usprawnienia z dokumentu v2.3.33 — telefon, auto, przelot i powiadomienia',
  items:[
