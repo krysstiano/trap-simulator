@@ -56201,6 +56201,20 @@ function openOverlay(){
     }
   }catch(_){}
 }
+/* B1/B2 (PDF v2.3.45): „Patch Notes" / „Sterowanie" otwierane z MENU nie mogą wyglądać jak
+   rozpoczęta gra — pasek HUD (z-index:10) wystawał ponad overlay (top:62px), a Esc (l.~1673)
+   zamykał overlay zostawiając menu ukryte → gracz lądował „na środku ulicy". Gdy otwierane
+   przy WIDOCZNYM menu: zapamiętaj origin (_overlayFromMenu), ukryj HUD i menu. KAŻDA ścieżka
+   zamknięcia (Esc/przycisk/klik) przechodzi przez closeOverlay() → przywróci menu+HUD. */
+function _openMenuOverlay(){
+  const m=document.getElementById('menu');
+  if(m && m.style.display!=='none'){
+    window._overlayFromMenu=true;
+    m.style.display='none';
+    const h=document.getElementById('hud'); if(h) h.style.display='none';
+  }
+  openOverlay();
+}
 function closeOverlay(){
   if(typeof window._stopAmbience==='function') window._stopAmbience(); /* v2.1.873: stop ambience przy zamknięciu sklepu/overlay */
   // v1.8.17: finalize aktywny spin kasyna PRZED zamknięciem (zapobiega exploitowi
@@ -56210,6 +56224,13 @@ function closeOverlay(){
   window._activeCasinoFinalize=null;
   document.getElementById('overlay').classList.remove('on');
   document.getElementById('ov-content').innerHTML='';
+  /* B1/B2 (PDF v2.3.45): jeśli overlay otwarto z MENU (Patch Notes / Sterowanie) — przywróć
+     menu i HUD niezależnie od ścieżki zamknięcia (globalny Esc handler też woła closeOverlay). */
+  if(window._overlayFromMenu){
+    window._overlayFromMenu=false;
+    const _m=document.getElementById('menu'); if(_m) _m.style.display='flex';
+    const _h=document.getElementById('hud'); if(_h) _h.style.display='';
+  }
 }
 function overlayOpen(){return document.getElementById('overlay').classList.contains('on');}
 function isOverlayOpen(){
@@ -56294,14 +56315,19 @@ function showHelp(){
     <div style="text-align:center;margin-top:14px"><button onclick="restartTutorial()" style="background:#0a1525;border:1px solid #3498db;color:#7ec8e3;padding:8px 18px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px">💡 Pokaż tutorial od nowa</button></div>
     <button class="cbtn" onclick="closeOverlay();document.getElementById('menu').style.display='flex'">← Wróć do menu</button>
   `;
-  document.getElementById('menu').style.display='none';
-  openOverlay();
+  _openMenuOverlay();
 }
 
 // ═══════════════════════════════════════════════════════════════════
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.48',date:'2026-06-22',cats:['fix'],title:'🔧 Poprawki menu i ekranów informacyjnych',
+ items:[
+ {t:'fix',d:'Ekrany „Patch Notes" oraz „Sterowanie" otwierane z menu głównego nie uruchamiają już przypadkiem rozgrywki. Wcześniej u góry pojawiał się pasek gracza, a klawisz Esc przenosił wprost do gry. Teraz Esc wraca do menu, a oba panele są wyłącznie informacyjne.'}
+ ],
+ },
  {
  ver:'v2.3.47',date:'2026-06-22',cats:['fix'],title:'🔧 Drobne poprawki porządkowe',
  items:[
@@ -67448,8 +67474,7 @@ function showPatchNotes(){
     </div>
     <button class="cbtn" onclick="closeOverlay();document.getElementById('menu').style.display='flex'" style="margin-top:14px">← Wróć do menu</button>
   `;
-  document.getElementById('menu').style.display='none';
-  openOverlay();
+  _openMenuOverlay();
 }
 window.showPatchNotes=showPatchNotes;
 
