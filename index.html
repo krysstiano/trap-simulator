@@ -56569,6 +56569,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.49',date:'2026-06-22',cats:['fix','change','feature'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
+ {t:'feature',d:'Przy skrzyżowaniach w mieście pojawiły się prawdziwe znaki drogowe — STOP, pierwszeństwo, ustąp pierwszeństwa i przejście dla pieszych — narysowane jako realne kształty, nie emoji.'},
  {t:'change',d:'Wszystkie latarnie w mieście zapalają się teraz spójnie już od zmierzchu (wieczór–świt), a nie część dopiero w środku nocy — ulice są lepiej oświetlone wieczorem.'},
  {t:'feature',d:'Oferty koncertów od Marcina zależą teraz od dnia tygodnia — w weekend (piątek, sobota) propozycje występów przychodzą znacznie częściej, a w środku tygodnia częściej trafiają inne oferty (radio, sponsorzy). Łączna liczba ofert się nie zmienia — zmienia się ich charakter.'},
  {t:'change',d:'Park żyje rytmem dnia: na ławkach przesiadują ludzie tylko za dnia (8:00–21:00) i przy dobrej pogodzie — nocą oraz podczas opadów ławki są puste, a ruch pieszych w mieście wyraźnie rzednie nocą.'},
@@ -73253,9 +73254,68 @@ function _collidesWithSt(wx,wy,others,minDist){
 function _validateStPositions(arr,others=[]){
   return arr.filter(p=>!_isOnRoad(p.wx,p.wy) && !_collidesWithSt(p.wx,p.wy,others,30));
 }
+/* D6d (PDF v2.3.45): prawdziwe ZNAKI DROGOWE rysowane przy skrzyżowaniach (NIE emoji!). Kształty na canvas:
+   STOP (ośmiokąt), pierwszeństwo (żółty romb), ustąp (trójkąt), przejście (niebieski kwadrat z pieszym).
+   Pozycje na chodnikach przy skrzyżowaniach — WALIDOWANE: poza jezdnią (_isOnRoad) + bez kolizji z budynkami
+   (ROOMS.ulica.objects), dekoracjami (DB_DECORATIVE) i latarniami (#8 ZERO overlap). */
+function _signOctagon(cx,cy,r){ X.beginPath(); for(let i=0;i<8;i++){ const a=Math.PI/8+i*Math.PI/4; const px=cx+r*Math.cos(a),py=cy+r*Math.sin(a); i?X.lineTo(px,py):X.moveTo(px,py);} X.closePath(); }
+function drawSignPost(wx,wy,type){
+  const sx=wx2sx(wx), sy=wy2sy(wy);
+  if(sx<-30||sx>1320) return;
+  X.fillStyle='rgba(0,0,0,.18)'; X.beginPath(); X.ellipse(sx,sy+2,7,3,0,0,Math.PI*2); X.fill();
+  X.fillStyle='#9aa0a6'; X.fillRect(sx-2,sy-42,4,42); X.fillStyle='rgba(0,0,0,.25)'; X.fillRect(sx-2,sy-42,1.4,42);
+  const cy=sy-50;
+  if(type==='stop'){
+    X.fillStyle='#b0271b'; _signOctagon(sx,cy,11); X.fill();
+    X.strokeStyle='#fff'; X.lineWidth=1.4; _signOctagon(sx,cy,11); X.stroke();
+    X.fillStyle='#fff'; X.font='bold 6px Arial'; X.textAlign='center'; X.fillText('STOP',sx,cy+2.2); X.textAlign='left';
+  } else if(type==='priority'){
+    X.save(); X.translate(sx,cy); X.rotate(Math.PI/4);
+    X.fillStyle='#1a1a1a'; X.fillRect(-10,-10,20,20);
+    X.fillStyle='#f4c20d'; X.fillRect(-9,-9,18,18);
+    X.fillStyle='#fff'; X.fillRect(-5,-5,10,10);
+    X.fillStyle='#f4c20d'; X.fillRect(-3,-3,6,6);
+    X.restore();
+  } else if(type==='yield'){
+    X.fillStyle='#fff'; X.beginPath(); X.moveTo(sx-11,cy-9); X.lineTo(sx+11,cy-9); X.lineTo(sx,cy+10); X.closePath(); X.fill();
+    X.strokeStyle='#b0271b'; X.lineWidth=2.4; X.stroke();
+  } else {
+    X.fillStyle='#1d4ed8'; X.fillRect(sx-9,cy-9,18,18);
+    X.strokeStyle='#fff'; X.lineWidth=1; X.strokeRect(sx-9,cy-9,18,18);
+    X.fillStyle='#fff'; X.beginPath(); X.arc(sx,cy-4,2,0,Math.PI*2); X.fill(); X.fillRect(sx-1.2,cy-2,2.4,6);
+    X.fillRect(sx-3,cy+4,6,1.4);
+  }
+}
+let _roadSignCache=null;
+function _roadSigns(){
+  if(_roadSignCache) return _roadSignCache;
+  const V=[[768,960],[2208,2400],[3456,3648]], H=[[384,576],[1920,2112],[2880,3072]];
+  const TYPES=['stop','priority','yield','pedestrian']; const cand=[]; let i=0;
+  for(const [vx0,vx1] of V){ for(const [hy0,hy1] of H){
+    cand.push({wx:vx0-30, wy:hy0-22, type:TYPES[i%4]}); i++;
+    cand.push({wx:vx1+30, wy:hy1+22, type:TYPES[i%4]}); i++;
+  }}
+  const rects=[]; const pts=[];
+  try{ for(const o of ROOMS.ulica.objects){ if((o.w||0)>40&&(o.h||0)>40) rects.push({x:o.wx,y:o.wy,w:o.w,h:o.h}); } }catch(e){}
+  try{ for(const d of DB_DECORATIVE){ rects.push({x:d.wx,y:d.wy,w:d.w,h:d.h}); } }catch(e){}
+  for(const wy of [378,670,1918,2204,2878,3164]){ for(let wx=160;wx<4400;wx+=400){ pts.push({wx,wy}); } }
+  // drzewa uliczne (drawTrees) — dodatkowe punkty kolizji #8
+  for(const tp of [[80,60],[180,60],[350,60],[800,60],[950,60],[100,650],[200,650],[400,650],[700,650]]) pts.push({wx:tp[0],wy:tp[1]});
+  const M=14;
+  _roadSignCache=cand.filter(s=>{
+    if(_isOnRoad(s.wx,s.wy)) return false;
+    for(const r of rects){ if(s.wx>=r.x-M && s.wx<=r.x+r.w+M && s.wy>=r.y-M && s.wy<=r.y+r.h+M) return false; }
+    for(const p of pts){ if(Math.hypot(p.wx-s.wx,p.wy-s.wy)<34) return false; }
+    return true;
+  });
+  return _roadSignCache;
+}
+window._roadSignPositions=_roadSigns;
+function drawRoadSigns(){ if(currentRoom!=='ulica') return; for(const s of _roadSigns()){ drawSignPost(s.wx,s.wy,s.type); } }
 function drawStreetDetails(){
   if(currentRoom!=='ulica')return;
   const t=Date.now();
+  drawRoadSigns(); // D6d: znaki drogowe przy skrzyżowaniach (walidowane, bez overlap)
 
   // ── DONICE Z KWIATAMI przed sklepami ──
   // Każdy sklep komercyjny ma 2 donice po bokach wejścia
