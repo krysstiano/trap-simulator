@@ -3852,7 +3852,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'penthouse_antenna': drawPenthouseAntenna(sx,sy,w,h);break;
     case 'meble':        drawBuilding(sx,sy,w,h,'#003087','','#FFDA1A',null,true,{commercial:true});drawNorthRoomSign(sx,sy,w,h);break;
     case 'zlomowisko':   drawBuilding(sx,sy,w,h,'#2a2620','Metal Valley Yard','#95a5a6','',true,{commercial:true});drawScrapyardExtras(sx,sy,w,h);break; /* v2.1.916 PDF */
-    case 'jysk':         drawBuilding(sx,sy,w,h,'#0a3a6a','NorthRoom Interiors','#ffffff','',true,{commercial:true});break; /* v2.1.917 PDF — niebiesko-biały brand */
+    case 'jysk':         drawBuilding(sx,sy,w,h,'#0a3a6a','Meblux','#ffffff','',true,{commercial:true});break; /* v2.1.917 PDF — niebiesko-biały brand */
     case 'pepco':        drawBuilding(sx,sy,w,h,'#5a1030','Backstreet Thrift','#ffffff','',true,{commercial:true});break; /* v2.1.918 PDF — magenta brand */
     case 'striptiz':     drawBuilding(sx,sy,w,h,'#1a0820','','#e91e8c','',true,{commercial:true});drawVelvetSign(sx,sy,w,h);break; /* U7 (v2.3.44 PDF): szyld neon handwritten „Velvet Room" zamiast generycznej nazwy */
     /* v2.1.930: wnętrze klubu striptiz */
@@ -55365,6 +55365,17 @@ const MAP_LANDMARKS=[
   {wx:3995,wy:749, name:'🦴 PetSide Market', cat:'shop'},
   {wx:4165,wy:749, name:'🩺 Pod Ogonem', cat:'health'},
 ];
+/* Tier 3 / 3c (PDF v2.3.45): MAPA pokazuje nazwę SYSTEMOWĄ (funkcję miejsca), bez emoji.
+   Budynki mają już nazwy własne (brandy) na szyldach → mapa = funkcja. Strip wiodących emoji/symboli
+   + zamiana brandów na nazwy systemowe. Quest-piny matchują po wx/wy (NIE po nazwie) → bezpieczne. */
+(function(){
+  const SYS={'VoltHouse':'Sklep RTV i AGD','BeatPoint':'Sklep muzyczny','RepZone Fitness':'Siłownia','Ubrania':'Sklep z ubraniami','Salon Aut':'Salon aut','Radio Street':'Stacja radiowa','Barber Point':'Fryzjer','NorthRoom':'Sklep meblowy','Metal Valley Yard':'Złomowisko','Meblux':'Sklep meblowy','Backstreet Thrift':'Lumpeks','Szpital Nova Cura':'Szpital','808 Arena':'Sala koncertowa','Pizza Patrol':'Pizzeria','Splash & Go':'Myjnia','Kasyno Royal':'Kasyno','Dom dla Łapy':'Schronisko','PetSide Market':'Sklep zoologiczny','Pod Ogonem':'Weterynarz'};
+  for(const lm of MAP_LANDMARKS){
+    let n=(lm.name||'').replace(/^[^\p{L}\p{N}]+/u,'').trim();
+    if(SYS[n]) n=SYS[n];
+    lm.name=n;
+  }
+})();
 
 // Dynamiczne dodanie NPC z prawdziwych pozycji ROOMS.ulica.objects
 // (poprzednio hardkodowane pozycje były nieaktualne — Producent pokazywał się w innym miejscu niż faktycznie stoi)
@@ -55543,7 +55554,7 @@ function openFullMap(){
     // Drip district label
     const dripLabel=document.createElement('div');
     dripLabel.style.cssText=`position:absolute;left:${(2596*scale+3244*scale)/2}px;top:${(2629-30)*scale}px;background:#c8a520;color:#000;padding:4px 8px;border-radius:5px;font-size:14px;font-weight:900;white-space:nowrap;pointer-events:none;transform:translate(-50%,-50%);box-shadow:0 2px 8px rgba(200,165,32,.6);font-family:inherit;letter-spacing:1px`;
-    dripLabel.textContent='💎 DZIELNICA DRIPU';
+    dripLabel.textContent='DZIELNICA DRIPU';
     wrap.appendChild(dripLabel);
     /* v2.1.184: User feedback "żółte paski na środku ulicy obok dripu" — quest target piny (np. firstjob multi-target Myjnia/Budowa/Kurier/Pizzeria z wy=2280) NAKŁADAŁY SIĘ na zwykłe MAP_LANDMARKS labels (te same wx, wy=2288 — różnica 8px). Fix: tolerancja ±20px na wx/wy match. */
     const _qTgt=(typeof _storylineTargetLoc==='function')?_storylineTargetLoc():null;
@@ -56431,7 +56442,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.49',date:'2026-06-22',cats:['fix','change','feature'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
- {t:'change',d:'Budynki w mieście dostały własne nazwy i szyldy (np. Splash & Go, Nova Cura, 808 Arena, Garage 77, Barber Point, CityDrive Motors) zamiast ogólnych etykiet i emotek — miasto wygląda bardziej wiarygodnie i mniej kiczowato.'},
+ {t:'change',d:'Budynki w mieście dostały własne nazwy i szyldy (np. Splash & Go, Nova Cura, 808 Arena, Garage 77, Barber Point, CityDrive Motors) zamiast ogólnych etykiet i emotek, a mapa miasta pokazuje teraz funkcję miejsca (Myjnia, Szpital, Siłownia, Sklep RTV i AGD…) również bez emotek. Miasto wygląda bardziej wiarygodnie i mniej kiczowato.'},
  {t:'feature',d:'Po wykonaniu pierwszej pracy dorywczej gra podpowiada, że w telefonie (Kariera → Gigi) czekają też inne szybkie zlecenia — łatwiej znaleźć dodatkowe źródła zarobku na starcie.'},
  {t:'fix',d:'Drobna poprawka w korespondencji SMS: w jednym z wątków fabularnych nie pojawiają się już niepasujące, gotowe odpowiedzi — rozmowa toczy się tylko wtedy, gdy prowadzi ją druga strona.'},
  {t:'change',d:'Drobne porządki wizualne: usunięto zbędną ikonkę telefonu z nagłówka smartfona oraz emotkę pauzy z ekranu pauzy (zastąpioną prostą, czystą ikoną).'},
