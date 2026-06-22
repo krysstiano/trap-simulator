@@ -967,12 +967,13 @@ body.mobile-pregame #gc, body.mobile-pregame #hud, body.mobile-pregame #dmg-over
   <h1>TRAP SIMULATOR</h1>
   <div class="msub">Twoja droga na szczyt</div>
   <div id="slot-panel" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;min-width:260px"></div>
-  <button class="mbtn" onclick="newGameFromMenu()">▶  Nowa gra</button>
-  <button class="mbtn" id="mloadfile" style="display:none;border-color:#3498db;color:#7ec8e3" onclick="loadSaveFromFile()">📂  Wczytaj save z pliku</button>
-  <button class="mbtn" id="mtrash" style="border-color:#aa6020;color:#f1c40f" onclick="openTrashBin()">🗑  Kosz (usunięte save'y)</button>
-  <button class="mbtn" onclick="showHelp()">?  Sterowanie</button>
-  <button class="mbtn" onclick="showPatchNotes()" style="border-color:#c8a520;color:#f1c40f">📜  Patch Notes</button>
-  <button class="mbtn" onclick="window.close()">✕  Wyjście</button>
+  <!-- U1+U2 (PDF v2.3.45): bez emoji w polach menu (mniej kiczowato); „Sterowanie" przeniesione do „Ustawienia". -->
+  <button class="mbtn" onclick="newGameFromMenu()">Nowa gra</button>
+  <button class="mbtn" id="mloadfile" style="display:none;border-color:#3498db;color:#7ec8e3" onclick="loadSaveFromFile()">Wczytaj save z pliku</button>
+  <button class="mbtn" id="mtrash" style="border-color:#aa6020;color:#f1c40f" onclick="openTrashBin()">Kosz (usunięte save'y)</button>
+  <button class="mbtn" onclick="showMenuSettings()">Ustawienia</button>
+  <button class="mbtn" onclick="showPatchNotes()" style="border-color:#c8a520;color:#f1c40f">Patch Notes</button>
+  <button class="mbtn" onclick="window.close()">Wyjście</button>
   <div class="ver">Trap Simulator v2.0.11</div>
 </div>
 
@@ -55821,7 +55822,7 @@ const TUTORIAL_STEPS=[
    goal:'Prześpij się w łóżku w swoim mieszkaniu',
    done:()=>(G._tutStat?.slept||0)>0},
   {icon:'💾',color:'#1abc9c',title:'Auto-save',
-   body:'Gra <strong>zapisuje się sama co 30 sekund</strong>. Ręczny zapis ikoną dyskietki w mieszkaniu. <strong style="color:#f1c40f">Powodzenia w karierze rapera!</strong> 🎤',
+   body:'Gra <strong>zapisuje się sama co 5 minut</strong> oraz przy ważnych akcjach. Ręczny zapis ikoną dyskietki w mieszkaniu. <strong style="color:#f1c40f">Powodzenia w karierze rapera!</strong> 🎤',
    goal:'',
    done:()=>true}
 ];
@@ -56325,6 +56326,22 @@ function mgOpen(){
 }
 function showMenu(){closeOverlay();document.getElementById('menu').style.display='flex';}
 
+/* U1 (PDF v2.3.45): menu „Ustawienia" — hub z grafiką/dźwiękiem/efektami oraz przeniesionym
+   „Sterowaniem". Otwiera się jak inne panele menu (_openMenuOverlay → chowa menu+HUD, Esc→menu). */
+function showMenuSettings(){
+  document.getElementById('ov-content').innerHTML=`
+    <h2>Ustawienia</h2><p class="sub">Dostosuj grę do siebie</p>
+    <div style="display:flex;flex-direction:column;gap:12px;max-width:440px;margin:6px auto 0">
+      <button class="bbtn" style="width:100%;text-align:left;padding:14px 18px" onclick="if(window._openGameSettings)window._openGameSettings()">🎨 Grafika, dźwięk i efekty
+        <div style="font-size:11px;color:#7a8aa0;font-weight:400;margin-top:3px">Jakość obrazu, FPS, głośność, filtry i shadery</div></button>
+      <button class="bbtn" style="width:100%;text-align:left;padding:14px 18px" onclick="showHelp()">⌨ Sterowanie i skróty
+        <div style="font-size:11px;color:#7a8aa0;font-weight:400;margin-top:3px">Klawisze ruchu, interakcji i podpowiedzi jak grać</div></button>
+    </div>
+    <button class="cbtn" onclick="closeOverlay();document.getElementById('menu').style.display='flex'" style="margin-top:16px">← Wróć do menu</button>
+  `;
+  _openMenuOverlay();
+}
+window.showMenuSettings=showMenuSettings;
 function showHelp(){
   document.getElementById('ov-content').innerHTML=`
     <h2>⌨️ Sterowanie</h2><p class="sub">Skróty klawiszowe i jak grać</p>
@@ -56343,7 +56360,7 @@ function showHelp(){
           <div><kbd style="background:#1a2535;border:1px solid #2a3a50;border-radius:4px;padding:2px 8px;color:#7ec8e3">P</kbd> — telefon</div>
           <div><kbd style="background:#1a2535;border:1px solid #2a3a50;border-radius:4px;padding:2px 8px;color:#7ec8e3">M</kbd> — pełna mapa</div>
           <div><kbd style="background:#1a2535;border:1px solid #2a3a50;border-radius:4px;padding:2px 8px;color:#7ec8e3">Esc</kbd> — zamknij okno</div>
-          <div style="font-size:12px;color:#7ec87e;margin-top:6px">💾 Auto-zapis co 30 s</div>
+          <div style="font-size:12px;color:#7ec87e;margin-top:6px">💾 Auto-zapis co 5 min</div>
         </div>
       </div>
       <div>
@@ -56372,8 +56389,10 @@ function showHelp(){
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
  {
- ver:'v2.3.49',date:'2026-06-22',cats:['fix'],title:'🔧 Usprawnienia interakcji i interfejsu',
+ ver:'v2.3.49',date:'2026-06-22',cats:['fix','change'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
+ {t:'change',d:'Menu główne uporządkowane: pojawiło się pole „Ustawienia" (grafika, dźwięk, efekty oraz sterowanie w jednym miejscu), a pozostałe pola menu są czytelniejsze, bez ikonek.'},
+ {t:'change',d:'Auto-zapis odbywa się teraz co 5 minut zamiast co 30 sekund. Gra nadal zapisuje się natychmiast przy ważnych akcjach, więc postęp jest bezpieczny.'},
  {t:'fix',d:'Sejf w mieszkaniu otwiera się teraz we własnym oknie po podejściu i wciśnięciu E. Wcześniej otwierał aplikację w telefonie, przez co klawisz Esc cofał po menu telefonu zamiast po prostu zamknąć sejf. Gotówkę wpłacasz i wypłacasz bez limitu bezpośrednio w sejfie.'},
  {t:'fix',d:'Po przekazaniu datku Harnoldowi okno rozmowy zamyka się teraz samo. Wcześniej zostawało otwarte, a na wierzchu pojawiało się zielone powiadomienie, przez co trzeba było zamykać je klawiszem Esc.'}
  ],
@@ -69571,8 +69590,8 @@ function startAutoSave(){
     // v1.8.24: nie zapisuj w środku minigry — niezbalansowany stan (np. concert MG po starcie ale przed _finalize)
     if(typeof mgOpen==='function' && mgOpen()) return;
     if(typeof _restTimer!=='undefined' && _restTimer) return;
-    saveGameSilentNow(); /* v1.9.12: timer 30s = immediate, nie potrzebuje debounce */
-  },30000);
+    saveGameSilentNow(); /* timer = immediate, nie potrzebuje debounce */
+  },300000); /* U5 (PDF v2.3.45): auto-zapis co 5 min (było 30s). Zapis natychmiastowy na starcie (saveGameSilentNow wyżej) i przy kluczowych akcjach pozostaje. */
 }
 function newGameFromMenu(){
   // Sprawdź czy są jakieś sloty zajęte
