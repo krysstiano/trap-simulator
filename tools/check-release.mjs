@@ -46,7 +46,7 @@ ok(badges.length > 0 && badges.every(b => b === vTag), `website badge-ver (staty
 
 ok(fs.existsSync(path.join(ROOT, 'electron/preload.js')), 'electron/preload.js obecny (most auto-update)');
 ok(fs.existsSync(path.join(ROOT, 'electron/build/installer.nsh')), 'electron/build/installer.nsh obecny (checkboxy skrótów)');
-ok(/command\s*=\s*"node website\/gen-patchnotes\.cjs"/.test(fs.readFileSync(path.join(ROOT, 'netlify.toml'), 'utf8')), 'netlify.toml ma build command (auto-regeneracja changelogu)');
+ok(/node website\/gen-patchnotes\.cjs/.test(fs.readFileSync(path.join(ROOT, '.github/workflows/deploy-website.yml'), 'utf8')), 'deploy-website.yml regeneruje changelog (auto-deploy Cloudflare Pages na push)');
 
 console.log('\n' + (FAIL === 0 ? '🟢 SPÓJNE — wszystkie artefakty na ' + vTag + ', można publikować' : '🔴 NIESPÓJNE — ' + FAIL + ' rozjazdów, NIE publikować'));
 process.exit(FAIL === 0 ? 0 : 1);
