@@ -55660,7 +55660,7 @@ function openFullMap(){
     let z=_mapZoom;
     z+=(e.deltaY<0?0.2:-0.2);
     z=Math.max(0.5, Math.min(3, z));
-    if(Math.abs(z-_mapZoom)>0.01) renderMap(z);
+    if(Math.abs(z-_mapZoom)>0.01) _smoothZoomTo(z); /* M3: płynny zoom zamiast skoku */
   };
   sc.addEventListener('wheel',wheelH,{passive:false});
   // Drag — chwyc i przesuwaj
@@ -55717,13 +55717,39 @@ function openFullMap(){
   const ctrls=document.getElementById('fmap-controls');
   if(ctrls){
     const btnStyle='background:#1a3a5a;border:1px solid #7ec8e3;color:#7ec8e3;width:26px;height:24px;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;line-height:1;padding:0;margin:0 2px;vertical-align:middle';
-    ctrls.innerHTML='🖱️ Scroll/<kbd style="background:#1a2535;padding:1px 5px;border-radius:3px;color:#7ec8e3">+</kbd>/<kbd style="background:#1a2535;padding:1px 5px;border-radius:3px;color:#7ec8e3">-</kbd> = zoom · Drag = przesuwaj · <kbd style="background:#1a2535;padding:1px 5px;border-radius:3px;color:#7ec8e3">ESC</kbd>/<kbd style="background:#1a2535;padding:1px 5px;border-radius:3px;color:#7ec8e3">M</kbd> = zamknij · Zoom: <span id="fmap-zoom">'+Math.round(_mapZoom*100)+'%</span>'+
+    ctrls.innerHTML='Scroll/<kbd style="background:#1a2535;padding:1px 5px;border-radius:3px;color:#7ec8e3">+</kbd>/<kbd style="background:#1a2535;padding:1px 5px;border-radius:3px;color:#7ec8e3">-</kbd> = zoom · Drag = przesuwaj · <kbd style="background:#1a2535;padding:1px 5px;border-radius:3px;color:#7ec8e3">ESC</kbd>/<kbd style="background:#1a2535;padding:1px 5px;border-radius:3px;color:#7ec8e3">M</kbd> = zamknij · Zoom: <span id="fmap-zoom">'+Math.round(_mapZoom*100)+'%</span>'+
       ' <button onclick="window._mapZoomOut()" style="'+btnStyle+'" title="Pomniejsz (-)">−</button>'+
       '<button onclick="window._mapZoomIn()" style="'+btnStyle+'" title="Powiększ (+)">+</button>'+
       (_onStreet?'':' · <span style="color:#f1c40f">🏠 jesteś w budynku — wyjdź na ulicę, by zobaczyć swoją pozycję</span>'); /* v2.3.30: info we wnętrzu (brak markera TY) */
   }
-  window._mapZoomIn=()=>{const z=Math.min(3,_mapZoom+0.2);if(z!==_mapZoom)renderMap(z);};
-  window._mapZoomOut=()=>{const z=Math.max(0.5,_mapZoom-0.2);if(z!==_mapZoom)renderMap(z);};
+  /* M3 (PDF v2.3.45): płynny zoom — subtelna animacja (transform scale canvasu z focal-point w centrum
+     widoku), zamiast skokowego przerysowania. Pełny renderMap dopiero na końcu animacji (ostrość). */
+  let _mapZoomAnimRaf=null;
+  function _smoothZoomTo(target){
+    target=Math.max(0.5,Math.min(3,Math.round(target*100)/100));
+    const start=_mapZoom;
+    if(Math.abs(target-start)<0.001) return;
+    const cv=wrap.querySelector('canvas');
+    if(!cv){ renderMap(target); return; }
+    const ox=sc.scrollLeft+sc.clientWidth/2, oy=sc.scrollTop+sc.clientHeight/2; // focal = centrum widoku
+    cv.style.transformOrigin=ox+'px '+oy+'px';
+    if(_mapZoomAnimRaf) cancelAnimationFrame(_mapZoomAnimRaf);
+    const t0=Date.now(), dur=170, zEl=document.getElementById('fmap-zoom');
+    const stepFn=()=>{
+      const p=Math.min(1,(Date.now()-t0)/dur);
+      const e=1-Math.pow(1-p,3); // ease-out cubic
+      const cur=start+(target-start)*e;
+      cv.style.transform='scale('+(cur/start)+')';
+      if(zEl) zEl.textContent=Math.round(cur*100)+'%';
+      if(p<1){ _mapZoomAnimRaf=requestAnimationFrame(stepFn); }
+      else { cv.style.transform='';cv.style.transformOrigin=''; const ratio=target/start; renderMap(target);
+        sc.scrollLeft=ox*ratio - sc.clientWidth/2; sc.scrollTop=oy*ratio - sc.clientHeight/2; }
+    };
+    _mapZoomAnimRaf=requestAnimationFrame(stepFn);
+  }
+  window._smoothMapZoomTo=_smoothZoomTo;
+  window._mapZoomIn=()=>{const z=Math.min(3,_mapZoom+0.2);if(z!==_mapZoom)_smoothZoomTo(z);};
+  window._mapZoomOut=()=>{const z=Math.max(0.5,_mapZoom-0.2);if(z!==_mapZoom)_smoothZoomTo(z);};
 
   // Cleanup gdy mapa zamknieta
   _mapDragHandlers={cleanup:()=>{
@@ -56442,6 +56468,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.49',date:'2026-06-22',cats:['fix','change','feature'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
+ {t:'change',d:'Mapa miasta: przybliżanie i oddalanie (kółko myszy, przyciski +/−, klawisze) działa teraz płynnie, bez skokowych przeskoków. Z opisu nad mapą usunięto zbędną ikonkę myszki.'},
  {t:'change',d:'Budynki w mieście dostały własne nazwy i szyldy (np. Splash & Go, Nova Cura, 808 Arena, Garage 77, Barber Point, CityDrive Motors) zamiast ogólnych etykiet i emotek, a mapa miasta pokazuje teraz funkcję miejsca (Myjnia, Szpital, Siłownia, Sklep RTV i AGD…) również bez emotek. Miasto wygląda bardziej wiarygodnie i mniej kiczowato.'},
  {t:'feature',d:'Po wykonaniu pierwszej pracy dorywczej gra podpowiada, że w telefonie (Kariera → Gigi) czekają też inne szybkie zlecenia — łatwiej znaleźć dodatkowe źródła zarobku na starcie.'},
  {t:'fix',d:'Drobna poprawka w korespondencji SMS: w jednym z wątków fabularnych nie pojawiają się już niepasujące, gotowe odpowiedzi — rozmowa toczy się tylko wtedy, gdy prowadzi ją druga strona.'},
