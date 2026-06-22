@@ -1306,6 +1306,25 @@ const P = {
 let anim = 0;
 let weatherTick = 0;
 let gameMin = 360; // Start at 06:00 (6*60=360 minutes)
+/* D1 (PDF v2.3.45): system DNI TYGODNIA. dayIndex = (G.day-1)%7 (0=Poniedziałek). Profile dni →
+   mnożniki ruchu/nightlife/pracy/koncertów/undergroundu (tabele PDF l.1287-1335). Używane przez
+   koncerty Marcina (D2), ruch NPC (D3/D4), Underground/sklepy (D7). Read-only z G.day — bez zmiany save. */
+const DAY_NAMES_PL=['Poniedziałek','Wtorek','Środa','Czwartek','Piątek','Sobota','Niedziela'];
+const DAY_ABBR_PL=['Pn','Wt','Śr','Cz','Pt','So','Nd'];
+const DAY_PROFILES=[
+  {cityTraffic:0.80,nightlife:0.40,work:1.10,concert:0.05,underground:0.60}, // Pn
+  {cityTraffic:0.90,nightlife:0.50,work:1.10,concert:0.08,underground:0.70}, // Wt
+  {cityTraffic:1.00,nightlife:0.70,work:1.00,concert:0.12,underground:0.80}, // Śr
+  {cityTraffic:1.05,nightlife:0.95,work:1.00,concert:0.20,underground:0.90}, // Cz
+  {cityTraffic:1.25,nightlife:1.50,work:0.85,concert:0.35,underground:1.40}, // Pt
+  {cityTraffic:1.35,nightlife:1.75,work:0.60,concert:0.45,underground:1.60}, // So
+  {cityTraffic:0.75,nightlife:0.45,work:0.40,concert:0.10,underground:0.70}, // Nd
+];
+function _dayOfWeek(){ return (((typeof G!=='undefined'&&G.day)||1)-1)%7; } // 0=Poniedziałek
+function _getDayName(){ return DAY_NAMES_PL[_dayOfWeek()]; }
+function _getDayAbbr(){ return DAY_ABBR_PL[_dayOfWeek()]; }
+function _getDayProfile(){ return DAY_PROFILES[_dayOfWeek()]||DAY_PROFILES[2]; }
+window._dayOfWeek=_dayOfWeek; window._getDayName=_getDayName; window._getDayProfile=_getDayProfile;
 let lastClockReal = Date.now();
 let npcCooldowns = {}; // key: "npcType_optIdx", value: timestamp
 // City life entities
@@ -55071,13 +55090,13 @@ function updateHUD(){
     _hfol.classList.add('num-tick');
   }
   window._prevHudFollow=G.fans;
-  document.getElementById('hday').textContent='Dzień '+G.day;
+  document.getElementById('hday').textContent='Dzień '+G.day+' · '+_getDayAbbr(); /* D1: dzień tygodnia */
   // Pora dnia jako emoji obok zegara (Rano/Południe/Wieczór/Noc)
   const _poraIco=['🌅','☀️','🌆','🌙'][G.timeOfDay]||'🌅';
   const _hpIcon=document.getElementById('hporaIcon');
   if(_hpIcon){_hpIcon.textContent=_poraIco;_hpIcon.title=CFG.PORA[G.timeOfDay]||'';}
   const _hcb=document.getElementById('hclock-block');
-  if(_hcb)_hcb.title=`Dzień ${G.day} · ${CFG.PORA[G.timeOfDay]||''}`;
+  if(_hcb)_hcb.title=`Dzień ${G.day} · ${_getDayName()} · ${CFG.PORA[G.timeOfDay]||''}`;
   const _hlvl=document.getElementById('hlvl');
   _hlvl.textContent='Lvl '+G.level+(G.skillPoints>0?' 🎯'+G.skillPoints:'');
   // Pulsuj gdy są nieużyte punkty umiejętności
@@ -56508,6 +56527,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.49',date:'2026-06-22',cats:['fix','change','feature'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
+ {t:'feature',d:'Do gry doszedł system dni tygodnia — w pasku informacyjnym u góry widać teraz dzień tygodnia (Pn-Nd). To fundament pod bardziej żywy rytm miasta: w kolejnych usprawnieniach ruch, koncerty i nocne życie zaczną zależeć od dnia.'},
  {t:'feature',d:'Nad mapą miasta pojawił się przycisk „Legenda" — po kliknięciu pokazuje rozpiskę wszystkich miejsc i postaci na mapie, pogrupowanych w kategorie z kolorami.'},
  {t:'change',d:'Pełna mapa miasta (klawisz M) otwiera się teraz wyśrodkowana na Twojej aktualnej pozycji, zamiast od rogu — od razu widzisz, gdzie jesteś.'},
  {t:'change',d:'Mapa miasta: przybliżanie i oddalanie (kółko myszy, przyciski +/−, klawisze) działa teraz płynnie, bez skokowych przeskoków. Z opisu nad mapą usunięto zbędną ikonkę myszki.'},
