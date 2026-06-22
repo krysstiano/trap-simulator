@@ -24238,6 +24238,26 @@ function generateDailyQuest(){
   addNotif('❓ Nowe zlecenie dnia: '+q.desc+' (Nagroda: '+q.reward+' zł)');
 }
 
+/* U7 (PDF v2.3.45): jednorazowe okno dialogowe-wskazówka o szybkich pracach „Gigi" w telefonie,
+   pokazywane po pierwszej pracy dorywczej. Opóźnione, by nie kolidować z ekranem wyniku pracy. */
+window._showGigiInfo=function(){
+  setTimeout(()=>{
+    try{
+      if(document.getElementById('gigi-info-modal')) return;
+      const ov=document.createElement('div'); ov.id='gigi-info-modal';
+      ov.style.cssText='position:fixed;inset:0;z-index:9100;background:rgba(0,0,0,.72);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;font-family:inherit';
+      const card=document.createElement('div');
+      card.style.cssText='background:linear-gradient(160deg,#0d1828,#0a1018);border:2px solid #3498db;border-radius:14px;padding:24px 28px;max-width:430px;text-align:center;color:#e8f0f8;box-shadow:0 0 50px rgba(52,152,219,.3)';
+      card.innerHTML='<div style="font-size:38px;margin-bottom:6px">💼</div><h2 style="color:#5dade2;margin:0 0 8px;font-size:20px">Pierwsza praca dorywcza!</h2><p style="font-size:14px;line-height:1.6;color:#b8c8d8;margin:0 0 16px">Dobra robota. To nie wszystko — w telefonie czekają też inne szybkie zlecenia. Otwórz <b>Telefon → Kariera → Gigi</b>, żeby zobaczyć dostępne oferty dorywcze.</p>';
+      const btn=document.createElement('button');
+      btn.textContent='Jasne!';
+      btn.style.cssText='background:#0a2a4a;border:1px solid #3498db;color:#7ec8e3;padding:10px 26px;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:700';
+      btn.addEventListener('click',()=>ov.remove());
+      ov.addEventListener('click',(e)=>{ if(e.target===ov) ov.remove(); });
+      card.appendChild(btn); ov.appendChild(card); document.body.appendChild(ov);
+    }catch(e){}
+  }, 1200);
+};
 function progressQuest(target){
   // Licznik wykonanych prac dorywczych (storyline #1 — Pierwsza wypłata)
   // Zlicza TYLKO faktyczne ukończenia minigier prac, nie eventów/darowizn.
@@ -24245,6 +24265,13 @@ function progressQuest(target){
     G._jobsCompleted=(G._jobsCompleted||0)+1;
     /* v2.1.628: drop składnika craftingu (~35%) — zasila warsztat. */
     try{ window._maybeJobMaterial&&window._maybeJobMaterial(); }catch(e){}
+    /* U7 (PDF v2.3.45): po PIERWSZEJ „światowej" pracy dorywczej (nie-Gigi) jednorazowa wskazówka
+       o szybkich pracach „Gigi" w telefonie (Kariera → Gigi). Flaga jednorazowa; modal tylko gdy to
+       faktycznie pierwsza praca (weteranom ze starych save'ów nie wyskakuje). */
+    if(['pizza','supermarket','carwash','construction','kurier','zmywak'].includes(target) && !G._gigiInfoShown){
+      G._gigiInfoShown=true;
+      if((G._jobsCompleted||0)<=1 && typeof window._showGigiInfo==='function') window._showGigiInfo();
+    }
   }
   /* v2.1.627 (system przedmiotów krok 3 — questowe): pętla "Pilna przesyłka". Na trasie kuriera czasem dostajesz
      paczkę (quest item), którą dostarczasz NA NASTĘPNEJ trasie (jeśli wciąż ją masz i nie minął deadline). */
@@ -56392,8 +56419,9 @@ function showHelp(){
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
  {
- ver:'v2.3.49',date:'2026-06-22',cats:['fix','change'],title:'🔧 Usprawnienia interakcji i interfejsu',
+ ver:'v2.3.49',date:'2026-06-22',cats:['fix','change','feature'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
+ {t:'feature',d:'Po wykonaniu pierwszej pracy dorywczej gra podpowiada, że w telefonie (Kariera → Gigi) czekają też inne szybkie zlecenia — łatwiej znaleźć dodatkowe źródła zarobku na starcie.'},
  {t:'change',d:'Drobne porządki wizualne: usunięto zbędną ikonkę telefonu z nagłówka smartfona oraz emotkę pauzy z ekranu pauzy (zastąpioną prostą, czystą ikoną).'},
  {t:'fix',d:'W przelocie kamery nad miastem kroki przewijasz teraz wyłącznie strzałkami (klawiszami lub ikonami w rogu). Klawisze A i D już nie przeskakują kroków, więc po wyjściu z mieszkania nie pominiesz przypadkiem prezentacji miasta.'},
  {t:'change',d:'Menu główne uporządkowane: pojawiło się pole „Ustawienia" (grafika, dźwięk, efekty oraz sterowanie w jednym miejscu), a pozostałe pola menu są czytelniejsze, bez ikonek.'},
