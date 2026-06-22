@@ -265,6 +265,11 @@
       // Dynamiczny badge wersji — zawsze najnowszy wpis (nigdy się nie zestarzeje).
       var _topVer = (data[0] && data[0].ver) ? data[0].ver : null;
       if (_topVer) { var _vb = document.querySelectorAll('.badge-ver'); for (var _i = 0; _i < _vb.length; _i++) _vb[_i].textContent = _topVer; }
+      // Licznik aktualizacji w pasku statystyk — zaokrąglony w dół do setki (np. 1372 → "1300+"),
+      // liczba pobierana z danych, więc nigdy się nie zestarzeje.
+      var _su = document.getElementById('statUpdates');
+      if (_su && data.length) { _su.setAttribute('data-count', String(Math.max(100, Math.floor(data.length / 100) * 100))); }
+      if (window.__initStatCounters) window.__initStatCounters();
       buildFilters();
       initSearch();
       applyFilters();
@@ -365,10 +370,10 @@
     t++; var W = cv.width, H = cv.height, base = H, k, s, ly, bld, cx, cy, e;
     ctx.clearRect(0, 0, W, H);
     var g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, 'rgba(7,10,24,0)'); g.addColorStop(1, '#070a18'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    for (k = 0; k < stars.length; k++) { s = stars[k]; var tw = 0.5 + 0.5 * Math.sin(t * 0.04 + s.p); ctx.fillStyle = 'rgba(180,210,255,' + (0.1 + tw * 0.4) + ')'; ctx.fillRect(s.x * W, s.y * H, s.s, s.s); }
+    for (k = 0; k < stars.length; k++) { s = stars[k]; var tw = 0.5 + 0.5 * Math.sin(t * 0.016 + s.p); ctx.fillStyle = 'rgba(180,210,255,' + (0.1 + tw * 0.4) + ')'; ctx.fillRect(s.x * W, s.y * H, s.s, s.s); }
     for (var li = 0; li < layers.length; li++) { ly = layers[li]; for (var bi = 0; bi < ly.b.length; bi++) { bld = ly.b[bi]; ctx.fillStyle = ly.col; ctx.fillRect(bld.x, base - bld.h, bld.w, bld.h);
       var cc = Math.max(2, Math.floor(bld.w / 12)), rr = Math.max(3, Math.floor(bld.h / 16));
-      for (cx = 0; cx < cc; cx++) for (cy = 0; cy < rr; cy++) { if (((cx * 7 + cy * 13 + bld.seed) % 5) === 0) { var tw2 = 0.4 + 0.6 * Math.sin(t * 0.06 + cx + cy + bld.x); ctx.fillStyle = neon[(cx + cy + bld.seed) % neon.length]; ctx.globalAlpha = 0.2 + tw2 * 0.5; ctx.fillRect(bld.x + 6 + cx * 12, base - bld.h + 8 + cy * 16, 4, 5); ctx.globalAlpha = 1; } } } }
+      for (cx = 0; cx < cc; cx++) for (cy = 0; cy < rr; cy++) { if (((cx * 7 + cy * 13 + bld.seed) % 5) === 0) { var tw2 = 0.5 + 0.5 * Math.sin(t * 0.013 + cx * 0.7 + cy * 1.3 + bld.x); ctx.fillStyle = neon[(cx + cy + bld.seed) % neon.length]; ctx.globalAlpha = 0.34 + tw2 * 0.42; ctx.fillRect(bld.x + 6 + cx * 12, base - bld.h + 8 + cy * 16, 4, 5); ctx.globalAlpha = 1; } } } }
     for (k = 0; k < ember.length; k++) { e = ember[k]; e.y += e.vy; e.a -= 0.003; if (e.y < 0 || e.a <= 0) { e.y = H + 5; e.x = Math.random() * W; e.a = 0.5 + Math.random() * 0.4; } ctx.fillStyle = 'rgba(241,196,15,' + (Math.max(0, e.a) * 0.5) + ')'; ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, 6.283); ctx.fill(); }
     raf = requestAnimationFrame(draw);
   }
@@ -402,4 +407,69 @@
   closeBtn.addEventListener('click', closeLb);
   vlb.addEventListener('click', function (e) { if (e.target === vlb) closeLb(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !vlb.hidden) closeLb(); });
+})();
+
+/* ===================================================================
+   v2.3.48 — efekty interaktywne (reflektor hero, count-up, tilt 3D)
+   Wszystko wyłączane przy prefers-reduced-motion.
+   =================================================================== */
+(function interactive() {
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---- Reflektor w hero podążający za kursorem ---- */
+  (function heroSpotlight() {
+    if (reduce) return;
+    var hero = document.querySelector('.hero'), spot = document.getElementById('heroSpot');
+    if (!hero || !spot) return;
+    hero.addEventListener('pointermove', function (e) {
+      var r = hero.getBoundingClientRect();
+      spot.style.setProperty('--mx', ((e.clientX - r.left) / r.width * 100).toFixed(1) + '%');
+      spot.style.setProperty('--my', ((e.clientY - r.top) / r.height * 100).toFixed(1) + '%');
+    });
+  })();
+
+  /* ---- Liczniki count-up (uruchamiane gdy wejdą w kadr) ---- */
+  function animateCount(el) {
+    if (el.__done) return; el.__done = true;
+    var target = parseInt(el.getAttribute('data-count'), 10) || 0;
+    var pre = el.getAttribute('data-prefix') || '', suf = el.getAttribute('data-suffix') || '';
+    if (reduce || target === 0) { el.textContent = pre + target + suf; return; }
+    var dur = 1100, start = null;
+    function step(ts) {
+      if (start === null) start = ts;
+      var p = Math.min(1, (ts - start) / dur);
+      var eased = 1 - Math.pow(1 - p, 3); // ease-out cubic
+      el.textContent = pre + Math.round(target * eased) + suf;
+      if (p < 1) requestAnimationFrame(step); else el.textContent = pre + target + suf;
+    }
+    requestAnimationFrame(step);
+  }
+  window.__initStatCounters = function () {
+    var nums = document.querySelectorAll('.stat-num[data-count]');
+    if (!nums.length) return;
+    if (!('IntersectionObserver' in window)) { nums.forEach(animateCount); return; }
+    var io = new IntersectionObserver(function (ents) {
+      ents.forEach(function (e) { if (e.isIntersecting) { animateCount(e.target); io.unobserve(e.target); } });
+    }, { threshold: 0.4 });
+    nums.forEach(function (n) { io.observe(n); });
+  };
+  window.__initStatCounters(); // odpal też dla statycznych (3/0/18); aktualizacje doliczy fetch
+
+  /* ---- Tilt 3D na kartach (funkcje, zrzuty, statystyki) ---- */
+  (function tilt() {
+    if (reduce) return;
+    var els = document.querySelectorAll('.feat, .shot, .stat');
+    els.forEach(function (el) {
+      el.classList.add('tilt');
+      el.addEventListener('pointermove', function (e) {
+        if (e.pointerType === 'touch') return;
+        var r = el.getBoundingClientRect();
+        var px = (e.clientX - r.left) / r.width - 0.5;
+        var py = (e.clientY - r.top) / r.height - 0.5;
+        var max = 7; // stopnie
+        el.style.transform = 'perspective(720px) rotateX(' + (-py * max).toFixed(2) + 'deg) rotateY(' + (px * max).toFixed(2) + 'deg) translateY(-4px)';
+      });
+      el.addEventListener('pointerleave', function () { el.style.transform = ''; });
+    });
+  })();
 })();

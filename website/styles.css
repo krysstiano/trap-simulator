@@ -498,8 +498,10 @@ h1,h2,h3{line-height:1.05;}
   .infobar-inner{grid-template-columns:repeat(4,1fr);}
   .features{grid-template-columns:1fr 1fr;}
   .shots{grid-template-columns:repeat(3,1fr);}
-  .pn-controls{flex-direction:row;align-items:center;}
-  .pn-search{flex:1;}
+  /* Wyszukiwarka ZAWSZE pełną szerokością (czytelna), chipy filtrów w rzędzie pod spodem.
+     Wcześniej flex-row ściskał input do ~60px = nie było widać wpisywanego tekstu. */
+  .pn-controls{flex-direction:column;align-items:stretch;}
+  .pn-search{flex:1 1 auto;width:100%;}
 }
 @media (min-width:1040px){
   .features{grid-template-columns:repeat(3,1fr);}
@@ -516,10 +518,17 @@ h1,h2,h3{line-height:1.05;}
 }
 
 /* ===== v2.3.46: hero skyline canvas + sekcja trailera ===== */
-#hero-skyline{position:absolute;left:0;bottom:0;width:100%;height:100%;z-index:0;display:block;pointer-events:none;opacity:.92}
+#hero-skyline{position:absolute;left:0;bottom:0;width:100%;height:100%;z-index:0;display:block;pointer-events:none;opacity:.82}
 .hero{position:relative;overflow:hidden}
 .hero .hero-glow{z-index:1}
+/* Scrim czytelności — przyciemnia pas pod tekstem nad sylwetką budynków,
+   żeby biała czcionka (sub/note) nie ginęła na jasnych oknach. */
+.hero::after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(680px 460px at 50% 44%, rgba(7,10,22,.62), rgba(7,10,22,.28) 58%, transparent 76%);}
 .hero .hero-inner{position:relative;z-index:2}
+/* Delikatne cienie dla pewnej czytelności na każdym tle */
+.hero-tagline{text-shadow:0 2px 18px rgba(5,7,16,.85),0 0 2px rgba(5,7,16,.6);}
+.hero-sub,.hero-note{text-shadow:0 1px 10px rgba(5,7,16,.9);}
 .trailer-sec{max-width:1000px;margin:0 auto;padding:64px 20px;text-align:center}
 .sec-title{font-family:'Anton','Bebas Neue',Impact,sans-serif;font-size:clamp(26px,4vw,44px);letter-spacing:1px;margin:0 0 6px;color:#fff}
 .sec-sub{color:#9fb3c8;font-size:15px;margin:0 auto;max-width:560px}
@@ -546,3 +555,45 @@ h1,h2,h3{line-height:1.05;}
 .vlb-close:hover{background:rgba(233,30,140,.85);transform:scale(1.08);}
 
 @media (prefers-reduced-motion: reduce){ #hero-skyline{display:none} }
+
+/* ===================================================================
+   v2.3.48 — pasek statystyk + interaktywne efekty
+   =================================================================== */
+
+/* ---- Interaktywny reflektor w hero (podąża za kursorem) ---- */
+.hero-spot{
+  position:absolute;inset:0;z-index:1;pointer-events:none;opacity:0;
+  transition:opacity .45s ease;
+  background:radial-gradient(300px 300px at var(--mx,50%) var(--my,40%),
+    rgba(241,196,15,.12), rgba(233,30,140,.06) 45%, transparent 68%);
+}
+.hero:hover .hero-spot{opacity:1;}
+
+/* ---- Pasek statystyk (liczniki count-up) ---- */
+.stats{max-width:var(--maxw);margin:1.6rem auto 0;padding:0 1.1rem;position:relative;z-index:1;}
+.stats-inner{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;}
+.stat{
+  background:var(--glass);border:1px solid var(--border);border-radius:var(--radius);
+  backdrop-filter:blur(14px) saturate(125%);-webkit-backdrop-filter:blur(14px) saturate(125%);
+  box-shadow:0 12px 32px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.04);
+  padding:1.3rem 1rem;text-align:center;
+  transition:transform .2s ease,border-color .25s,box-shadow .3s;
+}
+.stat:hover{border-color:var(--border-glow);box-shadow:0 20px 46px rgba(0,0,0,.4),0 0 24px rgba(241,196,15,.12);}
+.stat-num{
+  display:block;font-family:var(--font-display-alt);letter-spacing:1px;
+  font-size:clamp(2rem,5vw,2.9rem);line-height:1;
+  background:linear-gradient(135deg,#fff,var(--gold) 55%,var(--magenta));
+  -webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 2px 14px rgba(241,196,15,.18));
+}
+.stat-lbl{display:block;margin-top:.45rem;color:var(--text-dim);font-size:.86rem;font-weight:600;}
+@media (min-width:820px){ .stats-inner{grid-template-columns:repeat(4,1fr);} }
+
+/* ---- Tilt 3D (sterowany z JS przez transform inline) ---- */
+.tilt{transition:transform .14s ease, box-shadow .3s ease, border-color .25s ease;transform-style:preserve-3d;will-change:transform;}
+
+@media (prefers-reduced-motion: reduce){
+  .hero-spot{display:none;}
+  .tilt{transform:none!important;}
+}
