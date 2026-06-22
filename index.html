@@ -776,7 +776,7 @@ body.mobile-pregame #gc, body.mobile-pregame #hud, body.mobile-pregame #dmg-over
 <div id="phone">
   <div class="ph-top">
     <button class="px" id="ph-back-top" onclick="window._phGoBack&&window._phGoBack()" title="Wstecz (Esc)" style="display:none;margin-right:8px">← Wstecz</button>
-    <span class="pt" id="ph-title">📱 Telefon</span>
+    <span class="pt" id="ph-title">Telefon</span>
     <button class="px" onclick="closePhone()" title="Zamknij telefon (P / Esc na menu)">✕</button>
   </div>
   <div id="ph-content"></div>
@@ -46955,7 +46955,7 @@ function renderPhoneHome(){
   G._phView='home';
   const _backBtn=document.getElementById('ph-back-top');if(_backBtn)_backBtn.style.display='none';
   window._phGoBack=()=>closePhone(); // home → ESC zamyka telefon
-  document.getElementById('ph-title').textContent='📱 Telefon';
+  document.getElementById('ph-title').textContent='Telefon'; /* U3 (PDF v2.3.45): bez emoji telefonu wewnątrz smartfonu */
   const folders=_getPhoneFolders();
   // Top-level shortcuts — wybrane apki widoczne bezpośrednio (najczęściej używane / istotne)
   const _smsUnread=(G.sms&&G.sms.unread)||0;
@@ -54296,13 +54296,16 @@ window.openCinematicFlythrough=()=>{
   /* v2.1.21: keyboard event handler dla cinematic */
   window._cinemKeyHandler=(e)=>{
     if(!G._cinematicActive) return;
-    if(e.key==='ArrowRight' || e.key==='d' || e.key==='D'){
+    /* U6 (PDF v2.3.45): TYLKO strzałki (+ ikony strzałek w rogu) przewijają kroki przelotu.
+       Klawisze A/D ZABLOKOWANE — po wyjściu z traphouse gracz chce iść (A/D=ruch) i przypadkiem
+       pomijał kroki przelotu. */
+    if(e.key==='ArrowRight'){
       e.preventDefault();
       /* v2.1.319 fix: na finalnym shotcie blokuj ArrowRight — gracz może tylko cofnąć lub kliknąć CTA */
       const _prevShot=SHOTS[shotIdx-1];
       if(_prevShot && _prevShot.isFinaleTopic) return;
       if(!_shotTransitioning && shotIdx<SHOTS.length){_shotTransitioning=true; _next();}
-    } else if(e.key==='ArrowLeft' || e.key==='a' || e.key==='A'){
+    } else if(e.key==='ArrowLeft'){
       e.preventDefault();
       _prev();
     } else if(e.key==='Escape'){
@@ -55717,7 +55720,7 @@ function togglePause(){
     const streakBonus=streak>1?Math.min(20,(streak-1)*2):0;
     p.innerHTML=`
       <div style="text-align:center;background:#0a0f1a;border:2px solid #f1c40f;border-radius:14px;padding:26px 36px;box-shadow:0 0 60px rgba(241,196,15,.5);min-width:340px">
-        <div style="font-size:56px;margin-bottom:4px;line-height:1">⏸️</div>
+        <div style="margin-bottom:6px;line-height:1;display:flex;justify-content:center"><svg id="pause-ico" width="48" height="52" viewBox="0 0 48 52" aria-hidden="true"><rect x="7" y="3" width="13" height="46" rx="4" fill="#f1c40f"/><rect x="28" y="3" width="13" height="46" rx="4" fill="#f1c40f"/></svg></div>
         <div style="font-size:24px;color:#f1c40f;font-weight:900;letter-spacing:4px;margin-bottom:14px">PAUZA</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin-bottom:18px;font-size:12px;text-align:left">
           <div style="color:#888">⏱ Sesja:</div><div style="color:#7ec8e3;font-weight:700;text-align:right">${sessTime}</div>
@@ -56391,6 +56394,8 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.49',date:'2026-06-22',cats:['fix','change'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
+ {t:'change',d:'Drobne porządki wizualne: usunięto zbędną ikonkę telefonu z nagłówka smartfona oraz emotkę pauzy z ekranu pauzy (zastąpioną prostą, czystą ikoną).'},
+ {t:'fix',d:'W przelocie kamery nad miastem kroki przewijasz teraz wyłącznie strzałkami (klawiszami lub ikonami w rogu). Klawisze A i D już nie przeskakują kroków, więc po wyjściu z mieszkania nie pominiesz przypadkiem prezentacji miasta.'},
  {t:'change',d:'Menu główne uporządkowane: pojawiło się pole „Ustawienia" (grafika, dźwięk, efekty oraz sterowanie w jednym miejscu), a pozostałe pola menu są czytelniejsze, bez ikonek.'},
  {t:'change',d:'Auto-zapis odbywa się teraz co 5 minut zamiast co 30 sekund. Gra nadal zapisuje się natychmiast przy ważnych akcjach, więc postęp jest bezpieczny.'},
  {t:'fix',d:'Sejf w mieszkaniu otwiera się teraz we własnym oknie po podejściu i wciśnięciu E. Wcześniej otwierał aplikację w telefonie, przez co klawisz Esc cofał po menu telefonu zamiast po prostu zamknąć sejf. Gotówkę wpłacasz i wypłacasz bez limitu bezpośrednio w sejfie.'},
