@@ -159,5 +159,18 @@ function setupAutoUpdate(wc) {
   } catch (_) { /* electron-updater niedostepny — ignoruj */ }
 }
 
+// B4/B5 (PDF v2.3.45): natywny pełny ekran okna sterowany z renderera (preload → electronFullscreen).
+// HTML5 fullscreen jest auto-zamykany przez Esc; natywny setFullScreen nie reaguje na Esc, więc gra
+// sama decyduje (Esc = pauza, bez wychodzenia z trybu) i toggle działa za 1. kliknięciem.
+ipcMain.handle('uw-set-fullscreen', (e, on) => {
+  const w = BrowserWindow.fromWebContents(e.sender);
+  if (w) { try { w.setFullScreen(!!on); } catch (_) {} }
+  return w ? w.isFullScreen() : false;
+});
+ipcMain.handle('uw-get-fullscreen', (e) => {
+  const w = BrowserWindow.fromWebContents(e.sender);
+  return w ? w.isFullScreen() : false;
+});
+
 app.whenReady().then(createWindow);
 app.on('window-all-closed', () => { if (!failed) app.quit(); });
