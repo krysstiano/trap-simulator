@@ -268,8 +268,13 @@
       // Licznik aktualizacji w pasku statystyk — zaokrąglony w dół do setki (np. 1372 → "1300+"),
       // liczba pobierana z danych, więc nigdy się nie zestarzeje.
       var _su = document.getElementById('statUpdates');
-      if (_su && data.length) { _su.setAttribute('data-count', String(Math.max(100, Math.floor(data.length / 100) * 100))); }
-      if (window.__initStatCounters) window.__initStatCounters();
+      if (_su && data.length) {
+        _su.setAttribute('data-count', String(Math.max(100, Math.floor(data.length / 100) * 100)));
+        _su.removeAttribute('data-defer');
+        _su.__done = false;
+        _su.textContent = '0';
+        if (window.__observeStat) window.__observeStat(_su); // teraz animuj do realnej liczby
+      }
       buildFilters();
       initSearch();
       applyFilters();
@@ -444,16 +449,27 @@
     }
     requestAnimationFrame(step);
   }
-  window.__initStatCounters = function () {
-    var nums = document.querySelectorAll('.stat-num[data-count]');
-    if (!nums.length) return;
-    if (!('IntersectionObserver' in window)) { nums.forEach(animateCount); return; }
-    var io = new IntersectionObserver(function (ents) {
-      ents.forEach(function (e) { if (e.isIntersecting) { animateCount(e.target); io.unobserve(e.target); } });
+  // Jeden obserwator; liczniki z [data-defer] (np. aktualizacje) startują dopiero gdy fetch
+  // ustawi realną wartość — inaczej animowały się do 0 i blokowały na "0+".
+  var statIO = null;
+  function getIO() {
+    if (statIO || !('IntersectionObserver' in window)) return statIO;
+    statIO = new IntersectionObserver(function (ents) {
+      ents.forEach(function (e) { if (e.isIntersecting) { animateCount(e.target); statIO.unobserve(e.target); } });
     }, { threshold: 0.4 });
-    nums.forEach(function (n) { io.observe(n); });
+    return statIO;
+  }
+  function observeStat(el) {
+    if (!el) return;
+    var io = getIO();
+    if (!io) { animateCount(el); return; } // brak IO → od razu
+    io.observe(el);
+  }
+  window.__observeStat = observeStat;
+  window.__initStatCounters = function () {
+    document.querySelectorAll('.stat-num[data-count]:not([data-defer])').forEach(observeStat);
   };
-  window.__initStatCounters(); // odpal też dla statycznych (3/0/18); aktualizacje doliczy fetch
+  window.__initStatCounters(); // statyczne (3/100/18); aktualizacje (deferred) doliczy fetch
 
   /* ---- Tilt 3D na kartach (funkcje, zrzuty, statystyki) ---- */
   (function tilt() {
