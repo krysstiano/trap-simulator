@@ -1325,6 +1325,17 @@ function _getDayName(){ return DAY_NAMES_PL[_dayOfWeek()]; }
 function _getDayAbbr(){ return DAY_ABBR_PL[_dayOfWeek()]; }
 function _getDayProfile(){ return DAY_PROFILES[_dayOfWeek()]||DAY_PROFILES[2]; }
 window._dayOfWeek=_dayOfWeek; window._getDayName=_getDayName; window._getDayProfile=_getDayProfile;
+/* D4 (PDF v2.3.45): harmonogram NPC ulicznych. Fan = co 4 dni na 1 dzień, 13:00-21:00 (i ≥10 fanów);
+   Promotor = codziennie 12:00-22:00. OBA znikają gdy pada (deszcz=2 lub burza=5). Single source dla
+   renderu (drawSprite) i interakcji (getNear). Pogoda: 0=słońce 1=pochmurno 2=DESZCZ 3=śnieg 4=mgła 5=BURZA. */
+function _isRaining(){ return (typeof G!=='undefined') && (G.weather===2||G.weather===5); }
+function _npcStreetVisible(id){
+  const hour=Math.floor((typeof gameMin!=='undefined'?gameMin:360)/60)%24;
+  if(id==='npc_fan'){ return ((typeof G!=='undefined'?(G.fans||0):0)>=10) && (((typeof G!=='undefined'?G.day:1)||1)%4===0) && hour>=13 && hour<21 && !_isRaining(); }
+  if(id==='npc_promoter'){ return hour>=12 && hour<22 && !_isRaining(); }
+  return true; // pozostałe NPC bez harmonogramu — zawsze widoczne
+}
+window._isRaining=_isRaining; window._npcStreetVisible=_npcStreetVisible;
 let lastClockReal = Date.now();
 let npcCooldowns = {}; // key: "npcType_optIdx", value: timestamp
 // City life entities
@@ -3650,6 +3661,7 @@ function drawObjects(room){
   for(const obj of room.objects){
     // NPC fan only visible when player has fans
     if(obj.id==='npc_fan'&&(G.fans||0)<10) continue;
+    if((obj.id==='npc_fan'||obj.id==='npc_promoter') && typeof _npcStreetVisible==='function' && !_npcStreetVisible(obj.id)) continue; /* D4 (PDF v2.3.45): harmonogram NPC wg godzin/pogody */
     /* v2.3.38: Kantar + loża widoczni TYLKO gdy quest aktywny (analog npc_fan) */
     if((obj.id==='velvet_loza'||obj.id==='npc_kantar') && !(typeof window._kantarPresent==='function'&&window._kantarPresent())) continue;
     /* v2.3.38: wejście na parking (Z2) tylko gdy Z2 aktywne */
@@ -13228,6 +13240,7 @@ function getNear(){
   // Przebieg 2: NPC i małe obiekty (tylko gdy żaden budynek nie pasuje)
   for(const obj of room.objects){
     if(obj.id==='npc_fan'&&(G.fans||0)<10) continue;
+    if((obj.id==='npc_fan'||obj.id==='npc_promoter') && typeof _npcStreetVisible==='function' && !_npcStreetVisible(obj.id)) continue; /* D4 (PDF v2.3.45): harmonogram NPC wg godzin/pogody */
     /* v2.1.815: statua Hall of Fame rysuje się tylko gdy _hasHallOfFameStatue (case 'hof_statue' w drawBuilding).
        Bez tego guardu pusty plac podświetlał się + pokazywał prompt + łapał [E] = niewidzialny ghost (reguła #7).
        Pomijamy w wykrywaniu dopóki nieodblokowana — spójnie z rysowaniem i interakcją. */
@@ -56537,6 +56550,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.49',date:'2026-06-22',cats:['fix','change','feature'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
+ {t:'feature',d:'Postacie na ulicy mają teraz swój rytm: Fan pojawia się co kilka dni po południu (13:00–21:00), a Promotor codziennie w godzinach 12:00–22:00. Gdy pada deszcz, oboje chowają się przed pogodą.'},
  {t:'change',d:'Budka z kebabem Zbyszka ma teraz nazwę „Kebab Kingpin" i działa w godzinach 10:00–22:00 — po zamknięciu lokal jest ciemny i opuszcza roletę, a Zbyszek wraca rano. Miasto zaczyna żyć swoim rytmem.'},
  {t:'feature',d:'Do gry doszedł system dni tygodnia — w pasku informacyjnym u góry widać teraz dzień tygodnia (Pn-Nd). To fundament pod bardziej żywy rytm miasta: w kolejnych usprawnieniach ruch, koncerty i nocne życie zaczną zależeć od dnia.'},
  {t:'feature',d:'Nad mapą miasta pojawił się przycisk „Legenda" — po kliknięciu pokazuje rozpiskę wszystkich miejsc i postaci na mapie, pogrupowanych w kategorie z kolorami.'},
