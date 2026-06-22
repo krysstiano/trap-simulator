@@ -55654,6 +55654,18 @@ function openFullMap(){
   trackPlayer();
 
   const sc=document.getElementById('fmap-scroll-container');
+  /* M2 (PDF v2.3.45): mapa otwiera się WYCENTROWANA na pozycji gracza (znacznik „TY"). Tylko na ulicy
+     (we wnętrzu P = współrzędne wnętrza, marker ukryty). Po renderMap canvas jest już wymiarowany. */
+  window._centerMapOnPlayer=function(){
+    if(!sc) return false;
+    if(typeof currentRoom!=='undefined' && currentRoom!=='ulica') return false;
+    if(typeof P==='undefined') return false;
+    const scale=baseScale*_mapZoom;
+    sc.scrollLeft=Math.max(0, P.wx*scale - sc.clientWidth/2);
+    sc.scrollTop =Math.max(0, P.wy*scale - sc.clientHeight/2);
+    return true;
+  };
+  _centerMapOnPlayer();
   // Scroll zoom
   const wheelH=e=>{
     e.preventDefault();
@@ -56468,6 +56480,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.49',date:'2026-06-22',cats:['fix','change','feature'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
+ {t:'change',d:'Pełna mapa miasta (klawisz M) otwiera się teraz wyśrodkowana na Twojej aktualnej pozycji, zamiast od rogu — od razu widzisz, gdzie jesteś.'},
  {t:'change',d:'Mapa miasta: przybliżanie i oddalanie (kółko myszy, przyciski +/−, klawisze) działa teraz płynnie, bez skokowych przeskoków. Z opisu nad mapą usunięto zbędną ikonkę myszki.'},
  {t:'change',d:'Budynki w mieście dostały własne nazwy i szyldy (np. Splash & Go, Nova Cura, 808 Arena, Garage 77, Barber Point, CityDrive Motors) zamiast ogólnych etykiet i emotek, a mapa miasta pokazuje teraz funkcję miejsca (Myjnia, Szpital, Siłownia, Sklep RTV i AGD…) również bez emotek. Miasto wygląda bardziej wiarygodnie i mniej kiczowato.'},
  {t:'feature',d:'Po wykonaniu pierwszej pracy dorywczej gra podpowiada, że w telefonie (Kariera → Gigi) czekają też inne szybkie zlecenia — łatwiej znaleźć dodatkowe źródła zarobku na starcie.'},
