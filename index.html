@@ -1336,6 +1336,13 @@ function _npcStreetVisible(id){
   return true; // pozostałe NPC bez harmonogramu — zawsze widoczne
 }
 window._isRaining=_isRaining; window._npcStreetVisible=_npcStreetVisible;
+/* D3 (PDF v2.3.45): życie parku wg pory dnia — na ławkach NPC siedzą tylko w dzień (8:00-21:00) i przy
+   suchej pogodzie; nocą i podczas opadów ławki są puste (ruch miejski pieszych już steruje _cityPedDensity). */
+function _parkSitterVisible(){
+  const hour=Math.floor((typeof gameMin!=='undefined'?gameMin:360)/60)%24;
+  return hour>=8 && hour<21 && !(typeof _cityOpady==='function' && _cityOpady());
+}
+window._parkSitterVisible=_parkSitterVisible;
 let lastClockReal = Date.now();
 let npcCooldowns = {}; // key: "npcType_optIdx", value: timestamp
 // City life entities
@@ -3915,7 +3922,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'prada':       drawLuxuryBuilding(sx,sy,w,h,'PRADA','#1a1a1a');break;
     case 'freestyle_spot': drawFreestyleSpot(sx,sy,w,h);break;
     case 'npc_quest':    drawNPC(sx,sy,w,h,'#e0c890','#2a4a2a','❓');break;
-    case 'bench':        drawBench(sx,sy,w,h);drawBenchSitter(sx,sy,w,h,1);break;
+    case 'bench':        drawBench(sx,sy,w,h);if(typeof _parkSitterVisible!=='function'||_parkSitterVisible())drawBenchSitter(sx,sy,w,h,1);break; /* D3: siedzący tylko w dzień/sucho */
     case 'pond':         drawPondSurface(sx,sy,w,h);break;
     case 'skate':        drawSkatepark(sx,sy,w,h);break;
     case 'bboying':      drawBboyFloor(sx,sy,w,h);break;
@@ -3942,7 +3949,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'park_lamp1':case 'park_lamp2':case 'park_lamp3':case 'park_lamp4': drawParkLamp(sx,sy,w,h);break;
     case 'park_bush1':case 'park_bush2':case 'park_bush3': drawParkBush(sx,sy,w,h);break;
     case 'park_trash':     drawParkTrash(sx,sy,w,h);break;
-    case 'bench2':         drawBench(sx,sy,w,h);drawBenchSitter(sx,sy,w,h,2);break;
+    case 'bench2':         drawBench(sx,sy,w,h);if(typeof _parkSitterVisible!=='function'||_parkSitterVisible())drawBenchSitter(sx,sy,w,h,2);break; /* D3: siedzący tylko w dzień/sucho */
     // Zagospodarowanie wokol budynkow mieszkaniowych
     case 'apt1_bench':case 'apt1_bench2':case 'apt4_bench':case 'apt4_bench2': drawBench(sx,sy,w,h);break;
     case 'apt2_bench':case 'apt2_bench2': drawDesignerBench(sx,sy,w,h);break; // Penthouse — premium marmur+chrom
@@ -56550,6 +56557,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.49',date:'2026-06-22',cats:['fix','change','feature'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
+ {t:'change',d:'Park żyje rytmem dnia: na ławkach przesiadują ludzie tylko za dnia (8:00–21:00) i przy dobrej pogodzie — nocą oraz podczas opadów ławki są puste, a ruch pieszych w mieście wyraźnie rzednie nocą.'},
  {t:'feature',d:'Postacie na ulicy mają teraz swój rytm: Fan pojawia się co kilka dni po południu (13:00–21:00), a Promotor codziennie w godzinach 12:00–22:00. Gdy pada deszcz, oboje chowają się przed pogodą.'},
  {t:'change',d:'Budka z kebabem Zbyszka ma teraz nazwę „Kebab Kingpin" i działa w godzinach 10:00–22:00 — po zamknięciu lokal jest ciemny i opuszcza roletę, a Zbyszek wraca rano. Miasto zaczyna żyć swoim rytmem.'},
  {t:'feature',d:'Do gry doszedł system dni tygodnia — w pasku informacyjnym u góry widać teraz dzień tygodnia (Pn-Nd). To fundament pod bardziej żywy rytm miasta: w kolejnych usprawnieniach ruch, koncerty i nocne życie zaczną zależeć od dnia.'},
