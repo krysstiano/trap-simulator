@@ -25274,6 +25274,7 @@ window._harnoldGive=function(amount){
   /* jedna skuteczna datka dziennie — kolejne tego samego dnia nic nie kosztują i nie dają bonusu (anti-spam #7) */
   if(h.lastGiveDay===G.day){
     if(typeof showMsg==='function') showMsg('🧔 Harnold: „Dzięki, ale na dziś wystarczy. Wpadnij jutro."','i',3500);
+    if(typeof closeNPCDlg==='function') closeNPCDlg(); /* B8: okno znika po próbie (PDF) — toast wyjaśnia */
     return;
   }
   G.money-=amount; if(typeof spent==='function')spent(amount);
@@ -25294,7 +25295,10 @@ window._harnoldGive=function(amount){
   }
   if(typeof notify==='function') notify(msg); else if(typeof showMsg==='function') showMsg(msg,'f',4500);
   if(typeof updateHUD==='function') updateHUD();
-  if(typeof openNPCDialogue==='function') openNPCDialogue('harnold'); /* re-render, dialog zostaje otwarty */
+  /* B8 (PDF v2.3.45): po przekazaniu wartości okno dialogowe ZNIKA automatycznie. Wcześniej re-render
+     (openNPCDialogue) zostawiał je otwarte, a nakładające się zielone okno info wymuszało Esc. Teraz
+     toast notify informuje o efekcie, a okno interakcji zamyka się samo. */
+  if(typeof closeNPCDlg==='function') closeNPCDlg();
 };
 function openNPCDialogue(type){
   const data=NPC_DATA[type];if(!data) return;
@@ -56368,9 +56372,10 @@ function showHelp(){
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
  {
- ver:'v2.3.49',date:'2026-06-22',cats:['fix'],title:'🔧 Sejf domowy w osobnym oknie',
+ ver:'v2.3.49',date:'2026-06-22',cats:['fix'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
- {t:'fix',d:'Sejf w mieszkaniu otwiera się teraz we własnym oknie po podejściu i wciśnięciu E. Wcześniej otwierał aplikację w telefonie, przez co klawisz Esc cofał po menu telefonu zamiast po prostu zamknąć sejf. Gotówkę wpłacasz i wypłacasz bez limitu bezpośrednio w sejfie.'}
+ {t:'fix',d:'Sejf w mieszkaniu otwiera się teraz we własnym oknie po podejściu i wciśnięciu E. Wcześniej otwierał aplikację w telefonie, przez co klawisz Esc cofał po menu telefonu zamiast po prostu zamknąć sejf. Gotówkę wpłacasz i wypłacasz bez limitu bezpośrednio w sejfie.'},
+ {t:'fix',d:'Po przekazaniu datku Harnoldowi okno rozmowy zamyka się teraz samo. Wcześniej zostawało otwarte, a na wierzchu pojawiało się zielone powiadomienie, przez co trzeba było zamykać je klawiszem Esc.'}
  ],
  },
  {
