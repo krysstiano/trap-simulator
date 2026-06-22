@@ -48,9 +48,9 @@ opublikuje Release z `.exe` + `latest.yml`. Gracze dostaną aktualizację automa
 4. Publish. Gotowe.
 
 ## Strona z pobieraniem (website/)
-Statyczna strona `../website/`. Hosting (darmowy), do wyboru:
-- **GitHub Pages** tego samego repo (Settings → Pages → źródło `/website` lub branch `gh-pages`)
-- **Netlify** / **itch.io** (przeciągnij folder website/)
+Statyczna strona `../website/`. Hosting: **Cloudflare Pages** (`trap-simulator.pages.dev`).
+Auto-deploy: każdy push na main → GitHub Actions `.github/workflows/deploy-website.yml` → publikuje sam
+(token w GitHub Secrets). Bez ręcznego deployu.
 
 Przyciski "Pobierz" linkują do `releases/latest` repo → zawsze najnowszy instalator.
 ```

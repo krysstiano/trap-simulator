@@ -1,5 +1,5 @@
 // Regeneruje website/patchnotes.json z PATCH_NOTES w ../index.html (single source).
-// Pure-Node (bez przeglądarki) — uruchamiany lokalnie ORAZ w buildzie Netlify (netlify.toml),
+// Pure-Node (bez przeglądarki) — uruchamiany lokalnie ORAZ w GitHub Actions (deploy-website.yml),
 // żeby changelog na stronie nigdy się nie zestarzał względem gry. Parser świadomy stringów
 // i komentarzy (poprawne liczenie zagnieżdżonych [ ] mimo nawiasów w treści wpisów).
 const fs = require('fs');
@@ -31,7 +31,7 @@ fs.writeFileSync(path.join(__dirname, 'patchnotes.json'), JSON.stringify(arr, nu
 console.log('patchnotes.json zapisany:', arr.length, 'wpisów, top =', arr[0].ver);
 
 // ── WEB-DEMO: skopiuj single-source index.html do website/play/ (grywalna wersja w przeglądarce) ──
-// Generowane przy KAŻDYM deployu Netlify → nigdy się nie zestarzeje względem gry (zero ręcznych kopii,
+// Generowane przy KAŻDYM deployu (GitHub Actions → Cloudflare Pages) → nigdy się nie zestarzeje względem gry (zero ręcznych kopii,
 // szanuje „single source = index.html"). Gra wykrywa brak window.electronUpdater → moduł auto-update bezczynny.
 try {
   const playDir = path.join(__dirname, 'play');
