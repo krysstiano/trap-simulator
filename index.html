@@ -56323,9 +56323,10 @@ function showHelp(){
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
  {
- ver:'v2.3.48',date:'2026-06-22',cats:['fix'],title:'🔧 Poprawki menu i ekranów informacyjnych',
+ ver:'v2.3.48',date:'2026-06-22',cats:['fix'],title:'🔧 Poprawki menu, pauzy i ekranów informacyjnych',
  items:[
- {t:'fix',d:'Ekrany „Patch Notes" oraz „Sterowanie" otwierane z menu głównego nie uruchamiają już przypadkiem rozgrywki. Wcześniej u góry pojawiał się pasek gracza, a klawisz Esc przenosił wprost do gry. Teraz Esc wraca do menu, a oba panele są wyłącznie informacyjne.'}
+ {t:'fix',d:'Ekrany „Patch Notes" oraz „Sterowanie" otwierane z menu głównego nie uruchamiają już przypadkiem rozgrywki. Wcześniej u góry pojawiał się pasek gracza, a klawisz Esc przenosił wprost do gry. Teraz Esc wraca do menu, a oba panele są wyłącznie informacyjne.'},
+ {t:'fix',d:'Panel ustawień otwierany z ekranu pauzy pojawia się teraz na pierwszym planie. Wcześniej wyświetlał się pod oknem pauzy, przez co wyglądał na niedziałający.'}
  ],
  },
  {
@@ -77093,7 +77094,7 @@ loop();
     var s=load(); tab=tab||window._gfxTab||'wideo'; window._gfxTab=tab;
     document.getElementById('gfx-settings')?.remove();
     var ov=document.createElement('div'); ov.id='gfx-settings';
-    ov.style.cssText='position:absolute;inset:0;z-index:60;background:rgba(4,8,16,.82);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;font-family:inherit';
+    ov.style.cssText='position:absolute;inset:0;z-index:70;background:rgba(4,8,16,.82);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;font-family:inherit';
     var tabBtn=function(id,label){ var on=tab===id; return '<button data-tab="'+id+'" style="background:'+(on?'#16263c':'transparent')+';color:'+(on?'#7ec8e3':'#7a8a9a')+';border:none;border-bottom:2px solid '+(on?'#7ec8e3':'transparent')+';padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">'+label+'</button>'; };
     var body='';
     if(tab==='wideo'){
@@ -77115,7 +77116,11 @@ loop();
       +'<div style="padding:10px 18px 16px;display:flex;justify-content:space-between;gap:10px">'
       +'<button id="gfx-reset" style="background:#1a2535;border:1px solid #3a4a5a;color:#9ab;padding:9px 16px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px">↺ Domyślne</button>'
       +'<div style="font-size:10.5px;color:#566;align-self:center;text-align:right">Dźwięk: w telefonie → Ustawienia.<br>Zmiany działają od razu i zapisują się.</div></div></div>';
-    (document.getElementById('wrap')||document.body).appendChild(ov);
+    /* B3 (PDF v2.3.45): panel ustawień otwierany z PAUZY wyświetlał się ZA oknem pauzy.
+       Root: #wrap ma transform(scale) → własny stacking context; panel (z-index) w #wrap
+       przegrywał z pause-overlay (z-index:50) doczepionym do document.body. Fix: doczep do
+       body (jak pause-overlay) + z-index:70 > 50 — ten sam kontekst, panel na pierwszym planie. */
+    document.body.appendChild(ov);
     /* interakcje */
     ov.querySelectorAll('[data-seg]').forEach(function(seg){ seg.querySelectorAll('button').forEach(function(b){ b.onclick=function(){ var k=seg.getAttribute('data-seg'); var v=b.getAttribute('data-v'); var cur=load(); cur[k]=(k==='renderScale'||k==='fpsLimit')?(+v):v; window._applyGfxSettings(cur); window._openGameSettings(tab); }; }); });
     ov.querySelectorAll('[data-tog]').forEach(function(b){ b.onclick=function(){ var k=b.getAttribute('data-tog'); var cur=load(); cur[k]=!cur[k]; window._applyGfxSettings(cur); window._openGameSettings(tab); }; });
