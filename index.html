@@ -1343,6 +1343,11 @@ function _parkSitterVisible(){
   return hour>=8 && hour<21 && !(typeof _cityOpady==='function' && _cityOpady());
 }
 window._parkSitterVisible=_parkSitterVisible;
+/* D2 (PDF v2.3.45): waga ofert koncertowych (Marcin) wg dnia tygodnia. _getDayProfile().concert: Cz=0.20
+   (baza →1.0), Pt=0.35 (~1.75), So=0.45 (~2.25), Pn=0.05 (~0.25 — clamp, nie znika). Weekend = częściej
+   trafiają oferty koncertów; w tygodniu częściej inne oferty (radio/sponsor) — pula stała, BEZ karania #11. */
+function _concertLeadWeight(){ return (typeof _getDayProfile==='function')?Math.max(0.25,_getDayProfile().concert/0.20):1; }
+window._concertLeadWeight=_concertLeadWeight;
 let lastClockReal = Date.now();
 let npcCooldowns = {}; // key: "npcType_optIdx", value: timestamp
 // City life entities
@@ -50157,7 +50162,14 @@ window._maybeGenerateLead=function(){
   const _foll=G.followers||0;
   const eligible=LEAD_TYPES.filter(t=>fame>=t.fameMin && fame<=t.fameMax && _songs>=(t.songsReq||0) && _foll>=(t.followersReq||0));
   if(eligible.length===0) return;
-  const lt=eligible[Math.floor(Math.random()*eligible.length)];
+  /* D2 (PDF v2.3.45): wybór ważony — oferty koncertów (Marcin) częstsze w weekend wg dnia tygodnia.
+     Pula stała (#11 bez karania): w tygodniu większy udział innych ofert, w weekend koncertów. */
+  let lt;
+  { const _cw=_concertLeadWeight();
+    const _w=eligible.map(t=>t.fromCid==='marcin'?_cw:1);
+    const _tot=_w.reduce((a,b)=>a+b,0);
+    let _r=Math.random()*_tot; lt=eligible[eligible.length-1];
+    for(let _i=0;_i<eligible.length;_i++){ _r-=_w[_i]; if(_r<=0){ lt=eligible[_i]; break; } } }
   /* Roll values */
   const payout=lt.payoutMin+Math.floor(Math.random()*(lt.payoutMax-lt.payoutMin+1));
   const fameReward=lt.fameMin_reward+Math.floor(Math.random()*(lt.fameMax_reward-lt.fameMin_reward+1));
@@ -56557,6 +56569,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.49',date:'2026-06-22',cats:['fix','change','feature'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
+ {t:'feature',d:'Oferty koncertów od Marcina zależą teraz od dnia tygodnia — w weekend (piątek, sobota) propozycje występów przychodzą znacznie częściej, a w środku tygodnia częściej trafiają inne oferty (radio, sponsorzy). Łączna liczba ofert się nie zmienia — zmienia się ich charakter.'},
  {t:'change',d:'Park żyje rytmem dnia: na ławkach przesiadują ludzie tylko za dnia (8:00–21:00) i przy dobrej pogodzie — nocą oraz podczas opadów ławki są puste, a ruch pieszych w mieście wyraźnie rzednie nocą.'},
  {t:'feature',d:'Postacie na ulicy mają teraz swój rytm: Fan pojawia się co kilka dni po południu (13:00–21:00), a Promotor codziennie w godzinach 12:00–22:00. Gdy pada deszcz, oboje chowają się przed pogodą.'},
  {t:'change',d:'Budka z kebabem Zbyszka ma teraz nazwę „Kebab Kingpin" i działa w godzinach 10:00–22:00 — po zamknięciu lokal jest ciemny i opuszcza roletę, a Zbyszek wraca rano. Miasto zaczyna żyć swoim rytmem.'},
