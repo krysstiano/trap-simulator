@@ -3916,7 +3916,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'npc_fan':      drawNPC(sx,sy,w,h,'#e0a870','#1e6030','👤');break;
     case 'npc_manager':  drawNPC(sx,sy,w,h,'#c07840','#1a2a6a','🤵');break;
     case 'npc_producer': drawNPC(sx,sy,w,h,'#704020','#4a0a6a','🎧');break;
-    case 'npc_vendor':   drawKebabStand(sx,sy,w,h);drawNPC(sx,sy,w,h,'#d0a040','#3a1a0a','🌮');break;
+    case 'npc_vendor':   { const _ko=(typeof isPlaceOpen==='function')?isPlaceOpen('npc:vendor').open:true; drawKebabStand(sx,sy,w,h,_ko); if(_ko)drawNPC(sx,sy,w,h,'#d0a040','#3a1a0a','🌮'); break; }
     case 'npc_crew':     drawNPC(sx,sy,w,h,'#a0c080','#1a3a2a','👥');break;
     case 'npc_casino_promo': drawNPC(sx,sy,w,h,'#d4a070','#c01020','🎰');break;
     case 'npc_booking':  drawNPC(sx,sy,w,h,'#e0c8a0','#1a1a4a','📅');break;
@@ -6548,7 +6548,8 @@ function drawMerchStudioDecorations(){
   }
 }
 
-function drawKebabStand(npcSx,npcSy,npcW,npcH){
+function drawKebabStand(npcSx,npcSy,npcW,npcH,lit){
+  if(lit===undefined) lit=true; // D5: lit=false poza 10-22 (zamknięte, bez światła)
   // Budka kebab — drewniana z markizą, większa (#57)
   const sw=160, sh=115;
   const sx=npcSx+npcW/2-sw/2;  // wycentruj wokół NPC
@@ -6574,8 +6575,14 @@ function drawKebabStand(npcSx,npcSy,npcW,npcH){
   X.font='bold 14px "Segoe UI",Arial,sans-serif';X.textAlign='center';
   X.strokeStyle='rgba(0,0,0,.85)';X.lineWidth=3;X.lineJoin='round';
   X.strokeText('🌯 KEBAB',sx+sw/2,sy-4);
-  X.fillStyle='#ffe080';X.fillText('🌯 KEBAB',sx+sw/2,sy-4);
+  X.fillStyle=lit?'#ffe080':'#6a6a52';X.fillText('🌯 KEBAB',sx+sw/2,sy-4);
   X.textAlign='left';
+  if(!lit){ /* D5 (PDF v2.3.45): zamknięte (poza 10-22) — brak światła + opuszczona roleta na ladzie */
+    X.fillStyle='rgba(6,8,14,.5)';X.fillRect(sx-5,sy-awH,sw+10,sh+awH);
+    X.fillStyle='#14140e';X.fillRect(sx,sy+sh*0.5,sw,sh*0.5-14);
+    X.strokeStyle='rgba(180,180,160,.16)';X.lineWidth=1;
+    for(let i=1;i<8;i++){const yy=sy+sh*0.5+i*((sh*0.5-14)/8);X.beginPath();X.moveTo(sx,yy);X.lineTo(sx+sw,yy);X.stroke();}
+  }
 }
 
 function drawNPC(sx,sy,w,h,skin,cloth,em){
@@ -13309,7 +13316,8 @@ const PLACE_HOURS={
   // Studio/merch — pełnowymiarowy "internet" 24h (tworzenie)
   'goto:studio':     {o:0,  c:24, name:'Studio'},
   'goto:merch_studio':{o:0, c:24, name:'Studio Merch'},
-  // NPC vendors NIE są tu — Zbyszek (npc:vendor) jest 24/7 (uliczny sprzedawca)
+  // D5 (PDF v2.3.45): Kebab Kingpin — Zbyszek pracuje 10:00-22:00 (wcześniej był 24/7).
+  'npc:vendor':      {o:10, c:22, name:'Kebab Kingpin'},
 };
 // Shifty jedzeniowe — co najmniej JEDNO miejsce zawsze otwarte (sklep spożywczy 24/7).
 // Pozostałe: pizzeria 11-24, restauracja 12-24, targ 7-15, Zbyszek 24/7 (NPC) — pokrywają cały dzień.
@@ -13745,6 +13753,8 @@ function handleAct(act,objId){
   } else if(act.startsWith('job:')){
     openJobOverlay(act.slice(4));
   } else if(act.startsWith('npc:')){
+    /* D5 (PDF v2.3.45): Kebab Kingpin — Zbyszek pracuje 10:00-22:00; poza godzinami budka zamknięta. */
+    if(act==='npc:vendor'){ const _ko=isPlaceOpen('npc:vendor'); if(!_ko.open){ showMsg(`🌯 ${_ko.name} zamknięte — Zbyszek pracuje ${_ko.opensAt}–${_ko.closesAt}`,'r'); return; } }
     openNPCDialogue(act.slice(4));
   } else if(act==='casino:enter' || act==='enter_casino'){
     /* v2.1.701 (user: kasyno NIE jest powiązane z karierą rapera — nie trzeba być raperem żeby wejść).
@@ -56527,6 +56537,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.49',date:'2026-06-22',cats:['fix','change','feature'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
+ {t:'change',d:'Budka z kebabem (Zbyszek) działa teraz w godzinach 10:00–22:00 — po zamknięciu lokal jest ciemny i opuszcza roletę, a Zbyszek wraca rano. Miasto zaczyna żyć swoim rytmem.'},
  {t:'feature',d:'Do gry doszedł system dni tygodnia — w pasku informacyjnym u góry widać teraz dzień tygodnia (Pn-Nd). To fundament pod bardziej żywy rytm miasta: w kolejnych usprawnieniach ruch, koncerty i nocne życie zaczną zależeć od dnia.'},
  {t:'feature',d:'Nad mapą miasta pojawił się przycisk „Legenda" — po kliknięciu pokazuje rozpiskę wszystkich miejsc i postaci na mapie, pogrupowanych w kategorie z kolorami.'},
  {t:'change',d:'Pełna mapa miasta (klawisz M) otwiera się teraz wyśrodkowana na Twojej aktualnej pozycji, zamiast od rogu — od razu widzisz, gdzie jesteś.'},
