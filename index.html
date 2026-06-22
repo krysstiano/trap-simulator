@@ -13455,10 +13455,11 @@ function handleAct(act,objId){
   } else if(act==='phone'){
     playClick();togglePhone();
   } else if(act==='home_safe'){
-    /* v2.1.929: fizyczny sejf w mieszkaniu → otwórz telefon na apce Sejf (depozyt/wypłata per-mieszkanie). */
+    /* B7 (PDF v2.3.45): fizyczny sejf = OSOBNE okno (NIE telefon — wcześniej Esc cofał w podgrupach
+       smartfonu). Sejf stoi w ROOMS[currentRoom] (_syncHomeSafe), więc currentRoom = klucz mieszkania (rk). */
     playClick();
-    if(typeof togglePhone==='function' && !document.getElementById('phone')?.classList.contains('on')) togglePhone();
-    if(typeof renderPhoneApp==='function') renderPhoneApp('safe');
+    if(typeof window._openHomeSafePanel==='function') window._openHomeSafePanel(currentRoom);
+    else { if(typeof togglePhone==='function' && !document.getElementById('phone')?.classList.contains('on')) togglePhone(); if(typeof renderPhoneApp==='function') renderPhoneApp('safe'); }
   } else if(act==='pc_menu'){
     openComputerMenu();
   } else if(act==='enter_apt'){
@@ -23185,6 +23186,44 @@ window._safeWithdraw=function(rk,amount){
   if(typeof updateHUD==='function') updateHUD();
   if(typeof renderPhoneApp==='function') renderPhoneApp('safe');
   return true;
+};
+/* B7 (PDF v2.3.45): fizyczny sejf mieszkalny = OSOBNE okno (panel mg-job), NIE apka telefonu.
+   Wcześniej home_safe otwierał telefon → Esc cofał w podgrupach smartfonu. Teraz mg-job:
+   mgOpen()=true blokuje ruch jak inne modale, a Esc → closeMG() zamyka TYLKO ten panel.
+   Inny wygląd (sejf-vault). Fizyczny sejf BEZ górnego limitu gotówki (telefon zostaje ≤50k + podgląd). */
+window._openHomeSafePanel=function(rk){
+  if(!rk||!SAFE_SPOTS[rk]){ rk=(typeof currentRoom!=='undefined'&&SAFE_SPOTS[currentRoom])?currentRoom:((_safeAccessRooms().find(r=>G.safes&&G.safes[r]))||rk); }
+  if(!G.safes||!G.safes[rk]){ if(typeof showMsg==='function') showMsg('🔒 Brak sejfu w tym mieszkaniu.','r',3000); return; }
+  const mg=document.getElementById('mg-job'), mc=document.getElementById('mg-job-content');
+  if(!mg||!mc) return;
+  const fmt=n=>Math.floor(n||0).toLocaleString('pl');
+  window._hsRender=function(){
+    const cash=(G.safes[rk]&&G.safes[rk].cash)||0;
+    const depBtns=[1000,10000,100000].map(a=>`<button class="bbtn" style="flex:1;min-width:72px" onclick="window._hsMove('${rk}','dep',${a})">+${fmt(a)}</button>`).join('')+`<button class="bbtn" style="flex:1;min-width:72px" onclick="window._hsMove('${rk}','dep',-1)">Wszystko</button>`;
+    const wdBtns=[1000,10000,100000].map(a=>`<button class="bbtn" style="flex:1;min-width:72px;border-color:#3a6a8a;color:#9fd0f5" onclick="window._hsMove('${rk}','wd',${a})">−${fmt(a)}</button>`).join('')+`<button class="bbtn" style="flex:1;min-width:72px;border-color:#3a6a8a;color:#9fd0f5" onclick="window._hsMove('${rk}','wd',-1)">Wszystko</button>`;
+    mc.innerHTML=`<div style="background:linear-gradient(160deg,#0d1410,#0a0f0c);border:2px solid #2a7a45;border-radius:16px;padding:24px 28px;min-width:360px;max-width:460px;margin:0 auto;box-shadow:0 0 50px rgba(39,174,96,.22),inset 0 1px 0 rgba(255,255,255,.05);color:#e8f0e8">
+      <div style="text-align:center;margin-bottom:14px"><div style="font-size:40px;line-height:1">🔒</div><div style="font-size:20px;font-weight:900;color:#2ecc71;letter-spacing:1px">SEJF DOMOWY</div><div style="font-size:12px;color:#7a9a85">${_safeRoomLabel(rk)}</div></div>
+      <div style="display:flex;justify-content:space-between;background:#08120c;border:1px solid #1a3a28;border-radius:8px;padding:11px 16px;margin-bottom:8px"><span style="color:#88a895">W sejfie:</span><span style="color:#f1c40f;font-weight:800">${fmt(cash)} zł</span></div>
+      <div style="display:flex;justify-content:space-between;background:#08120c;border:1px solid #1a3a28;border-radius:8px;padding:11px 16px;margin-bottom:16px"><span style="color:#88a895">Portfel:</span><span style="color:#7ec8e3;font-weight:800">${fmt(G.money)} zł</span></div>
+      <div style="font-size:11px;color:#6a8a75;margin-bottom:6px">💰 Wpłać (sejf fizyczny — bez limitu):</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${depBtns}</div>
+      <div style="font-size:11px;color:#6a8a75;margin-bottom:6px">💸 Wypłać:</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">${wdBtns}</div>
+      <button class="cbtn" style="width:100%" onclick="closeMG()">Zamknij · Esc</button>
+    </div>`;
+  };
+  window._hsMove=function(rkx,kind,a){
+    if(!G.safes||!G.safes[rkx]) return;
+    if(a===-1) a=(kind==='dep')?(G.money||0):((G.safes[rkx].cash)||0);
+    a=Math.floor(a||0);
+    if(kind==='dep'){ a=Math.min(a,Math.floor(G.money||0)); if(a<=0){ if(typeof showMsg==='function') showMsg('💰 Brak gotówki w portfelu.','r',2500); return; } G.money-=a; G.safes[rkx].cash=(G.safes[rkx].cash||0)+a; }
+    else { a=Math.min(a,Math.floor((G.safes[rkx].cash)||0)); if(a<=0){ if(typeof showMsg==='function') showMsg('🔒 Sejf jest pusty.','r',2500); return; } G.safes[rkx].cash-=a; G.money=(G.money||0)+a; }
+    if(typeof updateHUD==='function') updateHUD();
+    if(typeof saveGameSilent==='function') saveGameSilent();
+    if(typeof window._hsRender==='function') window._hsRender();
+  };
+  window._hsRender();
+  mg.classList.add('on');
 };
 window._safeDepositInput=function(rk){
   const el=document.getElementById('safe-amount-'+rk); const v=el?parseFloat(el.value):NaN;
@@ -56328,6 +56367,12 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.49',date:'2026-06-22',cats:['fix'],title:'🔧 Sejf domowy w osobnym oknie',
+ items:[
+ {t:'fix',d:'Sejf w mieszkaniu otwiera się teraz we własnym oknie po podejściu i wciśnięciu E. Wcześniej otwierał aplikację w telefonie, przez co klawisz Esc cofał po menu telefonu zamiast po prostu zamknąć sejf. Gotówkę wpłacasz i wypłacasz bez limitu bezpośrednio w sejfie.'}
+ ],
+ },
  {
  ver:'v2.3.48',date:'2026-06-22',cats:['fix'],title:'🔧 Poprawki menu, pauzy, pełnego ekranu i ekranów informacyjnych',
  items:[
