@@ -55425,11 +55425,39 @@ function openFullMap(){
   const hudBottom=hudEl?Math.round(hudEl.getBoundingClientRect().bottom)+4:66;
   o.style.cssText=`position:fixed;top:${hudBottom}px;left:0;right:0;bottom:0;background:rgba(0,0,0,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:60;padding:14px;font-family:inherit`;
   o.innerHTML=`
-    <div style="color:#7ec8e3;font-size:20px;font-weight:900;letter-spacing:2px;margin-bottom:6px">🗺 MAPA MIASTA</div>
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:6px">
+      <span style="color:#7ec8e3;font-size:20px;font-weight:900;letter-spacing:2px">🗺 MAPA MIASTA</span>
+      <button id="fmap-legend-btn" onclick="window._toggleMapLegend&&window._toggleMapLegend()" style="background:#1a2a3a;border:1px solid #3a5a7a;color:#9fd0f5;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit" title="Pokaż/ukryj legendę">≡ Legenda</button>
+    </div>
     <div id="fmap-controls" style="margin-bottom:6px;color:#aaa;font-size:11px">Scroll/+ -/przyciski = zoom · Drag = przesuwaj · ESC/M = zamknij · Zoom: <span id="fmap-zoom">100%</span>${_onStreet?'':' · <span style="color:#f1c40f">🏠 jesteś w budynku — wyjdź na ulicę, by zobaczyć swoją pozycję</span>'}</div>
     <div id="fmap-scroll-container" style="overflow:auto;max-width:96vw;max-height:80vh;border:2px solid #2a4a6a;border-radius:8px;background:#0a0a14;box-shadow:0 0 40px rgba(0,0,0,.8);user-select:none"><div id="fmap-canvas-wrap" style="position:relative;transform-origin:top left"></div></div>
   `;
   document.body.appendChild(o);
+  /* M1 (PDF v2.3.45): legenda klikalna nad mapą — rozpiska kategorii (kolor+nazwa) + nazwy obiektów
+     pogrupowane po kategorii, łącznie z NPC. Toggle przyciskiem „≡ Legenda". */
+  const _legendPanel=document.createElement('div'); _legendPanel.id='fmap-legend';
+  _legendPanel.style.cssText='display:none;position:absolute;top:54px;left:24px;max-height:70vh;width:266px;overflow-y:auto;background:rgba(8,12,22,.97);border:1px solid #3a5a7a;border-radius:8px;padding:12px 14px;z-index:5;box-shadow:0 4px 20px rgba(0,0,0,.6);scrollbar-width:thin';
+  _legendPanel.innerHTML='<div style="font-weight:900;color:#7ec8e3;font-size:13px;margin-bottom:9px;letter-spacing:1px">LEGENDA MAPY</div><div id="fmap-legend-body"></div>';
+  o.appendChild(_legendPanel);
+  window._buildMapLegendHTML=function(){
+    const CL={home:'#7ec8e3',shop:'#c8a3e3',gym:'#f39c12',career:'#5dade2',park:'#7ec87e',merch:'#f48fb1',health:'#ec7063',concert:'#bb8fce',job:'#f5b041',lux:'#f1c40f',npc:'#e8e8a0',freestyle:'#e91e8c',gate:'#ff6ec7'};
+    const LBL={home:'Dom / mieszkanie',shop:'Sklepy i usługi',gym:'Siłownia',career:'Kariera / studio',park:'Park / parking',merch:'Merch',health:'Zdrowie',concert:'Sala koncertowa',job:'Prace dorywcze',lux:'Drip / luksus',freestyle:'Freestyle',gate:'Bramy dzielnic',npc:'Postacie (NPC)'};
+    const byCat={};
+    if(typeof MAP_LANDMARKS!=='undefined') for(const lm of MAP_LANDMARKS){ if(!lm||!lm.name) continue; (byCat[lm.cat]=byCat[lm.cat]||[]).push(lm.name); }
+    let html='';
+    for(const cat in LBL){
+      const items=byCat[cat]||[]; if(!items.length) continue;
+      html+='<div style="margin-bottom:7px"><div style="display:flex;align-items:center;gap:6px;font-weight:700;color:'+(CL[cat]||'#ccc')+';font-size:12px"><span style="width:11px;height:11px;border-radius:3px;background:'+(CL[cat]||'#ccc')+';display:inline-block;flex:none"></span>'+LBL[cat]+' <span style="color:#667;font-weight:400">('+items.length+')</span></div><div style="color:#aab;font-size:10.5px;margin-left:17px;line-height:1.55">'+items.join(' · ')+'</div></div>';
+    }
+    return html||'<div style="color:#778;font-size:11px">Brak obiektów do wyświetlenia.</div>';
+  };
+  window._toggleMapLegend=function(){
+    const p=document.getElementById('fmap-legend'); if(!p) return;
+    const show=(p.style.display==='none'||!p.style.display);
+    if(show){ const b=document.getElementById('fmap-legend-body'); if(b) b.innerHTML=window._buildMapLegendHTML(); }
+    p.style.display=show?'block':'none';
+    const btn=document.getElementById('fmap-legend-btn'); if(btn) btn.style.background=show?'#2a4a6a':'#1a2a3a';
+  };
   const wrap=document.getElementById('fmap-canvas-wrap');
 
   // ── Algorytm staggering label-i — unika nakladania (lepszy: 2D candidates) ──
@@ -56480,6 +56508,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.49',date:'2026-06-22',cats:['fix','change','feature'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
+ {t:'feature',d:'Nad mapą miasta pojawił się przycisk „Legenda" — po kliknięciu pokazuje rozpiskę wszystkich miejsc i postaci na mapie, pogrupowanych w kategorie z kolorami.'},
  {t:'change',d:'Pełna mapa miasta (klawisz M) otwiera się teraz wyśrodkowana na Twojej aktualnej pozycji, zamiast od rogu — od razu widzisz, gdzie jesteś.'},
  {t:'change',d:'Mapa miasta: przybliżanie i oddalanie (kółko myszy, przyciski +/−, klawisze) działa teraz płynnie, bez skokowych przeskoków. Z opisu nad mapą usunięto zbędną ikonkę myszki.'},
  {t:'change',d:'Budynki w mieście dostały własne nazwy i szyldy (np. Splash & Go, Nova Cura, 808 Arena, Garage 77, Barber Point, CityDrive Motors) zamiast ogólnych etykiet i emotek, a mapa miasta pokazuje teraz funkcję miejsca (Myjnia, Szpital, Siłownia, Sklep RTV i AGD…) również bez emotek. Miasto wygląda bardziej wiarygodnie i mniej kiczowato.'},
