@@ -42000,7 +42000,13 @@ function openJobOverlay(id){
 // Helper — zamknij panel tylko jeśli sesja nie zmieniła się od uruchomienia
 function closeJobPanelAfter(ms){
   const tok=_jobPanelSession;const p=document.getElementById('mg-job');
-  setTimeout(()=>{if(_jobPanelSession===tok&&p)p.classList.remove('on');},ms);
+  setTimeout(()=>{if(_jobPanelSession===tok&&p){
+    p.classList.remove('on');
+    /* B6 (PDF v2.3.45): po zakończeniu zlecenia czyść treść panelu — czysty powrót do aktywnej
+       rozgrywki (bez zamrożonego ekranu wyniku zalegającego ukrytego w DOM). Panel chowa się przez
+       CSS (#mg-job bez .on = display:none); mgOpen()=false → gra znów interaktywna. */
+    const _c=document.getElementById('mg-job-content'); if(_c) _c.innerHTML='';
+  }},ms);
 }
 
 function startPizzaJob(){
@@ -42743,7 +42749,7 @@ function _startCarwashGame(){
       ctx.fillText('⏱ Czas minął — '+stage+'/6 etapów',W/2,H/2-15);
       ctx.fillStyle='#f1c40f';ctx.font='bold 22px "Segoe UI",sans-serif';
       ctx.fillText(_partPay>0?`+${_partPay} zł (proporcjonalnie)`:'Brak wypłaty',W/2,H/2+18);
-      ctx.textAlign='left';closeJobPanelAfter(3000);
+      ctx.textAlign='left';closeJobPanelAfter(2000); /* B6: 2s delay → powrót do gry (PDF v2.3.45) */
     }}
   },1000);
 
@@ -42939,7 +42945,7 @@ function _startCarwashGame(){
     ctx.fillText(`Skill myjni: ${skill} | XP: +20`,W/2,H/2+44);
     ctx.textAlign='left';
     notify(`🚗 Myjnia zakończona! +${pay} zł`);
-    closeJobPanelAfter(3000);
+    closeJobPanelAfter(2000); /* B6: 2s delay → powrót do gry (PDF v2.3.45) */
   }
   window._jobMgCleanup=()=>{over=true;cancelAnimationFrame(raf);document.removeEventListener('keydown',keydown);document.removeEventListener('keyup',keyup);panel.classList.remove('on');panel.style.display='none';document.getElementById('mg-job-content').innerHTML='';};
 }
@@ -56327,7 +56333,8 @@ const PATCH_NOTES = [
  items:[
  {t:'fix',d:'Ekrany „Patch Notes" oraz „Sterowanie" otwierane z menu głównego nie uruchamiają już przypadkiem rozgrywki. Wcześniej u góry pojawiał się pasek gracza, a klawisz Esc przenosił wprost do gry. Teraz Esc wraca do menu, a oba panele są wyłącznie informacyjne.'},
  {t:'fix',d:'Panel ustawień otwierany z ekranu pauzy pojawia się teraz na pierwszym planie. Wcześniej wyświetlał się pod oknem pauzy, przez co wyglądał na niedziałający.'},
- {t:'fix',d:'Tryb pełnoekranowy działa teraz poprawnie w aplikacji. Klawisz Esc od razu pauzuje grę i nie wyrzuca już z pełnego ekranu, a przełącznik pełnego ekranu w ustawieniach reaguje za pierwszym kliknięciem.'}
+ {t:'fix',d:'Tryb pełnoekranowy działa teraz poprawnie w aplikacji. Klawisz Esc od razu pauzuje grę i nie wyrzuca już z pełnego ekranu, a przełącznik pełnego ekranu w ustawieniach reaguje za pierwszym kliknięciem.'},
+ {t:'fix',d:'Po zakończeniu pracy w myjni ekran nie zatrzymuje się już w oknie myjni. Po krótkiej chwili gra automatycznie wraca do rozgrywki, gotowa na kolejne zlecenie.'}
  ],
  },
  {
