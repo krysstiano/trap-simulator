@@ -26324,12 +26324,23 @@ function nextPeriod(){
        PRZED: bezwarunkowy +50+G.level*10 zł co nowy dzień → gracz AFK = ~60 zł/dzień za nic.
        PO: gate na totalEarned >= 100 zł (gracz musiał SAM coś zarobić) + day >= 2 (NIE pierwszy dzień). */
     /* v2.1.550: gate na AKTYWNOSC Z POPRZEDNIEGO DNIA (_wasActiveYesterday, delta), NIE lifetime totalEarned. Bonus wykluczony z baseline by nie napedzal sam siebie. */
+    /* v2.3.53 (ulepszenie gry): wariancja porannego klimatu wg pogody — „Nowy dzień" widać CODZIENNIE,
+       fixed tekst był najczęściej powtarzaną linią. Czysto flavor (zero wpływu na bonus/balans/save). */
+    const _mvArr=(()=>{ const w=G.weather||0;
+      if(w===2) return ['deszcz bębni o bruk','mokro na ulicach, parasole w ruch'];
+      if(w===3) return ['śnieg sypie cicho','biało na chodnikach'];
+      if(w===5) return ['burza przeszła nocą','niebo wciąż ciężkie'];
+      if(w===4) return ['mgła wisi nad dzielnicą','gęsto i szaro'];
+      if(w===1) return ['chłodny, szary poranek','pochmurno nad miastem'];
+      return ['słońce wstaje nad dzielnicą','czyste niebo, dobry dzień na ruch'];
+    })();
+    const _mv=_mvArr[Math.floor(Math.random()*_mvArr.length)];
     if((G.day||0) >= 2 && _wasActiveYesterday){
       const dayBonus=50+G.level*10;let _p=dayBonus;if(typeof earn==='function')_p=earn(dayBonus,false);else{G.money+=dayBonus;G.totalEarned=(G.totalEarned||0)+dayBonus;} /* v1.9.66: Prestige. v2.1.865: capture REALNĄ kwotę (notif + tracker aktywności = faktycznie dodane) */
       G._dayStartTotalEarned=(G._dayStartTotalEarned||0)+_p; /* wyklucz bonus (realny) z jutrzejszego pomiaru aktywnosci */
-      addNotif(`🌅 Nowy dzień! Dzienny bonus za wczorajszą aktywność: +${_p.toLocaleString('pl')} zł${_aptMoodBonus?` · +${_aptMoodBonus} nastrój (mieszkanie)`:''}`);
+      addNotif(`🌅 Nowy dzień — ${_mv}! Dzienny bonus za wczorajszą aktywność: +${_p.toLocaleString('pl')} zł${_aptMoodBonus?` · +${_aptMoodBonus} nastrój (mieszkanie)`:''}`);
     } else {
-      addNotif(`🌅 Nowy dzień${_aptMoodBonus?` · +${_aptMoodBonus} nastrój (mieszkanie)`:''}. Dzienny bonus dostaniesz jutro, jeśli dziś coś zarobisz (min. 100 zł).`);
+      addNotif(`🌅 Nowy dzień — ${_mv}${_aptMoodBonus?` · +${_aptMoodBonus} nastrój (mieszkanie)`:''}. Dzienny bonus dostaniesz jutro, jeśli dziś coś zarobisz (min. 100 zł).`);
     }
     // Reset dziennego zadania — jeśli z poprzedniego dnia i odebrane lub nieukończone
     if(G.dailyQuest&&G.dailyQuest.day<G.day&&(G.dailyQuest.claimed||!G.dailyQuest.completed)){
@@ -56877,10 +56888,11 @@ function showHelp(){
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
  {
- ver:'v2.3.53',date:'2026-06-23',cats:['feature'],title:'🎤 Więcej życia: freestyle i siłownia',
+ ver:'v2.3.53',date:'2026-06-23',cats:['feature'],title:'🎤 Więcej życia: freestyle, siłownia i poranki',
  items:[
   {t:'feature',d:'Po każdym freestyle na ulicy widzisz teraz reakcję publiczności dopasowaną do występu — od „tłum oszalał, telefony w górze" po „zamurowało Cię, cisza". Każda ocena ma kilka wariantów, więc występy mniej się powtarzają i bardziej żyją.'},
   {t:'feature',d:'Trening na siłowni (ławka, bieżnia, rowerek) kończy się teraz krótką reakcją „jak poszło" zależną od przyrostu formy — od „mięśnie płoną, rośniesz!" po „lekko, ale każdy trening się liczy". Drobiazg, ale sesje są przyjemniejsze i mniej powtarzalne.'},
+  {t:'feature',d:'Powitanie nowego dnia zależy teraz od pogody za oknem — „słońce wstaje nad dzielnicą", „deszcz bębni o bruk", „śnieg sypie cicho" i więcej. Codzienny poranek brzmi mniej szablonowo.'},
  ]
  },
  {
