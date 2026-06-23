@@ -56569,6 +56569,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.49',date:'2026-06-22',cats:['fix','change','feature'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
+ {t:'feature',d:'Dzielnica Underground i kluby tętnią życiem mocniej wieczorami, nocą i w weekendy — w piątkowy lub sobotni wieczór spotkasz tam znacznie więcej ludzi niż w poniedziałkowe popołudnie. W tygodniu ruch pozostaje na normalnym poziomie.'},
  {t:'feature',d:'Po mieście rozstawiono więcej koszy na śmieci i małych osiedlowych ławek — na ławkach przesiadują różni przechodnie (za dnia i przy dobrej pogodzie). Wszystko z dala od jezdni i budynków.'},
  {t:'feature',d:'Przy skrzyżowaniach w mieście pojawiły się prawdziwe znaki drogowe — STOP, pierwszeństwo, ustąp pierwszeństwa i przejście dla pieszych — narysowane jako realne kształty, nie emoji.'},
  {t:'change',d:'Wszystkie latarnie w mieście zapalają się teraz spójnie już od zmierzchu (wieczór–świt), a nie część dopiero w środku nocy — ulice są lepiej oświetlone wieczorem.'},
@@ -71471,11 +71472,24 @@ const DISTRICT_LIFE_CFG={
   coast:      {peds:7, cars:0, elegantPct:0.10, luxCarPct:0.50, carBody:['sedan','suv','compact'], luxBody:['sports','luxury']}, /* U15 (v2.3.44 PDF): bez aut (jeździły po piasku); piesi plażowi (poniżej) */
   business:   {peds:12,cars:4, elegantPct:0.50, luxCarPct:0.50, carBody:['sedan','suv'],            luxBody:['sports','luxury']},
 };
+/* D7 (PDF v2.3.45 l.1285): Underground/kluby (Velvet/Cypher) mają największy ruch wieczorem i nocą oraz
+   w weekend. Mnożnik aktywności dzielnicy wg dnia tygodnia (_getDayProfile) + pory. #11 max(1,…) — NIE
+   redukuje w tygodniu (baza zachowana), TYLKO dodaje w weekend/nocą. Efemeryczne (nie w save). */
+function _districtActivityMult(room){
+  const prof=(typeof _getDayProfile==='function')?_getDayProfile():{underground:1,cityTraffic:1};
+  const hour=Math.floor((typeof gameMin!=='undefined'?gameMin:360)/60)%24;
+  const night=(hour>=18||hour<6); // wieczór + noc
+  if(room==='underground') return Math.max(1, prof.underground||1) * (night?1.35:1.0);
+  if(room==='coast') return Math.max(1, prof.cityTraffic||1); // plaża żywsza w weekend (dzień)
+  return 1; // business — bez zmian
+}
+window._districtActivityMult=_districtActivityMult;
 let districtPeds=[], districtCars=[], _districtLifeRoom=null;
 function _dlSkin(){ return ['#f0c8a0','#e0b088','#c89060','#a06840','#8a5a3a','#6a4028'][Math.floor(Math.random()*6)]; }
 function initDistrictLife(room){
   districtPeds=[]; districtCars=[]; _districtLifeRoom=room;
   const cfg=DISTRICT_LIFE_CFG[room]; if(!cfg) return;
+  const _peds=Math.max(1, Math.round(cfg.peds*_districtActivityMult(room))); // D7: aktywność wg dnia/pory
   const roomW=((ROOMS[room]&&ROOMS[room].wT)||30)*T;
   const pedLanes=[300,660,905];
   const elegantCloth=['#1a1a2a','#22223a','#2a2238','#1a2a3a','#30203a']; /* ciemne garnitury/suknie/marynarki */
@@ -71485,7 +71499,7 @@ function initDistrictLife(room){
   const beachShorts=['#ffffff','#ffeaa7','#fab1a0','#81ecec','#a29bfe','#ff7675'];
   const hatCols=['#ffce54','#fc6e51','#ed5565','#48cfad','#ffffff','#f6e58d'];
   const _isCoast = room==='coast';
-  for(let i=0;i<cfg.peds;i++){
+  for(let i=0;i<_peds;i++){
     const elegant=Math.random()<cfg.elegantPct;
     const beach=_isCoast && Math.random()<0.90; /* ~90% plażowych vs casualowi jak w innych dzielnicach */
     districtPeds.push({ x:60+Math.random()*(roomW-120), y:pedLanes[i%pedLanes.length]+(Math.random()*20-10),
