@@ -23285,6 +23285,11 @@ window._safeDeposit=function(rk,amount){
   if(!G.safes||!G.safes[rk]) return false;
   amount=Math.floor(amount);
   if(!amount||amount<=0||(G.money||0)<amount){ if(typeof showMsg==='function') showMsg('💰 Niewystarczające środki!','r',3000); return false; }
+  /* S2 (PDF v2.3.45): sejf w TELEFONIE — wpłata gotówki z limitem ≤50 000 zł. Większe kwoty wpłacasz w sejfie
+     DOMOWYM (fizycznym, _openHomeSafePanel/_hsMove — bez limitu). Telefon to tylko wygodny podgląd + drobna wpłata. */
+  const _PHONE_SAFE_CAP=50000, _space=Math.max(0, _PHONE_SAFE_CAP-((G.safes[rk].cash)||0));
+  if(_space<=0){ if(typeof showMsg==='function') showMsg('📱 Sejf w telefonie mieści maks. 50 000 zł. Większe kwoty wpłać w sejfie domowym.','r',4000); return false; }
+  if(amount>_space){ amount=_space; if(typeof showMsg==='function') showMsg('📱 Limit sejfu w telefonie to 50 000 zł — wpłacono '+amount.toLocaleString('pl')+' zł. Resztę wpłać w sejfie domowym.','i',4500); }
   G.money-=amount; G.safes[rk].cash=(G.safes[rk].cash||0)+amount;
   if(typeof showMsg==='function') showMsg(`🔒 Wpłacono ${amount.toLocaleString('pl')} zł (${_safeRoomLabel(rk)}). W tym sejfie: ${G.safes[rk].cash.toLocaleString('pl')} zł.`,'g',3500);
   if(typeof updateHUD==='function') updateHUD();
@@ -56786,6 +56791,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.49',date:'2026-06-22',cats:['fix','change','feature'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
+ {t:'change',d:'Sejf w telefonie ma teraz limit wpłaty 50 000 zł — większe kwoty schowasz w sejfie domowym (fizycznym), który nie ma limitu gotówki. Telefon zostaje wygodnym podglądem salda i drobną wpłatą.'},
  {t:'change',d:'Dostrojono moment, w którym w mieście zaczyna się jeden z wątków fabularnych — pojawia się teraz dopiero, gdy gracz na dobre wkręcił się w grę (więcej freestyle i dłuższa sesja).'},
  {t:'change',d:'Sklep z ubraniami Urban Crown jest teraz uporządkowany w czytelne sekcje (Codzienne, Streetwear, Scena, Formalne, Sport, Praca, Pogoda) zamiast jednej długiej listy — łatwiej dobrać strój pod konkretną okazję.'},
  {t:'feature',d:'W siłowni RepZone stanął rowerek stacjonarny — bezpieczna sesja cardio, w której (w odróżnieniu od bieżni) nie da się przegrać ani stracić tempa. Pewny, łagodny przyrost kondycji dla każdego.'},
