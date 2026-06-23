@@ -1137,6 +1137,8 @@ const G = {
      G.trapInv: ingredient stock (traw/krysztal/prosz) + cooked products. */
   trap:{unlocked:false,level:1,xp:0,reputation:0,cooked:0,sold:0,busted:0,_lastCookDay:0,_lastSellDay:0,_jailUntilDay:0,heat:0,_maxHeatEver:0},
   trapInv:{traw:0, krysztal:0, prosz:0, products:{}},
+  /* v2.3.54 MODUŁ POJAZDÓW SPECJALNYCH (kamper) — stan mobilnego frontu. Nowa gra: owned=false (trzeba KUPIĆ w Gravel Lot/CityDrive po unlocku Kantara). D0: osobna warstwa, NIE psuje G.trap. Defaulty/grandfather: window._camperEnsure(). */
+  camper:{owned:false,model:null,location:null,condition:100,camouflage:0,daysInLoc:0,moveCooldown:0,heat:0,fuel:100,routeNoise:0,upgrades:[],gangProtection:0,maintenance:0,destroyed:false,partsAtMetalValley:false,productionLocked:false,gravelLotUnlocked:false,purchaseAvailable:false,history:[]},
   methlab:{stage:0,heat:0,periods:0,quality:0,raw:0}, /* v2.1.779 wieloetapowa synteza mety (reaktor) */
   /* v2.1.481 Faza AN.7 — GROW LOOP minigame init (sadzenie/podlewanie/nawóz/zbiór).
      v2.1.496 multi-step extension: wetBuds + driedBuds + dryingStartDay. */
@@ -47206,7 +47208,25 @@ window._sanitizePlayerLists=function(){
     if(G.bank&&Array.isArray(G.bank.investments)) G.bank.investments=G.bank.investments.filter(x=>x&&typeof x==='object');
     if(G.safes&&typeof G.safes==='object') for(const _k of Object.keys(G.safes)){ if(!G.safes[_k]||typeof G.safes[_k]!=='object') delete G.safes[_k]; }
     if(G.trap&&G.trap.unlocked){ if(!G.trapInv||typeof G.trapInv!=='object') G.trapInv={traw:0,krysztal:0,prosz:0,products:{}}; if(!G.trapInv.products||typeof G.trapInv.products!=='object') G.trapInv.products={}; }
+    if(typeof window._camperEnsure==='function') window._camperEnsure(); /* v2.3.54 moduł kampera: defaulty + grandfather (save-safe D0) */
   }catch(_e){}
+};
+/* v2.3.54 MODUŁ POJAZDÓW SPECJALNYCH — defaulty stanu kampera (save-safe #1) + GRANDFATHER (D0):
+   stary save z G.trap.unlocked traktujemy jako posiadacza kampera (ZERO regresu progresji Trap Tier 0).
+   Nowy gracz: owned=false → musi KUPIĆ kamper (Gravel Lot Motors / CityDrive po unlocku Kantara). */
+window._camperEnsure=function(){
+  if(!G.camper||typeof G.camper!=='object') G.camper={};
+  const c=G.camper, d=(k,v)=>{ if(c[k]===undefined||c[k]===null&&typeof v!=='object') c[k]=v; };
+  if(c.owned===undefined) c.owned=false;
+  if(c.model===undefined) c.model=null;
+  if(c.location===undefined) c.location=null;
+  d('condition',100); d('camouflage',0); d('daysInLoc',0); d('moveCooldown',0); d('heat',0); d('fuel',100); d('routeNoise',0);
+  d('gangProtection',0); d('maintenance',0); d('destroyed',false); d('partsAtMetalValley',false);
+  d('productionLocked',false); d('gravelLotUnlocked',false); d('purchaseAvailable',false);
+  if(!Array.isArray(c.upgrades)) c.upgrades=[];
+  if(!Array.isArray(c.history)) c.history=[];
+  /* GRANDFATHER: istniejący gracz z odblokowanym Trapem zachowuje kamper jako posiadany (kompatybilność save). */
+  if(!c.owned && G.trap && G.trap.unlocked){ c.owned=true; c._grandfathered=true; if(!c.model) c.model='rumbler_nomad_88'; if(!c.location) c.location='underground_legacy'; c.gravelLotUnlocked=true; c.purchaseAvailable=true; }
 };
 function togglePhone(){
   const ph=document.getElementById('phone');
