@@ -1013,7 +1013,7 @@ const G = {
   _hasCrownOfHipHop:false,
   money:500, followers:0, level:1, xp:0,
   day:1, timeOfDay:0, weather:0,
-  name:'Traper', skin:'light', hair:0, cloth:'#2a5080', gender:'m', /* v2.1.931 (Vegan): płeć gracza */
+  name:'Traper', skin:'light', hair:0, beard:0, beardColor:0, cloth:'#2a5080', gender:'m', /* v2.1.931 (Vegan): płeć gracza; v2.3.49 D6: beard/beardColor (Barber Point) */
   outfit:{top:'default'},
   camera:null, mic:null, midiCtrl:null,
   /* v2.1.51 Amper: inwentarz — listy posiadanych mikrofonów i kamer. G.mic / G.camera nadal trzymają AKTYWNY przedmiot (legacy compat: cały istniejący kod czyta G.mic.quality bez zmian). */
@@ -12226,6 +12226,7 @@ function drawPlayer(){
   X.beginPath();X.arc(cx,sy+P.h*.10+4,12,Math.PI,0);X.fill();
   // Hair
   drawHairStyle(cx,sy,sc);
+  drawBeardStyle(cx,sy,sc); // BP1: zarost/broda (przed oczami/ustami — te renderują się na wierzchu)
   // v1.8.29: Twarz — oczy okrągłe (nie kwadratowe = mniej creepy) + delikatny uśmiech
   if(P.dir===2){
     // Białka oczu (subtelne)
@@ -12862,6 +12863,20 @@ function drawOutfitOverlay(cx, sy, outfitId, dir, skinColor){
   }
 }
 
+/* BP1 (Tier 6 Barber Point, PDF v2.3.45): zarost/broda gracza — 0 brak, 1 zarost, 2 krótka, 3 pełna, 4 kozia bródka.
+   Rysowana na żuchwie/podbródku sprite'a; oczy/usta renderują się PO niej (widoczne). Kolor wg P.beardColor. */
+const BEARD_COLS=['#2a1808','#1a0a05','#4a2a12','#6a4a28','#7a7a7a','#cfcfcf'];
+function drawBeardStyle(cx,sy,sc){
+  const b=(typeof P!=='undefined'&&P.beard)||0; if(!b) return;
+  const col=BEARD_COLS[((typeof P!=='undefined'&&P.beardColor)||0)%BEARD_COLS.length];
+  const yH=sy+P.h*.10;
+  X.save(); X.fillStyle=col;
+  if(b===1){ X.globalAlpha=.42; X.beginPath(); X.moveTo(cx-11,yH+12); X.quadraticCurveTo(cx,yH+24,cx+11,yH+12); X.quadraticCurveTo(cx,yH+17,cx-11,yH+12); X.fill(); X.globalAlpha=1; }
+  else if(b===2){ X.beginPath(); X.moveTo(cx-11,yH+11); X.quadraticCurveTo(cx,yH+25,cx+11,yH+11); X.quadraticCurveTo(cx,yH+16,cx-11,yH+11); X.fill(); }
+  else if(b===3){ X.beginPath(); X.moveTo(cx-12,yH+7); X.lineTo(cx-12,yH+13); X.quadraticCurveTo(cx,yH+28,cx+12,yH+13); X.lineTo(cx+12,yH+7); X.quadraticCurveTo(cx,yH+15,cx-12,yH+7); X.fill(); }
+  else if(b===4){ X.beginPath(); X.moveTo(cx-4,yH+16); X.lineTo(cx+4,yH+16); X.lineTo(cx+3,yH+24); X.lineTo(cx-3,yH+24); X.closePath(); X.fill(); }
+  X.restore();
+}
 function drawHairStyle(cx,sy,sc){
   const hTop=sy+P.h*.07;
   // v1.9.5/v1.9.8: 10 fryzur
@@ -37660,8 +37675,16 @@ function renderBarber(){
     {id:8,name:'Quiff',price:80},
     {id:9,name:'Buzz cut',price:35},
   ];
+  /* BP1 (Tier 6): zarost/broda — Barber Point oferuje też brodę. */
+  const beardstyles=[
+    {id:0,name:'Gładko (golenie)',price:15},
+    {id:1,name:'Zarost',price:25},
+    {id:2,name:'Krótka broda',price:60},
+    {id:3,name:'Pełna broda',price:110},
+    {id:4,name:'Kozia bródka',price:70},
+  ];
   document.getElementById('ov-content').innerHTML=`
-    <h2>✂️ Fryzjer</h2><p class="sub">Zmień fryzurę swojej postaci.</p>
+    <h2>✂️ Barber Point</h2><p class="sub">Zmień fryzurę i zarost swojej postaci.</p>
     <div style="display:flex;gap:30px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px">
       <div>
         <div style="font-size:12px;color:#556;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Podgląd</div>
@@ -37672,12 +37695,16 @@ function renderBarber(){
         ${hairstyles.map(h=>`<div class="sitem"><h3>${h.name}</h3><div class="pr">${h.price} zł</div>${G.hair===h.id?'<div class="owned">✅ Aktualna</div>':''}<button class="bbtn" onmouseover="previewHaircut(${h.id},'${h.name}')" onmouseout="previewHaircut(${G.hair},'Aktualna fryzura')" onclick="buyHaircut(${h.id},${h.price})" ${G.hair===h.id||G.money<h.price?'disabled':''}>Strzyż</button></div>`).join('')}
       </div>
     </div>
-    <div class="res" id="shop-res">Wybierz fryzurę.</div>
+    <div style="font-size:12px;color:#88a;text-transform:uppercase;letter-spacing:1px;margin:16px 0 6px">💈 Zarost / Broda</div>
+    <div class="shopgrid" style="margin-bottom:0">
+      ${beardstyles.map(b=>`<div class="sitem"><h3>${b.name}</h3><div class="pr">${b.price} zł</div>${(G.beard||0)===b.id?'<div class="owned">✅ Aktualny</div>':''}<button class="bbtn" onmouseover="previewBeard(${b.id},'${b.name}')" onmouseout="previewBeard(G.beard||0,'Twój wygląd')" onclick="buyBeard(${b.id},${b.price})">Wybierz</button></div>`).join('')}
+    </div>
+    <div class="res" id="shop-res">Wybierz fryzurę lub zarost.</div>
     <button class="cbtn" onclick="closeOverlay()">← Wróć</button>
   `;
-  setTimeout(()=>previewHaircut(G.hair,'Aktualna fryzura'),50);
+  setTimeout(()=>previewHaircut(G.hair,'Twój wygląd'),50);
 }
-window.previewHaircut=function(hairId,lbl){
+window.previewHaircut=function(hairId,lbl,beardId){
   const cvs=document.getElementById('barber-preview');if(!cvs)return;
   const cx=cvs.getContext('2d');
   cx.clearRect(0,0,120,120);
@@ -37919,8 +37946,24 @@ window.previewHaircut=function(hairId,lbl){
   cx.beginPath();cx.arc(px+8.4,py-0.6,0.8,0,Math.PI*2);cx.fill();
   // Usta
   cx.strokeStyle='#8a5040';cx.lineWidth=2;cx.beginPath();cx.arc(px,py+10,6,0.2,Math.PI-0.2);cx.stroke();
+  // BP1: zarost/broda na podglądzie (po ustach — broda na żuchwie poniżej ust)
+  _drawPreviewBeard(cx,px,py, (beardId!=null)?beardId:((typeof G.beard==='number')?G.beard:0));
   const lblEl=document.getElementById('barber-preview-lbl');
   if(lblEl)lblEl.textContent=lbl;
+};
+/* BP1 (Tier 6): podgląd zarostu/brody na twarzy w panelu fryzjera (geometria: face center py+5 r28). */
+function _drawPreviewBeard(cx,px,py,b){
+  if(!b) return;
+  const col=BEARD_COLS[((typeof P!=='undefined'&&P.beardColor)||0)%BEARD_COLS.length];
+  cx.save(); cx.fillStyle=col;
+  if(b===1){ cx.globalAlpha=.4; cx.beginPath(); cx.moveTo(px-22,py+12); cx.quadraticCurveTo(px,py+40,px+22,py+12); cx.quadraticCurveTo(px,py+22,px-22,py+12); cx.fill(); cx.globalAlpha=1; }
+  else if(b===2){ cx.beginPath(); cx.moveTo(px-23,py+11); cx.quadraticCurveTo(px,py+42,px+23,py+11); cx.quadraticCurveTo(px,py+20,px-23,py+11); cx.fill(); }
+  else if(b===3){ cx.beginPath(); cx.moveTo(px-26,py+2); cx.lineTo(px-25,py+15); cx.quadraticCurveTo(px,py+46,px+25,py+15); cx.lineTo(px+26,py+2); cx.quadraticCurveTo(px,py+22,px-26,py+2); cx.fill(); }
+  else if(b===4){ cx.beginPath(); cx.moveTo(px-7,py+18); cx.lineTo(px+7,py+18); cx.lineTo(px+5,py+40); cx.lineTo(px-5,py+40); cx.closePath(); cx.fill(); }
+  cx.restore();
+}
+window.previewBeard=function(beardId,lbl){
+  previewHaircut((typeof G.hair==='number')?G.hair:0, lbl, beardId);
 };
 
 function renderHospital(){
@@ -39293,6 +39336,12 @@ window.buyHaircut=(id,price)=>{
   /* v2.1.330 Faza H iter1: immediate achievement check (first_haircut) — NIE czekaj na nextPeriod tick. */
   if(typeof checkAchievements==='function') checkAchievements();
   document.getElementById('shop-res').textContent='✂️ Nowa fryzura!';renderBarber();
+};
+window.buyBeard=(id,price)=>{
+  if(G.money<price) return; G.money-=price; G.beard=id; P.beard=id;
+  if(typeof checkAchievements==='function') checkAchievements();
+  const r=document.getElementById('shop-res'); if(r) r.textContent=id===0?'💈 Gładko ogolony!':'💈 Nowy zarost!';
+  renderBarber();
 };
 window.heal=(amount)=>{
   /* v2.1.113: Wave 2 W13 — cooldown 30 min gry między heal calls (anti-spam, gracz musi czekać między wizytami). */
@@ -56569,6 +56618,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.49',date:'2026-06-22',cats:['fix','change','feature'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
+ {t:'feature',d:'Barber Point (fryzjer) pozwala teraz zmienić nie tylko fryzurę, ale i zarost — zarost kilkudniowy, krótką brodę, pełną brodę albo kozią bródkę. Nowy wygląd widać od razu na Twojej postaci i w podglądzie u fryzjera.'},
  {t:'feature',d:'Dzielnica Underground i kluby tętnią życiem mocniej wieczorami, nocą i w weekendy — w piątkowy lub sobotni wieczór spotkasz tam znacznie więcej ludzi niż w poniedziałkowe popołudnie. W tygodniu ruch pozostaje na normalnym poziomie.'},
  {t:'feature',d:'Po mieście rozstawiono więcej koszy na śmieci i małych osiedlowych ławek — na ławkach przesiadują różni przechodnie (za dnia i przy dobrej pogodzie). Wszystko z dala od jezdni i budynków.'},
  {t:'feature',d:'Przy skrzyżowaniach w mieście pojawiły się prawdziwe znaki drogowe — STOP, pierwszeństwo, ustąp pierwszeństwa i przejście dla pieszych — narysowane jako realne kształty, nie emoji.'},
