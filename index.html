@@ -46354,7 +46354,7 @@ function startBenchPressMG(weight,equip){
       progressQuest('gym');if(typeof _trackGym==='function')_trackGym();
       const bonusLabel = isPro ? ' 🥋(PRO +25%)' : isSport ? ' 🏋(sportowy +20%)' : '';
       const sesjaMax = isPro ? 3 : 2;
-      notify(`💪 ${reps} powtórzeń × ${weight}kg! +${formaGainBP}% forma${bonusLabel}, +${xpGain} XP. Sesja siły ${G._gymSets.strength}/${sesjaMax}`);
+      notify(`💪 ${reps} powtórzeń × ${weight}kg! +${formaGainBP}% forma${bonusLabel}, +${xpGain} XP. Sesja siły ${G._gymSets.strength}/${sesjaMax} ${window._gymFeel(formaGainBP)}`);
       updateHUD();
     }
     el.style.display='none';el.classList.remove('on');el.innerHTML='<div id="mg-job-content"></div>';
@@ -46636,6 +46636,15 @@ function startBenchPressMG(weight,equip){
 
 /* RZ (Tier 7 RepZone Fitness, PDF v2.3.45): ROWEREK stacjonarny — bezpieczne cardio (pedałuj spacją).
    W przeciwieństwie do bieżni NIE da się „zgubić tempa"/przegrać — pewny, łagodniejszy przyrost kondycji. */
+/* v2.3.53 (ulepszenie gry): krótka reakcja „jak poszło" po treningu — wariancja wg przyrostu, ożywia
+   powtarzaną sesję siłowni (bench/bieżnia/rowerek). Czysto flavor — ZERO wpływu na staty/balans/save. */
+window._gymFeel=function(g){
+  g=+g||0;
+  const a=(g>=10)?['🔥 Mięśnie płoną — czujesz, że rośniesz!','💥 Mocna seria! Forma ostro w górę.']
+    :(g>=5)?['😤 Solidnie — postęp widać.','👊 Dobra robota, ciało się buduje.']
+    :['🙂 Lekko, ale każdy trening się liczy.','😮‍💨 Rozruszałeś się — lepsze to niż kanapa.'];
+  return a[Math.floor(Math.random()*a.length)];
+};
 function startBikeMG(){
   if(!G._gymSets||G._gymSets.day!==G.day) G._gymSets={day:G.day,count:0,cardio:0,strength:0};
   const el=document.getElementById('mg-job'); if(!el) return;
@@ -46684,7 +46693,7 @@ function startBikeMG(){
       const xpGain=8; if(typeof addXP==='function') addXP(xpGain);
       if(typeof progressQuest==='function') progressQuest('gym'); if(typeof _trackGym==='function') _trackGym();
       if(typeof updateHUD==='function') updateHUD();
-      if(typeof notify==='function') notify(`🚲 Rowerek zakończony! +${fitGain} kondycja → ${Math.floor(G.fitness||0)}/${typeof getMaxStat==='function'?getMaxStat('fitness'):100}, +${xpGain} XP. Bezpiecznie, bez ryzyka upadku.`);
+      if(typeof notify==='function') notify(`🚲 Rowerek zakończony! +${fitGain} kondycja → ${Math.floor(G.fitness||0)}/${typeof getMaxStat==='function'?getMaxStat('fitness'):100}, +${xpGain} XP. Bezpiecznie, bez ryzyka upadku. ${window._gymFeel(fitGain)}`);
     }
   }
   window._bkKd=(e)=>{ if(e.code==='Space'&&gameActive&&!spaceDown){ spaceDown=true; e.preventDefault(); presses++; const r=document.getElementById('bk-rot'); if(r)r.textContent=presses; const b=document.getElementById('bk-bar'); if(b)b.style.width=Math.min(100,presses*1.4)+'%'; } };
@@ -46839,7 +46848,7 @@ function startTreadmillMG(speed){
       const newSpd=(2.0+(G.fitness||0)/100*0.38+Math.min(5,_kondLvlM)*0.04+_skBgM*0.04+_puBgM*0.10+_evoBgM*0.30).toFixed(2);
       const bonusLabel = isPro ? ' 🥋(PRO +25%)' : isSport ? ' 🏋(sportowy +20%)' : '';
       const cardioMax2 = isPro ? 3 : 2;
-      notify(`🏃 Bieżnia (${speedNames[speed]}) zakończona! +${fitGain} kondycja${bonusLabel} → ${Math.floor(G.fitness||0)}/${typeof getMaxStat==='function'?getMaxStat('fitness'):100}, prędkość ${newSpd}, +${xpGain} XP. Sesja cardio ${G._gymSets.cardio}/${cardioMax2}`);
+      notify(`🏃 Bieżnia (${speedNames[speed]}) zakończona! +${fitGain} kondycja${bonusLabel} → ${Math.floor(G.fitness||0)}/${typeof getMaxStat==='function'?getMaxStat('fitness'):100}, prędkość ${newSpd}, +${xpGain} XP. Sesja cardio ${G._gymSets.cardio}/${cardioMax2} ${window._gymFeel(fitGain)}`);
       updateHUD();
     } else {
       notify('😮‍💨 Bieżnia — zabrakło sił! Wciskaj SPACJĘ szybciej.');
@@ -56868,9 +56877,10 @@ function showHelp(){
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
  {
- ver:'v2.3.53',date:'2026-06-23',cats:['feature'],title:'🎤 Reakcja tłumu na freestyle',
+ ver:'v2.3.53',date:'2026-06-23',cats:['feature'],title:'🎤 Więcej życia: freestyle i siłownia',
  items:[
   {t:'feature',d:'Po każdym freestyle na ulicy widzisz teraz reakcję publiczności dopasowaną do występu — od „tłum oszalał, telefony w górze" po „zamurowało Cię, cisza". Każda ocena ma kilka wariantów, więc występy mniej się powtarzają i bardziej żyją.'},
+  {t:'feature',d:'Trening na siłowni (ławka, bieżnia, rowerek) kończy się teraz krótką reakcją „jak poszło" zależną od przyrostu formy — od „mięśnie płoną, rośniesz!" po „lekko, ale każdy trening się liczy". Drobiazg, ale sesje są przyjemniejsze i mniej powtarzalne.'},
  ]
  },
  {
