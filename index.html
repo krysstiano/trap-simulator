@@ -38331,6 +38331,30 @@ window._chooseInitialCamperLocation=function(){
   if(!c.location) c.location='old_overpass_parking'; /* domyslny postoj; Tier 2: pelny wybor */
   c.daysInLoc=0;
 };
+/* Panel zakupu kamperów (Tier 1b) — wzór renderSalon, renderuje do #ov-content (overlay już otwarty: salon/komis).
+   source: 'citydrive' (premium) / 'gravel' (komis używanych; modele 'both' widoczne w obu). */
+window._camperTier=function(n){ const L=['—','b.niski','niski','niski+','średni','średni+','wysoki','wysoki+','b.wysoki']; return L[Math.round((+n||0)*2)]||(''+n); };
+window.renderCamperShop=function(source){
+  window._camperEnsure(); const c=G.camper;
+  const el=document.getElementById('ov-content'); if(!el) return;
+  const models=(typeof CAMPER_MODELS!=='undefined')?CAMPER_MODELS.filter(m=> m.source===source || m.source==='both'):[];
+  const ownedName=c.owned?((window._camperModelById(c.model)||{}).name||c.model):null;
+  const rows=models.map(m=>{
+    const afford=(G.money||0)>=m.price, dis=c.owned||!afford;
+    return `<div style="background:#0a1220;border:1px solid #1a3a5a;border-radius:10px;padding:12px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <b style="font-size:15px">${m.emoji} ${m.name}</b><span style="color:#e8a020;font-weight:700;white-space:nowrap">${m.price.toLocaleString('pl')} zł</span></div>
+      <p style="font-size:12.5px;color:#99a;margin:6px 0">${m.desc}</p>
+      <div style="font-size:11.5px;color:#778;margin-bottom:8px">📦 Pojemność ${window._camperTier(m.storage)} · 🧪 Zaplecze ${window._camperTier(m.labCap)} · 🔧 Awaryjność ${window._camperTier(m.breakdown)} · 🥷 Kamuflaż ${m.camouflage}/100 · 📉 Jakość ${m.qualityMod}%</div>
+      <button class="bbtn" style="width:100%" ${dis?'disabled':''} onclick="window.buyCamper('${m.id}');window.renderCamperShop('${source}')">${c.owned?'Masz już kampera':afford?('Kup za '+m.price.toLocaleString('pl')+' zł'):'Za mało gotówki'}</button>
+    </div>`;
+  }).join('');
+  const title=source==='gravel'?'🚐 Gravel Lot Motors — komis pojazdów używanych':'🚐 CityDrive Motors — kampery';
+  const intro=source==='gravel'?'Szutrowy plac na obrzeżach. Tanie kampery z historią, której nikt już nie chce pamiętać.':'Czystsze, nowsze kampery — drożej, ale mniej rzucają się w oczy na ulicy.';
+  el.innerHTML=`<h2>${title}</h2><p class="sub">${intro}</p>
+    ${c.owned?`<div style="background:#0e1830;border-left:3px solid #f1c40f;padding:8px 12px;margin-bottom:12px;border-radius:4px;font-size:13px;color:#cdd">Masz już kampera (${ownedName}). Zarządzaj nim w telefonie: Kariera → Trap → Kamper.</div>`:'<p style="color:#778;font-size:12px;margin-bottom:10px">Możesz mieć jednego kampera. To etap przejściowy — mobilny, ale ryzykowny.</p>'}
+    ${rows||'<p style="color:#778">Brak modeli w tym punkcie.</p>'}`;
+};
 const CAR_CLASS_LABELS={A:'🅰️ Klasa A — miejskie',B:'🅱️ Klasa B — segment B',C:'🔤 Klasa C — kompakty',D:'🇩 Klasa D — klasa średnia / premium','EF':'💎 Klasa E/F — luksusowe i hiperauta',J:'🚙 Klasa J — SUV',M:'🚐 Klasa M — minivan / van'};
 const CAR_CLASS_ORDER=['A','B','C','D','EF','J','M'];
 function renderSalon(){
@@ -38351,6 +38375,7 @@ function renderSalon(){
       💡 <b>Sterowanie:</b> na ulicy naciśnij klawisz <kbd style="background:#1a2845;border:1px solid #f1c40f;color:#f1c40f;padding:1px 6px;border-radius:3px;font-family:monospace">V</kbd> aby <b>wsiąść / wysiąść</b> z auta.
     </div>
     <p style="color:#667;font-size:14px;margin-bottom:12px">Aktualnie: ${G.car?'🚗 '+G.car.name+' <span style="display:inline-block;width:14px;height:14px;background:'+G.car.color+';border-radius:3px;vertical-align:middle;margin-left:4px"></span>':'Brak samochodu (poruszasz się pieszo)'}</p>
+    <button class="bbtn" style="margin-bottom:12px;background:#1a1430;border-color:#6c3483" onclick="window.renderCamperShop('citydrive')">🚐 Kampery (pojazdy specjalne) — mobilne zaplecze</button>
     ${(G.car||((G.carInv&&((G.carInv.items&&G.carInv.items.length)||G.carInv.cash>0))))?`<button class="bbtn" style="margin-bottom:12px" onclick="window.openCarInv()">🚗 Bagażnik / schowek auta (rzeczy + gotówka)</button>`:''}
     ${G.car?`<div style="background:#0a1220;border-radius:10px;padding:12px;margin-bottom:14px">
       <div style="font-size:13px;color:#aaa;margin-bottom:8px">🎨 Kolor lakieru (bezpłatna zmiana):</div>
@@ -50178,6 +50203,8 @@ window._uwPathPick=function(p){
 window._uwFinalizeIntro=function(){
   window._underworldEnsure(); const u=G.underworldIntro;
   G._underworldIntroCompleted=true; u.smallJobsUnlocked=true; /* HOOK: drobne zlecenia (realny moduł = przyszły PDF) */
+  /* v2.3.54 MODUŁ POJAZDÓW SPECJALNYCH: Kantar po wejściu w półświatek odblokowuje zakup starego kampera w komisie Gravel Lot Motors (PDF pkt 16). */
+  if(typeof window._camperEnsure==='function'){ window._camperEnsure(); G.camper.gravelLotUnlocked=true; G.camper.purchaseAvailable=true; }
   try{ if(typeof SMS_CONTACTS!=='undefined' && SMS_CONTACTS.kantar) SMS_CONTACTS.kantar.name='Roch „Kantar” Nawrot'; }catch(_e){}
   /* §14 — POWIĄZANIA Z PRZYSZŁYMI MODUŁAMI (HOOKI flag + REALNE zapowiedzi dialogowe Kantara w SMS):
      • gangi terytorialne → flaga u.gangIntroAvailable (ścieżka B) + SMS „Sierżant/Bryła".
@@ -50198,6 +50225,8 @@ window._uwFinalizeIntro=function(){
   u._pendingKantarSms.push('Znam gościa, który robi z auta wspomnienie. Nie pytaj. Na razie nie masz wiedzy, żeby zrozumieć ten temat.');
   u._pendingKantarSms.push('Jak będziesz miał kiedyś firmę, nie rób jej dla logo. Rób ją dla faktur. Logo jest dla ludzi. Faktury są dla problemów.');
   u._pendingKantarSms.push('Muzyka to dobry parawan, jeśli umiesz śpiewać ciszę. Ale jak będziesz rapował o wszystkim, co robisz, to nie będę musiał cię karać. Zrobisz to sam.');
+  /* v2.3.54 moduł kampera: zapowiedź Gravel Lot Motors (PDF pkt 16) — trickle przez _underworldTick jak reszta §14. */
+  u._pendingKantarSms.push('Znam plac, gdzie sprzedają pojazdy z historią. Gravel Lot Motors, obrzeża. Jak usłyszysz od Korka, że auto „wymaga kosmetyki", to znaczy, że ma duszę i trzy problemy techniczne. Kamper to brudny start, ale czasem szybkie decyzje karmią ludzi przez miesiąc.');
   u._lastPendingSmsDay=G.day||0; /* pierwsza zapowiedź dopiero następnego dnia gry */
 };
 /* ═══ TEST „Trzy ciche sprawy" — Zadanie 1 „Koperta z baru" (§9-Z1) ═══ */
