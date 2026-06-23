@@ -3155,6 +3155,7 @@ const ROOMS = {
       {id:'bench_press',  wx:100,wy:160, w:120,h:80, act:'gym:strength:bench', prompt:'[E] Ławka',          lbl:''},
       {id:'treadmill',    wx:300,wy:160, w:120,h:80, act:'gym:cardio',         prompt:'[E] Bieżnia',         lbl:''},
       {id:'cable_machine',wx:500,wy:160, w:110,h:80, act:'gym:strength:cable', prompt:'[E] Wyciąg',          lbl:''},
+      {id:'exercise_bike',wx:680,wy:160, w:110,h:80, act:'gym:bike',            prompt:'[E] Rowerek',         lbl:''}, /* RZ (Tier 7 PDF v2.3.45): rowerek — bezpieczne cardio (bez upadku) */
       {id:'exit_s',       wx:440,wy:570, w:62, h:62, act:'goto:ulica:1325:300', prompt:'[E] Wyjście',   lbl:'Wyjście'},
     ]
   },
@@ -3934,6 +3935,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'bench_press':    drawBenchPress(sx,sy,w,h);break;
     case 'treadmill':      drawTreadmill(sx,sy,w,h);break;
     case 'cable_machine':  drawCableMachine(sx,sy,w,h);break;
+    case 'exercise_bike':  drawExerciseBike(sx,sy,w,h);break;
     case 'mic_booth':      drawBooth(sx,sy,w,h);break;
     case 'mixer':          drawMixer(sx,sy,w,h);break;
     case 'computer':       drawStudioComputer(sx,sy,w,h);break;
@@ -4474,6 +4476,22 @@ function drawBenchPress(sx,sy,w,h){
   X.font='bold 11px "Segoe UI",Arial,sans-serif';X.textAlign='center';X.textBaseline='alphabetic';
   X.strokeStyle='rgba(0,0,0,.85)';X.lineWidth=2.5;X.strokeText('ŁAWKA',sx+w/2,sy+h-4);
   X.fillStyle='#f1c40f';X.fillText('ŁAWKA',sx+w/2,sy+h-4);X.textAlign='left';
+}
+/* RZ (Tier 7 RepZone Fitness, PDF v2.3.45): rowerek stacjonarny — sprite maszyny cardio. */
+function drawExerciseBike(sx,sy,w,h){
+  X.fillStyle='rgba(0,0,0,.25)';X.fillRect(sx+6,sy+h-7,w-12,7);
+  const bx=sx+w*0.5, by=sy+h*0.58;
+  X.strokeStyle='#3a4a5a';X.lineWidth=5;X.lineCap='round';
+  X.beginPath();X.moveTo(sx+w*0.24,sy+h-9);X.lineTo(bx,by);X.lineTo(sx+w*0.74,sy+h-9);X.stroke();
+  X.beginPath();X.moveTo(bx,by);X.lineTo(sx+w*0.30,sy+h*0.22);X.stroke();
+  X.beginPath();X.moveTo(sx+w*0.70,sy+h*0.30);X.lineTo(bx,by);X.stroke();
+  X.fillStyle='#2a3a4a';X.beginPath();X.arc(bx,by+3,9,0,Math.PI*2);X.fill();
+  X.fillStyle='#e74c3c';X.beginPath();X.arc(bx,by+3,3,0,Math.PI*2);X.fill();
+  X.fillStyle='#1a1a22';X.fillRect(sx+w*0.64,sy+h*0.24,18,6);
+  X.strokeStyle='#888';X.lineWidth=3;X.beginPath();X.moveTo(sx+w*0.24,sy+h*0.18);X.lineTo(sx+w*0.40,sy+h*0.18);X.stroke();
+  X.fillStyle='#0a2a1a';X.fillRect(sx+w*0.29,sy+h*0.06,22,13);
+  X.fillStyle='#2ecc71';X.fillRect(sx+w*0.30,sy+h*0.08,20,3);
+  X.fillStyle='#27ae60';X.font='bold 10px Arial';X.textAlign='center';X.fillText('🚲',sx+w/2,sy+h-2);X.textAlign='left';
 }
 function drawTreadmill(sx,sy,w,h){
   // Frame
@@ -13532,6 +13550,7 @@ function handleAct(act,objId){
     const equip=parts[2]||'bench'; // 'bench' lub 'cable' (rozdzielenie ławki/wyciągu)
     if(t==='strength') startBenchPressMG(undefined,equip);
     else if(t==='cardio') startTreadmillMG();
+    else if(t==='bike') startBikeMG(); /* RZ Tier 7: rowerek — bezpieczne cardio */
   } else if(act==='freestyle'){
     /* v2.1.617 Faza Q (user): freestyle od poziomu 2 — najpierw prace dorywcze. */
     if(!_earlyGate('Freestyle na ulicy')) return;
@@ -46551,6 +46570,63 @@ function startBenchPressMG(weight,equip){
   };
 }
 
+/* RZ (Tier 7 RepZone Fitness, PDF v2.3.45): ROWEREK stacjonarny — bezpieczne cardio (pedałuj spacją).
+   W przeciwieństwie do bieżni NIE da się „zgubić tempa"/przegrać — pewny, łagodniejszy przyrost kondycji. */
+function startBikeMG(){
+  if(!G._gymSets||G._gymSets.day!==G.day) G._gymSets={day:G.day,count:0,cardio:0,strength:0};
+  const el=document.getElementById('mg-job'); if(!el) return;
+  el.style.display='flex'; el.classList.add('on');
+  const cardioMax=(G.outfit&&G.outfit.top==='sport_pro')?3:2;
+  if((G._gymSets.cardio||0)>=cardioMax){
+    el.innerHTML=`<div style="text-align:center;padding:20px"><div style="font-size:36px;margin-bottom:12px">😴</div><h2 style="color:#e74c3c">Dzienny limit cardio!</h2><p style="color:#aaa">Już wyćwiczyłeś ${cardioMax} sesje cardio dzisiaj (bieżnia/rowerek). Wróć jutro!</p><button onclick="closeMG()" class="cbtn">Wyjdź</button></div>`;
+    window._jobMgCleanup=()=>{el.classList.remove('on');el.style.display='none';el.innerHTML='<div id="mg-job-content"></div>';};
+    return;
+  }
+  let gameActive=true,timeLeft=15,presses=0,spaceDown=false;
+  el.innerHTML='';
+  const title=document.createElement('div');
+  title.innerHTML=`<h2 style="color:#27ae60;font-size:22px;margin-bottom:6px">🚲 Rowerek stacjonarny</h2><div style="color:#667;font-size:13px;margin-bottom:10px">Bezpieczny trening cardio — pedałuj SPACJĄ w swoim tempie. Tutaj się nie wywrócisz!</div>`;
+  el.appendChild(title);
+  const info=document.createElement('div');
+  info.style.cssText='display:flex;gap:30px;margin-bottom:10px;font-size:16px;color:#aaa;';
+  info.innerHTML=`<span>⏱ <b id="bk-time">${timeLeft}</b>s</span><span>🚲 Obroty: <b id="bk-rot">0</b></span>`;
+  el.appendChild(info);
+  const barWrap=document.createElement('div');
+  barWrap.style.cssText='width:600px;max-width:90vw;height:20px;background:#0a0a1a;border-radius:10px;margin-top:8px;overflow:hidden;';
+  barWrap.innerHTML='<div id="bk-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#27ae60,#2ecc71);border-radius:10px;transition:width .1s;"></div>';
+  el.appendChild(barWrap);
+  const exitBtn=document.createElement('button');
+  exitBtn.textContent='✕ Wyjdź'; exitBtn.className='cbtn'; exitBtn.style.marginTop='14px';
+  exitBtn.onclick=()=>{ gameActive=false; cleanup(false); };
+  el.appendChild(exitBtn);
+  function cleanup(finish){
+    gameActive=false;
+    if(window._bkTimer){clearInterval(window._bkTimer);window._bkTimer=null;}
+    if(window._bkKd){document.removeEventListener('keydown',window._bkKd);window._bkKd=null;}
+    if(window._bkKu){document.removeEventListener('keyup',window._bkKu);window._bkKu=null;}
+    el.style.display='none'; el.classList.remove('on'); el.innerHTML='<div id="mg-job-content"></div>';
+    if(finish){
+      G._gymSets.count=(G._gymSets.count||0)+1; G._gymSets.cardio=(G._gymSets.cardio||0)+1;
+      G.energy=clampStat('energy', (G.energy||0)-8);
+      G.stress=clamp((G.stress||0)+8,0,100);
+      let fitGain=Math.max(2, Math.min(12, Math.round(presses/6))); // łagodny, pewny (bez fail) przyrost kondycji
+      G.fitness=Math.min((G.fitness||0)+fitGain, (typeof getMaxStat==='function'?getMaxStat('fitness'):100));
+      if(G.overeat>0) G.overeat=Math.max(0,G.overeat-6);
+      G._lastGymDay=G.day;
+      const xpGain=8; if(typeof addXP==='function') addXP(xpGain);
+      if(typeof progressQuest==='function') progressQuest('gym'); if(typeof _trackGym==='function') _trackGym();
+      if(typeof updateHUD==='function') updateHUD();
+      if(typeof notify==='function') notify(`🚲 Rowerek zakończony! +${fitGain} kondycja → ${Math.floor(G.fitness||0)}/${typeof getMaxStat==='function'?getMaxStat('fitness'):100}, +${xpGain} XP. Bezpiecznie, bez ryzyka upadku.`);
+    }
+  }
+  window._bkKd=(e)=>{ if(e.code==='Space'&&gameActive&&!spaceDown){ spaceDown=true; e.preventDefault(); presses++; const r=document.getElementById('bk-rot'); if(r)r.textContent=presses; const b=document.getElementById('bk-bar'); if(b)b.style.width=Math.min(100,presses*1.4)+'%'; } };
+  window._bkKu=(e)=>{ if(e.code==='Space')spaceDown=false; };
+  document.addEventListener('keydown',window._bkKd);
+  document.addEventListener('keyup',window._bkKu);
+  window._jobMgCleanup=()=>cleanup(false);
+  window._bkTimer=setInterval(()=>{ if(!gameActive)return; timeLeft--; const t=document.getElementById('bk-time'); if(t)t.textContent=timeLeft; if(timeLeft<=0){ gameActive=false; cleanup(true); } },1000);
+}
+window.startBikeMG=startBikeMG;
 function startTreadmillMG(speed){
   /* v2.1.175: 8s real-time cooldown USUNIĘTY — user feedback. */
   if(!G._gymSets||G._gymSets.day!==G.day) G._gymSets={day:G.day,count:0,cardio:0,strength:0};
@@ -56705,6 +56781,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.49',date:'2026-06-22',cats:['fix','change','feature'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
+ {t:'feature',d:'W siłowni RepZone stanął rowerek stacjonarny — bezpieczna sesja cardio, w której (w odróżnieniu od bieżni) nie da się przegrać ani stracić tempa. Pewny, łagodny przyrost kondycji dla każdego.'},
  {t:'feature',d:'U fryzjera doszła zmiana kolorów — możesz przefarbować włosy (czarny, brąz, blond, rudy, siwy, platyna, fancy) oraz zarost i wąsy na osobny kolor. Wszystko z podglądem i opcją powrotu do naturalnego koloru.'},
  {t:'feature',d:'U fryzjera (Barber Point) doszedł też zestaw wąsów — klasyczne, cienkie, chevron, handlebar i podkówka. Fryzura, zarost i wąsy łączą się niezależnie, a całość widać od razu na postaci i w podglądzie.'},
  {t:'feature',d:'Barber Point (fryzjer) pozwala teraz zmienić nie tylko fryzurę, ale i zarost — zarost kilkudniowy, krótką brodę, pełną brodę albo kozią bródkę. Nowy wygląd widać od razu na Twojej postaci i w podglądzie u fryzjera.'},
