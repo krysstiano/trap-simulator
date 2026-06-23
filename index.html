@@ -31392,6 +31392,13 @@ function renderRhythmMg(mg){
 }
 
 function startYTEdit(){
+  /* v2.3.51 (user 2026-06-23 „nagrywam 1 a mogę montować zawsze dużo więcej"): guard wymogu NAGRANIA przed
+     montażem — wcześniej startYTEdit ufał tylko atrybutowi disabled przycisku (jak publishYT z `!G.ytRecorded`),
+     a sama funkcja pozwalała otworzyć edytor bez nagrania → montaż/publikacja więcej filmów niż nagrano. */
+  if(!G.ytRecorded){
+    if(typeof showMsg==='function') showMsg('🎥 Najpierw nagraj film — dopiero potem montaż.','f',4000);
+    return;
+  }
   /* v2.1.340 Faza N (user 2026-05-27): guard przeciw ponownemu montażowi tego samego nagrania. */
   if(G.ytEdited){
     if(typeof showMsg==='function') showMsg('✂️ Ten film już zmontowałeś — publikuj lub nagraj nowy.','f',4000);
@@ -44961,16 +44968,18 @@ function _startZmywakGame(){
       gameActive=false;
       const cleaned=items.reduce((a,it)=>a+it.spots.filter(s=>!s.dirty).length,0);
       earned=Math.floor((cleaned/totalSpots)*42); /* v2.1.726 boost 35→42 (lekki boost pasma prac, user) */
-      /* v2.1.572 balans (playtest "zmywak daje nieporównywalnie więcej niż inne prace"): cap combo bonus na 30. Był UNCAPPED i mnożony przez getPracaBonus → przy długich combach earned eksplodował (np. base 32 + bonus 100+ ×2.5 skill). */
-      earned+=Math.min(bonusPoints,35);
-      // v1.8.43: BUG FIX — przy time-out skill bonus NIE był aplikowany (tylko przy pełnej zmianie line 17746).
+      // v1.8.43: BUG FIX — przy time-out skill bonus NIE był aplikowany (tylko przy pełnej zmianie).
       earned=Math.floor(earned*getPracaBonus('zmywak'));
+      /* v2.3.51 (user 2026-06-23 „na zmywaku zarabia się za dużo, bonus zbugowany"): combo-bonus jako FLAT topper
+         DODANY PO mnożniku skill (wcześniej base+bonus ×getPracaBonus → bonus eksplodował ze skillem: 35×~3.4≈119 zł).
+         Teraz combo-bonus to stały dodatek ≤30 zł, niezależny od skilla — nagradza combo bez nadmuchiwania wypłaty. */
+      earned+=Math.min(bonusPoints,30);
       const nightBonus=G.timeOfDay===3;if(nightBonus)earned=Math.floor(earned*1.3);
       if(G.managementDeal)earned=Math.floor(earned*G.managementBonus);
       /* v2.1.177: round do najbliższego 5 zł — user feedback: "złamane kwoty" przez combo + multiplier kombinacje. */
       earned=Math.round(earned/5)*5;
       G.energy=clampStat('energy', G.energy-3); // v1.8.59: zmywak timeout 6→3 (-70% od oryginału 10)
-      if(comboMax>=5 && typeof showMsg==='function') showMsg(`🔥 Max combo ${comboMax}× — bonus +${Math.min(bonusPoints,35)} zł!`,'g',4000);
+      if(comboMax>=5 && typeof showMsg==='function') showMsg(`🔥 Max combo ${comboMax}× — bonus +${Math.min(bonusPoints,30)} zł!`,'g',4000);
       cleanup();
     }
   },1000);
@@ -56834,6 +56843,13 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.51',date:'2026-06-23',cats:['fix'],title:'🔧 Poprawki: YouTube i zmywak',
+ items:[
+  {t:'fix',d:'YouTube: nie da się już zmontować filmu bez wcześniejszego nagrania — montaż wymaga teraz realnego nagrania, więc liczba zmontowanych/wrzuconych filmów odpowiada liczbie nagranych.'},
+  {t:'fix',d:'Praca „Zmywak": premia za combo była zawyżona (mnożyła się przez bonus umiejętności). Teraz combo to stały, rozsądny dodatek do wypłaty — zarobki z zmywaka są zbalansowane względem innych prac dorywczych.'},
+ ]
+ },
  {
  ver:'v2.3.50',date:'2026-06-23',cats:['fix'],title:'🔧 Drobne poprawki spójności',
  items:[
