@@ -23306,6 +23306,31 @@ window._safeWithdraw=function(rk,amount){
   if(typeof renderPhoneApp==='function') renderPhoneApp('safe');
   return true;
 };
+/* S2-B (PDF v2.3.45): sejf FIZYCZNY przechowuje też PRZEDMIOTY (max 5 slotów). Telefon BEZ przedmiotów. */
+window._safeStashItem=function(rk,itemId){
+  if(!G.safes||!G.safes[rk]) return false;
+  if(!Array.isArray(G.safes[rk].items)) G.safes[rk].items=[];
+  if(G.safes[rk].items.length>=5){ if(typeof showMsg==='function') showMsg('🔒 Sejf mieści maksymalnie 5 przedmiotów.','r',3000); return false; }
+  if(typeof invInit==='function') invInit();
+  const it=(G.inventory||[]).find(i=>i&&i.id===itemId&&i.type==='item');
+  if(!it){ if(typeof showMsg==='function') showMsg('🚫 Nie masz tego przedmiotu.','r',2500); return false; }
+  G.safes[rk].items.push({id:it.id,name:it.name,emoji:it.emoji||'📦',kind:it.kind||'item',value:it.value||0});
+  if(typeof invRemoveOne==='function') invRemoveOne(itemId,'item');
+  if(typeof showMsg==='function') showMsg('🔒 Schowano w sejfie: '+it.name,'g',2500);
+  if(typeof window._hsRender==='function') window._hsRender();
+  return true;
+};
+window._safeUnstashItem=function(rk,idx){
+  if(!G.safes||!G.safes[rk]||!Array.isArray(G.safes[rk].items)) return false;
+  const it=G.safes[rk].items[idx]; if(!it) return false;
+  if(typeof invInit==='function') invInit();
+  if(typeof invSpace==='function' && invSpace()<1){ if(typeof showMsg==='function') showMsg('🎒 Brak miejsca w ekwipunku — zwolnij miejsce.','r',3000); return false; }
+  if(typeof invAdd==='function') invAdd({id:it.id,type:'item',name:it.name,emoji:it.emoji,kind:it.kind,value:it.value},1);
+  G.safes[rk].items.splice(idx,1);
+  if(typeof showMsg==='function') showMsg('🎒 Wyjęto z sejfu: '+it.name,'g',2500);
+  if(typeof window._hsRender==='function') window._hsRender();
+  return true;
+};
 /* B7 (PDF v2.3.45): fizyczny sejf mieszkalny = OSOBNE okno (panel mg-job), NIE apka telefonu.
    Wcześniej home_safe otwierał telefon → Esc cofał w podgrupach smartfonu. Teraz mg-job:
    mgOpen()=true blokuje ruch jak inne modale, a Esc → closeMG() zamyka TYLKO ten panel.
@@ -23318,6 +23343,12 @@ window._openHomeSafePanel=function(rk){
   const fmt=n=>Math.floor(n||0).toLocaleString('pl');
   window._hsRender=function(){
     const cash=(G.safes[rk]&&G.safes[rk].cash)||0;
+    /* S2-B: sekcja przedmiotów (max 5) — sejf fizyczny. */
+    if(!Array.isArray(G.safes[rk].items)) G.safes[rk].items=[];
+    const _sItems=G.safes[rk].items;
+    if(typeof invInit==='function') invInit();
+    const _invIt=(G.inventory||[]).filter(i=>i&&i.type==='item'&&i.kind!=='quest');
+    const _itemsHtml=`<div style="font-size:11px;color:#6a8a75;margin:14px 0 6px;border-top:1px solid #1a3a28;padding-top:12px">📦 Przedmioty w sejfie (${_sItems.length}/5):</div><div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px">${_sItems.length?_sItems.map((it,i)=>`<div style="display:flex;justify-content:space-between;align-items:center;background:#08120c;border:1px solid #1a3a28;border-radius:6px;padding:6px 10px"><span style="color:#cde">${it.emoji||'📦'} ${it.name}</span><button class="bbtn" style="padding:3px 10px;font-size:11px" onclick="window._safeUnstashItem('${rk}',${i})">Wyjmij</button></div>`).join(''):'<div style="color:#566;font-size:11px;padding:4px 0">Pusto — schowaj coś z ekwipunku.</div>'}</div>${(_invIt.length&&_sItems.length<5)?`<div style="font-size:11px;color:#6a8a75;margin-bottom:6px">🎒 Schowaj z ekwipunku:</div><div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">${_invIt.slice(0,12).map(it=>`<button class="bbtn" style="padding:4px 9px;font-size:11px" onclick="window._safeStashItem('${rk}','${it.id}')">${it.emoji||'📦'} ${it.name}${it.qty>1?' ×'+it.qty:''}</button>`).join('')}</div>`:''}`;
     const depBtns=[1000,10000,100000].map(a=>`<button class="bbtn" style="flex:1;min-width:72px" onclick="window._hsMove('${rk}','dep',${a})">+${fmt(a)}</button>`).join('')+`<button class="bbtn" style="flex:1;min-width:72px" onclick="window._hsMove('${rk}','dep',-1)">Wszystko</button>`;
     const wdBtns=[1000,10000,100000].map(a=>`<button class="bbtn" style="flex:1;min-width:72px;border-color:#3a6a8a;color:#9fd0f5" onclick="window._hsMove('${rk}','wd',${a})">−${fmt(a)}</button>`).join('')+`<button class="bbtn" style="flex:1;min-width:72px;border-color:#3a6a8a;color:#9fd0f5" onclick="window._hsMove('${rk}','wd',-1)">Wszystko</button>`;
     mc.innerHTML=`<div style="background:linear-gradient(160deg,#0d1410,#0a0f0c);border:2px solid #2a7a45;border-radius:16px;padding:24px 28px;min-width:360px;max-width:460px;margin:0 auto;box-shadow:0 0 50px rgba(39,174,96,.22),inset 0 1px 0 rgba(255,255,255,.05);color:#e8f0e8">
@@ -23328,6 +23359,7 @@ window._openHomeSafePanel=function(rk){
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${depBtns}</div>
       <div style="font-size:11px;color:#6a8a75;margin-bottom:6px">💸 Wypłać:</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">${wdBtns}</div>
+      ${_itemsHtml}
       <button class="cbtn" style="width:100%" onclick="closeMG()">Zamknij · Esc</button>
     </div>`;
   };
@@ -56791,6 +56823,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.49',date:'2026-06-22',cats:['fix','change','feature'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
+ {t:'feature',d:'Sejf domowy (fizyczny) przechowuje teraz nie tylko gotówkę, ale i przedmioty — do 5 sztuk. Schowasz w nim cenne rzeczy i wyjmiesz, kiedy zechcesz. W telefonie sejf zostaje wyłącznie do gotówki.'},
  {t:'change',d:'Sejf w telefonie ma teraz limit wpłaty 50 000 zł — większe kwoty schowasz w sejfie domowym (fizycznym), który nie ma limitu gotówki. Telefon zostaje wygodnym podglądem salda i drobną wpłatą.'},
  {t:'change',d:'Dostrojono moment, w którym w mieście zaczyna się jeden z wątków fabularnych — pojawia się teraz dopiero, gdy gracz na dobre wkręcił się w grę (więcej freestyle i dłuższa sesja).'},
  {t:'change',d:'Sklep z ubraniami Urban Crown jest teraz uporządkowany w czytelne sekcje (Codzienne, Streetwear, Scena, Formalne, Sport, Praca, Pogoda) zamiast jednej długiej listy — łatwiej dobrać strój pod konkretną okazję.'},
