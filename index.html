@@ -3242,6 +3242,8 @@ const ROOMS = {
       {id:'cypher_underground',     wx:480, wy:140, w:140,h:130, act:'underground_cypher',    prompt:'[E] 🎤 Cypher Club',           lbl:'Cypher'},
       {id:'mural_underground',      wx:830, wy:140, w:140,h:130, act:'underground_mural',     prompt:'[E] 🎨 Mural Wall',            lbl:'Mural'},
       {id:'smolarnia_underground',  wx:1080,wy:140, w:140,h:130, act:'underground_smolarnia', prompt:'[E] 🌫 Smolarnia',             lbl:'Smolarnia'},
+      /* v2.3.54 MODUŁ POJAZDÓW SPECJALNYCH — komis Gravel Lot Motors (tanie kampery uzywane + Korek). Wolny spot: luka cypher(620)↔mural(830), nad jezdnia y432-528. ZERO overlap (zweryfikowane CAMP13). Gated: gravelLotUnlocked (Kantar) lub street respect. */
+      {id:'gravellot_underground',  wx:655, wy:140, w:140,h:130, act:'underground_gravellot',  prompt:'[E] 🚐 Gravel Lot Motors',     lbl:'Gravel Lot'},
       {id:'tattoo_underground',     wx:180, wy:720, w:140,h:130, act:'underground_tattoo',    prompt:'[E] 💉 Salon Tatuażu',         lbl:'Tatuaż'},
       {id:'speakeasy_underground',  wx:480, wy:720, w:140,h:130, act:'underground_speakeasy', prompt:'[E] 🥃 Speakeasy',             lbl:'Speakeasy'},
       {id:'pawnshop_underground',   wx:830, wy:720, w:140,h:130, act:'underground_pawnshop',  prompt:'[E] 💰 Pawnshop',              lbl:'Pawnshop'},
@@ -38355,6 +38357,24 @@ window.renderCamperShop=function(source){
     ${c.owned?`<div style="background:#0e1830;border-left:3px solid #f1c40f;padding:8px 12px;margin-bottom:12px;border-radius:4px;font-size:13px;color:#cdd">Masz już kampera (${ownedName}). Zarządzaj nim w telefonie: Kariera → Trap → Kamper.</div>`:'<p style="color:#778;font-size:12px;margin-bottom:10px">Możesz mieć jednego kampera. To etap przejściowy — mobilny, ale ryzykowny.</p>'}
     ${rows||'<p style="color:#778">Brak modeli w tym punkcie.</p>'}`;
 };
+/* NPC Korek (Gravel Lot Motors) — dialog wejścia + zakupowy. Gated: gravelLotUnlocked (Kantar) / street respect / trap. (PDF pkt 4) */
+window._korekDialog=function(){
+  window._camperEnsure(); const c=G.camper;
+  const unlocked = c.gravelLotUnlocked || (G.streetRep||0)>=40 || (G.trap&&G.trap.unlocked);
+  if(unlocked) c.gravelLotUnlocked=true;
+  const openShop=()=>{ if(typeof closeNPCDlg==='function')closeNPCDlg(); if(typeof window.renderCamperShop==='function'){ window.renderCamperShop('gravel'); if(typeof openOverlay==='function')openOverlay(); } };
+  if(typeof window._uwShowDlg!=='function'){ if(unlocked) openShop(); else if(typeof showMsg==='function') showMsg('🚐 Korek: bez polecenia nie gadam o powaznym towarze. Wroc, jak ktos za ciebie zareczy.','i',5000); return; }
+  if(!unlocked){
+    window._uwShowDlg('Korek: Jak szukasz auta bez historii, to zle trafiles. A jak szukasz auta z historia, ktorej nikt juz nie chce pamietac — to najpierw niech ktos za ciebie zareczy. Bez polecenia nie gadam o powaznym towarze.',[
+      {text:'(wychodzisz)', fn:()=>{ if(typeof closeNPCDlg==='function')closeNPCDlg(); }}
+    ]);
+    return;
+  }
+  window._uwShowDlg('Korek: Kamper? Romantycznie. O kazdym aucie powiem ci, ze igla — i czasem nawet nie sklamie. Jaki budzet? Idziemy w turystyke, czy w cos bardziej desperackiego?',[
+    {text:'„Pokaz, co masz na placu."', fn:openShop},
+    {text:'(wychodzisz)', fn:()=>{ if(typeof closeNPCDlg==='function')closeNPCDlg(); }}
+  ]);
+};
 const CAR_CLASS_LABELS={A:'🅰️ Klasa A — miejskie',B:'🅱️ Klasa B — segment B',C:'🔤 Klasa C — kompakty',D:'🇩 Klasa D — klasa średnia / premium','EF':'💎 Klasa E/F — luksusowe i hiperauta',J:'🚙 Klasa J — SUV',M:'🚐 Klasa M — minivan / van'};
 const CAR_CLASS_ORDER=['A','B','C','D','EF','J','M'];
 function renderSalon(){
@@ -41994,6 +42014,11 @@ window._enterDistrictPlace=(districtId,placeId)=>{
       if(typeof closeOverlay==='function') closeOverlay();
       if(!G.trap?.unlocked){showMsg('🚐 Kamper to baza dla Trap Tier 0. Najpierw odwiedź Dealer (Underground).','i',5500);return;}
       if(typeof changeRoom==='function'){changeRoom('kamper',480,400);return;}
+      return;
+    /* v2.3.54 MODUŁ POJAZDÓW SPECJALNYCH — komis Gravel Lot Motors (Korek → tanie kampery używane). */
+    case 'underground_gravellot':
+      if(typeof closeOverlay==='function') closeOverlay();
+      if(typeof window._korekDialog==='function') window._korekDialog();
       return;
     case 'underground_lab':
       if(typeof closeOverlay==='function') closeOverlay();
@@ -56972,6 +56997,13 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.54',date:'2026-06-23',cats:['feature'],title:'🚐 Nowy moduł: pojazdy specjalne (kamper)',
+ items:[
+  {t:'feature',d:'Pojawił się zupełnie nowy moduł pojazdów specjalnych — kamper jako mobilne zaplecze. W salonie samochodowym kupisz teraz kampery klasy premium, a na obrzeżach miasta odkryjesz komis pojazdów używanych z tańszymi modelami „z historią". Sześć modeli, każdy z własną pojemnością, awaryjnością i poziomem maskowania — od taniego, brudnego startu po prestiżowy pojazd, którego nikt nie podejrzewa.'},
+  {t:'feature',d:'Kamper to celowo etap przejściowy: daje mobilność i szybki dostęp do zaplecza, ale jest bardziej ryzykowny i nigdy nie zastąpi pełnego laboratorium. To dopiero początek modułu — kolejne elementy (postoje, ryzyko, ochrona) dochodzą w następnych aktualizacjach.'},
+ ]
+ },
  {
  ver:'v2.3.53',date:'2026-06-23',cats:['feature'],title:'🎤 Więcej życia: freestyle, siłownia i poranki',
  items:[
