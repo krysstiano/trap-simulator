@@ -46651,6 +46651,10 @@ function startBikeMG(){
       G.energy=clampStat('energy', (G.energy||0)-8);
       G.stress=clamp((G.stress||0)+8,0,100);
       let fitGain=Math.max(2, Math.min(12, Math.round(presses/6))); // łagodny, pewny (bez fail) przyrost kondycji
+      /* v2.3.50 (audyt spójności): strój sportowy boostuje rowerek tak samo jak bieżnię (PRO +25%, Sportowy +20%).
+         Wcześniej rowerek (nowość Tier 7) ignorował bonus stroju, mimo że bieżnia/ławka go aplikują — niespójność. */
+      const _bikeMult=(G.outfit&&G.outfit.top==='sport_pro')?1.25:(G.outfit&&G.outfit.top==='sport')?1.20:1.0;
+      if(_bikeMult>1) fitGain=Math.round(fitGain*_bikeMult);
       G.fitness=Math.min((G.fitness||0)+fitGain, (typeof getMaxStat==='function'?getMaxStat('fitness'):100));
       if(G.overeat>0) G.overeat=Math.max(0,G.overeat-6);
       G._lastGymDay=G.day;
@@ -56830,6 +56834,12 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.50',date:'2026-06-23',cats:['fix'],title:'🔧 Drobne poprawki spójności',
+ items:[
+  {t:'fix',d:'Strój sportowy (Sportowy / PRO) zwiększa teraz przyrost kondycji także na rowerku stacjonarnym — wcześniej działał na bieżni i ławce, ale rowerek go pomijał. Teraz wszystkie maszyny w siłowni honorują bonus stroju tak samo.'},
+ ]
+ },
  {
  ver:'v2.3.49',date:'2026-06-22',cats:['fix','change','feature'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
