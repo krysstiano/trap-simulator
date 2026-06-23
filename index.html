@@ -49807,6 +49807,13 @@ window._underworldTick=function(){
   if(typeof window._underworldEnsure!=='function') return;
   window._underworldEnsure();
   const u=G.underworldIntro;
+  /* v2.3.52 (user „napraw spam smsów po wykonaniu zadań od Kantara"): dostarcz 1 zakolejkowaną zapowiedź §14
+     na dzień gry — hooki przyszłych modułów trickle atmosferycznie zamiast burstu 4-5 SMS w jednej sekundzie. */
+  if(Array.isArray(u._pendingKantarSms) && u._pendingKantarSms.length>0 && (G.day||0) > (u._lastPendingSmsDay||0)){
+    u._lastPendingSmsDay=G.day||0;
+    const _pt=u._pendingKantarSms.shift();
+    if(typeof window._smsSend==='function') window._smsSend('kantar',_pt,{bypass:true});
+  }
   if(u._bReplyPending && u.bMs && (Date.now()-u.bMs)>=180000){
     u._bReplyPending=false;
     window._smsSend('kantar','Ktoś, kto nie lubi pisać dwa razy. Przyjdź albo usuń wiadomość i wróć do noszenia pizzy.',{bypass:true});
@@ -50091,14 +50098,17 @@ window._uwFinalizeIntro=function(){
      underworldAccess / ambitionFlag / smallJobsUnlocked = punkty zaczepienia dla kolejnych modułów. */
   if(u._laterSmsSent) return; u._laterSmsSent=true;
   const r=u._result; const S=(t)=>{ if(typeof window._smsSend==='function') window._smsSend('kantar',t,{bypass:true}); };
+  /* ZAKOŃCZENIE — reakcja Kantara na test, wysyłana OD RAZU (1 SMS). */
   S(r==='brutal' ? 'Niczym Uber! Tylko następnym razem mniej teatru, chłopcze. Nie jesteś jeszcze legendą. Jesteś kosztem, a koszty mogą się zwracać.'
     : 'Pięknie. Nie idealnie, ale pięknie. Idealni ludzie kłamią, albo są dwa metry pod ziemią. Odezwę się, jeśli coś się dla Ciebie znajdzie.');
-  /* §14 zapowiedź gangu — tylko ścieżka B (gangIntroAvailable). */
-  if(u.pathChosen==='B') S('Ktoś z dzielnicy może się do Ciebie odezwać. Nie dzwoń pierwszy. Jak się odezwie „Sierżant" albo „Bryła" — to ode mnie.');
-  /* §14 dosłowne zapowiedzi-hooki (chop-shop / legalny front / muzyka) — klimatyczne, pokazywane graczowi. */
-  S('Znam gościa, który robi z auta wspomnienie. Nie pytaj. Na razie nie masz wiedzy, żeby zrozumieć ten temat.');
-  S('Jak będziesz miał kiedyś firmę, nie rób jej dla logo. Rób ją dla faktur. Logo jest dla ludzi. Faktury są dla problemów.');
-  S('Muzyka to dobry parawan, jeśli umiesz śpiewać ciszę. Ale jak będziesz rapował o wszystkim, co robisz, to nie będę musiał cię karać. Zrobisz to sam.');
+  /* v2.3.52 (user „spam smsów po zadaniach Kantara"): §14 zapowiedzi-hooki (gang/chop-shop/faktury/muzyka)
+     NIE lecą naraz (było 4-5 SMS w jednej sekundzie = spam). KOLEJKUJ — _underworldTick dostarcza 1/dzień. */
+  if(!Array.isArray(u._pendingKantarSms)) u._pendingKantarSms=[];
+  if(u.pathChosen==='B') u._pendingKantarSms.push('Ktoś z dzielnicy może się do Ciebie odezwać. Nie dzwoń pierwszy. Jak się odezwie „Sierżant" albo „Bryła" — to ode mnie.');
+  u._pendingKantarSms.push('Znam gościa, który robi z auta wspomnienie. Nie pytaj. Na razie nie masz wiedzy, żeby zrozumieć ten temat.');
+  u._pendingKantarSms.push('Jak będziesz miał kiedyś firmę, nie rób jej dla logo. Rób ją dla faktur. Logo jest dla ludzi. Faktury są dla problemów.');
+  u._pendingKantarSms.push('Muzyka to dobry parawan, jeśli umiesz śpiewać ciszę. Ale jak będziesz rapował o wszystkim, co robisz, to nie będę musiał cię karać. Zrobisz to sam.');
+  u._lastPendingSmsDay=G.day||0; /* pierwsza zapowiedź dopiero następnego dnia gry */
 };
 /* ═══ TEST „Trzy ciche sprawy" — Zadanie 1 „Koperta z baru" (§9-Z1) ═══ */
 /* Aktywne gdy quest w trakcie testu i Z1 nierozwiązane. Intercept act striptiz:bar (adaptacja, bez nowego obiektu). */
@@ -56843,6 +56853,13 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.52',date:'2026-06-23',cats:['fix'],title:'🔧 Poprawki: SMS-y i życie parku',
+ items:[
+  {t:'fix',d:'Po zakończeniu pewnego wątku fabularnego nie zalewa Cię już seria SMS-ów naraz — wiadomość-podsumowanie przychodzi od razu, a kolejne klimatyczne zapowiedzi pojawiają się stopniowo, po jednej na dobę gry.'},
+  {t:'fix',d:'Park żyje teraz zgodnie z porą dnia — w dzień tętni życiem, a nocą (i podczas opadów) robi się cicho i pusto. Wcześniej spacerowicze kręcili się po parku całą dobę.'},
+ ]
+ },
  {
  ver:'v2.3.51',date:'2026-06-23',cats:['fix'],title:'🔧 Poprawki: YouTube i zmywak',
  items:[
@@ -73440,8 +73457,18 @@ function drawCityLife(){
 function drawParkLife(){
   if(currentRoom!=='ulica') return;
   if(_paused) return;
+  /* v2.3.52 (user „park w nocy dalej tętni życiem — powinno się różnić w zależności od pory dnia"): liczba
+     CHODZĄCYCH pieszych parku zależy od pory dnia i pogody (analog do siedzących na ławkach _parkSitterVisible
+     8-21). Dzień=pełnia życia, świt/wieczór=mniej, głęboka noc/opady=tylko nieliczni. Park nocą jest cichy. */
+  const _phr=Math.floor((typeof gameMin!=='undefined'?gameMin:360)/60)%24;
+  let _parkActive = parkPeds.length;            // dzień 8-21: wszyscy
+  if(_phr>=23 || _phr<6) _parkActive = 2;        // głęboka noc: tylko nieliczni (spóźnieni)
+  else if(_phr>=21 || _phr<8) _parkActive = 5;   // wieczór/świt: część
+  if(typeof _cityOpady==='function' && _cityOpady()) _parkActive = Math.min(_parkActive, 2); // opady: pusto
   // Park box: x:1008-1488, y:624-1056
+  let _pIdx=0;
   for(const p of parkPeds){
+    if(_pIdx++ >= _parkActive) continue;          // noc/opady: ukryj nadmiarowych pieszych (park cichnie)
     // ParkPeds zawsze chodzą — sanitizacja na wypadek starych saveów
     if(typeof p.idleTimer!=='number') p.idleTimer=0;
     if(typeof p.dx!=='number'||!isFinite(p.dx)) p.dx=Math.random()>.5?0.35:-0.35;
