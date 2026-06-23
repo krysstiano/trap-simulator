@@ -49873,7 +49873,16 @@ window._uwKantarMeet=function(){
     if(typeof window._uwKantarReturn==='function'){ window._uwKantarReturn(); return; }
     window._uwShowDlg('Pogadamy za chwilę.',[{text:'Wychodzę',fn:closeNPCDlg}]); return;
   }
-  if(u.state==='accepted'||u.state==='at_club'){ u.state='meeting'; }
+  if(u.state==='accepted'||u.state==='at_club'){
+    /* K2 (PDF v2.3.45 l.1003): interakcja POCZĄTKOWA z Kantarem dopiero PO 23:40 (godzina z SMS). Wcześniej
+       gracz może go ZOBACZYĆ w Velvet Room, ale nie nawiąże rozmowy. Okno: 23:40-06:00 (gameMin≥1420 lub <360). */
+    const _gm=(typeof gameMin!=='undefined')?gameMin:0;
+    if(!(_gm>=1420 || _gm<360)){
+      window._uwShowDlg('Ledwie na ciebie zerka, stuka palcem w zegarek. „Nie teraz. Loża. 23:40 — ani minuty wcześniej.”',[{text:'Wrócę później',fn:(typeof closeNPCDlg==='function')?closeNPCDlg:function(){}}]);
+      return;
+    }
+    u.state='meeting';
+  }
   /* anti-farm: dialog otwierający (z gainami stat) tylko RAZ; potem od razu oferta */
   if(u._openingPicked){ window._uwKantarOffer(); return; }
   window._uwKantarOpening();
