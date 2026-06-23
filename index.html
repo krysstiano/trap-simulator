@@ -26346,6 +26346,7 @@ function nextPeriod(){
     } else {
       addNotif(`🌅 Nowy dzień — ${_mv}${_aptMoodBonus?` · +${_aptMoodBonus} nastrój (mieszkanie)`:''}. Dzienny bonus dostaniesz jutro, jeśli dziś coś zarobisz (min. 100 zł).`);
     }
+    if(typeof window._camperDailyTick==='function') window._camperDailyTick(); /* v2.3.54 moduł kampera: dni w lokacji / stygnięcie śladu trasy (Tier 5 doda pełne ryzyko) */
     // Reset dziennego zadania — jeśli z poprzedniego dnia i odebrane lub nieukończone
     if(G.dailyQuest&&G.dailyQuest.day<G.day&&(G.dailyQuest.claimed||!G.dailyQuest.completed)){
       G.dailyQuest=null;generateDailyQuest();
@@ -38374,6 +38375,50 @@ window._korekDialog=function(){
     {text:'„Pokaz, co masz na placu."', fn:openShop},
     {text:'(wychodzisz)', fn:()=>{ if(typeof closeNPCDlg==='function')closeNPCDlg(); }}
   ]);
+};
+/* ═══ MODUŁ KAMPERA — LOKACJE POSTOJU (Tier 2, PDF pkt 8) ═══
+   6 lokacji poza centrum/dużym ruchem NPC. Profile ryzyka 0-100 (police/npcReport/theft/fire) + camouflage bonus.
+   Wartości = relatywne profile (PDF: low~15 / medium~30 / high~45). Każda lokacja = inny trade-off. */
+const CAMPER_LOCATIONS=[
+  {id:'old_overpass_parking',      name:'Stary parking pod wiaduktem (obok Cypher Club)', police:30, npcReport:10, theft:45, fire:30, camouflage:5,  note:'Blisko półświatka, mało cywilów — ale wysokie ryzyko kradzieży i wandalizmu.'},
+  {id:'metal_valley_service_road', name:'Droga serwisowa za Metal Valley Yard',           police:30, npcReport:20, theft:30, fire:25, camouflage:10, partsBonus:true, note:'Industrialny klimat, łatwy dostęp do części — ale środowiskowy ślad.'},
+  {id:'railway_concrete_lot',      name:'Opuszczony plac przy torach',                    police:40, npcReport:10, theft:25, fire:20, camouflage:15, note:'Dobra izolacja — ale losowe kontrole techniczne i patrole.'},
+  {id:'forest_service_road',       name:'Las techniczny za obwodnicą',                    police:15, npcReport:5,  theft:20, fire:50, camouflage:25, note:'Bardzo mało NPC — ale jak coś się stanie, nikt nie pomoże; wysokie ryzyko pożaru.'},
+  {id:'old_camping_parking',       name:'Parking główny (przy starym campingu)',          police:15, npcReport:25, theft:25, fire:15, camouflage:35, note:'Najlepsze maskowanie dla nowszych modeli — ale w weekendy pojawiają się cywile.'},
+  {id:'northbuild_backroad',       name:'Tylna droga za NorthBuild Contractors',          police:30, npcReport:30, theft:30, fire:20, camouflage:20, note:'Dobra dla pojazdów wyglądających jak robocze — ale w dni robocze ktoś może coś zauważyć.'},
+];
+window._camperLocById=function(id){ return (typeof CAMPER_LOCATIONS!=='undefined')?CAMPER_LOCATIONS.find(l=>l.id===id)||null:null; };
+/* Przestawianie kampera (PDF pkt 9): cooldown (6h gry) + paliwo (15) + czas (30min) + route_noise + ryzyko rutyny. */
+window.moveCamper=function(locId){
+  window._camperEnsure(); const c=G.camper;
+  if(!c.owned){ if(typeof showMsg==='function')showMsg('Nie masz kampera.','r'); return false; }
+  if(c.destroyed){ if(typeof showMsg==='function')showMsg('Kamper zniszczony — odzyskaj resztki na Metal Valley Yard.','r'); return false; }
+  const loc=window._camperLocById(locId);
+  if(!loc){ if(typeof showMsg==='function')showMsg('Nieznana lokacja.','r'); return false; }
+  if(locId===c.location){ if(typeof showMsg==='function')showMsg('Kamper już tu stoi.','i'); return false; }
+  const nowAbs=((G.day||1)*1440)+((typeof gameMin!=='undefined'?gameMin:0)||0);
+  if(c._lastMoveAbs && (nowAbs-c._lastMoveAbs)<360){ if(typeof showMsg==='function')showMsg('🚐 Za wcześnie na kolejne przestawienie — daj ochłonąć trasie.','i',4500); return false; }
+  const FUEL_COST=15;
+  if((c.fuel||0)<FUEL_COST){ if(typeof showMsg==='function')showMsg('⛽ Za mało paliwa na przejazd. Zatankuj w serwisie.','r',4500); return false; }
+  c._movesLast24=(c._movesLast24||[]).filter(t=>nowAbs-t<1440); c._movesLast24.push(nowAbs);
+  const frequent=c._movesLast24.length>2; /* >2 przejazdy/24h budzą zainteresowanie (PDF) */
+  c.fuel=Math.max(0,(c.fuel||100)-FUEL_COST);
+  c.routeNoise=Math.min(100,(c.routeNoise||0)+10+(frequent?10:0));
+  if(frequent) c.heat=Math.min(100,(c.heat||0)+5);
+  c.location=locId; c.daysInLoc=0; c._lastMoveAbs=nowAbs;
+  if(!Array.isArray(c.history)) c.history=[]; c.history.push({day:G.day||0,ev:'move',to:locId});
+  if(typeof gameMin!=='undefined') gameMin=(gameMin||0)+30; /* przestawienie zajmuje czas */
+  if(typeof showMsg==='function') showMsg('🚐 Przestawiłeś kampera: '+loc.name+'. Nowa lokalizacja zmniejsza ryzyko rutyny, ale każdy przejazd zostawia ślad.','f',5500);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return true;
+};
+/* Codzienny tick kampera (Tier 2 podstawa; Tier 5 doda pełne ryzyko/eventy/awarie). Wołany z new-day handlera. */
+window._camperDailyTick=function(){
+  window._camperEnsure(); const c=G.camper;
+  if(!c.owned||c.destroyed) return;
+  c.daysInLoc=(c.daysInLoc||0)+1;
+  if(c.daysInLoc>3) c.heat=Math.min(100,(c.heat||0)+5); /* PDF: za długo w jednym miejscu budzi zainteresowanie */
+  c.routeNoise=Math.max(0,(c.routeNoise||0)-3); /* ślad trasy stygnie z czasem */
 };
 const CAR_CLASS_LABELS={A:'🅰️ Klasa A — miejskie',B:'🅱️ Klasa B — segment B',C:'🔤 Klasa C — kompakty',D:'🇩 Klasa D — klasa średnia / premium','EF':'💎 Klasa E/F — luksusowe i hiperauta',J:'🚙 Klasa J — SUV',M:'🚐 Klasa M — minivan / van'};
 const CAR_CLASS_ORDER=['A','B','C','D','EF','J','M'];
