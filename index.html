@@ -1013,7 +1013,7 @@ const G = {
   _hasCrownOfHipHop:false,
   money:500, followers:0, level:1, xp:0,
   day:1, timeOfDay:0, weather:0,
-  name:'Traper', skin:'light', hair:0, beard:0, beardColor:0, cloth:'#2a5080', gender:'m', /* v2.1.931 (Vegan): płeć gracza; v2.3.49 D6: beard/beardColor (Barber Point) */
+  name:'Traper', skin:'light', hair:0, beard:0, beardColor:0, mustache:0, cloth:'#2a5080', gender:'m', /* v2.1.931 (Vegan): płeć gracza; v2.3.49 D6: beard/beardColor (Barber Point) */
   outfit:{top:'default'},
   camera:null, mic:null, midiCtrl:null,
   /* v2.1.51 Amper: inwentarz — listy posiadanych mikrofonów i kamer. G.mic / G.camera nadal trzymają AKTYWNY przedmiot (legacy compat: cały istniejący kod czyta G.mic.quality bez zmian). */
@@ -12227,6 +12227,7 @@ function drawPlayer(){
   // Hair
   drawHairStyle(cx,sy,sc);
   drawBeardStyle(cx,sy,sc); // BP1: zarost/broda (przed oczami/ustami — te renderują się na wierzchu)
+  drawMustacheStyle(cx,sy,sc); // BP2: wąsy (nad ustami)
   // v1.8.29: Twarz — oczy okrągłe (nie kwadratowe = mniej creepy) + delikatny uśmiech
   if(P.dir===2){
     // Białka oczu (subtelne)
@@ -12875,6 +12876,20 @@ function drawBeardStyle(cx,sy,sc){
   else if(b===2){ X.beginPath(); X.moveTo(cx-11,yH+11); X.quadraticCurveTo(cx,yH+25,cx+11,yH+11); X.quadraticCurveTo(cx,yH+16,cx-11,yH+11); X.fill(); }
   else if(b===3){ X.beginPath(); X.moveTo(cx-12,yH+7); X.lineTo(cx-12,yH+13); X.quadraticCurveTo(cx,yH+28,cx+12,yH+13); X.lineTo(cx+12,yH+7); X.quadraticCurveTo(cx,yH+15,cx-12,yH+7); X.fill(); }
   else if(b===4){ X.beginPath(); X.moveTo(cx-4,yH+16); X.lineTo(cx+4,yH+16); X.lineTo(cx+3,yH+24); X.lineTo(cx-3,yH+24); X.closePath(); X.fill(); }
+  X.restore();
+}
+/* BP2 (Tier 6 Barber Point): wąsy gracza — 0 brak, 1 klasyczne, 2 cienki, 3 chevron, 4 handlebar, 5 podkówka.
+   Rysowane tuż nad ustami sprite'a. Kolor wg P.beardColor (wspólny z brodą). */
+function drawMustacheStyle(cx,sy,sc){
+  const m=(typeof P!=='undefined'&&P.mustache)||0; if(!m) return;
+  const col=BEARD_COLS[((typeof P!=='undefined'&&P.beardColor)||0)%BEARD_COLS.length];
+  const my=sy+P.h*.33-4; // tuż nad ustami
+  X.save(); X.fillStyle=col; X.strokeStyle=col;
+  if(m===1){ X.fillRect(cx-7,my,14,3); }
+  else if(m===2){ X.fillRect(cx-6,my+1,12,1.6); }
+  else if(m===3){ X.beginPath(); X.moveTo(cx-8,my-1); X.lineTo(cx,my+1); X.lineTo(cx+8,my-1); X.lineTo(cx+8,my+2.5); X.lineTo(cx,my+4); X.lineTo(cx-8,my+2.5); X.closePath(); X.fill(); }
+  else if(m===4){ X.lineWidth=2.2; X.lineCap='round'; X.beginPath(); X.moveTo(cx-7,my+1); X.quadraticCurveTo(cx,my-1,cx+7,my+1); X.stroke(); X.beginPath(); X.moveTo(cx-7,my+1); X.quadraticCurveTo(cx-10,my,cx-8,my-3); X.stroke(); X.beginPath(); X.moveTo(cx+7,my+1); X.quadraticCurveTo(cx+10,my,cx+8,my-3); X.stroke(); }
+  else if(m===5){ X.fillRect(cx-7,my,14,3); X.fillRect(cx-7,my,2.5,6); X.fillRect(cx+4.5,my,2.5,6); }
   X.restore();
 }
 function drawHairStyle(cx,sy,sc){
@@ -37683,8 +37698,17 @@ function renderBarber(){
     {id:3,name:'Pełna broda',price:110},
     {id:4,name:'Kozia bródka',price:70},
   ];
+  /* BP2 (Tier 6): wąsy. */
+  const mustachestyles=[
+    {id:0,name:'Bez wąsów',price:10},
+    {id:1,name:'Klasyczne',price:30},
+    {id:2,name:'Cienki',price:25},
+    {id:3,name:'Chevron',price:45},
+    {id:4,name:'Handlebar',price:60},
+    {id:5,name:'Podkówka',price:50},
+  ];
   document.getElementById('ov-content').innerHTML=`
-    <h2>✂️ Barber Point</h2><p class="sub">Zmień fryzurę i zarost swojej postaci.</p>
+    <h2>✂️ Barber Point</h2><p class="sub">Zmień fryzurę, zarost i wąsy swojej postaci.</p>
     <div style="display:flex;gap:30px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px">
       <div>
         <div style="font-size:12px;color:#556;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Podgląd</div>
@@ -37699,12 +37723,16 @@ function renderBarber(){
     <div class="shopgrid" style="margin-bottom:0">
       ${beardstyles.map(b=>`<div class="sitem"><h3>${b.name}</h3><div class="pr">${b.price} zł</div>${(G.beard||0)===b.id?'<div class="owned">✅ Aktualny</div>':''}<button class="bbtn" onmouseover="previewBeard(${b.id},'${b.name}')" onmouseout="previewBeard(G.beard||0,'Twój wygląd')" onclick="buyBeard(${b.id},${b.price})">Wybierz</button></div>`).join('')}
     </div>
-    <div class="res" id="shop-res">Wybierz fryzurę lub zarost.</div>
+    <div style="font-size:12px;color:#88a;text-transform:uppercase;letter-spacing:1px;margin:16px 0 6px">👨 Wąsy</div>
+    <div class="shopgrid" style="margin-bottom:0">
+      ${mustachestyles.map(m=>`<div class="sitem"><h3>${m.name}</h3><div class="pr">${m.price} zł</div>${(G.mustache||0)===m.id?'<div class="owned">✅ Aktualne</div>':''}<button class="bbtn" onmouseover="previewMustache(${m.id},'${m.name}')" onmouseout="previewMustache(G.mustache||0,'Twój wygląd')" onclick="buyMustache(${m.id},${m.price})">Wybierz</button></div>`).join('')}
+    </div>
+    <div class="res" id="shop-res">Wybierz fryzurę, zarost lub wąsy.</div>
     <button class="cbtn" onclick="closeOverlay()">← Wróć</button>
   `;
   setTimeout(()=>previewHaircut(G.hair,'Twój wygląd'),50);
 }
-window.previewHaircut=function(hairId,lbl,beardId){
+window.previewHaircut=function(hairId,lbl,beardId,mustacheId){
   const cvs=document.getElementById('barber-preview');if(!cvs)return;
   const cx=cvs.getContext('2d');
   cx.clearRect(0,0,120,120);
@@ -37948,6 +37976,7 @@ window.previewHaircut=function(hairId,lbl,beardId){
   cx.strokeStyle='#8a5040';cx.lineWidth=2;cx.beginPath();cx.arc(px,py+10,6,0.2,Math.PI-0.2);cx.stroke();
   // BP1: zarost/broda na podglądzie (po ustach — broda na żuchwie poniżej ust)
   _drawPreviewBeard(cx,px,py, (beardId!=null)?beardId:((typeof G.beard==='number')?G.beard:0));
+  _drawPreviewMustache(cx,px,py, (mustacheId!=null)?mustacheId:((typeof G.mustache==='number')?G.mustache:0));
   const lblEl=document.getElementById('barber-preview-lbl');
   if(lblEl)lblEl.textContent=lbl;
 };
@@ -37964,6 +37993,22 @@ function _drawPreviewBeard(cx,px,py,b){
 }
 window.previewBeard=function(beardId,lbl){
   previewHaircut((typeof G.hair==='number')?G.hair:0, lbl, beardId);
+};
+/* BP2 (Tier 6): podgląd wąsów na twarzy (usta py+10). */
+function _drawPreviewMustache(cx,px,py,m){
+  if(!m) return;
+  const col=BEARD_COLS[((typeof P!=='undefined'&&P.beardColor)||0)%BEARD_COLS.length];
+  const my=py+5;
+  cx.save(); cx.fillStyle=col; cx.strokeStyle=col;
+  if(m===1){ cx.fillRect(px-12,my,24,5); }
+  else if(m===2){ cx.fillRect(px-11,my+1,22,2.6); }
+  else if(m===3){ cx.beginPath(); cx.moveTo(px-14,my-2); cx.lineTo(px,my+1); cx.lineTo(px+14,my-2); cx.lineTo(px+14,my+4); cx.lineTo(px,my+7); cx.lineTo(px-14,my+4); cx.closePath(); cx.fill(); }
+  else if(m===4){ cx.lineWidth=4; cx.lineCap='round'; cx.beginPath(); cx.moveTo(px-12,my+2); cx.quadraticCurveTo(px,my-1,px+12,my+2); cx.stroke(); cx.beginPath(); cx.moveTo(px-12,my+2); cx.quadraticCurveTo(px-18,my,px-15,my-5); cx.stroke(); cx.beginPath(); cx.moveTo(px+12,my+2); cx.quadraticCurveTo(px+18,my,px+15,my-5); cx.stroke(); }
+  else if(m===5){ cx.fillRect(px-12,my,24,5); cx.fillRect(px-12,my,4,11); cx.fillRect(px+8,my,4,11); }
+  cx.restore();
+}
+window.previewMustache=function(mustacheId,lbl){
+  previewHaircut((typeof G.hair==='number')?G.hair:0, lbl, (typeof G.beard==='number')?G.beard:0, mustacheId);
 };
 
 function renderHospital(){
@@ -39341,6 +39386,12 @@ window.buyBeard=(id,price)=>{
   if(G.money<price) return; G.money-=price; G.beard=id; P.beard=id;
   if(typeof checkAchievements==='function') checkAchievements();
   const r=document.getElementById('shop-res'); if(r) r.textContent=id===0?'💈 Gładko ogolony!':'💈 Nowy zarost!';
+  renderBarber();
+};
+window.buyMustache=(id,price)=>{
+  if(G.money<price) return; G.money-=price; G.mustache=id; P.mustache=id;
+  if(typeof checkAchievements==='function') checkAchievements();
+  const r=document.getElementById('shop-res'); if(r) r.textContent=id===0?'💈 Bez wąsów!':'💈 Nowe wąsy!';
   renderBarber();
 };
 window.heal=(amount)=>{
@@ -56618,6 +56669,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.49',date:'2026-06-22',cats:['fix','change','feature'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
+ {t:'feature',d:'U fryzjera (Barber Point) doszedł też zestaw wąsów — klasyczne, cienkie, chevron, handlebar i podkówka. Fryzura, zarost i wąsy łączą się niezależnie, a całość widać od razu na postaci i w podglądzie.'},
  {t:'feature',d:'Barber Point (fryzjer) pozwala teraz zmienić nie tylko fryzurę, ale i zarost — zarost kilkudniowy, krótką brodę, pełną brodę albo kozią bródkę. Nowy wygląd widać od razu na Twojej postaci i w podglądzie u fryzjera.'},
  {t:'feature',d:'Dzielnica Underground i kluby tętnią życiem mocniej wieczorami, nocą i w weekendy — w piątkowy lub sobotni wieczór spotkasz tam znacznie więcej ludzi niż w poniedziałkowe popołudnie. W tygodniu ruch pozostaje na normalnym poziomie.'},
  {t:'feature',d:'Po mieście rozstawiono więcej koszy na śmieci i małych osiedlowych ławek — na ławkach przesiadują różni przechodnie (za dnia i przy dobrej pogodzie). Wszystko z dala od jezdni i budynków.'},
