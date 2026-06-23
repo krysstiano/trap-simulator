@@ -49735,12 +49735,14 @@ window._underworldCheckTrigger=function(){
   const someFame=(G.streetRep||0)>=1 || (G.fame||0)>=1;
   const heatOk=(G.streetHeat||0)<60;
   const placesVisited=G.visitedRooms?Object.keys(G.visitedRooms).length:0; /* §3: ≥3 odwiedzone lokacje (istniejący tracker visitedRooms) */
-  const basic = freestyles>=3 && sessionMin>=10 && earnedSomething && someFame && heatOk && placesVisited>=3;
+  /* T9 audyt (PDF v2.3.45 l.1150 — nadrzędny nad l.1008): trigger questu = min. 4 freestyle + 25 min sesji
+     (było 3 + 10). Reszta warunków zgodna z PDF: ≥3 lokacje, pierwszy zarobek, 1-3 sławy/rep, heat OK. */
+  const basic = freestyles>=4 && sessionMin>=25 && earnedSomething && someFame && heatOk && placesVisited>=3;
   /* §3 opcjonalne szybkie OR (przyspieszają event): 10 fanów / klub nocny / underground nocą / drogi outfit za wcześnie */
   const clubVisited=!!(G.visitedRooms&&(G.visitedRooms.striptiz_club||G.visitedRooms.casino));
   const undergroundNight=Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes('underground')&&((G.timeOfDay||0)>=3);
   const richOutfitEarly=!!(G.outfit&&(G.outfit.top==='smoking'||G.outfit.top==='suit'))&&(G.level||1)<8;
-  const fast = heatOk && ( ((G.fans||0)>=10&&freestyles>=3) || (clubVisited&&freestyles>=1) || (undergroundNight&&freestyles>=1) || richOutfitEarly );
+  const fast = heatOk && ( ((G.fans||0)>=10&&freestyles>=4) || (clubVisited&&freestyles>=1) || (undergroundNight&&freestyles>=1) || richOutfitEarly );
   if(!(basic||fast)) return;
   const sent=window._smsSend('kantar','W mieście nie jesteś tak niewidzialny, jak ci się wydaje. Ktoś mówił, że masz ambicję. Ambicja bez kontaktów to tylko ładne słowo na biedę. Dziś 23:40. Velvet Room. Loża w neonie. Nie bierz kolegów, nie pytaj bramki.',{bypass:true});
   if(!sent) return;
@@ -56784,6 +56786,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.49',date:'2026-06-22',cats:['fix','change','feature'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
+ {t:'change',d:'Dostrojono moment, w którym w mieście zaczyna się jeden z wątków fabularnych — pojawia się teraz dopiero, gdy gracz na dobre wkręcił się w grę (więcej freestyle i dłuższa sesja).'},
  {t:'change',d:'Sklep z ubraniami Urban Crown jest teraz uporządkowany w czytelne sekcje (Codzienne, Streetwear, Scena, Formalne, Sport, Praca, Pogoda) zamiast jednej długiej listy — łatwiej dobrać strój pod konkretną okazję.'},
  {t:'feature',d:'W siłowni RepZone stanął rowerek stacjonarny — bezpieczna sesja cardio, w której (w odróżnieniu od bieżni) nie da się przegrać ani stracić tempa. Pewny, łagodny przyrost kondycji dla każdego.'},
  {t:'feature',d:'U fryzjera doszła zmiana kolorów — możesz przefarbować włosy (czarny, brąz, blond, rudy, siwy, platyna, fancy) oraz zarost i wąsy na osobny kolor. Wszystko z podglądem i opcją powrotu do naturalnego koloru.'},
