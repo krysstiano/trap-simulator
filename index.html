@@ -45950,6 +45950,19 @@ function startFreestyleMG(){
     // Grade + high score
     const grade=score>=500?'S':score>=300?'A':score>=150?'B':score>=75?'C':score>0?'D':'F';
     const gradeCol={'S':'#f1c40f','A':'#e91e8c','B':'#3498db','C':'#2ecc71','D':'#aaa','F':'#555'}[grade];
+    /* v2.3.53 (ulepszenie gry): REAKCJA TŁUMU wg oceny występu — flavor ożywiający najczęstszą akcję early-game
+       (freestyle robi się dziesiątki razy). 2 warianty/ocena dla zmienności, mniej powtarzalności. Czysto
+       wizualne — ZERO wpływu na nagrody/balans/save. */
+    const _fsCrowd={
+      S:['🔥 Tłum OSZALAŁ! Telefony w górze, ktoś krzyczy „kto to jest?!"','🎤 Mic drop — ludzie skandują Twoją ksywę. To się rozejdzie po dzielnicy.'],
+      A:['👏 Mocne bary! Głowy kiwają w rytm, paru nagrywa storki.','🙌 Publiczność czuje flow — ktoś wciska Ci numer: „pogadamy".'],
+      B:['🙂 Niezły flow — kilka osób przystanęło, słychać brawa.','👍 Solidnie. Tłum nie szaleje, ale szanuje robotę.'],
+      C:['😐 Średnio. Dali Ci szansę, ale bez fajerwerków.','🤷 Uszło — paru pokiwało głową z grzeczności.'],
+      D:['😬 Słabo — kilka osób odeszło w połowie zwrotki.','😕 Pogubiłeś rymy... tłum rzednie.'],
+      F:['🥶 Zamurowało Cię. Cisza, ktoś tylko parsknął śmiechem.','🙊 Total blackout — dziś lepiej odpuść mikrofon.']
+    };
+    const _fsCrowdArr=_fsCrowd[grade]||[''];
+    const _fsCrowdLine=_fsCrowdArr[Math.floor(Math.random()*_fsCrowdArr.length)];
     const prevHigh=G.careers.raper?G.careers.raper.freestyleHighScore||0:0;
     const isNewRecord=score>prevHigh&&score>0;
     if(isNewRecord){if(!G.careers.raper)G.careers.raper={level:0,freestyles:0,tracks:0,xp:0,skillPts:0};G.careers.raper.freestyleHighScore=score;}
@@ -45974,6 +45987,7 @@ function startFreestyleMG(){
         <div style="font-size:88px;font-weight:900;color:${gradeCol};line-height:1;text-shadow:0 0 28px ${gradeCol}99;margin:8px 0 4px">${grade}</div>
         <div style="font-size:30px;font-weight:700;color:#fff;margin-bottom:2px">${score} pkt</div>
         <div style="font-size:13px;color:#778;margin-bottom:4px">${wordsCorrect} słów · max combo ${combo}x</div>
+        <div style="font-size:13.5px;color:${gradeCol};font-style:italic;margin:2px 14px 8px;line-height:1.35">${_fsCrowdLine}</div>
         ${prevHigh>0&&!isNewRecord?`<div style="font-size:11px;color:#445;margin-bottom:12px">Rekord: ${prevHigh} pkt</div>`:'<div style="margin-bottom:12px"></div>'}
         ${rewardsHtml}
         <div style="display:flex;gap:10px;justify-content:center">
@@ -56853,6 +56867,12 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.53',date:'2026-06-23',cats:['feature'],title:'🎤 Reakcja tłumu na freestyle',
+ items:[
+  {t:'feature',d:'Po każdym freestyle na ulicy widzisz teraz reakcję publiczności dopasowaną do występu — od „tłum oszalał, telefony w górze" po „zamurowało Cię, cisza". Każda ocena ma kilka wariantów, więc występy mniej się powtarzają i bardziej żyją.'},
+ ]
+ },
  {
  ver:'v2.3.52',date:'2026-06-23',cats:['fix'],title:'🔧 Poprawki: SMS-y i życie parku',
  items:[
