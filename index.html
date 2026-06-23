@@ -38295,6 +38295,42 @@ const CAR_CATALOG=[
     {name:'Opel Zafira',speed:1.34,price:29000,fame:1,cls:'M',body:'van',desc:'Minivan dla rodziny. +34% prędkość. +1 sława.',emoji:'🚐', req:{}},
     {name:'Chrysler Pacifica',speed:1.32,price:31000,fame:2,cls:'M',body:'van',desc:'Amerykański rodzinny van. +32% prędkość. +2 sława.',emoji:'🚐', req:{}},
 ];
+/* ═══ MODUŁ POJAZDÓW SPECJALNYCH (v2.3.50) — KATALOG KAMPERÓW (Tier 1) ═══
+   Osobny katalog (kampery = pojazdy specjalne z własnymi parametrami: storage/labCap 1-5, qualityMod %, breakdown 1-5,
+   police/npcReport/theft/fire = modyfikatory ryzyka, camouflage 0-100, cond=stan startowy %). source: gravel/citydrive/both.
+   Skala/parametry wg _pojazdy_extract.txt pkt 5. Kamper NIGDY lepszy od pełnego lab (#11). */
+const CAMPER_MODELS=[
+  {id:'rumbler_nomad_88', name:'Rumbler Nomad 88', price:35000,  source:'gravel',   emoji:'🚐', cond:55, storage:2,   labCap:1,   qualityMod:-18, breakdown:4,   police:25,  npcReport:20,  theft:30, fire:20, camouflage:10, explosion:1, desc:'Stary kamper z nierowna blacha i wyblaklym lakierem. Jezdzi, ale niechetnie. Najtanszy start mobilnego zaplecza — kazdy postoj wyglada troche podejrzanie.'},
+  {id:'vanton_drifter_91', name:'Vanton Drifter 91', price:42000, source:'gravel',   emoji:'🚐', cond:62, storage:2.5, labCap:2,   qualityMod:-14, breakdown:3.5, police:18,  npcReport:15,  theft:24, fire:16, camouflage:25, explosion:0, desc:'Dostawczy kamper przerobiony po kosztach. Mniej oczywisty niz Rumbler, troche wiecej miejsca i nieco mniejsza awaryjnosc.'},
+  {id:'arko_trailbox_96', name:'Arko Trailbox 96', price:46500,  source:'gravel',   emoji:'🚐', cond:70, storage:3,   labCap:2.5, qualityMod:-10, breakdown:3,   police:10,  npcReport:10,  theft:18, fire:12, camouflage:45, explosion:0, desc:'Stary, ale zadbany kamper turystyczny. Ma jeszcze vibe rodzinnych wakacji, wiec mniej rzuca sie w oczy w dobrym miejscu.'},
+  {id:'northvan_pilgrim_2004', name:'Northvan Pilgrim 2004', price:115800, source:'both', emoji:'🚐', cond:80, storage:3.5, labCap:3, qualityMod:-6,  breakdown:2.5, police:4,   npcReport:5,   theft:12, fire:9,  camouflage:65, explosion:0, desc:'Wiekszy kamper z lepszym wnetrzem i neutralnym wygladem. Bardziej jak wlasnosc kogos, kto rzucil korpo i wyjechal w gory.'},
+  {id:'valora_horizon_c7', name:'Valora Horizon C7', price:238300, source:'citydrive', emoji:'🚐', cond:90, storage:4, labCap:3.5, qualityMod:-3, breakdown:2,  police:-5,  npcReport:-8,  theft:10, fire:6,  camouflage:82, explosion:0, desc:'Nowszy kamper klasy premium. Czysty, cichy, zadbany. Ludzie patrza i widza wakacje — mocno obniza ryzyko donosow z samego wygladu.'},
+  {id:'aurum_roamer_x', name:'Aurum Roamer X', price:480000, source:'citydrive', emoji:'🚐', cond:95, storage:5, labCap:4, qualityMod:-1, breakdown:1, police:-12, npcReport:-12, theft:16, fire:5, camouflage:95, explosion:0, maintCost:'high', desc:'Duzy, nowoczesny, prestizowy kamper. Wyglada jak pojazd kogos bogatego, nie podejrzanego. Najwyzszy poziom maskowania — ale drogi w utrzymaniu.'},
+];
+window._camperModelById=function(id){ return (typeof CAMPER_MODELS!=='undefined')?CAMPER_MODELS.find(x=>x.id===id)||null:null; };
+/* Zakup kampera — sprawdza kase, odejmuje, ustawia owned/model/stan, loguje, woła wybor 1. postoju. (PDF buyCamper) */
+window.buyCamper=function(modelId){
+  window._camperEnsure(); const c=G.camper;
+  const m=window._camperModelById(modelId);
+  if(!m){ if(typeof showMsg==='function')showMsg('Nieznany model kampera.','r'); return false; }
+  if(c.owned){ if(typeof showMsg==='function')showMsg('🚐 Masz juz kampera. Najpierw go sprzedaj albo zarzadzaj przez panel.','r',4500); return false; }
+  if((G.money||0) < m.price){ if(typeof showMsg==='function')showMsg('Nie masz wystarczajaco gotowki (potrzeba '+m.price.toLocaleString('pl')+' zl).','r',4500); return false; }
+  G.money -= m.price;
+  c.owned=true; c.model=modelId; c.condition=m.cond||70; c.camouflage=m.camouflage||10; c.destroyed=false; c.daysInLoc=0;
+  if(!Array.isArray(c.history)) c.history=[];
+  c.history.push({day:G.day||0, ev:'buy', model:modelId, price:m.price});
+  if(typeof showMsg==='function') showMsg('🚐 Kupiles '+m.name+' za '+m.price.toLocaleString('pl')+' zl. Wybierz pierwszy postoj kampera.','g',6000);
+  window._chooseInitialCamperLocation();
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  if(typeof updateHUD==='function') updateHUD();
+  return true;
+};
+/* Wybor pierwszego postoju (Tier 1 = stub: domyslnie 1. lokacja; Tier 2 doda interaktywny wybor 6 lokacji + profile ryzyka). */
+window._chooseInitialCamperLocation=function(){
+  window._camperEnsure(); const c=G.camper;
+  if(!c.location) c.location='old_overpass_parking'; /* domyslny postoj; Tier 2: pelny wybor */
+  c.daysInLoc=0;
+};
 const CAR_CLASS_LABELS={A:'🅰️ Klasa A — miejskie',B:'🅱️ Klasa B — segment B',C:'🔤 Klasa C — kompakty',D:'🇩 Klasa D — klasa średnia / premium','EF':'💎 Klasa E/F — luksusowe i hiperauta',J:'🚙 Klasa J — SUV',M:'🚐 Klasa M — minivan / van'};
 const CAR_CLASS_ORDER=['A','B','C','D','EF','J','M'];
 function renderSalon(){
