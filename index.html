@@ -56569,6 +56569,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.49',date:'2026-06-22',cats:['fix','change','feature'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
+ {t:'feature',d:'Po mieście rozstawiono więcej koszy na śmieci i małych osiedlowych ławek — na ławkach przesiadują różni przechodnie (za dnia i przy dobrej pogodzie). Wszystko z dala od jezdni i budynków.'},
  {t:'feature',d:'Przy skrzyżowaniach w mieście pojawiły się prawdziwe znaki drogowe — STOP, pierwszeństwo, ustąp pierwszeństwa i przejście dla pieszych — narysowane jako realne kształty, nie emoji.'},
  {t:'change',d:'Wszystkie latarnie w mieście zapalają się teraz spójnie już od zmierzchu (wieczór–świt), a nie część dopiero w środku nocy — ulice są lepiej oświetlone wieczorem.'},
  {t:'feature',d:'Oferty koncertów od Marcina zależą teraz od dnia tygodnia — w weekend (piątek, sobota) propozycje występów przychodzą znacznie częściej, a w środku tygodnia częściej trafiają inne oferty (radio, sponsorzy). Łączna liczba ofert się nie zmienia — zmienia się ich charakter.'},
@@ -73312,10 +73313,59 @@ function _roadSigns(){
 }
 window._roadSignPositions=_roadSigns;
 function drawRoadSigns(){ if(currentRoom!=='ulica') return; for(const s of _roadSigns()){ drawSignPost(s.wx,s.wy,s.type); } }
+/* D6b/c (PDF v2.3.45): więcej śmietników + małych osiedlowych ławek (na których siedzą NPC). Pozycje
+   walidowane po KAFLACH mapy (tylko side/grass/park — nie jezdnia/woda/budynek) + ZERO kolizji z budynkami/
+   dekoracjami/latarniami/drzewami/znakami (#8). Ławki dekoracyjne; siedzący gated D3 (_parkSitterVisible). */
+let _streetFurnCache=null;
+function _streetFurniture(){
+  if(_streetFurnCache) return _streetFurnCache;
+  const T=48, GOOD={side:1,grass:1,park:1}, map=(ROOMS.ulica&&ROOMS.ulica.map)||[];
+  const tileOK=(wx,wy)=>{ const r=Math.floor(wy/T),c=Math.floor(wx/T); const row=map[r]; return !!(row&&GOOD[row[c]]); };
+  const fits=(o)=>{ for(const x of [o.wx,o.wx+o.w]) for(const y of [o.wy,o.wy+o.h]) if(!tileOK(x,y)) return false; return tileOK(o.wx+o.w/2,o.wy+o.h/2); };
+  const rects=[], pts=[];
+  try{ for(const o of ROOMS.ulica.objects){ if((o.w||0)>40&&(o.h||0)>40) rects.push({x:o.wx,y:o.wy,w:o.w,h:o.h}); else pts.push({wx:o.wx,wy:o.wy}); } }catch(e){}
+  try{ for(const d of DB_DECORATIVE) rects.push({x:d.wx,y:d.wy,w:d.w,h:d.h}); }catch(e){}
+  for(const wy of [378,670,1918,2204,2878,3164]){ for(let wx=160;wx<4400;wx+=400) pts.push({wx,wy}); }
+  for(const tp of [[80,60],[180,60],[350,60],[800,60],[950,60],[100,650],[200,650],[400,650],[700,650]]) pts.push({wx:tp[0],wy:tp[1]});
+  try{ for(const s of _roadSigns()) pts.push({wx:s.wx,wy:s.wy}); }catch(e){}
+  const clear=(o)=>{
+    if(!fits(o)) return false;
+    for(const r of rects){ if(o.wx<r.x+r.w+10 && o.wx+o.w>r.x-10 && o.wy<r.y+r.h+10 && o.wy+o.h>r.y-10) return false; }
+    const cx=o.wx+o.w/2, cy=o.wy+o.h/2;
+    for(const p of pts){ if(Math.hypot(p.wx-cx,p.wy-cy)<40) return false; }
+    return true;
+  };
+  const valid=[]; let nT=0,nB=0,tog=0;
+  for(let wy=300; wy<3300; wy+=130){
+    for(let wx=120; wx<4220; wx+=190){
+      const kind=(tog++%3===0)?'bench':'trash';
+      if((kind==='trash'&&nT>=6)||(kind==='bench'&&nB>=4)) continue;
+      const o={kind, wx, wy, w:kind==='bench'?70:22, h:kind==='bench'?40:34, seed:(wx*3+wy)%6};
+      if(!clear(o)) continue;
+      let near=false; for(const v of valid){ if(Math.hypot((v.wx+v.w/2)-(o.wx+o.w/2),(v.wy+v.h/2)-(o.wy+o.h/2))<150){near=true;break;} }
+      if(near) continue;
+      valid.push(o); if(kind==='trash')nT++; else nB++;
+    }
+  }
+  _streetFurnCache=valid;
+  return valid;
+}
+window._streetFurniture=_streetFurniture;
+function drawStreetFurniture(){
+  if(currentRoom!=='ulica') return;
+  const sit=(typeof _parkSitterVisible!=='function')||_parkSitterVisible();
+  for(const f of _streetFurniture()){
+    const sx=wx2sx(f.wx), sy=wy2sy(f.wy);
+    if(sx<-80||sx>1360) continue;
+    if(f.kind==='trash') drawParkTrash(sx,sy,f.w,f.h);
+    else { drawBench(sx,sy,f.w,f.h); if(sit) drawBenchSitter(sx,sy,f.w,f.h,f.seed); }
+  }
+}
 function drawStreetDetails(){
   if(currentRoom!=='ulica')return;
   const t=Date.now();
   drawRoadSigns(); // D6d: znaki drogowe przy skrzyżowaniach (walidowane, bez overlap)
+  drawStreetFurniture(); // D6b/c: więcej śmietników + ławek osiedlowych (walidowane po kaflach, bez overlap)
 
   // ── DONICE Z KWIATAMI przed sklepami ──
   // Każdy sklep komercyjny ma 2 donice po bokach wejścia
