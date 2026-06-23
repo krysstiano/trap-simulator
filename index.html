@@ -37269,6 +37269,11 @@ function renderClothingShop(){
      Spójne z migracją loadGame (L65883) i renderPepcoShop. Save-safe (reguła #1). */
   if(!G.outfit||typeof G.outfit!=='object') G.outfit={top:'default'};
   const outfits=OUTFIT_CATALOG;
+  /* UC1 (Tier 8 Urban Crown, PDF v2.3.45): podział oferty na ZAKŁADKI/sekcje (zamiast jednej długiej listy). */
+  const OUTFIT_CATS={default:'codzienne',everyday:'codzienne',polo:'codzienne',street:'streetwear',jeansowa:'streetwear',tracksuit:'streetwear',leather_jacket:'streetwear',luxury:'streetwear',designer_hoodie:'streetwear',zimowa:'pogoda',suit:'formalne',smoking:'formalne',sport:'sport',sport_pro:'sport',music:'scena',designer_concert:'scena',work_black:'praca'};
+  const CAT_ORDER=[['codzienne','👕 Codzienne'],['streetwear','🧥 Streetwear'],['scena','🎤 Scena / Koncerty'],['formalne','👔 Formalne'],['sport','🏋 Sport / Trening'],['praca','🦺 Praca / Utility'],['pogoda','🧣 Pogoda']];
+  const _outItem=o=>`<div class="sitem"><h3>${o.emoji} ${o.name}</h3><p>${o.desc}</p><p style="color:#27ae60;font-size:11px;margin-bottom:6px">Bonus: ${o.bonus}</p><div class="pr">${o.price===0?'Gratisowe':o.price+' zł'}</div>${G.outfit.top===o.id?'<div class="owned">✅ Aktualny</div>':''}<button class="bbtn" onclick="buyOutfit('${o.id}','${o.name}',${o.price})" ${G.outfit.top===o.id||G.money<o.price?'disabled':''}>Kup i załóż</button></div>`;
+  const _catSections=CAT_ORDER.map(([cat,label])=>{const items=outfits.filter(o=>(OUTFIT_CATS[o.id]||'codzienne')===cat);if(!items.length)return '';return `<h3 style="color:#9fd0f5;margin:16px 0 6px;font-size:14px;border-bottom:1px solid #2a3a50;padding-bottom:4px">${label}</h3><div class="shopgrid">${items.map(_outItem).join('')}</div>`;}).join('');
   const outfitNames={default:'Podstawowy 👕',polo:'Polo 🧵',street:'Streetwear 🧥',jeansowa:'Jeansowa 🥾',zimowa:'Zimowa 🧣',suit:'Garnitur 👔',smoking:'Smoking 🎩',sport:'Sportowy 🏋',sport_pro:'Treningowy PRO 🥋',music:'Muzyczny 🎤',designer_concert:'Designerski 🌟',luxury:'Luxury 💎',tracksuit:'Dresik 🥋',leather_jacket:'Kurtka skórzana 🧥',designer_hoodie:'Designer hoodie 👕',everyday:'Codzienny 👚',work_black:'Robocza czerń 🖤',own_merch:'Własny merch 🏷️'}; /* v2.1.148 hotfix: 3 nowe outfity; v2.1.889: odzież zwykła; v2.1.939: własny merch */
   /* v2.1.663 (user): plecaki powiększające ekwipunek (baza INV_BASE_CAP mała). Kupno = trwały upgrade (trzymasz największy). */
   const backpacks=[
@@ -37281,9 +37286,7 @@ function renderClothingShop(){
   document.getElementById('ov-content').innerHTML=`
     <h2>👗 Sklep z ubraniami</h2><p class="sub">Ubierz swoją postać. Ubrania dają bonusy!</p>
     <p style="color:#667;font-size:14px;margin-bottom:12px">Aktualnie: <strong style="color:#7ec8e3">${outfitNames[G.outfit.top||'default']}</strong></p>
-    <div class="shopgrid">
-      ${outfits.map(o=>`<div class="sitem"><h3>${o.emoji} ${o.name}</h3><p>${o.desc}</p><p style="color:#27ae60;font-size:11px;margin-bottom:6px">Bonus: ${o.bonus}</p><div class="pr">${o.price===0?'Gratisowe':o.price+' zł'}</div>${G.outfit.top===o.id?'<div class="owned">✅ Aktualny</div>':''}<button class="bbtn" onclick="buyOutfit('${o.id}','${o.name}',${o.price})" ${G.outfit.top===o.id||G.money<o.price?'disabled':''}>Kup i załóż</button></div>`).join('')}
-    </div>
+    ${_catSections}
     <h3 style="color:#f0a020;margin:20px 0 4px">🎒 Plecaki — powiększają ekwipunek</h3>
     <p style="color:#667;font-size:12px;margin-bottom:8px">Ekwipunek bazowy: <strong>${INV_BASE_CAP}</strong> miejsc. ${_curBp>0?`Twój plecak: <strong style="color:#27ae60">+${_curBp}</strong> → razem <strong style="color:#7ec8e3">${INV_BASE_CAP+_curBp}</strong> miejsc.`:'Nie masz jeszcze plecaka — kup, aby nosić więcej.'}</p>
     <div class="shopgrid">
@@ -56781,6 +56784,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.49',date:'2026-06-22',cats:['fix','change','feature'],title:'🔧 Usprawnienia interakcji i interfejsu',
  items:[
+ {t:'change',d:'Sklep z ubraniami Urban Crown jest teraz uporządkowany w czytelne sekcje (Codzienne, Streetwear, Scena, Formalne, Sport, Praca, Pogoda) zamiast jednej długiej listy — łatwiej dobrać strój pod konkretną okazję.'},
  {t:'feature',d:'W siłowni RepZone stanął rowerek stacjonarny — bezpieczna sesja cardio, w której (w odróżnieniu od bieżni) nie da się przegrać ani stracić tempa. Pewny, łagodny przyrost kondycji dla każdego.'},
  {t:'feature',d:'U fryzjera doszła zmiana kolorów — możesz przefarbować włosy (czarny, brąz, blond, rudy, siwy, platyna, fancy) oraz zarost i wąsy na osobny kolor. Wszystko z podglądem i opcją powrotu do naturalnego koloru.'},
  {t:'feature',d:'U fryzjera (Barber Point) doszedł też zestaw wąsów — klasyczne, cienkie, chevron, handlebar i podkówka. Fryzura, zarost i wąsy łączą się niezależnie, a całość widać od razu na postaci i w podglądzie.'},
