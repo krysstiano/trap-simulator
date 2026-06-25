@@ -1030,7 +1030,7 @@ const G = {
   streetRep:0,
   /* v2.3.38 MODUŁ „Numer zastrzeżony" — staty półświatka (save-safe, ensure-init w _underworldEnsure). publicImage start 100. */
   kantarTrust:0, publicImage:100, mediaHeat:0, violenceHeat:0, streetCredibility:0, streetHeat:0,
-  underworldIntro:{state:'none',curiosityFlag:false,kantarPatience:10,ambitionFlag:false,underworldAccess:0,gangIntroAvailable:false,memoryTags:[],smsDay:0,smsMs:0,returnDay:0,task:{t1:null,t2:null,t3:null},reward:0,pathChosen:null,completed:false,bDay:0},
+  underworldIntro:{state:'none',curiosityFlag:false,kantarPatience:10,ambitionFlag:false,underworldAccess:0,gangIntroAvailable:false,memoryTags:[],smsDay:0,smsMs:0,returnDay:0,task:{t1:null,t2:null,t3:null},reward:0,pathChosen:null,completed:false,bridgeStage:'',talkedToKantarAfterT2:false,brokatSpawnEnabled:false,casinoMarkerEnabled:false,brokatFound:false,questHintClarity:'',bDay:0},
   careers:{
     youtuber:{unlocked:false, xpReq:50},
     beatmaker:{unlocked:false, xpReq:120, beats:0, beatsSold:0},
@@ -19533,15 +19533,21 @@ function getPublicStatus(){
    G.streetCredibility, G.streetHeat (osobny od trap.heat, bo quest odpala się PRZED odblokowaniem trapu). */
 window._underworldEnsure=function(){
   if(!G.underworldIntro||typeof G.underworldIntro!=='object'){
-    G.underworldIntro={state:'none',curiosityFlag:false,kantarPatience:10,ambitionFlag:false,underworldAccess:0,gangIntroAvailable:false,memoryTags:[],smsDay:0,smsMs:0,returnDay:0,task:{t1:null,t2:null,t3:null},reward:0,pathChosen:null,completed:false,bDay:0};
+    G.underworldIntro={state:'none',curiosityFlag:false,kantarPatience:10,ambitionFlag:false,underworldAccess:0,gangIntroAvailable:false,memoryTags:[],smsDay:0,smsMs:0,returnDay:0,task:{t1:null,t2:null,t3:null},reward:0,pathChosen:null,completed:false,bridgeStage:'',talkedToKantarAfterT2:false,brokatSpawnEnabled:false,casinoMarkerEnabled:false,brokatFound:false,questHintClarity:'',bDay:0};
   }
   const u=G.underworldIntro;
   if(typeof u.state!=='string') u.state='none';
   if(!Array.isArray(u.memoryTags)) u.memoryTags=[];
   if(!u.task||typeof u.task!=='object') u.task={t1:null,t2:null,t3:null};
-  ['curiosityFlag','ambitionFlag','gangIntroAvailable','completed'].forEach(k=>{ if(typeof u[k]!=='boolean') u[k]=false; });
+  ['curiosityFlag','ambitionFlag','gangIntroAvailable','completed','talkedToKantarAfterT2','brokatSpawnEnabled','casinoMarkerEnabled','brokatFound'].forEach(k=>{ if(typeof u[k]!=='boolean') u[k]=false; });
   [['kantarPatience',10],['underworldAccess',0],['smsDay',0],['smsMs',0],['returnDay',0],['reward',0],['bDay',0]].forEach(([k,d])=>{ if(typeof u[k]!=='number'||!isFinite(u[k])) u[k]=d; });
   if(u.pathChosen!==null && typeof u.pathChosen!=='string') u.pathChosen=null;
+  /* v2.3.55 PDF „Zastrzeżony numer" — most Z2→Z3 (save-safe). bridgeStage: ''|'after_parking_task'|'find_brokat'. questHintClarity: ''|'medium'|'high'. */
+  if(typeof u.bridgeStage!=='string') u.bridgeStage='';
+  if(typeof u.questHintClarity!=='string') u.questHintClarity='';
+  /* MIGRACJA starych save'ów w trakcie testu: Z2 zrobione (t2) ale Z3 nie (t3) i gracz NIE przeszedł nowego mostu →
+     skieruj do Kantara zamiast od razu spawnować Brokata (PDF: gracz nie wie gdzie szukać). Idempotentne, jednorazowe. */
+  if(u.state==='testing' && u.task && u.task.t2 && !u.task.t3 && !u.talkedToKantarAfterT2 && u.bridgeStage==='') u.bridgeStage='after_parking_task';
   /* Globalne staty modułu (NOWE pola — istniejące streetRep/_underworldRespect/money/stress NIE ruszane) */
   if(typeof G.kantarTrust!=='number'||!isFinite(G.kantarTrust)) G.kantarTrust=0;
   if(typeof G.publicImage!=='number'||!isFinite(G.publicImage)) G.publicImage=100;
