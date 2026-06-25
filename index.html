@@ -43422,14 +43422,20 @@ function _startCarwashGame(){
     G.energy=clampStat('energy', G.energy-5);addXP(20);progressQuest('carwash'); // v1.8.59: carwash 9→5 (-70% od oryginału 15)
     /* v2.1.120: Wave 6 N19 — rep konsystencja: +1 rep co 5 myć (parallel z pizza/kurier). */
     if(G._cwCount%5===0){G.streetRep=Math.min(100,(G.streetRep||0)+1);if(typeof addNotif==='function')addNotif('🚗 +1 rep uliczna (po 5 myciach — ludzie znają Cię)');}
-    ctx.fillStyle='rgba(0,0,0,.85)';ctx.fillRect(0,0,W,H);
-    ctx.fillStyle='#27ae60';ctx.font='bold 28px "Segoe UI",sans-serif';ctx.textAlign='center';
-    ctx.fillText('🚗✨ Auto umyte perfekcyjnie!',W/2,H/2-22);
-    ctx.fillStyle='#f1c40f';ctx.font='bold 26px "Segoe UI",sans-serif';
-    ctx.fillText(`+${pay} zł`,W/2,H/2+14);
-    ctx.fillStyle='#7ec8e3';ctx.font='15px "Segoe UI",sans-serif';
-    ctx.fillText(`Skill myjni: ${skill} | XP: +20`,W/2,H/2+44);
-    ctx.textAlign='left';
+    /* A2 P0 FIX (v2.3.57): ekran wyniku w try/catch — błąd rysowania NIGDY nie może zablokować zamknięcia panelu
+       (root cause hangu: niezdefiniowana zmienna `skill` rzucała ReferenceError PRZED closeJobPanelAfter →
+       po PEŁNYM ukończeniu 6 etapów panel zostawał otwarty na zawsze; timeout 150s miał osobny kod = nie wisiał). */
+    try{
+      const _cwSkill=(G.skills&&G.skills.carwash)||0;
+      ctx.fillStyle='rgba(0,0,0,.85)';ctx.fillRect(0,0,W,H);
+      ctx.fillStyle='#27ae60';ctx.font='bold 28px "Segoe UI",sans-serif';ctx.textAlign='center';
+      ctx.fillText('🚗✨ Auto umyte perfekcyjnie!',W/2,H/2-22);
+      ctx.fillStyle='#f1c40f';ctx.font='bold 26px "Segoe UI",sans-serif';
+      ctx.fillText(`+${pay} zł`,W/2,H/2+14);
+      ctx.fillStyle='#7ec8e3';ctx.font='15px "Segoe UI",sans-serif';
+      ctx.fillText(`Skill myjni: ${_cwSkill} | XP: +20`,W/2,H/2+44);
+      ctx.textAlign='left';
+    }catch(_e){}
     notify(`🚗 Myjnia zakończona! +${pay} zł`);
     closeJobPanelAfter(2000); /* B6: 2s delay → powrót do gry (PDF v2.3.45) */
   }
@@ -57103,6 +57109,13 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.57',date:'2026-06-25',cats:['beta-tester','Vegan','fix'],reporter:'Vegan',title:'🚗 Naprawiony zwis po perfekcyjnym umyciu auta na myjni',
+ items:[
+  {t:'critical',d:'Ukończenie wszystkich sześciu etapów mycia auta na myjni potrafiło zawiesić ekran — gra zatrzymywała się na podsumowaniu i nie dało się wrócić do rozgrywki (trzeba było przeładować). Już naprawione: po pełnym umyciu dostajesz wypłatę, widzisz wynik i płynnie wracasz do gry.'},
+  {t:'fix',d:'Pracę na myjni można teraz normalnie powtarzać bez ryzyka zablokowania okna. Zabezpieczyliśmy też ekran wyniku tak, żeby żaden drobny błąd wyświetlania nie mógł już uwięzić gracza na planszy zlecenia.'},
+ ]
+ },
  {
  ver:'v2.3.56',date:'2026-06-25',cats:['beta-tester','Vegan','balance'],reporter:'Vegan',title:'🏷️ Urealnione ceny wyposażenia mieszkania — dekoracje warte tyle, ile dają',
  items:[
