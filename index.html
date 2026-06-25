@@ -16775,7 +16775,7 @@ const ACHIEVEMENTS = [
   {id:'parked_car',name:'Parker',desc:'Zaparkuj swój samochód na parkingu miejskim',icon:'🅿',check:()=>!!G._carParkedAt||(G._carsParked||0)>=1},
   // v1.8.44: kolejne osiągnięcia — różnorodność (rozwój, eksploracja, niszowe)
   /* v2.1.329 Faza G iter3 fix misleading desc (user 2026-05-27: "Dostałem osiągnięcie o nagraniu tracku w studio, a nawet nie mam studia"). Counter `G.careers.raper.tracks` rośnie w 3 miejscach: recordHomeDemo (L14885 — Home Studio w mieszkaniu/traphouse), publishSCSingle (L20886 — SoundCloud singiel), publishSpotifySingle (L20971 — Spotify studio). Desc mówił "w studio" → mylące dla gracza który nagrał demo w traphouse Home Studio. Nowa desc explicit wymienia 3 typy. */
-  {id:'first_track',name:'Pierwszy track',desc:'Nagraj pierwszy utwór muzyczny (demo Home Studio, singiel SoundCloud lub studyjny)',icon:'🎵',check:()=>(G.careers?.raper?.tracks||0)>=1},
+  {id:'first_track',name:'Pierwszy track',desc:'Nagraj pierwszy utwór muzyczny (demo Home Studio, singiel EchoDrop lub studyjny)',icon:'🎵',check:()=>(G.careers?.raper?.tracks||0)>=1},
   {id:'tracks_10',name:'Dziesiąty singiel',desc:'Nagraj 10 tracków',icon:'💽',check:()=>(G.careers?.raper?.tracks||0)>=10},
   {id:'drip_50',name:'Stylowy',desc:'Osiągnij 50 punktów dripu',icon:'👔',check:()=>(G.drip||0)>=50},
   {id:'drip_100',name:'Drip Icon',desc:'Osiągnij 100 punktów dripu (top tier styl)',icon:'💎',check:()=>(G.drip||0)>=100},
@@ -26205,7 +26205,7 @@ function nextPeriod(){
         if(_scDaily > 0){
           /* v2.1.866 (fix double-pay): COLLECT-ONLY jak radio/Spotify — usunięty auto-earn, tantiema akumuluje do puli, płacona RAZ przy „Zbierz" (collectRoyalties). */
           G.soundcloud.royalties = (G.soundcloud.royalties||0) + _scDaily;
-          if(typeof addNotif === 'function' && Math.random()<.34) addNotif('🟠 SoundCloud: +'+_scDaily.toLocaleString('pl')+' zł do zebrania');
+          if(typeof addNotif === 'function' && Math.random()<.34) addNotif('🟠 EchoDrop: +'+_scDaily.toLocaleString('pl')+' zł do zebrania');
         }
       }
     }
@@ -27782,9 +27782,9 @@ function renderHomeStudioCard(){
   return `<div class="card" style="border-color:#3a2a5a">
     <h3>🎙 Home Studio <span style="font-size:10px;color:#9b59b6">${aptName}</span></h3>
     <p>Nagraj demo we własnym pokoju. Jakość: <strong style="color:#9b59b6">${(mult*100).toFixed(0)}%</strong> tego, co dałoby pro studio.</p>
-    <p style="font-size:11px;color:#ff8c44;margin:4px 0">🟠 Demo trafia na <strong>SoundCloud</strong> — łatwy start, ale małe zarobki (30% streamów, 20% royalty vs DAW). Pełny pipeline w studio = Loopify/Tidal/Apple Music.</p>
+    <p style="font-size:11px;color:#ff8c44;margin:4px 0">🟠 Demo trafia na <strong>EchoDrop</strong> — łatwy start, ale małe zarobki (30% streamów, 20% royalty vs DAW). Pełny pipeline w studio = Loopify/Tidal/Apple Music.</p>
     <div class="cost">${usedToday?'Wykorzystano dzisiaj — wróć jutro':'Energia: -10 · Czas: ~2h gry'}</div>
-    <button class="dbtn" ${usedToday||G.energy<10?'disabled':''} onclick="closeOverlay();setTimeout(()=>recordHomeDemo(),50)">${usedToday?'⏳ Jutro':'🟠 Nagraj demo → SoundCloud'}</button>
+    <button class="dbtn" ${usedToday||G.energy<10?'disabled':''} onclick="closeOverlay();setTimeout(()=>recordHomeDemo(),50)">${usedToday?'⏳ Jutro':'🟠 Nagraj demo → EchoDrop'}</button>
   </div>`;
 }
 window.recordHomeDemo=()=>{
@@ -27846,8 +27846,8 @@ window._completeHomeDemo=function(rawQ){
   G._lastDemoDay=G.day;
   gameMin=Math.min(1439,gameMin+120); // zużywa 2h gry
   /* v2.1.179: showMsg używa rzeczywistych wartości SC (0.3× streams, 0.2× royalties). */
-  showMsg(`🎙 Demo wrzucone na SoundCloud! Jakość: ${finalQ}%, ${_scStreams.toLocaleString('pl')} streamów, +${_scRoy.toLocaleString('pl')} zł, +${fans} fanów`);
-  addNotif(`🟠 [DEMO] SoundCloud — ${_scStreams.toLocaleString('pl')} streamów`);
+  showMsg(`🎙 Demo wrzucone na EchoDrop! Jakość: ${finalQ}%, ${_scStreams.toLocaleString('pl')} streamów, +${_scRoy.toLocaleString('pl')} zł, +${fans} fanów`);
+  addNotif(`🟠 [DEMO] EchoDrop — ${_scStreams.toLocaleString('pl')} streamów`);
   if(typeof checkStoryline==='function')checkStoryline();
   updateHUD();
 };
@@ -33837,9 +33837,9 @@ function renderDAWOverlay(tab='beatmaker'){
       <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px">
         <button class="dbtn" onclick="dawDoMaster()" style="margin:0${(_mixQ>0 && (ct.masterQ||0)===0)?';background:linear-gradient(135deg,#3a2a0a,#5a3a14);border-color:#f39c12;color:#f39c12;animation:pulse-gold 1.5s ease-in-out infinite':''}">🎛️ Master → finalizuj</button>
         ${canRelease?`<button class="dbtn" onclick="dawReleaseSingle()" style="margin:0;background:#1a2a0a;border-color:#2ecc71;color:#2ecc71${(ct.masterQ>0&&G.distributor)?';animation:pulse-gold 1.5s ease-in-out infinite':''}" title="Wymaga dystrybutora (Loopify, Tidal). Pełne royalty, duży zasięg.">🚀 Wydaj Singiel (streamingi)</button>`:''}
-        ${(ct.masterQ||0)>=40?`<button class="dbtn" onclick="dawReleaseToSoundCloud()" style="margin:0;background:#2a1408;border-color:#ff5500;color:#ff5500" title="Bez wymogu dystrybutora. Mały zasięg, niskie royalty — platforma startowa.">🟠 Wrzuć na SoundCloud</button>`:''}
+        ${(ct.masterQ||0)>=40?`<button class="dbtn" onclick="dawReleaseToSoundCloud()" style="margin:0;background:#2a1408;border-color:#FF8A1C;color:#FF8A1C" title="Bez wymogu dystrybutora. Mały zasięg, niskie royalty — platforma startowa.">🟠 Wrzuć na EchoDrop</button>`:''}
       </div>
-      ${(ct.masterQ||0)>=40 && !G.distributor?`<p style="color:#ff7733;font-size:11px;text-align:center;margin-top:6px;max-width:540px;margin-left:auto;margin-right:auto">💡 Bez dystrybutora możesz wrzucać tylko na SoundCloud. Dla Loopify/Tidal — wybierz dystrybutora w zakładce "Dystrybucja".</p>`:''}
+      ${(ct.masterQ||0)>=40 && !G.distributor?`<p style="color:#ff7733;font-size:11px;text-align:center;margin-top:6px;max-width:540px;margin-left:auto;margin-right:auto">💡 Bez dystrybutora możesz wrzucać tylko na EchoDrop. Dla Loopify/Tidal — wybierz dystrybutora w zakładce "Dystrybucja".</p>`:''}
       ${canRelease?`<div style="max-width:500px;margin:12px auto 0;text-align:center">
         <label style="display:block;color:#aaa;font-size:12px;margin-bottom:4px">🏷️ Tytuł singla (opcjonalnie)</label>
         <input id="track-name-input" type="text" maxlength="40" placeholder="np. Trap King, Zimowy Wieczór…" value="${(G.currentTrack?.name||'').replace(/"/g,'&quot;')}" oninput="G.currentTrack.name=this.value.slice(0,40)" style="width:100%;max-width:380px;padding:8px 12px;background:#0a0a14;border:1px solid #2a2a3a;border-radius:6px;color:#fff;font-family:inherit;font-size:13px;text-align:center">
@@ -33923,7 +33923,7 @@ function renderDAWOverlay(tab='beatmaker'){
         <div style="color:#3498db;font-weight:800;font-size:13px;margin-bottom:5px">🎓 Co to jest dystrybucja?</div>
         <div style="color:#cdd;font-size:11px;line-height:1.55">Dystrybutor wrzuca Twoje tracki na <b>Loopify, Tidal, YouTube Music</b>. Bez niego nie wydasz singla. <b style="color:#f39c12">Royalties %</b> to ile zarobionych pieniędzy z streamów trafia do Ciebie (reszta dla dystrybutora). <b>Opłata jest jednorazowa</b> — kupujesz raz i zostaje aktywny. Możesz zmienić dystrybutora w dowolnym momencie, ale każda zmiana to nowa opłata. Wybierz mądrze: tańsi mają niższe royalties.</div>
       </div>
-      ${G.distributor?`<div style="background:#0a1a0a;border:1px solid #2ecc7160;border-radius:6px;padding:8px 14px;margin-bottom:10px;font-size:13px;color:#ddd">✅ Aktywny dystrybutor: <b style="color:#2ecc71">${G.distributor.name}</b> · <span style="color:#aac">Royalties:</span> <b style="color:#f1c40f">${G.distributor.royaltyPct}%</b> · <span style="color:#aac">Limit singli:</span> <b style="color:#7ec8e3">${G.distributor.limitSingles}</b></div>`:'<p style="color:#e74c3c;font-size:13px;margin-bottom:10px">⚠️ Brak dystrybutora — możesz wydawać tylko na 🟠 SoundCloud (mały zarobek). Wybierz dystrybutora dla streamingów (Loopify/Tidal).</p>'}
+      ${G.distributor?`<div style="background:#0a1a0a;border:1px solid #2ecc7160;border-radius:6px;padding:8px 14px;margin-bottom:10px;font-size:13px;color:#ddd">✅ Aktywny dystrybutor: <b style="color:#2ecc71">${G.distributor.name}</b> · <span style="color:#aac">Royalties:</span> <b style="color:#f1c40f">${G.distributor.royaltyPct}%</b> · <span style="color:#aac">Limit singli:</span> <b style="color:#7ec8e3">${G.distributor.limitSingles}</b></div>`:'<p style="color:#e74c3c;font-size:13px;margin-bottom:10px">⚠️ Brak dystrybutora — możesz wydawać tylko na 🟠 EchoDrop (mały zarobek). Wybierz dystrybutora dla streamingów (Loopify/Tidal).</p>'}
       <div class="shopgrid">${distHtml}</div>
       <div class="res" id="distr-res"></div>`;
   }
@@ -34219,7 +34219,7 @@ window.dawDoMaster=()=>{
     if(typeof showMsg==='function')showMsg(`🎛️ Master: ${ct.masterQ}%. ${lufsStatus} — gotowe! Kliknij „🚀 Wydaj Singiel".`,'g',6000);
     renderDAWOverlay('master');
   } else {
-    if(typeof showMsg==='function')showMsg(`🎛️ Master: ${ct.masterQ}%. ${lufsStatus} — wybierz dystrybutora, by wydać na streamingach (lub wrzuć na SoundCloud).`,'g',6000);
+    if(typeof showMsg==='function')showMsg(`🎛️ Master: ${ct.masterQ}%. ${lufsStatus} — wybierz dystrybutora, by wydać na streamingach (lub wrzuć na EchoDrop).`,'g',6000);
     renderDAWOverlay('dystrybucja');
   }
 };
@@ -34230,7 +34230,7 @@ window.dawDoMaster=()=>{
    User feedback: "SC mniej dochodowy od pozostałych streamingów, ale dużo łatwiej osiągalny w early game". */
 window.dawReleaseToSoundCloud=()=>{
   const ct=G.currentTrack;
-  if(ct.masterQ<20){showMsg(`Master musi mieć min. 20% żeby wrzucić na SoundCloud (masz ${ct.masterQ}%). To bardzo niski próg — SC akceptuje nawet rough drafty.`,'r');return;}
+  if(ct.masterQ<20){showMsg(`Master musi mieć min. 20% żeby wrzucić na EchoDrop (masz ${ct.masterQ}%). To bardzo niski próg — SC akceptuje nawet rough drafty.`,'r');return;}
   if(!G.soundcloud) G.soundcloud={listeners:0,streams:0,royalties:0,tracksUploaded:0};
   /* v2.1.135: dodano lyrics komponent (waga 12%, mniej niż Spotify 15% bo SC = "rough draft platform") — wcześniej gracze piszący teksty NIE byli nagradzani za SC release (niespójność z Spotify single L18274). */
   const _lQ=ct.lyricsQ||50;
@@ -34279,10 +34279,10 @@ window.dawReleaseToSoundCloud=()=>{
   if(typeof earn==='function') earn(royalties,false); else {G.money+=royalties;G.totalEarned=(G.totalEarned||0)+royalties;}
   addRaperXP(Math.floor(10+finalQ*0.3));
   addXP(20);
-  showGain(`🟠 +${fans} fanów (SoundCloud)`,'#ff5500');
-  showMsg(`🟠 "${name}" wrzucony na SoundCloud! Jakość ${finalQ}% → ${streams.toLocaleString('pl')} streamów, +${royalties.toLocaleString('pl')} zł tantiem, +${fans} fanów. Wyższa jakość = więcej streamów i tantiem.`);
+  showGain(`🟠 +${fans} fanów (EchoDrop)`,'#ff5500');
+  showMsg(`🟠 "${name}" wrzucony na EchoDrop! Jakość ${finalQ}% → ${streams.toLocaleString('pl')} streamów, +${royalties.toLocaleString('pl')} zł tantiem, +${fans} fanów. Wyższa jakość = więcej streamów i tantiem.`);
   if(_scRecep.label) setTimeout(()=>showMsg(_scRecep.label, _scRecep.type==='hit'?'g':'r', 4500), 1200); /* v2.1.852 Z11: transparentny komunikat recepcji */
-  addNotif(`🟠 SoundCloud: "${name}" — ${streams.toLocaleString('pl')} streamów`);
+  addNotif(`🟠 EchoDrop: "${name}" — ${streams.toLocaleString('pl')} streamów`);
   /* Reset current track */
   G.currentTrack={beatQ:0,vocalQ:0,mixQ:0,masterQ:0,lyricsQ:0,genre:ct.genre,name:''}; /* v2.1.107: lyricsQ reset */
   G._mixEq=50;G._mixRev=30;G._mixComp=60;G._mixMel=70;G._mixDrums=50;G._masLim=80;G._masStereo=60;G._masLufs=70;
@@ -47498,7 +47498,7 @@ function _getPhoneFolders(){
       _phApp('▶️','YouTube','#1a0808','#ff4444',"renderPhoneApp('youtube')"),
     ]},
     streaming:{em:'🎵',label:'Streaming',preview:['🟠','🎵','🌊'],apps:[
-      _phApp('🟠','SoundCloud','#1a0a05','#ff5500',"renderPhoneApp('soundcloud')"),
+      _phApp('🟠','EchoDrop','#1a0a05','#FF8A1C',"renderPhoneApp('soundcloud')"),
       _phApp('🎵','Loopify Artists','#0a1e0e','#B6FF3B',"renderPhoneApp('spotify')"),
       _phApp('🌊','Tidal','#050e1a','#00e4ff',"renderPhoneApp('tidal')"),
     ]},
@@ -47823,7 +47823,7 @@ function renderPhoneApp(app){
     const scTracks=(G.studioTracks||[]).filter(t=>t.platform==='soundcloud').sort((a,b)=>(b.streams||0)-(a.streams||0));
     ph.innerHTML=`<div class="ph-screen">
       <div style="background:linear-gradient(135deg,#1a0a05,#0a0502);border-radius:10px;padding:14px;margin-bottom:10px;border:1px solid #ff550040">
-        <div style="font-size:11px;color:#ff5500;font-weight:700;letter-spacing:1.5px;margin-bottom:6px">🟠 SOUNDCLOUD</div>
+        <div style="font-size:11px;color:#FF8A1C;font-weight:700;letter-spacing:1.5px;margin-bottom:6px">🟠 ECHODROP</div>
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
           <div style="width:50px;height:50px;border-radius:8px;background:linear-gradient(135deg,#ff5500,#cc3300);display:flex;align-items:center;justify-content:center;font-size:24px">🟠</div>
           <div>
@@ -47839,12 +47839,12 @@ function renderPhoneApp(app){
         </div>
       </div>
       ${G.soundcloud.royalties>0?`<button class="bbtn" style="margin-bottom:10px;background:linear-gradient(135deg,#ff5500,#cc3300);color:#fff" onclick="collectRoyalties('soundcloud')">💰 Zbierz tantiemy (${G.soundcloud.royalties} zł)</button>`:''}
-      <!-- v2.1.123: Wave 6 S50 — Upload z telefonu (gracz nie musi wracać do studio dla SoundCloud upload). Link do DAW master tab.
-           v2.1.338 Faza R fix (user 2026-05-27 "w soundcloud jak gracz klika 'Wrzuć track na SoundCloud' wyskakuje 'Najpierw kup DAW' a przecież można np. w traphouse też nagrywać i wrzucać na SoundCloud"): komunikat error rozszerzony — gracz dowiaduje się o alternatywie Home Studio (demo SC, wymagania: mikrofon + 3 freestyle + Realizacja lvl 1). Sam upload pełnych singli wciąż wymaga DAW (różne flow: recordHomeDemo→demo SC, publishSCSingle→pełny SC). -->
-      <button class="bbtn" style="margin-bottom:10px;background:linear-gradient(135deg,#ff7733,#ff5500);color:#fff;border:1px solid #ff8855" onclick="closePhone();if(G.hasDaw){renderDAWOverlay('master');openOverlay();}else{showMsg('🟠 Pełne single SC: kup DAW (Sklep Muzyczny). Demo na SC: użyj Home Studio w mieszkaniu (komputer w pokoju — wymaga mikrofonu + 3 freestyle + Realizacja lvl 1).','r',7000);}">🟠 Wrzuć track na SoundCloud →</button>
+      <!-- v2.1.123: Wave 6 S50 — Upload z telefonu (gracz nie musi wracać do studio dla EchoDrop upload). Link do DAW master tab.
+           v2.1.338 Faza R fix (user 2026-05-27 "w soundcloud jak gracz klika 'Wrzuć track na EchoDrop' wyskakuje 'Najpierw kup DAW' a przecież można np. w traphouse też nagrywać i wrzucać na SoundCloud"): komunikat error rozszerzony — gracz dowiaduje się o alternatywie Home Studio (demo SC, wymagania: mikrofon + 3 freestyle + Realizacja lvl 1). Sam upload pełnych singli wciąż wymaga DAW (różne flow: recordHomeDemo→demo SC, publishSCSingle→pełny SC). -->
+      <button class="bbtn" style="margin-bottom:10px;background:linear-gradient(135deg,#ff7733,#ff5500);color:#fff;border:1px solid #ff8855" onclick="closePhone();if(G.hasDaw){renderDAWOverlay('master');openOverlay();}else{showMsg('🟠 Pełne single SC: kup DAW (Sklep Muzyczny). Demo na SC: użyj Home Studio w mieszkaniu (komputer w pokoju — wymaga mikrofonu + 3 freestyle + Realizacja lvl 1).','r',7000);}">🟠 Wrzuć track na EchoDrop →</button>
       ${scTracks.length>0?`
       <div style="background:#0a0502;border-radius:8px;padding:10px;margin-bottom:10px;border:1px solid #2a1408">
-        <div style="font-size:10px;color:#ff5500;letter-spacing:1px;margin-bottom:6px">🟠 TWOJE TRACKI NA SOUNDCLOUD (${scTracks.length})</div>
+        <div style="font-size:10px;color:#ff5500;letter-spacing:1px;margin-bottom:6px">🟠 TWOJE TRACKI NA ECHODROP (${scTracks.length})</div>
         ${scTracks.slice(0,8).map(t=>`
         <div style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #1a0a05">
           <div style="font-size:14px">🎵</div>
@@ -47854,9 +47854,9 @@ function renderPhoneApp(app){
           </div>
           <div style="color:#ff5500;font-size:11px;font-weight:700">${t.quality||0}%</div>
         </div>`).join('')}
-      </div>`:`<div style="background:#0a0502;border-radius:8px;padding:14px;text-align:center;color:#a87;font-size:11px;margin-bottom:10px">Brak tracków na SoundCloud. Wrzuć demo w studio — przycisk "🟠 Wrzuć na SoundCloud" w zakładce Master.</div>`}
+      </div>`:`<div style="background:#0a0502;border-radius:8px;padding:14px;text-align:center;color:#a87;font-size:11px;margin-bottom:10px">Brak tracków na EchoDrop. Wrzuć demo w studio — przycisk "🟠 Wrzuć na EchoDrop" w zakładce Master.</div>`}
       <div style="background:#0a0502;border-radius:8px;padding:10px;font-size:10px;color:#a87;line-height:1.5">
-        💡 SoundCloud to platforma startowa — wrzuć demo bez dystrybutora. Royalty ~5× niższe niż Loopify, ale każdy może zacząć. Pełne zarobki dopiero po wykupieniu dystrybutora w studio.
+        💡 EchoDrop to platforma startowa — wrzuć demo bez dystrybutora. Royalty ~5× niższe niż Loopify, ale każdy może zacząć. Pełne zarobki dopiero po wykupieniu dystrybutora w studio.
       </div>
     </div>`;
   } else if(app==='tidal'){
@@ -49531,7 +49531,7 @@ const GAME_MECHANICS=[
   {id:'money', em:'💰', name:'Pieniądze', color:'#27ae60',
    short:'Twoja kasa — startujesz z 500 zł.',
    desc:'Pieniądze to podstawa — wszystko kosztuje: sprzęt, mieszkanie, samochód, jedzenie, ubrania. Startujesz z 500 zł i musisz zarobić więcej żeby się rozwijać.',
-   how:['• Prace dorywcze (pizzeria, supermarket, kurier, mycie aut)','• Koncerty w Sali Koncertowej i festiwale','• Tracki na Loopify, SoundCloud, Tidal','• Kariery (beatmaker, YouTuber, influencer itd.)','• Inwestycje w banku','• Pasywne dochody z mieszkań pod wynajem'],
+   how:['• Prace dorywcze (pizzeria, supermarket, kurier, mycie aut)','• Koncerty w Sali Koncertowej i festiwale','• Tracki na Loopify, EchoDrop, Tidal','• Kariery (beatmaker, YouTuber, influencer itd.)','• Inwestycje w banku','• Pasywne dochody z mieszkań pod wynajem'],
    unlocks:['• Więcej kasy → lepszy sprzęt, mieszkania, auta','• Inwestycje pomagają zarabiać pasywnie','• Można założyć wytwórnię i podpisywać artystów'],
   },
   /* v2.1.942 (PDF l.25: storyline — uświadomienie gracza JAK zacząć karierę i jaki typ prowadzić: legalnie / nielegalnie / miks).
@@ -51878,9 +51878,9 @@ function renderPhoneStats(){
         <div style="font-size:11px;color:#445;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Zasięgi</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">
           <div style="background:#0a0a14;border-radius:6px;padding:6px 8px;border:1px solid #2a1a3a"><div style="color:#c8a520;font-size:10px;font-weight:700">👥 Fanów</div><div style="color:#fff;font-weight:700;font-size:14px">${(G.fans||0).toLocaleString('pl')}</div></div><div style="background:#0a0a14;border-radius:6px;padding:6px 8px"><div style="color:#556;font-size:10px">📱 Obserwujących</div><div style="color:#aaa;font-weight:700">${G.followers.toLocaleString('pl')}</div></div>
-          <div style="background:#0a0a14;border-radius:6px;padding:6px 8px"><div style="color:#556;font-size:10px">🎵 Spotify</div><div style="color:#1db954;font-weight:700">${G.spotify.listeners.toLocaleString('pl')}</div></div>
+          <div style="background:#0a0a14;border-radius:6px;padding:6px 8px"><div style="color:#556;font-size:10px">🎵 Loopify</div><div style="color:#1db954;font-weight:700">${G.spotify.listeners.toLocaleString('pl')}</div></div>
           <div style="background:#0a0a14;border-radius:6px;padding:6px 8px"><div style="color:#556;font-size:10px">📺 YouTube</div><div style="color:#e74c3c;font-weight:700">${G.yt.subs.toLocaleString('pl')}</div></div>
-          <div style="background:#0a0a14;border-radius:6px;padding:6px 8px"><div style="color:#556;font-size:10px">🟠 SoundCloud</div><div style="color:#ff5500;font-weight:700">${((G.soundcloud&&G.soundcloud.listeners)||0).toLocaleString('pl')}</div></div>
+          <div style="background:#0a0a14;border-radius:6px;padding:6px 8px"><div style="color:#556;font-size:10px">🟠 EchoDrop</div><div style="color:#ff5500;font-weight:700">${((G.soundcloud&&G.soundcloud.listeners)||0).toLocaleString('pl')}</div></div>
           <div style="background:#0a0a14;border-radius:6px;padding:6px 8px"><div style="color:#556;font-size:10px">📻 Radio</div><div style="color:#e67e22;font-weight:700">${G.radio.plays.toLocaleString('pl')}</div></div>
         </div>
       </div>
@@ -52168,13 +52168,13 @@ function renderPhonePassive(){
       <!-- Streamy -->
       <div style="margin-bottom:12px">
         <div style="font-size:12px;color:#9b59b6;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">🎵 Streamy <span style="color:#7ec8e3;font-weight:600;text-transform:none;letter-spacing:0">· naliczane do puli, <b>zbierasz w aplikacjach</b></span></div>
-        <div style="font-size:9px;color:#667;margin-bottom:6px">Tantiemy nie wpadają same — rosną w aplikacji (Loopify/Tidal/YT/SoundCloud/Radio) i odbierasz je przyciskiem „💰 Zbierz tantiemy".</div>
+        <div style="font-size:9px;color:#667;margin-bottom:6px">Tantiemy nie wpadają same — rosną w aplikacji (Loopify/Tidal/YT/EchoDrop/Radio) i odbierasz je przyciskiem „💰 Zbierz tantiemy".</div>
         ${spotifyTick>0?_row('🎵','Loopify',spotifyTick,spotifyTick*4,`${(G.spotify?.listeners||0).toLocaleString('pl')} słuchaczy`):''}
         ${tidalTick>0?_row('🌊','Tidal',tidalTick,tidalTick*4,`${(G.tidal?.listeners||0).toLocaleString('pl')} słuchaczy`):''}
         ${radioTick>0?_row('📻','Radio',radioTick,radioTick*4,`${(G.radio?.beats||0)} beatów`):''}
         ${ytTick>0?_row('📺','YouTube AdSense',ytTick,ytTick*4,`${(G.yt?.subs||0).toLocaleString('pl')} subs`):''}
-        ${scDaily>0?_row('🟠','SoundCloud',null,scDaily,`${(G.soundcloud?.listeners||0).toLocaleString('pl')} słuchaczy`):''}
-        ${(spotifyTick+tidalTick+radioTick+ytTick+scDaily)===0?`<div style="color:#445;font-size:12px;font-style:italic;padding:6px 10px">Brak — wydaj single/wgraj na SoundCloud/wyślij beat do radia.</div>`:''}
+        ${scDaily>0?_row('🟠','EchoDrop',null,scDaily,`${(G.soundcloud?.listeners||0).toLocaleString('pl')} słuchaczy`):''}
+        ${(spotifyTick+tidalTick+radioTick+ytTick+scDaily)===0?`<div style="color:#445;font-size:12px;font-style:italic;padding:6px 10px">Brak — wydaj single/wgraj na EchoDrop/wyślij beat do radia.</div>`:''}
       </div>
       <!-- Skille rapera (passive bonus) -->
       ${skillTotalDaily>0?`<div style="margin-bottom:12px">
@@ -52207,7 +52207,7 @@ function renderPhonePassive(){
         ${(merchTick+bankDaily+rentalsDaily+kebabDaily+sponsorDaily+studioRental)===0?`<div style="color:#445;font-size:12px;font-style:italic;padding:6px 10px">Brak — projektuj merch, inwestuj w banku, wynajmuj mieszkania, kup budkę kebab.</div>`:''}
       </div>
       <div style="background:#060e18;border:1px solid #1a2535;border-radius:8px;padding:10px;font-size:11px;color:#778;line-height:1.5">
-        <b style="color:#aac">💡 Jak to liczymy:</b> 🎵 Streamy (Loopify/Tidal/YouTube/SoundCloud/Radio) <b>naliczają się do puli</b> i odbierasz je przyciskiem „Zbierz tantiemy" w aplikacji — NIE wpadają same. 🧢 Merch = auto co tick. Pozostałe (Evolution / skille / bank / wynajmy / kebab / sponsor) = auto raz dziennie (po północy). Kwoty bazowe × Twój mnożnik zarobków. Szacunki na podstawie aktualnych słuchaczy/produktów/skilli.
+        <b style="color:#aac">💡 Jak to liczymy:</b> 🎵 Streamy (Loopify/Tidal/YouTube/EchoDrop/Radio) <b>naliczają się do puli</b> i odbierasz je przyciskiem „Zbierz tantiemy" w aplikacji — NIE wpadają same. 🧢 Merch = auto co tick. Pozostałe (Evolution / skille / bank / wynajmy / kebab / sponsor) = auto raz dziennie (po północy). Kwoty bazowe × Twój mnożnik zarobków. Szacunki na podstawie aktualnych słuchaczy/produktów/skilli.
       </div>
     </div>
     <div style="padding:8px 14px"><button class="cbtn" style="width:100%" onclick="renderPhoneHome()">← Wróć</button></div>
@@ -53495,7 +53495,7 @@ window.getPrestigeReqs=function(rank){
 /* v2.1.160: Prestige Skill Tree — 6 permanentnych perków, każde Prestige = 1 punkt. Persystują przez kolejne Prestige.
    v2.1.251: opisy przepisane na naturalny PL (PLAN_NOC Faza 23) + naprawione 2 bugi UI vs kod (diamond_hands 10%→5%, tour_magnate 15%→10% match z faktycznym getPrestigeSkillMult po v2.1.229 nerf). */
 const PRESTIGE_SKILLS={
-  studio_mogul:{name:'Studio Mogul',emoji:'🎙',desc:'+10% tantiem ze streamów (Loopify/Tidal/SoundCloud)',cost:1},
+  studio_mogul:{name:'Studio Mogul',emoji:'🎙',desc:'+10% tantiem ze streamów (Loopify/Tidal/EchoDrop)',cost:1},
   cult_following:{name:'Cult Following',emoji:'👑',desc:'+20% zdobytych fanów (każde źródło)',cost:1},
   iron_discipline:{name:'Iron Discipline',emoji:'💪',desc:'-15% spadku energii (wolniejsze zmęczenie)',cost:1},
   diamond_hands:{name:'Diamond Hands',emoji:'💎',desc:'+5% kasy (dodatkowo do bonusu Prestige)',cost:1},
@@ -53922,7 +53922,7 @@ window.collectRoyalties=(platform)=>{
   if(amount<=0){notify('Brak tantiem do zebrania. Tantiemy rosną automatycznie z odtworzeń/wyświetleń.');return;}
   let _paid=amount;if(typeof earn==='function') _paid=earn(amount,false); else {G.money+=amount;G.totalEarned=(G.totalEarned||0)+amount;} /* v2.1.865: _paid = REALNA kwota (earn return) */
   p[_field]=0;
-  const _platName={spotify:'Loopify Artists',tidal:'Tidal',radio:'Radio',yt:'YouTube AdSense',soundcloud:'SoundCloud'}[platform]||platform;
+  const _platName={spotify:'Loopify Artists',tidal:'Tidal',radio:'Radio',yt:'YouTube AdSense',soundcloud:'EchoDrop'}[platform]||platform;
   notify(`💰 Zebrano ${_paid.toLocaleString('pl')} zł z ${_platName}`);
   if(typeof renderPhoneApp==='function') renderPhoneApp(platform);
 };
@@ -57204,6 +57204,12 @@ function showHelp(){
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
  {
+ ver:'v2.3.63',date:'2026-06-26',cats:['beta-tester','Vegan','change'],reporter:'Vegan',title:'🟠 Platforma demo w telefonie dostała własną markę — EchoDrop',
+ items:[
+  {t:'change',d:'Platforma startowa do wrzucania demówek (bez dystrybutora) ma teraz własną markę świata gry — EchoDrop, w pomarańczowym stylu. Rebrand wizualny: nazwa, kolory, panel i komunikaty. Twoje wrzucone tracki, odsłuchy i tantiemy działają dokładnie tak samo jak wcześniej.'},
+ ]
+ },
+ {
  ver:'v2.3.62',date:'2026-06-26',cats:['beta-tester','Vegan','change'],reporter:'Vegan',title:'🎵 Aplikacja muzyczna w telefonie dostała własną markę — Loopify Artists',
  items:[
   {t:'change',d:'Główna platforma streamingowa w telefonie ma teraz własną markę świata gry — Loopify Artists, z neonowym stylem. To rebrand wizualny: nazwa, kolory i panel artysty. Twoje statystyki słuchaczy, tantiemy i weryfikacja artysty działają dokładnie tak samo — zmienił się tylko szyld.'},
@@ -58673,7 +58679,7 @@ const PATCH_NOTES = [
  {t:'fix',d:'💰 Naprawiona podwójna wypłata tantiem ze streamingu. Spotify, Tidal, YouTube AdSense i SoundCloud wpłacały PASYWNE tantiemy DWA razy: raz automatycznie w tle, a drugi raz gdy klikałeś „💰 Zbierz tantiemy". Teraz działają jak radio (już wcześniej naprawione): pasywne tantiemy (z bieżących odtworzeń + tygodniowe ze streamów) naliczają się do puli w aplikacji i są wypłacane RAZ — przy odbiorze przyciskiem (z Twoimi mnożnikami nastroju/streaku/prestiżu). To samo dotyczyło bonusów z eventów radiowych („viral w radiu", „bit bije rekordy").'},
  {t:'fix',d:'🎵 Wydania (singiel / demo / pełny release na SoundCloud) też płaciły dwa razy — naprawione: jednorazowa wypłata za wydanie trafia RAZ od razu na konto (jak album i koncert). Pula tantiem w aplikacji zasila tylko PASYWNY dochód (bieżące odtworzenia), nie jednorazowe wydania — koniec dublowania.'},
  {t:'balance',d:'⚖️ Skutek: realne zarobki bez zmian (ta sama stawka co dotychczasowa pojedyncza wypłata) — zniknęła tylko nienależna druga wypłata. Aktywny gracz dostaje tyle samo. Panel „Pasywny dochód" wyraźnie zaznacza, że PASYWNE streamy zbierasz ręcznie (nie wpadają same).'},
- {t:'info',d:'📲 Pamiętaj: zaglądaj do aplikacji Spotify/Tidal/YouTube/SoundCloud/Radio i klikaj „Zbierz tantiemy" — pasywny dochód rośnie w puli, ale trafia na konto dopiero po odbiorze.'},
+ {t:'info',d:'📲 Pamiętaj: zaglądaj do aplikacji Spotify/Tidal/YouTube/EchoDrop/Radio i klikaj „Zbierz tantiemy" — pasywny dochód rośnie w puli, ale trafia na konto dopiero po odbiorze.'},
  ],
  },
  {
@@ -62173,7 +62179,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.1.329',date:'2026-05-27',cats:['fix'],title:'🎵 Achievement "Pierwszy track" — opis poprawiony żeby uwzględniał Home Studio / SoundCloud / Studio (Faza G iter3)',
  items:[
-  {t:'fix',d:'🎵 **Achievement "Pierwszy track" — mylący opis naprawiony** (user 2026-05-27: "Dostałem osiągnięcie o nagraniu tracku w studio, a nawet nie mam studia"). Counter `G.careers.raper.tracks` rośnie w 3 miejscach: (1) `recordHomeDemo` (Home Studio w mieszkaniu/traphouse — demo SoundCloud), (2) `publishSCSingle` (pełny singiel SoundCloud), (3) `publishSpotifySingle` (singiel Spotify ze studia). Stary opis "Nagraj pierwszy track w studio" sugerował że tylko studio — gracz który nagrał demo w traphouse czuł że "ghost achievement". Nowy opis: "Nagraj pierwszy utwór muzyczny (demo Home Studio, singiel SoundCloud lub studyjny)" — explicit lista 3 metod. Cond bez zmian (counter dolicza wszystkie 3). Save compat zachowany.'},
+  {t:'fix',d:'🎵 **Achievement "Pierwszy track" — mylący opis naprawiony** (user 2026-05-27: "Dostałem osiągnięcie o nagraniu tracku w studio, a nawet nie mam studia"). Counter `G.careers.raper.tracks` rośnie w 3 miejscach: (1) `recordHomeDemo` (Home Studio w mieszkaniu/traphouse — demo SoundCloud), (2) `publishSCSingle` (pełny singiel SoundCloud), (3) `publishSpotifySingle` (singiel Spotify ze studia). Stary opis "Nagraj pierwszy track w studio" sugerował że tylko studio — gracz który nagrał demo w traphouse czuł że "ghost achievement". Nowy opis: "Nagraj pierwszy utwór muzyczny (demo Home Studio, singiel EchoDrop lub studyjny)" — explicit lista 3 metod. Cond bez zmian (counter dolicza wszystkie 3). Save compat zachowany.'},
  ]
  },
  {
@@ -63179,7 +63185,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'🎬 **Linia fabularna NADAL nie zaliczała pierwszego kroku** — user feedback x3: "praca na dorywczej, 0 progress". REAL root cause (wcześniejsze "fixy" w v2.1.175 nie tknęły prawdziwej przyczyny): loadGame defensive init `G.mainQuest._startDay = G.day` resetował _startDay przy KAŻDYM wczytaniu save. Check w checkStoryline wymaga `_startDay` truthy + Δ≥2 dni → gracze post-load nie mogli zaliczać 2 dni. Naprawione: usunięta defensive init (komentarz z wyjaśnieniem `/* removed: defensive init */`). Verified Playwright `dbg_storyline_real.mjs` — progressQuest("carwash") teraz fires showMsg + currentStep+1.'},
   {t:'fix',d:'🎰 **Sloty: 2 diamenty 1× = "zwrot stawki"** (nie "drobny zwrot") — user feedback: gdy pay2 === 1 (exact return), label musi mówić "zwrot stawki", a "drobny zwrot" tylko gdy pay2 < 1 (ułamek). Naprawione L14603 conditional: `pay2>=1?"zwrot stawki":"drobny zwrot"`.'},
   {t:'fix',d:'💪 **Gym Bro SMS niewidoczny w Phone → Wiadomości** — user feedback: "powrót na siłownię, SMSa nie widzę". Przyczyna: sendGymBroSms wypchnął popup ale NIE dopisywał do G.sms.conversations. Naprawione: (1) dodany kontakt `gymbro` do SMS_CONTACTS L26367 (em:💪, color:#e67e22). (2) sendGymBroSms teraz push do `G.sms.conversations.gymbro[]` z polem from/text/day/time/read + G.sms.unread++. (3) Auto-trim do 100 messages żeby save nie puchł. Wiadomości od Gym Bro pojawiają się w Phone → SMS.'},
-  {t:'feature',d:'🟠 **SoundCloud z traphouse — home demo trafia na SC zamiast Spotify** (user feedback: "SC łatwiej dostępny w early game, mniej dochodowy ale osiągalny"). Zmiany: (1) **recordHomeDemo** (home studio L13420) — track teraz `platform:"soundcloud"`, royalty +listeners do `G.soundcloud` zamiast G.spotify, streamy 30% pełnego SC release (~6-30k zamiast 20-100k), royalties 20% (~0.0008×0.2 = 0.00016 zł/stream). (2) **dawReleaseToSoundCloud** masterQ wymóg 40→20 — DUŻO łatwiejsza dostępność w early game (rough drafty z 20% master OK). (3) UI w home studio overlay: dopisany info "🟠 Demo trafia na SoundCloud — łatwy start, 30% streamów / 20% royalty vs DAW. Pełny pipeline = Spotify/Tidal". Button label "🟠 Nagraj demo → SoundCloud". (4) showMsg po nagraniu mówi "Demo wrzucone na SoundCloud!" z rzeczywistymi liczbami SC streams/royalty. **Economy: SC 5× mniej rentowne niż Spotify (0.0008 vs 0.004 zł/stream) ale dostępne od dnia 1 w gratisowym traphouse — naturalny grind early-game**.'},
+  {t:'feature',d:'🟠 **SoundCloud z traphouse — home demo trafia na SC zamiast Spotify** (user feedback: "SC łatwiej dostępny w early game, mniej dochodowy ale osiągalny"). Zmiany: (1) **recordHomeDemo** (home studio L13420) — track teraz `platform:"soundcloud"`, royalty +listeners do `G.soundcloud` zamiast G.spotify, streamy 30% pełnego SC release (~6-30k zamiast 20-100k), royalties 20% (~0.0008×0.2 = 0.00016 zł/stream). (2) **dawReleaseToSoundCloud** masterQ wymóg 40→20 — DUŻO łatwiejsza dostępność w early game (rough drafty z 20% master OK). (3) UI w home studio overlay: dopisany info "🟠 Demo trafia na SoundCloud — łatwy start, 30% streamów / 20% royalty vs DAW. Pełny pipeline = Spotify/Tidal". Button label "🟠 Nagraj demo → EchoDrop". (4) showMsg po nagraniu mówi "Demo wrzucone na SoundCloud!" z rzeczywistymi liczbami SC streams/royalty. **Economy: SC 5× mniej rentowne niż Spotify (0.0008 vs 0.004 zł/stream) ale dostępne od dnia 1 w gratisowym traphouse — naturalny grind early-game**.'},
   {t:'fix',d:'🔢 **Pełne liczby zamiast IEEE 754 precision floats** — user feedback: "Głód: 11.050000000000168/100 — gracz ma widzieć pełne liczby". Naprawione w 11+ miejscach: (a) casino bar drink panel L9877 (hunger/energy), (b) studio realiz info L18242 (energia), (c) energy warnings L18512/18518/18530/18550 (4×), (d) hospital L20962 (zdrowie), (e) heal result L21685, (f) treadmill notify L25185, (g) charPanel L42454 (forma — plus bug label naprawiony "Forma"→"Kondycja"), (h) fame displays L19417/21169/21732/37412 (4×), (i) renderPhoneStats statBar (formula: const _v=Math.floor(val||0)). **Plus dynamic max caps**: wszystkie miejsca używają `getMaxStat("hunger"|"energy"|"forma"|"fitness"|"health")` — gdy gracz odblokuje 110 max (kondycja) lub 120 max (forma), UI auto-update do "11/110", "11/120" zamiast hardcoded "/100".'},
  ]
  },
@@ -63875,7 +63881,7 @@ const PATCH_NOTES = [
  ver:'v2.1.70',date:'2026-05-16',cats:['feature','bugfix','balance','beta-tester'],reporter:'Amper',title:'🟠 SoundCloud + dystrybucja UI/rebalans + mikser czytelność',
  items:[
   {t:'feature',d:'🟠 **SoundCloud — wrzuć track BEZ dystrybutora.** Dotychczas żeby wydać singiel musiałeś najpierw kupić dystrybutora (Spotify/Tidal). Teraz w zakładce Master jest drugi przycisk "🟠 Wrzuć na SoundCloud" — dostępny gdy masterQ ≥ 40% (niżej niż 60% dla pełnego singla). Filozofia: SoundCloud to platforma startowa, każdy może wrzucić demo. Zarobki znacznie mniejsze: ~25% streamów pełnego singla, royalty 5× niższe (~0.0008 zł/stream zamiast 0.004), cap 80k zamiast 500k, mniej fanów (0.5% streamów vs 2%). G.soundcloud trackuje listeners/streams/royalties/tracksUploaded. Dla starych save automatyczna migracja inicjalizuje pole.'},
-  {t:'fix',d:'📊 **Dystrybucja UI: czarne napisy naprawione.** Wcześniej "Royalties: 91% · Limit singli: 99" w bannerze aktywnego dystrybutora dziedziczyły domyślne czarne na tle #0a1a0a — niewidoczne. Naprawione: `color:#ddd` ogólny + akcenty (royalty #f1c40f żółty, limit #7ec8e3 niebieski). Plus przekomunikowany komunikat braku dystrybutora: zamiast "nie możesz wydawać muzyki" → "możesz wydawać tylko na 🟠 SoundCloud (mały zarobek)".'},
+  {t:'fix',d:'📊 **Dystrybucja UI: czarne napisy naprawione.** Wcześniej "Royalties: 91% · Limit singli: 99" w bannerze aktywnego dystrybutora dziedziczyły domyślne czarne na tle #0a1a0a — niewidoczne. Naprawione: `color:#ddd` ogólny + akcenty (royalty #f1c40f żółty, limit #7ec8e3 niebieski). Plus przekomunikowany komunikat braku dystrybutora: zamiast "nie możesz wydawać muzyki" → "możesz wydawać tylko na 🟠 EchoDrop (mały zarobek)".'},
   {t:'balance',d:'⚖️ **Rebalans dystrybutorów — logika tier vs royalty miała sprzeczność.** Wcześniej CD Baby Pro (500 zł, 91% royalty) była gorsza niż Amuse Pro (300 zł, 100%) mimo wyższego tieru i ceny — gracz zawsze wybierał Amuse. Naprawione: CD Baby Pro 91% → **95%** (faktycznie "Pro", premium za sync licensing z filmów/reklam). Empire/AWAL (tier 3, 0 zł, 85%) były pure downgrade vs tier 2 100% — bez powodu wybierać. Naprawione: dodany **streamBoost** — Empire +30% streamów (marketing/playlist promotion), AWAL +20% streamów (playlist editorialne Spotify/Apple Music). Niższe royalty (85%) kompensowane większym zasięgiem.'},
   {t:'visual',d:'🎚 **Mikser: pozostałe ciemne napisy naprawione (#555 → #aac).** Wcześniej "Kup EQ Pro dla +8% jakości" i "Najpierw skomponuj beat" miały kolor #555 na ciemnym tle — kiepski kontrast. Teraz #aac (jaśniejszy szary) — wyraźnie czytelne.'},
  ]
@@ -69995,7 +70001,7 @@ const STORYLINE_QUESTS=[
   /* v2.1.702 (user: osobny krok od własnego studia — wcześniej 'track' kłamał że studio kupuje się w Biurze Nieruchomości). */
   {id:'ownstudio',em:'🎙', name:'Własne studio nagrań', desc:'Kup własne Studio nagrań — wejdź do budynku Studia (🎙 na mapie, północna część miasta). Własne studio = najwyższa jakość, zlecenia i zero opłat za wynajem.',
     check:()=>G.studioOwned===true, reward:{money:2000,fame:5,xp:50}},
-  {id:'spotify500',em:'🎧', name:'500 słuchaczy/m-c', desc:'Twój pierwszy singiel zdobywa publiczność — osiągnij 500 słuchaczy miesięcznie na Spotify',
+  {id:'spotify500',em:'🎧', name:'500 słuchaczy/m-c', desc:'Twój pierwszy singiel zdobywa publiczność — osiągnij 500 słuchaczy miesięcznie na Loopify',
     check:()=>(G.spotify?.listeners||0)>=500, reward:{money:1500,fame:5,xp:40}},
   // ── DUŻA SCENA (Day 10-20) ──
   {id:'concert',  em:'🎪', name:'Pierwszy koncert',   desc:'Zagraj koncert na Małej Scenie (Sala Koncertowa, centrum miasta). Wymaga 10+ sławy i Scena lvl 1 w drzewku',
