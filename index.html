@@ -1043,7 +1043,7 @@ const G = {
   tidal:{listeners:0, streams:0, royalties:0},
   /* v2.1.70 Amper: SoundCloud — platforma startowa, bez dystrybutora ale małe zarobki. */
   soundcloud:{listeners:0, streams:0, royalties:0, tracksUploaded:0},
-  yt:{subs:0, views:0, videos:[], adsense:0},
+  yt:{subs:0, views:0, videos:[], adsense:0, drafts:[], _draftSeq:0},
   ytRecorded:false, ytEdited:false, ytQuality:0, ytGame:null,
   bank:{loan:0,investments:[]},
   notifications:[],
@@ -1219,7 +1219,7 @@ function resetG(){
     spotify:{listeners:0,streams:0,royalties:0},
     tidal:{listeners:0,streams:0,royalties:0},
     soundcloud:{listeners:0,streams:0,royalties:0,tracksUploaded:0},
-    yt:{subs:0,views:0,videos:[],adsense:0},
+    yt:{subs:0,views:0,videos:[],adsense:0,drafts:[],_draftSeq:0},
     ytRecorded:false,ytEdited:false,ytQuality:0,ytGame:null,
     bank:{loan:0,investments:[]},notifications:[],notifsUnread:0,sms:{conversations:{},unread:0,_triggeredEvents:{}}, /* v2.1.182 (Agent phone audit): notifsUnread counter — wcześniej `has-new` red dot dodawany przy KAŻDYM addNotif, NIGDY nie znikał gdy gracz przeczytał notifs. SMS miał taki cleanup od dawna; notify-system go nie miał. */
     aptColors:{floor:'#8a5e30',wall:'#2a3a4a',bed:'#3a5a8a',sofa:'#5a3060'},
@@ -71396,6 +71396,10 @@ function loadGame(){
   /* G.yt defensive obj init (W79 + W34) + per-field NaN guard (v2.1.128) */
   if(!G.yt||typeof G.yt!=='object') G.yt={videos:[],subs:0,views:0,adsense:0,seriesProgress:0};
   if(!Array.isArray(G.yt.videos)) G.yt.videos=[];
+  /* A8a (v2.x): kolekcja nagranych filmów w toku (drafts) — fundament redesignu „każdy film osobno".
+     Save-safe: pusta tablica + sekwencja id. Single-slot (ytRecorded/ytEdited) NIETKNIĘTY w A8a (migracja w A8b atomowo z przełączeniem UI). */
+  if(!Array.isArray(G.yt.drafts)) G.yt.drafts=[];
+  if(typeof G.yt._draftSeq!=='number'||isNaN(G.yt._draftSeq)) G.yt._draftSeq=0;
   if(typeof G.yt.subs!=='number'||isNaN(G.yt.subs)) G.yt.subs=0;
   if(typeof G.yt.views!=='number'||isNaN(G.yt.views)) G.yt.views=0;
   if(typeof G.yt.adsense!=='number'||isNaN(G.yt.adsense)) G.yt.adsense=0;
