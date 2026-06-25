@@ -25684,7 +25684,7 @@ function tickDecay(){
   }
   if(G.tidal.listeners>0){
     const r=Math.floor((G.tidal.listeners*0.000015*labelCut + Math.sqrt(G.tidal.listeners)*0.13*labelCut)*_studioMogulMult); /* v2.1.856 (rebalans Vegan): Tidal≈Spotify (nie „gorszy Spotify") — lin 0.00001→0.000015, sqrt 0.025→0.13, ×0.7 cofnięty */
-    if(r>0){G.tidal.royalties+=r;if(Math.random()<.34)addNotif('🌊 Tidal: +'+r.toLocaleString('pl')+' zł do zebrania'+(_activeLabelType==='major'?' (major -50%)':_activeLabelType==='global'?' (global -70%)':''));} /* v2.1.866 (fix double-pay): COLLECT-ONLY jak radio — usunięty auto-earn, pula płacona RAZ przy „Zbierz". */
+    if(r>0){G.tidal.royalties+=r;if(Math.random()<.34)addNotif('🌊 AurumWave: +'+r.toLocaleString('pl')+' zł do zebrania'+(_activeLabelType==='major'?' (major -50%)':_activeLabelType==='global'?' (global -70%)':''));} /* v2.1.866 (fix double-pay): COLLECT-ONLY jak radio — usunięty auto-earn, pula płacona RAZ przy „Zbierz". */
   }
   // v1.8.48: Spotify verify auto-grant niezależnie od tego, czy gracz otworzy aplikację (wcześniej tylko w renderPhoneApp)
   if(G.spotify && G.spotify.verifyAppliedDay && (G.day - G.spotify.verifyAppliedDay) >= 3 && !G.spotify.verified){
@@ -27782,7 +27782,7 @@ function renderHomeStudioCard(){
   return `<div class="card" style="border-color:#3a2a5a">
     <h3>🎙 Home Studio <span style="font-size:10px;color:#9b59b6">${aptName}</span></h3>
     <p>Nagraj demo we własnym pokoju. Jakość: <strong style="color:#9b59b6">${(mult*100).toFixed(0)}%</strong> tego, co dałoby pro studio.</p>
-    <p style="font-size:11px;color:#ff8c44;margin:4px 0">🟠 Demo trafia na <strong>EchoDrop</strong> — łatwy start, ale małe zarobki (30% streamów, 20% royalty vs DAW). Pełny pipeline w studio = Loopify/Tidal/Apple Music.</p>
+    <p style="font-size:11px;color:#ff8c44;margin:4px 0">🟠 Demo trafia na <strong>EchoDrop</strong> — łatwy start, ale małe zarobki (30% streamów, 20% royalty vs DAW). Pełny pipeline w studio = Loopify/AurumWave/Apple Music.</p>
     <div class="cost">${usedToday?'Wykorzystano dzisiaj — wróć jutro':'Energia: -10 · Czas: ~2h gry'}</div>
     <button class="dbtn" ${usedToday||G.energy<10?'disabled':''} onclick="closeOverlay();setTimeout(()=>recordHomeDemo(),50)">${usedToday?'⏳ Jutro':'🟠 Nagraj demo → EchoDrop'}</button>
   </div>`;
@@ -31989,7 +31989,7 @@ function releaseBeat(){
   G.careers.beatmaker.tracks=(G.careers.beatmaker.tracks||0)+1;
   if(!G.studioTracks) G.studioTracks=[];
   G.studioTracks.push({name:`Instrumental #${G.studioTracks.length+1}`,quality:_bq,genre:'beats',releasedDay:G.day,streams:gain,type:'instrumental'});
-  notify(`🎵 Wydano (jakość ${_bq}%)! +${gain} słuchaczy Loopify, +${Math.floor(gain*.5)} Tidal`);
+  notify(`🎵 Wydano (jakość ${_bq}%)! +${gain} słuchaczy Loopify, +${Math.floor(gain*.5)} AurumWave`);
   if(_btRecep.label && typeof showMsg==='function') setTimeout(()=>showMsg(_btRecep.label, _btRecep.type==='hit'?'g':'r', 4500), 1000); /* v2.1.852 Z11: transparentny komunikat recepcji beatu */
   renderBeatmakerOverlay();
 }
@@ -33836,10 +33836,10 @@ function renderDAWOverlay(tab='beatmaker'){
       ${(_mixQ>0 && (ct.masterQ||0)===0)?`<p style="color:#f39c12;font-size:12px;text-align:center;background:rgba(243,156,18,.12);border:1px solid rgba(243,156,18,.5);border-radius:6px;padding:8px 12px;margin:0 auto 10px;max-width:540px;font-weight:700">⚠️ Master nie zapisany — kliknij "Master → finalizuj" żeby zapisać ustawienia jako masterQ tracku.</p>`:''}
       <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px">
         <button class="dbtn" onclick="dawDoMaster()" style="margin:0${(_mixQ>0 && (ct.masterQ||0)===0)?';background:linear-gradient(135deg,#3a2a0a,#5a3a14);border-color:#f39c12;color:#f39c12;animation:pulse-gold 1.5s ease-in-out infinite':''}">🎛️ Master → finalizuj</button>
-        ${canRelease?`<button class="dbtn" onclick="dawReleaseSingle()" style="margin:0;background:#1a2a0a;border-color:#2ecc71;color:#2ecc71${(ct.masterQ>0&&G.distributor)?';animation:pulse-gold 1.5s ease-in-out infinite':''}" title="Wymaga dystrybutora (Loopify, Tidal). Pełne royalty, duży zasięg.">🚀 Wydaj Singiel (streamingi)</button>`:''}
+        ${canRelease?`<button class="dbtn" onclick="dawReleaseSingle()" style="margin:0;background:#1a2a0a;border-color:#2ecc71;color:#2ecc71${(ct.masterQ>0&&G.distributor)?';animation:pulse-gold 1.5s ease-in-out infinite':''}" title="Wymaga dystrybutora (Loopify, AurumWave). Pełne royalty, duży zasięg.">🚀 Wydaj Singiel (streamingi)</button>`:''}
         ${(ct.masterQ||0)>=40?`<button class="dbtn" onclick="dawReleaseToSoundCloud()" style="margin:0;background:#2a1408;border-color:#FF8A1C;color:#FF8A1C" title="Bez wymogu dystrybutora. Mały zasięg, niskie royalty — platforma startowa.">🟠 Wrzuć na EchoDrop</button>`:''}
       </div>
-      ${(ct.masterQ||0)>=40 && !G.distributor?`<p style="color:#ff7733;font-size:11px;text-align:center;margin-top:6px;max-width:540px;margin-left:auto;margin-right:auto">💡 Bez dystrybutora możesz wrzucać tylko na EchoDrop. Dla Loopify/Tidal — wybierz dystrybutora w zakładce "Dystrybucja".</p>`:''}
+      ${(ct.masterQ||0)>=40 && !G.distributor?`<p style="color:#ff7733;font-size:11px;text-align:center;margin-top:6px;max-width:540px;margin-left:auto;margin-right:auto">💡 Bez dystrybutora możesz wrzucać tylko na EchoDrop. Dla Loopify/AurumWave — wybierz dystrybutora w zakładce "Dystrybucja".</p>`:''}
       ${canRelease?`<div style="max-width:500px;margin:12px auto 0;text-align:center">
         <label style="display:block;color:#aaa;font-size:12px;margin-bottom:4px">🏷️ Tytuł singla (opcjonalnie)</label>
         <input id="track-name-input" type="text" maxlength="40" placeholder="np. Trap King, Zimowy Wieczór…" value="${(G.currentTrack?.name||'').replace(/"/g,'&quot;')}" oninput="G.currentTrack.name=this.value.slice(0,40)" style="width:100%;max-width:380px;padding:8px 12px;background:#0a0a14;border:1px solid #2a2a3a;border-radius:6px;color:#fff;font-family:inherit;font-size:13px;text-align:center">
@@ -33921,9 +33921,9 @@ function renderDAWOverlay(tab='beatmaker'){
     tabContent=`
       <div style="background:linear-gradient(135deg,#1a2540,#0a0a18);border:1px solid #3498db;border-radius:8px;padding:10px 14px;margin-bottom:10px">
         <div style="color:#3498db;font-weight:800;font-size:13px;margin-bottom:5px">🎓 Co to jest dystrybucja?</div>
-        <div style="color:#cdd;font-size:11px;line-height:1.55">Dystrybutor wrzuca Twoje tracki na <b>Loopify, Tidal, YouTube Music</b>. Bez niego nie wydasz singla. <b style="color:#f39c12">Royalties %</b> to ile zarobionych pieniędzy z streamów trafia do Ciebie (reszta dla dystrybutora). <b>Opłata jest jednorazowa</b> — kupujesz raz i zostaje aktywny. Możesz zmienić dystrybutora w dowolnym momencie, ale każda zmiana to nowa opłata. Wybierz mądrze: tańsi mają niższe royalties.</div>
+        <div style="color:#cdd;font-size:11px;line-height:1.55">Dystrybutor wrzuca Twoje tracki na <b>Loopify, AurumWave, YouTube Music</b>. Bez niego nie wydasz singla. <b style="color:#f39c12">Royalties %</b> to ile zarobionych pieniędzy z streamów trafia do Ciebie (reszta dla dystrybutora). <b>Opłata jest jednorazowa</b> — kupujesz raz i zostaje aktywny. Możesz zmienić dystrybutora w dowolnym momencie, ale każda zmiana to nowa opłata. Wybierz mądrze: tańsi mają niższe royalties.</div>
       </div>
-      ${G.distributor?`<div style="background:#0a1a0a;border:1px solid #2ecc7160;border-radius:6px;padding:8px 14px;margin-bottom:10px;font-size:13px;color:#ddd">✅ Aktywny dystrybutor: <b style="color:#2ecc71">${G.distributor.name}</b> · <span style="color:#aac">Royalties:</span> <b style="color:#f1c40f">${G.distributor.royaltyPct}%</b> · <span style="color:#aac">Limit singli:</span> <b style="color:#7ec8e3">${G.distributor.limitSingles}</b></div>`:'<p style="color:#e74c3c;font-size:13px;margin-bottom:10px">⚠️ Brak dystrybutora — możesz wydawać tylko na 🟠 EchoDrop (mały zarobek). Wybierz dystrybutora dla streamingów (Loopify/Tidal).</p>'}
+      ${G.distributor?`<div style="background:#0a1a0a;border:1px solid #2ecc7160;border-radius:6px;padding:8px 14px;margin-bottom:10px;font-size:13px;color:#ddd">✅ Aktywny dystrybutor: <b style="color:#2ecc71">${G.distributor.name}</b> · <span style="color:#aac">Royalties:</span> <b style="color:#f1c40f">${G.distributor.royaltyPct}%</b> · <span style="color:#aac">Limit singli:</span> <b style="color:#7ec8e3">${G.distributor.limitSingles}</b></div>`:'<p style="color:#e74c3c;font-size:13px;margin-bottom:10px">⚠️ Brak dystrybutora — możesz wydawać tylko na 🟠 EchoDrop (mały zarobek). Wybierz dystrybutora dla streamingów (Loopify/AurumWave).</p>'}
       <div class="shopgrid">${distHtml}</div>
       <div class="res" id="distr-res"></div>`;
   }
@@ -35322,7 +35322,7 @@ const SIGNABLE_ARTISTS=[
   {id:'mc_riser',name:'MC Riser',emoji:'🌟',tier:'rising',cost:80000,dailyIncome:520,desc:'Rising star scenowy. Buzz w mediach społecznościowych.',req:{fame:70,fans:5000},evolveAfter:45,evolveTo:'mc_star'},
   {id:'mc_star',name:'MC Star',emoji:'⭐',tier:'top',cost:0,dailyIncome:1550,desc:'MC Riser po ewolucji — top tier artist.',req:{},_evolved:true},
   {id:'kid_drip',name:'Kid Drip',emoji:'💎',tier:'rising',cost:120000,dailyIncome:780,desc:'Trendsetter z drip aesthetic. Mocny w social media.',req:{fame:75,fans:10000}},
-  {id:'sora_wave',name:'Sora Wave',emoji:'🌊',tier:'rising',cost:150000,dailyIncome:950,desc:'Female artist z melodyjnym brzmieniem. Buzz w Tidal.',req:{fame:78,fans:15000}},
+  {id:'sora_wave',name:'Sora Wave',emoji:'🌊',tier:'rising',cost:150000,dailyIncome:950,desc:'Female artist z melodyjnym brzmieniem. Buzz w AurumWave.',req:{fame:78,fans:15000}},
   {id:'doja_light',name:'Doja Light',emoji:'✨',tier:'top',cost:280000,dailyIncome:1900,desc:'Gwiazda Loopify. Streamuje miliony rocznie.',req:{fame:82,fans:30000}},
   {id:'icon_topone',name:'Top One',emoji:'👑',tier:'top',cost:250000,dailyIncome:1725,desc:'Gwiazda national. Sold-out arenas i platinum singles.',req:{fame:85,fans:50000}},
   {id:'phantom_mc',name:'Phantom MC',emoji:'🎭',tier:'legend',cost:500000,dailyIncome:3800,desc:'Legenda anonimowa — maska, mystique, sprzedaje wszystko co wydaje.',req:{fame:92,fans:100000}},
@@ -37483,7 +37483,7 @@ const RAPER_ST_DEF={
     {cost:5,label:'Legendarny Flow',desc:'Każdy nagrany track ma +25% bazowej jakości',effect:'flow_quality'},
   ]},
   teksty:{label:'Teksty',emoji:'📝',requires:{flow:2},nodes:[
-    {cost:1,label:'Pierwsze rymy',desc:'Tracki generują +10% streamów na Loopify/Tidal',effect:'txt_streams'},
+    {cost:1,label:'Pierwsze rymy',desc:'Tracki generują +10% streamów na Loopify/AurumWave',effect:'txt_streams'},
     {cost:2,label:'Głębsze znaczenie',desc:'+20% szans że track trafi na playlistę (+50% streamów dla tego tracku)'},
     {cost:3,label:'Storytelling',desc:'Albumy sprzedają się o 30% lepiej'},
     {cost:4,label:'Kultowe wersy',desc:'Co 5. track automatycznie staje się "hitem" (+200% streamów)'},
@@ -37519,7 +37519,7 @@ const RAPER_ST_DEF={
   ]},
   biznes:{label:'Biznes',emoji:'💼',requires:{autopromocja:2},nodes:[
     {cost:1,label:'Negocjacje',desc:'Kontrakty z labelem o 10% korzystniejsze'},
-    {cost:2,label:'Tantiemy',desc:'+15% royalties ze Loopify/Tidal/YouTube',effect:'biz_royalties'},
+    {cost:2,label:'Tantiemy',desc:'+15% royalties ze Loopify/AurumWave/YouTube',effect:'biz_royalties'},
     {cost:3,label:'Własny label',desc:'Możliwość założenia własnego labelu'},
     {cost:4,label:'Investor mindset',desc:'+15% zysku z inwestycji giełdowych i lokat bankowych'},
     {cost:5,label:'Music mogul',desc:'+30% zarobków (jobs/royalties), +15% koncerty',effect:'biz_mogul'}, /* v2.1.296: sync z v2.1.229 concert nerf — earn() generic 1.30× (jobs/work), concert 1.15× */
@@ -37684,7 +37684,7 @@ function renderPhoneRaper(){
           <div style="color:#c8a520;font-weight:800;font-size:13px">💿 Wydaj Album</div>
           <div style="color:#aac;font-size:11px">Wydane: <b style="color:#fff">${_albCount}</b></div>
         </div>
-        <div style="font-size:11px;color:#bbc;line-height:1.5;margin-bottom:8px">Skompiluj <b style="color:#fff">5 swoich tracków</b> w album. Wielkie wydawnictwo daje ogromny boost streamów (Loopify+Tidal), fanów, fame +20 i wypłatę. Tracki zostają w katalogu, ale każdy album zużywa 5 nowych z puli.</div>
+        <div style="font-size:11px;color:#bbc;line-height:1.5;margin-bottom:8px">Skompiluj <b style="color:#fff">5 swoich tracków</b> w album. Wielkie wydawnictwo daje ogromny boost streamów (Loopify+AurumWave), fanów, fame +20 i wypłatę. Tracki zostają w katalogu, ale każdy album zużywa 5 nowych z puli.</div>
         <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:8px;font-size:11px;font-weight:600">
           <span style="color:${_albTrackOk?'#27ae60':'#c0392b'}">${_albTrackOk?'✓':'✗'} Dostępne tracki: ${_albAvail}/5 <span style="color:#778;font-weight:400">(masz ${_albTracks}, użyte w albumach: ${_albUsed})</span></span>
           <span style="color:${_albMicOk?'#27ae60':'#c0392b'}">${_albMicOk?'✓':'✗'} Mikrofon: jakość ${_albMic}%/50%</span>
@@ -47500,7 +47500,7 @@ function _getPhoneFolders(){
     streaming:{em:'🎵',label:'Streaming',preview:['🟠','🎵','🌊'],apps:[
       _phApp('🟠','EchoDrop','#1a0a05','#FF8A1C',"renderPhoneApp('soundcloud')"),
       _phApp('🎵','Loopify Artists','#0a1e0e','#B6FF3B',"renderPhoneApp('spotify')"),
-      _phApp('🌊','Tidal','#050e1a','#00e4ff',"renderPhoneApp('tidal')"),
+      _phApp('🌊','AurumWave','#050e1a','#D7B35A',"renderPhoneApp('tidal')"),
     ]},
     /* v2.1.348 Faza AD telefon refactor (user 2026-05-27 "schludniejszy wygląd telefonu"): folder Kariera rozszerzony o Studio Setup + Beef (przeniesione ze stats/top-level). Sortowanie: Raper → Moja muzyka → Studio Setup → Wytwórnia → Beef → Merch → Kontrakty → Atelier. */
     career:{em:'🎤',label:'Kariera',preview:['🎤','🎶','🥊','🧢'],apps:[
@@ -47700,7 +47700,7 @@ function renderPhoneApp(app){
   window._phGoBack=()=>{ if(_fold && _getPhoneFolders()[_fold]) renderPhoneFolder(_fold); else renderPhoneHome(); };
   window._phHotkeys={};
   const ph=document.getElementById('ph-content');
-  const titles={spotify:'🎵 Loopify Artists',tidal:'🌊 Tidal',youtube:'📺 YouTube',instagram:'📸 Instagram',twitter:'🐦 Twitter',bank:'🏦 Bank',bills:'💸 Rachunki',merch:'🧢 Merch',label:'🎼 Wytwórnia'};
+  const titles={spotify:'🎵 Loopify Artists',tidal:'🌊 AurumWave',youtube:'📺 YouTube',instagram:'📸 Instagram',twitter:'🐦 Twitter',bank:'🏦 Bank',bills:'💸 Rachunki',merch:'🧢 Merch',label:'🎼 Wytwórnia'};
   document.getElementById('ph-title').textContent=titles[app]||app;
 
   /* v2.3.33 BUGFIX (Vegan: „masa apek nie dziala") — DEFENSYWNA SANITACJA przed renderem KAZDEJ apki.
@@ -47864,12 +47864,12 @@ function renderPhoneApp(app){
     const _tidalTracks=(G.studioTracks||[]).filter(t=>!t.isDemo).slice().sort((a,b)=>(b.streams||0)-(a.streams||0)).slice(0,8);
     ph.innerHTML=`<div class="ph-screen">
       <div style="background:#0a0a1a;border-radius:8px;padding:14px;margin-bottom:10px">
-        <div style="font-size:13px;color:#00e4ff;font-weight:700;margin-bottom:8px">TIDAL ARTIST</div>
+        <div style="font-size:13px;color:#D7B35A;font-weight:700;margin-bottom:8px">AURUMWAVE ARTIST</div>
         <div style="color:#aaa;font-size:14px;margin-bottom:5px">Słuchacze: <strong style="color:#fff">${G.tidal.listeners.toLocaleString('pl')}</strong></div>
-        <div style="color:#aaa;font-size:14px">Tantiemy: <strong style="color:#00e4ff">${G.tidal.royalties} zł</strong></div>
+        <div style="color:#aaa;font-size:14px">Tantiemy: <strong style="color:#D7B35A">${G.tidal.royalties} zł</strong></div>
       </div>
       <button class="bbtn" onclick="collectRoyalties('tidal')">💰 Zbierz tantiemy (${G.tidal.royalties} zł)</button>
-      ${_tidalTracks.length>0?`<div style="margin-top:12px"><div style="font-size:11px;color:#00e4ff;letter-spacing:1px;margin-bottom:6px">🌊 TOP UTWORY (HiFi):</div>${_tidalTracks.map(t=>`<div style="background:#050a1a;border-radius:6px;padding:6px 10px;margin-bottom:4px;font-size:12px;display:flex;justify-content:space-between"><span style="color:#fff">${(t.name||'?').slice(0,28)}</span><span style="color:#00e4ff">${Math.floor((t.streams||0)*0.3).toLocaleString('pl')} odsłuchań</span></div>`).join('')}</div>`:''}
+      ${_tidalTracks.length>0?`<div style="margin-top:12px"><div style="font-size:11px;color:#D7B35A;letter-spacing:1px;margin-bottom:6px">🌊 TOP UTWORY (HiFi):</div>${_tidalTracks.map(t=>`<div style="background:#050a1a;border-radius:6px;padding:6px 10px;margin-bottom:4px;font-size:12px;display:flex;justify-content:space-between"><span style="color:#fff">${(t.name||'?').slice(0,28)}</span><span style="color:#D7B35A">${Math.floor((t.streams||0)*0.3).toLocaleString('pl')} odsłuchań</span></div>`).join('')}</div>`:''}
     </div>`;
   } else if(app==='youtube'){
     /* v2.1.228 audit-fix #56b: AdSense panel — wytłumaczono progi (1000 sub minimum), pokazano szacunkowy dzienny zarobek + jasny status "monetyzacja włączona/zablokowana". */
@@ -49531,7 +49531,7 @@ const GAME_MECHANICS=[
   {id:'money', em:'💰', name:'Pieniądze', color:'#27ae60',
    short:'Twoja kasa — startujesz z 500 zł.',
    desc:'Pieniądze to podstawa — wszystko kosztuje: sprzęt, mieszkanie, samochód, jedzenie, ubrania. Startujesz z 500 zł i musisz zarobić więcej żeby się rozwijać.',
-   how:['• Prace dorywcze (pizzeria, supermarket, kurier, mycie aut)','• Koncerty w Sali Koncertowej i festiwale','• Tracki na Loopify, EchoDrop, Tidal','• Kariery (beatmaker, YouTuber, influencer itd.)','• Inwestycje w banku','• Pasywne dochody z mieszkań pod wynajem'],
+   how:['• Prace dorywcze (pizzeria, supermarket, kurier, mycie aut)','• Koncerty w Sali Koncertowej i festiwale','• Tracki na Loopify, EchoDrop, AurumWave','• Kariery (beatmaker, YouTuber, influencer itd.)','• Inwestycje w banku','• Pasywne dochody z mieszkań pod wynajem'],
    unlocks:['• Więcej kasy → lepszy sprzęt, mieszkania, auta','• Inwestycje pomagają zarabiać pasywnie','• Można założyć wytwórnię i podpisywać artystów'],
   },
   /* v2.1.942 (PDF l.25: storyline — uświadomienie gracza JAK zacząć karierę i jaki typ prowadzić: legalnie / nielegalnie / miks).
@@ -51929,7 +51929,7 @@ function renderPhoneStats(){
       <div style="background:#0a1a0a;border:1px solid #1a4a1a;border-radius:8px;padding:12px;margin-top:8px">
         <div style="font-size:12px;color:#27ae60;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Pasywny dochód (na tick)</div>
         ${G.spotify.listeners>0?`<div style="font-size:13px;color:#aaa">🎵 Loopify: ~${Math.floor(G.spotify.listeners*.001)} zł/tick</div>`:''}
-        ${G.tidal.listeners>0?`<div style="font-size:13px;color:#aaa">🌊 Tidal: ~${Math.floor(G.tidal.listeners*.0015)} zł/tick</div>`:''}
+        ${G.tidal.listeners>0?`<div style="font-size:13px;color:#aaa">🌊 AurumWave: ~${Math.floor(G.tidal.listeners*.0015)} zł/tick</div>`:''}
         ${G.radio.beats>0?`<div style="font-size:13px;color:#aaa">📻 Radio: ~${Math.floor(G.radio.beats*0.8)} zł/tick śr.</div>`:''}
         ${(G.merchStore?.products?.length||0)>0?`<div style="font-size:13px;color:#aaa">🧢 Merch: ~${Math.floor((G.merchStore?.totalLifetimeRevenue||0)/Math.max(1,G.day)/4)} zł/tick śr.</div>`:''}
       </div>`:''}
@@ -52168,9 +52168,9 @@ function renderPhonePassive(){
       <!-- Streamy -->
       <div style="margin-bottom:12px">
         <div style="font-size:12px;color:#9b59b6;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">🎵 Streamy <span style="color:#7ec8e3;font-weight:600;text-transform:none;letter-spacing:0">· naliczane do puli, <b>zbierasz w aplikacjach</b></span></div>
-        <div style="font-size:9px;color:#667;margin-bottom:6px">Tantiemy nie wpadają same — rosną w aplikacji (Loopify/Tidal/YT/EchoDrop/Radio) i odbierasz je przyciskiem „💰 Zbierz tantiemy".</div>
+        <div style="font-size:9px;color:#667;margin-bottom:6px">Tantiemy nie wpadają same — rosną w aplikacji (Loopify/AurumWave/YT/EchoDrop/Radio) i odbierasz je przyciskiem „💰 Zbierz tantiemy".</div>
         ${spotifyTick>0?_row('🎵','Loopify',spotifyTick,spotifyTick*4,`${(G.spotify?.listeners||0).toLocaleString('pl')} słuchaczy`):''}
-        ${tidalTick>0?_row('🌊','Tidal',tidalTick,tidalTick*4,`${(G.tidal?.listeners||0).toLocaleString('pl')} słuchaczy`):''}
+        ${tidalTick>0?_row('🌊','AurumWave',tidalTick,tidalTick*4,`${(G.tidal?.listeners||0).toLocaleString('pl')} słuchaczy`):''}
         ${radioTick>0?_row('📻','Radio',radioTick,radioTick*4,`${(G.radio?.beats||0)} beatów`):''}
         ${ytTick>0?_row('📺','YouTube AdSense',ytTick,ytTick*4,`${(G.yt?.subs||0).toLocaleString('pl')} subs`):''}
         ${scDaily>0?_row('🟠','EchoDrop',null,scDaily,`${(G.soundcloud?.listeners||0).toLocaleString('pl')} słuchaczy`):''}
@@ -52207,7 +52207,7 @@ function renderPhonePassive(){
         ${(merchTick+bankDaily+rentalsDaily+kebabDaily+sponsorDaily+studioRental)===0?`<div style="color:#445;font-size:12px;font-style:italic;padding:6px 10px">Brak — projektuj merch, inwestuj w banku, wynajmuj mieszkania, kup budkę kebab.</div>`:''}
       </div>
       <div style="background:#060e18;border:1px solid #1a2535;border-radius:8px;padding:10px;font-size:11px;color:#778;line-height:1.5">
-        <b style="color:#aac">💡 Jak to liczymy:</b> 🎵 Streamy (Loopify/Tidal/YouTube/EchoDrop/Radio) <b>naliczają się do puli</b> i odbierasz je przyciskiem „Zbierz tantiemy" w aplikacji — NIE wpadają same. 🧢 Merch = auto co tick. Pozostałe (Evolution / skille / bank / wynajmy / kebab / sponsor) = auto raz dziennie (po północy). Kwoty bazowe × Twój mnożnik zarobków. Szacunki na podstawie aktualnych słuchaczy/produktów/skilli.
+        <b style="color:#aac">💡 Jak to liczymy:</b> 🎵 Streamy (Loopify/AurumWave/YouTube/EchoDrop/Radio) <b>naliczają się do puli</b> i odbierasz je przyciskiem „Zbierz tantiemy" w aplikacji — NIE wpadają same. 🧢 Merch = auto co tick. Pozostałe (Evolution / skille / bank / wynajmy / kebab / sponsor) = auto raz dziennie (po północy). Kwoty bazowe × Twój mnożnik zarobków. Szacunki na podstawie aktualnych słuchaczy/produktów/skilli.
       </div>
     </div>
     <div style="padding:8px 14px"><button class="cbtn" style="width:100%" onclick="renderPhoneHome()">← Wróć</button></div>
@@ -53495,7 +53495,7 @@ window.getPrestigeReqs=function(rank){
 /* v2.1.160: Prestige Skill Tree — 6 permanentnych perków, każde Prestige = 1 punkt. Persystują przez kolejne Prestige.
    v2.1.251: opisy przepisane na naturalny PL (PLAN_NOC Faza 23) + naprawione 2 bugi UI vs kod (diamond_hands 10%→5%, tour_magnate 15%→10% match z faktycznym getPrestigeSkillMult po v2.1.229 nerf). */
 const PRESTIGE_SKILLS={
-  studio_mogul:{name:'Studio Mogul',emoji:'🎙',desc:'+10% tantiem ze streamów (Loopify/Tidal/EchoDrop)',cost:1},
+  studio_mogul:{name:'Studio Mogul',emoji:'🎙',desc:'+10% tantiem ze streamów (Loopify/AurumWave/EchoDrop)',cost:1},
   cult_following:{name:'Cult Following',emoji:'👑',desc:'+20% zdobytych fanów (każde źródło)',cost:1},
   iron_discipline:{name:'Iron Discipline',emoji:'💪',desc:'-15% spadku energii (wolniejsze zmęczenie)',cost:1},
   diamond_hands:{name:'Diamond Hands',emoji:'💎',desc:'+5% kasy (dodatkowo do bonusu Prestige)',cost:1},
@@ -53922,7 +53922,7 @@ window.collectRoyalties=(platform)=>{
   if(amount<=0){notify('Brak tantiem do zebrania. Tantiemy rosną automatycznie z odtworzeń/wyświetleń.');return;}
   let _paid=amount;if(typeof earn==='function') _paid=earn(amount,false); else {G.money+=amount;G.totalEarned=(G.totalEarned||0)+amount;} /* v2.1.865: _paid = REALNA kwota (earn return) */
   p[_field]=0;
-  const _platName={spotify:'Loopify Artists',tidal:'Tidal',radio:'Radio',yt:'YouTube AdSense',soundcloud:'EchoDrop'}[platform]||platform;
+  const _platName={spotify:'Loopify Artists',tidal:'AurumWave',radio:'Radio',yt:'YouTube AdSense',soundcloud:'EchoDrop'}[platform]||platform;
   notify(`💰 Zebrano ${_paid.toLocaleString('pl')} zł z ${_platName}`);
   if(typeof renderPhoneApp==='function') renderPhoneApp(platform);
 };
@@ -55131,7 +55131,7 @@ window.openIntroduction=()=>{
     {em:'🎤',title:'Witaj w Trap Simulator',body:'Sandboxowa gra o budowaniu kariery artysty. Zaczynasz biednie w traphouse, ale rozwijać się możesz w wielu kierunkach: rap, beatmaker, YouTuber, streamer/gamer, influencer, realizator dźwięku, biznes, merch.<br><br>1 000 000 fanów to jeden z milestone\'ów, ale gra nie kończy się tam — możesz dalej rozwijać postać, wchodzić w Prestige, próbować innych ścieżek.'},
     {em:'❤️',title:'Statystyki życiowe',body:'<b style="color:#e74c3c">❤️ Zdrowie</b> — spada gdy głód=0 lub energia=0. Lecz w szpitalu.<br><br><b style="color:#3498db">⚡ Energia</b> — spada przy akcjach (praca, koncert). Idź spać w łóżku.<br><br><b style="color:#27ae60">🍔 Głód</b> — spada z czasem. Lodówka, restauracja, sklep.<br><br><b style="color:#9b59b6">🧠 Nastrój</b> — wartość 0-100 (100=zen, 0=wypalenie). Odpoczywaj na sofie/ławce.'},
     {em:'⭐',title:'Sława i Fani (statystyki)',body:'<b style="color:#f1c40f">⭐ Sława (0-500)</b> — wartość otwierająca koncerty, sklepy luksusowe, sponsorów. Rośnie z koncertów, wydanych tracków, eventów.<br><br><b style="color:#7ec8e3">👥 Fani (licznik)</b> — statystyka kumulująca. Milestone\'y: 1K → 10K → 100K → 1M. Każdy z osobnymi nagrodami. Po 1M gra trwa dalej, kierując na Prestige.'},
-    {em:'💎',title:'Drip (styl/luksus)',body:'<b style="color:#c8a520">💎 Drip 0-200</b> — luksusowy styl. Kupuj ubrania w Drip District (Balenciaga, Bottega, Dior).<br><br>Bonusy (per pkt, liniowo):<br>• Koncerty (zarobki + fani) +0.1%/pkt — drip 200 = <b>+20%</b> (z Ulepszeniem "Personal brand": <b>+30%</b>)<br>• Loopify/Tidal royalties +0.2%/pkt — drip 200 = <b>+40%</b> (z Ulepszeniem: <b>+60%</b>)<br>• Zaliczki Major/Global +0.8-1.2%/pkt — drip 200 = <b>+40-50%</b> (z Ulepszeniem: <b>+60-75%</b>)<br>• Instagram zasięg +0.5%/pkt — drip 200 = <b>+100%</b> (z Ulepszeniem: <b>+150%</b>)<br><br>📢 Ulepszenie "Personal brand" (Autopromocja 4 w drzewku rapera): rozszerza wszystkie capy dripowe.'},
+    {em:'💎',title:'Drip (styl/luksus)',body:'<b style="color:#c8a520">💎 Drip 0-200</b> — luksusowy styl. Kupuj ubrania w Drip District (Balenciaga, Bottega, Dior).<br><br>Bonusy (per pkt, liniowo):<br>• Koncerty (zarobki + fani) +0.1%/pkt — drip 200 = <b>+20%</b> (z Ulepszeniem "Personal brand": <b>+30%</b>)<br>• Loopify/AurumWave royalties +0.2%/pkt — drip 200 = <b>+40%</b> (z Ulepszeniem: <b>+60%</b>)<br>• Zaliczki Major/Global +0.8-1.2%/pkt — drip 200 = <b>+40-50%</b> (z Ulepszeniem: <b>+60-75%</b>)<br>• Instagram zasięg +0.5%/pkt — drip 200 = <b>+100%</b> (z Ulepszeniem: <b>+150%</b>)<br><br>📢 Ulepszenie "Personal brand" (Autopromocja 4 w drzewku rapera): rozszerza wszystkie capy dripowe.'},
     {em:'💪',title:'Forma i Kondycja',body:'<b style="color:#00bcd4">💪 Forma 0-100</b> — siłownia: bench press, treadmill, cable. Forma 100 daje +10 max do zdrowia/energii/głodu. Bez treningu 3+ dni → spada 10-20%/dzień.<br><br><b>Skill Kondycja</b> (drzewko) spowalnia spadek energii (-8%/pkt, max -40%).<br><br><b>Skill Apetyt</b> spowalnia głód, <b>Odporność</b> chroni zdrowie.'},
     {em:'🎯',title:'Drzewko umiejętności + Ulepszenia + Ewolucje',body:'8 gałęzi skill tree dla rapera: Flow, Teksty, Produkcja, Realizacja, Mikser, Autopromocja, Biznes, Scena. (Kondycja jest w głównym drzewku umiejętności — to stat fizyczny.) Każda kariera ma własne drzewko.<br><br>Wydawaj <b style="color:#f1c40f">Skill Points</b> (z lvl up) na bonusy 1-5.<br><br><b>Ulepszenia (Power-Ups)</b> dodają bonusy kumulatywnie: 1. Ulepszenie = +30%, 2. = +60%, 3. = +100% (max 3 Ulepszenia per skill).<br><br><b>Ewolucje</b> — zaawansowane bonusy odblokowywane po max skill+Ulepszenia (3 evo per gałąź: Strateg / Master / Specjalista).'},
     {em:'📋',title:'Linia fabularna + Side stories',body:'<b>Główna linia</b> — milestone fanów: 100 → 250 → 500 → 1000. Po 1000 odblokowują się kolejne ścieżki (kariery, sponsorzy, label).<br><br><b>Linie boczne</b> (7): Drip, Forma, Mieszkanie, YouTuber, Beatmaker, Gamer, Nielegalny Front — każda z własnymi questami i nagrodami.<br><br><b>Daily Quests</b> od Wiktora — codzienne mini-zadania (+XP, +zł).'},
@@ -56852,7 +56852,7 @@ const _HUD_TIPS={
   drip:      ()=>{
     const _hasPU=(typeof getRaperST==='function' && getRaperST('autopromocja')>=4);
     const _puNote=_hasPU?'<br><span style="color:#27ae60">📢 Ulepszenie "Personal brand" AKTYWNE — maksymalne bonusy zwiększone do +30% / +60% / +75% / +150%</span>':'<br><span style="color:#778">📢 Ulepszenie "Personal brand" (Autopromocja 4 w drzewku rapera): zwiększa maksymalne bonusy do +30% / +60% / +75% / +150%</span>';
-    return `<strong style="color:#c8a520;font-size:17px;display:block;margin-bottom:6px">💎 Drip ${Math.floor(G.drip||0)}/200</strong>Luksusowy styl. Bonusy rosną liniowo z poziomem dripu:<br>• Koncerty (zarobki + fani): +0.1% / pkt — przy maksie (200) = +20% (z Ulepszeniem: +30%)<br>• Loopify/Tidal tantiemy: +0.2% / pkt — przy maksie = +40% (z Ulepszeniem: +60%)<br>• Zaliczki Major/Global Label: +0.8-1.2% / pkt — przy maksie = +40-50% (z Ulepszeniem: +60-75%)<br>• Instagram zasięg: +0.5% / pkt — przy maksie = +100% (z Ulepszeniem: +150%)${_puNote}<br>Kup luksusowe ubrania (Dzielnica Dripu).`;
+    return `<strong style="color:#c8a520;font-size:17px;display:block;margin-bottom:6px">💎 Drip ${Math.floor(G.drip||0)}/200</strong>Luksusowy styl. Bonusy rosną liniowo z poziomem dripu:<br>• Koncerty (zarobki + fani): +0.1% / pkt — przy maksie (200) = +20% (z Ulepszeniem: +30%)<br>• Loopify/AurumWave tantiemy: +0.2% / pkt — przy maksie = +40% (z Ulepszeniem: +60%)<br>• Zaliczki Major/Global Label: +0.8-1.2% / pkt — przy maksie = +40-50% (z Ulepszeniem: +60-75%)<br>• Instagram zasięg: +0.5% / pkt — przy maksie = +100% (z Ulepszeniem: +150%)${_puNote}<br>Kup luksusowe ubrania (Dzielnica Dripu).`;
   },
   /* v2.1.195: tooltip Kondycja z UI % spójnymi z formułą (bazą 2.0). Max stat 100 daje +19% prędkość, skill Kondycja max +10%, skill Bieg max +6%, PU Bieg max +15%, Evo Bieg +15%. Suma 65% nad bazą = cap 3.3. */
   kondycja:  ()=>`<strong style="color:#00bcd4;font-size:17px;display:block;margin-bottom:6px">🏃 Kondycja ${Math.floor(G.fitness||0)}/100</strong><br>Trening na bieżni w siłowni → <b>+19% prędkość pieszego</b> przy 100/100 + spadek mocy/decay. Plus skill „Kondycja" w drzewku (${typeof getSkillLvl==='function'?getSkillLvl('kondycja'):0}/5) → +2%/poziom prędkości (max +10%).`,
@@ -57203,6 +57203,12 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.64',date:'2026-06-26',cats:['beta-tester','Vegan','change'],reporter:'Vegan',title:'🌊 Platforma premium audio dostała własną markę — AurumWave',
+ items:[
+  {t:'change',d:'Platforma audio premium w telefonie ma teraz własną markę świata gry — AurumWave, w złotym stylu. Rebrand wizualny: nazwa, kolory, panel artysty i komunikaty. Twoi słuchacze, tantiemy i statystyki działają dokładnie tak samo jak wcześniej.'},
+ ]
+ },
  {
  ver:'v2.3.63',date:'2026-06-26',cats:['beta-tester','Vegan','change'],reporter:'Vegan',title:'🟠 Platforma demo w telefonie dostała własną markę — EchoDrop',
  items:[
