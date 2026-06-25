@@ -19551,7 +19551,7 @@ window._underworldEnsure=function(){
   if(typeof u.questHintClarity!=='string') u.questHintClarity='';
   /* MIGRACJA starych save'ów w trakcie testu: Z2 zrobione (t2) ale Z3 nie (t3) i gracz NIE przeszedł nowego mostu →
      skieruj do Kantara zamiast od razu spawnować Brokata (PDF: gracz nie wie gdzie szukać). Idempotentne, jednorazowe. */
-  if(u.state==='testing' && u.task && u.task.t2 && !u.task.t3 && !u.talkedToKantarAfterT2 && u.bridgeStage==='') u.bridgeStage='after_parking_task';
+  if(u.state==='testing' && u.task && u.task.t2 && !u.task.t3 && !u.talkedToKantarAfterT2 && u.bridgeStage===''){ u.bridgeStage='after_parking_task'; u.bridgeMs=Date.now(); }
   /* Globalne staty modułu (NOWE pola — istniejące streetRep/_underworldRespect/money/stress NIE ruszane) */
   if(typeof G.kantarTrust!=='number'||!isFinite(G.kantarTrust)) G.kantarTrust=0;
   if(typeof G.publicImage!=='number'||!isFinite(G.publicImage)) G.publicImage=100;
@@ -50013,6 +50013,18 @@ window._underworldTick=function(){
     u._bReplyPending=false;
     window._smsSend('kantar','Ktoś, kto nie lubi pisać dwa razy. Przyjdź albo usuń wiadomość i wróć do noszenia pizzy.',{bypass:true});
   }
+  /* C6 (PDF most): przypomnienia anti-zgubienie — neutralny showMsg, NIE SMS (PDF wprost). Self-heal bridgeMs dla starych save. */
+  if(u.state==='testing' && u.task && u.task.t1 && u.task.t2 && !u.task.t3 && (u.bridgeStage==='after_parking_task'||u.bridgeStage==='find_brokat')){
+    if(!u.bridgeMs) u.bridgeMs=Date.now();
+    const _el=Date.now()-u.bridgeMs;
+    if(u.bridgeStage==='after_parking_task'){
+      if(_el>=480000 && !u._remB2){ u._remB2=true; if(typeof showMsg==='function') showMsg('💭 Bez rozmowy z kontaktem przy loży w Velvet Room nie dowiesz się, gdzie szukać ostatniego człowieka.','i',7000); }
+      else if(_el>=180000 && !u._remB1){ u._remB1=true; if(typeof showMsg==='function') showMsg('💭 Kontakt z loży w Velvet Room czeka — wróć do niego po ostatni temat.','i',6500); }
+    } else {
+      if(_el>=480000 && !u._remF2){ u._remF2=true; if(typeof showMsg==='function') showMsg('💭 Ostatni człowiek kręci się przy automatach na parterze Kasyno Royale.','i',7000); }
+      else if(_el>=180000 && !u._remF1){ u._remF1=true; if(typeof showMsg==='function') showMsg('💭 Zajrzyj do Kasyno Royale — tam masz domknąć ostatni temat.','i',6500); }
+    }
+  }
   /* §12 — timeout: brak odpowiedzi na SMS przez 2h sesji realnej → Kantar znika (ignorowanie zaproszenia). */
   if(u.state==='sms_sent' && u.smsMs && (Date.now()-u.smsMs)>=7200000){
     u.state='ignored'; u.returnDay=(G.day||0)+(14+Math.floor(Math.random()*17)); window._uwTag('ignored_underworld_invite');
@@ -50133,7 +50145,7 @@ window._uwLastManTone=function(opt){
 window._uwLastManGo=function(opt){
   window._underworldEnsure(); const u=G.underworldIntro;
   if(u.talkedToKantarAfterT2){ if(typeof closeNPCDlg==='function')closeNPCDlg(); return; } /* anti-dbl */
-  u.talkedToKantarAfterT2=true; u.brokatSpawnEnabled=true; u.casinoMarkerEnabled=true; u.bridgeStage='find_brokat';
+  u.talkedToKantarAfterT2=true; u.brokatSpawnEnabled=true; u.casinoMarkerEnabled=true; u.bridgeStage='find_brokat'; u.bridgeMs=Date.now(); u._remF1=false; u._remF2=false;
   if(opt==='careful'){ window._uwAddStat('kantar_trust',1); }
   if(typeof closeNPCDlg==='function') closeNPCDlg();
   const spot=(u.questHintClarity==='high')?'na parterze, przy automatach':'gdzieś na parterze';
@@ -50387,7 +50399,7 @@ window._uwZ2Resolve=function(res){
   window._underworldEnsure(); const u=G.underworldIntro;
   if(u.task.t2) return; /* anti-dbl */
   u.task.t2=res;
-  u.bridgeStage='after_parking_task'; /* C2 (PDF most): po Z2 gracz wraca do Kantara po trop — Brokat NIE spawnuje od razu */
+  u.bridgeStage='after_parking_task'; u.bridgeMs=Date.now(); u._remB1=false; u._remB2=false; /* C2/C6 (PDF most): po Z2 gracz wraca do Kantara po trop — Brokat NIE spawnuje od razu; start timera przypomnień */
   if(res==='clean'){
     window._uwAddStat('kantar_trust',10); u.perceptionXp=(u.perceptionXp||0)+5; window._uwAddStat('street_heat',1);
   } else if(res==='false'){
