@@ -16700,7 +16700,7 @@ const ACHIEVEMENTS = [
   /* v2.1.394 Faza AO.5 Etap 2 (user 2026-05-28): 4 nowe IG achievementy. */
   {id:'ig_photo_first',name:'Pierwsze foto',desc:'Wrzuc pierwsze zdjęcie do Społeczności (real player tab)',icon:'📷',check:()=>(G._igCommunityUploadsCount||0)>=1},
   {id:'ig_comments_100',name:'Bywalec komentarzy',desc:'Skomentuj 100 cudzych zdjęć w Społeczności',icon:'💬',check:()=>(G._igCommentsTotalCount||0)>=100},
-  {id:'ig_sponsor_pro',name:'IG Sponsor Pro',desc:'Wykonaj 20 sponsored postów (Instagram)',icon:'💼',check:()=>(G._igSponsoredCount||0)>=20},
+  {id:'ig_sponsor_pro',name:'IG Sponsor Pro',desc:'Wykonaj 20 sponsored postów (FrameUp)',icon:'💼',check:()=>(G._igSponsoredCount||0)>=20},
   /* v2.1.501 AO.5 — filter master: użyj wszystkich 5 filtrów IG (kolejnych unique). */
   {id:'ig_filter_master',name:'Filter Master',desc:'Użyj wszystkich 5 filtrów IG (normal/vintage/B&W/vibrant/dark mood)',icon:'🎨',check:()=>{const s=G._igFiltersUsed||{};return ['normal','vintage','bw','vibrant','dark'].every(k=>s[k]);}},
   {id:'ig_tweet_master',name:'Twitter Master',desc:'Napisz 30 customowych tweetów (composer)',icon:'🐦',check:()=>(G.userTweets?.length||0)>=30},
@@ -17932,7 +17932,7 @@ window._checkIgSponsorshipOffer=function(){
   const brand=brandList[Math.floor(Math.random()*brandList.length)];
   /* Save offer state */
   G._igSponsorshipPendingOffer={brand, payout, expireDay:G.day+2};
-  if(typeof addNotif==='function') addNotif(`💼 Nowa oferta sponsorska IG: ${brand} oferuje ${payout} zł za promocję w next 24h post. Sprawdź Instagram.`);
+  if(typeof addNotif==='function') addNotif(`💼 Nowa oferta sponsorska IG: ${brand} oferuje ${payout} zł za promocję w next 24h post. Sprawdź FrameUp.`);
 };
 
 /* v2.1.390 Faza AO.4: akcja akceptacji oferty sponsorship */
@@ -18079,7 +18079,7 @@ window._showIgLiveView=function(post){
   ov.innerHTML=`
     <div style="text-align:center;margin-bottom:14px;animation:igLiveHeader 1s ease-out">
       <div style="font-size:11px;color:#c13584;font-weight:900;letter-spacing:2px;margin-bottom:4px">● LIVE — REAKCJE</div>
-      <div style="font-size:18px;color:#fff;font-weight:700">${post.label||'Post Instagram'}</div>
+      <div style="font-size:18px;color:#fff;font-weight:700">${post.label||'Post FrameUp'}</div>
     </div>
     <div style="font-size:42px;margin:12px 0;animation:igLikePulse 2s ease-in-out infinite">❤️</div>
     <div id="ig-live-likes" style="font-size:32px;color:#e91e8c;font-weight:900;margin-bottom:14px">0</div>
@@ -20885,7 +20885,7 @@ window._igRenderPreviewCanvas=function(){
 /* v2.1.499 AO.1 — pełen Post Creator z canvas player + caption + filtrów. */
 window._igOpenComposer=function(idx){
   const cats=window._igCachedPostCats;
-  if(!cats){if(typeof showMsg==='function') showMsg('📸 Otwórz Instagram (telefon) najpierw.','r',3500);return;}
+  if(!cats){if(typeof showMsg==='function') showMsg('📸 Otwórz FrameUp (telefon) najpierw.','r',3500);return;}
   const cat=cats[idx];
   if(cat?.req && !cat.req()) return;
   const _maxPostsRT=(typeof getRaperST==='function' && getRaperST('autopromocja')>=2)?2:1;
@@ -25855,7 +25855,7 @@ function tickDecay(){
             /* Refresh IG panel (jeśli otwarty) — pokaż nowy licznik obserwujących bez wymagania re-open apki. */
             if(typeof phoneOpen==='function' && phoneOpen()){
               const _phTitle=document.getElementById('ph-title');
-              if(_phTitle && _phTitle.textContent && _phTitle.textContent.indexOf('Instagram')>=0 && typeof renderPhoneApp==='function'){
+              if(_phTitle && _phTitle.textContent && _phTitle.textContent.indexOf('FrameUp')>=0 && typeof renderPhoneApp==='function'){
                 try{renderPhoneApp('instagram');}catch(_){}
               }
             }
@@ -32836,7 +32836,7 @@ function startInfluencerPostMG(){
 
   document.getElementById('mg-job-content').innerHTML=`
     <div style="display:flex;flex-direction:column;align-items:center;gap:10px;width:100%;max-width:680px">
-      <h2 style="color:#e91e8c;margin:0">📱 Utwórz post — Instagram</h2>
+      <h2 style="color:#e91e8c;margin:0">📱 Utwórz post — FrameUp</h2>
       <p style="color:#666;font-size:12px">Wybierz content, filtr i podpis. Kombinacja wpływa na zasięg!</p>
 
       <div style="width:100%">
@@ -36886,7 +36886,7 @@ function renderVoltHouse(){
         return `<div class="sitem"><h3>📹 ${cam.name}</h3><p>Jakość ${cam.quality}%</p><div class="pr">${cam.price} zł</div>${owned?'<div class="owned">✅ W inwentarzu</div>':''}<button class="bbtn" onclick="buyCamera('${cam.name}',${cam.quality},${cam.price})" ${owned||G.money<cam.price?'disabled':''}>${owned?'Posiadasz':'Kup'}</button></div>`;
       }).join('')}
       <div class="sitem"><h3>💻 Upgrade PC</h3><p>+15% jakość montażu</p><div class="pr">800 zł</div>${G.hasPCUpgrade?'<div class="owned">✅ Posiadasz</div>':''}<button class="bbtn" ${G.hasPCUpgrade||G.money<800?'disabled':''} onclick="buyPCUpgrade()">Kup</button></div>
-      <div class="sitem"><h3>📸 Selfie Ring</h3><p>+8% jakość vlogów i Instagram</p><div class="pr">150 zł</div>${(G._musicAcc?.ring)?'<div class="owned">✅ Posiadasz</div>':''}<button class="bbtn" onclick="buyAccessoryGlobal('ring',150)" ${(G._musicAcc?.ring)||G.money<150?'disabled':''}>${(G._musicAcc?.ring)?'✓ Posiadasz':'Kup'}</button></div>
+      <div class="sitem"><h3>📸 Selfie Ring</h3><p>+8% jakość vlogów i FrameUp</p><div class="pr">150 zł</div>${(G._musicAcc?.ring)?'<div class="owned">✅ Posiadasz</div>':''}<button class="bbtn" onclick="buyAccessoryGlobal('ring',150)" ${(G._musicAcc?.ring)||G.money<150?'disabled':''}>${(G._musicAcc?.ring)?'✓ Posiadasz':'Kup'}</button></div>
     </div>
     <div class="res" id="shop-res">Wybierz produkt.</div>
     <button class="cbtn" onclick="closeOverlay()">← Wróć</button>
@@ -37511,7 +37511,7 @@ const RAPER_ST_DEF={
     {cost:5,label:'World class mix',desc:'Odblokowanie masteringu dla labelów',effect:'mix_master'},
   ]},
   autopromocja:{label:'Autopromocja',emoji:'📱',requires:null,nodes:[
-    {cost:1,label:'Pierwsze posty',desc:'+10% followersów za każdy post Instagram',effect:'auto_ig'},
+    {cost:1,label:'Pierwsze posty',desc:'+10% followersów za każdy post FrameUp',effect:'auto_ig'},
     {cost:2,label:'Content creator',desc:'Możliwość postowania 2× dziennie'},
     {cost:3,label:'Viral mindset',desc:'+25% szans na viral post, +15% followersów z postów (kumuluje z lvl 1 → 25% total)',effect:'auto_viral'},
     {cost:4,label:'Personal brand',desc:'Drip działa ×1.5 dla wszystkich akcji'},
@@ -47493,7 +47493,7 @@ const _phApp=(em,label,bg,glow,fn,locked,lockedMsg)=>({em,label,bg,glow,fn,locke
 function _getPhoneFolders(){
   return {
     social:{em:'🌐',label:'Sociale',preview:['📸','🐦','▶️'],apps:[
-      _phApp('📸','Instagram','#1a0812','#e1306c',"renderPhoneApp('instagram')"),
+      _phApp('📸','FrameUp','#1a0812','#E94BFF',"renderPhoneApp('instagram')"),
       _phApp('🐦','Twitter','#050f1c','#1da1f2',"renderPhoneApp('twitter')"),
       _phApp('▶️','ViewGrid','#1a0808','#FF3045',"renderPhoneApp('youtube')"),
     ]},
@@ -47700,7 +47700,7 @@ function renderPhoneApp(app){
   window._phGoBack=()=>{ if(_fold && _getPhoneFolders()[_fold]) renderPhoneFolder(_fold); else renderPhoneHome(); };
   window._phHotkeys={};
   const ph=document.getElementById('ph-content');
-  const titles={spotify:'🎵 Loopify Artists',tidal:'🌊 AurumWave',youtube:'📺 ViewGrid',instagram:'📸 Instagram',twitter:'🐦 Twitter',bank:'🏦 Bank',bills:'💸 Rachunki',merch:'🧢 Merch',label:'🎼 Wytwórnia'};
+  const titles={spotify:'🎵 Loopify Artists',tidal:'🌊 AurumWave',youtube:'📺 ViewGrid',instagram:'📸 FrameUp',twitter:'🐦 Twitter',bank:'🏦 Bank',bills:'💸 Rachunki',merch:'🧢 Merch',label:'🎼 Wytwórnia'};
   document.getElementById('ph-title').textContent=titles[app]||app;
 
   /* v2.3.33 BUGFIX (Vegan: „masa apek nie dziala") — DEFENSYWNA SANITACJA przed renderem KAZDEJ apki.
@@ -48004,7 +48004,7 @@ function renderPhoneApp(app){
       ${canPost?`<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
         ${postCats.map((c,i)=>{const blocked=c.req&&!c.req();return`<button onclick="${blocked?'':'window._igOpenComposer('+i+')'}" ${blocked?'disabled':''} style="background:${blocked?'#0c0c12':'linear-gradient(135deg,#14182a,#0d1120)'};border:1px solid ${blocked?'#222':'#26305a'};border-left:3px solid ${blocked?'#3a2030':'#d62976'};color:${blocked?'#555':'#fff'};padding:10px 12px;border-radius:8px;cursor:${blocked?'not-allowed':'pointer'};font-size:13px;font-weight:700;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:8px"><span style="flex:1;min-width:0">${c.label}<div style="font-size:11px;color:${blocked?'#e07070':'#8a9ac0'};margin-top:3px;font-weight:400">${blocked?'🔒 '+c.reqTxt:c.desc}</div></span>${blocked?'':'<span style="color:#d62976;font-size:16px;flex-shrink:0">＋</span>'}</button>`;}).join('')}
       </div>`:''}
-      ${(G.igPosts?.length||0)>0?`<button onclick="window._igStartLiveView&&window._igStartLiveView()" style="width:100%;background:linear-gradient(135deg,#e1306c,#7a1540);border:none;color:#fff;padding:11px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:800;margin-bottom:12px;box-shadow:0 4px 12px rgba(225,48,108,.35)">🔴 Rozpocznij transmisję LIVE</button>`:''}
+      ${(G.igPosts?.length||0)>0?`<button onclick="window._igStartLiveView&&window._igStartLiveView()" style="width:100%;background:linear-gradient(135deg,#E94BFF,#7a1540);border:none;color:#fff;padding:11px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:800;margin-bottom:12px;box-shadow:0 4px 12px rgba(225,48,108,.35)">🔴 Rozpocznij transmisję LIVE</button>`:''}
       <div style="font-size:12px;color:#8a9ac0;font-weight:700;margin:4px 0 8px;display:flex;align-items:center;gap:6px;border-top:1px solid #1a2535;padding-top:10px">▦ Twój feed${posts.length>0?` <span style="color:#556;font-weight:400">· ${posts.length} ${posts.length===1?'post':'postów'}</span>`:''}</div>
       ${posts.slice(-5).reverse().map(p=>{
         const stage=p.growStage||5;const growing=stage<5;
@@ -52687,7 +52687,7 @@ const _LB_TITLE_DESCRIPTIONS = {
   legend:     'Min. 1 000 000 fanów + Prestige co najmniej 2.',
   prestige5:  'Prestige co najmniej 5 (5× przejście New Game+).',
   trapboss:   'Łącznie zarobione co najmniej 10 000 000 zł.',
-  megafan:    'Min. 1 000 000 obserwujących (Twitter + Instagram).',
+  megafan:    'Min. 1 000 000 obserwujących (Twitter + FrameUp).',
   speedrun30: '1 000 000 fanów w 30 dni gry lub szybciej.',
   achiever:   'Zdobyte co najmniej 50 osiągnięć.',
   highroller: 'Łącznie wygrane w kasynie co najmniej 500 000 żetonów.',
@@ -55131,7 +55131,7 @@ window.openIntroduction=()=>{
     {em:'🎤',title:'Witaj w Trap Simulator',body:'Sandboxowa gra o budowaniu kariery artysty. Zaczynasz biednie w traphouse, ale rozwijać się możesz w wielu kierunkach: rap, beatmaker, YouTuber, streamer/gamer, influencer, realizator dźwięku, biznes, merch.<br><br>1 000 000 fanów to jeden z milestone\'ów, ale gra nie kończy się tam — możesz dalej rozwijać postać, wchodzić w Prestige, próbować innych ścieżek.'},
     {em:'❤️',title:'Statystyki życiowe',body:'<b style="color:#e74c3c">❤️ Zdrowie</b> — spada gdy głód=0 lub energia=0. Lecz w szpitalu.<br><br><b style="color:#3498db">⚡ Energia</b> — spada przy akcjach (praca, koncert). Idź spać w łóżku.<br><br><b style="color:#27ae60">🍔 Głód</b> — spada z czasem. Lodówka, restauracja, sklep.<br><br><b style="color:#9b59b6">🧠 Nastrój</b> — wartość 0-100 (100=zen, 0=wypalenie). Odpoczywaj na sofie/ławce.'},
     {em:'⭐',title:'Sława i Fani (statystyki)',body:'<b style="color:#f1c40f">⭐ Sława (0-500)</b> — wartość otwierająca koncerty, sklepy luksusowe, sponsorów. Rośnie z koncertów, wydanych tracków, eventów.<br><br><b style="color:#7ec8e3">👥 Fani (licznik)</b> — statystyka kumulująca. Milestone\'y: 1K → 10K → 100K → 1M. Każdy z osobnymi nagrodami. Po 1M gra trwa dalej, kierując na Prestige.'},
-    {em:'💎',title:'Drip (styl/luksus)',body:'<b style="color:#c8a520">💎 Drip 0-200</b> — luksusowy styl. Kupuj ubrania w Drip District (Balenciaga, Bottega, Dior).<br><br>Bonusy (per pkt, liniowo):<br>• Koncerty (zarobki + fani) +0.1%/pkt — drip 200 = <b>+20%</b> (z Ulepszeniem "Personal brand": <b>+30%</b>)<br>• Loopify/AurumWave royalties +0.2%/pkt — drip 200 = <b>+40%</b> (z Ulepszeniem: <b>+60%</b>)<br>• Zaliczki Major/Global +0.8-1.2%/pkt — drip 200 = <b>+40-50%</b> (z Ulepszeniem: <b>+60-75%</b>)<br>• Instagram zasięg +0.5%/pkt — drip 200 = <b>+100%</b> (z Ulepszeniem: <b>+150%</b>)<br><br>📢 Ulepszenie "Personal brand" (Autopromocja 4 w drzewku rapera): rozszerza wszystkie capy dripowe.'},
+    {em:'💎',title:'Drip (styl/luksus)',body:'<b style="color:#c8a520">💎 Drip 0-200</b> — luksusowy styl. Kupuj ubrania w Drip District (Balenciaga, Bottega, Dior).<br><br>Bonusy (per pkt, liniowo):<br>• Koncerty (zarobki + fani) +0.1%/pkt — drip 200 = <b>+20%</b> (z Ulepszeniem "Personal brand": <b>+30%</b>)<br>• Loopify/AurumWave royalties +0.2%/pkt — drip 200 = <b>+40%</b> (z Ulepszeniem: <b>+60%</b>)<br>• Zaliczki Major/Global +0.8-1.2%/pkt — drip 200 = <b>+40-50%</b> (z Ulepszeniem: <b>+60-75%</b>)<br>• FrameUp zasięg +0.5%/pkt — drip 200 = <b>+100%</b> (z Ulepszeniem: <b>+150%</b>)<br><br>📢 Ulepszenie "Personal brand" (Autopromocja 4 w drzewku rapera): rozszerza wszystkie capy dripowe.'},
     {em:'💪',title:'Forma i Kondycja',body:'<b style="color:#00bcd4">💪 Forma 0-100</b> — siłownia: bench press, treadmill, cable. Forma 100 daje +10 max do zdrowia/energii/głodu. Bez treningu 3+ dni → spada 10-20%/dzień.<br><br><b>Skill Kondycja</b> (drzewko) spowalnia spadek energii (-8%/pkt, max -40%).<br><br><b>Skill Apetyt</b> spowalnia głód, <b>Odporność</b> chroni zdrowie.'},
     {em:'🎯',title:'Drzewko umiejętności + Ulepszenia + Ewolucje',body:'8 gałęzi skill tree dla rapera: Flow, Teksty, Produkcja, Realizacja, Mikser, Autopromocja, Biznes, Scena. (Kondycja jest w głównym drzewku umiejętności — to stat fizyczny.) Każda kariera ma własne drzewko.<br><br>Wydawaj <b style="color:#f1c40f">Skill Points</b> (z lvl up) na bonusy 1-5.<br><br><b>Ulepszenia (Power-Ups)</b> dodają bonusy kumulatywnie: 1. Ulepszenie = +30%, 2. = +60%, 3. = +100% (max 3 Ulepszenia per skill).<br><br><b>Ewolucje</b> — zaawansowane bonusy odblokowywane po max skill+Ulepszenia (3 evo per gałąź: Strateg / Master / Specjalista).'},
     {em:'📋',title:'Linia fabularna + Side stories',body:'<b>Główna linia</b> — milestone fanów: 100 → 250 → 500 → 1000. Po 1000 odblokowują się kolejne ścieżki (kariery, sponsorzy, label).<br><br><b>Linie boczne</b> (7): Drip, Forma, Mieszkanie, YouTuber, Beatmaker, Gamer, Nielegalny Front — każda z własnymi questami i nagrodami.<br><br><b>Daily Quests</b> od Wiktora — codzienne mini-zadania (+XP, +zł).'},
@@ -56852,7 +56852,7 @@ const _HUD_TIPS={
   drip:      ()=>{
     const _hasPU=(typeof getRaperST==='function' && getRaperST('autopromocja')>=4);
     const _puNote=_hasPU?'<br><span style="color:#27ae60">📢 Ulepszenie "Personal brand" AKTYWNE — maksymalne bonusy zwiększone do +30% / +60% / +75% / +150%</span>':'<br><span style="color:#778">📢 Ulepszenie "Personal brand" (Autopromocja 4 w drzewku rapera): zwiększa maksymalne bonusy do +30% / +60% / +75% / +150%</span>';
-    return `<strong style="color:#c8a520;font-size:17px;display:block;margin-bottom:6px">💎 Drip ${Math.floor(G.drip||0)}/200</strong>Luksusowy styl. Bonusy rosną liniowo z poziomem dripu:<br>• Koncerty (zarobki + fani): +0.1% / pkt — przy maksie (200) = +20% (z Ulepszeniem: +30%)<br>• Loopify/AurumWave tantiemy: +0.2% / pkt — przy maksie = +40% (z Ulepszeniem: +60%)<br>• Zaliczki Major/Global Label: +0.8-1.2% / pkt — przy maksie = +40-50% (z Ulepszeniem: +60-75%)<br>• Instagram zasięg: +0.5% / pkt — przy maksie = +100% (z Ulepszeniem: +150%)${_puNote}<br>Kup luksusowe ubrania (Dzielnica Dripu).`;
+    return `<strong style="color:#c8a520;font-size:17px;display:block;margin-bottom:6px">💎 Drip ${Math.floor(G.drip||0)}/200</strong>Luksusowy styl. Bonusy rosną liniowo z poziomem dripu:<br>• Koncerty (zarobki + fani): +0.1% / pkt — przy maksie (200) = +20% (z Ulepszeniem: +30%)<br>• Loopify/AurumWave tantiemy: +0.2% / pkt — przy maksie = +40% (z Ulepszeniem: +60%)<br>• Zaliczki Major/Global Label: +0.8-1.2% / pkt — przy maksie = +40-50% (z Ulepszeniem: +60-75%)<br>• FrameUp zasięg: +0.5% / pkt — przy maksie = +100% (z Ulepszeniem: +150%)${_puNote}<br>Kup luksusowe ubrania (Dzielnica Dripu).`;
   },
   /* v2.1.195: tooltip Kondycja z UI % spójnymi z formułą (bazą 2.0). Max stat 100 daje +19% prędkość, skill Kondycja max +10%, skill Bieg max +6%, PU Bieg max +15%, Evo Bieg +15%. Suma 65% nad bazą = cap 3.3. */
   kondycja:  ()=>`<strong style="color:#00bcd4;font-size:17px;display:block;margin-bottom:6px">🏃 Kondycja ${Math.floor(G.fitness||0)}/100</strong><br>Trening na bieżni w siłowni → <b>+19% prędkość pieszego</b> przy 100/100 + spadek mocy/decay. Plus skill „Kondycja" w drzewku (${typeof getSkillLvl==='function'?getSkillLvl('kondycja'):0}/5) → +2%/poziom prędkości (max +10%).`,
@@ -57203,6 +57203,12 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.66',date:'2026-06-26',cats:['beta-tester','Vegan','change'],reporter:'Vegan',title:'📸 Platforma społecznościowa (zdjęcia i stories) dostała własną markę — FrameUp',
+ items:[
+  {t:'change',d:'Wizualna platforma społecznościowa w telefonie (posty, stories, sponsoring) ma teraz własną markę świata gry — FrameUp, w różowym stylu. Rebrand wizualny: nazwa, kolory, panel i komunikaty. Twoi obserwujący, posty oraz zasięgi działają dokładnie tak samo jak wcześniej.'},
+ ]
+ },
  {
  ver:'v2.3.65',date:'2026-06-26',cats:['beta-tester','Vegan','change'],reporter:'Vegan',title:'▶️ Platforma wideo dostała własną markę — ViewGrid',
  items:[
@@ -69991,7 +69997,7 @@ const STORYLINE_QUESTS=[
   {id:'firstphone', em:'📱', name:'Otwórz telefon',   desc:'Naciśnij P żeby otworzyć telefon — to centrum gry: statystyki, sklepy muzyczne, bank, rachunki, zadania',
     check:()=>(G._tutStat?.phoneOpened||0)>=1, reward:{money:100,xp:10}},
   /* v2.1.702 (user: dodaj kroki o social media — wczesny). */
-  {id:'firstpost', em:'📸', name:'Pierwszy post', desc:'Wrzuć pierwszy post na Instagramie (Telefon → Online → Instagram) — social media buduje zasięg i obserwujących',
+  {id:'firstpost', em:'📸', name:'Pierwszy post', desc:'Wrzuć pierwszy post na Instagramie (Telefon → Online → FrameUp) — social media buduje zasięg i obserwujących',
     check:()=>(G.igPosts?.length||0)>=1, reward:{money:150,xp:15}},
   // ── BUDOWANIE BAZY (Day 2-5) ──
   {id:'freestyle',em:'🎤', name:'Pierwszy freestyle', desc:'Wypróbuj freestyle na ulicy — różowe kółko 🎤 na centralnej ulicy miasta, naprzeciwko Sali Koncertowej',
@@ -70040,7 +70046,7 @@ const STORYLINE_QUESTS=[
   {id:'fans100k', em:'🏆', name:'100 000 fanów',       desc:'Sześciocyfrowa baza fanów — gwiazda krajowej sceny. Regularne koncerty, virale, albumy. (10× próg Legendy)',
     check:()=>(G.fans||0)>=100000, reward:{money:60000,fame:40,skillPts:5}},
   /* v2.1.702 (user: kroki 19-21 były tylko o fanach — wstawiam social media + psa dla różnorodności). */
-  {id:'social100k',em:'💯', name:'Gwiazda social media', desc:'Zdobądź 100 000 obserwujących na social mediach (Instagram + Twitter). Zasięg online to osobna potęga obok lojalnych fanów.',
+  {id:'social100k',em:'💯', name:'Gwiazda social media', desc:'Zdobądź 100 000 obserwujących na social mediach (FrameUp + Twitter). Zasięg online to osobna potęga obok lojalnych fanów.',
     check:()=>(G.followers||0)>=100000, reward:{money:80000,fame:30,skillPts:4}},
   {id:'fans1m',   em:'🌍', name:'Milion fanów',         desc:'Milion lojalnych fanów — światowa gwiazda. Twoja muzyka gra na całym globie',
     check:()=>(G.fans||0)>=1000000, reward:{money:200000,fame:60,skillPts:8}},
@@ -70189,7 +70195,7 @@ const SIDE_STORYLINES={
   social:{
     name:'📱 Linia Social Media', color:'#e91e8c',
     quests:[
-      {id:'s1', em:'📸', name:'Pierwszy post', desc:'Wrzuc pierwszy post na Instagram',
+      {id:'s1', em:'📸', name:'Pierwszy post', desc:'Wrzuc pierwszy post na FrameUp',
         check:()=>(G.igPosts?.length||0)>=1, reward:{money:100,xp:15}},
       {id:'s2', em:'🐦', name:'Pierwszy tweet', desc:'Wyślij pierwszy tweet',
         check:()=>(G.lastTweetDay||0)>0, reward:{money:100,xp:15}},
