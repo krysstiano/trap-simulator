@@ -47492,7 +47492,9 @@ function phoneOpen(){return document.getElementById('phone').classList.contains(
 const _phApp=(em,label,bg,glow,fn,locked,lockedMsg)=>({em,label,bg,glow,fn,locked,lockedMsg});
 function _getPhoneFolders(){
   return {
-    social:{em:'🌐',label:'Sociale',preview:['📸','💬','▶️'],apps:[
+    social:{em:'🌐',label:'Sociale',preview:['📡','📸','💬'],apps:[
+      /* D8 (PDF „Fikcyjne platformy" sekcja 11): Artist Hub — zbiorczy podgląd kariery online (skrót diagnostyczny, NIE zastępuje apek). */
+      _phApp('📡','Artist Hub','#0a0e16','#7ec8e3',"renderPhoneArtistHub()"),
       _phApp('📸','FrameUp','#1a0812','#E94BFF',"renderPhoneApp('instagram')"),
       _phApp('💬','ChirpNet','#06111F','#43B7FF',"renderPhoneApp('twitter')"),
       _phApp('▶️','ViewGrid','#1a0808','#FF3045',"renderPhoneApp('youtube')"),
@@ -52214,6 +52216,74 @@ function renderPhonePassive(){
   `;
 }
 window.renderPhonePassive=renderPhonePassive;
+
+/* CZĘŚĆ D / D8 (PDF „Fikcyjne platformy" sekcja 11): Artist Hub — nadrzędny panel zbiorczy.
+   Skrót diagnostyczny kariery online (status + metryki wszystkich platform + dzisiejsze akcje).
+   NIE zastępuje aplikacji. Read-only agregacja istniejących liczników — ZERO nowych save keys (#1 save-safe). */
+function renderPhoneArtistHub(){
+  document.getElementById('ph-title').textContent='📡 Artist Hub';
+  let _status='Początkujący';
+  try{ if(typeof getRaperLevel==='function'){ const _lvl=getRaperLevel(); if(_lvl&&_lvl.name) _status=_lvl.name; } }catch(e){}
+  const _fmt=n=>Math.max(0,Math.floor(n||0)).toLocaleString('pl');
+  const _pnn=k=>(typeof _pn==='function')?_pn(k):k;
+  const _pcc=k=>(typeof _pc==='function')?_pc(k):'#7ec8e3';
+  const sp=G.spotify||{}, sc=G.soundcloud||{}, td=G.tidal||{}, yt=G.yt||{};
+  const _foll=Math.max(0,G.followers||0);
+  const _fans=Math.max(0,G.fans||0);
+  /* dostępność postu IG zgodna z apką (autopromocja 2 = 2 posty/dzień); read-only — NIE mutujemy G._igPostDay/Count */
+  const _igMax=(typeof getRaperST==='function' && getRaperST('autopromocja')>=2)?2:1;
+  const _igCountToday=((G._igPostDay||0)===G.day)?(G._igPostCount||0):0;
+  const _igAvail=_igCountToday<_igMax;
+  const _twAvail=(G.lastTweetDay||0)!==G.day; /* ChirpNet: zawsze 1 wpis/dzień */
+  const _royalties=Math.max(0,Math.floor((sp.royalties||0)+(td.royalties||0)+(sc.royalties||0)+(yt.adsense||0)));
+  const _row=(em,name,color,value,sub)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#0c0f16;border:1px solid ${color}33;border-left:3px solid ${color};border-radius:6px;margin-bottom:5px">
+    <div style="display:flex;align-items:center;gap:8px"><span style="font-size:15px">${em}</span><span style="color:#cdd;font-size:13px;font-weight:600">${name}</span></div>
+    <div style="text-align:right"><div style="color:${color};font-size:14px;font-weight:800">${value}</div>${sub?`<div style="color:#778;font-size:10px">${sub}</div>`:''}</div>
+  </div>`;
+  const _act=(em,label,avail,fn)=>`<button onclick="${fn}" style="display:flex;justify-content:space-between;align-items:center;width:100%;background:${avail?'#0a1f12':'#0e0e12'};border:1px solid ${avail?'#2a6a44':'#22262e'};border-radius:8px;padding:9px 11px;margin-bottom:5px;cursor:pointer;font-family:inherit">
+    <span style="color:${avail?'#cdd':'#667'};font-size:13px;font-weight:600">${em} ${label}</span>
+    <span style="color:${avail?'#7fffb0':'#556'};font-size:11px;font-weight:800">${avail?'dostępne':'✓ zrobione'}</span>
+  </button>`;
+  document.getElementById('ph-content').innerHTML=`
+    <div class="ph-screen">
+      <div style="background:linear-gradient(135deg,#101826,#0a0e16);border:2px solid #2a3a55;border-radius:10px;padding:14px;margin-bottom:12px">
+        <div style="font-size:11px;color:#7ec8e3;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px">Profil kariery online</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#2a3a55,#101826);display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;font-weight:900">${(G.name||'?')[0].toUpperCase()}</div>
+          <div>
+            <div style="font-size:16px;color:#fff;font-weight:900">${G.name||'Artysta'}</div>
+            <div style="font-size:12px;color:#9fb8d8">Status kariery: <b style="color:#7ec8e3">${_status}</b></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:14px;margin-top:10px;font-size:12px;color:#aab">
+          <span><b style="color:#fff">${_fmt(_fans)}</b> fanów</span>
+          <span><b style="color:#fff">${_fmt(_foll)}</b> obserwujących</span>
+          <span><b style="color:#fff">${_fmt(G.fame)}</b> sławy</span>
+        </div>
+      </div>
+      ${_royalties>0?`<div style="background:#0a1505;border:1px solid #2a6020;border-radius:8px;padding:10px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+        <span style="color:#7ec87e;font-size:12px;font-weight:600">💰 Tantiemy do odebrania w aplikacjach</span>
+        <span style="color:#27ae60;font-size:15px;font-weight:900">~${_fmt(_royalties)} zł</span>
+      </div>`:''}
+      <div style="font-size:11px;color:#9b59b6;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">🎵 Muzyka</div>
+      ${_row('🎵',_pnn('spotify'),_pcc('spotify'),_fmt(sp.listeners)+' słuchaczy','miesięcznie')}
+      ${_row('🟠',_pnn('soundcloud'),_pcc('soundcloud'),_fmt(sc.listeners)+' odtworzeń',(sc.tracksUploaded||0)+' demówek')}
+      ${_row('🌊',_pnn('tidal'),_pcc('tidal'),_fmt(td.listeners)+' słuchaczy','premium audio')}
+      <div style="font-size:11px;color:#FF3045;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:12px 0 6px">🎬 Content</div>
+      ${_row('▶️',_pnn('youtube'),_pcc('youtube'),_fmt(yt.subs)+' subskrybentów',(yt.videos?yt.videos.length:0)+' filmów')}
+      <div style="font-size:11px;color:#E94BFF;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:12px 0 6px">📱 Social</div>
+      ${_row('📸',_pnn('instagram')+' + '+_pnn('twitter'),'#E94BFF',_fmt(_foll)+' obserwujących','wspólny zasięg społecznościowy')}
+      <div style="font-size:11px;color:#f1c40f;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:14px 0 6px">⚡ Dzisiejsze akcje</div>
+      ${_act('📸','Post na '+_pnn('instagram'),_igAvail,"renderPhoneApp('instagram')")}
+      ${_act('💬','Wpis na '+_pnn('twitter'),_twAvail,"renderPhoneApp('twitter')")}
+      <div style="background:#060e18;border:1px solid #1a2535;border-radius:8px;padding:10px;font-size:11px;color:#778;line-height:1.5;margin-top:10px">
+        <b style="color:#aac">💡 Artist Hub</b> to skrót — jedno miejsce na podgląd kariery online. Pełne akcje i historia są w poszczególnych aplikacjach.
+      </div>
+    </div>
+    <div style="padding:8px 14px"><button class="cbtn" style="width:100%" onclick="renderPhoneHome()">← Wróć</button></div>
+  `;
+}
+window.renderPhoneArtistHub=renderPhoneArtistHub;
 
 function renderPhoneAchievements(){
   document.getElementById('ph-title').textContent='🏆 Trofea';
@@ -57203,6 +57273,12 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.68',date:'2026-06-26',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'📡 Nowy panel Artist Hub — kariera online w jednym miejscu',
+ items:[
+  {t:'feature',d:'W folderze Sociale w telefonie pojawił się Artist Hub — zbiorczy podgląd Twojej kariery online. W jednym miejscu widzisz status kariery, liczbę fanów i obserwujących, słuchaczy oraz subskrybentów ze wszystkich platform, tantiemy czekające na odebranie, a także co jeszcze możesz dziś zrobić w mediach społecznościowych. To skrót diagnostyczny — pełne akcje robisz dalej w poszczególnych aplikacjach. Niczego nie zmienia w Twoich danych.'},
+ ]
+ },
  {
  ver:'v2.3.67',date:'2026-06-26',cats:['beta-tester','Vegan','change'],reporter:'Vegan',title:'💬 Platforma tekstowa w telefonie dostała własną markę — ChirpNet',
  items:[
