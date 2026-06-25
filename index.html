@@ -57043,6 +57043,14 @@ function showHelp(){
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
  {
+ ver:'v2.3.54',date:'2026-06-25',cats:['beta-tester','Vegan','fix'],reporter:'Vegan',title:'🎨 Ustawienia grafiki działają naprawdę — tryb „Żywy" rozjaśnia zamiast przyciemniać, mocniejsze shadery',
+ items:[
+  {t:'fix',d:'Tryb koloru „Żywy" zamiast ożywiać obraz po prostu go przyciemniał. Teraz faktycznie rozjaśnia scenę i mocno podbija nasycenie — kolory są soczyste, a obraz jaśniejszy niż bez filtra, tak jak powinno być.'},
+  {t:'fix',d:'Pozostałe filtry kolorów (Ciepły, Zimny, Cyberpunk) też nie ściemniają już obrazu — każdy daje wyraźną, odczuwalną zmianę klimatu, a nie ledwie zauważalny efekt. Noir pozostaje celowo czarno-biały i kontrastowy.'},
+  {t:'feature',d:'Poświata (Bloom) realnie rozświetla teraz jasne miejsca i neony — wcześniej blask był prawie niewidoczny. Ziarno filmowe również stało się lepiej widoczne. Wszystkie efekty w zakładce Efekty/Shadery (ESC → Ustawienia) robią teraz prawdziwą różnicę na ekranie.'},
+ ]
+ },
+ {
  ver:'v2.3.54',date:'2026-06-23',cats:['feature'],title:'🚐 Nowy moduł: pojazdy specjalne (kamper)',
  items:[
   {t:'feature',d:'Pojawił się zupełnie nowy moduł pojazdów specjalnych — kamper jako mobilne zaplecze. W salonie samochodowym kupisz teraz kampery klasy premium, a na obrzeżach miasta odkryjesz komis pojazdów używanych z tańszymi modelami „z historią". Sześć modeli, każdy z własną pojemnością, awaryjnością i poziomem maskowania — od taniego, brudnego startu po prestiżowy pojazd, którego nikt nie podejrzewa.'},
@@ -77953,10 +77961,12 @@ loop();
   var KEY='snowy_gfx';
   var DEF={ renderScale:1, fpsLimit:0, smoothing:'high', colorGrade:'none', bloom:false, vignette:false, scanlines:false, grain:false };
   /* presety filtra koloru (CSS filter — realny GPU post-process) */
+  /* v2.3.54: brightness kompensuje contrast — kolorowe presety NIE ciemnieją (fix „Żywy był ciemny")
+     + mocniejsza saturacja = realnie odczuwalna różnica jak w grach AAA (zmierzone _diag_gfx.mjs). */
   var GRADES={
-    none:'', noir:'grayscale(1) contrast(1.12)', cieply:'sepia(.34) saturate(1.32) brightness(1.03)',
-    zimny:'hue-rotate(-12deg) saturate(1.15) brightness(1.02) contrast(1.05)', zywy:'saturate(1.55) contrast(1.08)',
-    cyberpunk:'saturate(1.65) hue-rotate(8deg) contrast(1.14) brightness(1.05)'
+    none:'', noir:'grayscale(1) contrast(1.18) brightness(1.06)', cieply:'sepia(.5) saturate(1.5) brightness(1.07) hue-rotate(-6deg)',
+    zimny:'hue-rotate(-20deg) saturate(1.35) brightness(1.1) contrast(1.04)', zywy:'saturate(1.85) brightness(1.13) contrast(1.05)',
+    cyberpunk:'saturate(2) hue-rotate(12deg) brightness(1.12) contrast(1.1)'
   };
   var GRADE_NAMES={none:'Brak',noir:'Noir (cz-b)',cieply:'Ciepły',zimny:'Zimny',zywy:'Żywy',cyberpunk:'Cyberpunk'};
   function load(){ var s={}; try{ s=JSON.parse(localStorage.getItem(KEY)||'{}')||{}; }catch(_){ s={}; } var o={}; for(var k in DEF) o[k]=(s[k]!==undefined)?s[k]:DEF[k]; return o; }
@@ -77968,10 +77978,13 @@ loop();
       var svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
       svg.id='uw-gfx-svg'; svg.setAttribute('width','0'); svg.setAttribute('height','0');
       svg.style.cssText='position:absolute;width:0;height:0;pointer-events:none';
+      /* v2.3.54: bloom przez feBlend mode=screen — glow ROZJAŚNIA jasne miejsca/neony i jest widoczny
+         na nieprzezroczystym canvasie (stary feMerge zasłaniał blask SourceGraphic-iem na wierzchu → szum).
+         Rozmycie podbite jasnością (slope 1.5) zanim screen → wyraźny blask (user „shadery mają robić różnicę"). */
       svg.innerHTML='<defs><filter id="uw-bloom" x="-20%" y="-20%" width="140%" height="140%">'
-        +'<feGaussianBlur in="SourceGraphic" stdDeviation="2.2" result="b"/>'
-        +'<feColorMatrix in="b" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1.4 0" result="bb"/>'
-        +'<feMerge><feMergeNode in="bb"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
+        +'<feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="b"/>'
+        +'<feComponentTransfer in="b" result="bb"><feFuncR type="linear" slope="1.5"/><feFuncG type="linear" slope="1.5"/><feFuncB type="linear" slope="1.5"/></feComponentTransfer>'
+        +'<feBlend in="SourceGraphic" in2="bb" mode="screen"/></filter></defs>';
       document.body.appendChild(svg);
     }
     var wrap=document.getElementById('wrap'); if(!wrap) return;
@@ -77981,7 +77994,7 @@ loop();
       ov.style.cssText='position:absolute;left:0;top:0;width:1280px;height:720px;pointer-events:none;z-index:6;overflow:hidden';
       ov.innerHTML='<div id="uw-fx-vignette" style="position:absolute;inset:0;display:none;background:radial-gradient(ellipse at center,transparent 52%,rgba(0,0,0,.55) 100%)"></div>'
         +'<div id="uw-fx-scan" style="position:absolute;inset:0;display:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0px,rgba(0,0,0,.16) 1px,transparent 2px,transparent 3px);mix-blend-mode:multiply"></div>'
-        +'<div id="uw-fx-grain" style="position:absolute;inset:0;display:none;opacity:.06;background-image:url(\'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%22120%22><filter id=%22n%22><feTurbulence type=%22fractalNoise%22 baseFrequency=%220.9%22 numOctaves=%222%22/></filter><rect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23n)%22/></svg>\');background-size:180px 180px"></div>';
+        +'<div id="uw-fx-grain" style="position:absolute;inset:0;display:none;opacity:.14;mix-blend-mode:overlay;background-image:url(\'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%22120%22><filter id=%22n%22><feTurbulence type=%22fractalNoise%22 baseFrequency=%220.9%22 numOctaves=%222%22/></filter><rect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23n)%22/></svg>\');background-size:180px 180px"></div>';
       wrap.appendChild(ov);
     }
     return ov;
