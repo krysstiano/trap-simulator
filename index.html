@@ -33538,6 +33538,23 @@ function renderDAWOverlay(tab='beatmaker'){
     <span class="chip" style="background:rgba(${(ct.lyricsQ||0)>0?'46,204,113':'80,90,110'},0.12);border-color:rgba(${(ct.lyricsQ||0)>0?'46,204,113':'80,90,110'},0.3);color:${_ck(ct.lyricsQ||0)}">📝 Teksty ${ct.lyricsQ||0}%</span>
     <span class="chip chip-purple" style="margin-left:auto">${GENRES[ct.genre||'trap']?.name||'Trap'}</span>
   </div>`;
+  /* A9b: switcher utworów „aktywny + parkowane" — gracz może odłożyć bieżący utwór i wczytać inny do miksu/masteru/publikacji. */
+  const _drafts=Array.isArray(G.trackDrafts)?G.trackDrafts:[];
+  const _curName=(ct.name||'').trim()||'(bez tytułu)';
+  const switcherHtml=`<div style="margin-bottom:12px;padding:10px 14px;background:rgba(20,12,30,0.6);border:1px solid #3a2a5a;border-radius:10px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap${_drafts.length?';margin-bottom:8px':''}">
+      <span style="color:#9b59b6;font-size:13px;font-weight:700">🎵 Utwór w pracy:</span>
+      <span style="color:#fff;font-size:13px">${_curName} <span style="color:#778">· ${GENRES[ct.genre||'trap']?.name||'Trap'}</span></span>
+      <button class="dbtn" style="margin:0 0 0 auto;padding:6px 12px;font-size:12px" onclick="window._trackNewDraft();renderDAWOverlay('beatmaker')">➕ Nowy utwór</button>
+    </div>
+    ${_drafts.length?`<div style="display:flex;flex-direction:column;gap:5px">
+      <div style="color:#778;font-size:11px">Odłożone utwory (${_drafts.length}) — wczytaj, by kontynuować miks / master / publikację:</div>
+      ${_drafts.map(d=>`<div style="display:flex;align-items:center;gap:8px;background:#0d0d18;border:1px solid #2a2a40;border-radius:6px;padding:6px 10px">
+        <div style="flex:1;min-width:0;font-size:12px;color:#cdd">${(d.name||'').trim()||'(bez tytułu)'} <span style="color:#667">· ${GENRES[d.genre||'trap']?.name||'Trap'}</span> <span style="color:#778">· 🎹${d.beatQ||0} 🎤${d.vocalQ||0} 🎚️${d.mixQ||0} 🎛️${d.masterQ||0}</span></div>
+        <button class="dbtn" style="margin:0;padding:5px 10px;font-size:11px" onclick="window._trackLoadDraft(${d._tid});renderDAWOverlay('${tab}')">📂 Wczytaj</button>
+      </div>`).join('')}
+    </div>`:''}
+  </div>`;
 
   let tabContent='';
   if(tab==='beatmaker'){
@@ -33897,6 +33914,7 @@ function renderDAWOverlay(tab='beatmaker'){
   document.getElementById('ov-content').innerHTML=`
     <h2 style="color:#9b59b6">💻 Studio DAW${G.dawTier?` <span style="font-size:13px;color:#00bcd4">${{1:'Basic',2:'Pro',3:'Logic Pro'}[G.dawTier]}</span>`:''}</h2>
     <div style="display:flex;gap:0;border-bottom:1px solid #1a1a2a;margin-bottom:12px">${tabHtml}</div>
+    ${switcherHtml}
     ${trackStatus}
     <style>.mix-row{display:flex;align-items:center;gap:10px;background:#0a1018;padding:8px 12px;border-radius:6px}</style>
     ${tabContent}
@@ -57168,6 +57186,13 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.61',date:'2026-06-25',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'🎵 Studio — pracuj nad kilkoma utworami naraz: odkładaj i wczytuj, miksuj/masteruj który chcesz',
+ items:[
+  {t:'feature',d:'W studiu możesz teraz mieć kilka utworów w toku jednocześnie. Przyciskiem „Nowy utwór" odkładasz bieżący kawałek na bok i zaczynasz kolejny, a z listy odłożonych jednym kliknięciem wczytujesz dowolny, by kontynuować jego miks, master czy publikację. Każdy utwór trzyma swój własny postęp (beat, wokal, miks, master) niezależnie.'},
+  {t:'change',d:'Nad zakładkami studia pojawił się pasek z aktualnym utworem oraz listą odłożonych szkiców — od razu widzisz, nad czym pracujesz i co czeka w kolejce. Opublikowane utwory i albumy pozostają bez zmian.'},
+ ]
+ },
  {
  ver:'v2.3.60',date:'2026-06-25',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'📺 YouTube — każdy film osobno: nagraj kilka, wybieraj który zmontować i opublikować',
  items:[
