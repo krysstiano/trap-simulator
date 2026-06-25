@@ -16703,7 +16703,7 @@ const ACHIEVEMENTS = [
   {id:'ig_sponsor_pro',name:'IG Sponsor Pro',desc:'Wykonaj 20 sponsored postów (FrameUp)',icon:'💼',check:()=>(G._igSponsoredCount||0)>=20},
   /* v2.1.501 AO.5 — filter master: użyj wszystkich 5 filtrów IG (kolejnych unique). */
   {id:'ig_filter_master',name:'Filter Master',desc:'Użyj wszystkich 5 filtrów IG (normal/vintage/B&W/vibrant/dark mood)',icon:'🎨',check:()=>{const s=G._igFiltersUsed||{};return ['normal','vintage','bw','vibrant','dark'].every(k=>s[k]);}},
-  {id:'ig_tweet_master',name:'Twitter Master',desc:'Napisz 30 customowych tweetów (composer)',icon:'🐦',check:()=>(G.userTweets?.length||0)>=30},
+  {id:'ig_tweet_master',name:'ChirpNet Master',desc:'Napisz 30 własnych wpisów (kompozytor)',icon:'💬',check:()=>(G.userTweets?.length||0)>=30},
   /* v2.1.397 Faza AQ Etap 2 (user 2026-05-28): pies achievementy */
   /* v2.1.408 Faza AN.4 Etap 2: 5 trap achievementy. */
   {id:'trap_unlock',name:'Pierwszy biznes',desc:'Spotkaj dealera w Underground District',icon:'🤝',check:()=>!!(G.trap?.unlocked)},
@@ -18024,7 +18024,7 @@ window._checkTwitterSponsorshipOffer=function(){
   if(G.twitterSponsorship && (G.day - (G.twitterSponsorship.startDay||0)) <= 1) return;
   /* Wygasłe — wyczyść */
   if(G.twitterSponsorship && G.day - (G.twitterSponsorship.startDay||0) > 1){
-    if(typeof addNotif==='function') addNotif('💔 Twitter sponsorship wygasł — gracz NIE tweetnął w czas.');
+    if(typeof addNotif==='function') addNotif('💔 ChirpNet sponsoring wygasł — nie opublikowano wpisu w czas.');
     G.twitterSponsorship=null;
   }
   /* Cap 2/week */
@@ -18051,18 +18051,18 @@ window._checkTwitterSponsorshipOffer=function(){
   const payout=Math.floor((payoutMin + Math.random()*(payoutMax-payoutMin))*0.75*((typeof _defamationCareerMods==='function')?_defamationCareerMods().payoutMult:1)); /* v2.1.834: sponsoring Twitter -25% (rebalans Vegan). K-4: skalowane przez zniesławienie */
   const brand=brandList[Math.floor(Math.random()*brandList.length)];
   G._twitterSponsorshipPendingOffer={brand, payout, expireDay:G.day+2};
-  if(typeof addNotif==='function') addNotif(`💼 Twitter sponsorship: ${brand} oferuje ${payout} zł za promocję w next tweet (24h).`);
+  if(typeof addNotif==='function') addNotif(`💼 ChirpNet sponsoring: ${brand} oferuje ${payout} zł za promocję w kolejnym wpisie (24h).`);
 };
 
 window._acceptTwitterSponsorship=function(){
   if(!G._twitterSponsorshipPendingOffer) return;
-  if(G.twitterSponsorship){if(typeof showMsg==='function') showMsg('⚠️ Już masz active Twitter sponsorship.','r');return;}
+  if(G.twitterSponsorship){if(typeof showMsg==='function') showMsg('⚠️ Masz już aktywny sponsoring ChirpNet.','r');return;}
   if(G._twitterSponsorshipsThisWeek>=2){if(typeof showMsg==='function') showMsg('⚠️ Limit 2 sponsorships/tydzień osiągnięty.','r');return;}
   const o=G._twitterSponsorshipPendingOffer;
   G.twitterSponsorship={brandName:o.brand,payout:o.payout,startDay:G.day,used:false};
   G._twitterSponsorshipPendingOffer=null;
   G._twitterSponsorshipsThisWeek=(G._twitterSponsorshipsThisWeek||0)+1;
-  if(typeof showMsg==='function') showMsg(`✅ Twitter sponsorship ${o.brand} przyjęty! Tweetnij w next 24h żeby otrzymać ${o.payout} zł.`,'g',6000);
+  if(typeof showMsg==='function') showMsg(`✅ Sponsoring ChirpNet ${o.brand} przyjęty! Opublikuj wpis w 24h żeby otrzymać ${o.payout} zł.`,'g',6000);
   if(typeof renderPhoneApp==='function') renderPhoneApp('twitter');
 };
 
@@ -24090,7 +24090,7 @@ window._declineTwitterSponsorship=function(){
   const o=G._twitterSponsorshipPendingOffer;
   G._twitterSponsorshipPendingOffer=null;
   G._twitterSponsorshipCooldownUntil=G.day+5;
-  if(typeof showMsg==='function') showMsg(`❌ Twitter oferta ${o.brand} odrzucona. Nowa za 5 dni.`,'f',5000);
+  if(typeof showMsg==='function') showMsg(`❌ Oferta ChirpNet ${o.brand} odrzucona. Nowa za 5 dni.`,'f',5000);
   if(typeof renderPhoneApp==='function') renderPhoneApp('twitter');
 };
 
@@ -24300,9 +24300,9 @@ const CHOICE_EVENTS=[
     ]
   )},
   /* v2.1.228 audit-fix #49: text mówił "obraźliwych tweetów o Twojej muzyce" mimo że event tylko sprawdza followers>=2000 (gracz mógł nie mieć żadnej muzyki). Tekst zmieniono na ogólnokrytyczny (styl, postawa). */
-  {name:'Hejt na Twitter', chance:0.012, cond:()=>_evPhoneSpot()&&G.followers>=2000, fn:()=>showEventChoice(
-    '🐦 Lawina hejtu',
-    'Anonimowe konto napisało serię obraźliwych tweetów o Twoim stylu i postawie. Reagujesz publicznie czy ignorujesz?',
+  {name:'Hejt na ChirpNet', chance:0.012, cond:()=>_evPhoneSpot()&&G.followers>=2000, fn:()=>showEventChoice(
+    '💬 Lawina hejtu',
+    'Anonimowe konto napisało serię obraźliwych wpisów o Twoim stylu i postawie. Reagujesz publicznie czy ignorujesz?',
     [
       {label:'🔥 Odpowiedz ostro (+200 fanów, +50 hejterów, +sława)', fn:()=>{G.followers+=200;G.haters=(G.haters||0)+50;if(typeof addFame==='function')addFame(3);else G.fame=clamp(G.fame+3,0,500);notify('🔥 Twoja odpowiedź zrobiła zasięg! +200 fanów, +50 hejterów');}},
       {label:'🧘 Ignoruj (-10 nastrój, +5 reputacji)', fn:()=>{G.stress=clamp(G.stress-10,0,100);G.streetRep=clamp(G.streetRep+5,0,100);notify('🧘 Profesjonalna postawa. +5 reputacji uliczne.');}}
@@ -30833,7 +30833,7 @@ const PLATFORM_BRAND = {
   tidal:      { name:'AurumWave',       short:'AurumWave', real:'Tidal',      color:'#D7B35A', accent:'#101A2F', emoji:'🟡', role:'premium_audio' },
   youtube:    { name:'ViewGrid',        short:'ViewGrid',  real:'YouTube',    color:'#FF3045', accent:'#2A2A31', emoji:'🔴', role:'video_content' },
   instagram:  { name:'FrameUp',         short:'FrameUp',   real:'Instagram',  color:'#E94BFF', accent:'#6D35FF', emoji:'🟣', role:'visual_social' },
-  twitter:    { name:'ChirpNet',        short:'ChirpNet',  real:'Twitter',    color:'#43B7FF', accent:'#0F2A44', emoji:'🔵', role:'text_social' },
+  twitter:    { name:'ChirpNet',        short:'ChirpNet',  real:'Twitter',    color:'#43B7FF', accent:'#0F2A44', emoji:'💬', role:'text_social' },
 };
 window.PLATFORM_BRAND = PLATFORM_BRAND;
 window._pn = function(key){ const b=PLATFORM_BRAND[key]; return b ? b.name : key; };    /* display name */
@@ -47492,9 +47492,9 @@ function phoneOpen(){return document.getElementById('phone').classList.contains(
 const _phApp=(em,label,bg,glow,fn,locked,lockedMsg)=>({em,label,bg,glow,fn,locked,lockedMsg});
 function _getPhoneFolders(){
   return {
-    social:{em:'🌐',label:'Sociale',preview:['📸','🐦','▶️'],apps:[
+    social:{em:'🌐',label:'Sociale',preview:['📸','💬','▶️'],apps:[
       _phApp('📸','FrameUp','#1a0812','#E94BFF',"renderPhoneApp('instagram')"),
-      _phApp('🐦','Twitter','#050f1c','#1da1f2',"renderPhoneApp('twitter')"),
+      _phApp('💬','ChirpNet','#06111F','#43B7FF',"renderPhoneApp('twitter')"),
       _phApp('▶️','ViewGrid','#1a0808','#FF3045',"renderPhoneApp('youtube')"),
     ]},
     streaming:{em:'🎵',label:'Streaming',preview:['🟠','🎵','🌊'],apps:[
@@ -47700,7 +47700,7 @@ function renderPhoneApp(app){
   window._phGoBack=()=>{ if(_fold && _getPhoneFolders()[_fold]) renderPhoneFolder(_fold); else renderPhoneHome(); };
   window._phHotkeys={};
   const ph=document.getElementById('ph-content');
-  const titles={spotify:'🎵 Loopify Artists',tidal:'🌊 AurumWave',youtube:'📺 ViewGrid',instagram:'📸 FrameUp',twitter:'🐦 Twitter',bank:'🏦 Bank',bills:'💸 Rachunki',merch:'🧢 Merch',label:'🎼 Wytwórnia'};
+  const titles={spotify:'🎵 Loopify Artists',tidal:'🌊 AurumWave',youtube:'📺 ViewGrid',instagram:'📸 FrameUp',twitter:'💬 ChirpNet',bank:'🏦 Bank',bills:'💸 Rachunki',merch:'🧢 Merch',label:'🎼 Wytwórnia'};
   document.getElementById('ph-title').textContent=titles[app]||app;
 
   /* v2.3.33 BUGFIX (Vegan: „masa apek nie dziala") — DEFENSYWNA SANITACJA przed renderem KAZDEJ apki.
@@ -47995,7 +47995,7 @@ function renderPhoneApp(app){
           <div style="margin-bottom:5px"><b style="color:#c8a520">💎 Drip / prestiż (Dzielnica Dripu)</b> — IG posty +0.5%/pkt (drip 200 = +100% zasięg), też zwiększa promo z trendów</div>
           <div style="margin-bottom:5px"><b style="color:#3498db">💪 Forma fizyczna (G.forma)</b> — +0.5% follower-gain per pkt formy (postsy IG zwracają lepsze wyniki)</div>
           <div style="margin-bottom:5px"><b style="color:#e74c3c">🌟 Sława (fame)</b> — wyższa sława = więcej lojalnych fanów + lepsze trendy w mediach</div>
-          <div style="margin-bottom:5px"><b style="color:#1da1f2">🐦 Twitter (1 tweet/dzień)</b> — viral memy: 15% szans na +200 followersów</div>
+          <div style="margin-bottom:5px"><b style="color:#43B7FF">💬 ChirpNet (1 wpis/dzień)</b> — viral memy: 15% szans na +200 followersów</div>
           <div style="margin-bottom:5px"><b style="color:#1db954">🎵 Streamy / royalty</b> — premiery singli i albumów w studio dają cykliczne przyrosty słuchaczy + IG</div>
           <div><b style="color:#f39c12">🏆 Milestone'y fanów</b> — 1k/10k/100k dają jednorazowe bonusy kasy + sławy</div>
         </div>
@@ -48164,9 +48164,9 @@ function renderPhoneApp(app){
     let _twSponsorshipBanner='';
     if(G._twitterSponsorshipPendingOffer && G.day <= G._twitterSponsorshipPendingOffer.expireDay){
       const o=G._twitterSponsorshipPendingOffer;
-      _twSponsorshipBanner=`<div style="background:linear-gradient(135deg,#0a1a2a,#1a3050);border:2px solid #1da1f2;border-radius:10px;padding:14px;margin-bottom:14px;color:#fff">
-        <div style="font-size:14px;color:#1da1f2;font-weight:900;margin-bottom:6px">💼 NOWY SPONSOR TWITTER</div>
-        <div style="font-size:13px;margin-bottom:6px">${o.brand} oferuje <b style="color:#1da1f2">${o.payout} zł</b> za promocję w next tweet (do dnia ${o.expireDay}).</div>
+      _twSponsorshipBanner=`<div style="background:linear-gradient(135deg,#0a1a2a,#1a3050);border:2px solid #43B7FF;border-radius:10px;padding:14px;margin-bottom:14px;color:#fff">
+        <div style="font-size:14px;color:#43B7FF;font-weight:900;margin-bottom:6px">💼 NOWY SPONSOR CHIRPNET</div>
+        <div style="font-size:13px;margin-bottom:6px">${o.brand} oferuje <b style="color:#43B7FF">${o.payout} zł</b> za promocję w kolejnym wpisie (do dnia ${o.expireDay}).</div>
         <div style="display:flex;gap:8px;margin-top:10px">
           <button class="bbtn" onclick="window._acceptTwitterSponsorship()" style="background:#1a5a2a;border-color:#27ae60;color:#dde">✅ Akceptuj</button>
           <button class="cbtn" onclick="window._declineTwitterSponsorship()" style="background:#3a1a1a;border-color:#a04030;color:#dde">❌ Odrzuć</button>
@@ -48174,8 +48174,8 @@ function renderPhoneApp(app){
       </div>`;
     } else if(G.twitterSponsorship && !G.twitterSponsorship.used && (G.day-G.twitterSponsorship.startDay)<=1){
       _twSponsorshipBanner=`<div style="background:linear-gradient(135deg,#0a2a1a,#1a4a3a);border:2px solid #27ae60;border-radius:10px;padding:12px;margin-bottom:12px;color:#dde">
-        <div style="font-size:13px;color:#27ae60;font-weight:700">💼 Active Twitter Sponsorship: ${G.twitterSponsorship.brandName}</div>
-        <div style="font-size:11px;color:#aab;margin-top:4px">Tweetnij żeby otrzymać <b style="color:#1da1f2">${G.twitterSponsorship.payout} zł</b></div>
+        <div style="font-size:13px;color:#27ae60;font-weight:700">💼 Aktywny sponsoring ChirpNet: ${G.twitterSponsorship.brandName}</div>
+        <div style="font-size:11px;color:#aab;margin-top:4px">Opublikuj wpis żeby otrzymać <b style="color:#43B7FF">${G.twitterSponsorship.payout} zł</b></div>
       </div>`;
     }
     /* v2.1.391 Faza AP.5 Etap 2 (user 2026-05-28): Verified tiers 4 (analog do prawdziwego Twittera bez vs Premium tiers). */
@@ -48184,22 +48184,22 @@ function renderPhoneApp(app){
     if(_f>=1000000){verifiedTier=4;verifiedIcon='👑';verifiedColor='#e91e8c';verifiedLabel='Iconic';}
     else if(_f>=100000){verifiedTier=3;verifiedIcon='💎';verifiedColor='#c8a520';verifiedLabel='Famous';}
     else if(_f>=10000){verifiedTier=2;verifiedIcon='⭐';verifiedColor='#f39c12';verifiedLabel='Popular';}
-    else if(_f>=1000){verifiedTier=1;verifiedIcon='✓';verifiedColor='#1da1f2';verifiedLabel='Verified';}
+    else if(_f>=1000){verifiedTier=1;verifiedIcon='✓';verifiedColor='#43B7FF';verifiedLabel='Verified';}
     const verified=verifiedTier!==null;
     ph.innerHTML=`<div class="ph-screen">
       ${_twSponsorshipBanner}
-      <!-- Profile header (Twitter-style banner + avatar) -->
-      <div style="background:linear-gradient(135deg,#0a1a2a,#1a2a3a);border-radius:10px;overflow:hidden;margin-bottom:10px;border:1px solid #1da1f230">
+      <!-- Profile header (ChirpNet-style banner + avatar) -->
+      <div style="background:linear-gradient(135deg,#0a1a2a,#1a2a3a);border-radius:10px;overflow:hidden;margin-bottom:10px;border:1px solid #43B7FF30">
         <!-- Banner -->
-        <div style="height:50px;background:linear-gradient(135deg,#1da1f2,#0a3a5a);position:relative">
+        <div style="height:50px;background:linear-gradient(135deg,#43B7FF,#0a3a5a);position:relative">
           <!-- Avatar overlap -->
-          <div style="position:absolute;bottom:-22px;left:14px;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#1da1f2,#0d8bd9);border:3px solid #050f1c;display:flex;align-items:center;justify-content:center;font-size:24px;color:#fff;font-weight:900">${initial}</div>
+          <div style="position:absolute;bottom:-22px;left:14px;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#43B7FF,#0d8bd9);border:3px solid #06111F;display:flex;align-items:center;justify-content:center;font-size:24px;color:#fff;font-weight:900">${initial}</div>
         </div>
         <!-- Profile info -->
         <div style="padding:30px 14px 12px">
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
             <div style="font-size:17px;color:#fff;font-weight:900">${G.name}</div>
-            ${verified?`<span title="${verifiedLabel} — Tier ${verifiedTier} (${verifiedTier===1?'1k+':verifiedTier===2?'10k+':verifiedTier===3?'100k+':'1M+'} obserwujących) · +${verifiedTier===1?5:verifiedTier===2?8:verifiedTier===3?12:15}% engagement na tweetach" style="color:${verifiedColor};font-size:14px">${verifiedIcon}</span>`:''}
+            ${verified?`<span title="${verifiedLabel} — Tier ${verifiedTier} (${verifiedTier===1?'1k+':verifiedTier===2?'10k+':verifiedTier===3?'100k+':'1M+'} obserwujących) · +${verifiedTier===1?5:verifiedTier===2?8:verifiedTier===3?12:15}% zaangażowania na wpisach" style="color:${verifiedColor};font-size:14px">${verifiedIcon}</span>`:''}
           </div>
           <div style="font-size:12px;color:#778;margin-bottom:8px">@${handle}</div>
           <div style="font-size:12px;color:#aaa;line-height:1.4;margin-bottom:8px">🎤 Chłopak z ulicy. ${G.fame>=20?'Słychać o mnie w mieście.':'Buduję markę.'}${G.label.type?' · 🎼 '+G.label.type:''}</div>
@@ -48224,32 +48224,32 @@ function renderPhoneApp(app){
         _trends.push({tag:'#WroclawNocą',count:rnd(2000,15000),topic:'Miasto'});
         const _top5=_trends.slice(0,5);
         return `<div style="background:#0a1a2a;border:1px solid #1a2a3a;border-radius:10px;padding:10px;margin-bottom:10px">
-          <div style="font-size:12px;color:#1da1f2;font-weight:900;margin-bottom:8px">📊 NA CZASIE</div>
+          <div style="font-size:12px;color:#43B7FF;font-weight:900;margin-bottom:8px">📊 NA CZASIE</div>
           ${_top5.map((t,i)=>`<div style="padding:5px 0;border-bottom:${i<_top5.length-1?'1px solid #0a1525':'none'};font-size:11px;cursor:pointer" onclick="window._tweetTrendingTopic&&window._tweetTrendingTopic('${t.tag}')">
             <div style="color:#778;font-size:9px">${t.topic} · Na czasie</div>
             <div style="color:#fff;font-weight:600">${t.tag}</div>
-            <div style="color:#5a8aac;font-size:10px">${t.count.toLocaleString('pl')} Tweetów</div>
+            <div style="color:#5a8aac;font-size:10px">${t.count.toLocaleString('pl')} wpisów</div>
           </div>`).join('')}
         </div>`;
       })()}
       ${canTweet?`
-      <div style="font-size:11px;color:#778;letter-spacing:1px;margin-bottom:6px">📝 WYBIERZ TWEET (1/dzień)</div>
+      <div style="font-size:11px;color:#778;letter-spacing:1px;margin-bottom:6px">📝 WYBIERZ WPIS (1/dzień)</div>
       ${(()=>{ const _tt=(typeof _twitterTrendingTags==='function')?_twitterTrendingTags():[]; if(!_tt.length) return ''; return `<div style="background:#0a1f14;border:1px solid #1a5a3a;border-radius:10px;padding:10px;margin-bottom:10px">
         <div style="font-size:11px;color:#2ecc71;font-weight:900;margin-bottom:4px">🔥 TRENDUJĄCE TAGI DZIŚ <span style="color:#5a8a6a;font-weight:600;font-size:9px">· rotacja co 4 dni</span></div>
-        <div style="font-size:10px;color:#7a9a8a;margin-bottom:6px">Wpleć je w swój tweet → <b style="color:#2ecc71">+3-10% zasięgu</b> (więcej trendujących = bliżej 10%). Kliknij, by dodać do tweeta.</div>
+        <div style="font-size:10px;color:#7a9a8a;margin-bottom:6px">Wpleć je w swój wpis → <b style="color:#2ecc71">+3-10% zasięgu</b> (więcej trendujących = bliżej 10%). Kliknij, by dodać do wpisu.</div>
         <div style="display:flex;flex-wrap:wrap;gap:5px">${_tt.map(t=>`<span onclick="(function(){var i=document.getElementById('tweet-custom-input');if(i){i.value=(i.value+' '+'${t}').trim().slice(0,280);i.dispatchEvent(new Event('input'));i.focus();}})()" style="background:#10331f;border:1px solid #2a6a44;color:#7fffb0;font-size:11px;padding:3px 9px;border-radius:12px;cursor:pointer">${t}</span>`).join('')}</div>
       </div>`; })()}
       <!-- v2.1.393 Faza AP.1 Etap 2: Custom Tweet Composer (gracz pisze własny tekst) -->
-      <div style="background:#0a1a2a;border:1px solid #1da1f230;border-radius:10px;padding:10px;margin-bottom:10px">
-        <div style="font-size:11px;color:#1da1f2;font-weight:900;margin-bottom:6px">✍️ NAPISZ WŁASNY TWEET</div>
-        <textarea id="tweet-custom-input" maxlength="280" placeholder="Co tam u Ciebie? 💡 #hashtagi + pytanie + emoji = większy zasięg (max 280)" style="width:100%;min-height:54px;background:#050f1c;border:1px solid #1a2a3a;border-radius:6px;color:#fff;padding:8px;font-family:inherit;font-size:12px;resize:none;box-sizing:border-box"
+      <div style="background:#0a1a2a;border:1px solid #43B7FF30;border-radius:10px;padding:10px;margin-bottom:10px">
+        <div style="font-size:11px;color:#43B7FF;font-weight:900;margin-bottom:6px">✍️ NAPISZ WŁASNY WPIS</div>
+        <textarea id="tweet-custom-input" maxlength="280" placeholder="Co tam u Ciebie? 💡 #hashtagi + pytanie + emoji = większy zasięg (max 280)" style="width:100%;min-height:54px;background:#06111F;border:1px solid #1a2a3a;border-radius:6px;color:#fff;padding:8px;font-family:inherit;font-size:12px;resize:none;box-sizing:border-box"
           oninput="(function(t){const c=document.getElementById('tweet-custom-count');if(c)c.textContent=t.value.length+'/280';})(this)"></textarea>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
           <span id="tweet-custom-count" style="font-size:10px;color:#778">0/280</span>
-          <button class="bbtn" onclick="window._tweetCustom()" style="background:#0a3a5a;border-color:#1da1f2;color:#fff;padding:6px 16px;font-size:12px">Tweetuj</button>
+          <button class="bbtn" onclick="window._tweetCustom()" style="background:#0a3a5a;border-color:#43B7FF;color:#fff;padding:6px 16px;font-size:12px">Opublikuj</button>
         </div>
       </div>
-      <div style="font-size:10px;color:#5a8aac;margin-bottom:8px">💡 Alternatywnie wybierz preset tweetu poniżej</div>
+      <div style="font-size:10px;color:#5a8aac;margin-bottom:8px">💡 Alternatywnie wybierz gotowy wpis poniżej</div>
       <div style="display:grid;gap:6px;margin-bottom:10px">
         ${(()=>{
           /* v2.1.35: Twitter z kontekstowymi wymogami — gracz może tweetować tylko o tym co faktycznie zrobił */
@@ -48261,16 +48261,16 @@ function renderPhoneApp(app){
           const isVerified=(G.followers||0)>=500;
           const tweetTypes=[
             {id:'thoughts',color:'#778',bg:'#0a1220',label:'💭 Przemyślenia',desc:'Generic post o życiu — mały zasięg, zawsze działa',req:null},
-            {id:'promo',color:'#1da1f2',bg:'#0a1528',label:'🎤 Promo muzyki',desc:'Bezpieczne — duży zasięg jeśli masz tracki',req:hasTracks,reqTxt:'Najpierw nagraj track w studio'},
+            {id:'promo',color:'#43B7FF',bg:'#0a1528',label:'🎤 Promo muzyki',desc:'Bezpieczne — duży zasięg jeśli masz tracki',req:hasTracks,reqTxt:'Najpierw nagraj track w studio'},
             {id:'meme',color:'#e91e8c',bg:'#1a0a18',label:'😂 Mem o branży',desc:'15% szans na viral (+200-300)! Inaczej +1-8',req:null},
             {id:'freestyle',color:'#9b59b6',bg:'#15102a',label:'🎙️ Po freestylu',desc:'Relacja z ulicy — fani lojalni z energią',req:hasFreestyles,reqTxt:'Najpierw zrób freestyle na ulicy'},
             {id:'gym',color:'#e74c3c',bg:'#1a0a0a',label:'💪 Trening done',desc:'Selfie z siłowni — motywacja, +sława',req:hasGymToday,reqTxt:'Trenuj dziś na siłowni'},
             {id:'car',color:'#f39c12',bg:'#1a1505',label:'🚗 Auto flex',desc:'Pokaż swoje auto — drip + zasięg',req:hasCar,reqTxt:'Najpierw kup auto'},
             {id:'sponsored',color:'#27ae60',bg:'#0a1f0a',label:'💼 Sponsorowany post',desc:'+50-200 zł, mniej obs (1-5). Wymaga 500+ obs.',req:isVerified,reqTxt:'Wymaga 500+ obserwujących'},
-            {id:'beef',color:'#c0392b',bg:'#1a0808',label:'🔥 Diss tweet',desc:'Zaczep konkurencję — viral 30% (+150), ale +20 hejterów',req:hasHaters,reqTxt:'Najpierw zarób 10+ hejterów'},
-            /* v2.1.201 [Amper]: Twitter Battle — interaktywny minigame z 3 opcjami odpowiedzi.
+            {id:'beef',color:'#c0392b',bg:'#1a0808',label:'🔥 Diss',desc:'Zaczep konkurencję — viral 30% (+150), ale +20 hejterów',req:hasHaters,reqTxt:'Najpierw zarób 10+ hejterów'},
+            /* v2.1.201 [Amper]: ChirpNet Battle — interaktywny minigame z 3 opcjami odpowiedzi.
                Drip wpływa na success rate (image = wiedza co publika lubi). 50+ haters wymóg. */
-            {id:'battle',color:'#f39c12',bg:'#1f1505',label:'🎯 Twitter Battle',desc:'Clapback minigame: wybierz najlepszą riposte z 3 opcji. Drip pomaga celować w gust publiki.',req:(G.haters||0)>=50,reqTxt:'Wymaga 50+ hejterów'},
+            {id:'battle',color:'#f39c12',bg:'#1f1505',label:'🎯 ChirpNet Battle',desc:'Clapback minigame: wybierz najlepszą riposte z 3 opcji. Drip pomaga celować w gust publiki.',req:(G.haters||0)>=50,reqTxt:'Wymaga 50+ hejterów'},
           ];
           return tweetTypes.map(tt=>{
             const blocked=tt.req!==null && !tt.req;
@@ -48280,8 +48280,8 @@ function renderPhoneApp(app){
             </button>`;
           }).join('');
         })()}
-      </div>`:`<div style="background:#06080f;border:1px solid #0f1f35;border-radius:6px;padding:8px;text-align:center;color:#3a5070;font-size:13px;margin-bottom:10px">⏳ Tweet wrzucony Dz. ${G.lastTweetDay}. Następny: Dz. ${G.lastTweetDay+1}+ (idź spać)</div>`}
-      <div style="font-size:11px;color:#1da1f2;letter-spacing:1px;margin-bottom:6px">📜 OSTATNIE TWEETY</div>
+      </div>`:`<div style="background:#06080f;border:1px solid #0f1f35;border-radius:6px;padding:8px;text-align:center;color:#3a5070;font-size:13px;margin-bottom:10px">⏳ Wpis opublikowany Dz. ${G.lastTweetDay}. Następny: Dz. ${G.lastTweetDay+1}+ (idź spać)</div>`}
+      <div style="font-size:11px;color:#43B7FF;letter-spacing:1px;margin-bottom:6px">📜 OSTATNIE WPISY</div>
       ${(()=>{
         /* v2.1.396 Faza AP.2 Etap 2 (user 2026-05-28): merge user custom tweets (G.userTweets v2.1.393) z dynamic generic feed.
            User tweets latest first, dynamic generic uzupełniają do 5 entries total. Real stats z tweet object dla user. */
@@ -48289,7 +48289,7 @@ function renderPhoneApp(app){
         const _genericCount=Math.max(0, 5-_userTweets.length);
         const _genericTweets=tweets.slice(0, _genericCount);
         const _mergedTweets=[..._userTweets.map(t=>({...t,isUser:true})), ..._genericTweets.map(t=>({text:t,isUser:false}))];
-        if(_mergedTweets.length===0) return `<div style="background:#06080f;border:1px dashed #1f2f4a;border-radius:8px;padding:18px;text-align:center;color:#556;font-size:12px;line-height:1.5">🐦 Brak tweetów.<br>Wyślij swój pierwszy tweet powyżej!</div>`;
+        if(_mergedTweets.length===0) return `<div style="background:#06080f;border:1px dashed #1f2f4a;border-radius:8px;padding:18px;text-align:center;color:#556;font-size:12px;line-height:1.5">💬 Brak wpisów.<br>Opublikuj swój pierwszy wpis powyżej!</div>`;
         return _mergedTweets.map((t,i)=>{
           const tweetText=t.text; /* v2.1.853 (Vegan): FIX [object Object] — generic tweety to też obiekty {text,isUser:false} po merge (L41497), więc t.text dla obu (było: t.isUser?t.text:t → dla generic zwracało CAŁY obiekt → [object Object]). */
           /* v2.1.898 (user immersja, analog do IG): zaangażowanie WŁASNYCH tweetów proporcjonalne do obserwujących (koniec „więcej lajków niż obserwujących"). Generic (cudze) tweety zostają jak były. */
@@ -48301,10 +48301,10 @@ function renderPhoneApp(app){
           const views=likes*rnd(8,15);
           const dayAgo=t.isUser?(t.day===G.day?'teraz':`Dz. ${t.day}`):(i===0?'teraz':i===1?'2h':i+'d');
           const _sponsoredBadge=t.isUser&&t.sponsored?`<span style="background:#c8a520;color:#000;font-size:9px;font-weight:900;padding:1px 5px;border-radius:3px;margin-left:4px">💼 #ad</span>`:'';
-          return `<div style="background:${t.isUser?'#0a1832':'#0a1220'};border-radius:10px;padding:10px 12px;margin-bottom:8px;border:1px solid ${t.isUser?'#1da1f250':'#0f1f35'}">
+          return `<div style="background:${t.isUser?'#0a1832':'#0a1220'};border-radius:10px;padding:10px 12px;margin-bottom:8px;border:1px solid ${t.isUser?'#43B7FF50':'#0f1f35'}">
             <!-- Tweet header — avatar + name + handle -->
             <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:6px">
-              <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#1da1f2,#0d8bd9);display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;font-weight:900;flex-shrink:0">${initial}</div>
+              <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#43B7FF,#0d8bd9);display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;font-weight:900;flex-shrink:0">${initial}</div>
               <div style="flex:1;min-width:0">
                 <div style="display:flex;align-items:center;gap:4px;font-size:12px;flex-wrap:wrap">
                   <span style="color:#fff;font-weight:700">${G.name}</span>
@@ -48316,10 +48316,10 @@ function renderPhoneApp(app){
             </div>
             <!-- Tweet body -->
             <div style="font-size:13px;color:#ddd;line-height:1.45;margin-bottom:8px;padding-left:44px">${tweetText}</div>
-            <!-- Tweet stats — Twitter style with icons -->
-            <div style="display:flex;gap:18px;font-size:11px;color:#1da1f2aa;padding-left:44px">
+            <!-- Tweet stats — ChirpNet style with icons -->
+            <div style="display:flex;gap:18px;font-size:11px;color:#43B7FFaa;padding-left:44px">
               <span title="Komentarze">💬 ${replies}</span>
-              <span title="Retweety" style="color:#27ae60aa">♻️ ${retweets}</span>
+              <span title="Udostępnienia" style="color:#27ae60aa">♻️ ${retweets}</span>
               <span title="Polubienia" style="color:#e74c3caa">❤️ ${likes}</span>
               <span title="Wyświetlenia" style="color:#778">📊 ${views.toLocaleString('pl')}</span>
             </div>
@@ -48328,14 +48328,14 @@ function renderPhoneApp(app){
       })()}
     </div>`;
     window._tweetNow=(type)=>{
-      if(G.day===(G.lastTweetDay||0)){notify('🐦 Już dziś tweetowałeś — wróć jutro');return;}
+      if(G.day===(G.lastTweetDay||0)){notify('💬 Już dziś publikowałeś — wróć jutro');return;}
       // v1.8.18: BUG fix — lastTweetDay ustawiane PO walidacji gatingu
       // v2.1.35: dodane typy thoughts/freestyle/gym/car/beef + wymóg hasTracks dla promo
       const autoLvl=getRaperST?getRaperST('autopromocja')||0:0;
       let gain=0,money=0,viralChance=0,msg='',fameBonus=0,fanBonus=0,hatersBonus=0;
       if(type==='thoughts'){
         gain=rnd(1,5)+Math.floor((G.followers||0)*0.002);
-        msg=`💭 Tweet o życiu — +${gain} obserwujących`;
+        msg=`💭 Wpis o życiu — +${gain} obserwujących`;
       } else if(type==='promo'){
         if((G.studioTracks||[]).length===0){notify('🎤 Najpierw nagraj track w studio!');return;}
         gain=Math.floor(rnd(8,20)+(G.followers*0.005)*(1+autoLvl*0.1));
@@ -48344,7 +48344,7 @@ function renderPhoneApp(app){
         viralChance=0.15+autoLvl*0.05;
         if(Math.random()<viralChance){
           gain=200+rnd(0,100);
-          msg=`🚀 VIRAL! Twój mem rozjebał Twittera! +${gain} obserwujących!`;
+          msg=`🚀 VIRAL! Twój mem rozjebał ChirpNet! +${gain} obserwujących!`;
           fameBonus=3;
           confetti(30);
         } else {
@@ -48387,17 +48387,17 @@ function renderPhoneApp(app){
           confetti(20);
         } else {
           gain=rnd(5,30);
-          msg=`🔥 Diss tweet — +${gain} obserwujących`;
+          msg=`🔥 Diss — +${gain} obserwujących`;
         }
         hatersBonus=20;
       } else if(type==='battle'){
         /* v2.1.201 [Amper]: Twitter Battle — interaktywny clapback minigame.
            NIE konsumuje dnia jeszcze — modal pyta o odpowiedź. Konsumuje w _tweetBattleResolve. */
-        if((G.haters||0)<50){notify('🎯 Twitter Battle wymaga 50+ hejterów!');return;}
+        if((G.haters||0)<50){notify('🎯 ChirpNet Battle wymaga 50+ hejterów!');return;}
         if(typeof window._tweetBattleStart==='function') window._tweetBattleStart();
         return;
       } else {
-        notify('🐦 Nieznany typ tweeta');return;
+        notify('💬 Nieznany typ wpisu');return;
       }
       // dopiero teraz konsumuj dzień + energię
       G.lastTweetDay=G.day;
@@ -48408,8 +48408,8 @@ function renderPhoneApp(app){
         const _ts=G.twitterSponsorship;
         G.twitterSponsorship.used=true;
         let _paid=_ts.payout;if(typeof earn==='function') _paid=earn(_ts.payout,false,'influencer'); else {G.money+=_ts.payout;G.totalEarned=(G.totalEarned||0)+_ts.payout;} /* v2.1.865: _paid = REALNA kwota */
-        if(typeof addNotif==='function') addNotif(`💰 Twitter sponsorship spełniony: +${_paid.toLocaleString('pl')} zł (${_ts.brandName}).`);
-        if(typeof showMsg==='function') showMsg(`💰 Sponsorship: +${_paid.toLocaleString('pl')} zł za promocję ${_ts.brandName} w tweet!`,'g',6000);
+        if(typeof addNotif==='function') addNotif(`💰 Sponsoring ChirpNet spełniony: +${_paid.toLocaleString('pl')} zł (${_ts.brandName}).`);
+        if(typeof showMsg==='function') showMsg(`💰 Sponsoring: +${_paid.toLocaleString('pl')} zł za promocję ${_ts.brandName} we wpisie!`,'g',6000);
       }
       if(fanBonus>0) addFans(fanBonus); /* v2.1.141: Instagram fan bonus */
       if(fameBonus>0){if(typeof addFame==='function')addFame(fameBonus);else G.fame=clamp((G.fame||0)+fameBonus,0,500);}
@@ -48423,7 +48423,7 @@ function renderPhoneApp(app){
       const haterTweets=[
         `taki raper że nawet ulica nie zna 🤡`,
         `${G.name} przereklamowany. Następny 💀`,
-        `${G.name} co Ty robisz na Twitterze? Wracaj do studia 😴`,
+        `${G.name} co Ty robisz na ChirpNet? Wracaj do studia 😴`,
         `Słyszałem nowy track ${G.name} — instrumentalkę polecam, vocal nie 🤢`,
         `${G.name} płacze że ma 0 platynowych. Sad! 🤡`,
         `${G.name} myśli że jest kimś. Skille jak u kogoś co dopiero startuje 😬`,
@@ -48452,15 +48452,15 @@ function renderPhoneApp(app){
       ov=document.createElement('div');
       ov.id=ovrId;
       ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;font-family:inherit';
-      ov.innerHTML=`<div style="background:#050f1c;border:2px solid #1da1f2;border-radius:12px;max-width:480px;width:100%;padding:20px;color:#fff;max-height:90vh;overflow-y:auto">
-        <div style="font-size:13px;color:#1da1f2;letter-spacing:1px;margin-bottom:8px">🎯 TWITTER BATTLE</div>
+      ov.innerHTML=`<div style="background:#06111F;border:2px solid #43B7FF;border-radius:12px;max-width:480px;width:100%;padding:20px;color:#fff;max-height:90vh;overflow-y:auto">
+        <div style="font-size:13px;color:#43B7FF;letter-spacing:1px;margin-bottom:8px">🎯 CHIRPNET BATTLE</div>
         <div style="background:#1a0a0a;border:1px solid #c0392b;border-radius:8px;padding:12px;margin-bottom:14px">
           <div style="font-size:11px;color:#c0392b;margin-bottom:4px">🔥 Hejter @random_hater_${rnd(100,9999)}</div>
           <div style="font-size:13px;color:#ddd">${haterTweet}</div>
         </div>
         <div style="background:#0a1528;border:1px solid #f39c12;border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:11px;color:#f39c12">${audienceLabel}</div>
         <div style="font-size:12px;color:#aaa;margin-bottom:8px">Wybierz najlepszą riposte:</div>
-        ${options.map((opt,i)=>`<button onclick="window._tweetBattleResolve(${i},'${audienceLikes}','${opt.archetypes.join(',')}')" style="display:block;width:100%;text-align:left;background:#0a1528;border:1px solid #1da1f2;color:#fff;padding:10px;margin-bottom:6px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;line-height:1.4">${opt.text}</button>`).join('')}
+        ${options.map((opt,i)=>`<button onclick="window._tweetBattleResolve(${i},'${audienceLikes}','${opt.archetypes.join(',')}')" style="display:block;width:100%;text-align:left;background:#0a1528;border:1px solid #43B7FF;color:#fff;padding:10px;margin-bottom:6px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;line-height:1.4">${opt.text}</button>`).join('')}
         <div style="font-size:10px;color:#778;margin-top:8px;text-align:center">${dripHint}</div>
         <button onclick="(function(){var o=document.getElementById('tweet-battle-overlay');if(o)o.remove();})()" style="display:block;width:100%;background:#1a0a0a;border:1px solid #5a1a1a;color:#c0392b;padding:8px;margin-top:8px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:11px">← Wycofaj się (bez kary)</button>
       </div>`;
@@ -48473,9 +48473,9 @@ function renderPhoneApp(app){
       const inp=document.getElementById('tweet-custom-input');
       if(!inp){if(typeof showMsg==='function') showMsg('⚠️ Brak inputu','r');return;}
       const text=(inp.value||'').trim();
-      if(text.length<5){if(typeof showMsg==='function') showMsg('🐦 Tweet musi mieć min 5 znaków.','r');return;}
-      if(text.length>280){if(typeof showMsg==='function') showMsg('🐦 Tweet max 280 znaków.','r');return;}
-      if(G.day===(G.lastTweetDay||0)){if(typeof showMsg==='function') showMsg('🐦 Dziś już tweetowałeś. Wróć jutro.','r');return;}
+      if(text.length<5){if(typeof showMsg==='function') showMsg('💬 Wpis musi mieć min 5 znaków.','r');return;}
+      if(text.length>280){if(typeof showMsg==='function') showMsg('💬 Wpis max 280 znaków.','r');return;}
+      if(G.day===(G.lastTweetDay||0)){if(typeof showMsg==='function') showMsg('💬 Dziś już publikowałeś. Wróć jutro.','r');return;}
       if((G.energy||0)<3){if(typeof showMsg==='function') showMsg('⚡ Brak energii (-3 wymaganej).','r');return;}
       G.lastTweetDay=G.day;
       G.energy=Math.max(0,G.energy-3);
@@ -48512,18 +48512,18 @@ function renderPhoneApp(app){
         const _ts=G.twitterSponsorship;
         G.twitterSponsorship.used=true;
         let _paid=_ts.payout;if(typeof earn==='function') _paid=earn(_ts.payout,false,'influencer'); else {G.money+=_ts.payout;G.totalEarned=(G.totalEarned||0)+_ts.payout;} /* v2.1.865: _paid = REALNA kwota */
-        if(typeof addNotif==='function') addNotif(`💰 Twitter sponsorship spełniony: +${_paid.toLocaleString('pl')} zł (${_ts.brandName}).`);
+        if(typeof addNotif==='function') addNotif(`💰 Sponsoring ChirpNet spełniony: +${_paid.toLocaleString('pl')} zł (${_ts.brandName}).`);
       }
       /* v2.1.394 Faza AO.5: checkAchievements (dla ig_tweet_master 30 tweets) */
       if(typeof checkAchievements==='function') checkAchievements();
-      if(typeof notify==='function') notify(`🐦 Tweet wysłany! +${_gain} obserwujących${_fameGain>0?', +'+_fameGain+' sławy':''}`);
+      if(typeof notify==='function') notify(`💬 Wpis opublikowany! +${_gain} obserwujących${_fameGain>0?', +'+_fameGain+' sławy':''}`);
       if((_hashBonus+_qBonus+_trendBonus)>0 && typeof showMsg==='function') showMsg(`✨ +${Math.round((_hashBonus+_qBonus+_trendBonus)*100)}% zasięgu za treść${_hashCount?` (${_hashCount} #tag${_trendMatch?`, ${_trendMatch} trendujące 🔥`:''})`:''}!`,'g',3500);
       if(typeof renderPhoneApp==='function') renderPhoneApp('twitter');
     };
     /* v2.1.391 Faza AP.4 Etap 2: trending topic auto-tweet z bonus +50% engagement.
        Wymóg: canTweet (1 tweet/day). Reguła #11 balansowane — bonus reasonable, nie złamane. */
     window._tweetTrendingTopic=(tag)=>{
-      if(G.day===(G.lastTweetDay||0)){if(typeof showMsg==='function') showMsg('🐦 Dziś już tweetowałeś. Wróć jutro.','r');return;}
+      if(G.day===(G.lastTweetDay||0)){if(typeof showMsg==='function') showMsg('💬 Dziś już publikowałeś. Wróć jutro.','r');return;}
       if((G.energy||0)<3){if(typeof showMsg==='function') showMsg('⚡ Brak energii (-3 wymaganej).','r');return;}
       G.lastTweetDay=G.day;
       G.energy=Math.max(0,G.energy-3);
@@ -49600,13 +49600,13 @@ const GAME_MECHANICS=[
   {id:'fans', em:'❤️', name:'Fani', color:'#e91e63',
    short:'Twoja oddana publiczność.',
    desc:'Fani to ludzie, którzy naprawdę kochają Twoją muzykę. Kupują merch, idą na koncerty i słuchają każdego nowego tracka. To ważniejsza metryka niż obserwujący — fani zostają z Tobą na długo.',
-   how:['• Wydawaj utwory i graj koncerty','• Bądź aktywny w mediach społecznościowych (IG, YT, Twitter)','• Świetna jakość muzyki przyciąga lojalnych słuchaczy','• Spotkania i interakcje z fanami'],
+   how:['• Wydawaj utwory i graj koncerty','• Bądź aktywny w mediach społecznościowych (FrameUp, ViewGrid, ChirpNet)','• Świetna jakość muzyki przyciąga lojalnych słuchaczy','• Spotkania i interakcje z fanami'],
    unlocks:['• Im więcej fanów, tym więcej zarabiasz na merchu','• Większa baza fanów → większe koncerty','• Milion fanów = status legendy','• Lepsze oferty od wytwórni'],
   },
   {id:'followers', em:'👥', name:'Obserwujący', color:'#3498db',
    short:'Zasięg w social mediach.',
-   desc:'Obserwujący to luźna publiczność z Instagrama, ViewGrid i Twittera. Mniej oddani niż fani (mogą odejść jak coś się nie spodoba), ale są ważni dla zasięgu — marki patrzą na liczby.',
-   how:['• Wrzucaj posty na Instagrama','• Wrzucaj filmy na ViewGrid','• Bądź aktywny na Twitterze','• Czasami coś chwyci wiralowo'],
+   desc:'Obserwujący to luźna publiczność z FrameUp, ViewGrid i ChirpNet. Mniej oddani niż fani (mogą odejść jak coś się nie spodoba), ale są ważni dla zasięgu — marki patrzą na liczby.',
+   how:['• Wrzucaj posty na FrameUp','• Wrzucaj filmy na ViewGrid','• Bądź aktywny na ChirpNet','• Czasami coś chwyci wiralowo'],
    unlocks:['• Wyższy zasięg → lepsze oferty sponsorskie','• Marki patrzą na liczby przed kontraktem','• Więcej obserwujących = większa rozpoznawalność'],
   },
   {id:'streetRep', em:'🔥', name:'Reputacja uliczna', color:'#e67e22',
@@ -52687,7 +52687,7 @@ const _LB_TITLE_DESCRIPTIONS = {
   legend:     'Min. 1 000 000 fanów + Prestige co najmniej 2.',
   prestige5:  'Prestige co najmniej 5 (5× przejście New Game+).',
   trapboss:   'Łącznie zarobione co najmniej 10 000 000 zł.',
-  megafan:    'Min. 1 000 000 obserwujących (Twitter + FrameUp).',
+  megafan:    'Min. 1 000 000 obserwujących (ChirpNet + FrameUp).',
   speedrun30: '1 000 000 fanów w 30 dni gry lub szybciej.',
   achiever:   'Zdobyte co najmniej 50 osiągnięć.',
   highroller: 'Łącznie wygrane w kasynie co najmniej 500 000 żetonów.',
@@ -57203,6 +57203,12 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.67',date:'2026-06-26',cats:['beta-tester','Vegan','change'],reporter:'Vegan',title:'💬 Platforma tekstowa w telefonie dostała własną markę — ChirpNet',
+ items:[
+  {t:'change',d:'Tekstowa platforma społecznościowa w telefonie (krótkie wpisy, trendujące tagi, sponsoring, minigra riposty) ma teraz własną markę świata gry — ChirpNet, w błękitnym stylu z ikoną dymka. Rebrand wizualny: nazwa, kolory, panel i komunikaty. Krótkie posty nazywamy teraz wpisami, a przycisk publikacji to Opublikuj. Twoi obserwujący, zapisane wpisy, sponsoring oraz zasięgi działają dokładnie tak samo jak wcześniej.'},
+ ]
+ },
  {
  ver:'v2.3.66',date:'2026-06-26',cats:['beta-tester','Vegan','change'],reporter:'Vegan',title:'📸 Platforma społecznościowa (zdjęcia i stories) dostała własną markę — FrameUp',
  items:[
@@ -70046,7 +70052,7 @@ const STORYLINE_QUESTS=[
   {id:'fans100k', em:'🏆', name:'100 000 fanów',       desc:'Sześciocyfrowa baza fanów — gwiazda krajowej sceny. Regularne koncerty, virale, albumy. (10× próg Legendy)',
     check:()=>(G.fans||0)>=100000, reward:{money:60000,fame:40,skillPts:5}},
   /* v2.1.702 (user: kroki 19-21 były tylko o fanach — wstawiam social media + psa dla różnorodności). */
-  {id:'social100k',em:'💯', name:'Gwiazda social media', desc:'Zdobądź 100 000 obserwujących na social mediach (FrameUp + Twitter). Zasięg online to osobna potęga obok lojalnych fanów.',
+  {id:'social100k',em:'💯', name:'Gwiazda social media', desc:'Zdobądź 100 000 obserwujących na social mediach (FrameUp + ChirpNet). Zasięg online to osobna potęga obok lojalnych fanów.',
     check:()=>(G.followers||0)>=100000, reward:{money:80000,fame:30,skillPts:4}},
   {id:'fans1m',   em:'🌍', name:'Milion fanów',         desc:'Milion lojalnych fanów — światowa gwiazda. Twoja muzyka gra na całym globie',
     check:()=>(G.fans||0)>=1000000, reward:{money:200000,fame:60,skillPts:8}},
@@ -70197,7 +70203,7 @@ const SIDE_STORYLINES={
     quests:[
       {id:'s1', em:'📸', name:'Pierwszy post', desc:'Wrzuc pierwszy post na FrameUp',
         check:()=>(G.igPosts?.length||0)>=1, reward:{money:100,xp:15}},
-      {id:'s2', em:'🐦', name:'Pierwszy tweet', desc:'Wyślij pierwszy tweet',
+      {id:'s2', em:'💬', name:'Pierwszy wpis', desc:'Opublikuj pierwszy wpis na ChirpNet',
         check:()=>(G.lastTweetDay||0)>0, reward:{money:100,xp:15}},
       {id:'s3', em:'🌟', name:'Influencer', desc:'5000 followersów na social media',
         check:()=>G.followers>=5000, reward:{money:3000,fame:10,xp:60,skillPts:1}},
