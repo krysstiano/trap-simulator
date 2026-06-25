@@ -16531,7 +16531,7 @@ function openTVMenu(){
     <h2>📺 Telewizor 4K</h2>
     <p class="sub">Co oglądasz?</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
-      <button class="bbtn" onclick="closeOverlay();window.open('https://www.youtube.com','_blank')" style="padding:18px;font-size:15px;background:linear-gradient(135deg,#ff0000,#990000);color:#fff;border:none;border-radius:10px;cursor:pointer;font-weight:700">▶️ YouTube</button>
+      <button class="bbtn" onclick="closeOverlay();window.open('https://www.youtube.com','_blank')" style="padding:18px;font-size:15px;background:linear-gradient(135deg,#ff0000,#990000);color:#fff;border:none;border-radius:10px;cursor:pointer;font-weight:700">▶️ ViewGrid</button>
       <button class="bbtn" onclick="closeOverlay();window.open('https://www.netflix.com','_blank')" style="padding:18px;font-size:15px;background:linear-gradient(135deg,#e50914,#831010);color:#fff;border:none;border-radius:10px;cursor:pointer;font-weight:700">🎬 Netflix</button>
       <button class="bbtn" onclick="closeOverlay();window.open('https://open.spotify.com','_blank')" style="padding:18px;font-size:15px;background:linear-gradient(135deg,#1db954,#0a5a2a);color:#fff;border:none;border-radius:10px;cursor:pointer;font-weight:700">🎵 Loopify</button>
       <button class="bbtn" onclick="closeOverlay();window.open('https://www.twitch.tv','_blank')" style="padding:18px;font-size:15px;background:linear-gradient(135deg,#9146ff,#5a1aaa);color:#fff;border:none;border-radius:10px;cursor:pointer;font-weight:700">🎮 Twitch</button>
@@ -16665,7 +16665,7 @@ const ACHIEVEMENTS = [
   {id:'top_rank',name:'Mistrz gier',desc:'Osiągnij rangę Mistrz w grach rankingowych',icon:'🕹',check:()=>G.careers?.gamer?.rank==='Mistrz'}, /* v2.1.132: optional chain */
   {id:'100k_followers',name:'100K Fanów',desc:'Zdobądź 100 000 fanów lojalnych',icon:'💎',check:()=>(G.fans||0)>=100000},
   {id:'veteran',name:'Weteran',desc:'Przeżyj 30 dni',icon:'📅',check:()=>G.day>=30},
-  {id:'music_empire',name:'Imperium muzyki',desc:'Osiągnij 50 000 subskrybentów YouTube',icon:'👑',check:()=>(G.yt?.subs||0)>=50000}, /* v2.1.132: optional chain */
+  {id:'music_empire',name:'Imperium muzyki',desc:'Osiągnij 50 000 subskrybentów ViewGrid',icon:'👑',check:()=>(G.yt?.subs||0)>=50000}, /* v2.1.132: optional chain */
   {id:'street_king',name:'Uliczny Król',desc:'Osiągnij 50 reputacji ulicznej',icon:'🔱',check:()=>G.streetRep>=50},
   {id:'tourney_3',name:'Turniejowy',desc:'Wygraj 3 turnieje esportowe',icon:'🏅',check:()=>(G.careers?.gamer?.tourneysWon||0)>=3}, /* v2.1.132: optional chain */
   {id:'indie_label',name:'Niezależny',desc:'Załóż własną wytwórnię indie',icon:'🏠',check:()=>G.label?.type==='indie'}, /* v2.1.132: optional chain */
@@ -17258,7 +17258,7 @@ const RANDOM_EVENTS = [
     if(G.tidal && _hasReleasedTracks) G.tidal.listeners=(G.tidal.listeners||0)+Math.floor(_spill*0.6);
     if(G.soundcloud && _hasSoundcloudTracks) G.soundcloud.listeners=(G.soundcloud.listeners||0)+Math.floor(_spill*0.5);
     /* v2.1.228 audit-fix #60: "post na YouTube" → "film na YouTube" (YT = filmy, IG = posty). */
-    const _platformWord = ((G.yt && G.yt.videos && G.yt.videos.length > 0) ? 'film na YouTube' :
+    const _platformWord = ((G.yt && G.yt.videos && G.yt.videos.length > 0) ? 'film na ViewGrid' :
                      (G.careers && G.careers.influencer && G.careers.influencer.posts > 0) ? 'post na Instagramie' :
                      'utwór na Loopify');
     notify(`🔥 Twój ostatni ${_platformWord} stał się viralowy! +${gain} obserwujących, +3 sławy${_hasReleasedTracks||_hasSoundcloudTracks?' + spillover na inne platformy':''}!`);
@@ -17375,7 +17375,7 @@ const RANDOM_EVENTS = [
   {name:'Subscriber wave', chance:0.008, maxPerDay:1, cond:()=>(G.yt?.videos?.length||0)>=5, fn:()=>{ /* v2.1.132: optional chain */
     const burst=Math.floor((G.yt?.subs||0)*rnd(5,15)/100)+rnd(50,200);
     if(G.yt) G.yt.subs=(G.yt.subs||0)+burst;G.followers=(G.followers||0)+burst;
-    notify(`🌊 Fala nowych subskrybentów! +${burst} sub YouTube!`);
+    notify(`🌊 Fala nowych subskrybentów! +${burst} sub ViewGrid!`);
   }},
   {name:'Social media trend', chance:0.01, maxPerDay:2, cond:()=>G.careers&&G.careers.influencer&&G.careers.influencer.posts>=5, fn:()=>{ /* v2.1.114: W75 maxPerDay 2 */
     /* v1.9.13: BUG FIX — usunięte fake +3 posts (corrupted quest/achievement counters). Gracz dostaje tylko realnych obserwujących. */
@@ -24360,7 +24360,7 @@ const QUEST_POOL = [
   {desc:'Namaluj mural na ścianie (Underground)',target:'mural_paint',count:1,reward:220,xp:30,cond:()=>Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes('underground')},
   {desc:'Wystartuj 1 stream na żywo',target:'stream',count:1,reward:280,xp:35,cond:()=>G.careers&&G.careers.gamer&&G.careers.gamer.unlocked},
   // Wymaga sprzętu / odblokowanej kariery
-  {desc:'Nagraj 1 film na YouTube',target:'yt_video',count:1,reward:300,xp:40,cond:()=>!!G.camera&&G.careers&&G.careers.youtuber&&G.careers.youtuber.unlocked},
+  {desc:'Nagraj 1 film na ViewGrid',target:'yt_video',count:1,reward:300,xp:40,cond:()=>!!G.camera&&G.careers&&G.careers.youtuber&&G.careers.youtuber.unlocked},
   {desc:'Stwórz 2 bity',target:'beat',count:2,reward:200,xp:25,cond:()=>!!G.midiCtrl},
   {desc:'Sprzedaj 1 bit artyście',target:'beat_sell',count:1,reward:200,xp:25,cond:()=>!!G.midiCtrl&&G.careers&&G.careers.beatmaker&&G.careers.beatmaker.unlocked},
   {desc:'Zagraj 3 mecze rankingowe',target:'ranked',count:3,reward:180,xp:35,cond:()=>G.careers&&G.careers.gamer&&G.careers.gamer.unlocked},
@@ -24775,7 +24775,7 @@ const NPC_DATA = {
         document.getElementById('ov-content').innerHTML=`<h2>🤵 Porada Menadżera Kamila</h2>
         <p class="sub">Wskazówki od pro menadżera:</p>
         <div style="color:#aaa;font-size:15px;line-height:2">
-          <div>📺 Opublikuj 10 filmów żeby YouTube zaczął polecać Twój kanał</div>
+          <div>📺 Opublikuj 10 filmów żeby ViewGrid zaczął polecać Twój kanał</div>
           <div>🎵 Wydaj bity na Loopify dla pasywnego dochodu</div>
           <div>💼 Powyżej 1000 obserwujących możesz brać sponsorów</div>
           <div>🎤 Mikrofon i kamera to Twoja najlepsza inwestycja</div>
@@ -27403,7 +27403,7 @@ function _careerEvent(){
   const POOLS={
     youtuber:[
       {auto:true, run:()=>{ const s=_rnd(200,800), a=_rnd(150,500); if(!G.yt)G.yt={subs:0}; G.yt.subs=(G.yt.subs||0)+s; _cash(a); _say(`▶️ Twój film wystrzelił! +${s} subów, +${a} zł z reklam.`); }},
-      {decide:()=>{ const cost=_rnd(300,700); showEventChoice('▶️ Demonetyzacja!', `YouTube zdemonetyzował Twój ostatni film za „kontrowersyjną treść". Złożysz odwołanie (prawnik ${cost} zł) czy odpuścisz?`, [
+      {decide:()=>{ const cost=_rnd(300,700); showEventChoice('▶️ Demonetyzacja!', `ViewGrid zdemonetyzował Twój ostatni film za „kontrowersyjną treść". Złożysz odwołanie (prawnik ${cost} zł) czy odpuścisz?`, [
         {label:`⚖️ Odwołanie (-${cost} zł, szansa odzyskać)`, fn:()=>{ if((G.money||0)>=cost){G.money-=cost; if(Math.random()<0.6){const a=_rnd(400,900);_cash(a);_say(`✅ Odwołanie przyjęte! +${a} zł.`);} else _say('❌ Odwołanie odrzucone.','r');} else _say('⚠️ Brak kasy na prawnika.','r'); }},
         {label:'🤷 Odpuść', fn:()=>{ _say('😐 Film bez reklam — zero z niego.','f'); }},
       ]); }},
@@ -27717,10 +27717,10 @@ function openComputerMenu(){
     <p class="sub">Wybierz, czym chcesz się zająć przy biurku.</p>
     <div class="cards">
       <div class="card">
-        <h3>📺 YouTube</h3>
+        <h3>📺 ViewGrid</h3>
         <p>Nagrywaj, montuj i publikuj filmy. Zarabiaj na AdSense i kolaboracjach.</p>
         <div class="cost">${yt.unlocked?`Subów: ${G.yt.subs.toLocaleString('pl')} · Filmów: ${G.yt.videos.length}`:ytLockTxt}</div>
-        <button class="dbtn" ${yt.unlocked?'':'disabled'} onclick="closeOverlay();setTimeout(()=>{renderYTOverlay();openOverlay();},50)">Otwórz YouTube</button>
+        <button class="dbtn" ${yt.unlocked?'':'disabled'} onclick="closeOverlay();setTimeout(()=>{renderYTOverlay();openOverlay();},50)">Otwórz ViewGrid</button>
       </div>
       <div class="card">
         <h3>🎮 Gaming &amp; Stream</h3>
@@ -30891,7 +30891,7 @@ function renderYTOverlay(){
   document.getElementById('ov-content').innerHTML=`
     <div style="background:linear-gradient(90deg,#cc0000,#990000);margin:-14px -14px 14px;padding:10px 18px;display:flex;align-items:center;gap:10px;border-radius:8px 8px 0 0">
       <span style="font-size:22px">▶</span>
-      <h2 style="color:#fff;margin:0;font-size:20px;font-weight:900">YouTube</h2>
+      <h2 style="color:#fff;margin:0;font-size:20px;font-weight:900">ViewGrid</h2>
       <span style="color:#fff;opacity:.7;font-size:12px;margin-left:auto">Twój kanał</span>
     </div>
     <div style="display:flex;gap:14px;margin-bottom:14px;align-items:center;padding:10px 14px;background:#0a0a0a;border-radius:8px">
@@ -32043,7 +32043,7 @@ function renderGamerOverlay(){
   /* v2.1.79 Amper: "hardcore" jako podgrupa fanów nie istnieje od v2.1.34 — G.fans to teraz po prostu "lojalni fani" (= HUD). Zmienna zmieniona dla czytelności. */
   const loyalFans=G.fans||0;
   document.getElementById('ov-content').innerHTML=`
-    <h2>🎮 Gamer</h2><p class="sub">Bierz udział w turniejach i streamuj na żywo. YouTube i Stream wzajemnie się napędzają.</p>
+    <h2>🎮 Gamer</h2><p class="sub">Bierz udział w turniejach i streamuj na żywo. ViewGrid i Stream wzajemnie się napędzają.</p>
     <div class="statrow">
       <div class="sbox"><div class="l">Ranga</div><div class="v" style="font-size:15px">${car.rank}</div></div>
       <div class="sbox"><div class="l">Turnieje wygrane</div><div class="v">${car.tourneysWon}</div></div>
@@ -33921,7 +33921,7 @@ function renderDAWOverlay(tab='beatmaker'){
     tabContent=`
       <div style="background:linear-gradient(135deg,#1a2540,#0a0a18);border:1px solid #3498db;border-radius:8px;padding:10px 14px;margin-bottom:10px">
         <div style="color:#3498db;font-weight:800;font-size:13px;margin-bottom:5px">🎓 Co to jest dystrybucja?</div>
-        <div style="color:#cdd;font-size:11px;line-height:1.55">Dystrybutor wrzuca Twoje tracki na <b>Loopify, AurumWave, YouTube Music</b>. Bez niego nie wydasz singla. <b style="color:#f39c12">Royalties %</b> to ile zarobionych pieniędzy z streamów trafia do Ciebie (reszta dla dystrybutora). <b>Opłata jest jednorazowa</b> — kupujesz raz i zostaje aktywny. Możesz zmienić dystrybutora w dowolnym momencie, ale każda zmiana to nowa opłata. Wybierz mądrze: tańsi mają niższe royalties.</div>
+        <div style="color:#cdd;font-size:11px;line-height:1.55">Dystrybutor wrzuca Twoje tracki na <b>Loopify, AurumWave, ViewGrid Music</b>. Bez niego nie wydasz singla. <b style="color:#f39c12">Royalties %</b> to ile zarobionych pieniędzy z streamów trafia do Ciebie (reszta dla dystrybutora). <b>Opłata jest jednorazowa</b> — kupujesz raz i zostaje aktywny. Możesz zmienić dystrybutora w dowolnym momencie, ale każda zmiana to nowa opłata. Wybierz mądrze: tańsi mają niższe royalties.</div>
       </div>
       ${G.distributor?`<div style="background:#0a1a0a;border:1px solid #2ecc7160;border-radius:6px;padding:8px 14px;margin-bottom:10px;font-size:13px;color:#ddd">✅ Aktywny dystrybutor: <b style="color:#2ecc71">${G.distributor.name}</b> · <span style="color:#aac">Royalties:</span> <b style="color:#f1c40f">${G.distributor.royaltyPct}%</b> · <span style="color:#aac">Limit singli:</span> <b style="color:#7ec8e3">${G.distributor.limitSingles}</b></div>`:'<p style="color:#e74c3c;font-size:13px;margin-bottom:10px">⚠️ Brak dystrybutora — możesz wydawać tylko na 🟠 EchoDrop (mały zarobek). Wybierz dystrybutora dla streamingów (Loopify/AurumWave).</p>'}
       <div class="shopgrid">${distHtml}</div>
@@ -37519,7 +37519,7 @@ const RAPER_ST_DEF={
   ]},
   biznes:{label:'Biznes',emoji:'💼',requires:{autopromocja:2},nodes:[
     {cost:1,label:'Negocjacje',desc:'Kontrakty z labelem o 10% korzystniejsze'},
-    {cost:2,label:'Tantiemy',desc:'+15% royalties ze Loopify/AurumWave/YouTube',effect:'biz_royalties'},
+    {cost:2,label:'Tantiemy',desc:'+15% royalties ze Loopify/AurumWave/ViewGrid',effect:'biz_royalties'},
     {cost:3,label:'Własny label',desc:'Możliwość założenia własnego labelu'},
     {cost:4,label:'Investor mindset',desc:'+15% zysku z inwestycji giełdowych i lokat bankowych'},
     {cost:5,label:'Music mogul',desc:'+30% zarobków (jobs/royalties), +15% koncerty',effect:'biz_mogul'}, /* v2.1.296: sync z v2.1.229 concert nerf — earn() generic 1.30× (jobs/work), concert 1.15× */
@@ -38997,7 +38997,7 @@ function renderRadioStation(){
     const reqItems=[
       `🎵 Loopify: ${sp.toLocaleString('pl')}/${t.req.spotify.toLocaleString('pl')} słuchaczy`,
       `🎶 Tracki beatmakera: ${tracks}/${t.req.tracks}`,
-      ...(t.req.ytSubs?[`📺 YouTube: ${ytSubs}/${t.req.ytSubs} sub`]:[]),
+      ...(t.req.ytSubs?[`📺 ViewGrid: ${ytSubs}/${t.req.ytSubs} sub`]:[]),
       ...(t.req.streetRep?[`🏆 Uliczna rep: ${rep}/${t.req.streetRep}`]:[]),
       `🎛️ Bit w inwentarzu: ${G.careers.beatmaker?.beats||0}`,
     ];
@@ -47495,7 +47495,7 @@ function _getPhoneFolders(){
     social:{em:'🌐',label:'Sociale',preview:['📸','🐦','▶️'],apps:[
       _phApp('📸','Instagram','#1a0812','#e1306c',"renderPhoneApp('instagram')"),
       _phApp('🐦','Twitter','#050f1c','#1da1f2',"renderPhoneApp('twitter')"),
-      _phApp('▶️','YouTube','#1a0808','#ff4444',"renderPhoneApp('youtube')"),
+      _phApp('▶️','ViewGrid','#1a0808','#FF3045',"renderPhoneApp('youtube')"),
     ]},
     streaming:{em:'🎵',label:'Streaming',preview:['🟠','🎵','🌊'],apps:[
       _phApp('🟠','EchoDrop','#1a0a05','#FF8A1C',"renderPhoneApp('soundcloud')"),
@@ -47700,7 +47700,7 @@ function renderPhoneApp(app){
   window._phGoBack=()=>{ if(_fold && _getPhoneFolders()[_fold]) renderPhoneFolder(_fold); else renderPhoneHome(); };
   window._phHotkeys={};
   const ph=document.getElementById('ph-content');
-  const titles={spotify:'🎵 Loopify Artists',tidal:'🌊 AurumWave',youtube:'📺 YouTube',instagram:'📸 Instagram',twitter:'🐦 Twitter',bank:'🏦 Bank',bills:'💸 Rachunki',merch:'🧢 Merch',label:'🎼 Wytwórnia'};
+  const titles={spotify:'🎵 Loopify Artists',tidal:'🌊 AurumWave',youtube:'📺 ViewGrid',instagram:'📸 Instagram',twitter:'🐦 Twitter',bank:'🏦 Bank',bills:'💸 Rachunki',merch:'🧢 Merch',label:'🎼 Wytwórnia'};
   document.getElementById('ph-title').textContent=titles[app]||app;
 
   /* v2.3.33 BUGFIX (Vegan: „masa apek nie dziala") — DEFENSYWNA SANITACJA przed renderem KAZDEJ apki.
@@ -47879,11 +47879,11 @@ function renderPhoneApp(app){
     const _ytDailyEst=_ytMonetized?Math.floor(_ytViews*0.000003 + _ytSubs*0.00003 + Math.sqrt(_ytViews)*0.005):0;
     ph.innerHTML=`<div class="ph-screen">
       <div style="background:#1a0a0a;border-radius:8px;padding:14px;margin-bottom:10px">
-        <div style="font-size:13px;color:#ff0000;font-weight:700;margin-bottom:8px">YOUTUBE STUDIO</div>
+        <div style="font-size:13px;color:#FF3045;font-weight:700;margin-bottom:8px">VIEWGRID STUDIO</div>
         <div style="color:#aaa;font-size:14px;margin-bottom:4px">Subskrybenci: <strong style="color:${_ytSubs>=1000?'#27ae60':'#fff'}">${_ytSubs.toLocaleString('pl')}</strong>${_ytSubs<1000?` <span style="color:#e74c3c;font-size:11px">(potrzebne 1000 do monetyzacji)</span>`:''}</div>
         <div style="color:#aaa;font-size:14px;margin-bottom:4px">Wyświetlenia: <strong style="color:#fff">${_ytViews.toLocaleString('pl')}</strong></div>
         <div style="color:#aaa;font-size:14px;margin-bottom:4px">Filmy: <strong style="color:#fff">${G.yt.videos.length}</strong></div>
-        <div style="color:#aaa;font-size:14px">AdSense (do zebrania): <strong style="color:#ff0000">${(G.yt.adsense||0).toLocaleString('pl')} zł</strong></div>
+        <div style="color:#aaa;font-size:14px">AdSense (do zebrania): <strong style="color:#FF3045">${(G.yt.adsense||0).toLocaleString('pl')} zł</strong></div>
       </div>
       <!-- v2.1.336 Faza S (user 2026-05-27 "Czarna czcionka, słabo widoczne" dla AdSense modal): dodany explicit color:#e8e8e8 dla parent div żeby tekst dziedziczył jasny kolor (zamiast browser-default często ciemny na ciemnym tle). Sub-spany pozostają #778 jako secondary text (kontrast OK z #e8e8e8 parent). -->
       <div style="background:${_ytMonetized?'#0a1a0a':'#1a0a0a'};border:1px solid ${_ytMonetized?'#27ae60':'#e74c3c'};border-radius:8px;padding:10px;margin-bottom:10px;font-size:12.5px;line-height:1.6;color:#e8e8e8">
@@ -47895,7 +47895,7 @@ function renderPhoneApp(app){
       </div>
       <button class="bbtn" onclick="collectRoyalties&&collectRoyalties('yt')" ${(G.yt.adsense||0)<=0?'style="opacity:.5"':''}>💰 Zbierz AdSense (${(G.yt.adsense||0).toLocaleString('pl')} zł)</button>
       <!-- v2.1.120: S49 — pełna lista filmów zamiast last 5 -->
-      ${G.yt.videos.length>0?`<div style="margin-top:12px"><div style="font-size:11px;color:#ff4444;letter-spacing:1px;margin-bottom:6px">🎬 WSZYSTKIE FILMY (${G.yt.videos.length}):</div>${G.yt.videos.slice().reverse().slice(0,12).map(v=>`<div style="background:#0a0a0a;border-radius:6px;padding:8px 10px;margin-bottom:6px;font-size:13px"><div style="color:#fff">🎬 ${v.title}</div><div style="color:#666">${(v.views||0).toLocaleString('pl')} views · ${v.quality}% jakości · ${v.date||'?'}</div></div>`).join('')}${G.yt.videos.length>12?`<div style="text-align:center;color:#778;font-size:11px;margin-top:4px">i jeszcze ${G.yt.videos.length-12}...</div>`:''}</div>`:''}
+      ${G.yt.videos.length>0?`<div style="margin-top:12px"><div style="font-size:11px;color:#FF3045;letter-spacing:1px;margin-bottom:6px">🎬 WSZYSTKIE FILMY (${G.yt.videos.length}):</div>${G.yt.videos.slice().reverse().slice(0,12).map(v=>`<div style="background:#0a0a0a;border-radius:6px;padding:8px 10px;margin-bottom:6px;font-size:13px"><div style="color:#fff">🎬 ${v.title}</div><div style="color:#666">${(v.views||0).toLocaleString('pl')} views · ${v.quality}% jakości · ${v.date||'?'}</div></div>`).join('')}${G.yt.videos.length>12?`<div style="text-align:center;color:#778;font-size:11px;margin-top:4px">i jeszcze ${G.yt.videos.length-12}...</div>`:''}</div>`:''}
     </div>`;
   } else if(app==='instagram'){
     // v1.8.98: Autopromocja 2 "Content creator" — 2 posty dziennie (poprzednio nie zaimplementowane)
@@ -48142,7 +48142,7 @@ function renderPhoneApp(app){
       else tweets.push(`Pracuję nad pierwszym koncertem... Wkrótce! Trzymajcie się 👀`);
       if(latestTrack) tweets.push(`Nowy singiel "${latestTrack.name}" już online 🎵 Streamujcie i udostępniajcie! #nowość #rap`);
       else tweets.push(`Studio session 🎧 Nagrania idą świetnie. Niebawem premiera 🔥 #studio`);
-      if(G.yt.subs>0) tweets.push(`Kanał rośnie! ${G.yt.subs.toLocaleString('pl')} subów 📺 Nowy film już niedługo #YouTube`);
+      if(G.yt.subs>0) tweets.push(`Kanał rośnie! ${G.yt.subs.toLocaleString('pl')} subów 📺 Nowy film już niedługo #ViewGrid`);
       if(G.spotify.listeners>0) tweets.push(`${G.spotify.listeners.toLocaleString('pl')} słuchaczy miesięcznie na Loopify 🎵 Dziękuję za support!`);
       if(raperLvl>=3) tweets.push(`Lata pracy dają efekty. Nikt nie wyobraża sobie ile w to włożyłem 💯 #raper #poziom${raperLvl}`);
       if(G.streetRep>=50) tweets.push(`Ulica mówi sama za siebie. Rep: ${G.streetRep}% 🏆 #streetcred`);
@@ -49605,8 +49605,8 @@ const GAME_MECHANICS=[
   },
   {id:'followers', em:'👥', name:'Obserwujący', color:'#3498db',
    short:'Zasięg w social mediach.',
-   desc:'Obserwujący to luźna publiczność z Instagrama, YouTube i Twittera. Mniej oddani niż fani (mogą odejść jak coś się nie spodoba), ale są ważni dla zasięgu — marki patrzą na liczby.',
-   how:['• Wrzucaj posty na Instagrama','• Wrzucaj filmy na YouTube','• Bądź aktywny na Twitterze','• Czasami coś chwyci wiralowo'],
+   desc:'Obserwujący to luźna publiczność z Instagrama, ViewGrid i Twittera. Mniej oddani niż fani (mogą odejść jak coś się nie spodoba), ale są ważni dla zasięgu — marki patrzą na liczby.',
+   how:['• Wrzucaj posty na Instagrama','• Wrzucaj filmy na ViewGrid','• Bądź aktywny na Twitterze','• Czasami coś chwyci wiralowo'],
    unlocks:['• Wyższy zasięg → lepsze oferty sponsorskie','• Marki patrzą na liczby przed kontraktem','• Więcej obserwujących = większa rozpoznawalność'],
   },
   {id:'streetRep', em:'🔥', name:'Reputacja uliczna', color:'#e67e22',
@@ -51879,7 +51879,7 @@ function renderPhoneStats(){
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">
           <div style="background:#0a0a14;border-radius:6px;padding:6px 8px;border:1px solid #2a1a3a"><div style="color:#c8a520;font-size:10px;font-weight:700">👥 Fanów</div><div style="color:#fff;font-weight:700;font-size:14px">${(G.fans||0).toLocaleString('pl')}</div></div><div style="background:#0a0a14;border-radius:6px;padding:6px 8px"><div style="color:#556;font-size:10px">📱 Obserwujących</div><div style="color:#aaa;font-weight:700">${G.followers.toLocaleString('pl')}</div></div>
           <div style="background:#0a0a14;border-radius:6px;padding:6px 8px"><div style="color:#556;font-size:10px">🎵 Loopify</div><div style="color:#1db954;font-weight:700">${G.spotify.listeners.toLocaleString('pl')}</div></div>
-          <div style="background:#0a0a14;border-radius:6px;padding:6px 8px"><div style="color:#556;font-size:10px">📺 YouTube</div><div style="color:#e74c3c;font-weight:700">${G.yt.subs.toLocaleString('pl')}</div></div>
+          <div style="background:#0a0a14;border-radius:6px;padding:6px 8px"><div style="color:#556;font-size:10px">📺 ViewGrid</div><div style="color:#e74c3c;font-weight:700">${G.yt.subs.toLocaleString('pl')}</div></div>
           <div style="background:#0a0a14;border-radius:6px;padding:6px 8px"><div style="color:#556;font-size:10px">🟠 EchoDrop</div><div style="color:#ff5500;font-weight:700">${((G.soundcloud&&G.soundcloud.listeners)||0).toLocaleString('pl')}</div></div>
           <div style="background:#0a0a14;border-radius:6px;padding:6px 8px"><div style="color:#556;font-size:10px">📻 Radio</div><div style="color:#e67e22;font-weight:700">${G.radio.plays.toLocaleString('pl')}</div></div>
         </div>
@@ -51936,7 +51936,7 @@ function renderPhoneStats(){
       ${(G.camera||G.mic||G.midiCtrl)?`
       <div style="background:#1a0a0a;border:1px solid #3a1a1a;border-radius:8px;padding:12px;margin-top:8px">
         <div style="font-size:12px;color:#e74c3c;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Stan sprzętu</div>
-        ${G.camera?`<div style="font-size:13px;color:${G.camera.quality<50?'#e74c3c':'#aaa'}" title="Wpływa na jakość filmów YouTube">📹 ${G.camera.name}: ${G.camera.quality}% ${G.camera.quality<50?'⚠️ Napraw w warsztacie!':''}</div>`:''}
+        ${G.camera?`<div style="font-size:13px;color:${G.camera.quality<50?'#e74c3c':'#aaa'}" title="Wpływa na jakość filmów ViewGrid">📹 ${G.camera.name}: ${G.camera.quality}% ${G.camera.quality<50?'⚠️ Napraw w warsztacie!':''}</div>`:''}
         ${G.mic?`<div style="font-size:13px;color:${G.mic.quality<50?'#e74c3c':'#aaa'}" title="Wpływa na jakość nagrań w studio + albumy + filmy YT">🎤 ${G.mic.name}: ${G.mic.quality}% ${G.mic.quality<50?'⚠️ Napraw w warsztacie!':''}</div>`:''}
         ${G.midiCtrl?`<div style="font-size:13px;color:${G.midiCtrl.quality<50?'#e74c3c':'#aaa'}" title="Wpływa na jakość bitów (Beatmaker)">🎹 ${G.midiCtrl.name}: ${G.midiCtrl.quality}% ${G.midiCtrl.quality<50?'⚠️ Napraw w warsztacie!':''}</div>`:''}
         <div style="font-size:10px;color:#778;margin-top:6px;font-style:italic">💡 Jakość spada ~4%/dzień przy używaniu. Wpływa na zarobki ze studio/YT/albumów. Naprawa w warsztacie.</div>
@@ -52172,7 +52172,7 @@ function renderPhonePassive(){
         ${spotifyTick>0?_row('🎵','Loopify',spotifyTick,spotifyTick*4,`${(G.spotify?.listeners||0).toLocaleString('pl')} słuchaczy`):''}
         ${tidalTick>0?_row('🌊','AurumWave',tidalTick,tidalTick*4,`${(G.tidal?.listeners||0).toLocaleString('pl')} słuchaczy`):''}
         ${radioTick>0?_row('📻','Radio',radioTick,radioTick*4,`${(G.radio?.beats||0)} beatów`):''}
-        ${ytTick>0?_row('📺','YouTube AdSense',ytTick,ytTick*4,`${(G.yt?.subs||0).toLocaleString('pl')} subs`):''}
+        ${ytTick>0?_row('📺','ViewGrid AdSense',ytTick,ytTick*4,`${(G.yt?.subs||0).toLocaleString('pl')} subs`):''}
         ${scDaily>0?_row('🟠','EchoDrop',null,scDaily,`${(G.soundcloud?.listeners||0).toLocaleString('pl')} słuchaczy`):''}
         ${(spotifyTick+tidalTick+radioTick+ytTick+scDaily)===0?`<div style="color:#445;font-size:12px;font-style:italic;padding:6px 10px">Brak — wydaj single/wgraj na EchoDrop/wyślij beat do radia.</div>`:''}
       </div>
@@ -52207,7 +52207,7 @@ function renderPhonePassive(){
         ${(merchTick+bankDaily+rentalsDaily+kebabDaily+sponsorDaily+studioRental)===0?`<div style="color:#445;font-size:12px;font-style:italic;padding:6px 10px">Brak — projektuj merch, inwestuj w banku, wynajmuj mieszkania, kup budkę kebab.</div>`:''}
       </div>
       <div style="background:#060e18;border:1px solid #1a2535;border-radius:8px;padding:10px;font-size:11px;color:#778;line-height:1.5">
-        <b style="color:#aac">💡 Jak to liczymy:</b> 🎵 Streamy (Loopify/AurumWave/YouTube/EchoDrop/Radio) <b>naliczają się do puli</b> i odbierasz je przyciskiem „Zbierz tantiemy" w aplikacji — NIE wpadają same. 🧢 Merch = auto co tick. Pozostałe (Evolution / skille / bank / wynajmy / kebab / sponsor) = auto raz dziennie (po północy). Kwoty bazowe × Twój mnożnik zarobków. Szacunki na podstawie aktualnych słuchaczy/produktów/skilli.
+        <b style="color:#aac">💡 Jak to liczymy:</b> 🎵 Streamy (Loopify/AurumWave/ViewGrid/EchoDrop/Radio) <b>naliczają się do puli</b> i odbierasz je przyciskiem „Zbierz tantiemy" w aplikacji — NIE wpadają same. 🧢 Merch = auto co tick. Pozostałe (Evolution / skille / bank / wynajmy / kebab / sponsor) = auto raz dziennie (po północy). Kwoty bazowe × Twój mnożnik zarobków. Szacunki na podstawie aktualnych słuchaczy/produktów/skilli.
       </div>
     </div>
     <div style="padding:8px 14px"><button class="cbtn" style="width:100%" onclick="renderPhoneHome()">← Wróć</button></div>
@@ -53922,7 +53922,7 @@ window.collectRoyalties=(platform)=>{
   if(amount<=0){notify('Brak tantiem do zebrania. Tantiemy rosną automatycznie z odtworzeń/wyświetleń.');return;}
   let _paid=amount;if(typeof earn==='function') _paid=earn(amount,false); else {G.money+=amount;G.totalEarned=(G.totalEarned||0)+amount;} /* v2.1.865: _paid = REALNA kwota (earn return) */
   p[_field]=0;
-  const _platName={spotify:'Loopify Artists',tidal:'AurumWave',radio:'Radio',yt:'YouTube AdSense',soundcloud:'EchoDrop'}[platform]||platform;
+  const _platName={spotify:'Loopify Artists',tidal:'AurumWave',radio:'Radio',yt:'ViewGrid AdSense',soundcloud:'EchoDrop'}[platform]||platform;
   notify(`💰 Zebrano ${_paid.toLocaleString('pl')} zł z ${_platName}`);
   if(typeof renderPhoneApp==='function') renderPhoneApp(platform);
 };
@@ -56616,7 +56616,7 @@ const TUTORIAL_STEPS=[
   /* v2.1.955 (PDF #17): kolejność celów — najpierw poznaj smartfon i MAPĘ (gracz nie wie o nich na starcie),
      potem zakupy/jedzenie, a DOPIERO PÓŹNIEJ praca. Wcześniej praca była 2. krokiem (przed mapą i telefonem). */
   {icon:'📱',color:'#e91e8c',title:'Telefon = centrum',
-   body:'Klawisz <strong>P</strong> otwiera telefon. Znajdziesz tam: statystyki, sklepy muzyczne (Loopify, YouTube), bank, rachunki, listę zadań i kariery.',
+   body:'Klawisz <strong>P</strong> otwiera telefon. Znajdziesz tam: statystyki, sklepy muzyczne (Loopify, ViewGrid), bank, rachunki, listę zadań i kariery.',
    goal:'Otwórz telefon (P) i przejrzyj aplikacje',
    done:()=>(G._tutStat?.phoneOpened||0)>0},
   {icon:'🗺️',color:'#3498db',title:'Mapa miasta',
@@ -57188,7 +57188,7 @@ function showHelp(){
           <div>🌮 Zbyszek (🌮) sprzedaje tanie jedzenie na ulicy</div>
           <div>📅 Marcin (📅) — Booking Agent — rezerwuje koncerty</div>
           <div>🎤 Idź na koncert żeby zdobyć sławę i fanów</div>
-          <div>📱 Telefon — Loopify, YouTube, Merch, Bank</div>
+          <div>📱 Telefon — Loopify, ViewGrid, Merch, Bank</div>
           <div>💪 Ćwicz na siłowni dla lepszej formy</div>
         </div>
       </div>
@@ -57203,6 +57203,12 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.65',date:'2026-06-26',cats:['beta-tester','Vegan','change'],reporter:'Vegan',title:'▶️ Platforma wideo dostała własną markę — ViewGrid',
+ items:[
+  {t:'change',d:'Platforma wideo w telefonie (kanał, montaż i publikacja filmów, serie) ma teraz własną markę świata gry — ViewGrid, w czerwonym stylu. Rebrand wizualny: nazwa, kolory, panel studio i komunikaty. Twój kanał, subskrybenci, nagrane filmy oraz przychody działają dokładnie tak samo jak wcześniej.'},
+ ]
+ },
  {
  ver:'v2.3.64',date:'2026-06-26',cats:['beta-tester','Vegan','change'],reporter:'Vegan',title:'🌊 Platforma premium audio dostała własną markę — AurumWave',
  items:[
@@ -58682,7 +58688,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.1.866',date:'2026-06-14',cats:['beta-tester','Vegan','fix'],reporter:'Vegan',title:'📻 Tantiemy streamingu — koniec podwójnej wypłaty',
  items:[
- {t:'fix',d:'💰 Naprawiona podwójna wypłata tantiem ze streamingu. Spotify, Tidal, YouTube AdSense i SoundCloud wpłacały PASYWNE tantiemy DWA razy: raz automatycznie w tle, a drugi raz gdy klikałeś „💰 Zbierz tantiemy". Teraz działają jak radio (już wcześniej naprawione): pasywne tantiemy (z bieżących odtworzeń + tygodniowe ze streamów) naliczają się do puli w aplikacji i są wypłacane RAZ — przy odbiorze przyciskiem (z Twoimi mnożnikami nastroju/streaku/prestiżu). To samo dotyczyło bonusów z eventów radiowych („viral w radiu", „bit bije rekordy").'},
+ {t:'fix',d:'💰 Naprawiona podwójna wypłata tantiem ze streamingu. Spotify, Tidal, ViewGrid AdSense i SoundCloud wpłacały PASYWNE tantiemy DWA razy: raz automatycznie w tle, a drugi raz gdy klikałeś „💰 Zbierz tantiemy". Teraz działają jak radio (już wcześniej naprawione): pasywne tantiemy (z bieżących odtworzeń + tygodniowe ze streamów) naliczają się do puli w aplikacji i są wypłacane RAZ — przy odbiorze przyciskiem (z Twoimi mnożnikami nastroju/streaku/prestiżu). To samo dotyczyło bonusów z eventów radiowych („viral w radiu", „bit bije rekordy").'},
  {t:'fix',d:'🎵 Wydania (singiel / demo / pełny release na SoundCloud) też płaciły dwa razy — naprawione: jednorazowa wypłata za wydanie trafia RAZ od razu na konto (jak album i koncert). Pula tantiem w aplikacji zasila tylko PASYWNY dochód (bieżące odtworzenia), nie jednorazowe wydania — koniec dublowania.'},
  {t:'balance',d:'⚖️ Skutek: realne zarobki bez zmian (ta sama stawka co dotychczasowa pojedyncza wypłata) — zniknęła tylko nienależna druga wypłata. Aktywny gracz dostaje tyle samo. Panel „Pasywny dochód" wyraźnie zaznacza, że PASYWNE streamy zbierasz ręcznie (nie wpadają same).'},
  {t:'info',d:'📲 Pamiętaj: zaglądaj do aplikacji Spotify/Tidal/YouTube/EchoDrop/Radio i klikaj „Zbierz tantiemy" — pasywny dochód rośnie w puli, ale trafia na konto dopiero po odbiorze.'},
@@ -58888,7 +58894,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.1.833',date:'2026-06-11',cats:['beta-tester','Vegan','balance'],reporter:'Vegan',title:'🎵 Tantiemy −30% (Spotify, Tidal, AdSense, Radio)',
  items:[
- {t:'balance',d:'🎵 **Tantiemy pasywne −30%** na wszystkich platformach: Spotify, Tidal, YouTube AdSense oraz Radio. Dochód „śpiący" z odtworzeń muzyki narastał zbyt szybko względem zera bieżącego wysiłku. Formuły pozostają tej samej kształtu (skalują się ze słuchaczami/wyświetleniami i jakością) — po prostu stawka za odtworzenie jest niższa. Część pełnego rebalansu ekonomii (zgłoszenie Vegana „multimilioner w kilka dni").'},
+ {t:'balance',d:'🎵 **Tantiemy pasywne −30%** na wszystkich platformach: Spotify, Tidal, ViewGrid AdSense oraz Radio. Dochód „śpiący" z odtworzeń muzyki narastał zbyt szybko względem zera bieżącego wysiłku. Formuły pozostają tej samej kształtu (skalują się ze słuchaczami/wyświetleniami i jakością) — po prostu stawka za odtworzenie jest niższa. Część pełnego rebalansu ekonomii (zgłoszenie Vegana „multimilioner w kilka dni").'},
  ],
  },
  {
@@ -62367,7 +62373,7 @@ const PATCH_NOTES = [
  ver:'v2.1.274',date:'2026-05-24',cats:['fix'],title:'💰 Pasywne dochody RENTAL_RATES — pominięte mansion+mega_villa (wynajmy nie widoczne w panelu)',
  items:[
   {t:'fix',d:'💰 **Pasywne dochody panel (Phone Finanse) pomijał najdroższe wynajmy** — `RENTAL_RATES` L30462 zawierał tylko 4 tiery: traphouse 25/basic 80/premium 200/luxury 500. **Mansion (1500 zł/dzień)** i **Mega Villa (3500 zł/dzień)** byli BRAK w mapie. Gracz wynajmujący mansion+megavilla widziałby `rentalsDaily=0` w panelu mimo że ich wynajmuje (display gap — biuro nieruchomości L23558 ma WSZYSTKIE 6 RENTAL_RATES). **Impact**: gracz w endgame (mansion+megavilla owners wynajmujący) NIE wiedziałby ile zarabia pasywnie z wynajmów (max 5000 zł/dzień invisible). **Fix v2.1.274**: dopisane mansion:1500, mega_villa:3500 — sync z autorytatywnym L23558 (Biuro Nieruchomości). UI promise gap zamknięty. **5-ty znaleziony desync w sesji audytowej** (po 4 desyncs z v2.1.229 nerf — outfit bonusText x2 + holiday desc x2 + sala koncertowa chips x5).'},
-  {t:'info',d:'🔍 AUDIT iter212 deep audit Pasywne dochody panel v2.1.252 (PLAN_NOC Faza 24) — **9 income sources** w 2 grupach: **Per-tick** (4×/dzień): Spotify (listeners*0.000015 + sqrt anti-explode), Tidal (analog gorsze rates), Radio (beats+sqrt+fame), YouTube AdSense (subs≥1000 gated), Merch (lifetime/day/4 real avg). **Per-day** (1×/dzień): Bank investments dailyInterest sum, Rentals (po fix wszystkie 6 tiers), Kebab budka 300 zł (Zbyszek upgrade), Sponsor deals z activeSponsors.dailyRate. Total estimate `tickTotal*4 + bankDaily + rentalsDaily + kebabDaily + sponsorDaily`. UI z breakdown per source z extra info trackers.'},
+  {t:'info',d:'🔍 AUDIT iter212 deep audit Pasywne dochody panel v2.1.252 (PLAN_NOC Faza 24) — **9 income sources** w 2 grupach: **Per-tick** (4×/dzień): Spotify (listeners*0.000015 + sqrt anti-explode), Tidal (analog gorsze rates), Radio (beats+sqrt+fame), ViewGrid AdSense (subs≥1000 gated), Merch (lifetime/day/4 real avg). **Per-day** (1×/dzień): Bank investments dailyInterest sum, Rentals (po fix wszystkie 6 tiers), Kebab budka 300 zł (Zbyszek upgrade), Sponsor deals z activeSponsors.dailyRate. Total estimate `tickTotal*4 + bankDaily + rentalsDaily + kebabDaily + sponsorDaily`. UI z breakdown per source z extra info trackers.'},
  ]
  },
  {
@@ -62526,7 +62532,7 @@ const PATCH_NOTES = [
  ver:'v2.1.252',date:'2026-05-24',cats:['feature'],title:'💰 Nowa apka Pasywne dochody — konsolidacja źródeł z /tick + /dzień + szacowany total',
  items:[
   {t:'feature',d:'💰 **Nowa apka telefonu "💰 Pasywne dochody"** w folderze Finanse (PLAN_NOC Faza 24). Konsolidacja **9 źródeł** pasywnego przychodu w 1 widoku:'},
-  {t:'feature',d:'📊 **Streamy** (per tick + dziennie): Spotify, Tidal, Radio, YouTube AdSense. **Inne źródła** (raz dziennie): Studio Merchu (real avg z lifetime), Bank lokaty, Wynajem mieszkań (rates 25/80/200/500), Budka kebab (300/dzień), Sponsorzy Inbox.'},
+  {t:'feature',d:'📊 **Streamy** (per tick + dziennie): Spotify, Tidal, Radio, ViewGrid AdSense. **Inne źródła** (raz dziennie): Studio Merchu (real avg z lifetime), Bank lokaty, Wynajem mieszkań (rates 25/80/200/500), Budka kebab (300/dzień), Sponsorzy Inbox.'},
   {t:'feature',d:'🎯 **Szacowany dzienny total** na górze (duża zielona liczba) — szybki overview ile gracz pasywnie zarabia bez nic robić. Plus rozbicie "tickowe vs dzienne" w podpisie.'},
   {t:'feature',d:'💡 **Wytłumaczenie liczeń**: "/tick = wypłata raz na 6 godzin gry (4 ticki/dzień)". User wie skąd te liczby. Plus puste sekcje pokazują tip jak odblokować.'},
   {t:'info',d:'📋 Sekcja "Pasywny dochód (na tick)" w renderPhoneStats POZOSTAJE — backward compat dla graczy przyzwyczajonych. Nowa apka = bardziej szczegółowy widok.'},
@@ -70130,9 +70136,9 @@ const SIDE_STORYLINES={
     quests:[
       {id:'y1', em:'🎥', name:'Pierwsza kamera', desc:'Kup kamerę w VoltHouse (najtańsza ~500 zł)',
         check:()=>!!G.camera, reward:{money:200,xp:20}},
-      {id:'y2', em:'🎬', name:'Pierwszy film', desc:'Nagraj i opublikuj 1 film na YouTube (komputer w mieszkaniu → YouTube)',
+      {id:'y2', em:'🎬', name:'Pierwszy film', desc:'Nagraj i opublikuj 1 film na ViewGrid (komputer w mieszkaniu → ViewGrid)',
         check:()=>(G.yt?.videos?.length||0)>=1, reward:{money:500,xp:40}},
-      {id:'y3', em:'👥', name:'1 000 subów', desc:'Pierwszy milestone na YouTube — 1k subskrybentów',
+      {id:'y3', em:'👥', name:'1 000 subów', desc:'Pierwszy milestone na ViewGrid — 1k subskrybentów',
         check:()=>(G.yt?.subs||0)>=1000, reward:{money:2000,fame:8,xp:60,skillPts:1}},
       {id:'y4', em:'🌟', name:'10 000 subów', desc:'Złoty Play Button — 10k subów',
         check:()=>(G.yt?.subs||0)>=10000, reward:{money:8000,fame:20,xp:100,skillPts:2}},
@@ -76244,7 +76250,7 @@ function showStorylineDetails(){
       <button onclick="document.getElementById('storyline-details-bd')?.remove();document.getElementById('storyline-details')?.remove();" style="background:transparent;border:1px solid #2a3a50;color:#aaa;width:32px;height:32px;border-radius:6px;cursor:pointer;font-size:16px;font-family:inherit">✕</button>
     </div>
     <div style="font-size:13px;color:#aab;line-height:1.6;margin-bottom:14px;padding:11px 14px;background:rgba(0,0,0,.3);border-radius:6px;border-left:3px solid #c8a520">
-      <b style="color:#c8a520">Co to jest?</b> Łańcuch <b>${STORYLINE_QUESTS.length} opcjonalnych misji</b> prowadzących Cię od początkującego do legendy rap-sceny. Każdy krok daje nagrody (kasa, sława, XP, skill pointy). <b style="color:#7ec8e3">Nie musisz tego robić</b> — możesz grać po swojemu. Pasek u góry to tylko podpowiedź "co dalej" w głównej fabule. Możesz robić cokolwiek innego (YouTube, Beatmaker, Gamer, Prace) i ignorować ten pasek.
+      <b style="color:#c8a520">Co to jest?</b> Łańcuch <b>${STORYLINE_QUESTS.length} opcjonalnych misji</b> prowadzących Cię od początkującego do legendy rap-sceny. Każdy krok daje nagrody (kasa, sława, XP, skill pointy). <b style="color:#7ec8e3">Nie musisz tego robić</b> — możesz grać po swojemu. Pasek u góry to tylko podpowiedź "co dalej" w głównej fabule. Możesz robić cokolwiek innego (ViewGrid, Beatmaker, Gamer, Prace) i ignorować ten pasek.
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#aab;margin-bottom:10px;padding:0 4px">
       <div>Postęp: <strong style="color:#fff">${idx}/${STORYLINE_QUESTS.length} ukończonych</strong></div>
