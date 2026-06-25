@@ -30824,6 +30824,23 @@ function openCareerOverlay(id){
 }
 
 // ─── YOUTUBER ────────────────────────────────────────────────────
+/* A8b (v2.x) redesign „każdy film osobno": kolekcja G.yt.drafts[] zamiast single-slot.
+   _ytAddDraft — dodaje nagrany surowy film do kolekcji. _ytFindDraft — wybór wg id lub fallback (najstarszy raw/edited). */
+window._ytAddDraft=function(quality){
+  if(!G.yt) return null;
+  if(!Array.isArray(G.yt.drafts)) G.yt.drafts=[];
+  G.yt._draftSeq=(G.yt._draftSeq||0)+1;
+  const d={id:G.yt._draftSeq, genre:G.ytGame||'Vlog Dzienny', quality:clamp(Math.floor(quality)||10,5,100), edited:false};
+  G.yt.drafts.push(d);
+  if(G.yt.drafts.length>40) G.yt.drafts.shift(); /* anti-bloat */
+  return d;
+};
+window._ytFindDraft=function(id,wantEdited){
+  const ds=(G.yt&&Array.isArray(G.yt.drafts))?G.yt.drafts:[];
+  if(id!=null){ return ds.find(d=>d.id===id)||null; }
+  /* fallback: najstarszy pasujący (wantEdited=true→edited, false→raw, undefined→dowolny) */
+  return ds.find(d=> wantEdited===undefined ? true : (!!d.edited===!!wantEdited)) || null;
+};
 function renderYTOverlay(){
   const car=G.careers.youtuber;
   if(!car.unlocked){const _tx=G.xp+(G.level-1)*CFG.xpPerLevel;document.getElementById('ov-content').innerHTML=`<h2>🎬 YouTuber</h2><p class="sub">Odblokuj zdobywając ${car.xpReq} XP (masz ${_tx}) <strong>lub</strong> kupując punkt w drzewku 📺 YouTuber (Telefon → Drzewko).</p><button class="cbtn" onclick="closeOverlay()">← Wróć</button>`;return;}
@@ -30879,14 +30896,24 @@ function renderYTOverlay(){
       <div class="sbox"><div class="l">Mikrofon</div><div class="v" style="font-size:13px">${G.mic?G.mic.name:'Brak'} (${micQ}%)</div></div>
     </div>
     <div class="cards">
-      <div class="card"><h3>🎥 Nagrywanie</h3><p>Wybierz gatunek i nagraj film. Kamera wpływa na efekt.</p><div class="cost">Energia: -15</div><button class="dbtn" ${G.energy<15?'disabled':''} onclick="startYTRecording()">Nagrywaj</button></div>
-      <!-- v2.1.340 Faza N (user 2026-05-27 "po nagraniu filmu można go kilka razy montować, to bez sensu"): disabled po G.ytEdited=true (1× per nagranie). Opis info "(1× per film)". -->
-      <div class="card"><h3>✂️ Montaż</h3><p>Zmontuj materiał w edytorze (1× per nagranie). PC i skill wpływają na jakość.</p><div class="cost">Energia: -10</div><button class="dbtn" ${!G.ytRecorded||G.ytEdited||G.energy<10?'disabled':''} onclick="startYTEdit()">${G.ytEdited?'✅ Zmontowano':'Montuj'}</button></div>
-      <div class="card"><h3>📤 Publikuj</h3><p>Wrzuć film na YouTube. <strong style="color:#27ae60">+ ×1.5 boost streamu na 3 streamy</strong></p>${G.ytRecorded&&G.ytEdited?`<input id="yt-title-input" type="text" maxlength="40" placeholder="🏷️ Tytuł filmu (opcjonalnie)" value="${(G._ytCustomTitle||'').replace(/"/g,'&quot;')}" oninput="G._ytCustomTitle=this.value.slice(0,40)" style="width:100%;padding:6px 10px;background:#0a0a14;border:1px solid #2a2a3a;border-radius:5px;color:#fff;font-family:inherit;font-size:12px;margin-bottom:6px;box-sizing:border-box">`:''}<div class="cost">Wymaga nagrania + montażu</div><button class="dbtn" ${!G.ytRecorded||!G.ytEdited?'disabled':''} onclick="publishYT()">Publikuj</button></div>
+      <div class="card"><h3>🎥 Nagrywanie</h3><p>Wybierz gatunek i nagraj film. Każde nagranie to OSOBNY szkic w kolekcji poniżej — możesz mieć kilka i wybierać, który zmontować lub opublikować.</p><div class="cost">Energia: -15</div><button class="dbtn" ${G.energy<15?'disabled':''} onclick="startYTRecording()">Nagrywaj</button></div>
       <div class="card"><h3>🤝 Współpraca</h3><p>Zaproś innego twórcę. Boost zasięgu!</p><div class="cost">500 zł · Min. 100 sub</div><button class="dbtn" ${G.yt.subs<100||G.money<500?'disabled':''} onclick="ytCollab()">Współpraca</button></div>
-      <div class="card"><h3>📺 Seria filmowa</h3><p>Nagraj serię 5 filmów → ×2 zasięg na każdym. Wymaga nagranego i zmontowanego.</p>${G.ytRecorded&&G.ytEdited?`<input id="yt-series-title-input" type="text" maxlength="40" placeholder="🏷️ Tytuł odcinka (opcjonalnie)" value="${(G._ytSeriesCustomTitle||'').replace(/"/g,'&quot;')}" oninput="G._ytSeriesCustomTitle=this.value.slice(0,40)" style="width:100%;padding:6px 10px;background:#0a0a14;border:1px solid #2a2a3a;border-radius:5px;color:#fff;font-family:inherit;font-size:12px;margin-bottom:6px;box-sizing:border-box">`:''}<div class="cost">${G.yt.seriesProgress!==undefined?`Seria: ${G.yt.seriesProgress}/5 filmów`:'Rozpocznij serię'}</div><button class="dbtn" ${!G.ytRecorded||!G.ytEdited?'disabled':''} onclick="publishYTSeries()">Dodaj do serii</button></div>
     </div>
-    <div class="res" id="yt-res">${G.ytRecorded?(G.ytEdited?'Film gotowy do publikacji!':'Nagrano film. Teraz zmontuj.'):'Wybierz akcję.'}</div>
+    <div style="margin-top:14px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="color:#fff;font-size:14px;font-weight:700">🎞️ Nagrane filmy (szkice)</div><div style="color:#666;font-size:12px">${G.yt.drafts.length} w toku · zmontuj i opublikuj każdy osobno</div></div>
+      ${G.yt.drafts.length>0?`<div style="display:flex;flex-direction:column;gap:8px">${G.yt.drafts.map(d=>`
+        <div style="background:#0a0a14;border:1px solid ${d.edited?'#27ae60':'#3a2a1a'};border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div style="flex:1;min-width:150px">
+            <div style="color:#fff;font-size:13px;font-weight:600">${d.genre||'Film'} <span style="color:#667;font-weight:400">#${d.id}</span></div>
+            <div style="font-size:11px;margin-top:2px">Jakość: <b style="color:#f1c40f">${d.quality||0}%</b> · ${d.edited?'<span style="color:#27ae60">✂️ zmontowany — gotowy do publikacji</span>':'<span style="color:#e67e22">surowy materiał — wymaga montażu</span>'}</div>
+          </div>
+          ${d.edited
+            ? `<button class="dbtn" style="margin:0" onclick="publishYT(${d.id})">📤 Publikuj</button><button class="dbtn" style="margin:0;background:#1a2a4a;border-color:#3498db" onclick="publishYTSeries(${d.id})">📺 Do serii (${(G.yt.seriesProgress||0)}/5)</button>`
+            : `<button class="dbtn" style="margin:0" ${G.energy<10?'disabled':''} onclick="startYTEdit(${d.id})">✂️ Montuj</button>`}
+        </div>`).join('')}</div>`
+      :`<div style="padding:18px;text-align:center;background:#0a0a14;border-radius:8px;color:#667;font-size:12px">Brak szkiców. Nagraj film — potem zmontuj i opublikuj (każdy osobno).</div>`}
+    </div>
+    <div class="res" id="yt-res">${G.yt.drafts.length>0?(G.yt.drafts.some(d=>d.edited)?'Masz zmontowane filmy gotowe do publikacji.':'Zmontuj nagrane szkice, potem publikuj.'):'Nagraj swój pierwszy film.'}</div>
     ${videosHtml}
     <button class="cbtn" onclick="closeOverlay()">← Wróć</button>
   `;
@@ -30993,12 +31020,12 @@ function doRecord(){
     _mvBonus=Math.floor(_tQ*0.3);
     _ytQ+=_mvBonus;
   }
-  G.ytQuality=clamp(_ytQ,5,100);
-  G.ytRecorded=true;G.ytEdited=false;
+  const _draftQ=clamp(_ytQ,5,100);
+  window._ytAddDraft(_draftQ); /* A8b: nagranie → nowy draft w kolekcji (zamiast single-slot) */
   G.energy=clampStat('energy', G.energy-15);G.hunger=clampStat('hunger', G.hunger-5);
   addXP(10);
   const r=document.getElementById('rec-result');
-  if(r) r.textContent=(inZone?'✅ Świetne ujęcie!':'⚠️ Przeciętne.')+'  Jakość: '+G.ytQuality+'%  Gra: '+G.ytGame+(_mvBonus>0?` · 🎬 Music video bonus: +${_mvBonus}%`:'');
+  if(r) r.textContent=(inZone?'✅ Świetne ujęcie!':'⚠️ Przeciętne.')+'  Jakość: '+_draftQ+'%  Gra: '+G.ytGame+(_mvBonus>0?` · 🎬 Music video bonus: +${_mvBonus}%`:'');
   setTimeout(()=>{closeMG();renderYTOverlay();openOverlay();},2000);
 }
 
@@ -31017,8 +31044,8 @@ window.finishYTMinigame=function(scorePercent,summary){
   // v1.8.97: akcesoria muzyczne (statyw/popfiltr/koszyk) + selfie ring (+8% vlog) realnie aplikowane
   const _accBonus=((G._musicAcc?.statyw)?3:0)+((G._musicAcc?.popfiltr)?2:0)+((G._musicAcc?.koszyk)?4:0);
   const _ringMult=(G._musicAcc?.ring)?1.08:1;
-  G.ytQuality=clamp(Math.floor((scorePercent*(camQ/100+.3)+micQ*.12+acousticBonus+headBonus+_accBonus)*_ringMult+rnd(0,10)),5,100);
-  G.ytRecorded=true;G.ytEdited=false;
+  const _recQ=clamp(Math.floor((scorePercent*(camQ/100+.3)+micQ*.12+acousticBonus+headBonus+_accBonus)*_ringMult+rnd(0,10)),5,100);
+  window._ytAddDraft(_recQ); /* A8b: nagranie → nowy draft w kolekcji (zamiast single-slot) */
   G.energy=clampStat('energy', G.energy-15);G.hunger=clampStat('hunger', G.hunger-5);
   addXP(10);
   document.getElementById('mg-yt-content').innerHTML=`
@@ -31026,7 +31053,7 @@ window.finishYTMinigame=function(scorePercent,summary){
       <div style="font-size:64px;margin-bottom:16px">${scorePercent>=80?'🏆':scorePercent>=50?'👍':'😕'}</div>
       <h2 style="color:#e74c3c;margin-bottom:10px">Nagranie gotowe — ${G.ytGame}</h2>
       <div style="font-size:19px;color:#7ec87e;margin-bottom:10px">${summary}</div>
-      <div style="font-size:17px;color:#aaa">Jakość nagrania: <b style="color:#f1c40f;font-size:22px">${G.ytQuality}%</b></div>
+      <div style="font-size:17px;color:#aaa">Jakość nagrania: <b style="color:#f1c40f;font-size:22px">${_recQ}%</b> · zapisane jako szkic — zmontuj i opublikuj w panelu</div>
     </div>`;
   setTimeout(()=>{closeMG();renderYTOverlay();openOverlay();},2800);
 };
@@ -31417,19 +31444,19 @@ function renderRhythmMg(mg){
   window._ytMgCleanup=()=>{timers.forEach(t=>{clearInterval(t);clearTimeout(t);});document.removeEventListener('keydown',onKey);};
 }
 
-function startYTEdit(){
-  /* v2.3.51 (user 2026-06-23 „nagrywam 1 a mogę montować zawsze dużo więcej"): guard wymogu NAGRANIA przed
-     montażem — wcześniej startYTEdit ufał tylko atrybutowi disabled przycisku (jak publishYT z `!G.ytRecorded`),
-     a sama funkcja pozwalała otworzyć edytor bez nagrania → montaż/publikacja więcej filmów niż nagrano. */
-  if(!G.ytRecorded){
+function startYTEdit(draftId){
+  /* A8b (v2.x): montaż WYBRANEGO draftu z kolekcji (id z przycisku) lub najstarszego surowego (fallback bez id).
+     Guardy v2.3.51/Faza N zachowane: brak surowego draftu → komunikat; już zmontowany → komunikat. */
+  const _d=window._ytFindDraft(draftId, false);
+  if(!_d){
     if(typeof showMsg==='function') showMsg('🎥 Najpierw nagraj film — dopiero potem montaż.','f',4000);
     return;
   }
-  /* v2.1.340 Faza N (user 2026-05-27): guard przeciw ponownemu montażowi tego samego nagrania. */
-  if(G.ytEdited){
+  if(_d.edited){
     if(typeof showMsg==='function') showMsg('✂️ Ten film już zmontowałeś — publikuj lub nagraj nowy.','f',4000);
     return;
   }
+  G.yt._editId=_d.id; /* który draft montujemy (finishEdit odczyta po id) */
   closeOverlay();
   let clips=[false,false,false,false,false],effects=[false,false,false];
   const renderEdit=()=>{
@@ -31453,21 +31480,24 @@ function startYTEdit(){
   window.finishEdit=()=>{
     const sc=clips.filter(Boolean).length,sf=effects.filter(Boolean).length;
     const pcBonus=G.hasPCUpgrade?15:0;
-    G.ytQuality=clamp(G.ytQuality+sc*8+sf*6+pcBonus,0,100);
-    G.ytEdited=true;G.energy=clampStat('energy', G.energy-10);addXP(15);
+    const _ed=window._ytFindDraft(G.yt._editId); /* draft montowany — po id */
+    if(_ed){ _ed.quality=clamp((_ed.quality||0)+sc*8+sf*6+pcBonus,0,100); _ed.edited=true; }
+    G.energy=clampStat('energy', G.energy-10);addXP(15);
     const r=document.getElementById('edit-res');
-    if(r) r.textContent=`✅ Zmontowano! Klipów: ${sc}/5, Efektów: ${sf}/3. Końcowa jakość: ${G.ytQuality}%`;
+    if(r) r.textContent=`✅ Zmontowano! Klipów: ${sc}/5, Efektów: ${sf}/3. Końcowa jakość: ${_ed?_ed.quality:0}%`;
     setTimeout(()=>{closeMG();renderYTOverlay();openOverlay();},2000);
   };
   renderEdit();
   document.getElementById('mg-edit').classList.add('on');
 }
 
-function publishYT(){
-  if(!G.ytRecorded||!G.ytEdited) return;
+function publishYT(draftId){
+  /* A8b: publikuje WYBRANY zmontowany draft (id z przycisku) lub najstarszy zmontowany (fallback). */
+  const _pd=window._ytFindDraft(draftId, true);
+  if(!_pd||!_pd.edited) return;
   const grafikBonus=G.crew.some(c=>c.role==='grafik')?1.10:1.0;
-  const q=Math.min(100,Math.floor(G.ytQuality*grafikBonus));
-  const gameBonus={'FPS Action':1.3,'RPG Fantasy':1.1,'Horror Night':1.4,'Racing':1.0,'Minecraft Build':1.5,'Cooking Sim':0.9,'Vlog Dzienny':1.2,'Muzyczny':1.3}[G.ytGame]||1;
+  const q=Math.min(100,Math.floor((_pd.quality||0)*grafikBonus));
+  const gameBonus={'FPS Action':1.3,'RPG Fantasy':1.1,'Horror Night':1.4,'Racing':1.0,'Minecraft Build':1.5,'Cooking Sim':0.9,'Vlog Dzienny':1.2,'Muzyczny':1.3}[_pd.genre]||1;
   const ytSkMult=1+Math.max(0,(G.skills&&getSkillLvl('youtuber')||0)-1)*0.15+(typeof _pu==='function'?_pu('youtuber')*0.30:0); /* v1.9.63: Power-Ups +30/60/100% (audyt PU — wcześniej pomijane w publishYT) */
   const baseViews=Math.floor(q*gameBonus*(1+G.yt.subs*.001)*rnd(80,120)/100*ytSkMult);
   // v1.9.10: BUG FIX — ytSkMult NIE jest ponownie aplikowany do newSubs/income, bo baseViews już go ma. Wcześniej x²=2.56× przy skill 5.
@@ -31494,15 +31524,14 @@ function publishYT(){
   // v1.8.85: BUG FIX — wcześniej `G.followers=G.yt.subs` kasowało fanów z innych źródeł (Spotify, koncerty, Insta).
   // Poprawnie: dodajemy TYLKO nowych subskrybentów do total followers, nie nadpisujemy.
   G.followers+=newSubs;
-  /* v2.1.44 [Amper]: custom tytuł filmu — user-input z karty Publikuj, fallback do G.ytGame */
-  const _customYtTitle=(G._ytCustomTitle||'').trim().slice(0,40);
-  G.yt.videos.push({title:_customYtTitle||G.ytGame,quality:q,views:baseViews,date:'Dzień '+G.day,genre:G.ytGame});
-  G._ytCustomTitle=''; /* reset po publikacji */
+  /* A8b: tytuł = gatunek draftu (custom-title input usunięty w modelu kolekcji — każdy film osobny ma swój gatunek). */
+  G.yt.videos.push({title:_pd.genre,quality:q,views:baseViews,date:'Dzień '+G.day,genre:_pd.genre});
   /* v1.9.34: Memory cap — anti-bloat save */
   if(G.yt.videos.length>50) G.yt.videos.shift();
   /* v1.9.31: Prestige fameMult przez addFame() */
   if(typeof addFame==='function') addFame(Math.floor(q/16)); else G.fame=clamp(G.fame+Math.floor(q/16),0,500);
-  G.ytRecorded=false;G.ytEdited=false;G.ytQuality=0;
+  /* A8b: konsumuj opublikowany draft z kolekcji (usuń z drafts) — single-slot reset usunięty */
+  const _pi=G.yt.drafts.indexOf(_pd); if(_pi>=0) G.yt.drafts.splice(_pi,1);
   G.spotify.listeners+=Math.floor(newSubs*.1);
   // Cross-career: świeży film daje boost ×1.5 na 3 kolejne streamy
   G.streamBoostRemaining=3;
@@ -31514,17 +31543,19 @@ function publishYT(){
     if(G.contract.progress>=G.contract.target) completeContract();
   }
   addXP(20);progressQuest('yt_video');
-  notify(`📤 "${G.ytGame}"! +${baseViews.toLocaleString('pl')} views, +${newSubs} sub, +${income} zł · 🔥 Boost streamu ×1.5 na 3 streamy`);
+  notify(`📤 "${_pd.genre}"! +${baseViews.toLocaleString('pl')} views, +${newSubs} sub, +${income} zł · 🔥 Boost streamu ×1.5 na 3 streamy`);
   renderYTOverlay();
 }
 
-function publishYTSeries(){
-  if(!G.ytRecorded||!G.ytEdited) return;
+function publishYTSeries(draftId){
+  /* A8b: dodaj WYBRANY zmontowany draft do serii (id z przycisku) lub najstarszy zmontowany (fallback). */
+  const _sd=window._ytFindDraft(draftId, true);
+  if(!_sd||!_sd.edited) return;
   if(G.yt.seriesProgress===undefined) G.yt.seriesProgress=0;
   G.yt.seriesProgress++;
   const grafikBonus=G.crew.some(c=>c.role==='grafik')?1.10:1.0;
-  const q=Math.min(100,Math.floor(G.ytQuality*grafikBonus));
-  const gameBonus={'FPS Action':1.3,'RPG Fantasy':1.1,'Horror Night':1.4,'Racing':1.0,'Minecraft Build':1.5,'Cooking Sim':0.9,'Vlog Dzienny':1.2,'Muzyczny':1.3}[G.ytGame]||1;
+  const q=Math.min(100,Math.floor((_sd.quality||0)*grafikBonus));
+  const gameBonus={'FPS Action':1.3,'RPG Fantasy':1.1,'Horror Night':1.4,'Racing':1.0,'Minecraft Build':1.5,'Cooking Sim':0.9,'Vlog Dzienny':1.2,'Muzyczny':1.3}[_sd.genre]||1;
   const seriesMult=G.yt.seriesProgress>=5?2.0:1.0+(G.yt.seriesProgress*0.1);
   const ytSkMultSer=1+Math.max(0,(G.skills&&getSkillLvl('youtuber')||0)-1)*0.15+(typeof _pu==='function'?_pu('youtuber')*0.30:0); /* v1.9.63: Power-Ups +30/60/100% for series */
   const baseViews=Math.floor(q*gameBonus*seriesMult*(1+G.yt.subs*.001)*rnd(80,120)/100*ytSkMultSer);
@@ -31536,14 +31567,13 @@ function publishYTSeries(){
   if(typeof earn==='function') earn(income,false); else {G.money+=income;G.totalEarned=(G.totalEarned||0)+income;}
   // v1.9.10: BUG FIX — spójnie z publikacją zwykłą: DODAJEMY newSubs do followers (poprzednio Math.max kasowało fanów spoza YT)
   G.followers+=newSubs;
-  /* v2.1.44 [Amper]: custom tytuł odcinka serii — user-input, fallback do G.ytGame */
-  const _customSerTitle=(G._ytSeriesCustomTitle||'').trim().slice(0,40);
-  G.yt.videos.push({title:'[SERIA] '+(_customSerTitle||G.ytGame),quality:q,views:baseViews,date:'Dzień '+G.day,genre:G.ytGame});
-  G._ytSeriesCustomTitle=''; /* reset po publikacji */
+  /* A8b: tytuł odcinka serii = gatunek draftu (custom-title input usunięty w modelu kolekcji). */
+  G.yt.videos.push({title:'[SERIA] '+_sd.genre,quality:q,views:baseViews,date:'Dzień '+G.day,genre:_sd.genre});
   if(G.yt.videos.length>50) G.yt.videos.shift(); /* v1.9.34: memory cap */
-  /* v1.9.33: Prestige fameMult przez addFame() — spójnie z regular publish (12823) */
+  /* v1.9.33: Prestige fameMult przez addFame() — spójnie z regular publish */
   if(typeof addFame==='function') addFame(Math.floor(q/16)); else G.fame=clamp(G.fame+Math.floor(q/16),0,500);
-  G.ytRecorded=false;G.ytEdited=false;G.ytQuality=0;
+  /* A8b: konsumuj opublikowany draft z kolekcji (single-slot reset usunięty) */
+  const _si=G.yt.drafts.indexOf(_sd); if(_si>=0) G.yt.drafts.splice(_si,1);
   G.spotify.listeners+=Math.floor(newSubs*.1);
   // Cross-career: film z serii daje większy boost streamu (×1.5 na 5 streamów)
   G.streamBoostRemaining=5;
@@ -57112,6 +57142,13 @@ function showHelp(){
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
  {
+ ver:'v2.3.60',date:'2026-06-25',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'📺 YouTube — każdy film osobno: nagraj kilka, wybieraj który zmontować i opublikować',
+ items:[
+  {t:'feature',d:'Przebudowaliśmy kanał YouTube: każdy nagrany film to teraz osobna pozycja w kolekcji szkiców. Możesz nagrać kilka materiałów z rzędu, a potem wybrać, który zmontować, a który opublikować — każdy ma swój stan (surowy / zmontowany) i własną jakość. Koniec z jednym filmem w toku na raz.'},
+  {t:'change',d:'Montaż i publikacja działają per wybrany film — przyciski są przy każdym szkicu na liście. Serię filmową również budujesz z konkretnego zmontowanego szkicu. Wcześniej opublikowane filmy oraz ewentualny film w toku ze starego zapisu są w pełni zachowane.'},
+ ]
+ },
+ {
  ver:'v2.3.59',date:'2026-06-25',cats:['beta-tester','Vegan','fix'],reporter:'Vegan',title:'🎚️ Studio (DAW) — po wydaniu utworu wracasz do startu nowego kawałka, nie na pustą zakładkę',
  items:[
   {t:'fix',d:'W studyjnym oknie produkcji po wydaniu singla na dystrybutora lub wrzuceniu na SoundCloud gra przerzucała Cię na zakładkę Master — ale utwór był już opublikowany i wyczyszczony, więc lądowałeś na pustej, bezużytecznej zakładce. Teraz po wydaniu trafiasz prosto na Beat Maker, gotowy do rozpoczęcia kolejnego kawałka.'},
@@ -71400,6 +71437,8 @@ function loadGame(){
      Save-safe: pusta tablica + sekwencja id. Single-slot (ytRecorded/ytEdited) NIETKNIĘTY w A8a (migracja w A8b atomowo z przełączeniem UI). */
   if(!Array.isArray(G.yt.drafts)) G.yt.drafts=[];
   if(typeof G.yt._draftSeq!=='number'||isNaN(G.yt._draftSeq)) G.yt._draftSeq=0;
+  /* A8b migracja single-slot→draft (jednorazowa): film-w-toku ze starego save (ytRecorded) → 1 draft, flagi wyczyszczone (save-safe #1, gracz nie traci nagrania). */
+  if(!G.yt._slotMigrated){ G.yt._slotMigrated=true; if(G.ytRecorded){ G.yt._draftSeq++; G.yt.drafts.push({id:G.yt._draftSeq,genre:G.ytGame||'Vlog Dzienny',quality:(typeof G.ytQuality==='number'?G.ytQuality:10)||10,edited:!!G.ytEdited}); G.ytRecorded=false;G.ytEdited=false;G.ytQuality=0; } }
   if(typeof G.yt.subs!=='number'||isNaN(G.yt.subs)) G.yt.subs=0;
   if(typeof G.yt.views!=='number'||isNaN(G.yt.views)) G.yt.views=0;
   if(typeof G.yt.adsense!=='number'||isNaN(G.yt.adsense)) G.yt.adsense=0;
