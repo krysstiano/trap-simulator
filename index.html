@@ -13257,6 +13257,8 @@ function updatePlayer(){
           else if(cid==='soundeng') txt=`🔒 ${carNames[cid]} — wymaga poziomu 4 (jesteś lvl ${G.level})`;
         }
       }
+      /* C4 (PDF most): delikatny znacznik „Trop" na budynku Kasyno Royale dopóki Brokat nieznaleziony. */
+      if(txt && obj.id==='casino' && typeof window._underworldEnsure==='function'){ window._underworldEnsure(); const _uc=G.underworldIntro; if(_uc && _uc.casinoMarkerEnabled && _uc.bridgeStage==='find_brokat' && _uc.task && !_uc.task.t3) txt=txt+' · 🔎 Trop'; }
       if(txt){pr.textContent=txt;pr.style.display='block';}else pr.style.display='none';
     }
   } else pr.style.display='none';
@@ -15767,6 +15769,8 @@ function changeRoom(id,wx,wy){
     const _firstU=!(G.visitedRooms&&G.visitedRooms['underground']);
     setTimeout(()=>{ if(currentRoom==='underground' && !(document.getElementById('mg-job')&&document.getElementById('mg-job').classList.contains('on'))) window._undergroundGuide(); }, _firstU?5800:500);
   }
+  /* C4 (PDF most): wejście na parter kasyna w trakcie szukania Brokata → wskazówka gdzie patrzeć. */
+  if(id==='casino' && typeof window._underworldEnsure==='function'){ window._underworldEnsure(); const _ub=G.underworldIntro; if(_ub && _ub.bridgeStage==='find_brokat' && _ub.brokatSpawnEnabled && _ub.task && !_ub.task.t3){ setTimeout(()=>{ if(currentRoom==='casino' && typeof showMsg==='function') showMsg('🎰 Rozejrzyj się przy automatach na parterze — szukany powinien tu być.','f',5200); }, 750); } }
   // First-visit tip
   if(!G.visitedRooms) G.visitedRooms={};
   if(!G.visitedRooms[id]){
@@ -50078,6 +50082,7 @@ window._uwKantarMeet=function(){
       if(typeof window._uwKantarReturn==='function'){ window._uwKantarReturn(); return; }
       window._uwShowDlg('Zrobione? Siadaj. (ocena testu — wkrótce)',[{text:'OK',fn:closeNPCDlg}]); return;
     }
+    if(u.task.t1 && u.task.t2 && !u.task.t3 && u.bridgeStage==='after_parking_task' && typeof window._uwKantarLastMan==='function'){ window._uwKantarLastMan(); return; } /* C3 most: po Z2 Kantar daje trop na Brokata */
     window._uwShowDlg('Masz robotę. Wróć, jak wszystko będzie zrobione — koperta, parking i ten dłużnik.',[{text:'Wychodzę',fn:closeNPCDlg}]); return;
   }
   if(u.state==='returned'){
@@ -50097,6 +50102,43 @@ window._uwKantarMeet=function(){
   /* anti-farm: dialog otwierający (z gainami stat) tylko RAZ; potem od razu oferta */
   if(u._openingPicked){ window._uwKantarOffer(); return; }
   window._uwKantarOpening();
+};
+/* ═══ MOST Z2→Z3 (PDF „Zastrzeżony numer" v2.3.55) — „Ostatni człowiek": Kantar daje trop na Brokata ═══ */
+/* Wołane z _uwKantarMeet gdy Z1+Z2 done, Z3 nie, bridgeStage='after_parking_task'. Ton (trust/patience/hint) → trop
+   → aktywacja Z3 + odblokowanie spawnu Brokata (brokatSpawnEnabled). Bez tego gracz nie wie gdzie szukać. */
+window._uwKantarLastMan=function(){
+  window._underworldEnsure();
+  window._uwShowDlg('Dobra. Koperta poszła, parking ogarnięty. Został ostatni żyjący temat — jeden człowiek, który wisi moim ludziom kasę i robi, jakby go nie było.',[
+    {text:'„Mów, kto i gdzie. Załatwię to.”', fn:()=>window._uwLastManTone('A')},
+    {text:'„Bez przemocy, prawda? Wolę pogadać niż robić cyrk.”', fn:()=>window._uwLastManTone('B')},
+    {text:'„Szybciej. Mam swoje sprawy.”', fn:()=>window._uwLastManTone('C')},
+    {text:'„To ma być ten trudny temat? Bez jaj.”', fn:()=>window._uwLastManTone('D')},
+  ]);
+};
+window._uwLastManTone=function(opt){
+  window._underworldEnsure(); const u=G.underworldIntro;
+  if(opt==='A'){ window._uwAddStat('kantar_trust',2); u.questHintClarity='high'; }
+  else if(opt==='B'){ window._uwAddStat('kantar_trust',3); u.questHintClarity='high'; }
+  else if(opt==='C'){ u.kantarPatience=Math.max(0,(u.kantarPatience||10)-2); u.questHintClarity='medium'; }
+  else { window._uwAddStat('kantar_trust',-2); u.questHintClarity='medium'; }
+  const camWarn=(opt==='B');
+  const lead='Damian. Wszyscy wołają na niego „Brokat". Promotor, kręci się tam, gdzie błyszczy. Znajdziesz go w Kasyno Royale — na parterze, przy automatach. '+(camWarn?'I jedno: tam wszędzie są kamery. Bez fajerwerków.':'Zagadaj, przypomnij o długu. Reszta zależy od ciebie.');
+  window._uwShowDlg(lead,[
+    {text:'„Jasne. Parter, automaty. Idę.”', fn:()=>window._uwLastManGo('go')},
+    {text:'„Kamery? Spokojnie, bez scen.”', fn:()=>window._uwLastManGo('careful')},
+    {text:'„Czemu akurat kasyno?”', fn:()=>{ window._underworldEnsure(); G.underworldIntro.questHintClarity='high'; window._uwShowDlg('Bo tam czuje się bezpieczny. A ja lubię ludzi, którzy czują się bezpiecznie — łatwiej ich znaleźć. Parter, automaty.',[{text:'„Idę.”', fn:()=>window._uwLastManGo('go')}]); }},
+    {text:'„Idę.”', fn:()=>window._uwLastManGo('go')},
+  ]);
+};
+window._uwLastManGo=function(opt){
+  window._underworldEnsure(); const u=G.underworldIntro;
+  if(u.talkedToKantarAfterT2){ if(typeof closeNPCDlg==='function')closeNPCDlg(); return; } /* anti-dbl */
+  u.talkedToKantarAfterT2=true; u.brokatSpawnEnabled=true; u.casinoMarkerEnabled=true; u.bridgeStage='find_brokat';
+  if(opt==='careful'){ window._uwAddStat('kantar_trust',1); }
+  if(typeof closeNPCDlg==='function') closeNPCDlg();
+  const spot=(u.questHintClarity==='high')?'na parterze, przy automatach':'gdzieś na parterze';
+  if(typeof showMsg==='function') showMsg('🎯 Nowy cel: znajdź „Brokata" w Kasyno Royale — '+spot+'. (To ostatnia z trzech spraw.)','f',7200);
+  if(typeof saveGameSilent==='function') saveGameSilent();
 };
 /* §7 — dialog otwierający, 4 opcje (ostrożna/agresywna/arogancka/wycofanie). */
 window._uwKantarOpening=function(){
@@ -50345,6 +50387,7 @@ window._uwZ2Resolve=function(res){
   window._underworldEnsure(); const u=G.underworldIntro;
   if(u.task.t2) return; /* anti-dbl */
   u.task.t2=res;
+  u.bridgeStage='after_parking_task'; /* C2 (PDF most): po Z2 gracz wraca do Kantara po trop — Brokat NIE spawnuje od razu */
   if(res==='clean'){
     window._uwAddStat('kantar_trust',10); u.perceptionXp=(u.perceptionXp||0)+5; window._uwAddStat('street_heat',1);
   } else if(res==='false'){
@@ -50394,7 +50437,7 @@ window._uwZ2ParkingMG=function(){
     ctx.fillStyle=m[1];ctx.font='bold 19px "Segoe UI",sans-serif';ctx.fillText('👁️ '+m[0],W/2,H/2-8);
     ctx.font='bold 16px "Segoe UI",sans-serif';ctx.fillText(m[2],W/2,H/2+20);ctx.textAlign='left';
     if(typeof updateHUD==='function')updateHUD();
-    const next=result==='clean'?'🛋️ Zadanie 2 zaliczone. Zostało: dług po koncercie.':result==='false'?'🛋️ Fałszywy alarm odnotowany. Zostało: dług po koncercie.':'🛋️ Obserwacja nieudana. Zostało: dług po koncercie.';
+    const next=result==='clean'?'🛋️ Zadanie 2 zaliczone. Wróć do Kantara przy loży — ma dla Ciebie ostatni temat.':result==='false'?'🛋️ Fałszywy alarm odnotowany. Wróć do Kantara przy loży — ma dla Ciebie ostatni temat.':'🛋️ Obserwacja nieudana. Wróć do Kantara przy loży — ma dla Ciebie ostatni temat.';
     if(typeof showMsg==='function') setTimeout(()=>showMsg(next,'f',6000),300);
     closeJobPanelAfter(2600);
   }
@@ -50442,7 +50485,7 @@ function drawVelvetParkingDoor(sx,sy,w,h){
 }
 /* ═══ TEST — Zadanie 3 „Dług po koncercie" (§9-Z3) — NPC OKRESOWY Damian „Brokat" Lesicki ═══ */
 /* Promotor zalegający kasą ludziom Kantara. Dialog 4 opcje. NPC widoczny tylko w oknie zadania (gated). */
-window._uwZ3Active=function(){ if(typeof window._underworldEnsure!=='function') return false; window._underworldEnsure(); const u=G.underworldIntro; return u.state==='testing' && !!u.task.t1 && !!u.task.t2 && !u.task.t3; };
+window._uwZ3Active=function(){ if(typeof window._underworldEnsure!=='function') return false; window._underworldEnsure(); const u=G.underworldIntro; return u.state==='testing' && !!u.task.t1 && !!u.task.t2 && !u.task.t3 && !!u.brokatSpawnEnabled; };
 window._uwBrokatDialog=function(){
   window._underworldEnsure();
   const dlg=document.getElementById('npc-dlg'); if(!dlg) return;
@@ -57048,6 +57091,15 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.55',date:'2026-06-25',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'🧭 Jaśniejsze prowadzenie w jednym z wątków fabularnych — wiesz, co robić po zadaniu',
+ items:[
+  {t:'feature',d:'W pewnym wątku fabularnym po wykonaniu jednego z zadań gra wyraźnie wskazuje następny krok — dostajesz czytelny cel i wskazówkę, dokąd się udać, zamiast błądzić bez żadnej informacji.'},
+  {t:'feature',d:'Rozmowa z pewnym zleceniodawcą rozwija się o nowy fragment, który naprowadza Cię na ostatnią część zadania. Masz kilka wariantów odpowiedzi, a wybrany ton wpływa na dalszą relację i to, jak dokładną wskazówkę dostajesz.'},
+  {t:'feature',d:'Po drodze do celu pojawia się delikatny znacznik na mapie oraz podpowiedź na miejscu, dzięki czemu od razu wiadomo, gdzie szukać.'},
+  {t:'fix',d:'Zapisy w trakcie tego wątku są w pełni zgodne — jeśli grałeś wcześniej, po aktualizacji płynnie trafisz w nowy, jaśniejszy etap, bez ryzyka utknięcia.'},
+ ]
+ },
  {
  ver:'v2.3.54',date:'2026-06-25',cats:['beta-tester','Vegan','fix'],reporter:'Vegan',title:'🎨 Ustawienia grafiki działają naprawdę — tryb „Żywy" rozjaśnia zamiast przyciemniać, mocniejsze shadery',
  items:[
