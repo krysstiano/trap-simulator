@@ -1022,7 +1022,7 @@ const G = {
   headphonesOwned:[], midiCtrlsOwned:[], audioInterfacesOwned:[],
   hasAcousticPanels:false, hasPCUpgrade:false, studioOwned:false, hasFoam:false, hasPanels:false, hasDaw:false, dawTier:0,
   currentTrack:{beatQ:0,vocalQ:0,mixQ:0,masterQ:0,lyricsQ:0,genre:'trap',name:''}, /* v2.1.107: lyricsQ */
-  studioTracks:[],
+  studioTracks:[],trackDrafts:[],
   plugins:{eqPro:false,punchComp:false,reverbSpace:false,deEsser:false,tapeSat:false,limiterLoud:false,stereoImager:false,multibandComp:false,synth808:false,drumPro:false},
   distributor:null,
   car:null,
@@ -1204,7 +1204,7 @@ function resetG(){
     /* v2.1.68 Amper: inwentarz słuchawek, MIDI, interfejsu audio. */
     headphonesOwned:[],midiCtrlsOwned:[],audioInterfacesOwned:[],
     hasAcousticPanels:false,hasPCUpgrade:false,studioOwned:false,hasFoam:false,hasPanels:false,hasDaw:false,dawTier:0,
-    currentTrack:{beatQ:0,vocalQ:0,mixQ:0,masterQ:0,lyricsQ:0,genre:'trap',name:''}, /* v2.1.107: lyricsQ */studioTracks:[],
+    currentTrack:{beatQ:0,vocalQ:0,mixQ:0,masterQ:0,lyricsQ:0,genre:'trap',name:''}, /* v2.1.107: lyricsQ */studioTracks:[],trackDrafts:[],
     plugins:{eqPro:false,punchComp:false,reverbSpace:false,deEsser:false,tapeSat:false,limiterLoud:false,stereoImager:false,multibandComp:false,synth808:false,drumPro:false},
     distributor:null,
     car:null,apartment:'traphouse',streetRep:0,
@@ -33484,6 +33484,33 @@ function getDAWPluginCeiling(){
   return Math.min(30,bonus); // max +30 above 70
 }
 
+/* A9 (v2.x) redesign „każdy utwór osobno": currentTrack=aktywny w DAW, G.trackDrafts[]=parkowane utwory w toku.
+   Taby DAW (mix/master/...) operują na aktywnym currentTrack; gracz odkłada bieżący i wczytuje/zaczyna inny. */
+window._trackHasContent=function(t){ return !!t && ((((t.beatQ||0)+(t.vocalQ||0)+(t.mixQ||0)+(t.masterQ||0)+(t.lyricsQ||0))>0) || ((t.name||'').trim()!=='')); };
+window._trackPark=function(){
+  const t=G.currentTrack; if(!window._trackHasContent(t)) return false;
+  if(!Array.isArray(G.trackDrafts)) G.trackDrafts=[];
+  if(t._tid==null){ G._trackSeq=(G._trackSeq||0)+1; t._tid=G._trackSeq; }
+  const i=G.trackDrafts.findIndex(d=>d._tid===t._tid);
+  if(i>=0) G.trackDrafts[i]=Object.assign({},t); else G.trackDrafts.push(Object.assign({},t));
+  if(G.trackDrafts.length>30) G.trackDrafts.shift();
+  return true;
+};
+window._trackNewDraft=function(){
+  window._trackPark();
+  const g=(G.currentTrack&&G.currentTrack.genre)||'trap';
+  G.currentTrack={_tid:null,beatQ:0,vocalQ:0,mixQ:0,masterQ:0,lyricsQ:0,genre:g,name:''};
+  G._mixEq=50;G._mixRev=30;G._mixComp=60;G._mixMel=70;G._mixDrums=50;G._masLim=80;G._masStereo=60;G._masLufs=70;
+};
+window._trackLoadDraft=function(tid){
+  if(!Array.isArray(G.trackDrafts)) return false;
+  if(G.trackDrafts.findIndex(d=>d._tid===tid)<0) return false;
+  window._trackPark(); /* odłóż bieżący zanim wczytasz inny */
+  const i2=G.trackDrafts.findIndex(d=>d._tid===tid); /* re-find po park (indeksy mogły się zmienić) */
+  if(i2<0) return false;
+  G.currentTrack=G.trackDrafts.splice(i2,1)[0];
+  return true;
+};
 function renderDAWOverlay(tab='beatmaker'){
   if(!G.hasDaw){
     document.getElementById('ov-content').innerHTML=`
@@ -71450,6 +71477,9 @@ function loadGame(){
   if(!G.playerCrew||typeof G.playerCrew!=='object') G.playerCrew=null;
   /* v2.1.128: studioTracks defensive init na poziomie globalnym (zamiast lokalnych G.studioTracks=G.studioTracks||[]) */
   if(!Array.isArray(G.studioTracks)) G.studioTracks=[];
+  /* A9a (v2.x): kolekcja utworów w toku „aktywny+parkowane" — currentTrack=aktywny, trackDrafts=parkowane szkice. Save-safe additive (opublikowane w studioTracks nietknięte). */
+  if(!Array.isArray(G.trackDrafts)) G.trackDrafts=[];
+  if(typeof G._trackSeq!=='number'||isNaN(G._trackSeq)) G._trackSeq=0;
   if(!G.spotify||typeof G.spotify!=='object') G.spotify={listeners:0,royalties:0,verified:false,verifyAppliedDay:0,streams:0};
   /* v2.1.128: spotify per-field NaN guard */
   if(typeof G.spotify.listeners!=='number'||isNaN(G.spotify.listeners)) G.spotify.listeners=0;
