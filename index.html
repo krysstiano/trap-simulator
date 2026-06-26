@@ -17229,6 +17229,28 @@ const RANDOM_EVENTS = [
      if(typeof addNotif==='function') addNotif('🌑 Underground homie cię poznał na ulicy. Dał ci propsy → +5 street rep, +2 Underworld Respect.');
      if(typeof showMsg==='function') showMsg('🌑 Underground propsy — homie cię szanuje! +5 street rep.','g',5000);
    }},
+  /* v2.3.81 nowe wczesne wydarzenia uliczne — wiecej zycia w pierwszej godzinie (additive, save-safe, early-game gated). */
+  {name:'Uliczny grajek', chance:0.011, maxPerDay:1, cond:()=>(G.fame||0)>=5 && (G.fame||0)<200,
+   fn:()=>{
+     const _f=Math.floor(8+Math.random()*20);
+     G.followers=(G.followers||0)+_f;
+     if(typeof addFame==='function') addFame(1); else G.fame=Math.min(500,(G.fame||0)+1);
+     if(typeof addNotif==='function') addNotif(`🎻 Wskoczyłeś ze zwrotką do ulicznego grajka — ludzie nagrali to telefonami. +${_f} obserwujących, +1 sławy.`);
+     if(typeof showMsg==='function') showMsg(`🎻 Uliczny freestyle z grajkiem! +${_f} obserwujących.`,'g',5000);
+   }},
+  {name:'Znaleziony hajs', chance:0.009, maxPerDay:1, cond:()=>(G.money||0)<5000,
+   fn:()=>{
+     const _c=Math.floor(40+Math.random()*120);
+     G.money=(G.money||0)+_c;
+     if(typeof addNotif==='function') addNotif(`💸 Znalazłeś ${_c} zł na chodniku. Czyjś zły dzień, Twój dobry.`);
+     if(typeof showMsg==='function') showMsg(`💸 Znaleziony hajs: +${_c} zł.`,'g',4500);
+   }},
+  {name:'Props od znajomego', chance:0.010, maxPerDay:1, cond:()=>(G.streetRep||0)>=3 && (G.streetRep||0)<60,
+   fn:()=>{
+     G.streetRep=Math.min(100,(G.streetRep||0)+3);
+     if(typeof addNotif==='function') addNotif('🤝 Stary znajomy z osiedla dał Ci propsy i dobrą radę na start. +3 street rep.');
+     if(typeof showMsg==='function') showMsg('🤝 Props od znajomego — +3 street rep.','g',4500);
+   }},
   /* v2.1.410 Faza AN.5 Etap 2: 2 trap random events — police patrol (warning) + buyer mass (bonus). */
   {name:'Policja patroluje', chance:0.012, maxPerDay:1, cond:()=>!!(G.trap?.unlocked)&&Object.values(G.trapInv?.products||{}).reduce((s,v)=>s+(v||0),0)>0&&(G.fame||0)>=50,
    fn:()=>{
@@ -57646,6 +57668,12 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.81',date:'2026-06-27',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'🎻 Więcej życia na ulicy — nowe wczesne wydarzenia',
+ items:[
+  {t:'feature',d:'Dodaliśmy kilka nowych, drobnych wydarzeń, które mogą Cię spotkać na początku gry — uliczny grajek do wspólnej zwrotki, znaleziony grosz na chodniku, props od starego znajomego. Więcej klimatu i drobnych nagród w pierwszych godzinach. Wszystko dzieje się rzadko i nie przeszkadza w rozgrywce.'},
+ ]
+ },
  {
  ver:'v2.3.80',date:'2026-06-26',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'🎨 Autorskie nazwy w całym świecie gry',
  items:[
