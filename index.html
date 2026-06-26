@@ -50162,6 +50162,7 @@ window._uwSmsChoice=function(opt){
   if(opt==='A'){
     _reply('Będę.');
     u.curiosityFlag=true; u.state='accepted'; u._clubUnlocked=true;
+    G._sqCollapsed=false; G._sqCompletedToastShown=false; /* E3: świeży quest → panel rozwinięty, toast ukończenia uzbrojony */
     if(typeof showMsg==='function') showMsg('🗺️ Nowy cel: Velvet Room (Strip Club). Loża w neonie, dziś 23:40.','f',6500);
   } else if(opt==='B'){
     _reply('Z kim mam do czynienia?');
@@ -50183,7 +50184,90 @@ window._uwSmsChoice=function(opt){
   }
   if(typeof saveGameSilent==='function') saveGameSilent();
   if(typeof window.renderSMSConversation==='function') window.renderSMSConversation('kantar');
+  if(window._sqUpdate) window._sqUpdate(); /* E3: panel side-quest pojawia się dopiero po „Będę." (opt A → state=accepted) */
 };
+/* ═══ E3 (PDF _pdf_sidequest): Mini-panel Side Quest Tracker — HUD aktywnych wątków pobocznych ═══
+   Krótka wskazówka „co teraz zrobić" (NIE pełny dziennik). Panel TYLKO po świadomej akceptacji gracza.
+   Uniwersalny (rejestr resolverów); pierwszy quest: reserved_phone — mapowanie z ISTNIEJĄCEGO G.underworldIntro
+   (BEZ równoległego state machine). Save-safe #1: tylko additive flagi _sqCollapsed/_sqCompletedToastShown. */
+window._sqReservedActive=function(){
+  const u=(typeof G!=='undefined'&&G)?G.underworldIntro:null; if(!u) return null;
+  if(u.completed || u.state==='completed') return null;
+  /* guard PDF canShowReservedPhoneTracker: TYLKO ścieżka po „Będę." (acceptedByPlayer); NIE none/sms_sent/insulted/blocked/ignored */
+  if(!['accepted','at_club','meeting','testing','returned'].includes(u.state)) return null;
+  const t=u.task||{}; let step=0, group='', obj='';
+  if(u.state==='accepted'||u.state==='at_club'){ step=0; obj='Idź do Velvet Room na 23:40.'; }
+  else if(u.state==='meeting'){ step=0; obj='Podejdź do loży.'; }
+  else if(u.state==='testing'){
+    if(!t.t1){ step=1; group='Trzy ciche sprawy'; obj='Podejdź do barmana.'; }
+    else if(!t.t2){ step=2; group='Trzy ciche sprawy'; obj='Pójdź na tyły parkingu.'; }
+    else if(!t.t3){
+      if(u.bridgeStage==='find_brokat'){ step=3; group='Dług po koncercie'; obj=(typeof currentRoom!=='undefined'&&currentRoom==='casino')?'Rozejrzyj się przy automatach.':'Odszukaj cel i porozmawiaj z nim.'; }
+      else { step=2; group='Trzy ciche sprawy'; obj='Wróć do loży.'; } /* E3: nazwa-neutralnie — gra ukrywa imię „Kantar" do końca questa (_uwKantarName) */
+    }
+    else { step=3; group='Dług po koncercie'; obj='Wróć do loży.'; }
+  }
+  else if(u.state==='returned'){ step=3; group='Dług po koncercie'; obj='Wróć do loży.'; }
+  if(!obj) return null;
+  return { id:'reserved_phone', titlePL:'Zastrzeżony telefon', step, totalSteps:3, group, objective:obj };
+};
+/* Rejestr resolverów — uniwersalny dla przyszłych questów. Pierwszy aktywny = śledzony (1 panel naraz). */
+window._SQ_RESOLVERS=[window._sqReservedActive];
+window._sqActive=function(){
+  if(typeof G==='undefined'||!G) return null;
+  for(const r of (window._SQ_RESOLVERS||[])){ try{ const q=r(); if(q&&q.objective) return q; }catch(e){} }
+  return null;
+};
+window._sqEnsureEl=function(){
+  let el=document.getElementById('sq-tracker');
+  if(!el){
+    const host=document.getElementById('wrap')||document.body;
+    el=document.createElement('div'); el.id='sq-tracker'; el.dataset.sig='';
+    el.style.cssText='position:absolute;top:84px;right:12px;z-index:42;max-width:228px;background:rgba(8,8,10,.78);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:9px 11px;font-family:inherit;backdrop-filter:blur(3px);transition:opacity .2s;display:none';
+    host.appendChild(el);
+  }
+  return el;
+};
+window._sqUpdate=function(){
+  if(typeof document==='undefined') return;
+  const el=window._sqEnsureEl();
+  const q=window._sqActive&&window._sqActive();
+  if(!q){ if(el.dataset.sig!=='none'){ el.style.display='none'; el.dataset.sig='none'; } return; }
+  /* minigra → CAŁKOWICIE ukryty (PDF §15/24: minigra parkingowa nie może być zasłonięta). Inne nakładki → opacity 0.25. */
+  const mg=(typeof mgOpen==='function'&&mgOpen());
+  const dim=(typeof npcDlgOpen==='function'&&npcDlgOpen())||(typeof overlayOpen==='function'&&overlayOpen())||(typeof phoneOpen==='function'&&phoneOpen())||(typeof isPaused==='function'&&isPaused())||!!(G&&G._cinematicActive);
+  const collapsed=!!(G&&G._sqCollapsed);
+  const sig=mg?'mg':(q.id+'|'+q.step+'|'+q.objective+'|'+(collapsed?'c':'o')+'|'+(dim?'d':'f'));
+  if(el.dataset.sig===sig) return;
+  el.dataset.sig=sig;
+  if(mg){ el.style.display='none'; return; }
+  el.style.display=''; el.style.opacity=dim?'0.25':'1';
+  if(collapsed){
+    el.innerHTML='<div onclick="if(typeof G!==\'undefined\'&&G)G._sqCollapsed=false;window._sqUpdate&&window._sqUpdate()" style="cursor:pointer;color:#B78A3B;font-size:11px;letter-spacing:1px;font-weight:700;white-space:nowrap">[ Rozwiń wątek ]</div>';
+    return;
+  }
+  const stepLine=q.step>=1?`<div style="color:#B78A3B;font-size:11px;font-weight:700;margin:3px 0 4px">${q.step}/${q.totalSteps}${q.group?' '+q.group:''}</div>`:'';
+  el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+      <div style="color:#D8D8D8;font-size:9.5px;letter-spacing:1.5px;text-transform:uppercase;padding-top:1px">Wątek poboczny</div>
+      <span onclick="if(typeof G!=='undefined'&&G)G._sqCollapsed=true;window._sqUpdate&&window._sqUpdate()" style="cursor:pointer;color:#888;font-size:10px;font-weight:700;letter-spacing:.5px" title="Ukryj wątek poboczny">Ukryj</span>
+    </div>
+    <div style="color:#fff;font-size:13px;font-weight:800;margin-top:3px">${q.titlePL}</div>
+    ${stepLine}
+    <div style="color:#CFCFCF;font-size:12px;line-height:1.4;margin-top:2px">${q.objective}</div>`;
+};
+window._sqCheckComplete=function(){
+  if(typeof G==='undefined'||!G) return;
+  const u=G.underworldIntro; if(!u) return;
+  if((u.completed||u.state==='completed') && !G._sqCompletedToastShown){
+    G._sqCompletedToastShown=true;
+    if(typeof showMsg==='function') showMsg('Wątek poboczny zakończony: Zastrzeżony telefon','g',5000);
+    const el=document.getElementById('sq-tracker'); if(el){ el.style.display='none'; el.dataset.sig='none'; }
+  }
+};
+if(typeof window!=='undefined' && !window._sqIntervalStarted){
+  window._sqIntervalStarted=true;
+  try{ setInterval(function(){ try{ window._sqCheckComplete&&window._sqCheckComplete(); window._sqUpdate&&window._sqUpdate(); }catch(e){} }, 300); }catch(e){}
+}
 /* ═══ MODUŁ „Numer zastrzeżony" — Kantar w Velvet Room: obecność + dialog §7 (otwierający) + §8 (oferta) ═══ */
 /* Kantar obecny w loży tylko gdy quest aktywny (gating drawObjects/getNear — analog npc_fan/hof_statue, #7). */
 window._kantarPresent=function(){ if(!G.underworldIntro) return false; return ['accepted','at_club','meeting','testing','returned'].includes(G.underworldIntro.state); };
@@ -57284,6 +57368,12 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.72',date:'2026-06-26',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'🧭 Mini-panel wątków pobocznych — wiesz co zrobić teraz',
+ items:[
+  {t:'feature',d:'Po prawej stronie ekranu pojawia się teraz mały, dyskretny panel wątku pobocznego z krótką wskazówką, co masz zrobić w danym momencie. Panel pojawia się dopiero, gdy świadomie zdecydujesz się wejść w dany wątek — samo otrzymanie wiadomości go nie uruchamia. Znika podczas dialogów, minigier i otwartych okien, a w razie potrzeby możesz go ukryć i rozwinąć. To krótka wskazówka kierunku, a nie pełny dziennik — system jest gotowy także pod przyszłe wątki poboczne.'},
+ ]
+ },
  {
  ver:'v2.3.71',date:'2026-06-26',cats:['beta-tester','Vegan','change'],reporter:'Vegan',title:'⬢ NOX Route — aplikacja zablokowana do późniejszego etapu gry',
  items:[
