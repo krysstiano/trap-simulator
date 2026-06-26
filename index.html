@@ -1808,6 +1808,38 @@ document.addEventListener('keydown', e => {
       if(typeof showMsg==='function') showMsg('🚗 Auto można używać na ulicy i w dzielnicach miasta.','r');
     }
   }
+  /* E4d (silnik jazdy): K — wsiądź/wysiądź z KAMPERA (osobny klawisz od V=auto → brak ambiguity przy obu pojazdach). */
+  if(e.key==='k'||e.key==='K'){
+    if(typeof window._camperEnsure==='function') window._camperEnsure();
+    const _cOwn = G.camper && G.camper.owned;
+    if(!_busyMG && _cOwn && _carRoom(currentRoom)){
+      if(G._inCamper){
+        /* wysiadanie — zaparkuj na obecnej pozycji (anti-teleport: zapamiętaj gdzie zostawiłeś, jak auto). */
+        G._inCamper=false;
+        G._camperParkedAt={wx:P.wx,wy:P.wy,room:currentRoom};
+        const _ex=(G.gender==='f')?'Wyszłaś z kampera':'Wyszedłeś z kampera';
+        if(typeof window._subtleMsg==='function') window._subtleMsg('🚶 '+_ex); else if(typeof showMsg==='function') showMsg('🚶 '+_ex,'i',3000);
+      } else if(G._camperParkedAt){
+        if(G._camperParkedAt.room && G._camperParkedAt.room!==currentRoom){
+          if(typeof showMsg==='function') showMsg('🚐 Twój kamper jest zaparkowany w innej lokacji — wróć tam, żeby wsiąść.','r',4500); return;
+        }
+        if(G._inCar){ if(typeof showMsg==='function') showMsg('🚐 Najpierw wysiądź z auta (V), zanim wsiądziesz do kampera.','r',3500); return; }
+        const _px=P.wx+P.w/2, _py=P.wy+P.h/2;
+        const _cX=G._camperParkedAt.wx+P.w/2, _cY=G._camperParkedAt.wy+P.h/2;
+        const _dist=Math.hypot(_px-_cX,_py-_cY);
+        if(_dist>=80){ if(typeof showMsg==='function') showMsg('🚐 Twój kamper stoi '+Math.round(_dist*1.5/48)+' m stąd — podejdź do niego (marker 🚐 na mapie).','r'); return; }
+        G._camperParkedAt=null; G._inCamper=true;
+        const _en=(G.gender==='f')?'Wsiadłaś do kampera':'Wsiadłeś do kampera';
+        if(typeof window._subtleMsg==='function') window._subtleMsg('🚐 '+_en); else if(typeof showMsg==='function') showMsg('🚐 '+_en,'i',3000);
+      } else {
+        if(typeof showMsg==='function') showMsg('🚐 Twój kamper nie ma jeszcze pozycji na mapie — sprawdź panel kampera (Kariera → Trap → Kamper).','r',4500);
+      }
+    } else if(!_cOwn && !_busyMG){
+      if(typeof showMsg==='function') showMsg('🚐 Nie masz kampera. Kup go w salonie pojazdów dostawczych.','r');
+    } else if(!_carRoom(currentRoom) && _cOwn && !_busyMG){
+      if(typeof showMsg==='function') showMsg('🚐 Kamperem jeździsz po ulicy i w dzielnicach miasta.','r');
+    }
+  }
   if(e.key==='m'||e.key==='M'){
     if(!_busyMG){
       if(document.getElementById('fullmap-overlay')) document.getElementById('fullmap-overlay').remove();
@@ -12145,6 +12177,28 @@ function drawPlayerCar(){
    Kamper rysowany NA pozycji gracza (P.wx/wy) = zastępuje ukrytego gracza (drawPlayer hideuje przy _inCamper).
    PRIORYTET auta: gdy _inCar → return (brak podwójnego pojazdu, #8 overlap-safe). Ruch/kolizja = E4c (tu tylko render). */
 function drawPlayerCamper(){
+  /* E4d: ZAPARKOWANY kamper — rysuj na G._camperParkedAt + marker 🚐 + „[K] Wsiądź" gdy gracz blisko (analog parked-car drawPlayerCar). */
+  if(G.camper && G.camper.owned && _carRoom(currentRoom) && G._camperParkedAt && !G._inCamper && G._camperParkedAt.room===currentRoom){
+    const _psx=wx2sx(G._camperParkedAt.wx)+P.w/2, _psy=wy2sy(G._camperParkedAt.wy)+P.h/2;
+    const _wm=(typeof window._camperDriveParams==='function')?((window._camperDriveParams().widthMul)||1.3):1.3;
+    X.save(); X.translate(_psx,_psy);
+    X.fillStyle='rgba(0,0,0,.28)';X.beginPath();X.ellipse(3,6,34*_wm,16,0,0,Math.PI*2);X.fill();
+    const _L=42*_wm,_H=26;
+    X.fillStyle='#d8d8e0'; if(X.roundRect){X.beginPath();X.roundRect(-_L/2,-_H/2,_L,_H,5);X.fill();}else{X.fillRect(-_L/2,-_H/2,_L,_H);}
+    X.fillStyle='#9aa3b0'; if(X.roundRect){X.beginPath();X.roundRect(_L/2-13,-_H/2+2,12,_H-4,3);X.fill();}else{X.fillRect(_L/2-13,-_H/2+2,12,_H-4);}
+    X.fillStyle='rgba(120,180,210,0.85)';X.fillRect(-_L/2+5,-_H/2+4,_L-24,5);
+    const _pulse=0.7+Math.sin(Date.now()/500)*0.3;
+    X.font='bold 18px "Segoe UI",Arial,sans-serif';X.textAlign='center';X.textBaseline='middle';
+    X.shadowColor='#f1c40f';X.shadowBlur=12*_pulse;X.fillStyle='rgba(241,196,15,'+_pulse+')';X.fillText('🚐',0,-30);X.shadowBlur=0;
+    X.restore();
+    const _pcx=G._camperParkedAt.wx+P.w/2,_pcy=G._camperParkedAt.wy+P.h/2,_ppx=P.wx+P.w/2,_ppy=P.wy+P.h/2;
+    if(Math.hypot(_ppx-_pcx,_ppy-_pcy)<80){
+      X.save();X.font='bold 12px system-ui';X.textAlign='center';X.textBaseline='alphabetic';
+      const _vLbl='[K] Wsiądź';const _vW=X.measureText(_vLbl).width+14;const _vp=0.6+Math.sin(Date.now()/350)*0.4;
+      X.fillStyle='rgba(8,16,12,0.82)';X.beginPath();if(X.roundRect)X.roundRect(_psx-_vW/2,_psy-58,_vW,18,5);else X.rect(_psx-_vW/2,_psy-58,_vW,18);X.fill();
+      X.fillStyle='rgba(46,204,113,'+(0.75+_vp*0.25)+')';X.fillText(_vLbl,_psx,_psy-45);X.restore();
+    }
+  }
   if(!G._inCamper || !G.camper || !G.camper.owned || !_carRoom(currentRoom) || G._inCar) return;
   const sx=wx2sx(P.wx)+P.w/2, sy=wy2sy(P.wy)+P.h/2;
   const wm=(typeof window._camperDriveParams==='function')?((window._camperDriveParams().widthMul)||1.3):1.3;
@@ -15741,6 +15795,11 @@ function _blockedByCarEnter(id){
   /* N6 (v2.3.25): autem można jeździć między miastem a dzielnicami (oba _carRoom), ale NIE wjeżdżać do budynków/wnętrz. */
   if(G._inCar && _carRoom(currentRoom) && !_carRoom(id)){
     if(typeof notify==='function') notify('🚗 Nie możesz wjechać autem do budynku! Naciśnij V aby wysiąść (zaparkuj).');
+    return true;
+  }
+  /* E4d (silnik jazdy): analogiczna blokada dla kampera — nie wjeżdżaj kamperem do wnętrza. */
+  if(G._inCamper && _carRoom(currentRoom) && !_carRoom(id)){
+    if(typeof notify==='function') notify('🚐 Nie możesz wjechać kamperem do budynku! Naciśnij K aby wysiąść (zaparkuj).');
     return true;
   }
   return false;
@@ -38498,6 +38557,8 @@ window.buyCamper=function(modelId){
   if((G.money||0) < m.price){ if(typeof showMsg==='function')showMsg('Nie masz wystarczajaco gotowki (potrzeba '+m.price.toLocaleString('pl')+' zl).','r',4500); return false; }
   G.money -= m.price;
   c.owned=true; c.model=modelId; c.condition=m.cond||70; c.camouflage=m.camouflage||10; c.destroyed=false; c.daysInLoc=0;
+  /* E4d (silnik jazdy): spawn fizycznej pozycji kampera na mapie (do wsiadania klawiszem K). Kupujesz w pokoju jezdnym → tam; inaczej domyślnie underground. */
+  { const _crNow=(typeof _carRoom==='function')&&_carRoom(currentRoom); G._camperParkedAt = _crNow ? {wx:P.wx, wy:P.wy, room:currentRoom} : {wx:1200, wy:540, room:'underground'}; G._inCamper=false; }
   if(!Array.isArray(c.history)) c.history=[];
   c.history.push({day:G.day||0, ev:'buy', model:modelId, price:m.price});
   if(typeof showMsg==='function') showMsg('🚐 Kupiles '+m.name+' za '+m.price.toLocaleString('pl')+' zl. Wybierz pierwszy postoj kampera.','g',6000);
@@ -57519,6 +57580,12 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.78',date:'2026-06-26',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'🚐 Kamperem da się jeździć po mieście',
+ items:[
+  {t:'feature',d:'Jeśli masz kampera, możesz teraz nim jeździć po ulicy i dzielnicach — tak jak autem. Podejdź do zaparkowanego kampera (widać go po markerze na mapie) i naciśnij K, aby wsiąść. Kamper jest większy i nieco wolniejszy od auta. Klawiszem K wysiadasz — pojazd zostaje zaparkowany tam, gdzie go zostawisz. Do budynków kamperem nie wjedziesz (trzeba wysiąść, jak przy aucie).'},
+ ]
+ },
  {
  ver:'v2.3.77',date:'2026-06-26',cats:['beta-tester','Vegan','fix'],reporter:'Vegan',title:'🔆 Lepsza czytelność — rozjaśniona drobna szara czcionka pomocnicza',
  items:[
