@@ -13351,7 +13351,7 @@ function updatePlayer(){
       // v1.8.71: poprawne wymogi + info o alternatywnej ścieżce przez drzewko umiejętności
       if(obj.act&&obj.act.startsWith('open:')){
         const cid=obj.act.slice(5);
-        const carNames={youtuber:'YouTuber',beatmaker:'Beatmaker',gamer:'Gamer',influencer:'Influencer',soundeng:'Realizator Dźwięku'};
+        const carNames={youtuber:'Vloger',beatmaker:'Beatmaker',gamer:'Gamer',influencer:'Influencer',soundeng:'Realizator Dźwięku'};
         if(carNames[cid]&&G.careers&&G.careers[cid]&&!G.careers[cid].unlocked){
           const totalXP=G.xp+(G.level-1)*CFG.xpPerLevel;
           // v1.8.71: influencer wymaga 500 followers (nie xpReq=200 — to było źle); reszta używa właściwych progów
@@ -16740,7 +16740,7 @@ function _careerHasAction(k){
 }
 const ACHIEVEMENTS = [
   {id:'first_beat',name:'Pierwszy bit',desc:'Stwórz swój pierwszy beat',icon:'🥁',check:()=>(G.careers?.beatmaker?.beats||0)>0||(G.careers?.beatmaker?.beatsSold||0)>0}, /* v2.1.132: optional chain */
-  {id:'first_video',name:'YouTuber w drodze',desc:'Opublikuj pierwszy film',icon:'📹',check:()=>(G.yt?.videos?.length||0)>=1}, /* v2.1.132: optional chain */
+  {id:'first_video',name:'Vloger w drodze',desc:'Opublikuj pierwszy film',icon:'📹',check:()=>(G.yt?.videos?.length||0)>=1}, /* v2.1.132: optional chain */
   {id:'1k_followers',name:'1K Fanów',desc:'Zdobądź 1000 fanów lojalnych',icon:'👥',check:()=>(G.fans||0)>=1000},
   {id:'10k_followers',name:'10K Fanów',desc:'Zdobądź 10000 fanów lojalnych',icon:'🌟',check:()=>(G.fans||0)>=10000},
   {id:'first_concert',name:'Debiut na scenie',desc:'Zagraj pierwszy koncert',icon:'🎤',check:()=>(G.events?.performed||0)>=1}, /* v2.1.132: optional chain */
@@ -24955,7 +24955,7 @@ const NPC_DATA = {
       },
       {text:'🔒 Najpierw odblokuj jakąś karierę muzyczną',
         cond:()=>!(G.careers.beatmaker&&G.careers.beatmaker.unlocked)&&!(G.careers.youtuber&&G.careers.youtuber.unlocked)&&!G.studioOwned,
-        fn:()=>{closeNPCDlg();notify('🎧 Wróć gdy odblokujesz Beatmakera/YouTubera lub kupisz studio.');}
+        fn:()=>{closeNPCDlg();notify('🎧 Wróć gdy odblokujesz Beatmakera/Vlogera lub kupisz studio.');}
       },
       // v1.8.45: dialog side quest dla Majkla (p_3tracks, 8000 zł nagrody)
       {text:()=>{const q=SIDE_QUESTS.producent[0];const p=(G.careers?.raper?.tracks||0);const done=G.mainQuest?.completed?.includes(q.id);return done?'✓ '+q.name:`📋 Side: ${q.name} (${p}/${q.target})`;},
@@ -26534,7 +26534,7 @@ function nextPeriod(){
     if(_evo('gamer')){const _p=earn(1380,false);_passiveTotal+=_p;addNotif('🎮 E-sport Pro: +'+_p.toLocaleString('pl')+' zł kontrakt (Evolution Gamer)');}
     if(_evo('influencer')){const _p=earn(1035,false);_passiveTotal+=_p;addNotif('📱 Brand Owner: +'+_p.toLocaleString('pl')+' zł z marki (Evolution Influencer)');}
     if(_evo('soundeng')){const _p=earn(1265,false);_passiveTotal+=_p;addNotif('🎙️ Studio Owner: +'+_p.toLocaleString('pl')+' zł (Evolution Sound Eng.)');}
-    if(_evo('youtuber')){const _p=earn(1725,false);_passiveTotal+=_p;addNotif('📺 Algorithm Master: +'+_p.toLocaleString('pl')+' zł (Evolution YouTuber)');}
+    if(_evo('youtuber')){const _p=earn(1725,false);_passiveTotal+=_p;addNotif('📺 Algorithm Master: +'+_p.toLocaleString('pl')+' zł (Evolution Vloger)');}
     if(_evo('beatmaker')){const _p=earn(1265,false);_passiveTotal+=_p;addNotif('🥁 Producent: +'+_p.toLocaleString('pl')+' zł z bitów (Evolution Beatmaker)');}
     if(_evo('inwestycje')){const _p=earn(1840,false);_passiveTotal+=_p;addNotif('📈 Magnat: +'+_p.toLocaleString('pl')+' zł z portfela (Evolution Inwestycje)');}
     // F3-FIX-D: EVOLUTION kreatywnosc 'Geniusz' — co 3 dni nieoczekiwany hit
@@ -27585,7 +27585,7 @@ function checkCareerUnlocks(){
      Wcześniej cinematic wyskakiwał automatycznie nawet gdy gracz NIE robił nic związanego z karierą
      (np. levelup z koncertu odblokowuje gamer cinematic). User: "wyskoczyl mi cinematic youtuber a nic nie zrobiłem". */
   if(!c.youtuber.unlocked&&totalXP>=c.youtuber.xpReq){
-    c.youtuber.unlocked=true;addNotif('🎬 YouTuber odblokowany! Idź do studio z komputerem.');
+    c.youtuber.unlocked=true;addNotif('🎬 Vloger odblokowany! Idź do studio z komputerem.');
   }
   if(!c.gamer.unlocked&&G.level>=2){
     c.gamer.unlocked=true;addNotif('🎮 Gamer odblokowany! Komputer w studio — mecze rankingowe + streamy.');
@@ -27825,7 +27825,7 @@ function openComputerMenu(){
   const yt=G.careers.youtuber, gm=G.careers.gamer;
   const totalXP=G.xp+(G.level-1)*CFG.xpPerLevel;
   // v1.8.71: lock messages zawierają obie ścieżki unlock (próg automatyczny + drzewko umiejętności)
-  const ytLockTxt=yt.unlocked?'':`🔒 Wymaga ${yt.xpReq} XP (masz ${totalXP}) lub punktu w drzewku 📺 YouTuber`;
+  const ytLockTxt=yt.unlocked?'':`🔒 Wymaga ${yt.xpReq} XP (masz ${totalXP}) lub punktu w drzewku 📺 Vloger`;
   const gmLockTxt=gm.unlocked?'':`🔒 Wymaga poziomu 2 (jesteś lvl ${G.level}) lub punktu w drzewku 🎮 Gamer`;
   // Home Studio — dostępne TYLKO w apartamentach (nie w pro studio gdzie jest DAW)
   const inApartment=['mieszkanie','mieszkanie_premium','mieszkanie_lux'].includes(currentRoom);
@@ -30978,7 +30978,7 @@ window._ytFindDraft=function(id,wantEdited){
 };
 function renderYTOverlay(){
   const car=G.careers.youtuber;
-  if(!car.unlocked){const _tx=G.xp+(G.level-1)*CFG.xpPerLevel;document.getElementById('ov-content').innerHTML=`<h2>🎬 YouTuber</h2><p class="sub">Odblokuj zdobywając ${car.xpReq} XP (masz ${_tx}) <strong>lub</strong> kupując punkt w drzewku 📺 YouTuber (Telefon → Drzewko).</p><button class="cbtn" onclick="closeOverlay()">← Wróć</button>`;return;}
+  if(!car.unlocked){const _tx=G.xp+(G.level-1)*CFG.xpPerLevel;document.getElementById('ov-content').innerHTML=`<h2>🎬 Vloger</h2><p class="sub">Odblokuj zdobywając ${car.xpReq} XP (masz ${_tx}) <strong>lub</strong> kupując punkt w drzewku 📺 Vloger (Telefon → Drzewko).</p><button class="cbtn" onclick="closeOverlay()">← Wróć</button>`;return;}
   const camQ=G.camera?G.camera.quality:10;
   const micQ=G.mic?G.mic.quality:10;
   const contractBtn=G.contract?`<div style="background:#1a2a0a;border:1px solid #2a5a1a;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:#7ec87e">📋 Aktywny kontrakt: ${G.contract.desc} (${G.contract.progress}/${G.contract.target}) · Deadline: Dzień ${G.contract.deadline}</div>`:'';
@@ -31636,7 +31636,7 @@ function publishYT(draftId){
   const ytSkMult=1+Math.max(0,(G.skills&&getSkillLvl('youtuber')||0)-1)*0.15+(typeof _pu==='function'?_pu('youtuber')*0.30:0); /* v1.9.63: Power-Ups +30/60/100% (audyt PU — wcześniej pomijane w publishYT) */
   const baseViews=Math.floor(q*gameBonus*(1+G.yt.subs*.001)*rnd(80,120)/100*ytSkMult);
   // v1.9.10: BUG FIX — ytSkMult NIE jest ponownie aplikowany do newSubs/income, bo baseViews już go ma. Wcześniej x²=2.56× przy skill 5.
-  /* v2.1.85 Amper: CONSECUTIVE UPLOADS STREAK BONUS — aktywni YouTuberzy nagradzani.
+  /* v2.1.85 Amper: CONSECUTIVE UPLOADS STREAK BONUS — aktywni Vlogerzy nagradzani.
      Streak = dni z rzędu z uploadem. Reset jeśli pominął dzień. Max bonus +300 subów per video po 30 dniach streaku. */
   if(!G._ytLastUploadDay || G.day - G._ytLastUploadDay > 1){
     G._ytStreak = 1;
@@ -49792,12 +49792,12 @@ const GAME_MECHANICS=[
    short:'Im więcej XP, tym wyższy poziom.',
    desc:'Poziom rośnie wraz z doświadczeniem (XP). Każda akcja daje trochę XP. Wyższy poziom otwiera nowe ścieżki kariery i opcje.',
    how:['• Każda akcja daje XP (praca, koncert, sport, kasyno)','• Większe akcje = więcej XP','• Zadania i osiągnięcia dają bonusowe XP'],
-   unlocks:['• Poziom 2 → wydanie singla na Loopify','• Poziom 3 → kariery (beatmaker, YouTuber, streamer, gamer, influencer, realizator dźwięku)','• Każdy poziom → 2 punkty umiejętności do wydania w drzewku','• Wyższy poziom → lepszy sprzęt dostępny w sklepach','• Wyższy poziom → większe koncerty i festiwale (wymóg poziomu na klub/festiwal)','• Wymagania mieszkań i sprzętu — sprawdzane przez poziom postaci'],
+   unlocks:['• Poziom 2 → wydanie singla na Loopify','• Poziom 3 → kariery (beatmaker, Vloger, streamer, gamer, influencer, realizator dźwięku)','• Każdy poziom → 2 punkty umiejętności do wydania w drzewku','• Wyższy poziom → lepszy sprzęt dostępny w sklepach','• Wyższy poziom → większe koncerty i festiwale (wymóg poziomu na klub/festiwal)','• Wymagania mieszkań i sprzętu — sprawdzane przez poziom postaci'],
   },
   {id:'money', em:'💰', name:'Pieniądze', color:'#27ae60',
    short:'Twoja kasa — startujesz z 500 zł.',
    desc:'Pieniądze to podstawa — wszystko kosztuje: sprzęt, mieszkanie, samochód, jedzenie, ubrania. Startujesz z 500 zł i musisz zarobić więcej żeby się rozwijać.',
-   how:['• Prace dorywcze (pizzeria, supermarket, kurier, mycie aut)','• Koncerty w Sali Koncertowej i festiwale','• Tracki na Loopify, EchoDrop, AurumWave','• Kariery (beatmaker, YouTuber, influencer itd.)','• Inwestycje w banku','• Pasywne dochody z mieszkań pod wynajem'],
+   how:['• Prace dorywcze (pizzeria, supermarket, kurier, mycie aut)','• Koncerty w Sali Koncertowej i festiwale','• Tracki na Loopify, EchoDrop, AurumWave','• Kariery (beatmaker, Vloger, influencer itd.)','• Inwestycje w banku','• Pasywne dochody z mieszkań pod wynajem'],
    unlocks:['• Więcej kasy → lepszy sprzęt, mieszkania, auta','• Inwestycje pomagają zarabiać pasywnie','• Można założyć wytwórnię i podpisywać artystów'],
   },
   /* v2.1.942 (PDF l.25: storyline — uświadomienie gracza JAK zacząć karierę i jaki typ prowadzić: legalnie / nielegalnie / miks).
@@ -52540,7 +52540,7 @@ function renderPhonePassive(){
         ${evoGamer>0?_row('🎮','E-sport Pro',null,evoGamer,'Evolution Gamer'):''}
         ${evoInfluencer>0?_row('📱','Brand Owner',null,evoInfluencer,'Evolution Influencer'):''}
         ${evoSoundeng>0?_row('🎙️','Studio Owner',null,evoSoundeng,'Evolution Sound Eng.'):''}
-        ${evoYoutuber>0?_row('📺','Algorithm Master',null,evoYoutuber,'Evolution YouTuber'):''}
+        ${evoYoutuber>0?_row('📺','Algorithm Master',null,evoYoutuber,'Evolution Vloger'):''}
         ${evoBeatmaker>0?_row('🥁','Producent',null,evoBeatmaker,'Evolution Beatmaker'):''}
         ${evoInwestycje>0?_row('📈','Magnat',null,evoInwestycje,'Evolution Inwestycje'):''}
         ${evoKreatywnosc>0?_row('💡','Geniusz',null,evoKreatywnosc,'2070 zł co 3 dni avg'):''}
@@ -55205,7 +55205,7 @@ window.openCinematicFlythrough=()=>{
       em:'🎮', title:'WYBIERZ SWOJĄ ŚCIEŻKĘ',
       /* v2.1.319 fix: user feedback "kamera nie ma przeskakiwać tylko płynnie lecieć przez całe miasto bez przeskoków i podświetleń. ArrowRight nie powinno działać na ostatnim kroku."
          Pojedynczy "shot" z custom path animation — kamera leci płynnie po obwodzie miasta (8 waypointów, ciągły lerp BEZ czekania, BEZ highlight). */
-      desc:'Wiele ścieżek kariery: rap, beatmaker, YouTuber, streamer, influencer, realizator dźwięku, biznes, label. Każda z własnym drzewkiem skilli. Wybór należy do Ciebie!',
+      desc:'Wiele ścieżek kariery: rap, beatmaker, Vloger, streamer, influencer, realizator dźwięku, biznes, label. Każda z własnym drzewkiem skilli. Wybór należy do Ciebie!',
       places:[
         /* Jeden placeholder shot — faktyczny ruch kamery sterowany przez customFinalePan w _next() */
         {wx:2200, wy:1750, label:'CAŁE MIASTO', zoom:1.0},
@@ -55548,13 +55548,13 @@ window.openIntroduction=()=>{
      v2.1.319 fix: usunięty drugi sfxSparkle (user feedback "URUCHOM odpala dźwięk podwójnie"). */
   if(typeof sfxSparkle==='function') try{sfxSparkle();}catch(_){}
   const SLIDES=[
-    {em:'🎤',title:'Witaj w Trap Simulator',body:'Sandboxowa gra o budowaniu kariery artysty. Zaczynasz biednie w traphouse, ale rozwijać się możesz w wielu kierunkach: rap, beatmaker, YouTuber, streamer/gamer, influencer, realizator dźwięku, biznes, merch.<br><br>1 000 000 fanów to jeden z milestone\'ów, ale gra nie kończy się tam — możesz dalej rozwijać postać, wchodzić w Prestige, próbować innych ścieżek.'},
+    {em:'🎤',title:'Witaj w Trap Simulator',body:'Sandboxowa gra o budowaniu kariery artysty. Zaczynasz biednie w traphouse, ale rozwijać się możesz w wielu kierunkach: rap, beatmaker, Vloger, streamer/gamer, influencer, realizator dźwięku, biznes, merch.<br><br>1 000 000 fanów to jeden z milestone\'ów, ale gra nie kończy się tam — możesz dalej rozwijać postać, wchodzić w Prestige, próbować innych ścieżek.'},
     {em:'❤️',title:'Statystyki życiowe',body:'<b style="color:#e74c3c">❤️ Zdrowie</b> — spada gdy głód=0 lub energia=0. Lecz w szpitalu.<br><br><b style="color:#3498db">⚡ Energia</b> — spada przy akcjach (praca, koncert). Idź spać w łóżku.<br><br><b style="color:#27ae60">🍔 Głód</b> — spada z czasem. Lodówka, restauracja, sklep.<br><br><b style="color:#9b59b6">🧠 Nastrój</b> — wartość 0-100 (100=zen, 0=wypalenie). Odpoczywaj na sofie/ławce.'},
     {em:'⭐',title:'Sława i Fani (statystyki)',body:'<b style="color:#f1c40f">⭐ Sława (0-500)</b> — wartość otwierająca koncerty, sklepy luksusowe, sponsorów. Rośnie z koncertów, wydanych tracków, eventów.<br><br><b style="color:#7ec8e3">👥 Fani (licznik)</b> — statystyka kumulująca. Milestone\'y: 1K → 10K → 100K → 1M. Każdy z osobnymi nagrodami. Po 1M gra trwa dalej, kierując na Prestige.'},
     {em:'💎',title:'Drip (styl/luksus)',body:'<b style="color:#c8a520">💎 Drip 0-200</b> — luksusowy styl. Kupuj ubrania w Drip District (Balenciaga, Bottega, Dior).<br><br>Bonusy (per pkt, liniowo):<br>• Koncerty (zarobki + fani) +0.1%/pkt — drip 200 = <b>+20%</b> (z Ulepszeniem "Personal brand": <b>+30%</b>)<br>• Loopify/AurumWave royalties +0.2%/pkt — drip 200 = <b>+40%</b> (z Ulepszeniem: <b>+60%</b>)<br>• Zaliczki Major/Global +0.8-1.2%/pkt — drip 200 = <b>+40-50%</b> (z Ulepszeniem: <b>+60-75%</b>)<br>• FrameUp zasięg +0.5%/pkt — drip 200 = <b>+100%</b> (z Ulepszeniem: <b>+150%</b>)<br><br>📢 Ulepszenie "Personal brand" (Autopromocja 4 w drzewku rapera): rozszerza wszystkie capy dripowe.'},
     {em:'💪',title:'Forma i Kondycja',body:'<b style="color:#00bcd4">💪 Forma 0-100</b> — siłownia: bench press, treadmill, cable. Forma 100 daje +10 max do zdrowia/energii/głodu. Bez treningu 3+ dni → spada 10-20%/dzień.<br><br><b>Skill Kondycja</b> (drzewko) spowalnia spadek energii (-8%/pkt, max -40%).<br><br><b>Skill Apetyt</b> spowalnia głód, <b>Odporność</b> chroni zdrowie.'},
     {em:'🎯',title:'Drzewko umiejętności + Ulepszenia + Ewolucje',body:'8 gałęzi skill tree dla rapera: Flow, Teksty, Produkcja, Realizacja, Mikser, Autopromocja, Biznes, Scena. (Kondycja jest w głównym drzewku umiejętności — to stat fizyczny.) Każda kariera ma własne drzewko.<br><br>Wydawaj <b style="color:#f1c40f">Skill Points</b> (z lvl up) na bonusy 1-5.<br><br><b>Ulepszenia (Power-Ups)</b> dodają bonusy kumulatywnie: 1. Ulepszenie = +30%, 2. = +60%, 3. = +100% (max 3 Ulepszenia per skill).<br><br><b>Ewolucje</b> — zaawansowane bonusy odblokowywane po max skill+Ulepszenia (3 evo per gałąź: Strateg / Master / Specjalista).'},
-    {em:'📋',title:'Linia fabularna + Side stories',body:'<b>Główna linia</b> — milestone fanów: 100 → 250 → 500 → 1000. Po 1000 odblokowują się kolejne ścieżki (kariery, sponsorzy, label).<br><br><b>Linie boczne</b> (7): Drip, Forma, Mieszkanie, YouTuber, Beatmaker, Gamer, Nielegalny Front — każda z własnymi questami i nagrodami.<br><br><b>Daily Quests</b> od Wiktora — codzienne mini-zadania (+XP, +zł).'},
+    {em:'📋',title:'Linia fabularna + Side stories',body:'<b>Główna linia</b> — milestone fanów: 100 → 250 → 500 → 1000. Po 1000 odblokowują się kolejne ścieżki (kariery, sponsorzy, label).<br><br><b>Linie boczne</b> (7): Drip, Forma, Mieszkanie, Vloger, Beatmaker, Gamer, Nielegalny Front — każda z własnymi questami i nagrodami.<br><br><b>Daily Quests</b> od Wiktora — codzienne mini-zadania (+XP, +zł).'},
     {em:'🤝',title:'NPC i Przyjaźnie',body:'7 stałych NPC w mieście. Każdy z poziomem przyjaźni 0-100. Wyższy poziom → większy bonus do związanych mechanik (np. Zbyszek = zniżki, Marcin = +zarobki koncertów).<br><br>Buduj przez: zakupy, side quests, SMS odpowiedzi, prezenty.<br><br>Telefon → 🤝 NPC → Przyjaźnie pokazuje wszystko.'},
     {em:'⭐',title:'Prestige (po endgame)',body:'Po osiągnięciu wysokiego poziomu + 100K+ fanów odblokujesz <b style="color:#c8a520">PRESTIGE</b>: reset poziomu, ale permanentny bonus +2% kasa (cap 20%), +3% sława per rank.<br><br>Max Prestige 10. Po każdym ranku możesz wybrać inną ścieżkę kariery i grać dalej.'},
     {em:'🚀',title:'Gotowy do startu!',body:'<b>Sterowanie:</b> WASD = ruch · E = interakcja · P = telefon · M = mapa · Esc = pauza · Ctrl+S = save<br><br><b style="color:#f1c40f">Wybierz swoją ścieżkę:</b> Pizzeria, Kurier, Carwash, Construction, Zmywak (prace dorywcze)... albo idź do Wiktora po zlecenie, do Studio na pierwszy track, albo w Galaxy żeby kupić sprzęt. Wybór należy do Ciebie. Powodzenia! 🎤<br><br><div style="background:linear-gradient(135deg,rgba(200,165,32,.2),rgba(241,196,15,.1));border:1px solid #c8a520;padding:14px;border-radius:10px;margin-top:12px;color:#f1c40f;font-weight:700;text-align:center">🎬 Po zamknięciu zobaczysz <b>PRZELOT KAMERĄ PO MIEŚCIE</b> — pokażemy Ci kluczowe lokacje z lotu ptaka.</div>'}
@@ -56009,7 +56009,7 @@ const LONGTERM_GOALS = [
   {icon:'🏛', label:'Hall of Fame',                done:()=>G._hasHallOfFameStatue===true,      hint:'Status legendy — własna statua w Dzielnicy Dripu.'},
   /* v2.1.560 P3 rozbudowa: 5 nowych celów endgame (distinct, solo-osiągalne, pola zweryfikowane). */
   {icon:'💿', label:'Major label (wytwórnia)',     done:()=>G.label?.type==='major',            hint:'Rozwiń własną wytwórnię z indie do major — podpisuj i rozwijaj artystów.'},
-  {icon:'🌈', label:'Wszystkie 5 karier',          done:()=>['youtuber','gamer','beatmaker','influencer','soundeng'].every(k=>G.careers?.[k]?.unlocked), hint:'YouTuber, Gamer, Beatmaker, Influencer, Realizator — odblokuj przez poziom i fanów.'},
+  {icon:'🌈', label:'Wszystkie 5 karier',          done:()=>['youtuber','gamer','beatmaker','influencer','soundeng'].every(k=>G.careers?.[k]?.unlocked), hint:'Vloger, Gamer, Beatmaker, Influencer, Realizator — odblokuj przez poziom i fanów.'},
   {icon:'🌟', label:'Prestige 3 (mistrz resetu)',  done:()=>(G.prestige||0)>=3,                  hint:'Trzy razy przejdź pełny Prestige (reset poziomu od 15) — coraz mocniejsze bonusy.'},
   {icon:'💰', label:'Fortuna: 10 mln zł zarobione', cur:()=>(G.totalEarned||0),                  target:10000000, hint:'Suma wszystkich zarobków kariery: koncerty, streamy, biznesy, sponsorzy.'},
   {icon:'🎵', label:'30 wydanych utworów',          cur:()=>(G.studioTracks?.length||0),         target:30, hint:'Nagrywaj kawałki w studiu — płodny artysta buduje katalog.'},
@@ -60851,7 +60851,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.1.567',date:'2026-06-01',cats:['feature'],title:'🎬 Kariery medialne tętnią życiem — viralu, kryzysy i oferty',
  items:[
- {t:'feature',d:'🎬 Twoje kariery medialne (YouTuber, Beatmaker, Gamer, Influencer, Realizator) co jakiś czas rzucają wydarzeniami zależnymi od profilu: film wystrzela viralem, bit ląduje na TikToku, inny streamer robi Ci raid. Pojawiają się też DECYZJE — demonetyzacja na YouTube (odwołać się?), oferta na bit na wyłączność, zaproszenie na turniej e-sportowy (wpisowe vs pula nagród), współpraca reklamowa (kasa vs autentyczność), ghostwriting (kasa bez sławy czy kredyt). Każda kariera ma teraz swój smak.'},
+ {t:'feature',d:'🎬 Twoje kariery medialne (Vloger, Beatmaker, Gamer, Influencer, Realizator) co jakiś czas rzucają wydarzeniami zależnymi od profilu: film wystrzela viralem, bit ląduje na TikToku, inny streamer robi Ci raid. Pojawiają się też DECYZJE — demonetyzacja na YouTube (odwołać się?), oferta na bit na wyłączność, zaproszenie na turniej e-sportowy (wpisowe vs pula nagród), współpraca reklamowa (kasa vs autentyczność), ghostwriting (kasa bez sławy czy kredyt). Każda kariera ma teraz swój smak.'},
  ],
  },
  {
@@ -62710,7 +62710,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.1.327',date:'2026-05-27',cats:['fix'],title:'🎯 Ghost achievements naprawione — Multitalent/Wszechstronny wymagają realnej pracy w karierach (PLAN_DZIELNICE Faza G)',
  items:[
-  {t:'fix',d:'🎯 **Achievement "Wszechstronny" (3 kariery) + "Multitalent" (5 karier) — ghost unlock naprawiony** (user 2026-05-27: "Dostałem osiągnięcie odnośnie 3 ścieżek kariery, a nie odblokowałem 3 ścieżek kariery"). PRZED: cond testował tylko `careers.X.unlocked`, ale funkcja `checkCareerUnlocks` auto-ustawia ten flag przez progresję XP/level/followers — bez aktywnej akcji gracza (np. YouTuber unlock przy 50 XP, Beatmaker przy level 3, Influencer przy 500 obserwujących). Gracz dostawał achievement "Odblokuj 3 kariery" po kilku minutach gry nic nie robiąc w karierach. PO: cond wymaga `unlocked && ≥1 akcja w karierze` (YouTuber: nagrany film, Beatmaker: zrobiony bit, Gamer: wygrany turniej lub stream, Influencer: post IG, Realizator: ukończone zlecenie). Helper `_careerHasAction(k)` jako single source of truth. Opisy zaktualizowane: "Aktywnie pracuj w 3 z 5 karier" zamiast "Odblokuj 3 kariery". Save compat: stare achievementy w G.achievements zachowane (player nie traci nagrody), nowe save dostaje poprawny check.'},
+  {t:'fix',d:'🎯 **Achievement "Wszechstronny" (3 kariery) + "Multitalent" (5 karier) — ghost unlock naprawiony** (user 2026-05-27: "Dostałem osiągnięcie odnośnie 3 ścieżek kariery, a nie odblokowałem 3 ścieżek kariery"). PRZED: cond testował tylko `careers.X.unlocked`, ale funkcja `checkCareerUnlocks` auto-ustawia ten flag przez progresję XP/level/followers — bez aktywnej akcji gracza (np. Vloger unlock przy 50 XP, Beatmaker przy level 3, Influencer przy 500 obserwujących). Gracz dostawał achievement "Odblokuj 3 kariery" po kilku minutach gry nic nie robiąc w karierach. PO: cond wymaga `unlocked && ≥1 akcja w karierze` (Vloger: nagrany film, Beatmaker: zrobiony bit, Gamer: wygrany turniej lub stream, Influencer: post IG, Realizator: ukończone zlecenie). Helper `_careerHasAction(k)` jako single source of truth. Opisy zaktualizowane: "Aktywnie pracuj w 3 z 5 karier" zamiast "Odblokuj 3 kariery". Save compat: stare achievementy w G.achievements zachowane (player nie traci nagrody), nowe save dostaje poprawny check.'},
  ]
  },
  {
@@ -63258,7 +63258,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'🐛 **Audit fix #45**: Kucharz Domowy — opis skille był pełen skrótów (PU/Evo, accuracy, energy refund). Przepisane prostym językiem: co dają poziomy, co dają ulepszenia, co odblokowuje ewolucja.'},
   {t:'feature',d:'🧊 **Kokaina w kasynie (Back Room)** — nowa pozycja w Barze Casino Royal, dostępna dla street rep 30+. Koszt 1500 zł, +60 energia, +50 nastrój, +5 rep, -20 zdrowie, 1× dziennie. **10% szansa na wpadkę policji**: mandat 5000 zł, -8 sławy, -10 rep, zdrowie do 25. Wysokie ryzyko, wysoki zysk.'},
   {t:'fix',d:'🐛 **Audit fix #46**: SMS-y od NPC kontrastowały z UI "Kontakt tylko przez telefon". (1) Menadżer miał błędnie physical:false mimo że istnieje fizyczny NPC na chodniku H1 koło Szpitala — naprawiono. (2) Sponsor (phone-only) wysyłał "wpadnij do Drip District" / "wpadnij porozmawiać" mimo braku fizycznej obecności — przeformułowano na sugestie akcji ("kup drip u Wiktora", "wyślę ofertę przez telefon"). (3) Label A&R "Podejdź do nas" → "wbij w Telefon → Wytwórnia". (4) Manager SMS "Czekam pod salą koncertową" zmieniono na "chodnik koło Szpitala" (rzeczywista pozycja NPC).'},
-  {t:'fix',d:'🐛 **Audit fix #47**: opisy karier YouTuber/Beatmaker/Gamer/Influencer/Realizator Dźwięku miały "Lvl 1: odblokuj | 2-5: ..." — jargon. Przepisane prostym językiem. Daily tip "wydajność (combo, accuracy)" → "trafionych zielonych stref pod rząd". Daily tip Crew NPC z "obok sali koncertowej" → "chodnik H2 north — środek miasta".'},
+  {t:'fix',d:'🐛 **Audit fix #47**: opisy karier Vloger/Beatmaker/Gamer/Influencer/Realizator Dźwięku miały "Lvl 1: odblokuj | 2-5: ..." — jargon. Przepisane prostym językiem. Daily tip "wydajność (combo, accuracy)" → "trafionych zielonych stref pod rząd". Daily tip Crew NPC z "obok sali koncertowej" → "chodnik H2 north — środek miasta".'},
   {t:'fix',d:'🐛 **Audit fix #48**: NPC List + NPC Map miały złe lokacje. Marcin przeniesiony w v2.1.66 z H3 north → H1 south obok Sali, ale opis dalej mówił "H3 north — przy Drip District". Manager nie był na mapie NPC (był błędnie SMS-only). Crew SMS_CONTACTS physical:false mimo fizycznego NPC w mieście — wszystko naprawione.'},
   {t:'fix',d:'🐛 **Audit fix #49**: Random event "Hejt na Twitter" mówił "obraźliwe tweety o Twojej muzyce" mimo że event tylko sprawdza followers (gracz mógł nie mieć żadnej muzyki). Tekst zmieniono na ogólniejszy ("o Twoim stylu i postawie").'},
   {t:'fix',d:'🐛 **Audit fix #50**: "Pudłów" → poprawna polska gramatyka 3-formowa (1 pudło / 2-4 pudła / 5+ pudeł). Analogicznie trafień. YouTube minigame result line.'},
@@ -64304,7 +64304,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.1.85',date:'2026-05-16',cats:['rebalance','feature','beta-tester'],reporter:'Amper',title:'📺 REBALANS ekonomii cz.6 — YouTube consecutive uploads streak bonus',
  items:[
-  {t:'feature',d:'📺 **Consecutive uploads streak — aktywni YouTuberzy nagradzani.** Każdy dzień z rzędu z uploadem video daje +10 subów do następnego filmu. Max 30 dni streaku = +300 subów bonus per video. Reset jeśli pominiesz dzień (G.day - G._ytLastUploadDay > 1 → streak=1). Trackowane w G._ytStreak + G._ytLastUploadDay. Streak ≥7 dni → komunikat "🔥 YT streak X dni — bonus +Y subów!". Filozofia: konsekwentny grind YouTubera ma się opłacać — algorytm "lubi" regularny content.'},
+  {t:'feature',d:'📺 **Consecutive uploads streak — aktywni Vlogerzy nagradzani.** Każdy dzień z rzędu z uploadem video daje +10 subów do następnego filmu. Max 30 dni streaku = +300 subów bonus per video. Reset jeśli pominiesz dzień (G.day - G._ytLastUploadDay > 1 → streak=1). Trackowane w G._ytStreak + G._ytLastUploadDay. Streak ≥7 dni → komunikat "🔥 YT streak X dni — bonus +Y subów!". Filozofia: konsekwentny grind Vlogera ma się opłacać — algorytm "lubi" regularny content.'},
  ]
  },
  {
@@ -64762,7 +64762,7 @@ const PATCH_NOTES = [
   {t:'info',d:'💰 **Pasywne dochody / dzień (np. Magnat +800 zł, Brand Owner +700 zł, Lojalność klientów +1000 zł, kebab +300 zł, AdSense, royalties Spotify, manager, crew, sponsor) — bez zmian.** Wszystkie naliczane PER day rollover w `nextPeriod()`, niezależnie od długości dnia. To samo dotyczy czynszu, rachunków, tygodniowych royalties, festiwali, World Tour, decay siłowni i SMS-ów codziennych.'},
   {t:'info',d:'🎮 **Cooldowny minigier i NPC (real-time) — bez zmian.** Anti-spam kasyna, NPC dialog cooldown, animacje, auto-save 30 s itp. liczone w real-time pozostają takie same w sekundach realnych — gracz nie odczuje różnicy w mini-grach.'},
   {t:'info',d:'😴 **Spanie / odpoczynek — bez zmian.** `sleepInterval` ma własne tempo 10 game-min per 200 ms (niezależne od `_BASE_TIME_SCALE`). Aktywności (gotowanie, recording, korek) zużywające `gameMin += X` — proporcjonalne do nowego tempa (X game-min nadal trwa X/240 minut real, z dnia 6 min).'},
-  {t:'fix',d:'📝 **YouTuber Power-Up 3 — nazwa po polsku.** "Algorytm pet" → "Ulubieniec algorytmu" (kalka z angielskiego "algorithm\'s pet" zamieniona na naturalny polski).'},
+  {t:'fix',d:'📝 **Vloger Power-Up 3 — nazwa po polsku.** "Algorytm pet" → "Ulubieniec algorytmu" (kalka z angielskiego "algorithm\'s pet" zamieniona na naturalny polski).'},
  ]
  },
  {
@@ -64772,7 +64772,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'🔢 **10 skilli z mnożnikiem PU×0.30 — wciąż "+100%" zamiast "+90%"** (w v2.1.28 naprawiłem tylko 3 z 13 takich): Pizzaiolo, Kasjer, Detailer, Budowlaniec, Kurier, Zmywak Pro, Beatmaker, Gamer, Influencer, Sound Eng. Wszystkie PU3 zmienione z "+100%" → "+90% (zarobki/sprzedaż/wygranych/...)". Faktycznie kod liczy `_pu*0.30` × max 3 PU = +90%, nie +100%.'},
   {t:'fix',d:'📝 **Jednostki w opisach Power-Up dla 22 skilli.** Wcześniej tylko PU1 miało jednostkę (np. "Notatki (+15% XP)") a PU2/PU3 tylko procent ("Spis treści (+30%)" — czego 30%?). Teraz każdy PU mówi czego dotyczy: czytanie "+15/30/45% XP", kreatywność "+15/30/45% jakość", logika "zarobki", skupienie "jakość", kondycja "energii", apetyt "głodu", odporność "obrażeń", charyzma "zarobki NPC", inwestycje "zwrot", negocjacje "cen", hazard "szansa", networking "kontakty", drip "sława", scena "zarobki", flow "score", foto "zasięg", siła "forma", bieg "prędkość", medytacja "regen", dieta "energia".'},
   {t:'visual',d:'📐 **Naprawa ucinania nazw PU w drzewku.** Karta skilla była zbyt wąska (200px) + `text-overflow:ellipsis;white-space:nowrap` w span nazwy → długie PU jak "Mistrz ciasta (+30% zarobki)" pokazywały się jako "...". Teraz: szerokość karty 230px + `line-height:1.3; word-break:break-word` — pełna nazwa widoczna, ewentualnie zawijana do 2 linii.'},
-  {t:'fix',d:'🔮 **3 ghost evolutions usunięte z opisów** (obietnice które kod nigdy nie spełniał): YouTuber "Algorithm Master" — usunięto "każdy nowy film +50% views startowych" (pasywny dochód 1200/d zostaje). Charyzma "Magnetyzm" — usunięto "sami proponują zlecenia". Drip Master "Trendsetter" — usunięto "+50% sławy z luxury".'},
+  {t:'fix',d:'🔮 **3 ghost evolutions usunięte z opisów** (obietnice które kod nigdy nie spełniał): Vloger "Algorithm Master" — usunięto "każdy nowy film +50% views startowych" (pasywny dochód 1200/d zostaje). Charyzma "Magnetyzm" — usunięto "sami proponują zlecenia". Drip Master "Trendsetter" — usunięto "+50% sławy z luxury".'},
   {t:'fix',d:'🥗 **Dieta evolution opis dopasowany do kodu.** Wcześniej obiecywało "Każde gotowanie daje +5 do max formy (do +25)" — sugerując kumulację. Kod faktycznie daje stały +5 (max forma 105 zamiast 100). Opis poprawiony.'},
   {t:'fix',d:'💎 **Drip Master opis poprawiony.** "Większa sława z noszonych outfitów" sugerowała powtarzalność — w kodzie bonus naliczany TYLKO przy PIERWSZYM zakupie outfitu. Zmiana opisu: "Większa sława przy pierwszym założeniu nowego outfitu".'},
   {t:'optimization',d:'🗑️ **Dead code usunięty: `getLogikaSpeedBonus()`** (linia 1269). Funkcja zdefiniowana ale NIGDY niewywoływana. Logika faktycznie działa wewnątrz `getKarieraBonus()` dla wszystkich karier.'},
@@ -64786,9 +64786,9 @@ const PATCH_NOTES = [
  ver:'v2.1.28',date:'2026-05-15',cats:['bugfix','balance','system'],title:'🔢 Spójność liczb w drzewku umiejętności (PU Power-Ups)',
  items:[
   {t:'fix',d:'📚 **Czytanie i 11 innych umiejętności:** Power-Up "+50%" w opisie nie zgadzał się z faktycznym kodem, który dawał maksymalnie **+45%** (3 PU × 15%). Opisy poprawione tak, by wartości w drzewku odpowiadały temu, co gra faktycznie nalicza. Dotyczy: Czytanie, Kreatywność, Logika, Skupienie, Inwestycje, Scena, Flow, Foto, Siła, Medytacja, Zdrowa dieta, Powolny apetyt (przy "-50%" → "-45%").'},
-  {t:'fix',d:'✨ **Charyzma, Drip Master, YouTuber:** Power-Up "+100%" → faktyczny max bonus to **+90%** (3 PU × 30%). Opisy w drzewku poprawione (np. "Niezapomniany +90%" zamiast +100%).'},
+  {t:'fix',d:'✨ **Charyzma, Drip Master, Vloger:** Power-Up "+100%" → faktyczny max bonus to **+90%** (3 PU × 30%). Opisy w drzewku poprawione (np. "Niezapomniany +90%" zamiast +100%).'},
   {t:'info',d:'🧮 **Faktyczny mnożnik XP z Czytania:** max skill (3 punkty × 5%) + max PU (3 × 15%) = **+60% XP** (NIE +95% jak sugerowała wcześniejsza suma "15% + 95%" w drzewku). Powyżej tego dochodzi Evolution "Mędrzec" (+1 darmowy pkt umiejętności co 3 poziomy postaci, NIE XP%). Przykład: `addXP(100)` z max czytanie + PU → faktycznie ~80 XP (po helperze mnożącym przez 0.5 + mnożnik czytania).'},
-  {t:'info',d:'⚠️ **Wykryto ghost feature do osobnej decyzji (10 skilli):** Skille **Pizzaiolo, Kasjer, Detailer, Budowlaniec, Kurier, Zmywak Pro, Beatmaker, Gamer, Influencer, Sound Eng.** mają w opisie Power-Up "+30/+60/+100%" — ale w kodzie te PU **nie są nigdzie naliczane** (`_pu()` nie jest wywoływane dla tych skilli przy zarobkach). Z karier tylko YouTuber dostał wdrożone PU (w v1.9.63). Wymaga decyzji: dodać kod PU dla pozostałych 10 (gracz wreszcie poczuje efekt) czy zmienić opis (uczciwie pokazać aktualny stan).'},
+  {t:'info',d:'⚠️ **Wykryto ghost feature do osobnej decyzji (10 skilli):** Skille **Pizzaiolo, Kasjer, Detailer, Budowlaniec, Kurier, Zmywak Pro, Beatmaker, Gamer, Influencer, Sound Eng.** mają w opisie Power-Up "+30/+60/+100%" — ale w kodzie te PU **nie są nigdzie naliczane** (`_pu()` nie jest wywoływane dla tych skilli przy zarobkach). Z karier tylko Vloger dostał wdrożone PU (w v1.9.63). Wymaga decyzji: dodać kod PU dla pozostałych 10 (gracz wreszcie poczuje efekt) czy zmienić opis (uczciwie pokazać aktualny stan).'},
  ]
  },
  {
@@ -64808,7 +64808,7 @@ const PATCH_NOTES = [
   {t:'change',d:'⏰ **Decay przejedzenia 3× szybciej** (1→3 pkt na minutę real). 60 overeat schodzi w 20 min real zamiast 60 min.'},
   {t:'feature',d:'💬 **Info popup gdy gracz dostaje przejedzenie.** Gdy zjesz pierwszy raz "za dużo" — komunikat "🍔 Zjadłeś za dużo — masz +X przejedzenia. Przy 15+ zaczną się kary". Przy każdym przekroczeniu progu (15/40/70) — większy alert z konkretnymi karami.'},
   {t:'visual',d:'🎨 **HUD tooltip przejedzenia upgrade.** Większa ramka z border-glow, kolory tier (żółty/pomarańczowy/czerwony), konkretne wartości kar pkt zamiast "/tick", aktualne efekty, info "3 pkt/min real".'},
-  {t:'fix',d:'🎬 **Cinematic kariera NIE wyskakuje losowo.** User: "wyskoczyl mi cinematic youtuber/streaming a nic nie zrobiłem". Powód: gdy gracz osiągał poziom (np. z koncertu), automatycznie odpalał cinematic kariery niezwiązanej z aktywnościami. Teraz: gracz dostaje TYLKO notyfikację (np. "🎬 YouTuber odblokowany! Idź do studio z komputerem"). Cinematic zostaje TYLKO dla milestone\'ów fanów (1k/10k/100k/1M) i achievementów.'},
+  {t:'fix',d:'🎬 **Cinematic kariera NIE wyskakuje losowo.** User: "wyskoczyl mi cinematic youtuber/streaming a nic nie zrobiłem". Powód: gdy gracz osiągał poziom (np. z koncertu), automatycznie odpalał cinematic kariery niezwiązanej z aktywnościami. Teraz: gracz dostaje TYLKO notyfikację (np. "🎬 Vloger odblokowany! Idź do studio z komputerem"). Cinematic zostaje TYLKO dla milestone\'ów fanów (1k/10k/100k/1M) i achievementów.'},
   {t:'critical',d:'🏃 **Prędkość gracza FINALNIE NAPRAWIONA.** Wycofany delta-time fix z v2.1.17 (powodował niestabilność: "Czasem ok, czasem ultra wolno"). Powrót do klasycznej `P.wx += dx` (ruch per frame, browser handluje FPS przez requestAnimationFrame). Test: 112 px/sec stabilna prędkość bez wahań.'},
   {t:'change',d:'🎥 **Przelot kamerą — prawdziwy przelot.** Wcześniej kamera leciała w maksymalnym zoomie (1.5-1.6) między miejscami, gracz nie widział miasta. Teraz: każde naciśnięcie strzałki → **zoom-OUT do 1.0** (lot ptaka), płynny lerp do nowej pozycji nad miastem, **po 1200ms zoom-IN** na cel. Prawdziwy efekt filmowego przelotu nad miastem.'},
  ]
@@ -65107,7 +65107,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.0.26',date:'2026-05-15',cats:['bugfix'],title:'🎬 Fix losowo wyskakujących cinematicktów kariera',
  items:[
-  {t:'fix',d:'BUG: cinematic kariery (YouTuber / Gamer / Beatmaker / Influencer / Sound Engineer / Merch) wyskakiwał gracza **wielokrotnie**, czasem niespodziewanie. Powód: po każdym Prestige reset, flag `career.unlocked=false` był wracał, ale flag "shown" nie istniał — cinematic odpalał się drugi raz.'},
+  {t:'fix',d:'BUG: cinematic kariery (Vloger / Gamer / Beatmaker / Influencer / Sound Engineer / Merch) wyskakiwał gracza **wielokrotnie**, czasem niespodziewanie. Powód: po każdym Prestige reset, flag `career.unlocked=false` był wracał, ale flag "shown" nie istniał — cinematic odpalał się drugi raz.'},
   {t:'fix',d:'Dodany globalny flag `G._careerCinemEverShown` per kariera (youtuber/gamer/beatmaker/influencer/soundeng/merch). Cinematic odpala się **dokładnie raz** — niezależnie od Prestige reset. Save migration zaznacza już-odblokowane kariery jako "shown" żeby stare save\'y nie pokazywały cinematic ponownie po update.'},
  ]
  },
@@ -65838,7 +65838,7 @@ const PATCH_NOTES = [
  {
  ver:'v1.9.41',date:'2026-05-14',cats:['feature','bugfix'],title:'📱 Telefon: linie boczne widoczne + counter spójny + nagroda z bonusem Charyzmy',
  items:[
-  {t:'feature',d:'Telefon → Quest pokazuje teraz 6 LINII BOCZNYCH (Drip, Forma, Mieszkanie, YouTuber, Beatmaker, Gamer) z paskami postępu. Wcześniej były całkiem ukryte mimo że działały w tle.'},
+  {t:'feature',d:'Telefon → Quest pokazuje teraz 6 LINII BOCZNYCH (Drip, Forma, Mieszkanie, Vloger, Beatmaker, Gamer) z paskami postępu. Wcześniej były całkiem ukryte mimo że działały w tle.'},
   {t:'fix',d:'Counter "X ukończonych" w panelu Storyline pokazywał G.mainQuest.completed.length, ale pasek postępu używał currentStep. Po skipie/rollbacku liczniki się rozjeżdżały. Teraz oba pokazują currentStep.'},
   {t:'fix',d:'Daily quest reward w telefonie pokazywał surową kwotę, ale claimQuestReward() naprawdę aplikuje mnożnik Charyzmy. Teraz w UI widać faktyczną kwotę (oznaczone ✨ jeśli skill aktywny).'},
  ]
@@ -66564,7 +66564,7 @@ const PATCH_NOTES = [
  ver:'v1.8.71',date:'2026-05-13',cats:['gameplay'],title:'Kariery — poprawione opisy wymogów odblokowania (komputer + paneli karier)',
  items:[
  {t:'fix',d:'Podpowiedź przy wejściu do Influencera mówiła "potrzeba 200 obserwujących", ale faktyczny wymóg wynosi 500 fanów. Teraz podpowiedź zgadza się z prawdziwym warunkiem.'},
- {t:'change',d:'Wszystkie blokady karier na komputerze i panelach karier (YouTuber, Gamer, Beatmaker, Realizator Dźwięku, Influencer) wprost informują teraz, że karierę można odblokować na DWA sposoby: spełnić wymóg progu (poziom postaci / XP / liczba fanów) ALBO wydać 1 punkt umiejętności w drzewku w Telefonie. Wcześniej gra wspominała tylko o jednej ścieżce.'},
+ {t:'change',d:'Wszystkie blokady karier na komputerze i panelach karier (Vloger, Gamer, Beatmaker, Realizator Dźwięku, Influencer) wprost informują teraz, że karierę można odblokować na DWA sposoby: spełnić wymóg progu (poziom postaci / XP / liczba fanów) ALBO wydać 1 punkt umiejętności w drzewku w Telefonie. Wcześniej gra wspominała tylko o jednej ścieżce.'},
  {t:'change',d:'Komunikaty zostały też przeformułowane na bardziej naturalne ("wymaga poziomu 2" zamiast "odblokuj na poziomie 2") — czytelniej widać że to wymóg, nie polecenie.'},
  ]
  },
@@ -66642,7 +66642,7 @@ const PATCH_NOTES = [
  {t:'change',d:'Ewolucja Influencer "Brand Owner" — cena 150k → 25 000 zł, pasyw 300 → 700 zł/dzień. Zwrot po ~36 dniach.'},
  {t:'change',d:'Ewolucja Kasjer "Lojalność klientów" — cena 150k → 35 000 zł, pasyw 500 → 1000 zł/dzień. Zwrot po ~35 dniach.'},
  {t:'change',d:'Ewolucja Gamer "E-sport Pro" — cena 150k → 35 000 zł, pasyw 500 → 1000 zł/dzień. Zwrot po ~35 dniach.'},
- {t:'change',d:'Ewolucja YouTuber "Algorithm Master" — cena 150k → 50 000 zł, pasyw 600 → 1200 zł/dzień (plus bonus startowych views na nowe filmy). Zwrot po ~42 dniach.'},
+ {t:'change',d:'Ewolucja Vloger "Algorithm Master" — cena 150k → 50 000 zł, pasyw 600 → 1200 zł/dzień (plus bonus startowych views na nowe filmy). Zwrot po ~42 dniach.'},
  {t:'change',d:'Ewolucja Beatmaker "Producent" — cena 150k → 32 000 zł, pasyw 400 → 900 zł/dzień (plus mnożnik +50% wszystkich zarobków z bitów). Zwrot po ~36 dniach.'},
  {t:'change',d:'Ewolucja Sound Eng. "Studio Owner" — cena 150k → 32 000 zł, pasyw 400 → 900 zł/dzień. Zwrot po ~36 dniach.'},
  {t:'change',d:'Ewolucja Kreatywność "Geniusz" — hit przychodzi co 3 dni zamiast co 5 dni, nagroda 500 zł + 50 fanów → 1500 zł + 150 fanów. Średnio ~500 zł/dzień ekwiwalent.'},
@@ -66704,7 +66704,7 @@ const PATCH_NOTES = [
  {
  ver:'v1.8.54',date:'2026-05-13',cats:['bugfix'],title:'Pasywny dochód YouTube + Beatmaker (Evolution) · gotowanie waliduje składniki',
  items:[
- {t:'fix',d:'Ewolucje "Algorithm Master" (YouTuber) i "Producent" (Beatmaker) dawały tylko wizualny opis pasywnego dochodu — bez faktycznej wypłaty. Teraz każdego dnia gry +600 zł (YouTuber) i +400 zł (Beatmaker) trafia na konto, jak inne ewolucje.'},
+ {t:'fix',d:'Ewolucje "Algorithm Master" (Vloger) i "Producent" (Beatmaker) dawały tylko wizualny opis pasywnego dochodu — bez faktycznej wypłaty. Teraz każdego dnia gry +600 zł (Vloger) i +400 zł (Beatmaker) trafia na konto, jak inne ewolucje.'},
  {t:'fix',d:'Gotowanie — walidacja składników przy starcie minigry: jeśli z jakiegoś powodu brakuje produktu (np. zjadłeś go inną metodą tuż przed kliknięciem), przepis się nie uruchomi i nic nie zostanie zabrane. Wcześniej teoretycznie można było doprowadzić do ujemnego stanu spiżarni.'},
  ]
  },
@@ -66760,7 +66760,7 @@ const PATCH_NOTES = [
  {
  ver:'v1.8.46',date:'2026-05-13',cats:['feature','visual'],title:'Boczne linie fabularne widoczne w panelu · panel postaci subtelnie ulepszony',
  items:[
- {t:'change',d:'Pasek "Linia fabularna kariery" rozszerzony — po kliknięciu widać teraz nie tylko 18 kroków głównej fabuły, ale też wszystkie 9 bocznych linii (Drip, Forma, Mieszkanie, YouTuber, Beatmaker, Gamer, Hazard, Social Media, Biznes) z paskiem postępu i informacją o następnym kroku. Wcześniej gracz nie wiedział, że istnieją.'},
+ {t:'change',d:'Pasek "Linia fabularna kariery" rozszerzony — po kliknięciu widać teraz nie tylko 18 kroków głównej fabuły, ale też wszystkie 9 bocznych linii (Drip, Forma, Mieszkanie, Vloger, Beatmaker, Gamer, Hazard, Social Media, Biznes) z paskiem postępu i informacją o następnym kroku. Wcześniej gracz nie wiedział, że istnieją.'},
  {t:'change',d:'Panel postaci (klik ikony postaci w HUD) ma teraz subtelny granat z fioletowymi akcentami zamiast jednolitego ciemnego tła — bardziej premium wygląd.'},
  {t:'change',d:'Linia główna pokazuje teraz liczbę kroków dynamicznie (zamiast hardcoded "10 misji").'},
  ]
@@ -66895,7 +66895,7 @@ const PATCH_NOTES = [
  ver:'v1.8.31',date:'2026-05-13',cats:['feature'],title:'Cinematics dla kluczowych odblokowań',
  items:[
  {t:'new',d:'Cinematic przy zakupie budki kebab — wielki overlay "Twój pierwszy biznes" + confetti i dźwięk kasy.'},
- {t:'new',d:'Cinematic przy odblokowaniu każdej kariery — YouTuber, Gamer, Beatmaker, Influencer, Realizator Dźwięku. Każdy z własnym motywem kolorystycznym i emoji.'},
+ {t:'new',d:'Cinematic przy odblokowaniu każdej kariery — Vloger, Gamer, Beatmaker, Influencer, Realizator Dźwięku. Każdy z własnym motywem kolorystycznym i emoji.'},
  {t:'new',d:'Cinematic przy odblokowaniu sklepu Merch (5000 fanów) — komunikat "Studio Projektowania dostępne".'},
  ]
  },
@@ -67804,8 +67804,8 @@ const PATCH_NOTES = [
  ver:'v0.9.98',date:'2026-05-10',cats:['visual'],title:'Drzewko umiejętności: ROZBUDOWA — Power-ups (3 etapy za $$) + Evolution (unique mechanics)',
  items:[
  {t:'feature',d:'OGROMNA rozbudowa drzewka umiejętności! Każda z 15 umiejętności ma teraz 3 fazy progresji: 1) Skill points (jak dotychczas, max 3-5 pkt) → 2) Power-ups (3 etapy kupowane za pieniądze: 5000/15000/40000 zł, każdy daje większy bonus) → 3) Evolution (najwyższy etap, droga 150k zł + 1 pkt umiejętności, daje UNIQUE mechanikę).'},
- {t:'feature',d:'Power-ups dla wszystkich prac (Pizzaiolo, Kasjer, Myjarz, Budowlaniec, Kurier, Zmywak), karier (YouTuber, Beatmaker, Gamer, Influencer, Sound Eng.) i statystyk życiowych (Kondycja, Apetyt, Odporność, Charyzma). Każdy power-up daje konkretny bonus (np. Pizzaiolo: +5/10/15% szansa na duże napiwki).'},
- {t:'feature',d:'Evolution daje unique gameplay mechanics: Pizzaiolo "VIP Klient" (mega tip co 5 dostaw), Kondycja "Pasywna regeneracja energii", YouTuber "Algorithm Master" (każdy film startuje z trending), Influencer "Brand Owner" (300 zł/dzień pasywny dochód) i 11 innych.'},
+ {t:'feature',d:'Power-ups dla wszystkich prac (Pizzaiolo, Kasjer, Myjarz, Budowlaniec, Kurier, Zmywak), karier (Vloger, Beatmaker, Gamer, Influencer, Sound Eng.) i statystyk życiowych (Kondycja, Apetyt, Odporność, Charyzma). Każdy power-up daje konkretny bonus (np. Pizzaiolo: +5/10/15% szansa na duże napiwki).'},
+ {t:'feature',d:'Evolution daje unique gameplay mechanics: Pizzaiolo "VIP Klient" (mega tip co 5 dostaw), Kondycja "Pasywna regeneracja energii", Vloger "Algorithm Master" (każdy film startuje z trending), Influencer "Brand Owner" (300 zł/dzień pasywny dochód) i 11 innych.'},
  {t:'feature',d:'Po wykupieniu Evolution — wyskakuje epicki cinematic z koroną 👑 i tytułem ewolucji.'},
  {t:'change',d:'UI drzewka rozbudowane: każdy tile pokazuje status power-upów (X/3) i przycisk Evolution gdy odblokowane. Kolor obramowania tile odpowiada postępowi (szary → niebieski → fioletowy → złoty).'},
  ]
@@ -68191,7 +68191,7 @@ const PATCH_NOTES = [
  {t:'feature',d:'TWITTER UI przebudowa jak prawdziwy Twitter: profile header z banner gradient + avatar overlap, verified ✓ (1k+ followers), bio z dynamicznym tekstem (zależnym od fame/label), licznik Obserwujący/Obserwowani.'},
  {t:'feature',d:'Tweet cards: avatar po lewej, name + verified ✓ + handle + czas (teraz/2h/Xd), tweet body, stats z ikonami (💬 replies, ♻️ retweets, ❤️ likes, 📊 views).'},
  {t:'feature',d:'expand: 3 NOWE side storylines (razem z drip/forma/apt = 6 linii):'},
- {t:'feature',d:' 📺 Linia YouTuber (4 questy): kamera → 1 film → 1k subów → 10k (Złoty Play Button)'},
+ {t:'feature',d:' 📺 Linia Vloger (4 questy): kamera → 1 film → 1k subów → 10k (Złoty Play Button)'},
  {t:'feature',d:' 🥁 Linia Beatmaker (4 questy): 1 bit → 1 sprzedaż → 10 sprzedanych → 50 (Producent roku)'},
  {t:'feature',d:' 🎮 Linia Gamer (4 questy): unlock → 1 turniej → 5 (Pro) → 20 (Esports Champion)'},
  {t:'change',d:'Łącznie 6 side-line z 25 questami (5 drip + 5 forma + 3 apt + 4 yt + 4 beat + 4 gamer).'},
@@ -68844,7 +68844,7 @@ const PATCH_NOTES = [
  {t:'add',d:'Otwarte miasto top-down z 9 skrzyżowaniami (// × //)'},
  {t:'add',d:'System statystyk: zdrowie, energia, głód, stres, sława, forma, drip, kondycja'},
  {t:'add',d:'6 prac dorywczych: pizza, supermarket, myjnia, budowa, kurier, zmywak'},
- {t:'add',d:'5 karier: YouTuber, Beatmaker, Gamer, Influencer, Sound Engineer'},
+ {t:'add',d:'5 karier: Vloger, Beatmaker, Gamer, Influencer, Sound Engineer'},
  {t:'add',d:'System fanów (casual/hardcore/haters), followers, fame, streetRep'},
  {t:'add',d:'Telefon w grze — Spotify, YouTube, Instagram, Twitter, Bank, Quests'},
  {t:'add',d:'Cykl dzień/noc, system pogody (słońce/deszcz/śnieg/mgła/burza)'},
@@ -70637,9 +70637,9 @@ const SIDE_STORYLINES={
         check:()=>G.apartment==='mega_villa'||(G._ownedApts||[]).includes('mega_villa'), reward:{money:30000,fame:50,xp:200,skillPts:5}},
     ]
   },
-  // 3 nowe side storylines: YouTuber, Beatmaker, Gamer
+  // 3 nowe side storylines: Vloger, Beatmaker, Gamer
   yt:{
-    name:'📺 Linia YouTuber', color:'#ff0000',
+    name:'📺 Linia Vloger', color:'#ff0000',
     quests:[
       {id:'y1', em:'🎥', name:'Pierwsza kamera', desc:'Kup kamerę w VoltHouse (najtańsza ~500 zł)',
         check:()=>!!G.camera, reward:{money:200,xp:20}},
@@ -72505,7 +72505,7 @@ function startGame(){
   const _introTips=[
     '💡 Zacznij od pracy dorywczej — sprawdź Pizzerię lub inne miejsca pracy na mapie!',
     '💡 Rób zakupy: Sklep muzyczny, VoltHouse — sprzęt poprawia jakość twórczości!',
-    '💡 Zdobywaj XP i awansuj poziomy żeby odblokować kariery: Beatmaker, YouTuber i więcej!'
+    '💡 Zdobywaj XP i awansuj poziomy żeby odblokować kariery: Beatmaker, Vloger i więcej!'
   ];
   let _introTipIdx=0;
   const _pumpIntroTips=()=>{
@@ -76085,7 +76085,7 @@ const SKILL_DEF={
   // ─── 🎤 KARIERY (max 5 pkt umie, 1=unlock + 4 lvl bonusow) ───
   raper: {label:'Raper',max:1,cat:'kariera',desc:'Odblokuj — pełne drzewko (8 gałęzi: Flow, Teksty, Scena, Mikser…) w Telefon → 🎤 Raper',emoji:'🎤'},
   /* v2.1.228 audit-fix #47: opisy karier player-friendly (bez "Lvl 1:", "views", "AdSense" jako jargon) */
-  youtuber: {label:'YouTuber',max:5,cat:'kariera',desc:'Poziom 1 odblokowuje karierę. Kolejne poziomy zwiększają liczbę widzów filmów i zarobki z reklam.',emoji:'📺',perLvl:15,op:'+',eff:'widzowie (od poziomu 2)',
+  youtuber: {label:'Vloger',max:5,cat:'kariera',desc:'Poziom 1 odblokowuje karierę. Kolejne poziomy zwiększają liczbę widzów filmów i zarobki z reklam.',emoji:'📺',perLvl:15,op:'+',eff:'widzowie (od poziomu 2)',
     powerUps:_PU('Thumbnail mistrz (+30% views)', 'Tytuły clickbait (+60% views)', 'Ulubieniec algorytmu (+90% views)'),
     evolution:_EVO('Algorithm Master', 'Pasywny dochód 1500 zł / dzień', 50000)},
   beatmaker: {label:'Beatmaker',max:5,cat:'kariera',desc:'Poziom 1 odblokowuje karierę. Kolejne poziomy zwiększają cenę i ilość sprzedanych bitów.',emoji:'🥁',perLvl:15,op:'+',eff:'sprzedaż bitów (od poziomu 2)',
