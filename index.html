@@ -38679,15 +38679,42 @@ window.renderCamperPanel=function(){
     </div>
     ${workSection}
     <div style="display:flex;flex-direction:column;gap:6px">
+      <button class="cbtn" style="width:100%;border-color:#9b59b6;color:#d8c0ee" ${destroyed?'disabled':''} onclick="window._enterCamper&&window._enterCamper()">🚐 Jedź kamperem (lub klawisz K przy pojeździe)</button>
       <button class="cbtn" style="width:100%" onclick="window._camperShowOnMap&&window._camperShowOnMap()">Pokaż na mapie</button>
       <button class="cbtn" style="width:100%" ${destroyed?'disabled':''} onclick="window._camperOpenRelocate&&window._camperOpenRelocate()">Zmień lokalizację</button>
     </div>
   </div>${back}`;
 };
-/* Pokaż na mapie — informacja o lokacji (gra nie ma fizycznego sprite'a; lokacja = pozycja postoju). */
+/* E4e (silnik jazdy): wsiadanie do kampera z PANELU (reuse logiki klawisza K — gdy gracz blisko zaparkowanego). */
+window._enterCamper=function(){
+  window._camperEnsure(); const c=G.camper;
+  if(!c||!c.owned){ if(typeof showMsg==='function')showMsg('🚐 Nie masz kampera.','r'); return false; }
+  if(G._inCamper){ if(typeof showMsg==='function')showMsg('🚐 Już jedziesz kamperem.','i'); return false; }
+  if(!G._camperParkedAt||!G._camperParkedAt.room){ if(typeof showMsg==='function')showMsg('🚐 Kamper nie ma jeszcze pozycji na mapie.','r',4500); return false; }
+  if(typeof _carRoom==='function' && !_carRoom(currentRoom)){ if(typeof showMsg==='function')showMsg('🚐 Do kampera wsiadasz na ulicy lub w dzielnicy.','r'); return false; }
+  if(G._camperParkedAt.room!==currentRoom){ if(typeof showMsg==='function')showMsg('🚐 Kamper stoi w innej lokacji — przejdź tam (zobacz „Pokaż na mapie"), potem K lub ten przycisk.','r',5000); return false; }
+  if(G._inCar){ if(typeof showMsg==='function')showMsg('🚐 Najpierw wysiądź z auta (V).','r'); return false; }
+  const _px=P.wx+P.w/2,_py=P.wy+P.h/2,_cX=G._camperParkedAt.wx+P.w/2,_cY=G._camperParkedAt.wy+P.h/2;
+  if(Math.hypot(_px-_cX,_py-_cY)>=80){ if(typeof showMsg==='function')showMsg('🚐 Podejdź bliżej do kampera (marker 🚐) i kliknij ponownie — lub naciśnij K.','i',4500); return false; }
+  G._camperParkedAt=null; G._inCamper=true;
+  const _en=(G.gender==='f')?'Wsiadłaś do kampera':'Wsiadłeś do kampera';
+  if(typeof window._subtleMsg==='function') window._subtleMsg('🚐 '+_en); else if(typeof showMsg==='function') showMsg('🚐 '+_en,'i',3000);
+  if(typeof phoneOpen==='function' && phoneOpen() && typeof togglePhone==='function') togglePhone(); /* zamknij telefon, by gracz widział jazdę */
+  return true;
+};
+/* E4e: „Pokaż na mapie" — fizyczna pozycja kampera (po E4d kamper MA sprite/pozycję na mapie). */
 window._camperShowOnMap=function(){
-  window._camperEnsure(); const c=G.camper; const loc=(window._camperLocById(c.location)||{});
-  if(typeof showMsg==='function') showMsg(c.location?('🚐 Kamper stoi: '+(loc.name||c.location)):'🚐 Kamper bez przypisanej lokacji — ustaw ją w „Zmień lokalizację".','i',5000);
+  window._camperEnsure(); const c=G.camper;
+  const _rn={ulica:'Miasto (ulica)',underground:'Underground',coast:'Wybrzeże',business:'Dzielnica Biznesowa'};
+  if(G._inCamper){ if(typeof showMsg==='function') showMsg('🚐 Właśnie jedziesz kamperem.','i',3500); return; }
+  if(G._camperParkedAt && G._camperParkedAt.room){
+    const rN=_rn[G._camperParkedAt.room]||G._camperParkedAt.room;
+    if(G._camperParkedAt.room===currentRoom){ if(typeof showMsg==='function') showMsg('🚐 Twój kamper stoi tutaj (marker 🚐 na mapie) — podejdź i naciśnij K.','i',5000); }
+    else { if(typeof showMsg==='function') showMsg('🚐 Twój kamper stoi w lokacji: '+rN+'. Przejdź tam i naciśnij K, żeby wsiąść.','i',6000); }
+  } else {
+    const loc=(window._camperLocById(c.location)||{});
+    if(typeof showMsg==='function') showMsg(c.location?('🚐 Kamper przypisany do postoju: '+(loc.name||c.location)):'🚐 Kamper bez pozycji — ustaw w „Zmień lokalizację".','i',5000);
+  }
 };
 /* Zmień lokalizację — reużywa istniejącego systemu przestawiania (renderCamperShop ma listę; tu skrót do moveCamper przez prompt-lite). */
 window._camperOpenRelocate=function(){
