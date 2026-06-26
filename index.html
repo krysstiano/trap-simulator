@@ -17251,6 +17251,27 @@ const RANDOM_EVENTS = [
      if(typeof addNotif==='function') addNotif('🤝 Stary znajomy z osiedla dał Ci propsy i dobrą radę na start. +3 street rep.');
      if(typeof showMsg==='function') showMsg('🤝 Props od znajomego — +3 street rep.','g',4500);
    }},
+  {name:'Zaczepka rywala', chance:0.009, maxPerDay:1, cond:()=>(G.streetRep||0)>=8 && (G.streetRep||0)<70,
+   fn:()=>{
+     G.streetRep=Math.min(100,(G.streetRep||0)+4);
+     if(typeof addFame==='function') addFame(1); else G.fame=Math.min(500,(G.fame||0)+1);
+     if(typeof addNotif==='function') addNotif('🔥 Lokalny rywal zaczepił Cię na ulicy — odbiłeś punchline tak, że gawiedź oszalała. +4 street rep, +1 sławy.');
+     if(typeof showMsg==='function') showMsg('🔥 Odbita zaczepka rywala! +4 street rep.','g',5000);
+   }},
+  {name:'Komentarze pod numerem', chance:0.010, maxPerDay:1, cond:()=>(G.fame||0)>=10 && (G.fame||0)<250,
+   fn:()=>{
+     const _f=Math.floor(10+Math.random()*25);
+     G.followers=(G.followers||0)+_f;
+     if(typeof addNotif==='function') addNotif(`💬 Pod Twoim numerem lawina komentarzy — ludzie cytują wersy. +${_f} obserwujących.`);
+     if(typeof showMsg==='function') showMsg(`💬 Komentarze hype! +${_f} obserwujących.`,'g',4800);
+   }},
+  {name:'Echo z osiedla', chance:0.009, maxPerDay:1, cond:()=>(G.fans||0)>=50 && (G.fans||0)<3000,
+   fn:()=>{
+     const _fa=Math.floor(12+Math.random()*30);
+     if(typeof addFans==='function') addFans(_fa); else G.fans=(G.fans||0)+_fa;
+     if(typeof addNotif==='function') addNotif(`🔊 Twój numer leciał z okna na całe osiedle — poczta pantoflowa robi swoje. +${_fa} fanów.`);
+     if(typeof showMsg==='function') showMsg(`🔊 Echo z osiedla — +${_fa} fanów.`,'g',4800);
+   }},
   /* v2.1.410 Faza AN.5 Etap 2: 2 trap random events — police patrol (warning) + buyer mass (bonus). */
   {name:'Policja patroluje', chance:0.012, maxPerDay:1, cond:()=>!!(G.trap?.unlocked)&&Object.values(G.trapInv?.products||{}).reduce((s,v)=>s+(v||0),0)>0&&(G.fame||0)>=50,
    fn:()=>{
