@@ -172,5 +172,9 @@ ipcMain.handle('uw-get-fullscreen', (e) => {
   return w ? w.isFullScreen() : false;
 });
 
-app.whenReady().then(createWindow);
+// Steam (scaffold) — no-op dopóki STEAM_BUILD=1 + SDK + realny App ID. Bezpieczne dla buildu poza Steam (GitHub Releases/strona).
+let _steam = null;
+try { _steam = require('./steam'); ipcMain.on('steam-achievement', (e, id) => { try { _steam.unlockAchievement(id); } catch (_) {} }); } catch (e) {}
+
+app.whenReady().then(() => { createWindow(); try { if (_steam) _steam.initSteam(); } catch (e) {} });
 app.on('window-all-closed', () => { if (!failed) app.quit(); });
