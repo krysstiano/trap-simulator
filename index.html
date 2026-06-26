@@ -38421,6 +38421,23 @@ const CAMPER_MODELS=[
   {id:'aurum_roamer_x', name:'Aurum Roamer X', price:480000, source:'citydrive', emoji:'🚐', cond:95, storage:5, labCap:4, qualityMod:-1, breakdown:1, police:-12, npcReport:-12, theft:16, fire:5, camouflage:95, explosion:0, maintCost:'high', desc:'Najbardziej prestiżowy kamper w ofercie CityDrive Motors. Duża przestrzeń, wysoki standard i wyposażenie, które w połączeniu z ponadczasowym stylem wnętrz bardziej przypomina apartament na kołach niż zwykły pojazd.'},
 ];
 window._camperModelById=function(id){ return (typeof CAMPER_MODELS!=='undefined')?CAMPER_MODELS.find(x=>x.id===id)||null:null; };
+/* ═══ E4-FIZYKA JAZDY (E4a drive-state foundation) ═══
+   Kamper = DRUGI pojazd w istniejącym systemie jazdy (analog auta: boost ruchu updatePlayer L13169, sprite L12117, park _carParkedAt).
+   _camperDriveParams(): parametry jazdy — kamper jest NAJWOLNIEJSZYM pojazdem (duży/ciężki):
+   • speed bazowa 1.08..1.14 wg modelu (zawsze < najtańszego auta 1.15);
+   • modyfikator kondycji MNIEJSZY niż auto (0.15 vs 0.20 — ciężki pojazd mniej zyskuje);
+   • widthMul 1.3 = szerszy sprite/kolizja (używane w E4b/E4c).
+   Efektywny boost ~1.17..1.30 (faster than walking 1.0, slower than cars ~1.38+). Pure helper (tylko ensure). */
+window._camperDriveParams=function(){
+  if(typeof window._camperEnsure==='function') window._camperEnsure();
+  const c=(G&&G.camper)?G.camper:{};
+  const m=window._camperModelById(c.model)||{};
+  const tier=(typeof m.cond==='number')?Math.max(0,Math.min(1,(m.cond-55)/40)):0; /* cond 55..95 -> tier 0..1 */
+  const speedBase=1.08+0.06*tier;
+  const cond=(c.condition==null)?100:c.condition;
+  const speed=speedBase*(1+0.15*(cond/100));
+  return { speed:speed, speedBase:speedBase, widthMul:1.3 };
+};
 /* Zakup kampera — sprawdza kase, odejmuje, ustawia owned/model/stan, loguje, woła wybor 1. postoju. (PDF buyCamper) */
 window.buyCamper=function(modelId){
   window._camperEnsure(); const c=G.camper;
@@ -47550,6 +47567,11 @@ window._camperEnsure=function(){
   if(!Array.isArray(c.history)) c.history=[];
   /* GRANDFATHER: istniejący gracz z odblokowanym Trapem zachowuje kamper jako posiadany (kompatybilność save). */
   if(!c.owned && G.trap && G.trap.unlocked){ c.owned=true; c._grandfathered=true; if(!c.model) c.model='rumbler_nomad_88'; if(!c.location) c.location='underground_legacy'; c.gravelLotUnlocked=true; c.purchaseAvailable=true; }
+  /* E4-FIZYKA (E4a): drive-state kampera (top-level G, analog _inCar/_carParkedAt). Save-safe defaulty —
+     _inCamper=false (gracz zawsze ładuje się PIESZO/zaparkowany, nigdy „w środku jadąc" przez load, jak auto),
+     _camperParkedAt=null (fizyczna pozycja {wx,wy,room} ustawiana przy parkowaniu w E4d; null=niezaparkowany). */
+  if(G._inCamper===undefined) G._inCamper=false;
+  if(G._camperParkedAt===undefined) G._camperParkedAt=null;
 };
 function togglePhone(){
   const ph=document.getElementById('phone');
