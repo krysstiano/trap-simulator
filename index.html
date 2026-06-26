@@ -17090,6 +17090,8 @@ function checkAchievements(){
   for(const ach of ACHIEVEMENTS){
     if(!G.achievements.includes(ach.id)&&ach.check()){
       G.achievements.push(ach.id);
+      /* Steam (scaffold): wyślij id odblokowanego osiągnięcia do warstwy desktop — no-op bez Steam/Electron. */
+      try{ if(typeof window!=='undefined' && window.electronSteam && typeof window.electronSteam.achievement==='function') window.electronSteam.achievement(ach.id); }catch(_){}
       const _r=_tierReward(ach.id);
       /* v2.1.740 (audyt): aktywacja dead-code _flushAchToasts (reguła #7) — naprawia naraz: (a) playtest P1 „spam osiągnięć" (seria → 1 zgrupowany toast zamiast N full-screen popupów), (b) memory-leak (kolejka nigdy nie opróżniana), (c) stary popup pokazywał stałe „+200 zł" dla KAŻDEGO achievementu (teraz toast pokazuje realną nagrodę tierową przez reward:_r). */
       if(!Array.isArray(G._pendingAchToasts)) G._pendingAchToasts=[];

@@ -23,3 +23,9 @@ contextBridge.exposeInMainWorld('electronFullscreen', {
   get()   { try { return ipcRenderer.invoke('uw-get-fullscreen'); } catch (_) { return Promise.resolve(false); } },
   isElectron: true
 });
+
+// Steam (scaffold) — gra wysyła id odblokowanego osiągnięcia; main → unlockAchievement (no-op bez STEAM_BUILD).
+contextBridge.exposeInMainWorld('electronSteam', {
+  achievement(id) { try { if (id) ipcRenderer.send('steam-achievement', String(id)); } catch (_) {} },
+  isElectron: true
+});
