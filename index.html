@@ -49167,6 +49167,10 @@ function renderPhoneApp(app){
     if(!G.trader||!G.trader.unlocked){
       ph.innerHTML=`<div class="ph-screen"><div style="color:#667;font-size:14px;padding:20px;text-align:center">📈 Crypto Exchange<br><br>🔒 Wymóg: poziom 6+ (Trader career unlock)<br><br>Twój poziom: ${G.level||1}</div></div>`;
     } else {
+      /* B4 (sweep telefonu): defensywa — G.crypto może być niezainicjowane (świeży stan/uszkodzony save) → crash na .holdings/.prices. Ensure spójny z loadGame L71393. */
+      if(!G.crypto||typeof G.crypto!=='object') G.crypto={holdings:{},history:[],prices:{},lastPriceUpdateDay:0,leveragePositions:[],_lastScalpDay:0,_scalpCountToday:0};
+      if(!G.crypto.prices||typeof G.crypto.prices!=='object') G.crypto.prices={};
+      if(!G.crypto.holdings||typeof G.crypto.holdings!=='object') G.crypto.holdings={};
       if(typeof window._updateCryptoPrices==='function') window._updateCryptoPrices();
       const _holdValueTotal=Object.entries(G.crypto.holdings||{}).reduce((s,[id,h])=>s+(h.qty||0)*(G.crypto.prices[id]||0),0);
       const _hasPositions=(G.crypto.leveragePositions||[]).length>0;
@@ -57442,6 +57446,12 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.75',date:'2026-06-26',cats:['beta-tester','Vegan','fix'],reporter:'Vegan',title:'🐛 Naprawiony błąd — aplikacja Crypto mogła zawieszać telefon',
+ items:[
+  {t:'fix',d:'Aplikacja Crypto w telefonie mogła się zawiesić (pusty, niereagujący ekran telefonu) zaraz po odblokowaniu, jeśli portfel krypto nie był jeszcze zainicjowany. Teraz aplikacja otwiera się poprawnie w każdej sytuacji. Przy okazji przejrzano wszystkie aplikacje telefonu pod kątem podobnych awarii — reszta działa bez zarzutu.'},
+ ]
+ },
  {
  ver:'v2.3.74',date:'2026-06-26',cats:['beta-tester','Vegan','fix'],reporter:'Vegan',title:'🔆 Lepsza czytelność — rozjaśnione zbyt ciemne napisy',
  items:[
