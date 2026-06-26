@@ -12141,6 +12141,45 @@ function drawPlayerCar(){
   X.restore();
 }
 
+/* ═══ E4-FIZYKA (E4b): rysuj KAMPERA gdy gracz jedzie (G._inCamper) — analog drawPlayerCar (gałąź jazdy), ale WIĘKSZY ×widthMul.
+   Kamper rysowany NA pozycji gracza (P.wx/wy) = zastępuje ukrytego gracza (drawPlayer hideuje przy _inCamper).
+   PRIORYTET auta: gdy _inCar → return (brak podwójnego pojazdu, #8 overlap-safe). Ruch/kolizja = E4c (tu tylko render). */
+function drawPlayerCamper(){
+  if(!G._inCamper || !G.camper || !G.camper.owned || !_carRoom(currentRoom) || G._inCar) return;
+  const sx=wx2sx(P.wx)+P.w/2, sy=wy2sy(P.wy)+P.h/2;
+  const wm=(typeof window._camperDriveParams==='function')?((window._camperDriveParams().widthMul)||1.3):1.3;
+  const d=P.dir; // 0=up,1=right,2=down,3=left
+  X.save();
+  X.translate(sx,sy);
+  X.rotate([Math.PI*1.5,0,Math.PI*.5,Math.PI][d]||0);
+  // cień (większy niż auto)
+  X.fillStyle='rgba(0,0,0,.24)';X.beginPath();X.ellipse(3,6,34*wm,16,0,0,Math.PI*2);X.fill();
+  // korpus kampera (van, dłuższy/wyższy niż auto) — front = prawo
+  const L=42*wm, H=26;
+  X.fillStyle='#d8d8e0';
+  if(X.roundRect){X.beginPath();X.roundRect(-L/2,-H/2,L,H,5);X.fill();}else{X.fillRect(-L/2,-H/2,L,H);}
+  // kabina (przód, ciemniejsza)
+  X.fillStyle='#9aa3b0';
+  if(X.roundRect){X.beginPath();X.roundRect(L/2-13,-H/2+2,12,H-4,3);X.fill();}else{X.fillRect(L/2-13,-H/2+2,12,H-4);}
+  // okna (kabina + bok)
+  X.fillStyle='rgba(120,180,210,0.85)';
+  X.fillRect(L/2-11,-H/2+4,7,6);
+  X.fillRect(-L/2+5,-H/2+4,L-24,5);
+  // pas/akcent + reflektory
+  X.strokeStyle='#6a7280';X.lineWidth=1;X.beginPath();X.moveTo(-L/2+2,2);X.lineTo(L/2-3,2);X.stroke();
+  X.fillStyle='rgba(255,245,160,0.95)';X.fillRect(L/2-2,-H/2+4,2,5);X.fillRect(L/2-2,H/2-9,2,5);
+  X.restore();
+  // wskaźnik kondycji nad kamperem (analog auta)
+  const _cc=(G.camper.condition==null?100:G.camper.condition);
+  const _ccCol=_cc>=66?'#2ecc71':(_cc>=33?'#f39c12':'#e74c3c');
+  const _ccLbl='🔧 '+Math.round(_cc)+'%';
+  X.save();X.font='bold 11px system-ui';X.textAlign='center';X.textBaseline='alphabetic';
+  const _ccW=X.measureText(_ccLbl).width+12;
+  X.fillStyle='rgba(8,12,20,0.72)';X.fillRect(sx-_ccW/2,sy-50,_ccW,16);
+  X.fillStyle=_ccCol;X.fillText(_ccLbl,sx,sy-38);
+  X.restore();
+}
+
 // ═══════════════════════════════════════════════════════════════════
 //  GRACZ
 // ═══════════════════════════════════════════════════════════════════
@@ -12150,6 +12189,8 @@ const SKIN_COLS={verylight:'#f5d8b8',light:'#e0a870',medium:'#c07840',olive:'#a0
 function drawPlayer(){
   // #17: Ukryj gracza gdy wsiadł do auta (postać "siedzi w środku" — auto się rysuje). N6: też w dzielnicach.
   if(G._inCar&&G.car&&_carRoom(currentRoom))return;
+  /* E4b: ukryj gracza gdy jedzie kamperem (kamper rysowany na jego pozycji w drawPlayerCamper). */
+  if(G._inCamper&&G.camper&&G.camper.owned&&_carRoom(currentRoom))return;
   const sx=wx2sx(P.wx);
   // Idle: delikatne oddychanie. Walking: subtle vertical bobbing (head bouncing)
   const idleBob = !P.moving ? Math.sin(anim*0.04)*0.7 : 0;
@@ -76767,6 +76808,7 @@ function loop(){
   if(currentRoom==='ulica'){_safe(()=>drawParkLife(),'drawParkLife');_safe(()=>drawCityLife(),'drawCityLife');_safe(()=>drawBirds(),'drawBirds');}
   else if(typeof DISTRICT_LIFE_CFG!=='undefined' && DISTRICT_LIFE_CFG[currentRoom]) _safe(()=>drawDistrictLife(),'drawDistrictLife'); /* N3 (v2.3.24): życie NPC w dzielnicach */
   _safe(()=>drawPlayerCar(),'drawPlayerCar');
+  _safe(()=>drawPlayerCamper(),'drawPlayerCamper'); /* E4b: sprite kampera podczas jazdy */
   _safe(()=>drawPlayer(),'drawPlayer');
   /* v2.1.411 Faza AQ.3 Etap 2: pies za graczem na ulicy. Rysuj dopiero po playerze (z-order). */
   if(currentRoom==='ulica' && G.dog && G.dog.owned && !G._inCar) _safe(()=>drawPlayerDog(),'drawPlayerDog');
