@@ -38499,6 +38499,79 @@ const CAMPER_LOCATIONS=[
   {id:'northbuild_backroad',       name:'Tylna droga za NorthBuild Contractors',          police:30, npcReport:30, theft:30, fire:20, camouflage:20, note:'Dobra dla pojazdów wyglądających jak robocze — ale w dni robocze ktoś może coś zauważyć.'},
 ];
 window._camperLocById=function(id){ return (typeof CAMPER_LOCATIONS!=='undefined')?CAMPER_LOCATIONS.find(l=>l.id===id)||null:null; };
+/* ═══ E4 (PDF _pdf_kamper2): panel Telefon→Kariera→Trap→Kamper + bramka zaplecza ═══
+   ADAPTACJA DO ARCHITEKTURY GRY: gra nie ma silnika jazdy pojazdami (auto=boost prędkości+marker postoju),
+   a „pozycja" kampera = jego lokacja postoju (CAMPER_LOCATIONS). Dlatego strefy pracy Underground = podziemne/
+   industrialne lokacje postoju; zaplecze dostępne TYLKO tam (PDF §5/6/13). Fizyczny sprite jeżdżący po mapie
+   (PDF §2-4,12) = osobny silnik jazdy → odłożone do sesji z userem (PLAN „Pytania do usera / E4 fizyka").
+   Ten panel = status+zarządzanie (fulfill ghost-promise z E1 „Zarządzaj w telefonie: Kariera→Trap→Kamper"). */
+window._camperWorkZoneIds=['old_overpass_parking','metal_valley_service_road','railway_concrete_lot','northbuild_backroad'];
+window.canUseCamperWorkspace=function(){
+  window._camperEnsure(); const c=G.camper;
+  return !!(c && c.owned && !c.destroyed && c.location && window._camperWorkZoneIds.includes(c.location));
+};
+window.renderCamperPanel=function(){
+  window._camperEnsure(); const c=G.camper;
+  const ph=document.getElementById('ph-content'); if(!ph) return;
+  document.getElementById('ph-title') && (document.getElementById('ph-title').textContent='🚐 Kamper');
+  const back='<div style="padding:8px 14px"><button class="cbtn" style="width:100%" onclick="renderPhoneApp(\'trap\')">← Wróć</button></div>';
+  if(!c.owned){ ph.innerHTML=`<div class="ph-screen"><div style="background:#0a1220;border:1px solid #1a3a5a;border-radius:8px;padding:16px;text-align:center;color:#99a;font-size:13px;line-height:1.5">Nie masz jeszcze kampera.<br>Kup go w salonie CityDrive Motors lub na Gravel Lot.</div></div>${back}`; return; }
+  const model=(window._camperModelById(c.model)||{}); const loc=(window._camperLocById(c.location)||{});
+  const destroyed=!!c.destroyed;
+  const workOk=window.canUseCamperWorkspace();
+  const locName=destroyed?'—':(loc.name||'Nieprzypisana lokacja');
+  const statusTxt=destroyed?'Uszkodzony':'Zaparkowany';
+  const statusCol=destroyed?'#e74c3c':(workOk?'#9b59b6':'#7ec8e3');
+  const cond=Math.max(0,Math.round(c.condition||0)), fuel=Math.max(0,Math.round(c.fuel||0));
+  /* Stan 2: zaplecze aktywne (strefa Underground) — abstrakcyjne nazwy akcji (PDF §9, BEZ realnych instrukcji). */
+  const workActions=['Przygotuj partię','Przetwórz surowce','Sprawdź jakość','Zabezpiecz zapas','Oczyść stanowisko'];
+  const workSection = destroyed
+    ? `<div style="background:#1a0a0a;border:1px solid #e74c3c;border-radius:8px;padding:12px;margin-bottom:10px;color:#e87">Pojazd uszkodzony — odzyskaj resztki na Metal Valley Yard.</div>`
+    : workOk
+      ? `<div style="background:#150a22;border:1px solid #9b59b6;border-radius:8px;padding:12px;margin-bottom:10px">
+          <div style="color:#c79be3;font-weight:700;font-size:13px;margin-bottom:4px">Zaplecze aktywne</div>
+          <div style="color:#9aa;font-size:11px;line-height:1.5;margin-bottom:8px">Pojazd stoi w dozwolonej strefie. Funkcje zaplecza obsłużysz na miejscu — wejdź do kampera w Underground District.</div>
+          <div style="display:flex;flex-wrap:wrap;gap:5px">${workActions.map(a=>`<span style="background:#1f1230;border:1px solid #3a2a50;color:#b79bd0;font-size:10.5px;padding:3px 8px;border-radius:10px">${a}</span>`).join('')}</div>
+        </div>`
+      : `<div style="background:#0e1220;border:1px solid #2a3a50;border-radius:8px;padding:12px;margin-bottom:10px">
+          <div style="color:#7ec8e3;font-weight:700;font-size:13px;margin-bottom:4px">Zaplecze niedostępne</div>
+          <div style="color:#9aa;font-size:11.5px;line-height:1.5">Zbyt publiczna lokalizacja. Przestaw kampera do jednej z dozwolonych stref Underground District, aby uruchomić zaplecze.</div>
+        </div>`;
+  ph.innerHTML=`<div class="ph-screen">
+    <div style="background:#0a1220;border:1px solid #1a3a5a;border-radius:8px;padding:12px;margin-bottom:10px">
+      <div style="font-size:15px;font-weight:800;color:#fff">${model.name||'Kamper'}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;margin-top:8px;font-size:12px;color:#aab">
+        <div>Status: <b style="color:${statusCol}">${statusTxt}</b></div>
+        <div>Pojazd: <b style="color:#27ae60">dostępny</b></div>
+        <div style="grid-column:1/3">Lokalizacja: <b style="color:#cdd">${locName}</b></div>
+        <div>Stan techn.: <b style="color:${cond>=60?'#27ae60':cond>=30?'#f39c12':'#e74c3c'}">${cond}%</b></div>
+        <div>Paliwo: <b style="color:${fuel>=30?'#27ae60':'#e74c3c'}">${fuel}%</b></div>
+      </div>
+    </div>
+    ${workSection}
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <button class="cbtn" style="width:100%" onclick="window._camperShowOnMap&&window._camperShowOnMap()">Pokaż na mapie</button>
+      <button class="cbtn" style="width:100%" ${destroyed?'disabled':''} onclick="window._camperOpenRelocate&&window._camperOpenRelocate()">Zmień lokalizację</button>
+    </div>
+  </div>${back}`;
+};
+/* Pokaż na mapie — informacja o lokacji (gra nie ma fizycznego sprite'a; lokacja = pozycja postoju). */
+window._camperShowOnMap=function(){
+  window._camperEnsure(); const c=G.camper; const loc=(window._camperLocById(c.location)||{});
+  if(typeof showMsg==='function') showMsg(c.location?('🚐 Kamper stoi: '+(loc.name||c.location)):'🚐 Kamper bez przypisanej lokacji — ustaw ją w „Zmień lokalizację".','i',5000);
+};
+/* Zmień lokalizację — reużywa istniejącego systemu przestawiania (renderCamperShop ma listę; tu skrót do moveCamper przez prompt-lite). */
+window._camperOpenRelocate=function(){
+  window._camperEnsure();
+  if(typeof window.renderCamperRelocateUI==='function'){ window.renderCamperRelocateUI(); return; }
+  /* fallback: lista lokacji w panelu telefonu */
+  const c=G.camper; const ph=document.getElementById('ph-content'); if(!ph) return;
+  const rows=(typeof CAMPER_LOCATIONS!=='undefined'?CAMPER_LOCATIONS:[]).map(l=>{
+    const here=l.id===c.location, work=window._camperWorkZoneIds.includes(l.id);
+    return `<button class="cbtn" style="width:100%;text-align:left;margin-bottom:5px;${here?'border-color:#9b59b6':''}" ${here?'disabled':''} onclick="window.moveCamper&&window.moveCamper('${l.id}');window.renderCamperPanel&&window.renderCamperPanel()">${l.name}${here?' · tu stoi':''} ${work?'<span style="color:#9b59b6">· strefa pracy</span>':'<span style="color:#778">· publiczna</span>'}</button>`;
+  }).join('');
+  ph.innerHTML=`<div class="ph-screen"><div style="font-size:13px;color:#aab;margin-bottom:8px">Przestaw kampera (paliwo + cooldown). Zaplecze działa tylko w strefach pracy Underground.</div>${rows}<div style="padding:8px 0"><button class="cbtn" style="width:100%" onclick="window.renderCamperPanel&&window.renderCamperPanel()">← Wróć</button></div></div>`;
+};
 /* Przestawianie kampera (PDF pkt 9): cooldown (6h gry) + paliwo (15) + czas (30min) + route_noise + ryzyko rutyny. */
 window.moveCamper=function(locId){
   window._camperEnsure(); const c=G.camper;
@@ -48901,6 +48974,7 @@ function renderPhoneApp(app){
           <div style="background:#0a0a14;border-radius:3px;height:4px;overflow:hidden;margin-top:3px"><div style="width:${Math.min(100,_h)}%;height:100%;background:${_col}"></div></div>
           <div style="font-size:10px;color:#9aa;margin-top:4px;line-height:1.45"><b style="color:#bcd">Heat</b> = jak bardzo policja Cię szuka. Rośnie z każdej <b>Twojej sprzedaży</b> (Joint +1, Shard +3, Proszek +5, Mix +6, Ecstasy +7, LSD +8), <b>wojen o terytorium</b> (+12) i pracy <b>chemika</b> (+2/szt). <b style="color:#f39c12">50+</b> = ~5% nalotu/dzień, <b style="color:#e74c3c">80+</b> = ~25% — przegrany nalot = konfiskata towaru + areszt + kara. Spada sam o <b>−20/dzień</b> (szybciej z filtrami/informatorem). Dealerzy sprzedają BEZ podnoszenia heat.</div>`;})()}
           <button class="cbtn" style="width:100%;padding:6px;font-size:11px;color:#7ec8e3;border-color:#3a6a8a;margin-top:6px" ${_inJail?'disabled':''} onclick="window._trapRelocateKamper()">📍 Przestaw kryjówkę (−heat, raz/dobę · 15⚡)</button>
+          ${(G.camper&&G.camper.owned)?`<button class="cbtn" style="width:100%;padding:6px;font-size:11px;color:#b79bd0;border-color:#5a3a7a;margin-top:5px" onclick="window.renderCamperPanel&&window.renderCamperPanel()">🚐 Kamper — status pojazdu i zaplecza${window.canUseCamperWorkspace&&window.canUseCamperWorkspace()?' · zaplecze aktywne':''}</button>`:''}
         </div>
         ${_inJail?`<div style="background:#2a0a0a;border:2px solid #e74c3c;padding:10px;border-radius:6px;margin-bottom:10px;color:#e74c3c"><strong>🚨 W areszcie!</strong><div style="font-size:12px;color:#aaa;margin-top:4px">Wyjdziesz za ${_jailDays} dni gry.</div></div>`:''}
         <div style="background:#0a1505;border-radius:6px;padding:10px;margin-bottom:10px">
@@ -57368,6 +57442,12 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.73',date:'2026-06-26',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'🚐 Panel zarządzania kamperem w telefonie',
+ items:[
+  {t:'feature',d:'Po zakupie kampera w telefonie (Kariera → Trap → Kamper) pojawia się panel zarządzania pojazdem: model, status, aktualna lokalizacja oraz stan techniczny i paliwo. Panel pokazuje też, czy w danym miejscu postoju dostępne jest zaplecze kampera — w zbyt publicznych lokalizacjach jest ono nieaktywne, a panel podpowiada, żeby przestawić pojazd do odpowiedniej strefy. Z panelu możesz sprawdzić lokalizację i zmienić miejsce postoju.'},
+ ]
+ },
  {
  ver:'v2.3.72',date:'2026-06-26',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'🧭 Mini-panel wątków pobocznych — wiesz co zrobić teraz',
  items:[
