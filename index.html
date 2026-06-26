@@ -13212,6 +13212,16 @@ function updatePlayer(){
     const _CAR_WEAR_PX=4500;
     G._carWearDist=(G._carWearDist||0)+Math.abs(dx)+Math.abs(dy);
     if(G._carWearDist>=_CAR_WEAR_PX){ const _wn=Math.floor(G._carWearDist/_CAR_WEAR_PX); G._carWearDist-=_wn*_CAR_WEAR_PX; if(G.car.condition==null)G.car.condition=100; G.car.condition=Math.max(0,G.car.condition-_wn); }
+  } else if(G.camper&&G.camper.owned&&(dx!==0||dy!==0)&&_carRoom(currentRoom)&&G._inCamper){
+    /* E4c (silnik jazdy): boost jazdy KAMPEREM — WOLNIEJSZY niż auto (_camperDriveParams). OSOBNY else-if:
+       auto i kamper wykluczają się (_inCar vs _inCamper) → boost auta NIENARUSZONY. Kolizja celowo bazowa (P.w) —
+       szerszy sprite może minimalnie zachodzić na ściany (jak auto), ale NIE psuje chodzenia (priorytet #1). */
+    const _cb=(typeof window._camperDriveParams==='function')?((window._camperDriveParams().speed)||1):1;
+    dx*=_cb; dy*=_cb;
+    /* zużycie kampera od jazdy (analog auta, większy próg = wolniej się zużywa per dystans). */
+    const _CAMPER_WEAR_PX=7000;
+    G._camperWearDist=(G._camperWearDist||0)+Math.abs(dx)+Math.abs(dy);
+    if(G._camperWearDist>=_CAMPER_WEAR_PX){ const _wn=Math.floor(G._camperWearDist/_CAMPER_WEAR_PX); G._camperWearDist-=_wn*_CAMPER_WEAR_PX; if(G.camper.condition==null)G.camper.condition=100; G.camper.condition=Math.max(0,G.camper.condition-_wn); }
   }
   /* v2.1.26: ROLLBACK delta-time normalization. v2.1.17 wprowadził dt, ale powodował niestabilną prędkość.
      User: "Czasem normalna, czasem ultra wolna" + "Gracz dalej porusza sie ultra wolno. Nie było tak wcześniej."
