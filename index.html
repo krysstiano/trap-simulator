@@ -14436,14 +14436,29 @@ function _noxEnsure(){
 }
 window._noxEnsure=_noxEnsure;
 function _noxHasProducts(){ try{ const p=G.trapInv&&G.trapInv.products; return !!(p&&Object.values(p).some(v=>(v||0)>0)); }catch(e){ return false; } }
+/* E2 (PDF _pdf_nox): NOX Route odblokowuje się dopiero w późnym etapie — wymóg = fikcyjna firma frontowa + zakupione laboratorium
+   (illegal_front_stage>=1 jest implikowane przez front+lab; bez nowego pola save). Wcześniejsze warunki (ekipa/produkty/heat) zniesione
+   na rzecz bramki opartej o własność lab — zgodnie z PDF „po zakupie laboratorium". */
 function checkNoxUnlock(){
   const front=(typeof _trapHasFront==='function')&&_trapHasFront();
-  const crew=Array.isArray(G.workers)&&G.workers.length>0;
-  const need=!!(G.trap&&(((G.trap.cooked||0)>0)||_noxHasProducts()));
-  const heatOk=(((G.trap&&G.trap.heat)||0)<85);
-  return !!(front&&crew&&need&&heatOk);
+  const lab=((G.lab&&G.lab.tier)||0)>=1;
+  return !!(front&&lab);
 }
 window.checkNoxUnlock=checkNoxUnlock;
+/* E2: jedyne źródło odblokowania (lab purchase + daily tick). Ustawia unlocked + komunikat systemowy (Kariera→Trap);
+   handshake/Emir przychodzi przy pierwszym OTWARCIU apki (renderNoxApp). SMS Kantara TYLKO gdy gracz miał z nim kontakt. */
+window._checkNoxUnlockAfterLab=function(){
+  if(typeof _noxEnsure==='function') _noxEnsure();
+  if(!G.nox || G.nox.unlocked) return; // grandfather / już odblokowane → nic nie rób
+  if(!checkNoxUnlock()) return;
+  G.nox.unlocked=true;
+  if(typeof showMsg==='function') showMsg('📡 Nowy kanał odblokowany: NOX Route — znajdziesz go w telefonie (Kariera → Trap).','f',6500);
+  if(typeof addNotif==='function') addNotif('📡 Nowy kanał odblokowany: NOX Route. Dostępny w telefonie: Kariera → Trap.');
+  const kantarContact=!!(G.underworldIntro && G.underworldIntro.state && G.underworldIntro.state!=='none');
+  if(kantarContact && typeof _smsTriggerOnce==='function'){
+    _smsTriggerOnce('nox_unlock_kantar','kantar','No. Teraz masz juz cos, co nie wyglada jak planszowy Eurobusiness. Sprawdz telefon.');
+  }
+};
 window.initNoxHandshake=function(){
   _noxEnsure();
   if(G.nox.handshakeDone) return;
@@ -14452,29 +14467,21 @@ window.initNoxHandshake=function(){
   let t=''; try{ const tm=Math.floor(gameMin)%1440; t=String(Math.floor(tm/60)).padStart(2,'0')+':'+String(tm%60).padStart(2,'0'); }catch(e){}
   G.nox.inbox.push({from:'Emir NOX Haddad', time:t, text:'Masz firme. Masz ludzi. Masz problem, ktory dopiero zacznie kosztowac. Nie pisz nazw, nie wysylaj zdjec, nie pytaj o twarze. Wybierasz potrzebe, nie osobe. Ja dobieram trase.'});
   if(!G.nox.contacts.some(c=>c.id==='emir')) G.nox.contacts.push({id:'emir', name:'Emir NOX Haddad', role:'Broker / Route Operator', trust:'Nieznany'});
-  if(typeof showMsg==='function') showMsg('🛰️ NOX Route: HANDSHAKE REQUEST — ktos dodal cie do trasy. Otworz NOX Route w folderze Kariera.','f',7000);
+  if(typeof showMsg==='function') showMsg('⬢ NOX Route: kanał aktywny — ktoś dodał Cię do trasy. Masz pierwszą wiadomość.','f',6000);
 };
+/* E2 (PDF _pdf_nox sekcja 4/6/10): ekran blokady = MINIMALNY „Brak autoryzacji". ZERO checklisty, ZERO list NPC/kafelków,
+   ZERO słów-spoilerów (laboratorium/surowce/produkcja/ekipa/czarny rynek/brokerzy/dostawcy/odpady/trasy/Nielegalny Front).
+   Ikona NIE-emoji (ciemny sześciokąt ⬢). Gracz ma jedynie poczuć, że apka należy do późniejszej, ukrytej warstwy gry. */
 window.renderNoxLockedScreen=function(){
   _noxEnsure();
-  const front=(typeof _trapHasFront==='function')&&_trapHasFront();
-  const crew=Array.isArray(G.workers)&&G.workers.length>0;
-  const need=!!(G.trap&&(((G.trap.cooked||0)>0)||_noxHasProducts()));
-  const heat=((G.trap&&G.trap.heat)||0);
-  const chk=(ok)=>ok?'<span style="color:#1ad9c0">[x]</span>':'<span style="color:#e25555">[ ]</span>';
   const ph=document.getElementById('ph-content'); if(!ph) return;
-  ph.innerHTML=`<div style="background:#06080c;border:1px solid #11343a;border-radius:10px;padding:18px 16px;color:#9fb0b8;font-family:'Consolas','Courier New',monospace">
-    <div style="text-align:center;margin-bottom:12px"><div style="font-size:34px">🛰️</div>
-      <div style="font-size:15px;letter-spacing:3px;color:#1ad9c0;font-weight:800">NOX ROUTE</div>
-      <div style="font-size:12px;letter-spacing:4px;color:#e2a045;margin-top:4px">ACCESS LOCKED 🔒</div></div>
-    <div style="font-size:11px;line-height:1.7;color:#8a98a0;border-top:1px solid #11343a;border-bottom:1px solid #11343a;padding:10px 0;margin:8px 0">
-      Nie znaleziono aktywnej warstwy operacyjnej.<br>Wymagane: zarejestrowany front, aktywna ekipa, pierwszy powod do kontaktu.</div>
-    <div style="font-size:12px;line-height:2">
-      ${chk(front)} Zarejestrowana fikcyjna firma / legalny front<br>
-      ${chk(crew)} Zatrudniona ekipa produkcyjna<br>
-      ${chk(need)} Potrzeba dystrybucji, dostaw lub obslugi zlecen</div>
-    ${heat>=85?'<div style="color:#e25555;font-size:11px;margin-top:8px">[!] Zbyt wysoki heat — brokerzy widza dym, nikt rozsadny nie chce kontaktu.</div>':''}
-    <div style="font-size:10px;color:#5a6a70;margin-top:12px;font-style:italic;line-height:1.6">
-      Aplikacja nie jest sklepem. Aplikacja nie jest czatem.<br>Aplikacja otwiera sie, kiedy ktos uzna, ze masz po co pisac.</div>
+  ph.innerHTML=`<div style="background:#06080c;border:1px solid #11343a;border-radius:10px;padding:28px 18px;color:#9fb0b8;font-family:'Consolas','Courier New',monospace;text-align:center">
+    <div style="font-size:42px;color:#2a3a44;line-height:1;margin-bottom:8px">⬢</div>
+    <div style="font-size:16px;letter-spacing:4px;color:#6a7a82;font-weight:800">NOX ROUTE</div>
+    <div style="font-size:12px;letter-spacing:3px;color:#e2a045;margin:12px 0 14px">🔒 BRAK AUTORYZACJI</div>
+    <div style="font-size:12.5px;line-height:1.85;color:#8a98a0;border-top:1px solid #11343a;padding-top:14px;max-width:280px;margin:0 auto">
+      Twój profil nie posiada wymaganego zaplecza operacyjnego.<br>Kanał pozostaje nieaktywny.</div>
+    <button onclick="(typeof renderPhoneFolder==='function')?renderPhoneFolder('career'):(typeof renderPhoneHome==='function'&&renderPhoneHome())" style="margin-top:20px;background:#0c1418;border:1px solid #2a3a40;color:#9fb0b8;font-size:12px;padding:9px 26px;border-radius:6px;cursor:pointer;font-family:inherit">Zamknij</button>
   </div>`;
 };
 /* NX-2 (v2.3.44 PDF): katalog ofert czarnorynkowych (6 kategorii usług). Operator ukryty; pola wg karty oferty (sekcja 10). */
@@ -14635,7 +14642,7 @@ window.renderNoxApp=function(){
   const _bb=document.getElementById('ph-back-top'); if(_bb)_bb.style.display='inline-block';
   window._phGoBack=()=>{ if(typeof renderPhoneFolder==='function') renderPhoneFolder('career'); else if(typeof renderPhoneHome==='function') renderPhoneHome(); };
   window._phHotkeys={};
-  const _ttl=document.getElementById('ph-title'); if(_ttl)_ttl.textContent='🛰️ NOX Route';
+  const _ttl=document.getElementById('ph-title'); if(_ttl)_ttl.textContent='⬢ NOX Route';
   const unlocked = G.nox.unlocked || checkNoxUnlock();
   if(!unlocked){ renderNoxLockedScreen(); return; }
   if(!G.nox.handshakeDone) initNoxHandshake(); else G.nox.unlocked=true;
@@ -21594,6 +21601,8 @@ window._labUpgradeTier=function(){
   const _hotBuy=(G.trap&&(G.trap.heat||0)>=75);
   G.money-=def.cost; if(typeof spent==='function') spent(def.cost);
   G.lab.tier=nextT;
+  /* E2 (PDF _pdf_nox sekcja 15): po zakupie laboratorium sprawdź odblokowanie NOX Route (front+lab). */
+  if(typeof window._checkNoxUnlockAfterLab==='function') window._checkNoxUnlockAfterLab();
   if(G.trap) G.trap._lastGearDay=G.day; /* v2.3.8 H7: zakup sprzętu laboratoryjnego — znacznik dla wykrywania wzorca */
   if(_hotBuy){ /* służby już patrzą — duża inwestycja zwraca uwagę */
     const _h=Math.round(8+Math.random()*10); G.trap.heat=Math.min(100,(G.trap.heat||0)+_h);
@@ -47523,7 +47532,7 @@ function _getPhoneFolders(){
       /* v2.1.911 (user): Trap ZAWSZE widoczne — szare do poznania dealera (zamiast ukryte). */
       _phApp('🤝',`Trap${G._trapDealerMet&&G.trap&&G.trap.unlocked?(' · L'+G.trap.level):''}`,'#1a0a0a','#e91e8c',"renderPhoneApp('trap')", !G._trapDealerMet, '🤝 Trap odblokujesz po spotkaniu dealera w mieście.'),
       /* NX (v2.3.44 PDF): NOX Route — czarnorynkowy komunikator. Widoczny od początku; klik → ekran blokady z checklistą (renderNoxApp dispatcher) dopóki nie spełnisz warunków. */
-      _phApp('🛰️','NOX Route','#06080c','#1ad9c0',"renderNoxApp()"),
+      _phApp('⬢','NOX Route','#06080c','#1ad9c0',"renderNoxApp()"),
     ]},
     finance:{em:'💰',label:'Finanse',preview:['🏦','💸','💰','📈'],apps:[
       _phApp('🏦','Bank','#12100a','#f1c40f',"renderPhoneApp('bank')"),
@@ -50704,8 +50713,8 @@ window._smsCheckTriggers=function(){
   if((G.fans||0)>=50000) _smsTriggerOnce('crew_hype_unlocked','crew','📢 50 tysięcy fanów! Teraz hype-man ma dla kogo robić szum (+20% wzrost obserwujących). Odezwij się.');
   if(concerts>=5) _smsTriggerOnce('crew_junior_unlocked','crew','🤵 Pięć występów za Tobą — junior manager jest dostępny (+5% wszystkie zarobki). Wpadnij zrekrutować.');
   if(concerts>=10) _smsTriggerOnce('crew_djkonc_unlocked','crew','🎧 Dziesięć koncertów! DJ koncertowy na kontrakt wchodzi w grę. Pogadamy o tym przy ekipie.');
-  // NX (v2.3.44 PDF): proaktywny handshake NOX Route gdy gracz spełni warunki (front + ekipa + potrzeba dystrybucji)
-  if(typeof checkNoxUnlock==='function' && checkNoxUnlock()){ if(typeof _noxEnsure==='function')_noxEnsure(); if(G.nox && !G.nox.handshakeDone && typeof initNoxHandshake==='function') initNoxHandshake(); }
+  // E2 (PDF _pdf_nox): odblokowanie NOX Route gdy gracz ma front+lab (komunikat systemowy; handshake/Emir przy otwarciu apki).
+  if(typeof window._checkNoxUnlockAfterLab==='function') window._checkNoxUnlockAfterLab();
   // — Sława
   /* v2.1.228 audit-fix #46: SMS texts dopasowane do fizycznej obecności NPC.
      Manager (physical:true) — fizycznie na chodniku H1 obok Szpitala (NIE pod salą koncertową — zła wskazówka).
@@ -57275,6 +57284,12 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.71',date:'2026-06-26',cats:['beta-tester','Vegan','change'],reporter:'Vegan',title:'⬢ NOX Route — aplikacja zablokowana do późniejszego etapu gry',
+ items:[
+  {t:'change',d:'Zaawansowana aplikacja NOX Route w telefonie jest teraz wyraźnie zablokowana na początku gry i odblokowuje się dopiero na późniejszym etapie rozgrywki. Klik na zablokowaną aplikację pokazuje krótki, dyskretny komunikat o braku autoryzacji, bez zdradzania szczegółów. Gdy spełnisz warunki, dostaniesz powiadomienie w telefonie. Aplikacja ma też teraz bardziej techniczną, niemarketową ikonę pasującą do jej charakteru.'},
+ ]
+ },
  {
  ver:'v2.3.70',date:'2026-06-26',cats:['beta-tester','Vegan','change'],reporter:'Vegan',title:'🚐 Salon CityDrive Motors — czytelniejsze karty kamperów',
  items:[
