@@ -27006,7 +27006,7 @@ window._buyWeapon=function(){
   if(G.weapon.owned){ if(typeof showMsg==='function') showMsg('🔫 Masz już broń.','r',3000); return false; }
   if((G.money||0)<10000){ if(typeof showMsg==='function') showMsg('💰 Za mało kasy (10 000 zł).','r',3000); return false; }
   G.money-=10000; G.weapon={owned:true,durability:30};
-  if(typeof showMsg==='function') showMsg('🔫 Kupiłeś pistolet (30 użyć). „Nikomu ani słowa." Odstraszy zbirów w napadzie — ale uważaj na kontrole policji.','i',6500);
+  if(typeof showMsg==='function') showMsg('🔫 Kupiłeś pistolet (30 użyć). „Nikomu ani słowa." Znajdziesz go w ekwipunku (🎒) i w Statystykach. Odstraszy zbirów w napadzie — ale uważaj na kontrole policji.','i',7000);
   if(typeof updateHUD==='function') updateHUD();
   return true;
 };
@@ -36341,6 +36341,9 @@ window.openInventory=function(){
       <div style="font-size:10px;color:#7ec8e3;margin:3px 0;min-height:24px">${it.desc||''}</div>
       <button onclick="window.invUnequip('${slot}')" style="background:#2a1a30;color:#caa;border:1px solid #4a2a55;padding:6px 10px;border-radius:6px;cursor:pointer;font-family:inherit;font-weight:700;font-size:12px;width:100%">Zdejmij</button></div>`;
   const eqHtml = eqList.length ? `<div style="color:#7ec8e3;font-size:13px;font-weight:700;margin:14px 0 4px">⚙️ Założone (pasywne bonusy)</div>${bonusLine}<div class="invgrid">${eqList.map(([s,it])=>eqSlot(s,it)).join('')}</div>` : '';
+  /* v2.3.86 K2 (user „kupiłem broń, nie ma jej w ekwipunku"): broń trzymana w G.weapon (nie inventory) — pokaż ją TU,
+     gdzie gracz jej szuka (wcześniej widoczna tylko w Statystykach). Działanie/utylizacja bez zmian. */
+  const weaponSection = (G.weapon && G.weapon.owned) ? `<div style="color:#e0a0a0;font-size:13px;font-weight:700;margin:14px 0 6px">🔫 Broń</div><div class="invgrid"><div class="invslot" style="background:#180d0d;border:1px solid #4a2020;border-radius:10px;padding:12px;text-align:center"><div style="font-size:34px">🔫</div><div style="font-size:12px;color:#e8c8c8;font-weight:700">Pistolet</div><div style="font-size:11px;color:#c99;margin-bottom:3px">${G.weapon.durability} użyć</div><div style="font-size:10px;color:#a99;margin:3px 0;min-height:24px">Odstrasza napastników podczas napadu (działa automatycznie). Uważaj na kontrole policji.</div><button onclick="window._disposeWeapon&&window._disposeWeapon();window.openInventory&&window.openInventory()" style="background:#3a1a1a;color:#dde;border:1px solid #a04030;padding:6px 10px;border-radius:6px;cursor:pointer;font-family:inherit;font-weight:700;font-size:12px;width:100%">🗑 Utylizuj (800 zł)</button></div></div>` : '';
   /* v2.1.626: aktywne buffy czasowe (np. Energetyk Pro +20% zarobków). */
   const _bnow=Date.now(); const actBuffs=(Array.isArray(G.activeBuffs)?G.activeBuffs:[]).filter(b=>b.expMs>_bnow);
   const buffLine = actBuffs.length ? `<div style="text-align:center;font-size:12px;color:#f0a020;margin:4px 0 8px;font-weight:700">🔥 ${actBuffs.map(b=>{const sec=Math.ceil((b.expMs-_bnow)/1000);const mm=Math.floor(sec/60),ss=sec%60;const _bp=Math.round((b.mult-1)*100);const _bl={income:`+${_bp}% zarobków`,fans:`+${_bp}% fanów z występów`,xp:`+${_bp}% XP`,fame:`+${_bp}% sławy`};const nm=_bl[b.type]||b.type;return `${nm} (${mm}:${('0'+ss).slice(-2)})`;}).join(' · ')}</div>` : '';
@@ -36402,6 +36405,7 @@ window.openInventory=function(){
       ${buffLine}
       ${(G.car||((G.carInv&&((G.carInv.items&&G.carInv.items.length)||G.carInv.cash>0))))?`<button class="bbtn" style="width:100%;margin:2px 0 8px;font-size:12px;padding:7px" onclick="window.openCarInv()">🚗 Bagażnik auta (schowek na rzeczy + gotówka)</button>`:''}
       ${eqHtml}
+      ${weaponSection}
       ${outfitSection}
       ${cnt===0?`<div style="text-align:center;padding:${eqList.length?'18px':'36px'} 10px;color:#99a;font-size:16px">Plecak jest pusty.<br><span style="font-size:13px;margin-top:8px;display:block;color:#566">Kup jedzenie w 🛒 sklepie (wybierz „Do ekwipunku"), przenieś z 🧊 lodówki, lub znajdź przedmioty chodząc po mieście.</span></div>`:`${section('🍔','Jedzenie',groups.food)}${section('💊','Substancje',groups.drug)}${section('💎','Przedmioty',groups.item.filter(i=>i.kind!=='material'))}${section('🔧','Składniki (warsztat)',groups.item.filter(i=>i.kind==='material'))}`}
     </div>
