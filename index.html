@@ -3936,7 +3936,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'zlomowisko':   drawBuilding(sx,sy,w,h,'#2a2620','Metal Valley Yard','#95a5a6','',true,{commercial:true});drawScrapyardExtras(sx,sy,w,h);break; /* v2.1.916 PDF */
     case 'jysk':         drawBuilding(sx,sy,w,h,'#0a3a6a','Meblux','#ffffff','',true,{commercial:true});break; /* v2.1.917 PDF — niebiesko-biały brand */
     case 'pepco':        drawBuilding(sx,sy,w,h,'#5a1030','Backstreet Thrift','#ffffff','',true,{commercial:true});break; /* v2.1.918 PDF — magenta brand */
-    case 'striptiz':     drawBuilding(sx,sy,w,h,'#1a0820','','#e91e8c','',true,{commercial:true});drawVelvetSign(sx,sy,w,h);break; /* U7 (v2.3.44 PDF): szyld neon handwritten „Velvet Room" zamiast generycznej nazwy */
+    case 'striptiz':     drawBuilding(sx,sy,w,h,'#1a0820','','#e91e8c','',true,{commercial:true});drawVelvetExtras(sx,sy,w,h);drawVelvetSign(sx,sy,w,h);break; /* U7 (v2.3.44 PDF): szyld neon handwritten „Velvet Room"; v2.3.90 M1: dywan+poświata klubowa */
     /* v2.1.930: wnętrze klubu striptiz */
     case 'striptiz_stage': drawStripStage(sx,sy,w,h);break;
     case 'striptiz_vip':   drawStripVip(sx,sy,w,h);break;
@@ -8319,6 +8319,28 @@ function drawVelvetSign(sx,sy,w,h){
   X.shadowColor='#e91e8c'; X.shadowBlur=16*fl;
   X.fillStyle='rgba(255,120,200,'+(0.82*fl+0.12)+')'; X.fillText('Velvet Room',cx,cy);
   X.shadowBlur=6; X.fillStyle='rgba(255,212,240,0.95)'; X.fillText('Velvet Room',cx,cy);
+  X.restore();
+}
+/* v2.3.90 M1 (user „Velvet Room ma wyglądać jak to czym jest"): elementy klubu na fasadzie — różowa poświata
+   z okien + czerwony dywan wejściowy ze złotymi krawędziami + aksamitna lina na słupkach (VIP vibe). */
+function drawVelvetExtras(sx,sy,w,h){
+  const t=Date.now()/600;
+  X.save();
+  // Różowa poświata klubowa z okien (pulsująca)
+  const _gl=0.16+0.10*Math.abs(Math.sin(t));
+  const wg=X.createRadialGradient(sx+w/2,sy+h*0.55,4,sx+w/2,sy+h*0.55,w*0.55);
+  wg.addColorStop(0,`rgba(233,30,140,${_gl})`); wg.addColorStop(1,'rgba(233,30,140,0)');
+  X.fillStyle=wg; X.fillRect(sx-4,sy+h*0.30,w+8,h*0.55);
+  // Czerwony dywan wejściowy (dół-środek) ze złotymi krawędziami
+  const cW=Math.round(w*0.34), cX=sx+(w-cW)/2, cY=Math.round(sy+h*0.80), cH=Math.round(h*0.18);
+  X.fillStyle='#6a0e1a'; X.fillRect(cX-2,cY,cW+4,cH);
+  const cg=X.createLinearGradient(cX,0,cX+cW,0); cg.addColorStop(0,'#9a1626'); cg.addColorStop(.5,'#cc2a3c'); cg.addColorStop(1,'#9a1626');
+  X.fillStyle=cg; X.fillRect(cX,cY+1,cW,cH-2);
+  X.fillStyle='#e0b848'; X.fillRect(cX,cY+1,1.6,cH-2); X.fillRect(cX+cW-1.6,cY+1,1.6,cH-2);
+  // Złote słupki + aksamitna lina po bokach
+  X.fillStyle='#c8a030'; X.fillRect(cX-5,cY-3,2.5,cH+3); X.fillRect(cX+cW+2.5,cY-3,2.5,cH+3);
+  X.fillStyle='#caa83a'; X.beginPath(); X.arc(cX-3.8,cY-3,2.2,0,Math.PI*2); X.fill(); X.beginPath(); X.arc(cX+cW+3.8,cY-3,2.2,0,Math.PI*2); X.fill();
+  X.strokeStyle='rgba(180,24,80,0.9)'; X.lineWidth=2; X.beginPath(); X.moveTo(cX-3.5,cY-1); X.quadraticCurveTo(sx+w/2,cY+5,cX+cW+3.5,cY-1); X.stroke();
   X.restore();
 }
 function drawStriptizDecorations(){
