@@ -10884,15 +10884,13 @@ window._startAmbience=function(type){
     try{
       const a=(typeof getAudio==='function')?getAudio():null;
       if(!a) return; /* SFX wyciszony → cisza */
+      /* v2.3.83 (user „dziwny dźwięk pikania od czasu do czasu"): guard — graj TYLKO gdy overlay sklepu realnie otwarty
+         (zapobiega przeciekowi ambiencu po zamknięciu overlay nie-przez-closeOverlay) ORAZ usunięty ostry „beep kasy"
+         (square 1080Hz) który gracz słyszał jako pikanie. Zostaje sam cichy szmer rozmów (atmosfera bez piszczenia). */
+      const _ov=document.getElementById('overlay');
+      if(!_ov || _ov.style.display==='none'){ window._stopAmbience(); return; }
       if(type==='shop'){
         if(Math.random()<0.45 && typeof _sfxNoise==='function') _sfxNoise(0.30,'bandpass',520,0.012); /* szmer rozmów */
-        if(Math.random()<0.30){ /* beep kasy */
-          const o=a.createOscillator();const g=a.createGain();
-          o.type='square';o.frequency.value=1080;
-          g.gain.setValueAtTime(0.014,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+0.09);
-          o.connect(g);g.connect((typeof _sfxMasterGain!=='undefined'&&_sfxMasterGain)?_sfxMasterGain:a.destination);
-          o.start();o.stop(a.currentTime+0.11);
-        }
       }
     }catch(e){}
   };
@@ -12190,6 +12188,20 @@ function drawPlayerCamper(){
     const _pulse=0.7+Math.sin(Date.now()/500)*0.3;
     X.font='bold 18px "Segoe UI",Arial,sans-serif';X.textAlign='center';X.textBaseline='middle';
     X.shadowColor='#f1c40f';X.shadowBlur=12*_pulse;X.fillStyle='rgba(241,196,15,'+_pulse+')';X.fillText('🚐',0,-30);X.shadowBlur=0;
+    /* v2.3.83 (user „Pokaż na mapie"): ping podświetlenia — wyraźne pulsujące pierścienie + strzałka + etykieta przez ~7s. */
+    if(G._camperPing && (Date.now()-G._camperPing)<7000){
+      const _pp=0.5+Math.sin(Date.now()/180)*0.5;
+      X.strokeStyle='rgba(241,196,15,'+(0.85*_pp+0.15)+')';X.lineWidth=3;
+      X.beginPath();X.arc(0,0,40+_pp*10,0,Math.PI*2);X.stroke();
+      X.globalAlpha=0.5;X.beginPath();X.arc(0,0,58+_pp*14,0,Math.PI*2);X.stroke();X.globalAlpha=1;
+      const _ay=-54-_pp*6;
+      X.fillStyle='rgba(241,196,15,'+(0.7+_pp*0.3)+')';
+      X.beginPath();X.moveTo(0,_ay+14);X.lineTo(-9,_ay);X.lineTo(9,_ay);X.closePath();X.fill();
+      X.font='bold 11px system-ui';X.textAlign='center';X.textBaseline='alphabetic';
+      const _lbl='🚐 TWÓJ KAMPER';const _lw=X.measureText(_lbl).width+14;
+      X.fillStyle='rgba(8,16,12,0.85)';X.beginPath();if(X.roundRect)X.roundRect(-_lw/2,_ay-20,_lw,17,5);else X.rect(-_lw/2,_ay-20,_lw,17);X.fill();
+      X.fillStyle='rgba(241,196,15,'+(0.85+_pp*0.15)+')';X.fillText(_lbl,0,_ay-7);
+    }
     X.restore();
     const _pcx=G._camperParkedAt.wx+P.w/2,_pcy=G._camperParkedAt.wy+P.h/2,_ppx=P.wx+P.w/2,_ppy=P.wy+P.h/2;
     if(Math.hypot(_ppx-_pcx,_ppy-_pcy)<80){
@@ -38670,7 +38682,7 @@ window.renderCamperShop=function(source){
     const afford=(G.money||0)>=m.price, dis=c.owned||!afford;
     return `<div style="background:#0a1220;border:1px solid #1a3a5a;border-radius:10px;padding:12px;margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-        <b style="font-size:15px">${m.emoji} ${m.name}</b><span style="color:#e8a020;font-weight:700;white-space:nowrap">${m.price.toLocaleString('pl')} zł</span></div>
+        <b style="font-size:15px;color:#eaf2fb">${m.emoji} ${m.name}</b><span style="color:#e8a020;font-weight:700;white-space:nowrap">${m.price.toLocaleString('pl')} zł</span></div>
       <p style="font-size:12.5px;color:#99a;margin:6px 0">${m.desc}</p>
       <div style="font-size:11.5px;color:#778;margin-bottom:8px">📦 Pojemność ${window._camperTier(m.storage)} · 🧪 Zaplecze ${window._camperTier(m.labCap)} · 🔧 Awaryjność ${window._camperTier(m.breakdown)} · ✨ Jakość ${100+(m.qualityMod||0)}/100</div>
       <button class="bbtn" style="width:100%" ${dis?'disabled':''} onclick="window.buyCamper('${m.id}');window.renderCamperShop('${source}')">${c.owned?'Masz już kampera':afford?('Kup za '+m.price.toLocaleString('pl')+' zł'):'Za mało gotówki'}</button>
@@ -38798,13 +38810,19 @@ window._camperShowOnMap=function(){
   window._camperEnsure(); const c=G.camper;
   const _rn={ulica:'Miasto (ulica)',underground:'Underground',coast:'Wybrzeże',business:'Dzielnica Biznesowa'};
   if(G._inCamper){ if(typeof showMsg==='function') showMsg('🚐 Właśnie jedziesz kamperem.','i',3500); return; }
+  /* v2.3.83 (user „nic się nie dzieje"): ROOT — toast chował się ZA otwartym telefonem. Zamknij telefon, by
+     gracz widział mapę/marker. Gdy kamper jest w bieżącym pokoju → podświetl jego marker 🚐 na ~7s (drawPlayerCamper). */
+  if(typeof phoneOpen==='function' && phoneOpen() && typeof togglePhone==='function') togglePhone();
   if(G._camperParkedAt && G._camperParkedAt.room){
     const rN=_rn[G._camperParkedAt.room]||G._camperParkedAt.room;
-    if(G._camperParkedAt.room===currentRoom){ if(typeof showMsg==='function') showMsg('🚐 Twój kamper stoi tutaj (marker 🚐 na mapie) — podejdź i naciśnij K.','i',5000); }
-    else { if(typeof showMsg==='function') showMsg('🚐 Twój kamper stoi w lokacji: '+rN+'. Przejdź tam i naciśnij K, żeby wsiąść.','i',6000); }
+    if(G._camperParkedAt.room===currentRoom){
+      G._camperPing=Date.now(); /* podświetlenie markera kampera */
+      if(typeof showMsg==='function') showMsg('🚐 Twój kamper jest TU — patrz na podświetlony marker 🚐 na mapie. Podejdź i naciśnij K, żeby wsiąść.','i',6000);
+    }
+    else { if(typeof showMsg==='function') showMsg('🚐 Twój kamper stoi w lokacji: '+rN+'. Przejdź tam (brama dzielnicy), podejdź do markera 🚐 i naciśnij K, żeby wsiąść.','i',6500); }
   } else {
     const loc=(window._camperLocById(c.location)||{});
-    if(typeof showMsg==='function') showMsg(c.location?('🚐 Kamper przypisany do postoju: '+(loc.name||c.location)):'🚐 Kamper bez pozycji — ustaw w „Zmień lokalizację".','i',5000);
+    if(typeof showMsg==='function') showMsg(c.location?('🚐 Kamper przypisany do postoju: '+(loc.name||c.location)+'. Ustaw fizyczną pozycję w „Zmień lokalizację".'):'🚐 Kamper bez pozycji — ustaw w „Zmień lokalizację".','i',5500);
   }
 };
 /* Zmień lokalizację — reużywa istniejącego systemu przestawiania (renderCamperShop ma listę; tu skrót do moveCamper przez prompt-lite). */
@@ -55657,19 +55675,22 @@ window.openIntroduction=()=>{
   const _render=()=>{
     const s=SLIDES[idx];
     const m=_ensureModal();
+    /* v2.3.83 (user): przyciski STAŁA POZYCJA — karta o stałej wysokości (flex-column), body w polu flex:1
+       (scroll przy długim tekście), Poprzedni ZAWSZE renderowany (visibility:hidden na 1. slajdzie) + stałe
+       szerokości przycisków → „Poprzedni"/„Dalej"/„Pomiń tutorial" nie skaczą między slajdami (poziomo ani pionowo). */
     m.innerHTML=`
-      <div style="max-width:680px;padding:36px 50px;text-align:center">
-        <div style="font-size:84px;margin-bottom:18px;animation:emojiFloat 2.5s ease-in-out infinite">${s.em}</div>
-        <h1 style="color:#c8a520;font-size:32px;letter-spacing:2px;margin:0 0 20px;text-shadow:0 0 24px rgba(200,165,32,.5)">${s.title}</h1>
-        <div style="color:#d8d8e8;font-size:15px;line-height:1.8;margin-bottom:30px;text-align:left">${s.body}</div>
-        <div style="display:flex;gap:14px;justify-content:center;margin-bottom:18px">
-          ${idx>0?`<button onclick="window._introNav(-1)" style="background:#1a2535;color:#aac;border:1px solid #2a3a4a;padding:10px 20px;border-radius:8px;cursor:pointer">← Poprzedni</button>`:''}
-          ${idx<SLIDES.length-1?`<button onclick="window._introNav(1)" style="background:linear-gradient(135deg,#c8a520,#f1c40f);color:#000;border:none;padding:10px 24px;border-radius:8px;font-weight:800;cursor:pointer">Dalej →</button>`:`<button onclick="window._introClose()" style="background:linear-gradient(135deg,#27ae60,#1a7838);color:#fff;border:none;padding:12px 28px;border-radius:8px;font-weight:800;cursor:pointer;letter-spacing:1px">▶ ZACZNIJ GRAĆ</button>`}
+      <div style="width:680px;max-width:92vw;height:600px;max-height:88vh;padding:30px 44px;text-align:center;display:flex;flex-direction:column;box-sizing:border-box">
+        <div style="font-size:80px;margin-bottom:12px;animation:emojiFloat 2.5s ease-in-out infinite;flex:none">${s.em}</div>
+        <h1 style="color:#c8a520;font-size:30px;letter-spacing:2px;margin:0 0 16px;text-shadow:0 0 24px rgba(200,165,32,.5);flex:none">${s.title}</h1>
+        <div style="color:#d8d8e8;font-size:15px;line-height:1.8;text-align:left;flex:1;min-height:0;overflow-y:auto;padding-right:8px">${s.body}</div>
+        <div style="display:flex;gap:14px;justify-content:space-between;align-items:center;margin:18px 0 12px;flex:none">
+          <button onclick="window._introNav(-1)" style="visibility:${idx>0?'visible':'hidden'};background:#1a2535;color:#aac;border:1px solid #2a3a4a;padding:11px 0;width:160px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:14px;white-space:nowrap">← Poprzedni</button>
+          ${idx<SLIDES.length-1?`<button onclick="window._introNav(1)" style="background:linear-gradient(135deg,#c8a520,#f1c40f);color:#000;border:none;padding:11px 0;width:160px;border-radius:8px;font-weight:800;cursor:pointer;font-family:inherit;font-size:14px;white-space:nowrap">Dalej →</button>`:`<button onclick="window._introClose()" style="background:linear-gradient(135deg,#27ae60,#1a7838);color:#fff;border:none;padding:11px 0;width:160px;border-radius:8px;font-weight:800;cursor:pointer;letter-spacing:.5px;font-family:inherit;font-size:13.5px;white-space:nowrap">▶ ZACZNIJ GRAĆ</button>`}
         </div>
-        <div style="display:flex;gap:6px;justify-content:center;margin-bottom:14px">
+        <div style="display:flex;gap:6px;justify-content:center;margin-bottom:12px;flex:none">
           ${SLIDES.map((_,i)=>`<div style="width:${i===idx?32:8}px;height:8px;background:${i===idx?'#c8a520':i<idx?'#7ec87e':'#3a3a4a'};border-radius:4px;transition:all .25s"></div>`).join('')}
         </div>
-        <button onclick="window._introClose()" style="background:transparent;color:#778;border:none;font-size:12px;cursor:pointer;text-decoration:underline">Pomiń tutorial</button>
+        <button onclick="window._introClose()" style="background:transparent;color:#778;border:none;font-size:12px;cursor:pointer;text-decoration:underline;flex:none;font-family:inherit">Pomiń tutorial</button>
       </div>`;
   };
   window._introNav=(dir)=>{idx=Math.max(0,Math.min(SLIDES.length-1,idx+dir));_render();};
@@ -57706,6 +57727,15 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.83',date:'2026-06-27',cats:['beta-tester','Vegan','fix'],reporter:'Vegan',title:'🔧 Poprawki czytelności i sterowania',
+ items:[
+  {t:'fix',d:'Przyciski we Wprowadzeniu (Dalej, Poprzedni, Pomiń tutorial) mają teraz stałą pozycję — nie przeskakują już między ekranami w zależności od długości tekstu.'},
+  {t:'fix',d:'Nazwy kamperów w komisie i salonie są znowu czytelne — wcześniej wyświetlały się ciemną, słabo widoczną czcionką na ciemnym tle.'},
+  {t:'fix',d:'Usunęliśmy dziwne piknięcie, które pojawiało się od czasu do czasu w sklepach. Zostaje sam delikatny gwar otoczenia — bez piszczenia.'},
+  {t:'fix',d:'Przycisk Pokaż na mapie w panelu kampera znowu działa: zamyka telefon i podświetla na mapie miejsce, w którym stoi Twój kamper.'},
+ ]
+ },
  {
  ver:'v2.3.82',date:'2026-06-27',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'🎟️ Jeszcze więcej drobnych wydarzeń na start',
  items:[
