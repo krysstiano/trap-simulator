@@ -57795,6 +57795,12 @@ function showHelp(){
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
  {
+ ver:'v2.3.92',date:'2026-06-27',cats:['beta-tester','Vegan','fix'],reporter:'Vegan',title:'🪑 Ławki miejskie nie nachodzą na budynki',
+ items:[
+  {t:'fix',d:'Poprawiono ustawienie ławek na chodnikach — jedna była wciśnięta w sklep na wąskim chodniku (usunięta), druga odsunięta od witryny, żeby ławki wyraźnie stały na chodniku, a nie zlewały się z budynkami.'},
+ ]
+ },
+ {
  ver:'v2.3.91',date:'2026-06-27',cats:['beta-tester','Vegan','fix'],reporter:'Vegan',title:'🏢 Własna nazwa studia biznesowego',
  items:[
   {t:'fix',d:'Studio biznesowe w Dzielnicy Biznesowej (wraz z jego quizem, osiągnięciami i wskazówkami) ma teraz własną, spójną nazwę Fortuno — zamiast nawiązania do prawdziwej marki. Twoje postępy i odblokowane osiągnięcia zostają bez zmian.'},
@@ -75116,7 +75122,7 @@ function drawStreetDetails(){
     {wx:280,wy:3120},{wx:880,wy:3120},{wx:1380,wy:3120},{wx:2330,wy:3120},{wx:2680,wy:3120},{wx:3380,wy:3120},
   ];
   // Walidacja pozycji — wyrzuć hydranty na jezdniach + zbyt blisko ławek + W POBLIŻU SKRZYŻOWAŃ
-  const _benchPos=[{wx:200,wy:625},{wx:1500,wy:330},{wx:600,wy:2155}];
+  const _benchPos=[{wx:1500,wy:370},{wx:600,wy:2155}]; /* v2.3.92: zsync z benches (200,625 usunięta, 1500,330→370) */
   // F+ Wyklucz hydranty/kosze/skrzynki w obszarze ±195 od dowolnego z 9 skrzyżowań
   // Słupki peds zostały odsunięte do ±170, więc wykluczenie musi sięgać dalej (~25px margin)
   // żeby ozdoby chodnika nie zlewały się ze słupkami peds przy zewnętrznej krawędzi chodnika.
@@ -75147,8 +75153,11 @@ function drawStreetDetails(){
   // Usunięte: 2200,625 (obok szpitala — wyglądała wepchnięta) i 2400,1865.
   // Zostawione tylko ławki w "naturalnych" miejscach (chodniki przed sklepami).
   const benches=[
-    {wx:200,wy:625},   // przed sklepem spożywczym (Z1 SOUTH chodnik S H1)
-    {wx:1500,wy:330},  // przed Sklepem Muzycznym/Mediamarkt (chodnik N H1)
+    /* v2.3.92 (user „ławka pod traphouse/siłownią zlewa się i nachodzi na budynki"): ławka 200,625 USUNIĘTA
+       — wciśnięta między jezdnię (góra) a Corner Basket + jego markizę (dół) na wąskim chodniku = „wepchnięta"
+       (analog wcześniej usuniętych 2200,625/2400,1865). Ławka 1500,330 → 1500,370: niżej na szerszej części
+       chodnika, gap od VoltHouse 33→~82px. */
+    {wx:1500,wy:370},  // przed VoltHouse (chodnik N H1) — odsunięta od budynku
     {wx:600,wy:2155},  // przed mieszkaniami SOUTH (chodnik S H2)
   ];
   for(const b of benches){
