@@ -3879,6 +3879,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'camper_underground':      drawCamper(sx,sy,w,h);break;
     case 'lab_underground':         drawLab(sx,sy,w,h);break;
     case 'plantation_underground':  drawPlantation(sx,sy,w,h);break;
+    case 'gravellot_underground':   drawBuilding(sx,sy,w,h,'#4a4030','Gravel Lot','#e0c070','🚐',true,{commercial:true});break; /* v2.3.83: był szary placeholder (drawGeneric) — komis pojazdów dostał realną fasadę (jaśniejszą, widoczną w ciemnym underground) */
     /* v2.1.385 Faza C' Coast new map: tropical buildings */
     case 'exit_coast':              drawCoastExitGate(sx,sy,w,h);break;
     case 'plaza_coast':             drawCoastBuilding(sx,sy,w,h,'🏖','Plaża + Bar','#d4a060');break;
@@ -3955,14 +3956,15 @@ function drawSprite(id,sx,sy,w,h){
     case 'merch_warehouse':drawMerchWarehouseObj(sx,sy,w,h);break;
     case 'merch_report':   drawMerchReportObj(sx,sy,w,h);break;
     // ── Dzielnica Dripu ──
-    case 'lv':          drawLuxuryBuilding(sx,sy,w,h,'LV','#c8a520');break;
-    case 'chanel':      drawLuxuryBuilding(sx,sy,w,h,'CHANEL','#1a1a1a',true);break;
-    case 'hermes':      drawLuxuryBuilding(sx,sy,w,h,'HERMÈS','#cc5500');break;
-    case 'gucci':       drawLuxuryBuilding(sx,sy,w,h,'GUCCI','#1a3a1a');break;
-    case 'balenciaga':  drawLuxuryBuilding(sx,sy,w,h,'BALENCIAGA','#000000',true);break;
-    case 'bottega':     drawLuxuryBuilding(sx,sy,w,h,'BOTTEGA','#8b7355');break;
-    case 'dior':        drawLuxuryBuilding(sx,sy,w,h,'DIOR','#0a2a5a',true);break;
-    case 'prada':       drawLuxuryBuilding(sx,sy,w,h,'PRADA','#1a1a1a');break;
+    /* v2.3.83 (user): szyldy fasad dripu były PRAWDZIWYMI markami — fikcyjne, spójne z lbl/prompt (brand-safety). */
+    case 'lv':          drawLuxuryBuilding(sx,sy,w,h,'LUVIO','#c8a520');break;
+    case 'chanel':      drawLuxuryBuilding(sx,sy,w,h,'CHASSÉ','#1a1a1a',true);break;
+    case 'hermes':      drawLuxuryBuilding(sx,sy,w,h,'HERMEL','#cc5500');break;
+    case 'gucci':       drawLuxuryBuilding(sx,sy,w,h,'GOCCIA','#1a3a1a');break;
+    case 'balenciaga':  drawLuxuryBuilding(sx,sy,w,h,'VALENCA','#000000',true);break;
+    case 'bottega':     drawLuxuryBuilding(sx,sy,w,h,'VENTO','#8b7355');break;
+    case 'dior':        drawLuxuryBuilding(sx,sy,w,h,'ADORE','#0a2a5a',true);break;
+    case 'prada':       drawLuxuryBuilding(sx,sy,w,h,'STRADA','#1a1a1a');break;
     case 'freestyle_spot': drawFreestyleSpot(sx,sy,w,h);break;
     case 'npc_quest':    drawNPC(sx,sy,w,h,'#e0c890','#2a4a2a','❓');break;
     case 'bench':        drawBench(sx,sy,w,h);if(typeof _parkSitterVisible!=='function'||_parkSitterVisible())drawBenchSitter(sx,sy,w,h,1);break; /* D3: siedzący tylko w dzień/sucho */
@@ -6811,7 +6813,7 @@ function drawBuilding(sx,sy,w,h,col,label,accent,icon,flip=false,opts={}){
   X.textAlign='center';
   /* Tier 3 (PDF v2.3.45): auto-dopasowanie fontu — długie nazwy własne (brandy) nie wystają poza budynek. */
   if(label){ let _fs=15; while(_fs>9 && X.measureText(label).width>w-8){ _fs--; X.font='bold '+_fs+'px "Segoe UI",Arial,sans-serif'; } }
-  const _ly=icon?(flip?_ey+17:sy+57):sy+22;
+  const _ly=icon?(flip?_ey+17:sy+57):sy+Math.round(h*0.22); /* v2.3.83: nazwa pod markizą (była sy+22, markiza ją zasłaniała — BeatPoint/Urban Crown/Pizza Patrol/supermarket/restauracja/myjnia) */
   // Neon glow at evening/night
   if(G.timeOfDay>=2){
     const _np=0.55+Math.sin(Date.now()*.0018)*0.18; // pulsing 0.37–0.73
@@ -6930,10 +6932,10 @@ function drawLuxuryBuilding(sx,sy,w,h,brand,accentColor,darkFacade=false){
   X.beginPath();X.moveTo(_manX1,winy);X.lineTo(_manX1-8,_manY-15);X.lineTo(_manX1+8,_manY-15);X.closePath();X.fill();
   X.beginPath();X.moveTo(_manX2,winy);X.lineTo(_manX2-8,_manY-15);X.lineTo(_manX2+8,_manY-15);X.closePath();X.fill();
   // F+ 2026-05-12 #92: hologram DRIP CZYTELNY na każdym tle — kontrastowy outline + dopasowany kolor
-  const _brandEmoji={'LV':'👜','CHANEL':'💄','HERMÈS':'🐎','GUCCI':'👑','BALENCIAGA':'🕶️','BOTTEGA':'👛','DIOR':'🌹','PRADA':'🖤'};
+  const _brandEmoji={'LUVIO':'👜','CHASSÉ':'💄','HERMEL':'🐎','GOCCIA':'👑','VALENCA':'🕶️','VENTO':'👛','ADORE':'🌹','STRADA':'🖤'};
   const _brandIcon=_brandEmoji[brand]||'💎';
   const _holoT=Date.now()*0.001;
-  const _holoBob=Math.sin(_holoT*0.7+sx*0.01)*1.5;
+  const _holoBob=Math.sin(_holoT*0.7+sx*0.01)*0.5; /* v2.3.83: mniejszy drżenie/bob (było 1.5) — ostrzejszy napis */
   const _holoY=sy+h*0.88+_holoBob;
   // Beam delikatny gdy noc
   if(G.timeOfDay>=2){
@@ -6943,7 +6945,7 @@ function drawLuxuryBuilding(sx,sy,w,h,brand,accentColor,darkFacade=false){
     beamG.addColorStop(1,'rgba(126,200,227,0)');
     X.fillStyle=beamG;X.fillRect(sx+w/2-22,_holoY-10,44,18);
   }
-  X.font=`bold 12px "Segoe UI",Arial`;X.shadowBlur=0;
+  X.font=`bold 14px "Segoe UI",Arial`;X.shadowBlur=0; /* v2.3.83: 12→14px, czytelniejszy szyld DRIP */
   // GRUBY outline kontrastowy żeby napis był czytelny na DOWOLNYM tle
   X.lineWidth=4;X.lineJoin='round';
   X.strokeStyle=darkFacade?'rgba(0,0,0,.95)':'rgba(255,255,255,.98)';
@@ -7049,8 +7051,8 @@ function drawScrapyardExtras(sx,sy,w,h){
   X.restore();
 }
 function drawStudioExtras(sx,sy,w,h){
-  // ON AIR lampka
-  const lx=sx+w*.6,ly=sy+h*.08;
+  // ON AIR lampka — v2.3.83: przesunięta na samą górę, by NIE zasłaniać szyldu „Studio" (był sy+h*.08, kolidował z nazwą)
+  const lx=sx+w*.62,ly=sy+h*.015;
   X.fillStyle='#1a0a2a';X.fillRect(lx,ly,w*.3,h*.08);
   X.fillStyle='#e74c3c';X.beginPath();X.arc(lx+7,ly+h*.04,4,0,Math.PI*2);X.fill();
   X.font='bold 8px "Segoe UI"';X.fillStyle='#ff6060';X.textAlign='left';X.shadowBlur=0;
@@ -13520,7 +13522,7 @@ const PLACE_HOURS={
   'goto:studio':     {o:0,  c:24, name:'Studio'},
   'goto:merch_studio':{o:0, c:24, name:'Studio Merch'},
   // D5 (PDF v2.3.45): Kebab Kingpin — Zbyszek pracuje 10:00-22:00 (wcześniej był 24/7).
-  'npc:vendor':      {o:10, c:22, name:'Kebab Kingpin'},
+  'npc:vendor':      {o:9, c:24, name:'Kebab Kingpin'}, /* v2.3.83 (user): 09:00–00:00 (było 10–22) */
 };
 // Shifty jedzeniowe — co najmniej JEDNO miejsce zawsze otwarte (sklep spożywczy 24/7).
 // Pozostałe: pizzeria 11-24, restauracja 12-24, targ 7-15, Zbyszek 24/7 (NPC) — pokrywają cały dzień.
@@ -13531,7 +13533,7 @@ function isPlaceOpen(act){
   const hour=Math.floor(gameMin/60)%24;
   const open=(h.o<h.c)?(hour>=h.o&&hour<h.c):(hour>=h.o||hour<h.c);
   const pad=n=>String(n).padStart(2,'0');
-  return {open,name:h.name,opensAt:`${pad(h.o)}:00`,closesAt:`${pad(h.c)}:00`};
+  return {open,name:h.name,opensAt:`${pad(h.o)}:00`,closesAt:`${pad(h.c%24)}:00`}; /* v2.3.83: 24→„00:00" (północ) zamiast „24:00" */
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -27194,7 +27196,7 @@ window._npcRobberyModal=function(){
     <h2 style="color:#e07a7a;margin-top:0;text-align:center">${rb.emoji||'🚨'} Okradziono Cię!</h2>
     <div style="font-size:12px;color:#caa;margin-bottom:12px;line-height:1.5">${rb.name||'Ktoś'} dorwał Cię w ciemnym zaułku. Zniknęło ${rb.cash?rb.cash.toLocaleString('pl')+' zł':'trochę gotówki'}${rb.carDmg?', a Twoje auto oberwało':''}. Co robisz?</div>
     ${_b(true,'letgo','1. Odpuść — strata zostaje, mniej heatu')}
-    ${_b(true,'chase','2. Szukaj sprawcy sam — szansa odzysku, +violence_heat')}
+    ${_b(true,'chase','2. Szukaj sprawcy sam — szansa odzysku, ale narobisz hałasu')}
     ${_b(hasContact,'contact','3. Zadzwoń do kontaktu z ulicy'+(hasContact?'':' (brak kontaktu)'))}
     ${_b(true,'police','4. Zgłoś sprawę służbom (ryzykowne przy nielegalnym życiu)')}
     ${_b(hasGuard,'protection','5. Użyj ochrony / ekipy'+(hasGuard?'':' (brak ochrony)'))}
@@ -27206,10 +27208,10 @@ window._npcRobberyReact=function(r){
   const rb=G._theft._lastRobbery||{};
   const _close=()=>{ const m=document.getElementById('mg-job'); if(m){m.classList.remove('on'); const c=document.getElementById('mg-job-content'); if(c)c.innerHTML='';} };
   if(r==='letgo'){ G.stress=Math.max(0,Math.min(100,(G.stress||50)-5)); G.streetCredibility=Math.max(0,(G.streetCredibility||0)-rnd(0,3)); if(typeof notify==='function')notify('😮‍💨 Odpuściłeś. Strata zostaje, ale unikasz eskalacji.','i',5000); }
-  else if(r==='chase'){ G.violenceHeat=(G.violenceHeat||0)+rnd(4,10); if(Math.random()<0.45 && rb.recoverable){ G.money=(G.money||0)+rb.recoverable; if(typeof notify==='function')notify('🏃 Dogoniłeś go! Odzyskałeś '+rb.recoverable.toLocaleString('pl')+' zł. (+violence_heat)','g',5500); } else if(typeof notify==='function')notify('🏃 Uciekł w zaułki. Nic nie odzyskałeś, za to narobiłeś hałasu. (+violence_heat)','r',5500); }
+  else if(r==='chase'){ G.violenceHeat=(G.violenceHeat||0)+rnd(4,10); if(Math.random()<0.45 && rb.recoverable){ G.money=(G.money||0)+rb.recoverable; if(typeof notify==='function')notify('🏃 Dogoniłeś go! Odzyskałeś '+rb.recoverable.toLocaleString('pl')+' zł. (+ryzyko porachunków)','g',5500); } else if(typeof notify==='function')notify('🏃 Uciekł w zaułki. Nic nie odzyskałeś, za to narobiłeś hałasu. (+ryzyko porachunków)','r',5500); }
   else if(r==='contact'){ const cost=Math.min(G.money||0,rnd(300,1000)); G.money=(G.money||0)-cost; if(Math.random()<0.6 && rb.recoverable){ G.money+=rb.recoverable; if(typeof notify==='function')notify('📞 Ludzie z ulicy namierzyli sprawcę. Koszt '+cost.toLocaleString('pl')+' zł, odzyskano '+rb.recoverable.toLocaleString('pl')+' zł.','g',6000);} else if(typeof notify==='function')notify('📞 Kontakt wziął '+cost.toLocaleString('pl')+' zł, ale trop się urwał. Bywa.','i',5500); }
-  else if(r==='police'){ if(Math.random()<0.5 && rb.recoverable){ G.money=(G.money||0)+Math.floor(rb.recoverable*0.5); } let extra=''; if((G.defamation||0)>20||(G.streetHeat||0)>0||(G.trap&&G.trap.unlocked)){ G.streetHeat=(G.streetHeat||0)+rnd(4,10); extra=' Ale przy Twoim stylu życia służby zaczęły się Tobą interesować (+street_heat).'; } if(typeof notify==='function')notify('🚓 Zgłoszono sprawę służbom.'+extra,'i',6000); }
-  else if(r==='protection'){ G.violenceHeat=(G.violenceHeat||0)+rnd(3,8); G._theft.fear=(G._theft.fear||0)+rnd(3,8); if(rb.recoverable){ G.money=(G.money||0)+rb.recoverable; } if(typeof notify==='function')notify('💪 Twoja ekipa odzyskała łup. Strach na ulicy rośnie (+fear, +violence_heat).','g',5500); }
+  else if(r==='police'){ if(Math.random()<0.5 && rb.recoverable){ G.money=(G.money||0)+Math.floor(rb.recoverable*0.5); } let extra=''; if((G.defamation||0)>20||(G.streetHeat||0)>0||(G.trap&&G.trap.unlocked)){ G.streetHeat=(G.streetHeat||0)+rnd(4,10); extra=' Ale przy Twoim stylu życia służby zaczęły się Tobą interesować (większa uwaga służb).'; } if(typeof notify==='function')notify('🚓 Zgłoszono sprawę służbom.'+extra,'i',6000); }
+  else if(r==='protection'){ G.violenceHeat=(G.violenceHeat||0)+rnd(3,8); G._theft.fear=(G._theft.fear||0)+rnd(3,8); if(rb.recoverable){ G.money=(G.money||0)+rb.recoverable; } if(typeof notify==='function')notify('💪 Twoja ekipa odzyskała łup. Strach na ulicy rośnie, ale rośnie też ryzyko porachunków.','g',5500); }
   _close(); if(typeof updateHUD==='function')updateHUD();
 };
 window._attemptTheft=function(method){
@@ -47698,12 +47700,12 @@ function renderTarg(){
     <h2>🥬 Targ</h2><p class="sub">Tanie jedzenie prosto od sprzedawców — wszystkie zakupy lądują w lodówce. Zjedz potem przy stole 🍽 lub ugotuj 🔥.</p>
     <p style="color:#667;font-size:13px;margin-bottom:8px">🧊 W lodówce: <strong style="color:#7ec87e">${fridgeQty}</strong> sztuk</p>
     <div class="shopgrid">
-      <div class="sitem"><h3>🥖 Chleb</h3><p>+25 głód · tanio</p><div class="pr">5 zł</div><button class="bbtn" onclick="buyItemTarg('targ_bread','🥖 Chleb',5,25,0,0,0)">Do lodówki</button></div>
-      <div class="sitem"><h3>🥚 Jajka</h3><p>+30 głód · +5 zdrowie</p><div class="pr">8 zł</div><button class="bbtn" onclick="buyItemTarg('targ_eggs','🥚 Jajka',8,30,0,5,0)">Do lodówki</button></div>
-      <div class="sitem"><h3>🍎 Warzywa</h3><p>+35 głód · +8 zdrowie</p><div class="pr">10 zł</div><button class="bbtn" onclick="buyItemTarg('targ_veg','🍎 Warzywa',10,35,0,8,0)">Do lodówki</button></div>
-      <div class="sitem"><h3>🍗 Kurczak</h3><p>+55 głód · +12 zdrowie</p><div class="pr">18 zł</div><button class="bbtn" onclick="buyItemTarg('targ_chicken','🍗 Kurczak',18,55,0,12,0)">Do lodówki</button></div>
-      <div class="sitem"><h3>🍲 Zupa</h3><p>+45 głód · +10 nastrój</p><div class="pr">12 zł</div><button class="bbtn" onclick="buyItemTarg('targ_soup','🍲 Zupa',12,45,0,0,10)">Do lodówki</button></div>
-      <div class="sitem"><h3>🥗 Sałatka</h3><p>+20 głód · +5 zdrowie · +8 nastrój</p><div class="pr">9 zł</div><button class="bbtn" onclick="buyItemTarg('targ_salad','🥗 Sałatka',9,20,0,5,8)">Do lodówki</button></div>
+      <div class="sitem"><h3>🥖 Chleb</h3><p>+25 głód · tanio</p><div class="pr">7 zł</div><button class="bbtn" onclick="buyItemTarg('targ_bread','🥖 Chleb',7,25,0,0,0)">Do lodówki</button></div>
+      <div class="sitem"><h3>🥚 Jajka</h3><p>+30 głód · +5 zdrowie</p><div class="pr">11 zł</div><button class="bbtn" onclick="buyItemTarg('targ_eggs','🥚 Jajka',11,30,0,5,0)">Do lodówki</button></div>
+      <div class="sitem"><h3>🍎 Warzywa</h3><p>+35 głód · +8 zdrowie</p><div class="pr">14 zł</div><button class="bbtn" onclick="buyItemTarg('targ_veg','🍎 Warzywa',14,35,0,8,0)">Do lodówki</button></div>
+      <div class="sitem"><h3>🍗 Kurczak</h3><p>+55 głód · +12 zdrowie</p><div class="pr">26 zł</div><button class="bbtn" onclick="buyItemTarg('targ_chicken','🍗 Kurczak',26,55,0,12,0)">Do lodówki</button></div>
+      <div class="sitem"><h3>🍲 Zupa</h3><p>+45 głód · +10 nastrój</p><div class="pr">17 zł</div><button class="bbtn" onclick="buyItemTarg('targ_soup','🍲 Zupa',17,45,0,0,10)">Do lodówki</button></div>
+      <div class="sitem"><h3>🥗 Sałatka</h3><p>+20 głód · +5 zdrowie · +8 nastrój</p><div class="pr">14 zł</div><button class="bbtn" onclick="buyItemTarg('targ_salad','🥗 Sałatka',14,20,0,5,8)">Do lodówki</button></div>
     </div>
     <div class="res" id="targ-res">Wybierz produkt — wszystko trafia do lodówki.</div>
     <button class="cbtn" onclick="closeOverlay()">← Wróć</button>
@@ -55249,10 +55251,10 @@ window.openCinematicFlythrough=()=>{
       desc:'8 butików premium: Luvio, Chassé, Hermel, Goccia (góra), Valenca, Vento, Adore, Strada (dół). Drip 0-200 daje bonusy do koncertów, royalties, FrameUp.',
       places:[
         /* Płynny przelot — start nad pierwszym, koniec nad ostatnim — kamera "pan" */
-        {wx:2596, wy:2706, label:'GÓRNY RZĄD (LV → GUCCI)', zoom:1.25},
-        {wx:3244, wy:2706, label:'GÓRNY RZĄD (LV → GUCCI)', zoom:1.25},
-        {wx:3244, wy:3245, label:'DOLNY RZĄD (BALENCIAGA → PRADA)', zoom:1.25},
-        {wx:2596, wy:3245, label:'DOLNY RZĄD (BALENCIAGA → PRADA)', zoom:1.25},
+        {wx:2596, wy:2706, label:'GÓRNY RZĄD (Luvio → Goccia)', zoom:1.25},
+        {wx:3244, wy:2706, label:'GÓRNY RZĄD (Luvio → Goccia)', zoom:1.25},
+        {wx:3244, wy:3245, label:'DOLNY RZĄD (Valenca → Strada)', zoom:1.25},
+        {wx:2596, wy:3245, label:'DOLNY RZĄD (Valenca → Strada)', zoom:1.25},
         {wx:2920, wy:2975, label:'CAŁA DZIELNICA — 8 BUTIKÓW', zoom:1.05},
       ],
       durPerPlace:3500,
@@ -57734,6 +57736,14 @@ const PATCH_NOTES = [
   {t:'fix',d:'Nazwy kamperów w komisie i salonie są znowu czytelne — wcześniej wyświetlały się ciemną, słabo widoczną czcionką na ciemnym tle.'},
   {t:'fix',d:'Usunęliśmy dziwne piknięcie, które pojawiało się od czasu do czasu w sklepach. Zostaje sam delikatny gwar otoczenia — bez piszczenia.'},
   {t:'fix',d:'Przycisk Pokaż na mapie w panelu kampera znowu działa: zamyka telefon i podświetla na mapie miejsce, w którym stoi Twój kamper.'},
+  {t:'fix',d:'Szyldy sklepów (sklep muzyczny, sklep z ubraniami, pizzeria, supermarket, restauracja, myjnia i inne) były zasłaniane przez markizy — teraz nazwy widać wyraźnie na fasadzie.'},
+  {t:'fix',d:'W studiu nagrań nazwa budynku nie nachodzi już na lampkę „ON AIR".'},
+  {t:'fix',d:'Dzielnica Dripu: szyldy butików są czytelniejsze i mają własne, spójne nazwy.'},
+  {t:'fix',d:'Znaki STOP i napis na nich są teraz większe i lepiej czytelne.'},
+  {t:'fix',d:'Targ ma urealnione (nieco wyższe) ceny — wciąż najtańsze jedzenie w grze.'},
+  {t:'fix',d:'Buda z kebabem u Zbyszka jest otwarta 09:00–00:00, a komunikaty pokazują właściwe godziny.'},
+  {t:'fix',d:'W Underground komis pojazdów ma wreszcie prawdziwy budynek zamiast szarego prostokąta.'},
+  {t:'fix',d:'Po nieudanym napadzie komunikaty są opisane po ludzku, bez technicznych nazw.'},
  ]
  },
  {
@@ -74700,9 +74710,9 @@ function drawSignPost(wx,wy,type){
   X.fillStyle='#9aa0a6'; X.fillRect(sx-2,sy-42,4,42); X.fillStyle='rgba(0,0,0,.25)'; X.fillRect(sx-2,sy-42,1.4,42);
   const cy=sy-50;
   if(type==='stop'){
-    X.fillStyle='#b0271b'; _signOctagon(sx,cy,11); X.fill();
-    X.strokeStyle='#fff'; X.lineWidth=1.4; _signOctagon(sx,cy,11); X.stroke();
-    X.fillStyle='#fff'; X.font='bold 6px Arial'; X.textAlign='center'; X.fillText('STOP',sx,cy+2.2); X.textAlign='left';
+    X.fillStyle='#c0271b'; _signOctagon(sx,cy,14); X.fill();
+    X.strokeStyle='#fff'; X.lineWidth=1.8; _signOctagon(sx,cy,14); X.stroke();
+    X.fillStyle='#fff'; X.font='bold 9px Arial,sans-serif'; X.textAlign='center'; X.textBaseline='middle'; X.fillText('STOP',sx,cy+0.5); X.textBaseline='alphabetic'; X.textAlign='left'; /* v2.3.83: większy znak (11→14) + czytelny font (6→9px, vertical-center) */
   } else if(type==='priority'){
     X.save(); X.translate(sx,cy); X.rotate(Math.PI/4);
     X.fillStyle='#1a1a1a'; X.fillRect(-10,-10,20,20);
