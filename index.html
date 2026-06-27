@@ -25721,7 +25721,9 @@ function openNPCDialogue(type){
     const now=Date.now();
     const optText=typeof opt.text==='function'?opt.text():opt.text;
     // v1.8.16: BEZ cooldown dla akcji info-only (Sprawdź ekipę, Wyjdź, Nie teraz, Nie interesuje mnie)
-    const onCooldown=now-lastUsed<NPC_COOLDOWN_MS&&optText!=='Wyjdź'&&optText!=='Nie teraz'&&optText!=='Nie interesuje mnie'&&optText!=='Sprawdź ekipę';
+    /* v2.3.88 K3 (user „Harnold raz dziennie, więc timer 20s bez sensu"): datki Harnolda są bramkowane RAZ-DZIENNIE
+       (lastGiveDay) — generyczny 20s cooldown jest tam redundantny i mylący. Wyklucz NPC harnold z cooldownu. */
+    const onCooldown=now-lastUsed<NPC_COOLDOWN_MS&&optText!=='Wyjdź'&&optText!=='Nie teraz'&&optText!=='Nie interesuje mnie'&&optText!=='Sprawdź ekipę'&&type!=='harnold';
     const btn=document.createElement('button');btn.className='npc-opt';
     btn.textContent=onCooldown?`${optText} (${Math.ceil((NPC_COOLDOWN_MS-(now-lastUsed))/1000)}s)`:optText;
     btn.disabled=onCooldown;
