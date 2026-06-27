@@ -72929,6 +72929,7 @@ function initDistrictLife(room){
   const beachCloth=['#ff6b9d','#5ed3f0','#ffd93d','#ff924c','#6bcb77','#e84393','#00cec9','#fd79a8','#ff7675','#74b9ff'];
   const beachShorts=['#ffffff','#ffeaa7','#fab1a0','#81ecec','#a29bfe','#ff7675'];
   const hatCols=['#ffce54','#fc6e51','#ed5565','#48cfad','#ffffff','#f6e58d'];
+  const hairCols2=['#1a1410','#2e1f12','#4a3420','#6b4a2a','#8a6a3a','#caa050','#7a7a7a']; /* v2.3.84 I1: kolory włosów district peds */
   const _isCoast = room==='coast';
   for(let i=0;i<_peds;i++){
     const elegant=Math.random()<cfg.elegantPct;
@@ -72939,6 +72940,7 @@ function initDistrictLife(room){
       beach, shortCol:beachShorts[Math.floor(Math.random()*beachShorts.length)],
       hat: beach && Math.random()<0.55, hatCol:hatCols[Math.floor(Math.random()*hatCols.length)],
       shades: beach && Math.random()<0.70,
+      hairCol: hairCols2[Math.floor(Math.random()*hairCols2.length)],
       elegant: beach?false:elegant });
   }
   const carLane=520; const exoticCols=['#c8a520','#1c2833','#7d3c98','#b03a2e','#d4ac0d','#ecf0f1'];
@@ -72959,14 +72961,22 @@ function _drawDistrictPed(p){
     X.strokeStyle=p.sc; X.lineWidth=3; X.beginPath(); X.moveTo(sx-3,sy+9); X.lineTo(sx-3+walk,sy+18); X.moveTo(sx+3,sy+9); X.lineTo(sx+3-walk,sy+18); X.stroke();
     X.fillStyle=p.shortCol||'#ffffff'; X.fillRect(sx-5,sy+4,10,6); /* szorty */
     X.fillStyle=p.cc; X.fillRect(sx-6,sy-6,12,11); /* góra/bikini */
+    /* v2.3.84 I1: gołe ręce (skóra), animowane przeciwnie do nóg */
+    X.strokeStyle=p.sc; X.lineWidth=2.8; X.lineCap='round';
+    X.beginPath(); X.moveTo(sx-5,sy-3); X.lineTo(sx-8-walk*0.5,sy+5); X.moveTo(sx+5,sy-3); X.lineTo(sx+8+walk*0.5,sy+5); X.stroke(); X.lineCap='butt';
     X.fillStyle=p.sc; X.beginPath(); X.arc(sx,sy-11,5,0,Math.PI*2); X.fill(); /* głowa */
+    if(!p.hat){ X.fillStyle=p.hairCol||'#2a1c12'; X.beginPath(); X.arc(sx,sy-11.5,5.1,Math.PI*1.04,Math.PI*1.96); X.fill(); } /* włosy */
     if(p.shades){ X.fillStyle='#101014'; X.fillRect(sx-4,sy-12,8,2.4); } /* okulary słoneczne */
     if(p.hat){ X.fillStyle=p.hatCol; X.fillRect(sx-8,sy-14,16,2.6); X.beginPath(); X.arc(sx,sy-14.5,4.6,Math.PI,Math.PI*2); X.fill(); } /* kapelusz z rondem */
     return;
   }
   X.strokeStyle='#15151c'; X.lineWidth=3; X.beginPath(); X.moveTo(sx-3,sy+8); X.lineTo(sx-3+walk,sy+18); X.moveTo(sx+3,sy+8); X.lineTo(sx+3-walk,sy+18); X.stroke();
   X.fillStyle=p.cc; X.fillRect(sx-6,sy-6,12,16);
+  /* v2.3.84 I1: ręce (kolor ubrania, animowane) — district peds wyglądały płasko bez rąk */
+  X.strokeStyle=p.cc; X.lineWidth=2.8; X.lineCap='round';
+  X.beginPath(); X.moveTo(sx-5,sy-3); X.lineTo(sx-8-walk*0.5,sy+6); X.moveTo(sx+5,sy-3); X.lineTo(sx+8+walk*0.5,sy+6); X.stroke(); X.lineCap='butt';
   X.fillStyle=p.sc; X.beginPath(); X.arc(sx,sy-11,5,0,Math.PI*2); X.fill();
+  X.fillStyle=p.hairCol||'#2a1c12'; X.beginPath(); X.arc(sx,sy-11.5,5.1,Math.PI*1.04,Math.PI*1.96); X.fill(); /* włosy */
   if(p.elegant){ X.fillStyle='#3a2a1a'; X.fillRect(sx+(p.dx>0?6:-10),sy+1,4,7); } /* teczka */
 }
 function drawDistrictLife(){
