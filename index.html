@@ -57795,6 +57795,13 @@ function showHelp(){
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
  {
+ ver:'v2.3.94',date:'2026-06-27',cats:['beta-tester','Vegan','fix'],reporter:'Vegan',title:'🚸 Czytelniejsze znaki drogowe + ławki z dala od skrzyżowań',
+ items:[
+  {t:'fix',d:'Znaki drogowe są teraz wyraźniejsze — dostały ciemne tło dla kontrastu i są większe, więc nie zlewają się już z jezdnią ani z pasami przejścia dla pieszych. Znak ustąp-pierwszeństwa (trójkąt) ma dodatkowy ciemny obrys, żeby nie ginął na białej zebrze.'},
+  {t:'fix',d:'Automatyczne ławki uliczne nie pojawiają się już tuż przy skrzyżowaniach (wyglądało nienaturalnie) — trzymają odstęp od rogów.'},
+ ]
+ },
+ {
  ver:'v2.3.93',date:'2026-06-27',cats:['beta-tester','Vegan','fix'],reporter:'Vegan',title:'🪑 Ławki uliczne — koniec nachodzenia na budynki, znaki i hydranty',
  items:[
   {t:'fix',d:'Naprawione automatyczne rozmieszczanie ławek na chodnikach — niektóre lądowały na witrynach sklepów (oparcie wchodziło w budynek), zasłaniały znaki drogowe albo stały na hydrancie. Teraz ławki trzymają wyraźny odstęp od budynków, znaków, hydrantów i kwiatów, i siedzą czysto na chodniku.'},
@@ -74846,25 +74853,30 @@ function drawSignPost(wx,wy,type){
   X.fillStyle='rgba(0,0,0,.18)'; X.beginPath(); X.ellipse(sx,sy+2,7,3,0,0,Math.PI*2); X.fill();
   X.fillStyle='#9aa0a6'; X.fillRect(sx-2,sy-42,4,42); X.fillStyle='rgba(0,0,0,.25)'; X.fillRect(sx-2,sy-42,1.4,42);
   const cy=sy-50;
+  /* v2.3.94 (user: „inne znaki słabo widoczne; żółty/biały trójkąt zlewa się z pasami zebry"):
+     ciemny podkład-halo pod KAŻDY znak = kontrast na białej zebrze/jasnej jezdni; znaki powiększone;
+     yield dostaje DODATKOWO ciemny obrys-trójkąt + grubszy czerwony brzeg, by biały trójkąt nie ginął na zebrze. */
+  X.fillStyle='rgba(8,10,16,0.62)'; X.beginPath(); X.arc(sx,cy,15,0,Math.PI*2); X.fill();
   if(type==='stop'){
-    X.fillStyle='#c0271b'; _signOctagon(sx,cy,14); X.fill();
-    X.strokeStyle='#fff'; X.lineWidth=1.8; _signOctagon(sx,cy,14); X.stroke();
-    X.fillStyle='#fff'; X.font='bold 9px Arial,sans-serif'; X.textAlign='center'; X.textBaseline='middle'; X.fillText('STOP',sx,cy+0.5); X.textBaseline='alphabetic'; X.textAlign='left'; /* v2.3.83: większy znak (11→14) + czytelny font (6→9px, vertical-center) */
+    X.fillStyle='#c0271b'; _signOctagon(sx,cy,15); X.fill();
+    X.strokeStyle='#fff'; X.lineWidth=2; _signOctagon(sx,cy,15); X.stroke();
+    X.fillStyle='#fff'; X.font='bold 9px Arial,sans-serif'; X.textAlign='center'; X.textBaseline='middle'; X.fillText('STOP',sx,cy+0.5); X.textBaseline='alphabetic'; X.textAlign='left';
   } else if(type==='priority'){
     X.save(); X.translate(sx,cy); X.rotate(Math.PI/4);
-    X.fillStyle='#1a1a1a'; X.fillRect(-10,-10,20,20);
-    X.fillStyle='#f4c20d'; X.fillRect(-9,-9,18,18);
+    X.fillStyle='#1a1a1a'; X.fillRect(-11,-11,22,22);
+    X.fillStyle='#f4c20d'; X.fillRect(-10,-10,20,20);
     X.fillStyle='#fff'; X.fillRect(-5,-5,10,10);
     X.fillStyle='#f4c20d'; X.fillRect(-3,-3,6,6);
     X.restore();
   } else if(type==='yield'){
+    X.fillStyle='#16181e'; X.beginPath(); X.moveTo(sx-14,cy-12); X.lineTo(sx+14,cy-12); X.lineTo(sx,cy+14); X.closePath(); X.fill(); /* ciemny obrys-podkład */
     X.fillStyle='#fff'; X.beginPath(); X.moveTo(sx-11,cy-9); X.lineTo(sx+11,cy-9); X.lineTo(sx,cy+10); X.closePath(); X.fill();
-    X.strokeStyle='#b0271b'; X.lineWidth=2.4; X.stroke();
+    X.strokeStyle='#c8281b'; X.lineWidth=3; X.beginPath(); X.moveTo(sx-11,cy-9); X.lineTo(sx+11,cy-9); X.lineTo(sx,cy+10); X.closePath(); X.stroke();
   } else {
-    X.fillStyle='#1d4ed8'; X.fillRect(sx-9,cy-9,18,18);
-    X.strokeStyle='#fff'; X.lineWidth=1; X.strokeRect(sx-9,cy-9,18,18);
-    X.fillStyle='#fff'; X.beginPath(); X.arc(sx,cy-4,2,0,Math.PI*2); X.fill(); X.fillRect(sx-1.2,cy-2,2.4,6);
-    X.fillRect(sx-3,cy+4,6,1.4);
+    X.fillStyle='#1d4ed8'; X.fillRect(sx-10,cy-10,20,20);
+    X.strokeStyle='#fff'; X.lineWidth=1.4; X.strokeRect(sx-10,cy-10,20,20);
+    X.fillStyle='#fff'; X.beginPath(); X.arc(sx,cy-4,2.2,0,Math.PI*2); X.fill(); X.fillRect(sx-1.3,cy-2,2.6,7);
+    X.fillRect(sx-3,cy+5,6,1.6);
   }
 }
 let _roadSignCache=null;
@@ -74922,6 +74934,9 @@ function _streetFurniture(){
     const cx=o.wx+o.w/2, cy=o.wy+o.h/2;
     const rx=o.w/2+28, ry=o.kind==='bench'?54:28; // box: szeroka ławka nie zasłoni znaku/donicy obok
     for(const p of pts){ if(Math.abs(p.wx-cx)<rx && Math.abs(p.wy-cy)<ry) return false; }
+    /* v2.3.94 (user: „ławka obok Urban Crown stoi nienaturalnie przy samym skrzyżowaniu"): omijaj rogi 9 skrzyżowań. */
+    const _ints=[[864,480],[864,2016],[864,2976],[2304,480],[2304,2016],[2304,2976],[3552,480],[3552,2016],[3552,2976]];
+    for(const it of _ints){ if(Math.abs(it[0]-cx)<185 && Math.abs(it[1]-cy)<185) return false; }
     return true;
   };
   const valid=[]; let nT=0,nB=0,tog=0;
