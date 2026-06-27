@@ -18800,6 +18800,32 @@ window._growBuySlot=function(site){
   return true;
 };
 window._growBuyPot=function(){ if(window._growBuySlot('plantation')) _growReopenUI(); };
+/* v2.3.89 F1-b (user „kupno doniczki = ładne okienko, nie samo E"): panel potwierdzenia zamiast instant-buy. */
+window._growBuyPotPanel=function(site){
+  _growEnsure();
+  if(site!=='plantation'){ if(typeof showMsg==='function') showMsg('🪴 Dodatkowe doniczki kupisz na Plantacji (lvl 5).','i',3500); return; }
+  const owned=G.grow.potsOwned||1;
+  if(owned>=6){ if(typeof showMsg==='function') showMsg('🪴 Masz już maksymalną liczbę doniczek (6) na Plantacji.','i',3000); return; }
+  const costs={1:800,2:2500,3:6000,4:9000,5:12000}; const cost=costs[owned]||12000;
+  const _mg=document.getElementById('mg-job'),_mc=document.getElementById('mg-job-content'); if(!_mg||!_mc) return;
+  const afford=(G.money||0)>=cost;
+  _mc.innerHTML=`<div style="background:#0a1810;border:2px solid #27ae60;border-radius:12px;padding:22px;max-width:380px;margin:0 auto;text-align:center;color:#dfeede">
+    <div style="font-size:46px;margin-bottom:4px">🪴</div>
+    <h2 style="color:#52be80;margin:0 0 6px;font-size:20px">Nowa doniczka</h2>
+    <p style="color:#9cbb9c;font-size:13px;line-height:1.5;margin-bottom:14px">Dokup <b>${owned+1}. stanowisko</b> uprawne na Plantacji (max 6). Więcej doniczek = więcej roślin rosnących naraz.</p>
+    <div style="background:#06120a;border:1px solid #1a3a22;border-radius:8px;padding:12px;margin-bottom:16px">
+      <div style="font-size:12px;color:#8aa89a">Koszt ${owned+1}. doniczki</div>
+      <div style="font-size:24px;font-weight:800;color:#f1c40f">${cost.toLocaleString('pl')} zł</div>
+      <div style="font-size:11px;color:${afford?'#7ec87e':'#e07a7a'}">Masz: ${(G.money||0).toLocaleString('pl')} zł</div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button onclick="window._growBuyPotConfirm()" ${afford?'':'disabled'} style="flex:1;background:${afford?'linear-gradient(135deg,#27ae60,#1a7838)':'#2a2a2a'};color:#fff;border:none;padding:12px;border-radius:8px;font-weight:800;cursor:${afford?'pointer':'not-allowed'};font-family:inherit;font-size:14px">${afford?'🪴 Kup za '+cost.toLocaleString('pl')+' zł':'Za mało gotówki'}</button>
+      <button onclick="window._growCloseBuyPanel()" style="flex:0 0 auto;background:#2a1a1a;color:#caa;border:1px solid #4a2a2a;padding:12px 18px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:14px">Anuluj</button>
+    </div></div>`;
+  _mg.classList.add('on');
+};
+window._growBuyPotConfirm=function(){ if(window._growBuySlot('plantation')) window._growCloseBuyPanel(); };
+window._growCloseBuyPanel=function(){ const m=document.getElementById('mg-job'); if(m){ m.classList.remove('on'); const c=document.getElementById('mg-job-content'); if(c)c.innerHTML=''; } };
 /* v2.1.784 — czyste mutacje uprawy (bez UI/minigry). Używane przez minigry ORAZ przyszłych pracowników (FAZA 4 — auto bez minigry). q=jakość 0-1. */
 /* v2.1.786 (user) — podlewanie i nawóz dobijają do 100% (jedno wykonanie minigry = pełne, bez powtarzania). */
 function _growApplyWater(site,idx,q){ const pot=_growSitePots(site)[idx]; if(!pot||!pot.planted) return null; const add=100-(pot.water||0); pot.water=100; pot.peakWater=100; return Math.max(0,add); }
@@ -18916,7 +18942,7 @@ window._growPotInteract=function(site,idx){
   _growEnsure();
   idx=idx|0;
   /* v2.1.790 FAZA 2 — pusty (niekupiony) slot na Plantacji → kup kolejną doniczkę. */
-  if(site==='plantation' && idx>=(G.grow.potsOwned||1)){ if(typeof window._growBuySlot==='function') window._growBuySlot('plantation'); return; }
+  if(site==='plantation' && idx>=(G.grow.potsOwned||1)){ if(typeof window._growBuyPotPanel==='function') window._growBuyPotPanel('plantation'); else if(typeof window._growBuySlot==='function') window._growBuySlot('plantation'); return; }
   window._renderPotPanel(site, idx);
 };
 window._renderPotPanel=function(site,idx){
