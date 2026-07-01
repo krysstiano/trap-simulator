@@ -52010,6 +52010,13 @@ window.renderSMSConversation=function(contactId){
           }
           return `<div style="background:#0a1a0a;border:1px solid #1a4a1a;border-radius:6px;padding:8px 10px;font-size:11px;color:#7ec87e;text-align:center;font-style:italic">✓ Ustalone. Zajrzyj do wątku pobocznego i wejdź na miejsce turnieju.</div>`;
         }
+        /* Gym Bro — v2.3.102 (PDF #8-2): kontekstowe odpowiedzi wg replySet (reminder/good/over/milestone). */
+        if(contactId==='gymbro' && typeof window._GYMBRO_REPLIES==='object'){
+          const _grs=(_firstUnreplied&&_firstUnreplied.replySet)||'reminder';
+          const _gset=Object.values(window._GYMBRO_REPLIES).some(o=>o.set===_grs)?_grs:'reminder';
+          const _gids=Object.keys(window._GYMBRO_REPLIES).filter(k=>window._GYMBRO_REPLIES[k].set===_gset);
+          return `${_replyCounter}`+window._smsRichButtons('gymbro',_gids);
+        }
         /* system / bank — automaty, gracz nie buduje "przyjaźni" */
         if(contactId==='system'||contactId==='bank'){
           return `${_replyCounter}<div style="display:flex;gap:4px;flex-wrap:wrap">
@@ -52335,6 +52342,26 @@ window._KAMIL_REPLIES={
   free_friend:{set:'freestyle', label:'👊 Dobrze to słyszeć od Ciebie (+przyjaźń)', text:'Dzięki, stary. Od Ciebie to akurat dobrze usłyszeć, bo pamiętasz mnie sprzed tego całego zamieszania.', fx:{kamilFriendship:2,kamilTrust:1}},
   free_ignore:{set:'freestyle', label:'— Zostaw na później (-przyjaźń)', text:null, fx:{kamilFriendship:-1,ignoredKamil:true}},
 };
+/* v2.3.102 (PDF #8-2): Gym Bro — kontekstowe odpowiedzi wg zestawu (reminder/good/over/milestone). Efekty lekkie: gymRel/mood/motiv. */
+window._GYMBRO_REPLIES={
+  gr_today:{set:'reminder', label:'🔥 Dzisiaj wjeżdżam', text:'Dzisiaj wjeżdżam. Ławka już się stresuje.', fx:{gymRel:1, motiv:2}},
+  gr_when:{set:'reminder', label:'😎 To o której się widzimy?', text:'To jak, o której się widzimy? Bieżnia ma moje imię.', fx:{gymRel:2}},
+  gr_joke:{set:'reminder', label:'😏 Kilka dni nikogo nie załatwiły', text:'Spokojna Twoja rozczochrana… kilka dni jeszcze nikogo nie załatwiły.', fx:{gymRel:1, mood:1}},
+  gr_busy:{set:'reminder', label:'😐 Mam roboty, przez chwilę nie', text:'Mam teraz sporo roboty, przez chwilę się nie zobaczymy.', fx:{gymRel:0}},
+  gr_quit:{set:'reminder', label:'— Póki co siłka w odstawkę (−)', text:'Stary, nie ma opcji. Póki co siłka w odstawkę.', fx:{gymRel:-1}},
+  gg_solid:{set:'good', label:'💪 Dzisiaj weszło jak trzeba', text:'Dzisiaj weszło jak trzeba.', fx:{gymRel:1, mood:2}},
+  gg_tomorrow:{set:'good', label:'🔥 Jutro dorzucimy do pieca', text:'Jutro też dorzucimy do pieca.', fx:{gymRel:1, motiv:2}},
+  gg_sore:{set:'good', label:'😵 Jutro mnie poskłada jak puzzle', text:'Coś czuję, że mnie jutro poskłada z rana jak puzzle.', fx:{gymRel:1}},
+  gg_more:{set:'good', label:'🎯 Wysyłaj kolejny plan', text:'Nie pierdol, tylko wysyłaj kolejny plan.', fx:{gymRel:2}},
+  go_light:{set:'over', label:'✅ Dzisiaj będzie lekko', text:'True, dzisiaj będzie lekko.', fx:{gymRel:2, mood:1}},
+  go_recov:{set:'over', label:'🧘 Regeneracja też trening', text:'Regeneracja też trening, wiem.', fx:{gymRel:1, mood:1}},
+  go_push:{set:'over', label:'😤 Nie wchodzę, żeby odpuszczać', text:'Nie po to wchodzę, żeby odpuszczać.', fx:{gymRel:0}},
+  go_cardio:{set:'over', label:'🚴 Tylko rowerek i rozciąganie', text:'Dzisiaj tylko rowerek i rozciąganie.', fx:{gymRel:2, mood:1}},
+  gm_start:{set:'milestone', label:'😎 Dopiero się rozkręcam', text:'Dopiero się rozkręcam, ziomeczku.', fx:{gymRel:1, motiv:2}},
+  gm_look:{set:'milestone', label:'🕶 Niech patrzą', text:'Niech patrzą.', fx:{gymRel:1, mood:1}},
+  gm_disc:{set:'milestone', label:'🎯 Robota dalej do wykonania', text:'Bez podjarki. Robota jest dalej do wykonania.', fx:{gymRel:2}},
+  gm_break:{set:'milestone', label:'— Teraz tydzień przerwy (−)', text:'Dobra, teraz będzie tydzień przerwy.', fx:{gymRel:-1}},
+};
 window._applySmsRichEffect=function(fx){
   fx=fx||{};
   if(typeof _newpdfEnsure==='function') _newpdfEnsure();
@@ -52351,6 +52378,10 @@ window._applySmsRichEffect=function(fx){
   if(fx.followersSmall){ G.followers=(G.followers||0)+(2+Math.floor(Math.random()*5)); }
   if(fx.ignoredKamil){ G._kamilRel.ignored=(G._kamilRel.ignored||0)+1; }
   if(fx.ignoredFan){ G._fanRel.ignored=(G._fanRel.ignored||0)+1; }
+  /* v2.3.102 (PDF #8-2): Gym Bro — lekkie efekty. gymRel=relacja z kontaktem, mood=nastrój (G.stress), motiv=drobny XP. */
+  if(fx.gymRel){ if(!G._gymbro||typeof G._gymbro!=='object')G._gymbro={relationship:10}; G._gymbro.relationship=c01((G._gymbro.relationship||10)+fx.gymRel); }
+  if(fx.mood) G.stress=c01((G.stress||0)+fx.mood);
+  if(fx.motiv && typeof addXP==='function') addXP(fx.motiv*2);
 };
 window._smsKamilJobsAction=function(){
   if(typeof _newpdfEnsure==='function') _newpdfEnsure();
@@ -52358,7 +52389,7 @@ window._smsKamilJobsAction=function(){
   if(typeof showMsg==='function') showMsg('👊 Kamil: „Dobra, mam parę tematów. Rozejrzyj się za pracami dorywczymi w mieście — dam znać, jak coś grubszego wpadnie."','f',5500);
 };
 window._smsRichButtons=function(contactId,ids){
-  const reg=(contactId==='fan')?window._FAN_REPLIES:window._KAMIL_REPLIES;
+  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:window._KAMIL_REPLIES;
   return '<div style="display:flex;flex-direction:column;gap:5px">'+ids.map((id,n)=>{
     const o=reg[id]; if(!o) return '';
     const isIgnore=/ignore/.test(id);
@@ -52374,7 +52405,7 @@ window._smsRichReply=function(contactId,replyId){
   let idx=-1;
   for(let i=conv.length-1;i>=0;i--){ if(conv[i].from==='me') continue; if(conv[i]._replied) continue; idx=i; break; }
   if(idx<0){ if(typeof showMsg==='function') showMsg('💬 Już odpowiedziałeś na wszystkie wiadomości od tego kontaktu. Poczekaj na nowe.','r',4500); return; }
-  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='kamil')?window._KAMIL_REPLIES:null;
+  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='kamil')?window._KAMIL_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:null;
   const opt=reg&&reg[replyId];
   if(!opt) return;
   conv[idx]._replied=true;
@@ -55644,22 +55675,24 @@ function _milestoneShown(key){
 window._milestoneShown=_milestoneShown;
 
 // SMS od Gym Bro — przy 2 dniach bez treningu (mechanika "use it or lose it")
-function sendGymBroSms(){
-  const messages = [
-    'Bracie! Musisz wbijac na silke bo spadnie Ci pompa! 💪',
-    'Hej, ostatnio Cie nie widzialem na silce. Wracaj bo zniknie progress!',
-    'Pamietaj — use it or lose it. Nie pozwol zeby forma uciekla!',
-    'Hej bracie, kiedy widzimy sie na silce? Czuje ze zaraz spadnie pompa!',
-  ];
-  const msg = messages[Math.floor(Math.random()*messages.length)];
+function sendGymBroSms(ctx){
+  /* v2.3.102 (PDF #8-2): wiadomość kontekstowa + replySet — steruje zestawem odpowiedzi w renderSMSConversation. */
+  const M={
+    reminder:['Pamiętaj — use it or lose it. Nie pozwól, żeby forma uciekła!','Bracie, RepZone pyta, czy żyjesz. Trzeci dzień ciszy to już nie regeneracja, tylko rezygnacja…'],
+    good:['No i to był trening! Świetne tempo, ale jest jeszcze co poprawiać.'],
+    over:['Widzę, że Cię nosi, ale spokojnie. Forma rośnie od bodźca i regeneracji, nie od zabijania się codziennie.'],
+    milestone:['Forma zaczyna wyglądać jak forma! Widać, że robisz robotę.'],
+  };
+  ctx=(ctx&&M[ctx])?ctx:['reminder','reminder','good','over','milestone'][Math.floor(Math.random()*5)];
+  const _arr=M[ctx]; const msg=_arr[Math.floor(Math.random()*_arr.length)];
   G.gymBroMessages = G.gymBroMessages || [];
   G.gymBroMessages.push({day: G.day, msg: msg});
   /* v2.1.181 (Agent SMS audit): refactor → użyj centralnego _smsSend zamiast manualnego push.
      Naprawia inconsistency: from:'them' → from:'gymbro' (spójne z _smsSend L26425),
      time int→"HH:MM" string (spójne z innymi SMS), bezpłatnie dostaje cap 100 + addNotif gdy phone closed.
      showMsg toast zostaje bo _smsSend addNotif TYLKO gdy phone closed — player powinien widzieć notif game-wide. */
-  if(typeof _smsSend==='function') _smsSend('gymbro', msg);
-  if(typeof showMsg === 'function') showMsg(`💪 SMS od Gym Bro: "${msg}"`,'i');
+  if(typeof _smsSend==='function') _smsSend('gymbro', msg, {replySet:ctx});
+  if(typeof showMsg === 'function') showMsg(`💪 SMS od Gym Bro`,'i');
 }
 window.sendGymBroSms = sendGymBroSms;
 
@@ -58477,6 +58510,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'Handlarz kamperów w Gravel Lot Motors przedstawia się teraz poprawnie jako „Korek" — wcześniej w oknie rozmowy pojawiało się nie to imię, a jego kwestie miały doklejony niepotrzebny podpis.'},
   {t:'feature',d:'U Korka wybierzesz teraz kampera według budżetu: najtańszy „byleby jeździł", średnia półka, model mniej rzucający się w oczy, albo pełna lista. Kolor nazw kamperów w salonie poprawiony na czytelny.'},
   {t:'feature',d:'Kampera kupionego od Korka możesz mu później odsprzedać — ale dopiero po 14 dniach od zakupu i wyłącznie za połowę ceny. Wcześniej Korek tylko kręci nosem. Pojazd musi być pusty, sprawny i zaparkowany. Po sprzedaży możesz kupić kolejnego.'},
+  {t:'change',d:'Kontakt „Gym Bro" w telefonie ma teraz zestaw dopasowanych odpowiedzi zależnych od treści wiadomości (zamiast stałego „Dzięki / Zadzwoń / Ignoruj") — odpowiesz bardziej po swojemu, a on Ci odpisze.'},
  ]
  },
  {
