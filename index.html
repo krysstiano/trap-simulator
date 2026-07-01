@@ -58878,6 +58878,7 @@ const PATCH_NOTES = [
   {t:'feature',d:'Agencja pokazuje też ciemniejszą stronę show-biznesu i ma swoje drugie dno — dostępne dopiero po godzinach i tylko dla graczy, którzy zaszli już w pewne rejony miasta. Uważaj: to medialni ludzie, a każdy nieostrożny ruch podnosi ryzyko afery.'},
   {t:'balance',d:'Obniżono napiwki i bonusy w pracach dorywczych (przede wszystkim myjnia i zmywak) — potrafiły przewyższać główny zarobek za zlecenie. Teraz są mniejsze i częściowo losowe, żeby postęp gracza był bardziej wyważony.'},
   {t:'ui',d:'Emoji przy produktach we wszystkich sklepach zastąpiliśmy własnymi, oryginalnymi ikonami — czytelniejszymi i spójnymi wizualnie. Objęte: spożywczy, targ, restauracja, ubrania (Urban Crown, Lumpeks), elektronika (VoltHouse), sklep muzyczny (BeatPoint) oraz salony pojazdów (CityDrive, kampery).'},
+  {t:'change',d:'Przechodnie ubierają się teraz stosownie do pogody: gdy jest słonecznie, większość chodzi w krótkich ubraniach; gdy pada, mają na sobie cieplejsze rzeczy, a przygotowani niosą parasole — nieprzygotowani spieszą się do schronienia. Dotyczy miasta i wszystkich dzielnic.'},
  ]
  },
  {
@@ -74239,6 +74240,10 @@ function _drawDistrictPed(p){
   const sx=wx2sx(p.x), sy=wy2sy(p.y);
   if(sx<-40||sx>1320||sy<-40||sy>840) return;
   const walk=Math.sin(p.anim*0.2)*2;
+  /* v2.3.102 (PDF #8-11): ubiór wg pogody także w dzielnicach — słonecznie → krótkie (gołe, skórzane ręce), deszcz/chłód → rękawy w kolorze ubrania. */
+  const _wth=(typeof G!=='undefined'&&typeof G.weather==='number')?G.weather:0;
+  const _wSeed=(p._wSeed!==undefined)?p._wSeed:(p._wSeed=Math.random());
+  const _warm=_wSeed>=(_wth===0?0.70:(_wth===1?0.45:0.15));
   X.fillStyle='rgba(0,0,0,.28)'; X.beginPath(); X.ellipse(sx,sy+18,9,3.5,0,0,Math.PI*2); X.fill();
   if(p.beach){ /* U15: plażowicz — gołe nogi, szorty, jaskrawa góra/bikini, opcjonalnie kapelusz + okulary */
     X.strokeStyle=p.sc; X.lineWidth=3; X.beginPath(); X.moveTo(sx-3,sy+9); X.lineTo(sx-3+walk,sy+18); X.moveTo(sx+3,sy+9); X.lineTo(sx+3-walk,sy+18); X.stroke();
@@ -74256,8 +74261,8 @@ function _drawDistrictPed(p){
   }
   X.strokeStyle='#15151c'; X.lineWidth=3; X.beginPath(); X.moveTo(sx-3,sy+8); X.lineTo(sx-3+walk,sy+18); X.moveTo(sx+3,sy+8); X.lineTo(sx+3-walk,sy+18); X.stroke();
   X.fillStyle=p.cc; X.fillRect(sx-6,sy-6,12,16);
-  /* v2.3.84 I1: ręce (kolor ubrania, animowane) — district peds wyglądały płasko bez rąk */
-  X.strokeStyle=p.cc; X.lineWidth=2.8; X.lineCap='round';
+  /* v2.3.84 I1: ręce (animowane). v2.3.102 (PDF #8-11): rękawy w kolorze ubrania gdy „ciepło", gołe skórzane gdy krótkie (słonecznie). */
+  X.strokeStyle=_warm?p.cc:p.sc; X.lineWidth=2.8; X.lineCap='round';
   X.beginPath(); X.moveTo(sx-5,sy-3); X.lineTo(sx-8-walk*0.5,sy+6); X.moveTo(sx+5,sy-3); X.lineTo(sx+8+walk*0.5,sy+6); X.stroke(); X.lineCap='butt';
   X.fillStyle=p.sc; X.beginPath(); X.arc(sx,sy-11,5,0,Math.PI*2); X.fill();
   _dpFace(sx,sy); /* v2.3.100: twarz (oczy+usta) */
@@ -75288,7 +75293,9 @@ function drawCityLife(){
       else if(Math.abs(ped.dx)>0.1 && Math.abs(Math.abs(ped.dx)-ped.baseSpd)>0.5) ped.dx=Math.sign(ped.dx)*ped.baseSpd;
     }
     if(ped.idleTimer<=0){
-      const newWx=ped.wx+ped.dx;
+      /* v2.3.102 (PDF #8-11): nieprzygotowani na deszcz (ci sami bez parasola, seed<0.15) spieszą się do schronienia (+70% tempa). */
+      const _rainHurry=(G.weather===2||G.weather===5) && ped._wSeed!==undefined && ped._wSeed<0.15 && ped.type!=='runner';
+      const newWx=ped.wx+ped.dx*(_rainHurry?1.7:1);
       // v1.8.29: NPC NIE wchodzi na V-road jeśli nie crossuje — bez tego NPC szli przez środek
       // skrzyżowań (V-road area widoczna jako road) zamiast przejść po pasach.
       // V1: 768-960, V2: 2208-2400, V3: 3456-3648. Sprawdzamy czy newWx wpada w road area.
@@ -75498,6 +75505,13 @@ function drawCityLife(){
     }
     if(!ped.type) ped.type='casual';
     const {sc,cc,scarfC,hatC,hairC,hasHat,height}=ped._colors;
+    /* v2.3.102 (PDF #8-11): ubiór wg pogody. Słonecznie → ~70% w krótkich ubraniach (gołe, skórzane ręce);
+       pochmurno → mix; deszcz/śnieg/mgła → większość „ciepła" (rękawy w kolorze ubrania) + parasol.
+       Stabilny seed per pieszy, decyzja render-time (pieszy „przebiera się" gdy zmienia się pogoda). */
+    const _wSeed=(ped._wSeed!==undefined)?ped._wSeed:(ped._wSeed=Math.random());
+    const _wth=(typeof G!=='undefined'&&typeof G.weather==='number')?G.weather:0;
+    const _warmThresh=_wth===0?0.70:(_wth===1?0.45:0.15); /* sunny: 30% ciepłych = 70% krótkich */
+    const _warm=(_wSeed>=_warmThresh) && ped.type!=='runner'; /* biegacz zawsze w sportowym (krótki rękaw) */
     const cx=sx+8;
     const isIdle=ped.idleTimer>0;
     const idleType=ped.idleType||0;
@@ -75572,8 +75586,8 @@ function drawCityLife(){
       X.fillStyle='rgba(255,255,255,.7)';X.fillRect(cx-1,sy+18-hOff*0.5,7,2);
     }
 
-    // Ręce
-    X.fillStyle=sc;
+    // Ręce (v2.3.102 PDF #8-11: „ciepły" pieszy ma rękawy w kolorze ubrania; krótki = gołe skórzane ręce)
+    X.fillStyle=_warm?cc:sc;
     // F+ 2026-05-12 FIX: kid + dogwalker + elderly mają SWOJE sprzęty/zwierzęta — pomiń idle hands
     // User: "Jak NPC dziecko na hulajnodze się zatrzymuje to jego hulajnoga znika"
     const _hasOwnArms=ped.type==='kid'||ped.type==='dogwalker'||ped.type==='elderly';
@@ -75731,7 +75745,8 @@ function drawCityLife(){
     }
 
     // v1.8.13: PARASOL — prawdziwy parasol z 6 segmentami trzymany w ręku
-    if((G.weather===2||G.weather===5) && currentRoom==='ulica' && ped.type!=='kid' && ped.type!=='runner'){
+    // v2.3.102 (PDF #8-11): parasol TYLKO dla przygotowanych (_warm) — nieprzygotowani mokną i się spieszą (patrz flee w ruchu).
+    if((G.weather===2||G.weather===5) && _warm && currentRoom==='ulica' && ped.type!=='kid' && ped.type!=='runner'){
       const umbY=sy-18-hOff*0.5;
       const umbX=cx+4;
       const umbR=14;
