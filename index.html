@@ -48283,6 +48283,8 @@ function _getPhoneFolders(){
       _phApp('🤝',`Trap${G._trapDealerMet&&G.trap&&G.trap.unlocked?(' · L'+G.trap.level):''}`,'#1a0a0a','#e91e8c',"renderPhoneApp('trap')", !G._trapDealerMet, '🤝 Trap odblokujesz po spotkaniu dealera w mieście.'),
       /* NX (v2.3.44 PDF): NOX Route — czarnorynkowy komunikator. Widoczny od początku; klik → ekran blokady z checklistą (renderNoxApp dispatcher) dopóki nie spełnisz warunków. */
       _phApp('⬢','NOX Route','#06080c','#1ad9c0',"renderNoxApp()"),
+      /* v2.3.102 (PDF #7): S9 Agency (Signal Nine) — agencja marketingowa. Widoczna od początku; klik → panel z wymaganiami dopóki nie spełnisz warunków (singiel/freestyle/posty). */
+      _phApp('📡','S9 Agency','#0a1420','#3498db',"(function(){var p=document.getElementById('phone');if(p&&p.classList.contains('on')&&typeof togglePhone==='function')togglePhone();if(typeof window.renderS9Agency==='function')window.renderS9Agency();})()"),
     ]},
     finance:{em:'💰',label:'Finanse',preview:['🏦','💸','💰','📈'],apps:[
       _phApp('🏦','Bank','#12100a','#f1c40f',"renderPhoneApp('bank')"),
@@ -58529,6 +58531,239 @@ function showHelp(){
 // ═══════════════════════════════════════════════════════════════════
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════════
+   v2.3.102 (PDF #7): S9 AGENCY (Signal Nine) — lokalna agencja marketingowa.
+   Legalny poziom: kampanie/content/live/crisis + ukryty poziom After Room (po Kantarze).
+   Sandbox: reaguje na styl gry. Ukryte transakcje = ABSTRAKCYJNE (zero realnych instrukcji).
+   ═══════════════════════════════════════════════════════════════════ */
+window._s9Ensure=function(){
+  if(!G.signalNine||typeof G.signalNine!=='object') G.signalNine={};
+  const s=G.signalNine, d=(k,v)=>{ if(s[k]===undefined||s[k]===null) s[k]=v; };
+  d('introDone',false); d('firstConsultationDone',false); d('afterHoursUnlocked',false); d('afterRoomVisited',false);
+  d('agencyHeat',0); d('campaignsCompleted',0); d('controversyCount',0); d('crisisControlUsed',0);
+  d('socialBuzz',0); d('authenticity',60); d('brandTrust',60);
+  d('nikaRel',0); d('nikaTrust',0); d('nikaPatience',5); d('lastVisitDay',null);
+};
+window._s9Reqs=function(){
+  window._s9Ensure();
+  const singles=(G.careers&&G.careers.raper&&G.careers.raper.tracks)||0;
+  const freestyles=(G.careers&&G.careers.raper&&G.careers.raper.freestyles)||0;
+  const posts=Math.max((Array.isArray(G.igPosts)?G.igPosts.length:0),(Array.isArray(G.userTweets)?G.userTweets.length:0));
+  return {singles,freestyles,posts, ok:(singles>=1 && freestyles>=9 && posts>=10)};
+};
+window._s9CanEnter=function(){ return window._s9Reqs().ok; };
+window._s9C01=function(v){ return Math.max(0,Math.min(100,v)); };
+window._s9Effect=function(fx){
+  fx=fx||{}; window._s9Ensure(); const s=G.signalNine; const c=window._s9C01;
+  if(fx.socialBuzz){ s.socialBuzz=Math.max(0,(s.socialBuzz||0)+fx.socialBuzz); if(fx.socialBuzz>0){G.followers=(G.followers||0)+fx.socialBuzz*(3+Math.floor(Math.random()*4));} }
+  if(fx.fanHype && G._fanRel){ G._fanRel.hype=Math.max(0,(G._fanRel.hype||0)+fx.fanHype); }
+  if(fx.fanLoyalty && G.publicRep){ G.publicRep.fanLoyalty=c((G.publicRep.fanLoyalty||60)+fx.fanLoyalty); }
+  if(fx.authenticity){ s.authenticity=c((s.authenticity||60)+fx.authenticity); }
+  if(fx.brandTrust){ s.brandTrust=c((s.brandTrust||60)+fx.brandTrust); }
+  if(fx.cultureCred){ G.streetRep=c((G.streetRep||0)+fx.cultureCred); }
+  if(fx.followers){ G.followers=(G.followers||0)+fx.followers; }
+  if(fx.controversy){ s.controversyCount=(s.controversyCount||0)+fx.controversy; s.agencyHeat=Math.max(0,(s.agencyHeat||0)+fx.controversy*4); }
+  if(fx.agencyHeat){ s.agencyHeat=Math.max(0,(s.agencyHeat||0)+fx.agencyHeat); }
+  if(fx.nikaRel){ s.nikaRel=(s.nikaRel||0)+fx.nikaRel; }
+  if(fx.nikaTrust){ s.nikaTrust=(s.nikaTrust||0)+fx.nikaTrust; }
+};
+/* Pakiety kampanii — koszt + efekty + ryzyka (PDF §8/§30). */
+window._S9_CAMPAIGNS={
+  localSignal:   {name:'Local Signal',    cost:1500,  desc:'Podstawowa kampania lokalna. Krótki content, publikacja, lekkie podbicie widoczności.', fx:{socialBuzz:2,fanHype:2,brandTrust:1}},
+  rawIdentity:   {name:'Raw Identity',    cost:3500,  desc:'Kampania oparta na kulisach, pracy, próbach — prawdziwszy obraz artysty.', fx:{authenticity:2,fanLoyalty:2,cultureCred:1,socialBuzz:1}},
+  viralCut:      {name:'Viral Cut',       cost:8500,  desc:'Mocno pocięty format pod algorytm. Działa szybko, ale nie zawsze wygląda naturalnie.', fx:{socialBuzz:5,followers:0,authenticity:-1}},
+  controversySpark:{name:'Controversy Spark',cost:12500,desc:'Strategia na granicy dramy i promocji. Nielegalna nie jest, ale moralnie bywa śliska.', fx:{socialBuzz:7,controversy:3,brandTrust:-2,fanLoyalty:-1}},
+};
+window._s9BuyCampaign=function(id){
+  window._s9Ensure(); const cmp=window._S9_CAMPAIGNS[id]; if(!cmp) return;
+  if((G.money||0)<cmp.cost){ if(typeof showMsg==='function')showMsg(`💸 Potrzebujesz ${cmp.cost.toLocaleString('pl')} zł na kampanię „${cmp.name}".`,'r',3500); return; }
+  G.money-=cmp.cost;
+  const fx=Object.assign({},cmp.fx);
+  if(id==='viralCut') fx.followers=40+Math.floor(Math.random()*160); /* losowy przyrost obserwujących */
+  window._s9Effect(fx);
+  G.signalNine.campaignsCompleted=(G.signalNine.campaignsCompleted||0)+1;
+  if(typeof showMsg==='function') showMsg(`📣 Kampania „${cmp.name}" ruszyła (−${cmp.cost.toLocaleString('pl')} zł). Efekty widoczne w profilu.`,'g',5000);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window.renderS9Agency();
+};
+/* Legalne akcje szybkie. */
+window._s9Short=function(){
+  window._s9Ensure();
+  window._s9Effect({socialBuzz:2,fanHype:1,followers:2+Math.floor(Math.random()*6),authenticity:(G.signalNine.socialBuzz>18?-1:0)});
+  if(typeof showMsg==='function') showMsg('🎬 Nagrałeś krótki vertical — poszedł w feed. +buzz, +hype.','g',3800);
+  if(typeof saveGameSilent==='function') saveGameSilent(); window.renderS9Agency();
+};
+window._s9Live=function(){
+  window._s9Ensure();
+  window._s9Effect({fanLoyalty:2,socialBuzz:1});
+  if(G.publicRep) { /* fanRelationship */ }
+  if(typeof addFriendship==='function') addFriendship('fan',2);
+  if(typeof showMsg==='function') showMsg('🔴 Zrobiłeś live z fanami. +lojalność, +relacja. Uważaj na niewygodne pytania następnym razem.','g',4500);
+  if(typeof saveGameSilent==='function') saveGameSilent(); window.renderS9Agency();
+};
+window._s9CrisisControl=function(){
+  window._s9Ensure(); const s=G.signalNine; const cost=800+Math.floor((s.agencyHeat||0)*30);
+  if((s.controversyCount||0)<=0 && (s.agencyHeat||0)<=0){ if(typeof showMsg==='function')showMsg('🧯 Na razie nie masz żadnego pożaru do gaszenia. To dobrze.','i',3800); return; }
+  if((G.money||0)<cost){ if(typeof showMsg==='function')showMsg(`💸 Crisis control kosztuje ${cost.toLocaleString('pl')} zł.`,'r',3500); return; }
+  G.money-=cost;
+  s.controversyCount=Math.max(0,(s.controversyCount||0)-2); s.agencyHeat=Math.max(0,(s.agencyHeat||0)-Math.min(s.agencyHeat,20)); s.crisisControlUsed=(s.crisisControlUsed||0)+1;
+  window._s9Effect({brandTrust:2});
+  if(typeof showMsg==='function') showMsg(`🧯 Agencja ugasiła aferę (−${cost.toLocaleString('pl')} zł). Kontrowersja i „heat" spadają, zaufanie do marki rośnie.`,'g',5000);
+  if(typeof saveGameSilent==='function') saveGameSilent(); window.renderS9Agency();
+};
+window._s9Consultation=function(){
+  window._s9Ensure();
+  if(!window._s9CanEnter()){ window.renderS9Agency(); return; }
+  if((G.money||0)<1200){ if(typeof showMsg==='function')showMsg('💸 Pierwsza konsultacja kosztuje 1200 zł.','r',3500); return; }
+  G.money-=1200; G.signalNine.firstConsultationDone=true; G.signalNine.introDone=true; window._s9Effect({nikaTrust:1});
+  if(typeof showMsg==='function') showMsg('🗂 Nika: „OK. Robimy z tego strategię, nie przypadek." Odblokowano panel strategii contentu.','g',5500);
+  if(typeof saveGameSilent==='function') saveGameSilent(); window.renderS9Agency();
+};
+/* Nika Ray — komentarz zależny od stylu gry (agencyHeat). */
+window._s9NikaLine=function(){
+  window._s9Ensure(); const s=G.signalNine;
+  if((s.agencyHeat||0)>=40) return 'Nika: „Każdy Twój ruch zaczyna wyglądać jak krok w stronę kryzysu. A kryzys jest dobry tylko wtedy, gdy to my go kontrolujemy."';
+  if((s.controversyCount||0)>=3) return 'Nika: „Posłuchaj… naprawdę umiem robić narrację. Ale nie umiem sprawić, żeby głupota przestała być głupotą."';
+  return 'Nika: „Dobrze. Robimy zasięg bez gaszenia pożarów. To rzadkie — doceniam."';
+};
+/* Ukryty poziom — dostęp po półświatku (Kantar) + abstrakcyjny towar + po godzinach. */
+window._s9HasContraband=function(){ return !!(G.trapInv && G.trapInv.products && Object.values(G.trapInv.products).some(v=>(v||0)>0)); };
+window._s9CanAfterRoom=function(){
+  window._s9Ensure();
+  const underworld=!!(G.underworldIntro && (G.underworldIntro.completed||G.underworldIntro.state==='completed'));
+  const hour=Math.floor((typeof gameMin==='number'?gameMin:720)/60)%24;
+  const night=(hour>=22||hour<4);
+  return underworld && G.signalNine.afterHoursUnlocked && night;
+};
+window._s9UnlockAfterHours=function(){
+  window._s9Ensure();
+  const underworld=!!(G.underworldIntro && (G.underworldIntro.completed||G.underworldIntro.state==='completed'));
+  if(!underworld) return false;
+  if(!G.signalNine.afterHoursUnlocked){ G.signalNine.afterHoursUnlocked=true; if(typeof saveGameSilent==='function')saveGameSilent(); }
+  return true;
+};
+/* Główny panel agencji — render do #mg-job-content (jak district-place). */
+window.renderS9Agency=function(){
+  window._s9Ensure();
+  const _mg=document.getElementById('mg-job'), _mc=document.getElementById('mg-job-content');
+  if(!_mg||!_mc) return;
+  const s=G.signalNine; const r=window._s9Reqs();
+  const _close='<button class="cbtn" style="width:100%;margin-top:10px" onclick="document.getElementById(\'mg-job\').classList.remove(\'on\');document.getElementById(\'mg-job-content\').innerHTML=\'\'">← Wyjdź</button>';
+  const _head='<h2 style="color:#7ec8e3;margin-top:0;text-align:center">📡 S9 Agency <span style="font-size:12px;color:#889">Signal Nine</span></h2>';
+  if(!r.ok){
+    _mc.innerHTML=`<div style="background:#0a1418;border:2px solid #3498db;border-radius:10px;padding:18px;max-width:560px;margin:0 auto;color:#dfe3ee">
+      ${_head}
+      <div style="color:#cdd;font-size:13px;line-height:1.6;margin-bottom:10px">Recepcja Signal Nine: <i>„Masz energię, ale my nie promujemy samego zapału. Potrzebujemy materiału: singla, contentu i czegoś, do czego da się podpiąć strategię."</i></div>
+      <div style="background:#0e1830;border-radius:8px;padding:12px;font-size:13px;color:#cdd">
+        <div style="color:#7ec8e3;font-weight:700;margin-bottom:6px">Wymagania współpracy:</div>
+        <div>${r.singles>=1?'✅':'⬜'} Min. 1 opublikowany utwór (masz: ${r.singles})</div>
+        <div>${r.freestyles>=9?'✅':'⬜'} Min. 9 sesji freestyle (masz: ${r.freestyles})</div>
+        <div>${r.posts>=10?'✅':'⬜'} Min. 10 postów w FrameUp lub ChirpNet (masz: ${r.posts})</div>
+        <div style="color:#889;margin-top:8px">Pierwsza konsultacja: 1200 zł (po spełnieniu wymagań).</div>
+      </div>
+      ${_close}</div>`;
+    _mg.classList.add('on'); return;
+  }
+  if(!s.firstConsultationDone){
+    _mc.innerHTML=`<div style="background:#0a1418;border:2px solid #3498db;border-radius:10px;padding:18px;max-width:560px;margin:0 auto;color:#dfe3ee">
+      ${_head}
+      <div style="color:#cdd;font-size:13px;line-height:1.6;margin-bottom:12px">Nika Ray (creative strategist): <i>„OK. Masz opublikowany singiel — czyli istnieje coś, co można ludziom pokazać. To już więcej niż połowa osób, które tu wchodzą i mówią, że są ‚marką'. Pytanie: co chcesz zbudować?"</i></div>
+      <button class="bbtn" style="width:100%" ${(G.money||0)<1200?'disabled':''} onclick="window._s9Consultation()">Pierwsza konsultacja — 1200 zł ${(G.money||0)<1200?'(za mało kasy)':''}</button>
+      ${_close}</div>`;
+    _mg.classList.add('on'); return;
+  }
+  const _afterAvail=window._s9CanAfterRoom();
+  const _afterKnown=s.afterHoursUnlocked;
+  const camps=Object.keys(window._S9_CAMPAIGNS).map(id=>{ const c=window._S9_CAMPAIGNS[id]; const aff=(G.money||0)>=c.cost;
+    return `<div style="background:#0b1424;border:1px solid #1e3350;border-radius:8px;padding:9px 11px;margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="color:#dfe6f2;font-size:13px">${c.name}</b><span style="color:#e8a020;font-weight:700">${c.cost.toLocaleString('pl')} zł</span></div>
+      <div style="color:#8b98ab;font-size:11px;margin:3px 0 6px">${c.desc}</div>
+      <button class="cbtn" style="width:100%;font-size:12px;padding:6px" ${aff?'':'disabled'} onclick="window._s9BuyCampaign('${id}')">${aff?'Odpal kampanię':'Za mało gotówki'}</button></div>`; }).join('');
+  _mc.innerHTML=`<div style="background:#0a1418;border:2px solid #3498db;border-radius:10px;padding:16px;max-width:580px;margin:0 auto;color:#dfe3ee">
+    ${_head}
+    <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;font-size:11px;margin-bottom:10px">
+      <span style="background:#12243a;border-radius:10px;padding:3px 9px;color:#7ec8e3">Buzz ${s.socialBuzz||0}</span>
+      <span style="background:#12243a;border-radius:10px;padding:3px 9px;color:#9ee89e">Autentyczność ${Math.round(s.authenticity||60)}</span>
+      <span style="background:#12243a;border-radius:10px;padding:3px 9px;color:#c89eeb">Zaufanie marki ${Math.round(s.brandTrust||60)}</span>
+      <span style="background:#2a1518;border-radius:10px;padding:3px 9px;color:${(s.agencyHeat||0)>=30?'#e87':'#c8a'}">Heat ${Math.round(s.agencyHeat||0)}</span>
+    </div>
+    <div style="color:#7ec8e3;font-weight:700;font-size:12px;margin-bottom:6px">Kampanie</div>
+    ${camps}
+    <div style="color:#7ec8e3;font-weight:700;font-size:12px;margin:10px 0 6px">Szybkie działania</div>
+    <div style="display:flex;flex-direction:column;gap:5px">
+      <button class="cbtn" style="font-size:12px;padding:7px" onclick="window._s9Short()">🎬 Stwórz short / vertical (+buzz, +hype)</button>
+      <button class="cbtn" style="font-size:12px;padding:7px" onclick="window._s9Live()">🔴 Zrób live z fanami (+lojalność, +relacja)</button>
+      <button class="cbtn" style="font-size:12px;padding:7px" onclick="window._s9CrisisControl()">🧯 Crisis control (gasi aferę, −heat)</button>
+      <button class="cbtn" style="font-size:12px;padding:7px" onclick="if(typeof showMsg==='function')showMsg(window._s9NikaLine(),'f',7000)">💬 Porozmawiaj z Niką</button>
+      <button class="cbtn" style="font-size:12px;padding:7px;${_afterAvail?'border-color:#6a3a8a;color:#c89eeb':'opacity:.6'}" onclick="${_afterAvail?'window._s9AfterRoom()':"if(typeof showMsg==='function')showMsg('🔒 „To nie jest część oficjalnej oferty Signal Nine.”','i',4000)"}">🚪 Zamknięta strefa ${_afterAvail?'':'🔒'}</button>
+    </div>
+    ${_close}</div>`;
+  _mg.classList.add('on');
+  s.lastVisitDay=G.day||0;
+  /* Odkrycie drugiego dna: po kilku wizytach + po półświatku odblokuj wieczorny dostęp. */
+  if(!s.afterHoursUnlocked && s.campaignsCompleted>=1 && G.underworldIntro && (G.underworldIntro.completed||G.underworldIntro.state==='completed')){ window._s9UnlockAfterHours(); }
+};
+/* Ukryta strefa — After Room. Abstrakcyjna sprzedaż wybranym NPC (ZERO realnych instrukcji). */
+window._S9_AFTER_NPCS=[
+  {id:'mr_after', name:'Mr. After', mood:'wysokie ego', line:'„Ty jesteś od muzyki, tak? Słyszałem, że ogarniasz też inne tematy. Tylko bez ściemy — tu każdy coś dziś sprzedaje."', budget:'wysoki', tol:0.9},
+  {id:'manager_x', name:'Manager X', mood:'twardy negocjator', line:'„Ja nie biorę dla siebie. Pilnuję, żeby event przeszedł gładko. Jak cena będzie normalna, mogę Cię przedstawiać dalej."', budget:'średni', tol:0.75},
+  {id:'influencer_skandal', name:'Influencer po skandalu', mood:'chaotyczny', line:'„Jak ktoś pyta — nie widzieliśmy się. Dawaj szybko, zanim mój manager wróci."', budget:'wysoki, niestabilny', tol:0.6},
+  {id:'cichy_operator', name:'Cichy operator', mood:'spokojny, wie za dużo', line:'„Nie interesuje mnie Twój profil. Interesuje mnie, czy potrafisz trzymać słowo. Bez charakteru i tak jesteś do wynajęcia."', budget:'nieznany', tol:0.7},
+];
+window._s9AfterRoom=function(){
+  window._s9Ensure();
+  if(!window._s9CanAfterRoom()){ if(typeof showMsg==='function')showMsg('🔒 Zamknięta strefa działa tylko po godzinach i tylko dla wtajemniczonych.','i',4000); return; }
+  const _mg=document.getElementById('mg-job'), _mc=document.getElementById('mg-job-content'); if(!_mg||!_mc) return;
+  G.signalNine.afterRoomVisited=true;
+  const hasGood=window._s9HasContraband();
+  const npcRows=window._S9_AFTER_NPCS.map(n=>`<div style="background:#150a1e;border:1px solid #3a2450;border-radius:8px;padding:9px 11px;margin-bottom:6px">
+    <div style="display:flex;justify-content:space-between;align-items:center"><b style="color:#c89eeb;font-size:13px">${n.name}</b><span style="color:#8b7aab;font-size:10px">${n.mood} · budżet ${n.budget}</span></div>
+    <div style="color:#a898bd;font-size:11px;margin:4px 0 6px;font-style:italic">${n.line}</div>
+    <button class="cbtn" style="width:100%;font-size:11px;padding:6px;${hasGood?'border-color:#6a3a8a;color:#c89eeb':'opacity:.55'}" ${hasGood?'':'disabled'} onclick="window._s9AfterOffer('${n.id}')">${hasGood?'Zaproponuj towar (negocjuj)':'Nie masz teraz czego zaproponować'}</button>
+  </div>`).join('');
+  _mc.innerHTML=`<div style="background:#0a0810;border:2px solid #6a3a8a;border-radius:10px;padding:16px;max-width:580px;margin:0 auto;color:#dfe3ee">
+    <h2 style="color:#c89eeb;margin-top:0;text-align:center">🚪 After Room <span style="font-size:11px;color:#8b7aab">Signal Nine — po godzinach</span></h2>
+    <div style="color:#a898bd;font-size:12px;line-height:1.5;margin-bottom:10px">Za dnia to zwykła sala spotkań. Po godzinach — filtr dla osób, które nie chcą pisać na oficjalne maile. Uważaj: to medialni ludzie, ryzyko afery jest wyższe niż na ulicy. „Heat" agencji: <b style="color:${(G.signalNine.agencyHeat||0)>=30?'#e87':'#c8a'}">${Math.round(G.signalNine.agencyHeat||0)}</b>.</div>
+    ${npcRows}
+    <button class="cbtn" style="width:100%;margin-top:8px" onclick="window.renderS9Agency()">← Wróć do agencji</button>
+  </div>`;
+  _mg.classList.add('on');
+};
+window._s9AfterOffer=function(npcId){
+  window._s9Ensure(); const n=window._S9_AFTER_NPCS.find(x=>x.id===npcId); if(!n) return;
+  if(!window._s9HasContraband()){ if(typeof showMsg==='function')showMsg('Nie masz teraz nic, co ci ludzie chcieliby kupić.','i',3500); return; }
+  const _mg=document.getElementById('mg-job'), _mc=document.getElementById('mg-job-content'); if(!_mg||!_mc) return;
+  _mc.innerHTML=`<div style="background:#0a0810;border:2px solid #6a3a8a;border-radius:10px;padding:16px;max-width:560px;margin:0 auto;color:#dfe3ee">
+    <h2 style="color:#c89eeb;margin-top:0;text-align:center">Negocjacje — ${n.name}</h2>
+    <div style="color:#a898bd;font-size:12px;margin-bottom:8px">Nastrój: ${n.mood} · tolerancja ceny: ${Math.round(n.tol*100)}%. Zaproponuj jednostkę „towaru klubowego" (abstrakcyjnie). Za wysoka cena — odmówi, a ryzyko afery wzrośnie.</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <button class="cbtn" style="font-size:12px;padding:7px" onclick="window._s9AfterDeal('${npcId}','low')">Zaproponuj niską cenę (bezpieczniej)</button>
+      <button class="cbtn" style="font-size:12px;padding:7px" onclick="window._s9AfterDeal('${npcId}','fair')">Zaproponuj uczciwą cenę</button>
+      <button class="cbtn" style="font-size:12px;padding:7px" onclick="window._s9AfterDeal('${npcId}','high')">Zaproponuj wysoką cenę (chciwie)</button>
+      <button class="cbtn" style="font-size:12px;padding:7px" onclick="window._s9AfterRoom()">Zejdź z tematu</button>
+    </div>
+  </div>`;
+  _mg.classList.add('on');
+};
+window._s9AfterDeal=function(npcId,priceTier){
+  window._s9Ensure(); const n=window._S9_AFTER_NPCS.find(x=>x.id===npcId); if(!n) return;
+  if(!window._s9HasContraband()){ window._s9AfterRoom(); return; }
+  const base={low:350,fair:650,high:1100}[priceTier]||650;
+  const acceptP={low:0.9,fair:n.tol,high:n.tol*0.45}[priceTier];
+  const heatAdd={low:3,fair:5,high:9}[priceTier];
+  if(Math.random()<acceptP){
+    /* zdejmij 1 abstrakcyjną jednostkę produktu */
+    const prod=G.trapInv.products; const key=Object.keys(prod).find(k=>(prod[k]||0)>0);
+    if(key){ prod[key]=Math.max(0,prod[key]-1); }
+    G.money=(G.money||0)+base; window._s9Effect({agencyHeat:heatAdd});
+    if(typeof showMsg==='function') showMsg(`🤝 ${n.name} przyjął ofertę. +${base} zł. Ale takie rzeczy zostawiają ślad — „heat" agencji rośnie.`,'g',5500);
+  } else {
+    window._s9Effect({agencyHeat:Math.ceil(heatAdd/2)});
+    if(typeof showMsg==='function') showMsg(`🚫 ${n.name}: „Ty myślisz, że nie wiem, ile ludzie płacą po drugiej stronie miasta?" Nie doszło do transakcji, a plotka poszła.`,'r',5500);
+  }
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._s9AfterRoom();
+};
 const PATCH_NOTES = [
  {
  ver:'v2.3.102',date:'2026-07-01',cats:['fix','ui'],title:'Poprawki rozgrywki — telefon, dealer, ekonomia, interfejs',
@@ -58555,6 +58790,8 @@ const PATCH_NOTES = [
   {t:'fix',d:'Panel śledzenia wątku pobocznego nie zasłania już panelu „Cele" — ustawia się pod nim i przesuwa w dół, gdy rozwiniesz listę celów.'},
   {t:'fix',d:'Budka z kebabem (Zbyszek) nie podświetla się już po godzinach zamknięcia — zamknięta, nie reaguje na interakcję. Sama budka jest teraz solidną przeszkodą (nie przenikasz przez nią) i stoi nieco niżej, bliżej budynków.'},
   {t:'change',d:'Duże ławki na ulicach miasta (te, na których siadają przechodnie) są teraz wyraźnie mniejsze i nie zajmują już większości szerokości chodnika. Ławki w parku zostają bez zmian.'},
+  {t:'feature',d:'Nowa agencja marketingowa „S9 Agency" (Signal Nine) — dostępna z telefonu. Pomaga rozwijać zasięgi, wizerunek i sprzedaż. Odblokujesz współpracę po opublikowaniu utworu, kilku sesjach freestyle i postach w social mediach. Oferuje kampanie promocyjne (od spokojnych, lokalnych po ryzykowne i kontrowersyjne), shorty, live z fanami oraz gaszenie kryzysów wizerunkowych — każdy wybór ma swoje korzyści i ryzyka.'},
+  {t:'feature',d:'Agencja pokazuje też ciemniejszą stronę show-biznesu i ma swoje drugie dno — dostępne dopiero po godzinach i tylko dla graczy, którzy zaszli już w pewne rejony miasta. Uważaj: to medialni ludzie, a każdy nieostrożny ruch podnosi ryzyko afery.'},
  ]
  },
  {
@@ -72562,6 +72799,7 @@ function loadGame(){
      undefined/null, cały system trap się psuje (dealer crashował na `G.trap.unlocked`; gotowanie/sprzedaż mają
      guardy `if(!G.trap) return` = ciche nic). Init defaultów jeśli brakuje. Backward-safe: istniejący G.trap NIE ruszany. */
   if(!G.trap || typeof G.trap!=='object'){ G.trap={unlocked:false,level:1,xp:0,reputation:0,cooked:0,sold:0,busted:0,_lastCookDay:0,_lastSellDay:0,_jailUntilDay:0,heat:0,_maxHeatEver:0}; }
+  if(typeof window._s9Ensure==='function') window._s9Ensure(); /* v2.3.102 (PDF #7): save-safe init S9 Agency — stary save = defaulty, ZERO wstecz */
   if(_oldFansObj){
     G.haters=_oldFansObj.haters||0;
     G.fans=(_oldFansObj.casual||0)+(_oldFansObj.hardcore||0);
