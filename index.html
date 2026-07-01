@@ -2953,7 +2953,7 @@ const ROOMS = {
       {id:'parking',      wx:1056, wy:1548, w:1056,h:145, act:'parking:info',           prompt:'[E] 🅿️ Parking',               lbl:''},
       // NPCs w strefie centralnej (v2.1.6: rozrzucone)
       {id:'npc_producer', wx:1850, wy:308, w:34,h:56, act:'npc:producer',              prompt:'[E] Producent — Majkel',        lbl:''}, /* H1 north (288-384) — po prawej Studia */
-      {id:'npc_vendor',   wx:1528, wy:720, w:34,h:56, act:'npc:vendor',               prompt:'[E] Kebab Kingpin — Zbyszek',  lbl:'', actRadius:150}, /* D5 (PDF v2.3.45): nazwa „Kebab Kingpin" (było „Budka z kebabem") */
+      {id:'npc_vendor',   wx:1528, wy:735, w:34,h:56, act:'npc:vendor',               prompt:'[E] Kebab Kingpin — Zbyszek',  lbl:'', actRadius:150}, /* D5 (PDF v2.3.45): nazwa „Kebab Kingpin". v2.3.102 (PDF #8-6): wy720→735 — niżej, bliżej budynków mieszkalnych */
       /* v2.1.66 Amper: Crew przesunięte żeby h:56 mieściło się w chodniku H2 (1824-1920). Wcześniej wy:1870 + 56 = 1926 wystawało na drogę H2 (1920-2112). */
       {id:'npc_crew',     wx:2499, wy:1781,w:34,h:56, act:'npc:crew',                  prompt:'[E] Rekrutuj ekipę',            lbl:''}, /* v2.1.202 [Amper]: przesunięty z (2400,1860) → (2499,1781) per user request (P.wx/P.wy z konsoli). Pozycja: chodnik H2 north sidewalk (wy 1776-1872) tuż na wschód od V2 wsch chodnik (wx 2496+). */
       // ── STREFA POŁUDNIOWA wy=2208 (dół=2363, dotyka H2 south sidewalk wy=2207) ──
@@ -13434,7 +13434,10 @@ function updatePlayer(){
       // Prawy płotek dolny (r=23-25): y=1104-1248
       {wx:672-FT,wy:1104,w:FT,h:1248-1104},
     ];
-    const allCollide=[...bldgs,...DB_DECORATIVE,...parkFence];
+    /* v2.3.102 (PDF #8-6): budka kebaba to solidny obiekt — gracz przez nią nie przenika (wcześniej „powietrze"). Prostokąt liczony z pozycji npc_vendor (korpus budki, przód/lada zostaje dostępny). */
+    const _kebab=room.objects.find(o=>o.id==='npc_vendor');
+    const _kebabCol=_kebab?[{wx:_kebab.wx+_kebab.w/2-68, wy:_kebab.wy-115+_kebab.h-10, w:136, h:88}]:[];
+    const allCollide=[...bldgs,...DB_DECORATIVE,...parkFence,..._kebabCol];
     const pw=P.w,ph=P.h;
     // Try X movement first
     const testX={wx:nx,wy:P.wy};
@@ -13573,6 +13576,7 @@ function getNear(){
        Pomijamy w wykrywaniu dopóki nieodblokowana — spójnie z rysowaniem i interakcją. */
     if(obj.id==='hof_statue'&&!G._hasHallOfFameStatue) continue;
     if(obj.id==='npc_brokat' && !(typeof window._uwZ3Active==='function'&&window._uwZ3Active())) continue; /* v2.3.38: Brokat tylko w oknie Z3 */
+    if(obj.act==='npc:vendor' && typeof isPlaceOpen==='function' && !isPlaceOpen('npc:vendor').open) continue; /* v2.3.102 (PDF #8-6): budka Zbyszka bez highlight/prompt/[E] po godzinach — Zbyszka wtedy nie ma */
     if(!obj.act) continue; // pomiń dekoracyjne (lampy, krzewy, kosz)
     const isParkObj=['fountain','pond','skate','bboying','freestyle_spot','apt2_fountain'].includes(obj.id);
     const isDecorOnly=!obj.act || obj.id.startsWith('park_lamp')||obj.id.startsWith('park_bush')||obj.id==='park_trash';
@@ -58549,6 +58553,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'Pogoda jest teraz spójna między dzielnicami — jeśli w mieście pada, pada też w Underground, na wybrzeżu i w dzielnicy biznesowej. Wcześniej zmiana dzielnicy pozornie „resetowała" pogodę.'},
   {t:'change',d:'Kamperem możesz teraz zaparkować na miejskich parkingach, tak samo jak autem.'},
   {t:'fix',d:'Panel śledzenia wątku pobocznego nie zasłania już panelu „Cele" — ustawia się pod nim i przesuwa w dół, gdy rozwiniesz listę celów.'},
+  {t:'fix',d:'Budka z kebabem (Zbyszek) nie podświetla się już po godzinach zamknięcia — zamknięta, nie reaguje na interakcję. Sama budka jest teraz solidną przeszkodą (nie przenikasz przez nią) i stoi nieco niżej, bliżej budynków.'},
  ]
  },
  {
