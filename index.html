@@ -1845,6 +1845,18 @@ document.addEventListener('keydown', e => {
       if(typeof showMsg==='function') showMsg('🚐 Kamperem jeździsz po ulicy i w dzielnicach miasta.','r');
     }
   }
+  /* v2.3.102 (PDF #8-30): klawisz L = panel zaplecza mobilnego kampera (tylko gdy jesteś W kamperze). P zajęty przez telefon. Dostępny dla WSZYSTKICH właścicieli kampera (nie tylko półświatek). */
+  if((e.key==='l'||e.key==='L') && !_busyMG){
+    if(typeof window._camperEnsure==='function') window._camperEnsure();
+    if(G._inCamper){
+      const _ph=document.getElementById('phone');
+      if(_ph && !_ph.classList.contains('on') && typeof togglePhone==='function') togglePhone();
+      if(typeof renderCamperPanel==='function') renderCamperPanel();
+      else if(typeof renderPhoneApp==='function') renderPhoneApp('trap');
+    } else if(G.camper && G.camper.owned){
+      if(typeof showMsg==='function') showMsg('🚐 Panel zaplecza (L) otwierasz siedząc W kamperze — podejdź do niego i wsiądź klawiszem K.','i',4200);
+    }
+  }
   if(e.key==='m'||e.key==='M'){
     if(!_busyMG){
       if(document.getElementById('fullmap-overlay')) document.getElementById('fullmap-overlay').remove();
@@ -24817,9 +24829,12 @@ function progressQuest(target){
     /* U7 (PDF v2.3.45): po PIERWSZEJ „światowej" pracy dorywczej (nie-Gigi) jednorazowa wskazówka
        o szybkich pracach „Gigi" w telefonie (Kariera → Gigi). Flaga jednorazowa; modal tylko gdy to
        faktycznie pierwsza praca (weteranom ze starych save'ów nie wyskakuje). */
-    if(['pizza','supermarket','carwash','construction','kurier','zmywak'].includes(target) && !G._gigiInfoShown){
-      G._gigiInfoShown=true;
-      if((G._jobsCompleted||0)<=1 && typeof window._showGigiInfo==='function') window._showGigiInfo();
+    if(['pizza','supermarket','carwash','construction','kurier','zmywak'].includes(target)){
+      G._mapJobDone=true; /* v2.3.102 (PDF #8-8): odblokowuje sekcję „Gigi" w telefonie po 1. pracy dorywczej na mapie */
+      if(!G._gigiInfoShown){
+        G._gigiInfoShown=true;
+        if((G._jobsCompleted||0)<=1 && typeof window._showGigiInfo==='function') window._showGigiInfo();
+      }
     }
   }
   /* v2.1.627 (system przedmiotów krok 3 — questowe): pętla "Pilna przesyłka". Na trasie kuriera czasem dostajesz
@@ -39239,7 +39254,7 @@ function renderSalon(){
     </div>
     <p style="color:#667;font-size:14px;margin-bottom:12px">Aktualnie: ${G.car?'🚗 '+carDisplayName(G.car.name)+' <span style="display:inline-block;width:14px;height:14px;background:'+G.car.color+';border-radius:3px;vertical-align:middle;margin-left:4px"></span>':'Brak samochodu (poruszasz się pieszo)'}</p>
     <button class="bbtn" style="margin-bottom:12px;background:#1a1430;border-color:#6c3483" onclick="window.renderCamperShop('citydrive')">🚐 Kampery (pojazdy specjalne) — mobilne zaplecze</button>
-    ${(G.car||((G.carInv&&((G.carInv.items&&G.carInv.items.length)||G.carInv.cash>0))))?`<button class="bbtn" style="margin-bottom:12px" onclick="window.openCarInv()">🚗 Bagażnik / schowek auta (rzeczy + gotówka)</button>`:''}
+    <!-- v2.3.102 (PDF #8-27): pozycja „Bagażnik / schowek auta" USUNIĘTA ze sklepu — schowek jest dostępny tylko w POSIADANYM pojeździe (ekwipunek / panel pojazdu), nie w salonie. -->
     ${G.car?`<div style="background:#0a1220;border-radius:10px;padding:12px;margin-bottom:14px">
       <div style="font-size:13px;color:#aaa;margin-bottom:8px">🎨 Kolor lakieru (bezpłatna zmiana):</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">${carPalette.map(p=>`<button onclick="window.setCarColor('${p.c}')" title="${p.name}" style="width:32px;height:32px;background:${p.c};border-radius:50%;border:${curColor===p.c?'3px solid #fff':'2px solid #333'};cursor:pointer"></button>`).join('')}</div>
@@ -50021,6 +50036,12 @@ function renderPhoneApp(app){
         </div>`).join(''):'<div style="font-size:11px;color:#667">Brak przedmiotów do wystawienia. Sprzęt/kosztowności znajdziesz na ulicy, z kradzieży, lub zdejmij założony ekwipunek (klawisz I).</div>'}
       </div>`;
   } else if(app==='gigs'){
+    /* v2.3.102 (PDF #8-8): „Gigi" zablokowane, dopóki gracz nie wykona ≥1 pracy dorywczej NA MAPIE (myjnia/zmywak/budowa/kurier/pizza/supermarket). Grandfather: stary save z historią prac. */
+    const _gigsUnlocked = G._mapJobDone || G._gigiInfoShown || (G._jobsCompleted||0)>=3;
+    if(!_gigsUnlocked){
+      ph.innerHTML=`<div class="ph-screen"><div style="background:#0a1220;border:1px solid #2a3a50;border-radius:10px;padding:18px;text-align:center;color:#9aa;font-size:13px;line-height:1.6">🔒 <b style="color:#7ec8e3">Gigi jeszcze niedostępne</b><br><br>Najpierw wykonaj przynajmniej jedną pracę dorywczą w mieście — na mapie (myjnia, zmywak, plac budowy, kurier, pizzeria albo supermarket). Wtedy odblokujesz tu szybkie zlecenia „Gigi".</div></div>`;
+      return;
+    }
     /* v2.1.904 (PDF — prace dorywcze): tablica zleceń „Gigi". Reużywalny kontener — kolejne prace dorywcze dopisujesz do GIG_DEFS.
        Każdy gig: minigra (window[fn]) + payout w earn() + koszt energii. Bez hard-cooldownów (feedback_no_job_cooldowns — limiter naturalny = energia/głód). */
     const _ks=(typeof getSeason==='function')?getSeason():{id:1};
@@ -58511,6 +58532,9 @@ const PATCH_NOTES = [
   {t:'feature',d:'U Korka wybierzesz teraz kampera według budżetu: najtańszy „byleby jeździł", średnia półka, model mniej rzucający się w oczy, albo pełna lista. Kolor nazw kamperów w salonie poprawiony na czytelny.'},
   {t:'feature',d:'Kampera kupionego od Korka możesz mu później odsprzedać — ale dopiero po 14 dniach od zakupu i wyłącznie za połowę ceny. Wcześniej Korek tylko kręci nosem. Pojazd musi być pusty, sprawny i zaparkowany. Po sprzedaży możesz kupić kolejnego.'},
   {t:'change',d:'Kontakt „Gym Bro" w telefonie ma teraz zestaw dopasowanych odpowiedzi zależnych od treści wiadomości (zamiast stałego „Dzięki / Zadzwoń / Ignoruj") — odpowiesz bardziej po swojemu, a on Ci odpisze.'},
+  {t:'change',d:'Schowek/bagażnik pojazdu otwierasz teraz wyłącznie będąc w posiadanym aucie lub kamperze — pozycja zniknęła z oferty salonu CityDrive (tam jej miejsca nie było).'},
+  {t:'change',d:'Mobilne zaplecze kampera otwierasz teraz klawiszem L (wcześniej „P", który koliduje z telefonem) — siedząc w kamperze.'},
+  {t:'change',d:'Szybkie zlecenia „Gigi" w telefonie odblokowują się po wykonaniu pierwszej pracy dorywczej w mieście, na mapie (myjnia, zmywak, budowa, kurier, pizzeria lub supermarket).'},
  ]
  },
  {
