@@ -13536,9 +13536,19 @@ function getNear(){
         :(facesSouth?(py>doorY-10&&py<doorY+doorMargin):(py>doorY-doorMargin&&py<doorY+10));
       if(hOverlap&&vNear) return obj.id;
     } else {
-      const dx=px-(obj.wx+obj.w/2);
-      const dy=py-(obj.wy+obj.h/2);
-      if(Math.hypot(dx,dy)<90) return obj.id;
+      /* v2.3.101 (beta tester: „czasami problem z interakcją z dealerem"): dzielnice (Underground/Coast/Business)
+         mają duże budynki 140×130 — okrąg detekcji r=90 od ŚRODKA NIE pokrywał rogów (półprzekątna 95.5>90) ANI
+         podejścia od strony drogi (gracz stał NAD budynkiem jak przy drzwiach = poza okręgiem). Runtime: 45% pozycji
+         wokół dealera + CAŁE podejście od góry → getNear=null → E nic nie robiło. Fix: detekcja AABB+margines
+         (jak budynki na ulicy). Interior rooms (studio/kasyno) BEZ zmian — obiekty tam blisko siebie. */
+      if(currentRoom==='underground'||currentRoom==='coast'||currentRoom==='business'){
+        const m=32;
+        if(px>obj.wx-m && px<obj.wx+obj.w+m && py>obj.wy-m && py<obj.wy+obj.h+m) return obj.id;
+      } else {
+        const dx=px-(obj.wx+obj.w/2);
+        const dy=py-(obj.wy+obj.h/2);
+        if(Math.hypot(dx,dy)<90) return obj.id;
+      }
     }
   }
   // Przebieg 2: NPC i małe obiekty (tylko gdy żaden budynek nie pasuje)
@@ -58338,6 +58348,12 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.101',date:'2026-07-01',cats:['beta-tester','fix'],title:'🤝 Dealer w Underground — pewniejsza interakcja',
+ items:[
+  {t:'fix',d:'🤝 Naprawiliśmy zgłoszony przez beta-testera problem, przez który interakcja z Dealerem w Underground czasami nie działała. Wcześniej trzeba było stanąć niemal na środku budynku — gdy podchodziłeś od strony drogi albo od rogu, przycisk [E] potrafił nie zareagować. Teraz Dealer i pozostałe lokale w dzielnicach reagują z każdej strony, tak jak budynki w głównym mieście.'},
+ ]
+ },
  {
  ver:'v2.3.100',date:'2026-07-01',cats:['fix','ui'],title:'🛠️ Poprawki wizualne — dzielnice, znaki, ławki, kamper',
  items:[
