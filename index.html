@@ -50570,6 +50570,8 @@ window._smsSend=function(contactId,text,opts){
   }
   // Opcjonalna akcja po otrzymaniu SMS (np. quick offer)
   if(opts&&opts.action) G.sms.conversations[contactId][G.sms.conversations[contactId].length-1].action=opts.action;
+  /* v2.3.98 (PDF #2/#3): tag zestawu kontekstowych odpowiedzi (np. 'freestyle'/'jobs' dla Kamila) — steruje przyciskami w renderSMSConversation. */
+  if(opts&&opts.replySet) G.sms.conversations[contactId][G.sms.conversations[contactId].length-1].replySet=opts.replySet;
   return true;
 };
 // Trigger SMS tylko raz w grze (dla milestone-based events)
@@ -51292,7 +51294,7 @@ window._smsCheckTriggers=function(){
   if(G.totalEarned>=1000) _smsTriggerOnce('1k_earned','zbyszek',`Hej ${G.name||'kolego'}, jak idzie biznes? Wpadnij na kebaba, mam dla Ciebie zniżkę 🌮`);
   // — Pierwszy freestyle
   /* v2.1.336 Faza K (user 2026-05-27 "'ostro spaliłeś' brzmi jak coś negatywnego"): zamiana na pozytywny slang. */
-  if(freestyles>=1) _smsTriggerOnce('first_freestyle','kamil','widzialem ten freestyle na ulicy 🔥 zajechałeś ostro! tak trzymaj');
+  if(freestyles>=1) _smsTriggerOnce('first_freestyle','kamil','widzialem ten freestyle na ulicy 🔥 zajechałeś ostro! tak trzymaj',{replySet:'freestyle'});
   // — Pierwszy track
   /* v2.1.337 Faza T (user 2026-05-27): SMS Producent mówi o 5 single (analog do quest p_3tracks target 5, spójne z aktualnymi licznikami). */
   if(tracks>=1) _smsTriggerOnce('first_track','producent',`Yo, ${G.name||'kolego'}! Twój track wpadł mi w ucho. Jak zrobisz 5 single — pogadamy o kontrakcie 🎚️`);
@@ -51750,13 +51752,15 @@ window.renderSMSConversation=function(contactId){
         const _c=SMS_CONTACTS[contactId];
         const _smsOnly=_c && _c.physical===false;
         const _replyCounter=`<div style="background:#0a1525;border-left:3px solid #3498db;padding:6px 10px;margin-bottom:6px;font-size:10.5px;color:#aac">📨 <b>${_unrepliedCount}</b> do odpowiedzi · Odpowiadasz na: <span style="color:#cdd;font-style:italic">"${(_firstUnreplied?.text||'').slice(0,80)}${(_firstUnreplied?.text||'').length>80?'…':''}"</span></div>`;
-        /* fan — fani nie zapraszają do wizyty, fani dziękują */
+        /* fan — v2.3.98 (PDF #3): kontekstowe odpowiedzi (każda z własnym tekstem) zamiast generycznego „Wkrótce nowy track"→„Spoko, zadzwonię..." */
         if(contactId==='fan'){
-          return `${_replyCounter}<div style="display:flex;gap:4px;flex-wrap:wrap">
-            <button onclick="_smsQuickReply('${contactId}','thanks')" style="flex:1;background:#1a3525;border:1px solid #2a6a3a;color:#9ee89e;padding:8px;border-radius:6px;cursor:pointer;font-size:12px">❤️ Dzięki za support (+1 przyjaźń)</button>
-            <button onclick="_smsQuickReply('${contactId}','call')" style="flex:1;background:#2a1a35;border:1px solid #6a3a8a;color:#c89eeb;padding:8px;border-radius:6px;cursor:pointer;font-size:12px">🎤 Wkrótce nowy track (+2 przyjaźń)</button>
-            <button onclick="_smsQuickReply('${contactId}','later')" style="flex:1;background:#352525;border:1px solid #6a3a3a;color:#e89e9e;padding:8px;border-radius:6px;cursor:pointer;font-size:11px">— Ignoruj (-1 przyjaźń)</button>
-          </div>`;
+          return `${_replyCounter}`+window._smsRichButtons('fan',['thanks_support','more_music','doing_own','share_it','right_moment','fan_ignore']);
+        }
+        /* Kamil (Stary kumpel) — v2.3.98 (PDF #2): kontekstowe odpowiedzi (zestaw wg replySet wiadomości: freestyle albo zlecenia). */
+        if(contactId==='kamil'){
+          const _setId=(_firstUnreplied&&_firstUnreplied.replySet==='freestyle')?'freestyle':'jobs';
+          const _kids=Object.keys(window._KAMIL_REPLIES).filter(k=>window._KAMIL_REPLIES[k].set===_setId);
+          return `${_replyCounter}`+window._smsRichButtons('kamil',_kids);
         }
         /* system / bank — automaty, gracz nie buduje "przyjaźni" */
         if(contactId==='system'||contactId==='bank'){
@@ -52057,6 +52061,79 @@ window._smsQuickReply=function(contactId,type){
     }
   }
   if(typeof showMsg==='function' && r.note) showMsg(`💬 ${r.note}`,'f',3500);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+/* ═══ v2.3.98 (PDF #2/#3): kontekstowe odpowiedzi SMS dla Fanów i Kamila (Stary kumpel) ═══
+   Naprawia bug: „Spoko, zadzwonię później pogadać" wysyłane niezależnie od wybranej opcji.
+   Każda opcja ma własny tekst (text) + efekty (fx) mapowane na realne staty (npcFriendship/publicRep/streetRep/…).
+   Wzór strukturalny: kantar A/B/C/D. Odpowiedzi Kamila różne od Fanów (ton „stary kumpel"). */
+window._FAN_REPLIES={
+  thanks_support:{label:'❤️ Dzięki za support (+lojalność)', text:'Dzięki, serio. Takie wiadomości dają mi paliwo, żeby cisnąć dalej.', fx:{fanLoyalty:1,fanRelationship:1,artistMood:1}},
+  more_music:{label:'🔥 Będzie więcej muzyki (+hype)', text:'Dzięki! Siedzę nad kolejnymi rzeczami. Jak to dowiozę, będzie jeszcze mocniej.', fx:{fanHype:2,fanRelationship:1}},
+  doing_own:{label:'🎤 Najpierw robię swoje (+respekt)', text:'Doceniam. Collaby przyjdą w swoim czasie, ale najpierw chcę zbudować własną tożsamość.', fx:{streetRespect:1,fanLoyalty:1}},
+  share_it:{label:'📢 Puść to dalej ludziom (+zasięg)', text:'Dzięki! Jak czujesz ten numer, podeślij go dalej. Niech idzie między ludzi.', fx:{fanHype:1,fanRelationship:1,followersSmall:true}},
+  right_moment:{label:'🤝 Jak będzie dobry moment (+relacja)', text:'Jak przyjdzie dobry moment i dobra energia, to czemu nie. Na razie robię krok po kroku.', fx:{fanRelationship:1,fanHype:1}},
+  fan_ignore:{label:'— Zostaw bez odpowiedzi (-lojalność)', text:null, fx:{fanLoyalty:-1,ignoredFan:true}},
+};
+window._KAMIL_REPLIES={
+  jobs_remember:{set:'jobs', label:'👊 Pamiętam, odezwę się po robotę (+przyjaźń)', text:'Pamiętam, stary. Jak będę potrzebował szybkiej kasy, to uderzę do Ciebie.', fx:{kamilFriendship:1,kamilTrust:1}},
+  jobs_details:{set:'jobs', label:'💰 Co masz teraz na oku? (+przyjaźń)', text:'Dobra, to dawaj konkrety. Co masz teraz na oku?', fx:{kamilFriendship:2}, action:'kamilJobs'},
+  jobs_banter:{set:'jobs', label:'😏 Już mnie liczysz jak stałego klienta? (+humor)', text:'Już mnie liczysz jak stałego klienta? Spokojnie, jak będzie krucho, pierwszy się dowiesz.', fx:{kamilFriendship:1,artistMood:1}},
+  jobs_music:{set:'jobs', label:'🎯 Na razie cisnę muzykę', text:'Na razie cisnę muzykę. Jak mi się budżet posypie, to wrócę po Twoje tematy.', fx:{careerFocus:1}},
+  jobs_ignore:{set:'jobs', label:'— Zignoruj (-przyjaźń)', text:null, fx:{kamilFriendship:-1,ignoredKamil:true}},
+  free_warmup:{set:'freestyle', label:'🔥 Widziałeś? To był dopiero rozruch (+respekt)', text:'Widziałeś? To był dopiero rozruch. Następnym razem będzie jeszcze pewniej.', fx:{kamilFriendship:1,streetRespect:1}},
+  free_honest:{set:'freestyle', label:'😂 Myślałem, że polegnę (+humor)', text:'Stary, przez chwilę myślałem, że polegnę. Ale jak weszło, to już poszło samo.', fx:{kamilFriendship:1,artistMood:1}},
+  free_confident:{set:'freestyle', label:'🎯 Kto tu oddycha bitem (+respekt)', text:'Trzeba było pokazać, kto tu oddycha bitem. Nie mogłem wejść tam jak statysta.', fx:{streetRespect:2}},
+  free_friend:{set:'freestyle', label:'👊 Dobrze to słyszeć od Ciebie (+przyjaźń)', text:'Dzięki, stary. Od Ciebie to akurat dobrze usłyszeć, bo pamiętasz mnie sprzed tego całego zamieszania.', fx:{kamilFriendship:2,kamilTrust:1}},
+  free_ignore:{set:'freestyle', label:'— Zostaw na później (-przyjaźń)', text:null, fx:{kamilFriendship:-1,ignoredKamil:true}},
+};
+window._applySmsRichEffect=function(fx){
+  fx=fx||{};
+  if(typeof _newpdfEnsure==='function') _newpdfEnsure();
+  if(!G.publicRep||typeof G.publicRep!=='object') G.publicRep={brandSafety:60,fanLoyalty:60,sponsorTrust:60,bookingTrust:60};
+  const c01=(v)=>Math.max(0,Math.min(100,v));
+  if(fx.kamilFriendship && typeof addFriendship==='function') addFriendship('kamil',fx.kamilFriendship);
+  if(fx.fanRelationship && typeof addFriendship==='function') addFriendship('fan',fx.fanRelationship);
+  if(fx.streetRespect) G.streetRep=c01((G.streetRep||0)+fx.streetRespect);
+  if(fx.fanLoyalty) G.publicRep.fanLoyalty=c01((G.publicRep.fanLoyalty||60)+fx.fanLoyalty);
+  if(fx.fanHype) G._fanRel.hype=Math.max(0,(G._fanRel.hype||0)+fx.fanHype);
+  if(fx.kamilTrust) G._kamilRel.trust=c01((G._kamilRel.trust||0)+fx.kamilTrust);
+  if(fx.artistMood) G.stress=c01((G.stress||0)+fx.artistMood); /* G.stress = MOOD (high=zen), +1 = lepszy nastrój */
+  if(fx.careerFocus && typeof addXP==='function') addXP(fx.careerFocus*3); /* brak systemu „focus" → mały XP zamiast ghost-statu */
+  if(fx.followersSmall){ G.followers=(G.followers||0)+(2+Math.floor(Math.random()*5)); }
+  if(fx.ignoredKamil){ G._kamilRel.ignored=(G._kamilRel.ignored||0)+1; }
+  if(fx.ignoredFan){ G._fanRel.ignored=(G._fanRel.ignored||0)+1; }
+};
+window._smsKamilJobsAction=function(){
+  if(typeof _newpdfEnsure==='function') _newpdfEnsure();
+  G._kamilRel.jobsUnlocked=true; G._kamilRel.trust=Math.min(100,(G._kamilRel.trust||0)+1);
+  if(typeof showMsg==='function') showMsg('👊 Kamil: „Dobra, mam parę tematów. Rozejrzyj się za pracami dorywczymi w mieście — dam znać, jak coś grubszego wpadnie."','f',5500);
+};
+window._smsRichButtons=function(contactId,ids){
+  const reg=(contactId==='fan')?window._FAN_REPLIES:window._KAMIL_REPLIES;
+  return '<div style="display:flex;flex-direction:column;gap:5px">'+ids.map((id,n)=>{
+    const o=reg[id]; if(!o) return '';
+    const isIgnore=/ignore/.test(id);
+    const bg=isIgnore?'#352525':(n%2===0?'#1a3525':'#2a1a35');
+    const col=isIgnore?'#6a3a3a':(n%2===0?'#2a6a3a':'#6a3a8a');
+    const fg=isIgnore?'#e89e9e':(n%2===0?'#9ee89e':'#c89eeb');
+    return `<button onclick="_smsRichReply('${contactId}','${id}')" style="text-align:left;background:${bg};border:1px solid ${col};color:${fg};padding:8px 10px;border-radius:6px;cursor:pointer;font-size:12px">${o.label}</button>`;
+  }).join('')+'</div>';
+};
+window._smsRichReply=function(contactId,replyId){
+  const conv=(G.sms&&G.sms.conversations&&G.sms.conversations[contactId])||[];
+  if(conv.length===0) return;
+  let idx=-1;
+  for(let i=conv.length-1;i>=0;i--){ if(conv[i].from==='me') continue; if(conv[i]._replied) continue; idx=i; break; }
+  if(idx<0){ if(typeof showMsg==='function') showMsg('💬 Już odpowiedziałeś na wszystkie wiadomości od tego kontaktu. Poczekaj na nowe.','r',4500); return; }
+  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='kamil')?window._KAMIL_REPLIES:null;
+  const opt=reg&&reg[replyId];
+  if(!opt) return;
+  conv[idx]._replied=true;
+  if(opt.text!==null && typeof _smsReply==='function') _smsReply(contactId,opt.text);
+  _applySmsRichEffect(opt.fx);
+  if(opt.action==='kamilJobs') _smsKamilJobsAction();
+  if(typeof renderSMSConversation==='function') renderSMSConversation(contactId);
   if(typeof saveGameSilent==='function') saveGameSilent();
 };
 /* v1.9.79: zaliczenie wizyty przy podejściu do NPC */
@@ -57881,6 +57958,14 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.98',date:'2026-07-01',cats:['ui','fix'],title:'💬 Wiadomości — sensowne odpowiedzi fanom i Kamilowi',
+ items:[
+  {t:'fix',d:'💬 Naprawiliśmy odpowiedzi na wiadomości w telefonie. Wcześniej różne przyciski (na przykład „Wkrótce nowy track" u fana) wysyłały tę samą, niepasującą wiadomość o oddzwonieniu. Teraz każda opcja wysyła własny, pasujący do sytuacji tekst.'},
+  {t:'change',d:'❤️ Fani: nowy zestaw odpowiedzi — podziękuj za wsparcie, zapowiedz nową muzykę, poproś o podanie numeru dalej, złap dobry moment albo zostaw bez odpowiedzi. Każda ma inny drobny efekt: lojalność fanów, hype, zasięg lub uliczny respekt.'},
+  {t:'change',d:'👊 Kamil (stary kumpel): odpowiedzi dopasowane do tematu wiadomości. Inaczej reagujesz, gdy pisze o zleceniach, a inaczej, gdy chwali Twój freestyle. Ton luźny, kumpelski — buduje przyjaźń, zaufanie i uliczny respekt.'},
+ ]
+ },
  {
  ver:'v2.3.97',date:'2026-07-01',cats:['ui','fix'],title:'✂️ Barber Point — nowy, czytelny panel z podglądem na żywo',
  items:[
