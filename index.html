@@ -72356,6 +72356,10 @@ function loadGame(){
   if(typeof window._sanitizePlayerLists==='function') window._sanitizePlayerLists();
   if(typeof window._underworldEnsure==='function') window._underworldEnsure(); /* v2.3.38: save-safe init modułu „Numer zastrzeżony" — stary save = quest nierozpoczęty, ZERO wstecz */
   if(typeof window._newpdfEnsure==='function') window._newpdfEnsure(); /* v2.3.97: save-safe init SMS Kamil/Fani + turnieje breakdance/skate — stary save = defaulty, ZERO wstecz */
+  /* v2.3.101 (beta tester: „interakcja z dealerem kompletnie nie działała"): ROOT-root — gdy save ma G.trap
+     undefined/null, cały system trap się psuje (dealer crashował na `G.trap.unlocked`; gotowanie/sprzedaż mają
+     guardy `if(!G.trap) return` = ciche nic). Init defaultów jeśli brakuje. Backward-safe: istniejący G.trap NIE ruszany. */
+  if(!G.trap || typeof G.trap!=='object'){ G.trap={unlocked:false,level:1,xp:0,reputation:0,cooked:0,sold:0,busted:0,_lastCookDay:0,_lastSellDay:0,_jailUntilDay:0,heat:0,_maxHeatEver:0}; }
   if(_oldFansObj){
     G.haters=_oldFansObj.haters||0;
     G.fans=(_oldFansObj.casual||0)+(_oldFansObj.hardcore||0);
