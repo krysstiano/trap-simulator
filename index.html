@@ -26084,6 +26084,7 @@ function tickDecay(){
   if(typeof maybeAutoSubmitScores==='function') maybeAutoSubmitScores();
   // v1.9.9 Faza 3: sprawdź triggery SMS od NPC (raz per tick — _smsTriggerOnce zapobiega duplikatom)
   if(typeof _smsCheckTriggers==='function') _smsCheckTriggers();
+  if(typeof window._tournamentReminderCheck==='function') window._tournamentReminderCheck(); /* v2.3.99 (PDF #4/#5): przypomnienie turniejowe po 3 dniach (postponed/ignored) */
   /* v1.9.20: Pogoda min 1 timeOfDay slot przed kolejną zmianą + bias 60% słońca */
   const _wTime=(G.day||0)*4+(G.timeOfDay||0);
   if(_wTime>(G._lastWeatherTime||0) && Math.random()<.012){
@@ -46312,6 +46313,7 @@ function startSkateparkMG(){
     const _bonusLine = ` · +${fitGainSk} kondycji${(moneyTips>0||followerGain>0||fameGain>0) ? ` · +${moneyTips} zł napiwków · +${followerGain} obs.${fameGain>0?` · +${fameGain} sławy (mega combo!)`:''}`:''}`;
     notify(`🛹 Skate zakończony! Score: ${score}, Max Combo: ${maxCombo}x. +${repGain} rep uliczna${_bonusLine}`);
     updateHUD();
+    if(typeof window._disciplineParkComplete==='function') window._disciplineParkComplete('skate',score); /* v2.3.99 (PDF #5): licznik dobrych przejazdów + milestone 5/10 */
     cx.fillStyle='rgba(0,0,0,.8)';cx.fillRect(0,0,700,330);
     cx.fillStyle='#f1c40f';cx.font='bold 30px Arial';cx.textAlign='center';
     cx.fillText(`Score: ${score}  |  Max Combo: ${maxCombo}x`,350,140);
@@ -46900,6 +46902,7 @@ function startBreakdanceMG(){
     addXP(Math.floor(score/8));
     notify(`💃 Breakdance! Score: ${score}, max combo x${maxCombo}. +${repGain} rep, +${fitGainBb} kondycji${formaGainBb>0?`, +${formaGainBb} formy`:''}, +${fansGain} fanów${followersBonus>0?`, +${followersBonus} obs.`:''}!`);
     updateHUD();
+    if(typeof window._disciplineParkComplete==='function') window._disciplineParkComplete('breakdance',score); /* v2.3.99 (PDF #4): licznik dobrych występów + milestone 5/10 */
     cx.fillStyle='rgba(0,0,0,0.8)';cx.fillRect(0,0,700,300);
     cx.fillStyle='#e74c3c';cx.font='bold 30px Arial';cx.textAlign='center';
     cx.fillText(`Score: ${score} | Combo: x${maxCombo}`,350,140);
@@ -50482,6 +50485,8 @@ const SMS_CONTACTS={
   /* v2.1.228 audit-fix #48: Crew BYL physical:false ale istnieje fizyczny NPC `npc_crew` na chodniku H2 north (wx:2499, wy:1781) — gracz tam rekrutuje DJ/grafika/menadżera. */
   crew:      {name:'Ekipa',                    em:'👥', color:'#3498db', physical:true},
   gymbro:    {name:'Gym Bro',                  em:'💪', color:'#e67e22', physical:false}, /* v2.1.179: Gym Bro SMS contact (wcześniej osobny G.gymBroMessages array, NIE pojawiał się w Wiadomości) */
+  maya_voss: {name:'Maya Voss (Urban Flow)',   em:'💃', color:'#e84393', physical:false}, /* v2.3.99 (PDF #4): organizatorka turniejów breakdance */
+  jade_mercer:{name:'Jade Mercer (Concrete Pulse)', em:'🛹', color:'#00b894', physical:false}, /* v2.3.99 (PDF #5): organizatorka contestów skate */
   kantar:    {name:'Numer zastrzeżony',         em:'📵', color:'#9b59b6', physical:true}, /* v2.3.38 moduł „Numer zastrzeżony" — nadawca SMS (broker Kantar w Velvet Room); name→„Kantar” po ukończeniu questa (mutowane w TIER 8) */
 };
 function _ensureSMS(){
@@ -51762,6 +51767,21 @@ window.renderSMSConversation=function(contactId){
           const _kids=Object.keys(window._KAMIL_REPLIES).filter(k=>window._KAMIL_REPLIES[k].set===_setId);
           return `${_replyCounter}`+window._smsRichButtons('kamil',_kids);
         }
+        /* Organizatorki turniejów (Maya Voss / Jade Mercer) — v2.3.99 (PDF #4/#5): odpowiedzi wg replySet (tour_invite/tour_rules). */
+        if(contactId==='maya_voss'||contactId==='jade_mercer'){
+          const _rs=(_firstUnreplied&&_firstUnreplied.replySet)||'';
+          if(_rs==='tour_invite'||_rs==='tour_rules'){
+            const _set=(_rs==='tour_rules')?'rules':'invite';
+            const _tids=Object.keys(window._TOUR_REPLIES).filter(k=>window._TOUR_REPLIES[k].set===_set);
+            const _tbtns='<div style="display:flex;flex-direction:column;gap:5px">'+_tids.map(id=>{
+              const o=window._TOUR_REPLIES[id]; const isIg=/ignore/.test(id);
+              const bg=isIg?'#352525':'#152535', col=isIg?'#6a3a3a':'#3a6a8a', fg=isIg?'#e89e9e':'#bfe3ff';
+              return `<button onclick="_tournamentReply('${contactId}','${id}')" style="text-align:left;background:${bg};border:1px solid ${col};color:${fg};padding:8px 10px;border-radius:6px;cursor:pointer;font-size:12px">${o.label}</button>`;
+            }).join('')+'</div>';
+            return `${_replyCounter}${_tbtns}`;
+          }
+          return `<div style="background:#0a1a0a;border:1px solid #1a4a1a;border-radius:6px;padding:8px 10px;font-size:11px;color:#7ec87e;text-align:center;font-style:italic">✓ Ustalone. Zajrzyj do wątku pobocznego i wejdź na miejsce turnieju.</div>`;
+        }
         /* system / bank — automaty, gracz nie buduje "przyjaźni" */
         if(contactId==='system'||contactId==='bank'){
           return `${_replyCounter}<div style="display:flex;gap:4px;flex-wrap:wrap">
@@ -52135,6 +52155,115 @@ window._smsRichReply=function(contactId,replyId){
   if(opt.action==='kamilJobs') _smsKamilJobsAction();
   if(typeof renderSMSConversation==='function') renderSMSConversation(contactId);
   if(typeof saveGameSilent==='function') saveGameSilent();
+};
+/* ═══ v2.3.99 (PDF #4 Breakdance + #5 Skateboarding): scieżka turniejowa ═══
+   Wspólny silnik dla obu dyscyplin — konfiguracja per dyscyplina + współdzielone funkcje.
+   Postęp: park (liczniki dobrych występów) → milestone 5 (zapowiedź) → 10 (SMS zaproszenie od organizatorki)
+   → akceptacja → walkable-mapa → turniej 60s → nagrody → cykliczne turnieje. Stan w G.breakdance / G.skate. */
+window._DISC_CFG={
+  breakdance:{ key:'breakdance', label:'Breakdance', unit:'występ', unitG:'występów', unitAdj:'dobry występ',
+    orgId:'maya_voss', orgName:'Maya Voss', orgLabel:'Urban Flow Academy', event:'Underground Floor Battle',
+    room:'urban_flow_academy_hall', rankStart:'Park Rookie',
+    ranks:['Park Rookie','Floor Rookie','Local Spinner','Battle Regular','Underground Dancer'],
+    txt:{
+      invite:'Cześć! Widziałam kilka Twoich wejść w parku. Masz jeszcze sporo chaosu w ruchu, ale masz też timing, którego nie da się udawać. Organizujemy mały turniej Underground Floor Battle — początkujący poziom, lokalna sala, proste zasady i nagrody za podium. Jeśli chcesz sprawdzić, czy to był tylko parkowy fart, odpisz.',
+      accept:'Dobrze. Sala Urban Flow Academy, wejście od tyłu budynku. Turniej trwa jedną rundę kwalifikacyjną i finałową ocenę punktową. Przyjdź wyspany i przygotowany — na sali sesje będą znacznie dłuższe niż w parku.',
+      rules:'Jedna minuta na parkiecie. Dłuższe sekwencje niż w parku, mniej czasu na reakcję i punkty za combosy. Podium: 3. miejsce 500 zł, 2. miejsce 1000 zł, 1. miejsce 2500 zł. Bezbłędne wejście podbija nagrodę do 5000 zł.',
+      postpone:'Rozsądnie. Nie każdy musi wskakiwać na parkiet od razu. Napisz, kiedy będziesz gotowy — tylko pamiętaj, że turnieje nie czekają wiecznie.',
+      decline:'Jasne. Parkiet nie znika. Jeśli zmienisz zdanie, wróć do treningów w parku. Numer masz.',
+      reminder:'Hej. Wciąż masz otwarte miejsce na Underground Floor Battle. Nie będę Cię ciągnąć za rękę, ale jeśli chcesz wejść na salę, to teraz jest dobry moment.',
+    }
+  },
+  skate:{ key:'skate', label:'Skateboarding', unit:'przejazd', unitG:'przejazdów', unitAdj:'dobry przejazd',
+    orgId:'jade_mercer', orgName:'Jade Mercer', orgLabel:'Concrete Pulse Skate Club', event:'Concrete Line Jam',
+    room:'concrete_pulse_indoor_spot', rankStart:'Park Pusher',
+    ranks:['Park Pusher','Line Rookie','Rail Finder','Concrete Regular','Spot Killer'],
+    txt:{
+      invite:'Cześć. Widziałam kilka Twoich przejazdów w parku. Masz jeszcze trochę do poprawy przy lądowaniach, ale za to masz timing i odwagę wejścia. Robimy lokalny contest Concrete Line Jam — początkujący poziom, zamknięty spot, proste zasady i nagrody za podium. Jeśli chcesz się przekonać, czy parkowe tricki działają pod presją, odezwij się.',
+      accept:'Dobrze. Concrete Pulse Indoor Spot, wejście od bocznej rampy. Contest trwa jedną rundę punktowaną. Masz minutę na line, tricki i combosy. Przyjdź wyspany i skupiony — jeden źle wbity input potrafi zniweczyć cały przejazd.',
+      rules:'Jedna minuta na spocie. Dłuższa sesja i kombinacje niż w parku, mniej czasu na reakcję i mocne punkty za combosy. Podium: 3. miejsce 500 zł, 2. miejsce 1000 zł, 1. miejsce 2500 zł. Bezbłędny przejazd podbija nagrodę do 5000 zł.',
+      postpone:'Rozsądnie. Na desce ego kończy się szybciej niż cały przejazd. Napisz, kiedy będziesz gotowy — miejsce nie będzie czekać wiecznie.',
+      decline:'Jasne. Spot nie znika. Jeśli zmienisz zdanie, wróć do przejazdów w parku. Pozdrawiam.',
+      reminder:'Wciąż masz otwarte miejsce na Concrete Line Jam. Nie będę Cię ściągać z ławki, ale jeśli chcesz wejść na spot, to teraz jest na to idealny moment.',
+    }
+  },
+};
+window._discByOrg=function(orgId){ for(const k in window._DISC_CFG){ if(window._DISC_CFG[k].orgId===orgId) return window._DISC_CFG[k]; } return null; };
+/* Zakończenie eventu parkowego — licznik dobrych występów + milestone 5/10. Wołane z endBboy/endSkate. */
+window._disciplineParkComplete=function(discKey,score){
+  if(typeof _newpdfEnsure==='function') _newpdfEnsure();
+  const d=G[discKey], cfg=window._DISC_CFG[discKey]; if(!d||!cfg) return;
+  d.unlocked=true;
+  d.parkRunsCompleted=(d.parkRunsCompleted||0)+1;
+  if(score>=450){
+    d.goodParkRuns=(d.goodParkRuns||0)+1;
+    window._checkDisciplineMilestones(discKey);
+  }
+};
+window._checkDisciplineMilestones=function(discKey){
+  const d=G[discKey], cfg=window._DISC_CFG[discKey]; if(!d||!cfg) return;
+  const g=d.goodParkRuns||0;
+  if(g===5 && typeof showMsg==='function'){
+    showMsg(`🏅 ${cfg.label}: ludzie zaczynają kojarzyć Twoje występy w parku. Jeszcze kilka ${cfg.unitG} z wynikiem 450+ i przyciągniesz uwagę organizatorów lokalnego turnieju. Postęp: ${g}/10.`,'f',7500);
+  }
+  if(g>=10 && !d.tournamentInviteReceived){
+    window._sendDisciplineTournamentInvite(discKey);
+  }
+};
+window._sendDisciplineTournamentInvite=function(discKey){
+  const d=G[discKey], cfg=window._DISC_CFG[discKey]; if(!d||!cfg) return;
+  d.tournamentInviteReceived=true; d.tournamentState='invited'; d.inviteDay=G.day||0;
+  if(typeof _smsSend==='function') _smsSend(cfg.orgId, cfg.txt.invite, {replySet:'tour_invite', bypass:true});
+};
+/* Odpowiedzi na SMS zaproszenia/zasady od organizatorki (PDF §10/§28/§30). set: 'invite' | 'rules' */
+window._TOUR_REPLIES={
+  tour_accept:{set:'invite', label:'✅ Wchodzę w to. Gdzie i kiedy?', text:'Cześć! Wchodzę w to. Gdzie i kiedy? Poproszę o daty, adres i godziny — zobaczymy, czy park to był tylko rozruch.', action:'accept'},
+  tour_rules:{set:'invite', label:'❓ Najpierw chcę poznać zasady', text:'Hej. Najpierw chcę poznać zasady. Ile trwa wejście, co jest punktowane i za co są nagrody?', action:'rules'},
+  tour_postpone:{set:'invite', label:'⏳ Nie teraz, odezwę się później', text:'Cześć! Dzięki za propozycję, ale nie mogę się teraz tego podjąć. Odezwę się później.', action:'postpone'},
+  tour_decline:{set:'invite', label:'🚫 Odpuśćmy, to nie mój kierunek', text:'Cześć. Dzięki za propozycję, ale odpuszczam temat. To chyba nie mój kierunek. Pozdrawiam.', action:'decline'},
+  tour_ignore:{set:'invite', label:'— Zignoruj', text:null, action:'ignore'},
+  rules_signup:{set:'rules', label:'✅ Dobra, zapisuj mnie', text:'Dobra, zapisuj mnie. Wchodzę.', action:'accept'},
+  rules_notyet:{set:'rules', label:'⏳ Jeszcze nie teraz', text:'Jeszcze nie teraz, ale nie zamykam tematu.', action:'postpone'},
+  rules_decline:{set:'rules', label:'🚫 Odpuszczam', text:'Odpuszczam temat. Dzięki za info.', action:'decline'},
+};
+window._tournamentReply=function(contactId,replyId){
+  const cfg=window._discByOrg(contactId); if(!cfg) return;
+  const conv=(G.sms&&G.sms.conversations&&G.sms.conversations[contactId])||[];
+  let idx=-1; for(let i=conv.length-1;i>=0;i--){ if(conv[i].from==='me') continue; if(conv[i]._replied) continue; idx=i; break; }
+  if(idx<0){ if(typeof showMsg==='function') showMsg('💬 Już odpowiedziałeś na tę wiadomość.','r',4000); return; }
+  const opt=window._TOUR_REPLIES[replyId]; if(!opt) return;
+  const d=G[cfg.key];
+  conv[idx]._replied=true;
+  if(opt.text!==null && typeof _smsReply==='function') _smsReply(contactId, opt.text);
+  if(opt.action==='accept'){
+    d.tournamentState='accepted';
+    if(typeof _smsSend==='function') _smsSend(contactId, cfg.txt.accept, {bypass:true});
+    if(typeof showMsg==='function') showMsg(`🎯 Nowy wątek: ${cfg.event}. Udaj się do lokacji „${cfg.orgLabel}" i weź udział w turnieju.`,'f',6500);
+  } else if(opt.action==='rules'){
+    if(typeof _smsSend==='function') _smsSend(contactId, cfg.txt.rules, {replySet:'tour_rules', bypass:true});
+  } else if(opt.action==='postpone'){
+    d.tournamentState='postponed'; d.tournamentReminderAvailable=true; d.inviteDay=G.day||0;
+    if(typeof _smsSend==='function') _smsSend(contactId, cfg.txt.postpone, {bypass:true});
+  } else if(opt.action==='decline'){
+    d.tournamentState='declined';
+    if(typeof _smsSend==='function') _smsSend(contactId, cfg.txt.decline, {bypass:true});
+  } else if(opt.action==='ignore'){
+    d.tournamentState='ignored'; d.organizerRelation=(d.organizerRelation||0)-1;
+  }
+  if(typeof renderSMSConversation==='function') renderSMSConversation(contactId);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+/* Przypomnienie po 3 dniach gry (postponed/ignored). Wołane z nextPeriod. */
+window._tournamentReminderCheck=function(){
+  for(const k in window._DISC_CFG){
+    const d=G[k], cfg=window._DISC_CFG[k]; if(!d||!cfg) continue;
+    if((d.tournamentState==='postponed'||d.tournamentState==='ignored') && !d.firstTournamentCompleted){
+      if(((G.day||0)-(d.inviteDay||0))>=3){
+        d.inviteDay=G.day||0; d.tournamentState='invited';
+        if(typeof _smsSend==='function') _smsSend(cfg.orgId, cfg.txt.reminder, {replySet:'tour_invite', bypass:true});
+      }
+    }
+  }
 };
 /* v1.9.79: zaliczenie wizyty przy podejściu do NPC */
 window._smsCheckPendingVisit=function(contactId){
