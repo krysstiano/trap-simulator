@@ -3218,6 +3218,23 @@ const ROOMS = {
     ]
   },
 
+  /* v2.3.99 (PDF #4): walkable arena turnieju breakdance — Urban Flow Academy Hall. Wejście z parku (obiekt breakdance gdy tournamentState=accepted/completed). */
+  urban_flow_academy_hall: {
+    wT:27, hT:14, map:null,
+    objects:[
+      {id:'uf_start', wx:520,wy:150, w:260,h:150, act:'tour_start:breakdance', prompt:'[E] 🏆 Wejdź na turniej — porozmawiaj z Mayą', lbl:'Parkiet'},
+      {id:'uf_exit',  wx:90, wy:560, w:62, h:62,  act:'goto:ulica:380:960', prompt:'[E] Wyjście', lbl:'Wyjście'},
+    ]
+  },
+  /* v2.3.99 (PDF #5): walkable arena contestu skate — Concrete Pulse Indoor Spot. */
+  concrete_pulse_indoor_spot: {
+    wT:27, hT:14, map:null,
+    objects:[
+      {id:'cp_start', wx:520,wy:150, w:260,h:150, act:'tour_start:skate', prompt:'[E] 🏆 Wejdź na contest — porozmawiaj z Jade', lbl:'Spot'},
+      {id:'cp_exit',  wx:90, wy:560, w:62, h:62,  act:'goto:ulica:150:1200', prompt:'[E] Wyjście', lbl:'Wyjście'},
+    ]
+  },
+
   /* v2.1.385 Faza C' TIER 5 (user 2026-05-28 wymóg 1): Coast District jako fizyczna mapa (NIE overlay).
      Size 30×20 tiles = 1440×960 px. Tropical estetyka — water na N, sand center, park palmy.
      Gracz wchodzi przez gate_coast w ulica → changeRoom('coast') → spawn po południowej krawędzi (gracz przyszedł z N gate_coast = N edge map ulica → spawn S Coast).
@@ -3785,7 +3802,11 @@ function drawSprite(id,sx,sy,w,h){
     case 'exit_b':
     case 'exit_fr':
     case 'exit_casino':
+    case 'uf_exit':
+    case 'cp_exit':
     case 'exit_h':      drawDoor(sx,sy,w,h);break;
+    case 'uf_start':    drawTournamentStartMarker(sx,sy,w,h,'#e84393');break; /* v2.3.99 (PDF #4) */
+    case 'cp_start':    drawTournamentStartMarker(sx,sy,w,h,'#00b894');break; /* v2.3.99 (PDF #5) */
     case 'casino_slot1':
     case 'casino_slot2':
     case 'casino_slot3': drawCasinoSlot(sx,sy,w,h);break;
@@ -5033,6 +5054,8 @@ function drawCasinoRoyalDecorations(){
 }
 function drawRoomDecorations(){
   if(currentRoom==='silownia') drawSilowniaDecorations();
+  else if(currentRoom==='urban_flow_academy_hall') drawTournamentArenaDecorations('breakdance'); /* v2.3.99 (PDF #4) */
+  else if(currentRoom==='concrete_pulse_indoor_spot') drawTournamentArenaDecorations('skate'); /* v2.3.99 (PDF #5) */
   else if(currentRoom==='studio') drawStudioDecorations();
   else if(currentRoom==='mieszkanie') drawMieszkanieDecorations();
   else if(currentRoom==='mieszkanie_premium') drawPremiumDecorations();
@@ -5186,6 +5209,47 @@ window._tryPetDog=function(){
   return true;
 };
 
+/* v2.3.99 (PDF #4/#5): dekoracje walkable-areny turnieju (tło: parkiet/beton, taśmy line, głośniki, stół jurorski, baner, logo, DJ, publiczność). Rysowane jako tło (nie kolizyjne). */
+function drawTournamentArenaDecorations(discKey){
+  const cfg=(window._DISC_CFG&&window._DISC_CFG[discKey])||{event:'Turniej',orgLabel:''};
+  const isSkate=discKey==='skate';
+  const floorX=wx2sx(60), floorY=wy2sy(215), floorW=1176, floorH=320;
+  X.fillStyle=isSkate?'#3a3d42':'#5a3b1e'; X.fillRect(floorX,floorY,floorW,floorH);
+  X.strokeStyle=isSkate?'#2c2f34':'#4a2f16'; X.lineWidth=2;
+  for(let i=1;i<12;i++){ const lx=floorX+i*(floorW/12); X.beginPath();X.moveTo(lx,floorY);X.lineTo(lx,floorY+floorH);X.stroke(); }
+  X.strokeStyle=isSkate?'#e0c040':'#e8e8e8'; X.lineWidth=4; X.setLineDash([18,12]);
+  X.beginPath(); X.moveTo(floorX+floorW/2,floorY+10); X.lineTo(floorX+floorW/2,floorY+floorH-10); X.stroke(); X.setLineDash([]);
+  const wallY=wy2sy(38); X.fillStyle='#14171f'; X.fillRect(wx2sx(40),wallY,1216,112);
+  X.fillStyle=isSkate?'#00b894':'#e84393'; X.font='bold 22px "Segoe UI",Arial,sans-serif'; X.textAlign='center';
+  X.fillText((cfg.orgLabel||'').toUpperCase(), wx2sx(648), wallY+40);
+  X.fillStyle='rgba(0,0,0,.55)'; X.fillRect(wx2sx(360),wallY+56,576,40);
+  X.fillStyle='#fff'; X.font='bold 18px "Segoe UI",Arial,sans-serif';
+  X.fillText('🏆 '+(cfg.event||''), wx2sx(648), wallY+83); X.textAlign='left';
+  [wx2sx(66),wx2sx(1164)].forEach(sx=>{ X.fillStyle='#111'; X.fillRect(sx,wy2sy(235),52,150); X.fillStyle='#333'; X.beginPath();X.arc(sx+26,wy2sy(275),17,0,Math.PI*2);X.fill(); X.beginPath();X.arc(sx+26,wy2sy(335),11,0,Math.PI*2);X.fill(); });
+  X.fillStyle='#2a1c10'; X.fillRect(wx2sx(440),wy2sy(560),400,42); X.font='11px "Segoe UI",Arial,sans-serif'; X.textAlign='center'; X.fillStyle='#cbb'; X.fillText('STÓŁ JURORSKI', wx2sx(640), wy2sy(586)); X.textAlign='left';
+  X.fillStyle='#181818'; X.fillRect(wx2sx(120),wy2sy(500),86,42); X.font='20px Arial'; X.fillText('🎧', wx2sx(150), wy2sy(528));
+  const audC=['#e74c3c','#3498db','#f1c40f','#27ae60','#9b59b6','#e67e22','#1abc9c'];
+  for(let i=0;i<8;i++){ const ax=wx2sx(190+i*128), ay=wy2sy(178); X.fillStyle=audC[i%audC.length]; X.beginPath();X.arc(ax,ay,9,0,Math.PI*2);X.fill(); X.fillRect(ax-7,ay+7,14,18); }
+  X.font='16px Arial'; X.fillText('🥤', wx2sx(1078), wy2sy(520)); X.fillText('🎥', wx2sx(1118), wy2sy(520));
+  if(isSkate){ X.fillStyle='#2e3136'; X.beginPath(); X.moveTo(wx2sx(84),wy2sy(535)); X.quadraticCurveTo(wx2sx(84),wy2sy(430),wx2sx(200),wy2sy(430)); X.lineTo(wx2sx(200),wy2sy(535)); X.fill(); }
+}
+/* v2.3.99: marker startu turnieju (podium ze spotlightem + trofeum) — obiekt „Wejdź na turniej" w arenie. */
+function drawTournamentStartMarker(sx,sy,w,h,col){
+  X.save();
+  // poświata spotlightu
+  const cx=sx+w/2, cy=sy+h/2;
+  const g=X.createRadialGradient(cx,cy,6,cx,cy,Math.max(w,h)*0.7);
+  g.addColorStop(0,(col||'#e84393')+'55'); g.addColorStop(1,'rgba(0,0,0,0)');
+  X.fillStyle=g; X.fillRect(sx-20,sy-20,w+40,h+40);
+  // podium
+  X.fillStyle='#0e1420'; X.strokeStyle=col||'#e84393'; X.lineWidth=3;
+  const rr=12, x=sx+10, y=sy+18, ww=w-20, hh=h-30;
+  X.beginPath(); X.moveTo(x+rr,y); X.arcTo(x+ww,y,x+ww,y+hh,rr); X.arcTo(x+ww,y+hh,x,y+hh,rr); X.arcTo(x,y+hh,x,y,rr); X.arcTo(x,y,x+ww,y,rr); X.closePath(); X.fill(); X.stroke();
+  // trofeum + napis
+  X.textAlign='center'; X.font='30px Arial'; X.fillText('🏆', cx, cy-2);
+  X.fillStyle='#fff'; X.font='bold 13px "Segoe UI",Arial,sans-serif'; X.fillText('WEJDŹ NA TURNIEJ', cx, y+hh-10);
+  X.textAlign='left'; X.restore();
+}
 function drawSilowniaDecorations(){
   // Lustro na ścianie północnej (pełna szerokość)
   const mx=wx2sx(50),my=wy2sy(58),mw=780,mh=52;
@@ -13670,14 +13734,29 @@ function handleAct(act,objId){
   } else if(act==='skate'){
     /* v2.1.617 Faza Q (user: gating early-game — mechaniki od lvl 2, gracz musi najpierw popracować dorywczo). */
     if(!_earlyGate('Skatepark')) return;
+    /* v2.3.99 (PDF #5): jeśli otwarty turniej — wybór trening/contest. */
+    if(window._disciplineTournamentAvailable && window._disciplineTournamentAvailable('skate') && typeof gameConfirm==='function'){
+      gameConfirm(`🏆 Masz otwarty contest ${window._DISC_CFG.skate.event}. Wejść na osobny spot i wystartować? „Nie" = zwykły trening w parku.`, ()=>{ window._enterTournamentArena('skate'); }, ()=>{ if((G.energy||0)<10){showMsg('⚡ Za mało energii (potrzeba 10)','r');return;} startSkateparkMG(); });
+      return;
+    }
     /* v2.1.138: dodano energy gate (asymetria z freestyle L8932 — wcześniej skatepark mógł być uruchomiony z 0 energii). Skatepark zużywa -10 energii w trakcie. */
     if((G.energy||0)<10){showMsg('⚡ Za mało energii (potrzeba 10)','r');return;}
     startSkateparkMG();return;
   } else if(act==='bboy'){
     if(!_earlyGate('Breakdance')) return;
+    /* v2.3.99 (PDF #4): jeśli otwarty turniej — wybór trening/turniej. */
+    if(window._disciplineTournamentAvailable && window._disciplineTournamentAvailable('breakdance') && typeof gameConfirm==='function'){
+      gameConfirm(`🏆 Masz otwarty turniej ${window._DISC_CFG.breakdance.event}. Wejść na osobną salę i wystartować? „Nie" = zwykły trening w parku.`, ()=>{ window._enterTournamentArena('breakdance'); }, ()=>{ if((G.energy||0)<8){showMsg('⚡ Za mało energii (potrzeba 8)','r');return;} startBreakdanceMG(); });
+      return;
+    }
     /* v2.1.138: dodano energy gate (asymetria z freestyle L8932). Breakdance zużywa -8 energii. */
     if((G.energy||0)<8){showMsg('⚡ Za mało energii (potrzeba 8)','r');return;}
     startBreakdanceMG();return;
+  } else if(act.startsWith('tour_start:')){
+    /* v2.3.99 (PDF #4/#5): start turnieju z wnętrza areny (obiekt „Wejdź na turniej"). */
+    const _disc=act.split(':')[1];
+    if(typeof startDisciplineTournament==='function') startDisciplineTournament(_disc);
+    return;
   } else if(act==='zlomowisko'){
     /* v2.1.916 (PDF — nowa lokacja): złomowisko = fizyczny punkt sortowania złomu. Uruchamia istniejącą minigrę sortowania (startScrapMG ma własną bramkę energii ≥6 i intro). */
     if(typeof startScrapMG==='function') startScrapMG(); return;
@@ -50726,8 +50805,19 @@ window._sqReservedActive=function(){
   if(!obj) return null;
   return { id:'reserved_phone', titlePL:'Zastrzeżony telefon', step, totalSteps:3, group, objective:obj };
 };
+/* v2.3.99 (PDF #4/#5): resolver wątku turniejowego (breakdance/skate) — pokazuje cel po akceptacji zaproszenia. */
+window._sqTournamentActive=function(){
+  if(!window._DISC_CFG) return null;
+  for(const k in window._DISC_CFG){
+    const d=G[k], cfg=window._DISC_CFG[k]; if(!d||!cfg) continue;
+    if(d.tournamentState==='accepted'){
+      return { id:'tour_'+k, titlePL:cfg.event, step:1, totalSteps:1, group:'Turniej', objective:`Wejdź na aktywność „${cfg.label}" w parku i wystartuj w turnieju (nagrody do 5000 zł).` };
+    }
+  }
+  return null;
+};
 /* Rejestr resolverów — uniwersalny dla przyszłych questów. Pierwszy aktywny = śledzony (1 panel naraz). */
-window._SQ_RESOLVERS=[window._sqReservedActive];
+window._SQ_RESOLVERS=[window._sqReservedActive, window._sqTournamentActive];
 window._sqActive=function(){
   if(typeof G==='undefined'||!G) return null;
   for(const r of (window._SQ_RESOLVERS||[])){ try{ const q=r(); if(q&&q.objective) return q; }catch(e){} }
@@ -52189,6 +52279,19 @@ window._DISC_CFG={
   },
 };
 window._discByOrg=function(orgId){ for(const k in window._DISC_CFG){ if(window._DISC_CFG[k].orgId===orgId) return window._DISC_CFG[k]; } return null; };
+/* Czy turniej dostępny (po akceptacji zaproszenia albo cykliczny po 7 dniach od ostatniego). */
+window._disciplineTournamentAvailable=function(discKey){
+  if(typeof _newpdfEnsure==='function') _newpdfEnsure();
+  const d=G[discKey]; if(!d) return false;
+  if(d.tournamentState==='accepted') return true;
+  if(d.firstTournamentCompleted && ((G.day||0)-(d.lastTournamentDay||0))>=7) return true;
+  return false;
+};
+/* Wejście do walkable-areny (changeRoom). */
+window._enterTournamentArena=function(discKey){
+  const cfg=window._DISC_CFG[discKey]; if(!cfg) return;
+  if(typeof changeRoom==='function') changeRoom(cfg.room, 640, 430);
+};
 /* Zakończenie eventu parkowego — licznik dobrych występów + milestone 5/10. Wołane z endBboy/endSkate. */
 window._disciplineParkComplete=function(discKey,score){
   if(typeof _newpdfEnsure==='function') _newpdfEnsure();
@@ -52263,7 +52366,140 @@ window._tournamentReminderCheck=function(){
         if(typeof _smsSend==='function') _smsSend(cfg.orgId, cfg.txt.reminder, {replySet:'tour_invite', bypass:true});
       }
     }
+    /* Cykliczny turniej — po 7 dniach od ostatniego, jednorazowe zaproszenie SMS (PDF §23/§25). */
+    if(d.firstTournamentCompleted && d.tournamentState==='completed' && ((G.day||0)-(d.lastTournamentDay||0))>=7){
+      d.tournamentState='invited'; d.inviteDay=G.day||0;
+      if(typeof _smsSend==='function') _smsSend(cfg.orgId, `Organizujemy kolejną odsłonę ${cfg.event}. Tym razem skład jest mocniejszy, ale Ty też nie jesteś już pierwszą osobą z łapanki. Chcesz wejść?`, {replySet:'tour_invite', bypass:true});
+    }
   }
+};
+/* ═══ v2.3.99: silnik turnieju (60s) — wspólny dla breakdance i skate ═══
+   Ruchy per tier trudności; combo/scoring/NPC/nagrody wg PDF #4 §16-20 / #5 §16-22. */
+window._DISC_MOVES={
+  breakdance:{
+    easy:[{n:'Freeze',s:['↑','↑'],p:60},{n:'Toprock',s:['←','→'],p:60},{n:'Kick Out',s:['→','→','↓'],p:70}],
+    medium:[{n:'6-Step',s:['↓','←','↓','→'],p:90},{n:'Windmill',s:['←','↓','→','↑'],p:90},{n:'Headspin',s:['↑','←','↓','→'],p:100},{n:'Swipe',s:['←','↑','→','↓'],p:100}],
+    hard:[{n:'Power Combo',s:['↓','←','↑','→','↓'],p:130},{n:'Threading',s:['←','→','↓','←','↑'],p:130},{n:'Elbow Spin',s:['→','↑','←','↓','→'],p:140}],
+    final:[{n:'Power Round',s:['→','↓','←','↑','→','↓'],p:180},{n:'Final Burn',s:['↑','←','↓','→','↑','→'],p:180}],
+  },
+  skate:{
+    easy:[{n:'Ollie',s:['Space'],p:60},{n:'Nollie',s:['Space','↑'],p:60},{n:'Kickflip',s:['Space','←'],p:70}],
+    medium:[{n:'360 Flip',s:['Space','↑','←'],p:90},{n:'Hardflip',s:['Space','↓','→'],p:90},{n:'Varial Kickflip',s:['Space','←','↓'],p:100},{n:'Boardslide Out',s:['→','Space','→','↓'],p:110}],
+    hard:[{n:'360 Flip Revert',s:['Space','↑','←','↓'],p:130},{n:'Hardflip Manual',s:['Space','↓','→','↑'],p:130},{n:'Nollie 180 Out',s:['Space','↑','←','→'],p:130}],
+    final:[{n:'Tre Flip Line',s:['Space','↑','←','↓','→'],p:180},{n:'Kickflip Manual Out',s:['Space','←','↑','↑','→'],p:180},{n:'Final Concrete Line',s:['Space','↑','←','↓','→','Space'],p:220}],
+  },
+};
+window._tourComboMult=function(c){ return c>=15?1.6:c>=10?1.4:c>=6?1.25:c>=3?1.1:1.0; };
+window._tourDifficulty=function(elapsed){ if(elapsed<15) return 'easy_medium'; if(elapsed<35) return 'medium'; if(elapsed<50) return 'hard'; return 'final'; };
+window._tourTier=function(discKey){ const d=G[discKey]; const rp=(d&&d.rankPoints)||0; return rp>=24?3:rp>=8?2:1; };
+window._tourNpcScore=function(tier){ const R=(a,b)=>a+Math.floor(Math.random()*(b-a+1)); if(tier>=3) return R(2500,4500); if(tier===2) return R(1600,3200); return R(900,2200); };
+window._tourNpcNames=function(discKey){ return discKey==='skate'?['Mila „Grip” Carter','Oskar „Rail” Nowak','Eli „Kick” Rhodes','Nadia „Deck” Grey']:['Lena „Switch” Morel','Igor „Kicks” Vane','Tomek „Slide” Rogal','Nadia „Spin” Grey']; };
+window._tourPlacement=function(playerScore,npcScores){ const all=npcScores.slice().concat([{name:'__player__',score:playerScore}]).sort((a,b)=>b.score-a.score); const place=all.findIndex(x=>x.name==='__player__')+1; return {place, table:all}; };
+window._tourReward=function(place,perfect){ let m=0; if(place===1)m=2500; else if(place===2)m=1000; else if(place===3)m=500; if(place===1&&perfect) m=5000; return {money:m}; };
+window._tourApplyResult=function(discKey,res){
+  if(typeof _newpdfEnsure==='function') _newpdfEnsure();
+  const d=G[discKey], cfg=window._DISC_CFG[discKey]; if(!d||!cfg) return;
+  if(res.money>0){ if(typeof earn==='function') earn(res.money,false); else { G.money=(G.money||0)+res.money; G.totalEarned=(G.totalEarned||0)+res.money; } }
+  d.firstTournamentCompleted=true; d.lastTournamentDay=G.day||0; d.tournamentState='completed';
+  d.rankPoints=(d.rankPoints||0)+Math.max(1,Math.floor((res.playerScore||0)/300));
+  const ri=Math.min(cfg.ranks.length-1, Math.floor((d.rankPoints||0)/8));
+  d.rank=cfg.ranks[ri];
+  let fameG=0, repG=0, fansG=0;
+  if(res.place===1){ fameG=3; repG=5; fansG=3+Math.floor(Math.random()*4); }
+  else if(res.place<=3){ fameG=1; repG=3; fansG=1+Math.floor(Math.random()*2); }
+  else { repG=1; }
+  if(fameG>0){ if(typeof addFame==='function') addFame(fameG); else G.fame=Math.min(500,(G.fame||0)+fameG); }
+  if(repG>0) G.streetRep=Math.max(0,Math.min(100,(G.streetRep||0)+repG));
+  if(fansG>0 && typeof addFans==='function') addFans(fansG);
+  if(typeof updateHUD==='function') updateHUD();
+};
+/* Finalizacja turnieju: NPC → miejsce → nagroda → aplikacja → ekran wyników. Wołane z overlaya po 60s (i przez judge z zadanym score). */
+window._tourFinish=function(discKey,playerScore,perfect,maxCombo,mistakes){
+  const cfg=window._DISC_CFG[discKey]; if(!cfg) return null;
+  const tier=window._tourTier(discKey);
+  const names=window._tourNpcNames(discKey);
+  const npc=names.map(n=>({name:n,score:window._tourNpcScore(tier)}));
+  const pl=window._tourPlacement(playerScore,npc);
+  const rw=window._tourReward(pl.place,perfect);
+  const res={playerScore:playerScore,place:pl.place,money:rw.money,perfect:!!perfect,maxCombo:maxCombo||0,mistakes:mistakes||0};
+  window._tourApplyResult(discKey,res);
+  if(typeof window._tourShowResults==='function') window._tourShowResults(discKey,res,pl);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return res;
+};
+window._tourShowResults=function(discKey,res,pl){
+  const cfg=window._DISC_CFG[discKey];
+  let ov=document.getElementById('tour-ov'); if(!ov){ ov=document.createElement('div'); ov.id='tour-ov'; document.body.appendChild(ov); }
+  ov.style.cssText='position:fixed;inset:0;z-index:9000;background:rgba(4,6,12,.94);display:flex;align-items:center;justify-content:center;font-family:inherit';
+  const podium=res.place===1?'🥇 1. MIEJSCE':res.place===2?'🥈 2. MIEJSCE':res.place===3?'🥉 3. MIEJSCE':`${res.place}. miejsce`;
+  const perfLine=res.perfect?'<div style="color:#ffd54a;font-weight:800;font-size:18px;margin:6px 0">✨ PERFECT — bez błędu!</div>':'';
+  const money=res.money>0?`<div style="color:#7ec87e;font-size:22px;font-weight:800;margin:8px 0">Nagroda: ${res.money.toLocaleString('pl')} zł</div>`:'<div style="color:#889;margin:8px 0">Poza podium — bez nagrody pieniężnej.</div>';
+  const dlg = res.place===1?'Teraz już wiem, że park to nie był przypadek. Masz rytm, nerw i nie uciekasz pod presją.'
+    : res.place<=3?'Nie wygrałeś, ale nie przyszedłeś po dekorację. Popracuj nad końcówkami sekwencji — tam uciekają punkty.'
+    : 'Sala to nie park. Wróć do treningu i spróbuj jeszcze raz.';
+  ov.innerHTML=`<div style="background:#0c1424;border:1px solid #24374f;border-radius:16px;padding:28px 34px;max-width:460px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.6)">
+    <div style="color:#9ab;letter-spacing:2px;font-size:12px;text-transform:uppercase">${cfg.event} — wyniki</div>
+    <div style="color:#fff;font-size:28px;font-weight:800;margin:10px 0">${podium}</div>
+    ${perfLine}
+    <div style="color:#cde;font-size:14px;margin:4px 0">Twój wynik: <b>${res.playerScore}</b> pkt · najdłuższe combo x${res.maxCombo} · błędy: ${res.mistakes}</div>
+    ${money}
+    <div style="color:#9ab;font-size:12.5px;font-style:italic;margin:12px 0;line-height:1.5">${cfg.orgName}: „${dlg}"</div>
+    <div style="color:#8aa;font-size:12px;margin-bottom:14px">Ranga: <b>${(G[discKey]&&G[discKey].rank)||cfg.rankStart}</b></div>
+    <button onclick="document.getElementById('tour-ov').remove()" style="background:linear-gradient(135deg,#2a7ab8,#1a5a88);border:none;color:#fff;font-weight:800;padding:11px 22px;border-radius:10px;cursor:pointer;font-size:14px">Odbierz nagrodę</button>
+  </div>`;
+};
+/* Interaktywny turniej 60s — overlay pełnoekranowy. Input: strzałki (breakdance) / SPACJA+strzałki (skate). */
+window.startDisciplineTournament=function(discKey){
+  const cfg=window._DISC_CFG[discKey]; const MV=window._DISC_MOVES[discKey]; if(!cfg||!MV) return;
+  let ov=document.getElementById('tour-ov'); if(!ov){ ov=document.createElement('div'); ov.id='tour-ov'; document.body.appendChild(ov); }
+  ov.style.cssText='position:fixed;inset:0;z-index:9000;background:radial-gradient(circle at 50% 30%,#141026,#06040c);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:inherit;color:#fff';
+  const st={score:0,combo:0,maxCombo:0,mistakes:0,perfect:true,total:60,left:60,cur:null,inp:[],alive:true,tk:(window._tourTokenN=(window._tourTokenN||0)+1)};
+  const key2sym=(code)=>({ArrowUp:'↑',ArrowDown:'↓',ArrowLeft:'←',ArrowRight:'→',Space:'Space'})[code];
+  const symDisp=(s)=>s==='Space'?'␣':s;
+  const randMove=()=>{ const diff=window._tourDifficulty(st.total-st.left); let pool; if(diff==='easy_medium')pool=MV.easy.concat(MV.medium); else if(diff==='medium')pool=MV.medium; else if(diff==='hard')pool=MV.medium.concat(MV.hard); else pool=MV.hard.concat(MV.final); return pool[Math.floor(Math.random()*pool.length)]; };
+  const render=()=>{
+    if(!st.alive) return;
+    const seq=st.cur?st.cur.s.map((s,i)=>`<span style="display:inline-block;min-width:26px;font-size:26px;color:${i<st.inp.length?'#7ec87e':'#8aa'}">${symDisp(s)}</span>`).join(' '):'';
+    ov.innerHTML=`<div style="width:100%;max-width:640px;text-align:center">
+      <div style="color:#9ab;letter-spacing:2px;font-size:12px;text-transform:uppercase">${cfg.event}</div>
+      <div style="height:8px;background:#1a2232;border-radius:5px;margin:12px auto;width:90%"><div style="height:8px;background:linear-gradient(90deg,#2a9ad8,#e84393);border-radius:5px;width:${Math.max(0,st.left/st.total*100)}%"></div></div>
+      <div style="display:flex;justify-content:space-between;width:90%;margin:0 auto 18px;font-size:14px"><span>⏱ ${Math.ceil(st.left)}s</span><span>Wynik: <b>${st.score}</b></span><span>Combo: <b style="color:${st.combo>=3?'#ffd54a':'#fff'}">x${st.combo}</b></span></div>
+      <div style="font-size:20px;font-weight:800;color:#e84393;margin-bottom:8px">${st.cur?st.cur.n:''}</div>
+      <div style="margin-bottom:10px">${seq}</div>
+      <div style="color:#667;font-size:12px">Wpisuj sekwencję: ${discKey==='skate'?'SPACJA + strzałki':'strzałki'}</div>
+      <div id="tour-flash" style="height:24px;color:#7ec87e;font-weight:700;margin-top:8px"></div>
+    </div>`;
+  };
+  const flash=(t,c)=>{ const f=document.getElementById('tour-flash'); if(f){ f.textContent=t; f.style.color=c||'#7ec87e'; } };
+  const next=()=>{ st.cur=randMove(); st.inp=[]; render(); };
+  const onKey=(e)=>{
+    if(!st.alive || window._tourTokenN!==st.tk) return;
+    const sym=key2sym(e.code); if(!sym) return; e.preventDefault();
+    if(!st.cur) return;
+    const exp=st.cur.s[st.inp.length];
+    if(sym===exp){
+      st.inp.push(sym);
+      if(st.inp.length===st.cur.s.length){
+        const mult=window._tourComboMult(st.combo);
+        const pts=Math.floor(st.cur.p*mult);
+        st.score+=pts; st.combo++; st.maxCombo=Math.max(st.maxCombo,st.combo);
+        flash(`+${pts} ${st.cur.n}${st.combo>=5?`  ·  combo x${st.combo}!`:''}`,'#7ec87e');
+        setTimeout(next,300);
+      } else render();
+    } else {
+      st.mistakes++; st.combo=0; st.perfect=false; st.score=Math.max(0,st.score-50); st.inp=[];
+      flash('Błąd! Combo przerwane.','#e74c3c'); render();
+    }
+  };
+  document.addEventListener('keydown',onKey);
+  const timer=setInterval(()=>{
+    if(!st.alive || window._tourTokenN!==st.tk){ clearInterval(timer); return; }
+    st.left-=0.2;
+    if(st.left<=0){ st.left=0; st.alive=false; clearInterval(timer); document.removeEventListener('keydown',onKey); window._tourFinish(discKey,st.score,st.perfect,st.maxCombo,st.mistakes); return; }
+    if(document.getElementById('tour-flash')) { const bar=ov.querySelector('div'); if(bar) render(); }
+  },200);
+  window._tourActiveCleanup=()=>{ st.alive=false; clearInterval(timer); document.removeEventListener('keydown',onKey); };
+  next();
 };
 /* v1.9.79: zaliczenie wizyty przy podejściu do NPC */
 window._smsCheckPendingVisit=function(contactId){
@@ -58087,6 +58323,14 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.99',date:'2026-07-01',cats:['feature'],title:'🏆 Breakdance i Skateboarding — ścieżka turniejowa',
+ items:[
+  {t:'feature',d:'🏆 Rozbudowaliśmy parkowe breakdance i skateboarding o pełną, poboczną ścieżkę turniejową. Regularne, dobre występy w parku zaczynają zwracać uwagę — a po czasie możesz dostać zaproszenie na prawdziwe zawody na osobnej sali.'},
+  {t:'feature',d:'🕺 Turniej to osobne miejsce, dłuższa runda i trudniejsze, dłuższe sekwencje niż w parku. Liczy się rytm, combo i chłodna głowa pod presją — rywalizujesz o miejsce na podium.'},
+  {t:'feature',d:'💰 Za podium czekają nagrody: 500, 1000 lub 2500 zł, a bezbłędny przejazd potrafi podbić pulę nawet do 5000 zł. Zawody wracają co jakiś czas, a Twoja pozycja w tej scenie rośnie z każdym startem.'},
+ ]
+ },
  {
  ver:'v2.3.98',date:'2026-07-01',cats:['ui','fix'],title:'💬 Wiadomości — sensowne odpowiedzi fanom i Kamilowi',
  items:[
