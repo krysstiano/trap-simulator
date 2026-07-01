@@ -1086,6 +1086,11 @@ const G = {
   _underworldRespect:0,
   _coastVibeDay:0,
   _activeSponsorBurden:0,
+  /* v2.3.97 NEW PDF (2026-07-01): relacje SMS (Kamil/Fani) + ścieżki turniejowe breakdance/skate. Save-safe, ensure-init w _newpdfEnsure. friendship trzymany w npcFriendship, loyalty w publicRep. */
+  _kamilRel:{trust:0,jobsUnlocked:false,streak:0,ignored:0,annoyance:0},
+  _fanRel:{hype:0,streak:0,ignored:0},
+  breakdance:{unlocked:false,parkRunsCompleted:0,goodParkRuns:0,tournamentInviteReceived:false,tournamentState:'none',tournamentReminderAvailable:false,firstTournamentCompleted:false,lastTournamentDay:null,inviteDay:0,rank:'Park Rookie',rankPoints:0,organizerRelation:0},
+  skate:{unlocked:false,parkRunsCompleted:0,goodParkRuns:0,tournamentInviteReceived:false,tournamentState:'none',tournamentReminderAvailable:false,firstTournamentCompleted:false,lastTournamentDay:null,inviteDay:0,rank:'Park Pusher',rankPoints:0,organizerRelation:0},
   friends:[], // v1.8.90: lista znajomych [{userId, nick, addedDay}]
   friendsSnapshots:{}, // v1.8.92: cache poprzednich score'ów znajomych dla detection milestone'ów
   sleepDebt:0,
@@ -19812,6 +19817,29 @@ window._underworldEnsure=function(){
   /* Sync nazwy kontaktu w telefonie wg stanu (SMS_CONTACTS to runtime const — mutacja nie przeżywa reloadu,
      więc odtwarzamy ją z save'a tutaj): „Numer zastrzeżony" → „Roch Kantar Nawrot" po ukończeniu questa. */
   try{ if(typeof SMS_CONTACTS!=='undefined' && SMS_CONTACTS.kantar) SMS_CONTACTS.kantar.name=(u.state==='completed')?'Roch „Kantar” Nawrot':'Numer zastrzeżony'; }catch(_e){}
+};
+/* ═══ NEW PDF (2026-07-01): save-safe init 5 systemów — relacje SMS (Kamil/Fani) + ścieżki turniejowe breakdance/skate.
+   Idempotentne: stary save bez tych pól dostaje defaulty, ZERO wpływu wstecz. Wołane po loadGame i po resetG (nowa gra). */
+window._newpdfEnsure=function(){
+  /* Relacja Kamil (Stary kumpel). Przyjaźń w G.npcFriendship.kamil (istnieje) — tu tylko dodatkowe staty relacyjne. */
+  if(!G._kamilRel||typeof G._kamilRel!=='object') G._kamilRel={};
+  { const r=G._kamilRel; [['trust',0],['streak',0],['ignored',0],['annoyance',0]].forEach(([k,d])=>{ if(typeof r[k]!=='number'||!isFinite(r[k])) r[k]=d; }); if(typeof r.jobsUnlocked!=='boolean') r.jobsUnlocked=false; r.trust=Math.max(0,Math.min(100,r.trust)); }
+  /* Relacja Fani. Lojalność w G.publicRep.fanLoyalty, relacja w G.npcFriendship.fan (istnieją) — tu hype lokalny + liczniki. */
+  if(!G._fanRel||typeof G._fanRel!=='object') G._fanRel={};
+  { const r=G._fanRel; [['hype',0],['streak',0],['ignored',0]].forEach(([k,d])=>{ if(typeof r[k]!=='number'||!isFinite(r[k])) r[k]=d; }); r.hype=Math.max(0,r.hype); }
+  /* Ścieżki turniejowe. tournamentState: none|invited|accepted|postponed|declined|ignored|completed */
+  const _mkDisc=(rankDef)=>({unlocked:false,parkRunsCompleted:0,goodParkRuns:0,tournamentInviteReceived:false,tournamentState:'none',tournamentReminderAvailable:false,firstTournamentCompleted:false,lastTournamentDay:null,inviteDay:0,rank:rankDef,rankPoints:0,organizerRelation:0});
+  const _fixDisc=(d,rankDef)=>{
+    if(!d||typeof d!=='object') return _mkDisc(rankDef);
+    [['parkRunsCompleted',0],['goodParkRuns',0],['rankPoints',0],['organizerRelation',0],['inviteDay',0]].forEach(([k,v])=>{ if(typeof d[k]!=='number'||!isFinite(d[k])) d[k]=v; });
+    ['unlocked','tournamentInviteReceived','tournamentReminderAvailable','firstTournamentCompleted'].forEach(k=>{ if(typeof d[k]!=='boolean') d[k]=false; });
+    if(typeof d.tournamentState!=='string') d.tournamentState='none';
+    if(typeof d.rank!=='string') d.rank=rankDef;
+    if(d.lastTournamentDay!==null && (typeof d.lastTournamentDay!=='number'||!isFinite(d.lastTournamentDay))) d.lastTournamentDay=null;
+    return d;
+  };
+  G.breakdance=_fixDisc(G.breakdance,'Park Rookie');
+  G.skate=_fixDisc(G.skate,'Park Pusher');
 };
 /* Centralny aplikator efektów stat z PDF (klamp + ADAPTACJA aliasów). Używany przez dialogi/zadania (TIER 4+). */
 window._uwAddStat=function(key,delta){
@@ -71750,6 +71778,7 @@ function loadGame(){
      render apek/paneli (inventory/studioTracks/notifications/workers...) + trapInv/safes guard. */
   if(typeof window._sanitizePlayerLists==='function') window._sanitizePlayerLists();
   if(typeof window._underworldEnsure==='function') window._underworldEnsure(); /* v2.3.38: save-safe init modułu „Numer zastrzeżony" — stary save = quest nierozpoczęty, ZERO wstecz */
+  if(typeof window._newpdfEnsure==='function') window._newpdfEnsure(); /* v2.3.97: save-safe init SMS Kamil/Fani + turnieje breakdance/skate — stary save = defaulty, ZERO wstecz */
   if(_oldFansObj){
     G.haters=_oldFansObj.haters||0;
     G.fans=(_oldFansObj.casual||0)+(_oldFansObj.hardcore||0);
@@ -72731,6 +72760,7 @@ function startGame(){
   resetG();
   G._econVersion=2;
   if(typeof window._underworldEnsure==='function') window._underworldEnsure(); /* v2.3.38: init stat modułu „Numer zastrzeżony" po resetG (nowa gra) */
+  if(typeof window._newpdfEnsure==='function') window._newpdfEnsure(); /* v2.3.97: init SMS Kamil/Fani + turnieje breakdance/skate po resetG (nowa gra) */
   G.name=name;G.hair=creatorState.hair;G.cloth=creatorState.cloth;G.pants=creatorState.pants||'#1a2a3a';G.shoes=creatorState.shoes||'#0a0a0a';
   G.gender=creatorState.gender||'m'; /* v2.1.931 (Vegan): płeć gracza → awatar + treści */
   P.skin=creatorState.skin;P.hair=creatorState.hair;P.cloth=creatorState.cloth;P.pants=creatorState.pants||'#1a2a3a';P.shoes=creatorState.shoes||'#0a0a0a';P.gender=G.gender;
