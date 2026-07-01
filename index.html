@@ -36151,7 +36151,7 @@ function openShopOverlay(id){
     case 'mediamarkt':  renderVoltHouse();break;
     case 'muzyczny':    renderMusicShop();break;
     case 'ubrania':     renderClothingShop();break;
-    case 'fryzjer':     renderBarber();break;
+    case 'fryzjer':     window._barberLock=null; renderBarber();break;/* v2.3.97: reset przypiętego podglądu przy świeżym wejściu do fryzjera */
     case 'szpital':     renderHospital();break;
     case 'restauracja': renderRestauracja();break;
     case 'pizzeria':    renderPizzeria();break;
@@ -38183,39 +38183,98 @@ function renderBarber(){
     {id:4,name:'Handlebar',price:60},
     {id:5,name:'Podkówka',price:50},
   ];
+  /* v2.3.97 (PDF #1): układ 2-kolumnowy — zakładki+lista (lewa, scroll) | stały podgląd (prawa, sticky).
+     Dane usług wystawione przez _barberServices() (współdzielone z helperami hover/pick/confirm). */
+  window._BARBER_HAIR=hairstyles; window._BARBER_BEARD=beardstyles; window._BARBER_MUST=mustachestyles;
+  if(typeof window._barberCat!=='string') window._barberCat='hairstyles';
+  const CATS=[{key:'hairstyles',label:'Fryzury'},{key:'beard',label:'Zarost / Broda'},{key:'mustache',label:'Wąsy'},{key:'hairColor',label:'Kolor włosów'},{key:'beardColor',label:'Kolor zarostu/wąsów'}];
+  const tabs=CATS.map(c=>{const on=window._barberCat===c.key;return `<button onclick="selectBarberCategory('${c.key}')" style="flex:0 0 auto;background:${on?'#2a5a8a':'#16202c'};border:1px solid ${on?'#3a7ab8':'#26303c'};color:${on?'#dff':'#9ab'};padding:7px 11px;border-radius:8px;cursor:pointer;font-size:12.5px;font-weight:${on?'700':'500'}">${c.label}</button>`;}).join('');
   document.getElementById('ov-content').innerHTML=`
-    <h2>✂️ Barber Point</h2><p class="sub">Zmień fryzurę, zarost i wąsy swojej postaci.</p>
-    <div style="display:flex;gap:30px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px">
-      <div>
-        <div style="font-size:12px;color:#667;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Podgląd</div>
-        <canvas id="barber-preview" width="120" height="120" style="border:1px solid #1a2a3a;border-radius:8px;background:#0a1220;display:block;"></canvas>
-        <div style="font-size:12px;color:#667;text-align:center;margin-top:4px" id="barber-preview-lbl">Aktualna fryzura</div>
+    <h2>✂️ Barber Point</h2><p class="sub">Zmień fryzurę, zarost, wąsy i kolor swojej postaci.</p>
+    <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1 1 360px;min-width:300px">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${tabs}</div>
+        <div id="barber-list" style="max-height:54vh;overflow-y:auto;padding-right:4px"></div>
       </div>
-      <div class="shopgrid" style="margin-bottom:0">
-        ${hairstyles.map(h=>`<div class="sitem"><h3>${h.name}</h3><div class="pr">${h.price} zł</div>${G.hair===h.id?'<div class="owned">✅ Aktualna</div>':''}<button class="bbtn" onmouseover="previewHaircut(${h.id},'${h.name}')" onmouseout="previewHaircut(${G.hair},'Aktualna fryzura')" onclick="buyHaircut(${h.id},${h.price})" ${G.hair===h.id||G.money<h.price?'disabled':''}>Strzyż</button></div>`).join('')}
+      <div style="flex:0 0 250px;position:sticky;top:8px;align-self:flex-start;background:#0c1622;border:1px solid #1c2a3a;border-radius:12px;padding:14px">
+        <div style="font-size:11px;color:#7a90a8;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;text-align:center">Twój wygląd</div>
+        <canvas id="barber-preview" width="150" height="150" style="border:1px solid #1a2a3a;border-radius:10px;background:#0a1220;display:block;margin:0 auto"></canvas>
+        <div id="barber-preview-lbl" style="font-size:12px;color:#8aa;text-align:center;margin-top:6px">Twój wygląd</div>
+        <div id="barber-current-summary" style="font-size:11px;color:#7a90a8;margin-top:10px;line-height:1.65"></div>
+        <div id="barber-preview-action" style="margin-top:10px"></div>
       </div>
     </div>
-    <div style="font-size:12px;color:#88a;text-transform:uppercase;letter-spacing:1px;margin:16px 0 6px">💈 Zarost / Broda</div>
-    <div class="shopgrid" style="margin-bottom:0">
-      ${beardstyles.map(b=>`<div class="sitem"><h3>${b.name}</h3><div class="pr">${b.price} zł</div>${(G.beard||0)===b.id?'<div class="owned">✅ Aktualny</div>':''}<button class="bbtn" onmouseover="previewBeard(${b.id},'${b.name}')" onmouseout="previewBeard(G.beard||0,'Twój wygląd')" onclick="buyBeard(${b.id},${b.price})">Wybierz</button></div>`).join('')}
-    </div>
-    <div style="font-size:12px;color:#88a;text-transform:uppercase;letter-spacing:1px;margin:16px 0 6px">👨 Wąsy</div>
-    <div class="shopgrid" style="margin-bottom:0">
-      ${mustachestyles.map(m=>`<div class="sitem"><h3>${m.name}</h3><div class="pr">${m.price} zł</div>${(G.mustache||0)===m.id?'<div class="owned">✅ Aktualne</div>':''}<button class="bbtn" onmouseover="previewMustache(${m.id},'${m.name}')" onmouseout="previewMustache(G.mustache||0,'Twój wygląd')" onclick="buyMustache(${m.id},${m.price})">Wybierz</button></div>`).join('')}
-    </div>
-    <div style="font-size:12px;color:#88a;text-transform:uppercase;letter-spacing:1px;margin:16px 0 6px">🎨 Kolor włosów</div>
-    <div class="shopgrid" style="margin-bottom:0">
-      ${HAIR_COLOR_NAMES.map((nm,i)=>`<div class="sitem"><h3><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${i===0?'#888':HAIR_COLORS[i][0]};vertical-align:middle;margin-right:4px"></span>${nm}</h3><div class="pr">${i===0?'reset':'40 zł'}</div>${(G.hairColor||0)===i?'<div class="owned">✅ Aktualny</div>':''}<button class="bbtn" onmouseover="previewHairColor(${i},'${nm}')" onmouseout="previewHairColor(G.hairColor||0,'Twój wygląd')" onclick="buyHairColor(${i},${i===0?0:40})">Wybierz</button></div>`).join('')}
-    </div>
-    <div style="font-size:12px;color:#88a;text-transform:uppercase;letter-spacing:1px;margin:16px 0 6px">🎨 Kolor zarostu/wąsów</div>
-    <div class="shopgrid" style="margin-bottom:0">
-      ${BEARD_COLOR_NAMES.map((nm,i)=>`<div class="sitem"><h3><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${BEARD_COLS[i]};vertical-align:middle;margin-right:4px"></span>${nm}</h3><div class="pr">${i===0?'reset':'25 zł'}</div>${(G.beardColor||0)===i?'<div class="owned">✅ Aktualny</div>':''}<button class="bbtn" onmouseover="previewBeardColor(${i},'${nm}')" onmouseout="previewBeardColor(G.beardColor||0,'Twój wygląd')" onclick="buyBeardColor(${i},${i===0?0:25})">Wybierz</button></div>`).join('')}
-    </div>
-    <div class="res" id="shop-res">Wybierz fryzurę, zarost, wąsy lub kolor.</div>
+    <div class="res" id="shop-res">Wybierz kategorię i usługę, aby zobaczyć podgląd.</div>
     <button class="cbtn" onclick="closeOverlay()">← Wróć</button>
   `;
-  setTimeout(()=>previewHaircut(G.hair,'Twój wygląd'),50);
+  _barberRenderList();
+  _barberRenderPreviewCol();
+  setTimeout(()=>{ if(window._barberLock) _barberUnhover(); else previewHaircut(G.hair,'Twój wygląd'); },40);
 }
+/* v2.3.97 (PDF #1): dane usług + helpery panelu Barber Point (2-kolumnowy, stały podgląd). */
+window._barberServices=function(){
+  return {
+    hairstyles:(window._BARBER_HAIR||[]).map(h=>({id:h.id,name:h.name,price:h.price})),
+    beard:(window._BARBER_BEARD||[]).map(b=>({id:b.id,name:b.name,price:b.price})),
+    mustache:(window._BARBER_MUST||[]).map(m=>({id:m.id,name:m.name,price:m.price})),
+    hairColor:HAIR_COLOR_NAMES.map((nm,i)=>({id:i,name:nm,price:i===0?0:40,swatch:i===0?'#888':HAIR_COLORS[i][0]})),
+    beardColor:BEARD_COLOR_NAMES.map((nm,i)=>({id:i,name:nm,price:i===0?0:25,swatch:BEARD_COLS[i]})),
+  };
+};
+window._barberCatMeta=function(cat){ return ({hairstyles:{gField:'hair',status:'Aktualna'},beard:{gField:'beard',status:'Aktualny'},mustache:{gField:'mustache',status:'Aktualne'},hairColor:{gField:'hairColor',status:'Aktualny'},beardColor:{gField:'beardColor',status:'Aktualny'}})[cat]; };
+window.selectBarberCategory=function(cat){ window._barberCat=cat; renderBarber(); };
+window._barberRenderList=function(){
+  const el=document.getElementById('barber-list'); if(!el) return;
+  const cat=window._barberCat, svc=(_barberServices()[cat]||[]), meta=_barberCatMeta(cat);
+  const curId=(typeof G[meta.gField]==='number')?G[meta.gField]:0;
+  const lock=window._barberLock;
+  el.innerHTML='<div class="shopgrid" style="margin-bottom:0">'+svc.map(s=>{
+    const isCur=(s.id===curId);
+    const isLock=lock&&lock.cat===cat&&lock.id===s.id;
+    const priceTxt=(s.price===0)?'reset':(s.price+' zł');
+    const swatch=s.swatch?`<span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${s.swatch};vertical-align:middle;margin-right:4px"></span>`:'';
+    const canAfford=(s.price===0)||(G.money>=s.price);
+    const badge=isCur?`<div class="owned">✅ ${meta.status}</div>`:(isLock?'<div style="color:#7ec8e3;font-size:11px;font-weight:700">👁 Podglądasz</div>':'');
+    const btn=isCur?'':`<button class="bbtn" onclick="_barberPick('${cat}',${s.id},'${s.name}',${s.price})" ${canAfford?'':'disabled'}>${canAfford?'Podgląd':'Za drogo'}</button>`;
+    return `<div class="sitem"${isLock?' style="border-color:#3a7ab8;box-shadow:0 0 0 1px #3a7ab8"':''} onmouseover="_barberHover('${cat}',${s.id},'${s.name}')" onmouseout="_barberUnhover()"><h3>${swatch}${s.name}</h3><div class="pr">${priceTxt}</div>${badge}${btn}</div>`;
+  }).join('')+'</div>';
+};
+window._barberRenderPreviewCol=function(){
+  const svc=_barberServices();
+  const nm=(cat,g)=>{ const a=svc[cat]||[]; const f=a.find(x=>x.id===((typeof G[g]==='number')?G[g]:0)); return f?f.name:'—'; };
+  const sum=document.getElementById('barber-current-summary');
+  if(sum) sum.innerHTML='Aktualny wygląd:<br>Fryzura: <b>'+nm('hairstyles','hair')+'</b><br>Zarost: <b>'+nm('beard','beard')+'</b><br>Wąsy: <b>'+nm('mustache','mustache')+'</b><br>Kolor włosów: <b>'+nm('hairColor','hairColor')+'</b>';
+  const act=document.getElementById('barber-preview-action'); if(!act) return;
+  const lock=window._barberLock;
+  if(!lock){ act.innerHTML='<div style="font-size:11px;color:#667;text-align:center;font-style:italic">Najedź lub kliknij usługę, aby zobaczyć podgląd.</div>'; return; }
+  const meta=_barberCatMeta(lock.cat);
+  const isCur=((typeof G[meta.gField]==='number')?G[meta.gField]:0)===lock.id;
+  if(isCur){ act.innerHTML='<div style="font-size:11px;color:#7ec87e;text-align:center">To jest Twój aktualny wybór.</div>'; return; }
+  const priceTxt=(lock.price===0)?'reset':(lock.price+' zł');
+  const canAfford=(lock.price===0)||(G.money>=lock.price);
+  act.innerHTML='<div style="font-size:12px;color:#cde;text-align:center;margin-bottom:8px">Podglądasz: <b>'+lock.name+'</b> — '+priceTxt+'</div>'+
+    '<button class="bbtn" style="width:100%;margin-bottom:6px'+(canAfford?'':';opacity:.5')+'" onclick="_barberConfirm()" '+(canAfford?'':'disabled')+'>✓ Zastosuj</button>'+
+    '<button class="cbtn" style="width:100%" onclick="_barberCancel()">Anuluj podgląd</button>';
+};
+window._barberApplyPreview=function(cat,id,lbl){
+  if(cat==='hairstyles') previewHaircut(id,lbl);
+  else if(cat==='beard') previewBeard(id,lbl);
+  else if(cat==='mustache') previewMustache(id,lbl);
+  else if(cat==='hairColor') previewHairColor(id,lbl);
+  else if(cat==='beardColor') previewBeardColor(id,lbl);
+};
+window._barberHover=function(cat,id,name){ _barberApplyPreview(cat,id,'Podglądasz: '+name); };
+window._barberUnhover=function(){ const lock=window._barberLock; if(lock) _barberApplyPreview(lock.cat,lock.id,'Podglądasz: '+lock.name); else previewHaircut((typeof G.hair==='number')?G.hair:0,'Twój wygląd'); };
+window._barberPick=function(cat,id,name,price){ window._barberLock={cat:cat,id:id,name:name,price:price}; _barberApplyPreview(cat,id,'Podglądasz: '+name); _barberRenderList(); _barberRenderPreviewCol(); };
+window._barberCancel=function(){ window._barberLock=null; previewHaircut((typeof G.hair==='number')?G.hair:0,'Twój wygląd'); _barberRenderList(); _barberRenderPreviewCol(); const r=document.getElementById('shop-res'); if(r) r.textContent='Podgląd anulowany.'; };
+window._barberConfirm=function(){
+  const lock=window._barberLock; if(!lock) return;
+  const buyMap={hairstyles:'buyHaircut',beard:'buyBeard',mustache:'buyMustache',hairColor:'buyHairColor',beardColor:'buyBeardColor'};
+  if((lock.price>0)&&(G.money<lock.price)){ const r=document.getElementById('shop-res'); if(r) r.textContent='Nie masz wystarczająco pieniędzy.'; return; }
+  window._barberLock=null;
+  const fn=window[buyMap[lock.cat]];
+  if(typeof fn==='function') fn(lock.id, lock.price); /* pobiera kasę, ustawia G+P, woła renderBarber() */
+};
 window.previewHaircut=function(hairId,lbl,beardId,mustacheId,hairColorId){
   const cvs=document.getElementById('barber-preview');if(!cvs)return;
   const cx=cvs.getContext('2d');
@@ -57823,6 +57882,15 @@ function showHelp(){
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
  {
+ ver:'v2.3.97',date:'2026-07-01',cats:['ui','fix'],title:'✂️ Barber Point — nowy, czytelny panel z podglądem na żywo',
+ items:[
+  {t:'change',d:'✂️ Przebudowaliśmy panel u fryzjera. Po lewej wybierasz kategorię (fryzury, zarost, wąsy, kolor włosów, kolor zarostu) i przewijasz tylko jej usługi, a po prawej masz stały podgląd swojej postaci — widoczny cały czas, nawet gdy przewiniesz listę w dół.'},
+  {t:'change',d:'👁️ Najedź na usługę, żeby zobaczyć podgląd na postaci. Kliknij, żeby go przypiąć — dopiero przycisk „Zastosuj" pobiera pieniądze. Za samo oglądanie nie płacisz, a „Anuluj podgląd" wraca do Twojego aktualnego wyglądu.'},
+  {t:'change',d:'🏷️ Każda usługa pokazuje osobno nazwę, cenę i status. Aktualnie noszana opcja jest wyraźnie oznaczona i nie można kupić jej drugi raz.'},
+  {t:'fix',d:'💾 Naprawiliśmy znikanie wyglądu po wczytaniu gry — fryzura, broda, wąsy i wybrane kolory zostają teraz dokładnie takie, jakie ustawisz, także dla nowszych fryzur.'},
+ ]
+ },
+ {
  ver:'v2.3.96',date:'2026-07-01',cats:['system'],title:'🧹 Dziennik zmian — dokończone porządki językowe',
  items:[
   {t:'change',d:'🧹 Dokończyliśmy przepisywanie całego dziennika zmian na prosty, przyjazny język. Setki starszych wpisów pozbyły się technicznych skrótów i oznaczeń — teraz każdy wpis czyta się jak zwykły changelog gry. Treść i liczby ważne dla rozgrywki pozostały bez zmian.'},
@@ -72085,7 +72153,12 @@ function loadGame(){
   P.wx=s.wx||600;P.wy=s.wy||500;
   /* v2.1.773 audyt: odtwórz porę dnia (gameMin) — wcześniej reset do 06:00 po reloadzie + niespójność z cooldownami _lastXMin. Clamp 0..1439, fallback 360 (Rano). */
   if(typeof s.gameMin==='number' && isFinite(s.gameMin)) gameMin=Math.max(0,Math.min(1439,s.gameMin));
-  P.hair=Math.max(0,Math.min(3,s.hair||0));P.cloth=s.cloth||'#2a5080';P.skin=s.skin||'light';
+  /* v2.3.97 (PDF #1 bugfix): sprite gubił wygląd po reloadzie — P.hair klampowany do 0-3 (są fryzury 0-9),
+     a P.beard/mustache/hairColor/beardColor NIE były kopiowane z G. G jest już przywrócone (Object.assign wyżej),
+     więc synchronizujemy P z G = źródła prawdy. Fallback s.hair dla bardzo starych save'ów. Reguła #1 (save-safe). */
+  P.hair=Math.max(0,Math.min(9,(typeof G.hair==='number')?G.hair:(s.hair||0)));P.cloth=s.cloth||'#2a5080';P.skin=s.skin||'light';
+  P.beard=(typeof G.beard==='number')?G.beard:0; P.mustache=(typeof G.mustache==='number')?G.mustache:0;
+  P.hairColor=(typeof G.hairColor==='number')?G.hairColor:0; P.beardColor=(typeof G.beardColor==='number')?G.beardColor:0;
   P.pants=s.pants||G.pants||'#1a2a3a';P.shoes=s.shoes||G.shoes||'#0a0a0a';
   /* v2.1.931 (Vegan): płeć — sync P z G + default 'm' dla starych save'ów (backward compat, reguła #1). */
   P.gender=(G.gender==='f')?'f':'m'; G.gender=P.gender;
