@@ -3293,8 +3293,8 @@ const ROOMS = {
       {id:'parking', wx:240, wy:580, w:320, h:130, act:'parking:info', prompt:'[E] 🅿️ Parking', lbl:'Parking'},
       /* 7 places Underground (basic stubs, content w sub-faza B'.2+) */
       {id:'piwnica_underground',    wx:180, wy:140, w:140,h:130, act:'underground_piwnica',   prompt:'[E] 🎙 Piwnica Producenta',    lbl:'Piwnica'},
-      {id:'cypher_underground',     wx:480, wy:140, w:140,h:130, act:'underground_cypher',    prompt:'[E] 🎤 Cypher Club',           lbl:'Cypher'},
-      {id:'mural_underground',      wx:830, wy:140, w:140,h:130, act:'underground_mural',     prompt:'[E] 🎨 Mural Wall',            lbl:'Mural'},
+      {id:'cypher_underground',     wx:445, wy:140, w:140,h:130, act:'underground_cypher',    prompt:'[E] 🎤 Cypher Club',           lbl:'Cypher'},/* v2.3.100: 480→445 — przestrzeń dla Gravel Lot */
+      {id:'mural_underground',      wx:865, wy:140, w:140,h:130, act:'underground_mural',     prompt:'[E] 🎨 Mural Wall',            lbl:'Mural'},/* v2.3.100: 830→865 — przestrzeń dla Gravel Lot */
       {id:'smolarnia_underground',  wx:1080,wy:140, w:140,h:130, act:'underground_smolarnia', prompt:'[E] 🌫 Smolarnia',             lbl:'Smolarnia'},
       /* v2.3.54 MODUŁ POJAZDÓW SPECJALNYCH — komis Gravel Lot Motors (tanie kampery uzywane + Korek). Wolny spot: luka cypher(620)↔mural(830), nad jezdnia y432-528. ZERO overlap (zweryfikowane CAMP13). Gated: gravelLotUnlocked (Kantar) lub street respect. */
       {id:'gravellot_underground',  wx:655, wy:140, w:140,h:130, act:'underground_gravellot',  prompt:'[E] 🚐 Gravel Lot Motors',     lbl:'Gravel Lot'},
@@ -10109,6 +10109,16 @@ function drawPlantation(sx,sy,w,h){
 function drawUndergroundDecorations(){
   const isNight=(typeof G!=='undefined' && G.timeOfDay>=2);
   const pulse=Math.sin(Date.now()/500)*0.3+0.7;
+  /* v2.3.100 (user: „pojazdy jeżdżą po chodniku" — underground nie miał rysowanej jezdni, auta dzielnicowe (y500/540) wyglądały jakby jeździły po nawierzchni pieszych). Rysujemy poziomą jezdnię w pasie aut (y488-552) + krawężniki + linia środkowa. */
+  (function(){
+    const rw=((typeof ROOMS!=='undefined'&&ROOMS.underground&&ROOMS.underground.wT)||30)*T;
+    const x0=wx2sx(0), ww=wx2sx(rw)-x0;
+    const rdT=wy2sy(488), rdH=wy2sy(552)-wy2sy(488);
+    X.fillStyle='#131019'; X.fillRect(x0,rdT,ww,rdH);                          /* asfalt */
+    X.fillStyle='#2c2634'; X.fillRect(x0,rdT-4,ww,4); X.fillRect(x0,rdT+rdH,ww,4); /* krawężniki */
+    X.fillStyle='rgba(225,205,120,0.45)'; const cy=wy2sy(520);
+    for(let x=16;x<rw;x+=58){ const sx=wx2sx(x); if(sx>-40&&sx<1330) X.fillRect(sx,cy-1.5,28,3); } /* linia środkowa przerywana */
+  })();
   /* 3 śmietniki w rogach (40×40 px) */
   const trash=[{wx:60,wy:340},{wx:1340,wy:840},{wx:60,wy:840}];
   for(const t of trash){
@@ -12278,8 +12288,8 @@ function drawPlayerCamper(){
     const _psx=wx2sx(G._camperParkedAt.wx)+P.w/2, _psy=wy2sy(G._camperParkedAt.wy)+P.h/2;
     const _wm=(typeof window._camperDriveParams==='function')?((window._camperDriveParams().widthMul)||1.3):1.3;
     X.save(); X.translate(_psx,_psy);
-    X.fillStyle='rgba(0,0,0,.28)';X.beginPath();X.ellipse(3,6,34*_wm,16,0,0,Math.PI*2);X.fill();
-    const _L=42*_wm,_H=26;
+    X.fillStyle='rgba(0,0,0,.28)';X.beginPath();X.ellipse(3,7,34*_wm,20,0,0,Math.PI*2);X.fill();
+    const _L=42*_wm,_H=34;/* v2.3.100: wyższy kamper (26→34) */
     X.fillStyle='#d8d8e0'; if(X.roundRect){X.beginPath();X.roundRect(-_L/2,-_H/2,_L,_H,5);X.fill();}else{X.fillRect(-_L/2,-_H/2,_L,_H);}
     X.fillStyle='#9aa3b0'; if(X.roundRect){X.beginPath();X.roundRect(_L/2-13,-_H/2+2,12,_H-4,3);X.fill();}else{X.fillRect(_L/2-13,-_H/2+2,12,_H-4);}
     X.fillStyle='rgba(120,180,210,0.85)';X.fillRect(-_L/2+5,-_H/2+4,_L-24,5);
@@ -12317,9 +12327,9 @@ function drawPlayerCamper(){
   X.translate(sx,sy);
   X.rotate([Math.PI*1.5,0,Math.PI*.5,Math.PI][d]||0);
   // cień (większy niż auto)
-  X.fillStyle='rgba(0,0,0,.24)';X.beginPath();X.ellipse(3,6,34*wm,16,0,0,Math.PI*2);X.fill();
+  X.fillStyle='rgba(0,0,0,.24)';X.beginPath();X.ellipse(3,7,34*wm,20,0,0,Math.PI*2);X.fill();
   // korpus kampera (van, dłuższy/wyższy niż auto) — front = prawo
-  const L=42*wm, H=26;
+  const L=42*wm, H=34;/* v2.3.100: wyższy kamper (26→34) */
   X.fillStyle='#d8d8e0';
   if(X.roundRect){X.beginPath();X.roundRect(-L/2,-H/2,L,H,5);X.fill();}else{X.fillRect(-L/2,-H/2,L,H);}
   // kabina (przód, ciemniejsza)
@@ -38875,7 +38885,7 @@ window._camperDriveParams=function(){
   const speedBase=1.08+0.06*tier;
   const cond=(c.condition==null)?100:c.condition;
   const speed=speedBase*(1+0.15*(cond/100));
-  return { speed:speed, speedBase:speedBase, widthMul:1.3 };
+  return { speed:speed, speedBase:speedBase, widthMul:1.6 };/* v2.3.100 (user: kamper za mały) 1.3→1.6 */
 };
 /* Zakup kampera — sprawdza kase, odejmuje, ustawia owned/model/stan, loguje, woła wybor 1. postoju. (PDF buyCamper) */
 window.buyCamper=function(modelId){
@@ -38887,7 +38897,7 @@ window.buyCamper=function(modelId){
   G.money -= m.price;
   c.owned=true; c.model=modelId; c.condition=m.cond||70; c.camouflage=m.camouflage||10; c.destroyed=false; c.daysInLoc=0;
   /* E4d (silnik jazdy): spawn fizycznej pozycji kampera na mapie (do wsiadania klawiszem K). Kupujesz w pokoju jezdnym → tam; inaczej domyślnie underground. */
-  { const _crNow=(typeof _carRoom==='function')&&_carRoom(currentRoom); G._camperParkedAt = _crNow ? {wx:P.wx, wy:P.wy, room:currentRoom} : {wx:1200, wy:540, room:'underground'}; G._inCamper=false; }
+  { const _crNow=(typeof _carRoom==='function')&&_carRoom(currentRoom); G._camperParkedAt = _crNow ? {wx:P.wx, wy:P.wy, room:currentRoom} : {wx:1120, wy:430, room:'underground'}; G._inCamper=false; }/* v2.3.100: park domyślny NAD jezdnią (był wy:540 = pas aut → auta przenikały) */
   if(!Array.isArray(c.history)) c.history=[];
   c.history.push({day:G.day||0, ev:'buy', model:modelId, price:m.price});
   if(typeof showMsg==='function') showMsg('🚐 Kupiles '+m.name+' za '+m.price.toLocaleString('pl')+' zl. Wybierz pierwszy postoj kampera.','g',6000);
@@ -38927,7 +38937,8 @@ window.renderCamperShop=function(source){
   const notOwnedMsg=source==='gravel'?'<p style="color:#778;font-size:12px;margin-bottom:10px">Możesz mieć jednego kampera. To etap przejściowy — mobilny, ale ryzykowny.</p>':'<p style="color:#778;font-size:12px;margin-bottom:10px">Możesz mieć jednego kampera naraz — komfortowy pojazd na większe trasy i dłuższe wyjazdy.</p>';
   el.innerHTML=`<h2>${title}</h2><p class="sub">${intro}</p>
     ${c.owned?`<div style="background:#0e1830;border-left:3px solid #f1c40f;padding:8px 12px;margin-bottom:12px;border-radius:4px;font-size:13px;color:#cdd">Masz już kampera (${ownedName}). Zarządzaj nim w telefonie: Kariera → Trap → Kamper.</div>`:notOwnedMsg}
-    ${rows||'<p style="color:#778">Brak modeli w tym punkcie.</p>'}`;
+    ${rows||'<p style="color:#778">Brak modeli w tym punkcie.</p>'}
+    <button onclick="closeOverlay()" class="cbtn" style="width:100%;margin-top:6px">← Zamknij</button>`;
 };
 /* NPC Korek (Gravel Lot Motors) — dialog wejścia + zakupowy. Gated: gravelLotUnlocked (Kantar) / street respect / trap. (PDF pkt 4) */
 window._korekDialog=function(){
@@ -38938,7 +38949,7 @@ window._korekDialog=function(){
   if(typeof window._uwShowDlg!=='function'){ if(unlocked) openShop(); else if(typeof showMsg==='function') showMsg('🚐 Korek: bez polecenia nie gadam o powaznym towarze. Wroc, jak ktos za ciebie zareczy.','i',5000); return; }
   if(!unlocked){
     window._uwShowDlg('Korek: Jak szukasz auta bez historii, to zle trafiles. A jak szukasz auta z historia, ktorej nikt juz nie chce pamietac — to najpierw niech ktos za ciebie zareczy. Bez polecenia nie gadam o powaznym towarze.',[
-      {text:'(wychodzisz)', fn:()=>{ if(typeof closeNPCDlg==='function')closeNPCDlg(); }}
+      {text:'(Wychodzę)', fn:()=>{ if(typeof closeNPCDlg==='function')closeNPCDlg(); }}
     ]);
     return;
   }
@@ -48060,7 +48071,11 @@ window._camperEnsure=function(){
      (stary save sprzed E4d / grandfather Trap) dostaje domyślną pozycję w Underground, żeby móc wsiąść (K/panel).
      Guard !G._inCamper KONIECZNY — podczas jazdy _camperParkedAt=null CELOWO (nie nadpisuj jadącego kampera). */
   if(c.owned && !G._inCamper && (!G._camperParkedAt || !G._camperParkedAt.room)){
-    G._camperParkedAt={wx:1200,wy:540,room:'underground'};
+    G._camperParkedAt={wx:1120,wy:430,room:'underground'};/* v2.3.100: nad jezdnią (był wy:540 = pas aut) */
+  }
+  /* v2.3.100 migracja: kamper zaparkowany na pasie aut underground (wy 480-560) → przesuń nad jezdnię (auta przenikały). Idempotentne. */
+  if(c.owned && !G._inCamper && G._camperParkedAt && G._camperParkedAt.room==='underground' && G._camperParkedAt.wy>=480 && G._camperParkedAt.wy<=560){
+    G._camperParkedAt.wy=430;
   }
 };
 function togglePhone(){
@@ -58323,6 +58338,18 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.100',date:'2026-07-01',cats:['fix','ui'],title:'🛠️ Poprawki wizualne — dzielnice, znaki, ławki, kamper',
+ items:[
+  {t:'fix',d:'🚗 W dzielnicy Underground pojawiła się wyraźna jezdnia — samochody jeżdżą teraz po drodze, a nie po chodniku. Twój zaparkowany kamper stoi z boku, poza pasem ruchu, więc auta już przez niego nie przejeżdżają.'},
+  {t:'change',d:'🧑‍🤝‍🧑 Przechodnie w dzielnicach (Underground, wybrzeże, biznes) dostali twarze i wyglądają teraz spójnie z mieszkańcami głównego miasta.'},
+  {t:'fix',d:'✨ Efekt „Poświata (Bloom)" w ustawieniach grafiki był zbyt mocny i rozmywał cały obraz. Teraz to subtelny blask wokół świateł, a nie rozmycie całej sceny.'},
+  {t:'change',d:'🚐 Komis Gravel Lot w Underground dostał więcej przestrzeni wokół siebie. Jego okno można teraz zamknąć przyciskiem, a nie tylko klawiszem Escape, a tekst wyjścia z rozmowy poprawiono.'},
+  {t:'change',d:'🚙 Kamper, którym jeździsz, jest teraz większy i lepiej widoczny na mapie.'},
+  {t:'fix',d:'🚸 Znaki drogowe są teraz nad przejściami dla pieszych (nie zlewają się z pasami), a trójkątny znak ma dopasowany cień zamiast okrągłego.'},
+  {t:'fix',d:'🪑 Duże ławki, na których siadają przechodnie, stoją teraz równo przy budynkach na chodniku, a nie na środku przejścia.'},
+ ]
+ },
  {
  ver:'v2.3.99',date:'2026-07-01',cats:['feature'],title:'🏆 Breakdance i Skateboarding — ścieżka turniejowa',
  items:[
@@ -73647,6 +73674,13 @@ function initDistrictLife(room){
       color:lux?exoticCols[Math.floor(Math.random()*exoticCols.length)]:stdCols[i%stdCols.length], lux });
   }
 }
+/* v2.3.100 (user 2026-07-01): twarz district peda (oczy+usta+cień włosów) — dzielnicowi NPC wyglądali „słabo" (płaskie figurki bez twarzy) vs miasto. Analog drawNPC (L6738). Głowa: arc(sx,sy-11,r). */
+function _dpFace(sx,sy,r){
+  r=r||5;
+  X.fillStyle='rgba(255,255,255,.10)'; X.beginPath(); X.arc(sx-1.6,sy-13,1.7,0,Math.PI*2); X.fill(); /* highlight jak w drawNPC */
+  X.fillStyle='#15151c'; X.fillRect(sx-3,sy-12.2,1.7,1.9); X.fillRect(sx+1.3,sy-12.2,1.7,1.9); /* oczy */
+  X.strokeStyle='rgba(70,35,25,.75)'; X.lineWidth=1; X.beginPath(); X.moveTo(sx-1.7,sy-8.6); X.lineTo(sx+1.7,sy-8.6); X.stroke(); /* usta */
+}
 function _drawDistrictPed(p){
   const sx=wx2sx(p.x), sy=wy2sy(p.y);
   if(sx<-40||sx>1320||sy<-40||sy>840) return;
@@ -73660,8 +73694,9 @@ function _drawDistrictPed(p){
     X.strokeStyle=p.sc; X.lineWidth=2.8; X.lineCap='round';
     X.beginPath(); X.moveTo(sx-5,sy-3); X.lineTo(sx-8-walk*0.5,sy+5); X.moveTo(sx+5,sy-3); X.lineTo(sx+8+walk*0.5,sy+5); X.stroke(); X.lineCap='butt';
     X.fillStyle=p.sc; X.beginPath(); X.arc(sx,sy-11,5,0,Math.PI*2); X.fill(); /* głowa */
+    _dpFace(sx,sy); /* v2.3.100: twarz (oczy+usta) */
     if(!p.hat){ X.fillStyle=p.hairCol||'#2a1c12'; X.beginPath(); X.arc(sx,sy-11.5,5.1,Math.PI*1.04,Math.PI*1.96); X.fill(); } /* włosy */
-    if(p.shades){ X.fillStyle='#101014'; X.fillRect(sx-4,sy-12,8,2.4); } /* okulary słoneczne */
+    if(p.shades){ X.fillStyle='#101014'; X.fillRect(sx-4,sy-12,8,2.4); } /* okulary słoneczne (na oczy) */
     if(p.hat){ X.fillStyle=p.hatCol; X.fillRect(sx-8,sy-14,16,2.6); X.beginPath(); X.arc(sx,sy-14.5,4.6,Math.PI,Math.PI*2); X.fill(); } /* kapelusz z rondem */
     return;
   }
@@ -73671,6 +73706,7 @@ function _drawDistrictPed(p){
   X.strokeStyle=p.cc; X.lineWidth=2.8; X.lineCap='round';
   X.beginPath(); X.moveTo(sx-5,sy-3); X.lineTo(sx-8-walk*0.5,sy+6); X.moveTo(sx+5,sy-3); X.lineTo(sx+8+walk*0.5,sy+6); X.stroke(); X.lineCap='butt';
   X.fillStyle=p.sc; X.beginPath(); X.arc(sx,sy-11,5,0,Math.PI*2); X.fill();
+  _dpFace(sx,sy); /* v2.3.100: twarz (oczy+usta) */
   X.fillStyle=p.hairCol||'#2a1c12'; X.beginPath(); X.arc(sx,sy-11.5,5.1,Math.PI*1.04,Math.PI*1.96); X.fill(); /* włosy */
   if(p.elegant){ X.fillStyle='#3a2a1a'; X.fillRect(sx+(p.dx>0?6:-10),sy+1,4,7); } /* teczka */
 }
@@ -75429,7 +75465,10 @@ function drawSignPost(wx,wy,type){
   /* v2.3.94 (user: „inne znaki słabo widoczne; żółty/biały trójkąt zlewa się z pasami zebry"):
      ciemny podkład-halo pod KAŻDY znak = kontrast na białej zebrze/jasnej jezdni; znaki powiększone;
      yield dostaje DODATKOWO ciemny obrys-trójkąt + grubszy czerwony brzeg, by biały trójkąt nie ginął na zebrze. */
-  X.fillStyle='rgba(8,10,16,0.62)'; X.beginPath(); X.arc(sx,cy,15,0,Math.PI*2); X.fill();
+  /* v2.3.100 (user: „czerwono-biały trójkąt ma okrągły cień, a jest trójkątem"): halo dopasowane kształtem — trójkątne dla yield, okrągłe dla reszty. */
+  X.fillStyle='rgba(8,10,16,0.62)';
+  if(type==='yield'){ X.beginPath(); X.moveTo(sx-16,cy-13); X.lineTo(sx+16,cy-13); X.lineTo(sx,cy+16); X.closePath(); X.fill(); }
+  else { X.beginPath(); X.arc(sx,cy,15,0,Math.PI*2); X.fill(); }
   if(type==='stop'){
     X.fillStyle='#c0271b'; _signOctagon(sx,cy,15); X.fill();
     X.strokeStyle='#fff'; X.lineWidth=2; _signOctagon(sx,cy,15); X.stroke();
@@ -75513,7 +75552,10 @@ function _streetFurniture(){
     return true;
   };
   const valid=[]; let nT=0,nB=0,tog=0;
-  for(let wy=300; wy<3300; wy+=130){
+  /* v2.3.100 (user: „ławki na środku chodnika obok parku stoją źle; przy Rezydencji dobrze"): tylko PASY CHODNIKA
+     przy budynkach (dosunięte do strony budynku, jak dobra ławka wy=320) — arbitralna siatka co 130px dawała rzędy
+     jak wy=690 (poza pasem chodnika, na środku ścieżki). Rzędy: H1/H2/H3 north+south dosunięte do budynków. */
+  for(const wy of [320,605,1858,2130,2818,3092]){
     for(let wx=120; wx<4220; wx+=190){
       const kind=(tog++%3===0)?'bench':'trash';
       if((kind==='trash'&&nT>=6)||(kind==='bench'&&nB>=4)) continue;
@@ -75543,7 +75585,7 @@ function drawStreetFurniture(){
 function drawStreetDetails(){
   if(currentRoom!=='ulica')return;
   const t=Date.now();
-  drawRoadSigns(); // D6d: znaki drogowe przy skrzyżowaniach (walidowane, bez overlap)
+  /* v2.3.100 (user: „znak zlewa się z zebrą, powinien być NAD przejściem"): drawRoadSigns() PRZENIESIONE za crosswalki (rysowane na końcu drawCityDecorations, po zebrach) — inaczej zebra malowała się na znaku. */
   drawStreetFurniture(); // D6b/c: więcej śmietników + ławek osiedlowych (walidowane po kaflach, bez overlap)
 
   // ── DONICE Z KWIATAMI przed sklepami ──
@@ -76546,6 +76588,8 @@ function drawCityDecorations(){
   // V3 × H3 — pełne 4 przejścia (V3 idzie pełnym pionem)
   crosswalkH(2838,2880,3456,3648); crosswalkH(3072,3116,3456,3648);
   crosswalkV(3406,3456,2880,3072); crosswalkV(3648,3698,2880,3072);
+  /* v2.3.100 (user): znaki drogowe rysowane TERAZ — po zebrach, więc są NAD przejściami (nie zlewają się z pasami). */
+  drawRoadSigns();
 
   // ── Pasy ruchu — przerywana linia środkowa — RYSOWANA JAKO PROSTOKĄTY (zablokowana do world coords) ──
   // Kolor BIAŁY (poprzednio żółty rgba(255,220,0)). Wykluczone strefy: V-roads + crosswalki + H-roads + crosswalki.
@@ -79616,8 +79660,9 @@ loop();
          na nieprzezroczystym canvasie (stary feMerge zasłaniał blask SourceGraphic-iem na wierzchu → szum).
          Rozmycie podbite jasnością (slope 1.5) zanim screen → wyraźny blask (user „shadery mają robić różnicę"). */
       svg.innerHTML='<defs><filter id="uw-bloom" x="-20%" y="-20%" width="140%" height="140%">'
-        +'<feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="b"/>'
-        +'<feComponentTransfer in="b" result="bb"><feFuncR type="linear" slope="1.5"/><feFuncG type="linear" slope="1.5"/><feFuncB type="linear" slope="1.5"/></feComponentTransfer>'
+        /* v2.3.100 (user 2026-07-01): bloom był za mocny — cała gra rozmazana. stdDeviation 3.2→1.5 (ciaśniejszy blask wokół jasnych miejsc, nie rozmycie całości) + slope 1.5→1.2 (mniej podbicia). Subtelny glow zamiast haze. */
+        +'<feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="b"/>'
+        +'<feComponentTransfer in="b" result="bb"><feFuncR type="linear" slope="1.2"/><feFuncG type="linear" slope="1.2"/><feFuncB type="linear" slope="1.2"/></feComponentTransfer>'
         +'<feBlend in="SourceGraphic" in2="bb" mode="screen"/></filter></defs>';
       document.body.appendChild(svg);
     }
