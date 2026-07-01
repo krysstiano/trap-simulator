@@ -11911,7 +11911,8 @@ function drawWeatherFX(){
     }
   }
   // Only show precipitation outdoors
-  const outdoor=currentRoom==='ulica';
+  /* v2.3.102 (PDF #8-12): pogoda spójna między dzielnicami — FX opadów renderują się też w Underground/Coast/Business (plenerowe mapy). G.weather NIE jest re-losowane przy changeRoom, więc warunki są te same, tylko teraz WIDOCZNE. */
+  const outdoor=currentRoom==='ulica'||currentRoom==='underground'||currentRoom==='coast'||currentRoom==='business';
   const w=G.weather;
   if(outdoor){
     if(w===2||w===5){
@@ -14265,6 +14266,14 @@ function handleAct(act,objId){
   } else if(act==='casino:cashier'){
     openCasinoCashier();
   } else if(act==='parking:info'){
+    /* v2.3.102 (PDF #8-29): kamper też kwalifikuje się do postoju na parkingu miejskim (jak auto). */
+    if(G._inCamper){
+      const _pObj=(ROOMS[currentRoom]&&ROOMS[currentRoom].objects||[]).find(o=>o.id==='parking');
+      const _doParkCamper=()=>{ const s=(typeof _findFreeParkingSpot==='function'&&_findFreeParkingSpot(_pObj))||{wx:P.wx,wy:P.wy}; G._camperParkedAt={wx:s.wx,wy:s.wy,room:currentRoom}; G._inCamper=false; if(typeof showMsg==='function') showMsg('🅿️ Zaparkowałeś kampera na parkingu. Wróć tutaj i naciśnij K, by nim ruszyć.'); if(typeof saveGameSilent==='function') saveGameSilent(); };
+      if(typeof gameConfirm==='function') gameConfirm('🅿️ Zaparkować tu kampera?\n\nKamper zostanie na parkingu — wróć, aby nim ruszyć (K).',_doParkCamper);
+      else _doParkCamper();
+      return;
+    }
     if(!G.car){
       if(typeof showMsg==='function')showMsg('🅿️ Parking miejski — potrzebujesz auta. Kup je w Salonie Aut.','r');
     } else if(G._inCar){
@@ -50996,6 +51005,8 @@ window._sqUpdate=function(){
   const el=window._sqEnsureEl();
   const q=window._sqActive&&window._sqActive();
   if(!q){ if(el.dataset.sig!=='none'){ el.style.display='none'; el.dataset.sig='none'; } return; }
+  /* v2.3.102 (PDF #8-25): tracker wątku pobocznego POD panelem „Cele" (#quest-widget) — nie nakładają się gdy Cele rozwinięte. Liczone co tick (poza cache sig). */
+  try{ const _qw=document.getElementById('quest-widget'); if(_qw && getComputedStyle(_qw).display!=='none' && _qw.offsetHeight>0){ el.style.top=(_qw.offsetTop+_qw.offsetHeight+8)+'px'; } else { el.style.top='84px'; } }catch(_e){}
   /* minigra → CAŁKOWICIE ukryty (PDF §15/24: minigra parkingowa nie może być zasłonięta). Inne nakładki → opacity 0.25. */
   const mg=(typeof mgOpen==='function'&&mgOpen());
   const dim=(typeof npcDlgOpen==='function'&&npcDlgOpen())||(typeof overlayOpen==='function'&&overlayOpen())||(typeof phoneOpen==='function'&&phoneOpen())||(typeof isPaused==='function'&&isPaused())||!!(G&&G._cinematicActive);
@@ -58535,6 +58546,9 @@ const PATCH_NOTES = [
   {t:'change',d:'Schowek/bagażnik pojazdu otwierasz teraz wyłącznie będąc w posiadanym aucie lub kamperze — pozycja zniknęła z oferty salonu CityDrive (tam jej miejsca nie było).'},
   {t:'change',d:'Mobilne zaplecze kampera otwierasz teraz klawiszem L (wcześniej „P", który koliduje z telefonem) — siedząc w kamperze.'},
   {t:'change',d:'Szybkie zlecenia „Gigi" w telefonie odblokowują się po wykonaniu pierwszej pracy dorywczej w mieście, na mapie (myjnia, zmywak, budowa, kurier, pizzeria lub supermarket).'},
+  {t:'fix',d:'Pogoda jest teraz spójna między dzielnicami — jeśli w mieście pada, pada też w Underground, na wybrzeżu i w dzielnicy biznesowej. Wcześniej zmiana dzielnicy pozornie „resetowała" pogodę.'},
+  {t:'change',d:'Kamperem możesz teraz zaparkować na miejskich parkingach, tak samo jak autem.'},
+  {t:'fix',d:'Panel śledzenia wątku pobocznego nie zasłania już panelu „Cele" — ustawia się pod nim i przesuwa w dół, gdy rozwiniesz listę celów.'},
  ]
  },
  {
