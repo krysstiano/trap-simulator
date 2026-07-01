@@ -38906,7 +38906,7 @@ window._camperDriveParams=function(){
   return { speed:speed, speedBase:speedBase, widthMul:1.6 };/* v2.3.100 (user: kamper za mały) 1.3→1.6 */
 };
 /* Zakup kampera — sprawdza kase, odejmuje, ustawia owned/model/stan, loguje, woła wybor 1. postoju. (PDF buyCamper) */
-window.buyCamper=function(modelId){
+window.buyCamper=function(modelId,source){
   window._camperEnsure(); const c=G.camper;
   const m=window._camperModelById(modelId);
   if(!m){ if(typeof showMsg==='function')showMsg('Nieznany model kampera.','r'); return false; }
@@ -38914,6 +38914,8 @@ window.buyCamper=function(modelId){
   if((G.money||0) < m.price){ if(typeof showMsg==='function')showMsg('Nie masz wystarczajaco gotowki (potrzeba '+m.price.toLocaleString('pl')+' zl).','r',4500); return false; }
   G.money -= m.price;
   c.owned=true; c.model=modelId; c.condition=m.cond||70; c.camouflage=m.camouflage||10; c.destroyed=false; c.daysInLoc=0;
+  /* v2.3.102 (PDF #6): zapis źródła zakupu — odkup u Korka tylko dla kamperów z Gravel Lot (po 14 dniach, 50%). */
+  c.purchaseDay=G.day||0; c.purchasePrice=m.price; c.sourceShop=(source==='gravel')?'gravel_lot_motors':(source==='citydrive'?'citydrive_motors':(source||'')); c.sellerNpc=(source==='gravel')?'korek':''; c.soldBack=false; c.stolen=false;
   /* E4d (silnik jazdy): spawn fizycznej pozycji kampera na mapie (do wsiadania klawiszem K). Kupujesz w pokoju jezdnym → tam; inaczej domyślnie underground. */
   { const _crNow=(typeof _carRoom==='function')&&_carRoom(currentRoom); G._camperParkedAt = _crNow ? {wx:P.wx, wy:P.wy, room:currentRoom} : {wx:1120, wy:430, room:'underground'}; G._inCamper=false; }/* v2.3.100: park domyślny NAD jezdnią (był wy:540 = pas aut → auta przenikały) */
   if(!Array.isArray(c.history)) c.history=[];
@@ -38935,23 +38937,28 @@ window._chooseInitialCamperLocation=function(){
 /* Panel zakupu kamperów (Tier 1b) — wzór renderSalon, renderuje do #ov-content (overlay już otwarty: salon/komis).
    source: 'citydrive' (premium) / 'gravel' (komis używanych; modele 'both' widoczne w obu). */
 window._camperTier=function(n){ const L=['—','b.niski','niski','niski+','średni','średni+','wysoki','wysoki+','b.wysoki']; return L[Math.round((+n||0)*2)]||(''+n); };
-window.renderCamperShop=function(source){
+window.renderCamperShop=function(source,budget){
   window._camperEnsure(); const c=G.camper;
   const el=document.getElementById('ov-content'); if(!el) return;
-  const models=(typeof CAMPER_MODELS!=='undefined')?CAMPER_MODELS.filter(m=> m.source===source || m.source==='both'):[];
+  let models=(typeof CAMPER_MODELS!=='undefined')?CAMPER_MODELS.filter(m=> m.source===source || m.source==='both'):[];
+  /* v2.3.102 (PDF #8-23): 4 opcje budżetowe u Korka sortują listę wg preferencji (wszystkie modele widoczne). */
+  let budgetNote='';
+  if(budget==='cheap'){ models=models.slice().sort((a,b)=>a.price-b.price); budgetNote='Od najtańszych — byleby jeździł.'; }
+  else if(budget==='mid'){ models=models.slice().sort((a,b)=>a.price-b.price); budgetNote='Średnia półka — coś, co nie wygląda jak trup na kołach.'; }
+  else if(budget==='clean'){ models=models.slice().sort((a,b)=>(b.qualityMod||0)-(a.qualityMod||0)||a.price-b.price); budgetNote='Czystsze wizualnie, ale droższe — mniej rzuca się w oczy.'; }
   const ownedName=c.owned?((window._camperModelById(c.model)||{}).name||c.model):null;
   const rows=models.map(m=>{
     const afford=(G.money||0)>=m.price, dis=c.owned||!afford;
     return `<div style="background:#0a1220;border:1px solid #1a3a5a;border-radius:10px;padding:12px;margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-        <b style="font-size:15px;color:#eaf2fb">${m.emoji} ${m.name}</b><span style="color:#e8a020;font-weight:700;white-space:nowrap">${m.price.toLocaleString('pl')} zł</span></div>
+        <b style="font-size:15px;color:#7ec8e3">${m.emoji} ${m.name}</b><span style="color:#e8a020;font-weight:700;white-space:nowrap">${m.price.toLocaleString('pl')} zł</span></div>
       <p style="font-size:12.5px;color:#99a;margin:6px 0">${m.desc}</p>
       <div style="font-size:11.5px;color:#778;margin-bottom:8px">📦 Pojemność ${window._camperTier(m.storage)} · 🧪 Zaplecze ${window._camperTier(m.labCap)} · 🔧 Awaryjność ${window._camperTier(m.breakdown)} · ✨ Jakość ${100+(m.qualityMod||0)}/100</div>
-      <button class="bbtn" style="width:100%" ${dis?'disabled':''} onclick="window.buyCamper('${m.id}');window.renderCamperShop('${source}')">${c.owned?'Masz już kampera':afford?('Kup za '+m.price.toLocaleString('pl')+' zł'):'Za mało gotówki'}</button>
+      <button class="bbtn" style="width:100%" ${dis?'disabled':''} onclick="window.buyCamper('${m.id}','${source}');window.renderCamperShop('${source}','${budget||''}')">${c.owned?'Masz już kampera':afford?('Kup za '+m.price.toLocaleString('pl')+' zł'):'Za mało gotówki'}</button>
     </div>`;
   }).join('');
   const title=source==='gravel'?'🚐 Gravel Lot Motors — komis pojazdów używanych':'🚐 CityDrive Motors — kampery';
-  const intro=source==='gravel'?'Szutrowy plac na obrzeżach. Tanie kampery z historią, której nikt już nie chce pamiętać.':'Komfortowe kampery z lepszym wyposażeniem, większą przestrzenią i niższą awaryjnością.';
+  const intro=(source==='gravel'?'Szutrowy plac na obrzeżach. Tanie kampery z historią, której nikt już nie chce pamiętać.':'Komfortowe kampery z lepszym wyposażeniem, większą przestrzenią i niższą awaryjnością.')+(budgetNote?` <span style="color:#7ec8e3">${budgetNote}</span>`:'');
   const notOwnedMsg=source==='gravel'?'<p style="color:#778;font-size:12px;margin-bottom:10px">Możesz mieć jednego kampera. To etap przejściowy — mobilny, ale ryzykowny.</p>':'<p style="color:#778;font-size:12px;margin-bottom:10px">Możesz mieć jednego kampera naraz — komfortowy pojazd na większe trasy i dłuższe wyjazdy.</p>';
   el.innerHTML=`<h2>${title}</h2><p class="sub">${intro}</p>
     ${c.owned?`<div style="background:#0e1830;border-left:3px solid #f1c40f;padding:8px 12px;margin-bottom:12px;border-radius:4px;font-size:13px;color:#cdd">Masz już kampera (${ownedName}). Zarządzaj nim w telefonie: Kariera → Trap → Kamper.</div>`:notOwnedMsg}
@@ -38963,18 +38970,97 @@ window._korekDialog=function(){
   window._camperEnsure(); const c=G.camper;
   const unlocked = c.gravelLotUnlocked || (G.streetRep||0)>=40 || (G.trap&&G.trap.unlocked);
   if(unlocked) c.gravelLotUnlocked=true;
-  const openShop=()=>{ if(typeof closeNPCDlg==='function')closeNPCDlg(); if(typeof window.renderCamperShop==='function'){ window.renderCamperShop('gravel'); if(typeof openOverlay==='function')openOverlay(); } };
-  if(typeof window._uwShowDlg!=='function'){ if(unlocked) openShop(); else if(typeof showMsg==='function') showMsg('🚐 Korek: bez polecenia nie gadam o powaznym towarze. Wroc, jak ktos za ciebie zareczy.','i',5000); return; }
+  /* v2.3.102 (PDF #8-23): Korek mówi jako „Korek" (własny nagłówek), bez prefiksu „Korek:" w treści. */
+  const _KOREK={name:'Korek',emoji:'🔧'};
+  const openShop=(budget)=>{ if(typeof closeNPCDlg==='function')closeNPCDlg(); if(typeof window.renderCamperShop==='function'){ window.renderCamperShop('gravel',budget); if(typeof openOverlay==='function')openOverlay(); } };
+  if(typeof window._uwShowDlg!=='function'){ if(unlocked) openShop(); else if(typeof showMsg==='function') showMsg('🚐 Korek: bez polecenia nie gadam o poważnym towarze. Wróć, jak ktoś za ciebie zaręczy.','i',5000); return; }
   if(!unlocked){
-    window._uwShowDlg('Korek: Jak szukasz auta bez historii, to zle trafiles. A jak szukasz auta z historia, ktorej nikt juz nie chce pamietac — to najpierw niech ktos za ciebie zareczy. Bez polecenia nie gadam o powaznym towarze.',[
+    window._uwShowDlg('Jak szukasz auta bez historii, to źle trafiłeś. A jak szukasz auta z historią, której nikt już nie chce pamiętać — to najpierw niech ktoś za ciebie zaręczy. Bez polecenia nie gadam o poważnym towarze.',[
       {text:'(Wychodzę)', fn:()=>{ if(typeof closeNPCDlg==='function')closeNPCDlg(); }}
-    ]);
+    ],_KOREK);
     return;
   }
-  window._uwShowDlg('Korek: Kamper? Romantycznie. O kazdym aucie powiem ci, ze igla — i czasem nawet nie sklamie. Jaki budzet? Idziemy w turystyke, czy w cos bardziej desperackiego?',[
-    {text:'„Pokaz, co masz na placu."', fn:openShop},
-    {text:'(wychodzisz)', fn:()=>{ if(typeof closeNPCDlg==='function')closeNPCDlg(); }}
-  ]);
+  /* v2.3.102 (PDF #6): po zakupie kampera od Korka — osobna rozmowa posprzedażowa (odkup po 14 dniach). */
+  if(typeof window._korekOwnsFromKorek==='function' && window._korekOwnsFromKorek()){ window._korekPostPurchaseDialog(); return; }
+  window._uwShowDlg('Kamper? Romantycznie… O każdym aucie powiem ci, że igła — i czasem nawet nie skłamię. W jakim budżecie? Idziemy w turystykę, czy bardziej w desperację?',[
+    {text:'„Najtańszy, byleby jeździł.”', fn:()=>openShop('cheap')},
+    {text:'„Coś, co nie wygląda jak trup na kołach.”', fn:()=>openShop('mid')},
+    {text:'„Ma nie rzucać się w oczy na ulicy.”', fn:()=>openShop('clean')},
+    {text:'„Pokaż wszystko, co masz na stanie.”', fn:()=>openShop('all')},
+    {text:'(Wychodzę)', fn:()=>{ if(typeof closeNPCDlg==='function')closeNPCDlg(); }}
+  ],_KOREK);
+};
+/* ═══ v2.3.102 (PDF #6): KOREK — INTERAKCJA POSPRZEDAŻOWA + ODKUP KAMPERA ═══
+   Po zakupie kampera OD KORKA (gravel_lot_motors) rozmowa zmienia się na posprzedażową.
+   Odkup: tylko kamper od Korka, 14+ dni od zakupu, nie zniszczony/skradziony/prowadzony/pełny. Zawsze 50% ceny zakupu. */
+window._korekOwnsFromKorek=function(){ const c=G.camper; return !!(c && c.owned && c.sourceShop==='gravel_lot_motors' && c.sellerNpc==='korek' && !c.soldBack); };
+window._KOREK_NPC={name:'Korek',emoji:'🔧'};
+window._korekPostPurchaseDialog=function(){
+  window._uwShowDlg('No i jak tam Twój domek na kołach? Jeszcze jeździ, czy już tylko wygląda?',[
+    {text:'„Mam sprawę. Chcę pogadać o kamperze.”', fn:()=>window._korekCamperMenu()},
+    {text:'„Pokaż, co masz jeszcze na placu.”', fn:()=>{ if(typeof closeNPCDlg==='function')closeNPCDlg(); if(window.renderCamperShop){ window.renderCamperShop('gravel','all'); if(typeof openOverlay==='function')openOverlay(); } }},
+    {text:'„Potrzebuję części / serwisu.”', fn:()=>{ if(typeof closeNPCDlg==='function')closeNPCDlg(); if(typeof showMsg==='function')showMsg('🔧 Korek: Części i serwis — wpadnij, jak coś zacznie stukać. Na razie jedzie, to jedź.','i',4500); }},
+    {text:'„Na razie. Trzymaj się.”', fn:()=>{ if(typeof closeNPCDlg==='function')closeNPCDlg(); }}
+  ],window._KOREK_NPC);
+};
+window._korekCamperMenu=function(){
+  const c=G.camper; const m=window._camperModelById(c.model)||{};
+  const days=(G.day||0)-(c.purchaseDay||0); const sellBack=Math.floor((c.purchasePrice||0)*0.5);
+  const status = days>=14 ? `Odkup dostępny: ${sellBack.toLocaleString('pl')} zł (50% ceny zakupu).` : `Odkup możliwy dopiero od 14. dnia po zakupie (minęło ${days} dni).`;
+  window._uwShowDlg(`Twój kamper: ${m.name||c.model}. Kupiony dnia ${c.purchaseDay||0} — minęło ${days} dni. Cena zakupu: ${(c.purchasePrice||0).toLocaleString('pl')} zł. ${status}`,[
+    {text:'[Spróbuj sprzedać z powrotem]', fn:()=>window._korekTrySellBack()},
+    {text:'[Wróć]', fn:()=>window._korekPostPurchaseDialog()}
+  ],window._KOREK_NPC);
+};
+window._korekTrySellBack=function(){
+  const c=G.camper; const W=window._KOREK_NPC; const back=()=>window._korekCamperMenu();
+  if(c.destroyed){ window._uwShowDlg('Kupić to już może tylko szrot. To nie kamper, tylko problem na kołach.',[{text:'[Wróć]',fn:back}],W); return; }
+  if(c.stolen){ window._uwShowDlg('Skradziony? Najpierw go odzyskaj, potem gadamy.',[{text:'[Wróć]',fn:back}],W); return; }
+  if(G._inCamper){ window._uwShowDlg('Najpierw go zaparkuj. Nie będziemy rozmawiać przez szybę.',[{text:'[Wróć]',fn:back}],W); return; }
+  const hasStuff=!!(G.trapInv && G.trapInv.products && Object.values(G.trapInv.products).some(v=>(v||0)>0));
+  if(hasStuff){ window._uwShowDlg('Masz tam jeszcze swoje graty i coś w środku pracuje. Opróżnij go, zanim będziesz mi wciskał kluczyki.',[{text:'[Wróć]',fn:back}],W); return; }
+  const days=(G.day||0)-(c.purchaseDay||0);
+  if(days<=3){ window._uwShowDlg('Przyjacielu, zmartwię Cię… To nie jest sklep z resorówkami. Nie obrażaj mnie. Wróć, gdy będziesz potrzebował czegoś ważnego.',[{text:'[Wróć]',fn:back}],W); return; }
+  if(days<=6){ window._uwShowDlg('Przecież dopiero co go kupiłeś, nie? Teraz potrzebuję kasy, więc zwroty nie wchodzą w grę. Wróć za jakiś czas.',[{text:'[Wróć]',fn:back}],W); return; }
+  if(days<=13){ window._uwShowDlg('Wysłużony? Mogłeś powiedzieć, to bym Ci pożyczył… Niestety nie mogę przyjąć teraz takiej oferty. Wróć za jakiś czas.',[{text:'[Wróć]',fn:back}],W); return; }
+  window._korekSellBackOffer();
+};
+window._korekSellBackOffer=function(){
+  const c=G.camper; const W=window._KOREK_NPC; const sellBack=Math.floor((c.purchasePrice||0)*0.5);
+  window._uwShowDlg(`Słuchaj, jak nie rozjebałeś silnika i nie spaliłeś elektroniki, to mógłbym go zabrać z powrotem… za połowę. Oferta: ${sellBack.toLocaleString('pl')} zł.`,[
+    {text:'„Muszę go pilnie oddać.”', fn:()=>window._korekNegoReply('urgent')},
+    {text:'„Połowę?! To wartość rynkowa?”', fn:()=>window._korekNegoReply('market')},
+    {text:'„Potrzebuję 80%. Skołuję Ci coś.”', fn:()=>window._korekNegoReply('eighty')},
+    {text:'„Dobra, umowa stoi.”', fn:()=>window._korekConfirmSellBack()},
+    {text:'(Odmów)', fn:()=>window._korekCamperMenu()}
+  ],W);
+};
+window._korekNegoReply=function(kind){
+  const c=G.camper; const W=window._KOREK_NPC; const sellBack=Math.floor((c.purchasePrice||0)*0.5);
+  const t = kind==='urgent' ? 'A ja mam inne sprawy na głowie niż wysłuchiwanie tego. Mogłeś go po prostu nie kupować, prawda? Połowa albo nic.'
+    : kind==='market' ? 'To tak nie działa, mój drogi, że przychodzisz tu i próbujesz mnie oczarować. Albo połowa, albo nie zawracaj mi dupy.'
+    : 'Osiemdziesiąt? To nie wchodzi w grę, przykro mi. Ja też potrzebuję na rozruch. Czasy są popierdolone. Połowa.';
+  window._uwShowDlg(t,[
+    {text:`[Przyjmij 50% — ${sellBack.toLocaleString('pl')} zł]`, fn:()=>window._korekConfirmSellBack()},
+    {text:'(Wycofaj się)', fn:()=>window._korekCamperMenu()}
+  ],W);
+};
+window._korekConfirmSellBack=function(){
+  const c=G.camper; const m=window._camperModelById(c.model)||{}; const sellBack=Math.floor((c.purchasePrice||0)*0.5);
+  if(typeof closeNPCDlg==='function')closeNPCDlg();
+  const doSell=()=>window._korekCompleteSellBack();
+  if(typeof gameConfirm==='function'){ gameConfirm(`Sprzedajesz: ${m.name||c.model}. Otrzymasz: ${sellBack.toLocaleString('pl')} zł. Po sprzedaży kamper zniknie z Twoich pojazdów, a mobilne zaplecze będzie niedostępne dopóki nie kupisz kolejnego. Sprzedać?`, doSell); }
+  else doSell();
+};
+window._korekCompleteSellBack=function(){
+  const c=G.camper; const m=window._camperModelById(c.model)||{}; const sellBack=Math.floor((c.purchasePrice||0)*0.5);
+  G.money=(G.money||0)+sellBack;
+  c.soldBack=true; c.owned=false; c.model=null; c.location=null;
+  G._inCamper=false; G._camperParkedAt=null;
+  if(!Array.isArray(c.history)) c.history=[]; c.history.push({day:G.day||0, ev:'sellback', price:sellBack});
+  if(typeof showMsg==='function')showMsg(`✅ Sprzedano kampera Korkowi: ${m.name||''}. Otrzymano ${sellBack.toLocaleString('pl')} zł. Możesz kupić kolejnego, licznik 14 dni zacznie się od nowa.`,'g',7000);
+  if(typeof saveGameSilent==='function')saveGameSilent();
+  if(typeof updateHUD==='function')updateHUD();
 };
 /* ═══ MODUŁ KAMPERA — LOKACJE POSTOJU (Tier 2, PDF pkt 8) ═══
    6 lokacji poza centrum/dużym ruchem NPC. Profile ryzyka 0-100 (police/npcReport/theft/fire) + camouflage bonus.
@@ -48092,6 +48178,8 @@ window._camperEnsure=function(){
   d('condition',100); d('camouflage',0); d('daysInLoc',0); d('moveCooldown',0); d('heat',0); d('fuel',100); d('routeNoise',0);
   d('gangProtection',0); d('maintenance',0); d('destroyed',false); d('partsAtMetalValley',false);
   d('productionLocked',false); d('gravelLotUnlocked',false); d('purchaseAvailable',false);
+  /* v2.3.102 (PDF #6): pola odkupu u Korka — save-safe. Grandfather/CityDrive: sourceShop≠gravel_lot_motors → brak odkupu (poprawne). */
+  d('purchaseDay',0); d('purchasePrice',0); d('sourceShop',''); d('sellerNpc',''); d('soldBack',false); d('stolen',false);
   if(!Array.isArray(c.upgrades)) c.upgrades=[];
   if(!Array.isArray(c.history)) c.history=[];
   /* GRANDFATHER: istniejący gracz z odblokowanym Trapem zachowuje kamper jako posiadany (kompatybilność save). */
@@ -50928,10 +51016,11 @@ window._kantarPresent=function(){ if(!G.underworldIntro) return false; return ['
 /* Imię: gracz zna go jako „Nieznany" do ukończenia questa (PDF §16). */
 window._uwKantarName=function(){ return (G.underworldIntro&&G.underworldIntro.state==='completed')?'Roch „Kantar” Nawrot':'Nieznany'; };
 /* Renderer dialogu reużywający okna #npc-dlg (jak openNPCDialogue, ale bez cooldownów — wybory fabularne). */
-window._uwShowDlg=function(text,opts){
+window._uwShowDlg=function(text,opts,who){
   const dlg=document.getElementById('npc-dlg'); if(!dlg) return;
-  dlg.dataset.emoji='🕴️';
-  const nm=document.getElementById('npc-dlg-name'); if(nm) nm.textContent=window._uwKantarName();
+  /* v2.3.102 (PDF #8-23): opcjonalny `who={name,emoji}` — bez niego mówiącym jest Kantar (wstecz-kompat). Korek przekazuje własny nagłówek. */
+  dlg.dataset.emoji=(who&&who.emoji)||'🕴️';
+  const nm=document.getElementById('npc-dlg-name'); if(nm) nm.textContent=(who&&who.name)||window._uwKantarName();
   const tx=document.getElementById('npc-dlg-text'); if(tx) tx.textContent='"'+text+'"';
   const od=document.getElementById('npc-dlg-opts'); if(od){ od.innerHTML=''; (opts||[]).forEach(o=>{ const b=document.createElement('button'); b.className='npc-opt'; b.textContent=o.text; b.onclick=o.fn; od.appendChild(b); }); }
   dlg.classList.add('on');
@@ -58385,6 +58474,9 @@ const PATCH_NOTES = [
   {t:'fix',d:'Powiadomienie o demonetyzacji nie pojawi się, dopóki nie opublikujesz kilku filmów — początkujący twórca nie ma jeszcze czego demonetyzować.'},
   {t:'change',d:'Krok fabularny „Debiutancki singiel" pokazuje teraz na mapie dwa miejsca: studio nagraniowe oraz Twój Traphouse (możesz nagrać demo także w domu).'},
   {t:'ui',d:'Wyczyszczono interfejs: usunięto ikonki-emoji z menu pauzy oraz z przycisku telefonu w rogu ekranu. W trybie przelotu nad miastem poprawiono nazwę sklepu na VoltHouse.'},
+  {t:'fix',d:'Handlarz kamperów w Gravel Lot Motors przedstawia się teraz poprawnie jako „Korek" — wcześniej w oknie rozmowy pojawiało się nie to imię, a jego kwestie miały doklejony niepotrzebny podpis.'},
+  {t:'feature',d:'U Korka wybierzesz teraz kampera według budżetu: najtańszy „byleby jeździł", średnia półka, model mniej rzucający się w oczy, albo pełna lista. Kolor nazw kamperów w salonie poprawiony na czytelny.'},
+  {t:'feature',d:'Kampera kupionego od Korka możesz mu później odsprzedać — ale dopiero po 14 dniach od zakupu i wyłącznie za połowę ceny. Wcześniej Korek tylko kręci nosem. Pojazd musi być pusty, sprawny i zaparkowany. Po sprzedaży możesz kupić kolejnego.'},
  ]
  },
  {
