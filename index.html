@@ -731,7 +731,7 @@ body.mobile-pregame #gc, body.mobile-pregame #hud, body.mobile-pregame #dmg-over
   <span id="hcontract"></span>
 </div>
 <!-- v2.1.615 Faza J: telefon = obiekt w prawym dolnym rogu (dziecko #wrap, NIE #hud → anchor do pełnej wysokości; skaluje się z grą). -->
-<button id="hphone" onclick="togglePhone()" title="Telefon (P) — kliknij by otworzyć"><span class="phscr">📱</span><span class="phbar"></span></button>
+<button id="hphone" onclick="togglePhone()" title="Telefon (P) — kliknij by otworzyć"><span class="phscr"></span><span class="phbar"></span></button>
 <div id="hquest"></div>
 
 <!-- SLEEP OVERLAY -->
@@ -14696,9 +14696,10 @@ function _noxHasProducts(){ try{ const p=G.trapInv&&G.trapInv.products; return !
    (illegal_front_stage>=1 jest implikowane przez front+lab; bez nowego pola save). Wcześniejsze warunki (ekipa/produkty/heat) zniesione
    na rzecz bramki opartej o własność lab — zgodnie z PDF „po zakupie laboratorium". */
 function checkNoxUnlock(){
-  const front=(typeof _trapHasFront==='function')&&_trapHasFront();
+  /* v2.3.102 (PDF #8): NOX Route odblokowuje się dopiero po zakupie laboratorium ORAZ zatrudnieniu ekipy produkcyjnej (chemik). */
   const lab=((G.lab&&G.lab.tier)||0)>=1;
-  return !!(front&&lab);
+  const crew=Array.isArray(G.workers)&&G.workers.some(w=>w&&w.role==='chemist');
+  return !!(lab&&crew);
 }
 window.checkNoxUnlock=checkNoxUnlock;
 /* E2: jedyne źródło odblokowania (lab purchase + daily tick). Ustawia unlocked + komunikat systemowy (Kariera→Trap);
@@ -20046,7 +20047,8 @@ window._trapUnlockDialog=function(){
     if(typeof addNotif==='function') addNotif('🤝 Trap career unlocked! Telefon → Kariera → Trap.');
     if(typeof checkAchievements==='function') checkAchievements();
     if(typeof _smsTriggerOnce==='function'){
-      _smsTriggerOnce('trap_unlocked','marcin','🤝 Słyszałem że spotkałeś się z dealerem. To opcjonalny system — uważaj na heat policji. Lvl 15 = pełna ochrona. Joint = -56% bust risk vs Mix.');
+      /* v2.3.102 (PDF #8): wiadomość informacyjna przychodzi od SYSTEMU „TrapInfo", nie od Marcina (Organizatora) — spoza-dzielnicowy NPC nie powinien wiedzieć o lokalnej współpracy z dealerem. */
+      _smsTriggerOnce('trap_unlocked','trapinfo','ℹ️ Pamiętaj! Ten sposób działania to system opcjonalny — uważaj na heat policji. Lvl 15 = pełna ochrona. Joint = -56% bust risk vs Mix.');
     }
   });
 };
@@ -20103,6 +20105,8 @@ window._trapCook=function(recipeId){
    Adaptacja: zamiast fizycznego przesuwania kampera = akcja w panelu (zero ryzyka overlap #8). Sprzężenie: heat→raid. */
 window._trapRelocateKamper=function(){
   if(!G.trap||!G.trap.unlocked) return;
+  /* v2.3.102 (PDF #8): przestawienie kryjówki wymaga kampera (mobilne zaplecze). Bez pojazdu — komunikat, brak akcji. */
+  if(!G.camper||!G.camper.owned){ if(typeof showMsg==='function') showMsg('🚐 Najpierw kup kampera (Gravel Lot Motors / CityDrive) — to on jest Twoją mobilną kryjówką. Bez pojazdu nie ma czego przestawiać.','i',5000); return; }
   if((G.trap._lastRelocateDay||-999)===(G.day||0)){ if(typeof showMsg==='function') showMsg('📍 Kryjówkę przestawiałeś już dziś. Spróbuj jutro.','i',3500); return; }
   if((G.energy||0)<15){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii (potrzeba 15) na przeprowadzkę kryjówki.','r',3000); return; }
   const before=G.trap.heat||0;
@@ -20610,7 +20614,7 @@ window._trapBulkDisc=function(qty){ qty=Math.max(0,qty|0); return Math.min(0.18,
    Limity dzienne 10/10/10/5; ceny dealera wahają się w cyklu 14 dni [-20%,+10%] (cena=miernik jakości
    ulicznego źródła); zakup 5 dni z rzędu → +heat (zainteresowanie służb); „łącznik" w zatrudnionej ekipie
    (G.workers z liaison) LUB kanał legalny → STAŁE CENY. Save-safe: liczniki defensywnie, brak naliczania wstecz. */
-const _DEALER_DAILY_LIMIT={traw:10,krysztal:10,prosz:10,chem:5};
+const _DEALER_DAILY_LIMIT={traw:10,krysztal:10,prosz:5,chem:1}; /* v2.3.102 (PDF #8): prosz 10→5, prekursor chem 5→1 */
 function _dealerHasLiaison(){ return (Array.isArray(G.workers)&&G.workers.some(w=>w&&w.liaison)); }
 function _dealerLimEnsure(){ if(!G.trap) return; if(G.trap._dealerDay!==G.day){ G.trap._dealerDay=G.day; G.trap._dealerBought={}; } if(!G.trap._dealerBought||typeof G.trap._dealerBought!=='object') G.trap._dealerBought={}; }
 function _dealerRemaining(ingId){ const lim=_DEALER_DAILY_LIMIT[ingId]; if(!lim) return Infinity; _dealerLimEnsure(); return Math.max(0, lim-(G.trap._dealerBought[ingId]||0)); }
@@ -25184,9 +25188,11 @@ const NPC_DATA = {
         fn:()=>{closeNPCDlg();if(typeof showMsg==='function')showMsg(`🎧 Majkel: „Zawiodłeś mnie dwa razy z kontraktami. Wróć za ${window._majkelBlockDaysLeft?window._majkelBlockDaysLeft():0} dni — wtedy pogadamy.”`,'r',7500);}
       },
       // Beatmaker: produkcja bitów (immersyjnie — Majkel kupuje od Ciebie hurt)
-      {text:'🎛 Produkcja: 5 bitów na sprzedaż (7 dni, 2000 zł)',
+      /* v2.3.102 (PDF #8): kontrakt na bity dostępny dopiero po zakupie DAW (komputer + oprogramowanie) w BeatPoint. */
+      {text:()=>G.hasDaw?'🎛 Produkcja: 5 bitów na sprzedaż (7 dni, 2000 zł)':'🔒 Produkcja bitów (wymaga DAW z BeatPoint)',
         cond:()=>!(window._majkelBlocked&&window._majkelBlocked())&&G.careers.beatmaker&&G.careers.beatmaker.unlocked,
         fn:()=>{
+          if(!G.hasDaw){closeNPCDlg();if(typeof showMsg==='function')showMsg('🎧 Majkel: „Bez DAW nie zrobisz bitów, ziom. Kup komputer z oprogramowaniem w BeatPoint i wróć do mnie.”','f',8000);return;}
           if(G.contract){showMsg('Masz już aktywny kontrakt!','r');return;}
           G.contract={type:'beat',from:'producer',desc:'Stwórz 5 bitów',target:5,progress:0,deadline:G.day+7,payment:2000};
           closeNPCDlg();notify('📋 Kontrakt: 5 bitów dla Majkla. Termin: dzień '+(G.day+7));
@@ -27354,7 +27360,7 @@ function rollNpcRobberyAgainstPlayer(loc, hour){
   const night=(hour>=22||hour<6);
   const risk=DISTRICT_THEFT_RISK[loc]||DISTRICT_THEFT_RISK.ulica;
   let score=0;
-  if(loc==='underground') score+=0.30; else if(risk.robbed && /wysok/.test(risk.robbed)) score+=0.20; else score+=0.04;
+  if(loc==='underground') score+=0.09; else if(risk.robbed && /wysok/.test(risk.robbed)) score+=0.20; else score+=0.04; /* v2.3.102 (PDF #8): Underground napady −70% (0.30→0.09) — było za często */
   if(night) score+=0.15;
   if((G.money||0)>50000) score+=0.10;                                                  /* dużo gotówki przy sobie */
   if((G._alcoholAddictionUntil||0)>(G.day||0)||G.activeSubstance||G._highUntil) score+=0.10; /* pod wpływem / niski clarity */
@@ -27786,7 +27792,7 @@ function _careerEvent(){
   const POOLS={
     youtuber:[
       {auto:true, run:()=>{ const s=_rnd(200,800), a=_rnd(150,500); if(!G.yt)G.yt={subs:0}; G.yt.subs=(G.yt.subs||0)+s; _cash(a); _say(`▶️ Twój film wystrzelił! +${s} subów, +${a} zł z reklam.`); }},
-      {decide:()=>{ const cost=_rnd(300,700); showEventChoice('▶️ Demonetyzacja!', `ViewGrid zdemonetyzował Twój ostatni film za „kontrowersyjną treść". Złożysz odwołanie (prawnik ${cost} zł) czy odpuścisz?`, [
+      {decide:()=>{ if(((G.yt&&G.yt.videos)?G.yt.videos.length:0)<3) return; /* v2.3.102 (PDF #8): brak demonetyzacji dopóki gracz nie ma min. 3 filmów na ViewGrid */ const cost=_rnd(300,700); showEventChoice('▶️ Demonetyzacja!', `ViewGrid zdemonetyzował Twój ostatni film za „kontrowersyjną treść". Złożysz odwołanie (prawnik ${cost} zł) czy odpuścisz?`, [
         {label:`⚖️ Odwołanie (-${cost} zł, szansa odzyskać)`, fn:()=>{ if((G.money||0)>=cost){G.money-=cost; if(Math.random()<0.6){const a=_rnd(400,900);_cash(a);_say(`✅ Odwołanie przyjęte! +${a} zł.`);} else _say('❌ Odwołanie odrzucone.','r');} else _say('⚠️ Brak kasy na prawnika.','r'); }},
         {label:'🤷 Odpuść', fn:()=>{ _say('😐 Film bez reklam — zero z niego.','f'); }},
       ]); }},
@@ -41391,6 +41397,16 @@ window._renderKamperBuy=function(){
 window._kamperBuyIng=function(ingId,qty){
   const ing=(typeof TRAP_INGREDIENTS!=='undefined'?TRAP_INGREDIENTS:[]).find(i=>i.id===ingId);
   if(!ing) return;
+  qty=Math.max(1,qty|0);
+  /* v2.3.102 (PDF #8): składniki od dealera wymagają zaplecza (kamper LUB laboratorium) — bez tego są bezużyteczne. */
+  const _hasProd=(G.camper&&G.camper.owned)||((G.lab&&G.lab.tier)||0)>=1;
+  if(!_hasProd){ if(typeof showMsg==='function')showMsg('🚐 Najpierw kup kampera (Gravel Lot / CityDrive) albo laboratorium — bez zaplecza produkcyjnego te składniki na nic się nie przydadzą.','i',5500); return; }
+  /* v2.3.102 (PDF #8): dzienny limit zakupu (wspólny z szafką pracowników i dealerem Underground). */
+  if(typeof _dealerRemaining==='function' && _DEALER_DAILY_LIMIT[ingId]){
+    const _rem=_dealerRemaining(ingId);
+    if(_rem<=0){ if(typeof showMsg==='function')showMsg(`🚫 Dzienny limit „${ing.name}": ${_DEALER_DAILY_LIMIT[ingId]} szt./dobę. Wróć jutro.`,'r',4500); return; }
+    if(qty>_rem){ qty=_rem; if(typeof showMsg==='function')showMsg(`⚠️ Dzienny limit — bierzesz ${qty} (max ${_DEALER_DAILY_LIMIT[ingId]}/dobę).`,'i',3500); }
+  }
   const _rep=G.trap?.reputation||0;
   const _discount=_rep>=50?0.25:(_rep>=20?0.15:0);
   const _adj=Math.floor(ing.basePrice*(1-_discount));
@@ -41399,6 +41415,7 @@ window._kamperBuyIng=function(ingId,qty){
   G.money-=_total;
   G.trapInv=G.trapInv||{traw:0,krysztal:0,prosz:0,products:{}}; /* v2.3.33 BUGFIX (Vegan: „dealer czasami nie dziala") — uszkodzony/stary save bez trapInv -> zakup u dealera rzucal „reading traw" i nic sie nie kupowalo. Guard. */
   G.trapInv[ingId]=(G.trapInv[ingId]||0)+qty;
+  if(typeof _dealerLimEnsure==='function' && _DEALER_DAILY_LIMIT[ingId]){ _dealerLimEnsure(); G.trap._dealerBought[ingId]=(G.trap._dealerBought[ingId]||0)+qty; } /* nalicz do wspólnego limitu */
   showMsg(`📦 +${qty}× ${ing.name} (-${_total} zł).`,'g',2500);
   window._renderKamperBuy();
 };
@@ -51418,7 +51435,7 @@ window._smsCheckTriggers=function(){
   const concerts=G.events?.performed||0;
   // — Onboarding: pierwsza wypłata
   if(G.totalEarned>=100) _smsTriggerOnce('first_money','kamil','siema kolego! widziałem ze juz zarabiasz. nie zapomnij ze mam zlecenia jak bedziesz potrzebowal kasy 💰');
-  if(G.totalEarned>=1000) _smsTriggerOnce('1k_earned','zbyszek',`Hej ${G.name||'kolego'}, jak idzie biznes? Wpadnij na kebaba, mam dla Ciebie zniżkę 🌮`);
+  if(G.totalEarned>=1000 && (typeof isPlaceOpen!=='function'||isPlaceOpen('npc:vendor').open)) _smsTriggerOnce('1k_earned','zbyszek',`Hej ${G.name||'kolego'}, jak idzie biznes? Wpadnij na kebaba, mam dla Ciebie zniżkę 🌮`); /* v2.3.102 (PDF #8): Zbyszek pisze tylko w godzinach pracy budki */
   // — Pierwszy freestyle
   /* v2.1.336 Faza K (user 2026-05-27 "'ostro spaliłeś' brzmi jak coś negatywnego"): zamiana na pozytywny slang. */
   if(freestyles>=1) _smsTriggerOnce('first_freestyle','kamil','widzialem ten freestyle na ulicy 🔥 zajechałeś ostro! tak trzymaj',{replySet:'freestyle'});
@@ -51479,7 +51496,7 @@ window._smsCheckTriggers=function(){
   if(typeof _expireOldLeads==='function') _expireOldLeads();
   /* v2.1.304 Faza 6 — polskie memy/easter eggs SMS pool (~15 triggerów). Klimat polskiej sceny hip-hop + meme'y internetowe. */
   /* v2.1.309 fix: meme_biedra próg podniesiony z 500 (= initial G.money) do 2000 — żeby NIE triggerował przy starcie gry w trakcie cinematicu. */
-  if(G.money>=2000 && G.totalEarned>=1000) _smsTriggerOnce('meme_biedra','zbyszek','Stary jutro Biedra ma promo na pączki 2+1, wpadnij. Każdy MC kiedyś tam stał w kolejce 🥯');
+  if(G.money>=2000 && G.totalEarned>=1000 && (typeof isPlaceOpen!=='function'||isPlaceOpen('npc:vendor').open)) _smsTriggerOnce('meme_biedra','zbyszek','Stary jutro Biedra ma promo na pączki 2+1, wpadnij. Każdy MC kiedyś tam stał w kolejce 🥯'); /* v2.3.102 (PDF #8): tylko w godzinach pracy */
   if(G.totalEarned>=5000) _smsTriggerOnce('meme_hajs','kamil','HAJS HAJS HAJS 💸 widać że jedziesz. Pamiętaj — pierwszy milion się ukradnie, reszta sama przyjdzie');
   if(freestyles>=3) _smsTriggerOnce('meme_punchline','kamil','siema, Twoje punchline’y rozjebały mi mózg. Dawaj diss na siebie next time 😈');
   if(tracks>=5) _smsTriggerOnce('meme_allegro','label','🏢 wystawiamy Twoje single na portalu z ogłoszeniami jako limited press CD — kolekcjonerzy szaleją. Pasek 80% Twój.');
@@ -55830,7 +55847,7 @@ window.openCinematicFlythrough=()=>{
       places:[
         {wx:1714, wy:210, label:'STUDIO NAGRAŃ', zoom:1.7},
         {wx:1154, wy:210, label:'SKLEP MUZYCZNY', zoom:1.6},
-        {wx:1554, wy:208, label:'MEDIA MARKT', zoom:1.6},
+        {wx:1554, wy:208, label:'VOLTHOUSE', zoom:1.6},
         {wx:2785, wy:749, label:'SALA KONCERTOWA', zoom:1.5},
         {wx:3834, wy:210, label:'RADIO STREET', zoom:1.6},
       ],
@@ -57696,9 +57713,9 @@ function togglePause(){
         </div>
         <div style="font-size:11px;color:#667;margin-bottom:14px;font-style:italic">Czas, głód, energia i postęp stoją w miejscu.</div>
         <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-          <button onclick="togglePause()" style="background:#0a3a1a;border:1px solid #27ae60;color:#7ec87e;padding:11px 28px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:700">▶ Wznów  ·  Esc</button>
-          <button onclick="if(window._openGameSettings)window._openGameSettings()" style="background:#0a1f3a;border:1px solid #3498db;color:#9fd0f5;padding:11px 28px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:700">⚙️ Ustawienia</button>
-          <button onclick="returnToMenu()" style="background:#3a0a1a;border:1px solid #c01020;color:#f4a097;padding:11px 28px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:700">🏠 Powrót do menu</button>
+          <button onclick="togglePause()" style="background:#0a3a1a;border:1px solid #27ae60;color:#7ec87e;padding:11px 28px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:700">Wznów · Esc</button>
+          <button onclick="if(window._openGameSettings)window._openGameSettings()" style="background:#0a1f3a;border:1px solid #3498db;color:#9fd0f5;padding:11px 28px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:700">Ustawienia</button>
+          <button onclick="returnToMenu()" style="background:#3a0a1a;border:1px solid #c01020;color:#f4a097;padding:11px 28px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:700">Powrót do menu</button>
         </div>
         <div style="font-size:10px;color:#667;margin-top:10px">Powrót do menu zapisuje grę automatycznie.</div>
       </div>
@@ -58355,6 +58372,21 @@ function showHelp(){
 //  PATCH NOTES — historia zmian gry
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.102',date:'2026-07-01',cats:['fix','ui'],title:'Poprawki rozgrywki — telefon, dealer, ekonomia, interfejs',
+ items:[
+  {t:'fix',d:'Informacja o współpracy z dealerem przychodzi teraz jako neutralny komunikat systemowy, a nie prywatna wiadomość od znajomego Organizatora — lepiej pasuje do sytuacji.'},
+  {t:'change',d:'Przestawianie kryjówki wymaga teraz posiadania kampera — to on jest Twoją mobilną bazą. Bez pojazdu nie ma czego przestawiać.'},
+  {t:'change',d:'Zakup składników u dealera ma teraz dzienne limity i wymaga zaplecza produkcyjnego (kamper albo laboratorium) — koniec z nieograniczonym hurtem, gdy nie masz gdzie tego przerobić.'},
+  {t:'change',d:'Aplikacja do planowania tras w telefonie odblokowuje się dopiero, gdy masz już laboratorium i zatrudnioną ekipę.'},
+  {t:'change',d:'Producent zleci Ci hurtową produkcję bitów dopiero, gdy kupisz komputer z oprogramowaniem muzycznym w sklepie BeatPoint.'},
+  {t:'fix',d:'W dzielnicy Underground rzadziej dochodzi do napadów — było ich zdecydowanie za dużo.'},
+  {t:'fix',d:'Zbyszek (budka z kebabem) pisze do Ciebie SMS-y tylko w godzinach, w których jego budka jest otwarta.'},
+  {t:'fix',d:'Powiadomienie o demonetyzacji nie pojawi się, dopóki nie opublikujesz kilku filmów — początkujący twórca nie ma jeszcze czego demonetyzować.'},
+  {t:'change',d:'Krok fabularny „Debiutancki singiel" pokazuje teraz na mapie dwa miejsca: studio nagraniowe oraz Twój Traphouse (możesz nagrać demo także w domu).'},
+  {t:'ui',d:'Wyczyszczono interfejs: usunięto ikonki-emoji z menu pauzy oraz z przycisku telefonu w rogu ekranu. W trybie przelotu nad miastem poprawiono nazwę sklepu na VoltHouse.'},
+ ]
+ },
  {
  ver:'v2.3.101',date:'2026-07-01',cats:['beta-tester','fix'],title:'🤝 Dealer w Underground — naprawiona interakcja',
  items:[
@@ -76786,7 +76818,7 @@ function _storylineTargetLoc(){
   const targets={
     freestyle:{wx:2475,wy:670,em:'🎤',hint:'Freestyle Spot'},
     mic:      {wx:1154,wy:210,em:'🎙',hint:'Sklep Muzyczny'},
-    track:    {wx:1714,wy:210,em:'🎵',hint:'Studio nagrań'},
+    track:    {multi:true, targets:[{wx:1714,wy:210,em:'🎵',hint:'Studio nagrań'},{wx:170,wy:210,em:'🏠',hint:'Traphouse (nagraj demo w domu)'}]}, /* v2.3.102 (PDF #8): singiel można nagrać też w Traphouse — drugi marker */
     concert:  {wx:2785,wy:750,em:'🎪',hint:'Sala Koncertowa'},
     album:    {wx:1714,wy:210,em:'💿',hint:'Studio nagrań'},
     legend:   {wx:2785,wy:750,em:'🏟',hint:'Sala Koncertowa'},
