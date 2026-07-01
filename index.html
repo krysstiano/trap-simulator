@@ -20028,6 +20028,8 @@ window._renderSubstanceUseModal=function(){
 
 /* AN.2 Helper: Trap unlock dialog flow przez dealera NPC. */
 window._trapUnlockDialog=function(){
+  /* v2.3.101 (beta tester): backstop — G.trap mógł być undefined/null (stary save) → `G.trap.unlocked` rzucało → E nic nie robiło. */
+  if(!G.trap || typeof G.trap!=='object'){ G.trap={unlocked:false,level:1,xp:0,reputation:0,cooked:0,sold:0,busted:0,_lastCookDay:0,_lastSellDay:0,_jailUntilDay:0,heat:0,_maxHeatEver:0}; }
   if(G.trap.unlocked){if(typeof showMsg==='function') showMsg('🤝 Już współpracujesz z dealerem.','i',3000);return;}
   /* v2.1.473 user feedback — zastąpione native confirm() przez in-game gameConfirm. */
   if(typeof gameConfirm!=='function'){
@@ -42749,7 +42751,12 @@ window._enterDistrictPlace=(districtId,placeId)=>{
       /* v2.1.531 FIX (user: kamper nieintuicyjny / coś nie działa): po unlocku Dealer SPRZEDAJE składniki
          (aktywacja martwego _renderKamperBuy — reguła #7). Wcześniej mówił tylko "już współpracujesz",
          a podpowiedź "Surowce kup u Dealera" prowadziła w ślepą uliczkę (składniki tylko w telefonie). */
-      if(G.trap?.unlocked){
+      /* v2.3.101 (beta tester: „interakcja z dealerem kompletnie nie działała, byłem w zasięgu"): ROOT — gdy G.trap
+         był undefined/null (stary/uszkodzony save; cała gra ma guardy `if(!G.trap) return`), handler przepuszczał
+         (G.trap?.unlocked=falsy) do _trapUnlockDialog, które rzucało na `G.trap.unlocked` (bez ?.) → E nic nie robiło.
+         Fix: zainicjuj G.trap tu (idempotentne, backward-safe) — dealer zawsze działa. */
+      if(!G.trap || typeof G.trap!=='object'){ G.trap={unlocked:false,level:1,xp:0,reputation:0,cooked:0,sold:0,busted:0,_lastCookDay:0,_lastSellDay:0,_jailUntilDay:0,heat:0,_maxHeatEver:0}; }
+      if(G.trap.unlocked){
         if(typeof window._renderKamperBuy==='function'){window._renderKamperBuy();return;}
       }
       if(typeof window._trapUnlockDialog==='function') window._trapUnlockDialog();
@@ -58349,9 +58356,10 @@ function showHelp(){
 // ═══════════════════════════════════════════════════════════════════
 const PATCH_NOTES = [
  {
- ver:'v2.3.101',date:'2026-07-01',cats:['beta-tester','fix'],title:'🤝 Dealer w Underground — pewniejsza interakcja',
+ ver:'v2.3.101',date:'2026-07-01',cats:['beta-tester','fix'],title:'🤝 Dealer w Underground — naprawiona interakcja',
  items:[
-  {t:'fix',d:'🤝 Naprawiliśmy zgłoszony przez beta-testera problem, przez który interakcja z Dealerem w Underground czasami nie działała. Wcześniej trzeba było stanąć niemal na środku budynku — gdy podchodziłeś od strony drogi albo od rogu, przycisk [E] potrafił nie zareagować. Teraz Dealer i pozostałe lokale w dzielnicach reagują z każdej strony, tak jak budynki w głównym mieście.'},
+  {t:'fix',d:'🤝 Naprawiliśmy zgłoszony przez beta-testera problem, przez który interakcja z Dealerem w Underground potrafiła kompletnie nie działać — stałeś przy nim w zasięgu, wciskałeś [E] i nic się nie działo. Przyczyną był rzadki, uszkodzony stan zapisu gry. Teraz Dealer zawsze odpowiada, a rozmowa albo panel zamawiania składników otwiera się poprawnie w każdej sytuacji.'},
+  {t:'fix',d:'🚸 Przy okazji ulepszyliśmy wykrywanie interakcji w dzielnicach — Dealer i pozostałe lokale reagują teraz z każdej strony (również gdy podchodzisz od strony drogi albo od rogu budynku), tak jak lokale w głównym mieście.'},
  ]
  },
  {
