@@ -13742,7 +13742,7 @@ function updatePlayer(){
     return;
   }
   if(_paused) return;
-  if(overlayOpen()||phoneOpen()||mgOpen()) return;
+  if(overlayOpen()||phoneOpen()||mgOpen()||document.getElementById('tour-ov')) return;/* v2.3.107 A4 (user): podczas turnieju (tour-ov) gracz NIE rusza się po mapie — steruje tylko w trybie turnieju */
   if(npcDlgOpen()) return;
   if(G._resting) return;
   const sleepOv=document.getElementById('sleep-overlay');
@@ -13891,6 +13891,11 @@ function updatePlayer(){
       if(obj.act==='skate'||obj.act==='bboy'||obj.act==='freestyle'){
         if((G.level||1)<2 && (G._jobsCompleted||0)<2){
           txt=`🔒 ${obj.lbl||'Aktywność'} — odblokujesz po 2 pracach dorywczych (masz ${(G._jobsCompleted||0)}/2) lub na poziomie 2`;
+        } else if(obj.act==='skate'||obj.act==='bboy'){
+          /* v2.3.107 (user A1: „przed odblokowaniem pokaż że MOŻNA odblokować turniej po spełnieniu wymogów"): podgląd postępu do turnieju wprost w promptcie. */
+          const _dk=obj.act==='skate'?'skate':'breakdance'; const _d=G[_dk];
+          if(window._disciplineTournamentAvailable&&window._disciplineTournamentAvailable(_dk)) txt=`${obj.lbl||'Aktywność'} · 🏆 Turniej OTWARTY — wejdź [E]`;
+          else if(_d && !_d.tournamentInviteReceived && !_d.firstTournamentCompleted) txt=`${obj.lbl||'Aktywność'} · 🎯 ${Math.min(10,(_d.goodParkRuns||0))}/10 dobrych występów (450+ pkt) → turniej`;
         }
       }
       /* C4 (PDF most): delikatny znacznik „Trop" na budynku Kasyno Royale dopóki Brokat nieznaleziony. */
@@ -13991,7 +13996,7 @@ function tryInteract(){
   if(_mj && _mj.classList.contains('on') && getComputedStyle(_mj).display==='none'){
     _mj.classList.remove('on');_mj.innerHTML='';
   }
-  if(overlayOpen()||phoneOpen()||mgOpen()) return;
+  if(overlayOpen()||phoneOpen()||mgOpen()||document.getElementById('tour-ov')) return;/* v2.3.107 A4: brak interakcji [E] podczas turnieju */
   /* v1.9.54: guard przeciw race condition podczas fade między pokojami (audyt room transitions) */
   if(typeof _roomFadeDir!=='undefined' && _roomFadeDir!==0) return;
   if(npcDlgOpen()){closeNPCDlg();return;}
@@ -14167,6 +14172,7 @@ function handleAct(act,objId){
     }
     /* v2.1.138: dodano energy gate (asymetria z freestyle L8932 — wcześniej skatepark mógł być uruchomiony z 0 energii). Skatepark zużywa -10 energii w trakcie. */
     if((G.energy||0)<10){showMsg('⚡ Za mało energii (potrzeba 10)','r');return;}
+    if(window._streetActDailyOk && !window._streetActDailyOk('skate')) return; /* v2.3.107 A3: limit 3/dzień */
     startSkateparkMG();return;
   } else if(act==='bboy'){
     if(!_earlyGate('Breakdance')) return;
@@ -14177,10 +14183,14 @@ function handleAct(act,objId){
     }
     /* v2.1.138: dodano energy gate (asymetria z freestyle L8932). Breakdance zużywa -8 energii. */
     if((G.energy||0)<8){showMsg('⚡ Za mało energii (potrzeba 8)','r');return;}
+    if(window._streetActDailyOk && !window._streetActDailyOk('breakdance')) return; /* v2.3.107 A3: limit 3/dzień */
     startBreakdanceMG();return;
   } else if(act.startsWith('tour_start:')){
     /* v2.3.99 (PDF #4/#5): start turnieju z wnętrza areny (obiekt „Wejdź na turniej"). */
     const _disc=act.split(':')[1];
+    /* v2.3.107 (user A4: „po turnieju nie można ponownie przystąpić; ponowne wejście = 3 aktywności po min 450 pkt"):
+       bramka RE-ENTRY z wnętrza areny (wcześniej start był bez żadnych warunków = można było grać w kółko). */
+    if(typeof window._tourReentryOk==='function' && !window._tourReentryOk(_disc)) return;
     if(typeof startDisciplineTournament==='function') startDisciplineTournament(_disc);
     return;
   } else if(act==='zlomowisko'){
@@ -53348,16 +53358,52 @@ window._enterTournamentArena=function(discKey){
   const cfg=window._DISC_CFG[discKey]; if(!cfg) return;
   if(typeof changeRoom==='function') changeRoom(cfg.room, 640, 430);
 };
+/* v2.3.107 (user A4): bramka ponownego startu turnieju z wnętrza areny — po 1. ukończonym turnieju wymóg 3 kolejnych
+   dobrych występów (450+) w parku (licznik od goodRunsAtLastTour). Pierwszy turniej (zaproszenie) bez bramki. */
+window._tourReentryOk=function(discKey){
+  const d=G[discKey], cfg=window._DISC_CFG[discKey]; if(!d||!cfg) return true;
+  if(!d.firstTournamentCompleted) return true;
+  const _need=3, _since=(d.goodParkRuns||0)-(d.goodRunsAtLastTour||0);
+  if(_since<_need){
+    if(typeof showMsg==='function') showMsg(`🏆 Aby ponownie wystartować w ${cfg.event}, zalicz jeszcze ${_need-_since} ${cfg.unitG} z wynikiem 450+ w parku (masz ${Math.max(0,_since)}/${_need} od ostatniego turnieju).`,'r',6000);
+    return false;
+  }
+  return true;
+};
+/* v2.3.107 (user A4: „po turnieju wyrzucało z mapki od razu"): wyjście z areny na ulicę (park danej dyscypliny). */
+window._tourExitArena=function(discKey){
+  const ov=document.getElementById('tour-ov'); if(ov) ov.remove();
+  const _spawn=(discKey==='skate')?[150,1200]:[380,960]; /* zgodne z cp_exit / uf_exit */
+  if(typeof startRoomFade==='function') startRoomFade('ulica',_spawn[0],_spawn[1]);
+  else if(typeof changeRoom==='function') changeRoom('ulica',_spawn[0],_spawn[1]);
+};
 /* Zakończenie eventu parkowego — licznik dobrych występów + milestone 5/10. Wołane z endBboy/endSkate. */
 window._disciplineParkComplete=function(discKey,score){
   if(typeof _newpdfEnsure==='function') _newpdfEnsure();
   const d=G[discKey], cfg=window._DISC_CFG[discKey]; if(!d||!cfg) return;
   d.unlocked=true;
   d.parkRunsCompleted=(d.parkRunsCompleted||0)+1;
-  if(score>=450){
+  const _good=score>=450;
+  if(_good){
     d.goodParkRuns=(d.goodParkRuns||0)+1;
     window._checkDisciplineMilestones(discKey);
   }
+  /* v2.3.107 (user A2: „przy breakdance brak okna info jak skatepark — 5/10, po 10 turniej"): kod milestone był
+     WSPÓLNY, ale odpalał tylko przy goodParkRuns===5 (ulotny toast). Breakdance z niższym wynikiem rzadziej bił 450
+     → gracz nie widział postępu. Teraz progres pokazywany po KAŻDYM występie (obie dyscypliny spójnie) dopóki turniej niedostępny. */
+  if(!d.tournamentInviteReceived && !d.firstTournamentCompleted && typeof showMsg==='function'){
+    const g=Math.min(10,d.goodParkRuns||0);
+    if(_good) showMsg(`🏅 ${cfg.label}: dobry ${cfg.unitAdj}! Postęp do turnieju: ${g}/10 (występy z wynikiem 450+). Po 10 dostaniesz zaproszenie na ${cfg.event}.`,'f',5200);
+    else showMsg(`🛹 ${cfg.label}: ${cfg.unitAdj} zaliczony, ale poniżej 450 pkt — nie liczy się do turnieju. Postęp: ${g}/10.`,'i',4200);
+  }
+};
+/* v2.3.107 (user A3: „limit breakdance i skatepark do 3 na dzień"): trening parkowy każdej dyscypliny max 3/dobę
+   (turniej i pozostałe aktywności bez limitu). Reset per doba. */
+window._streetActDailyOk=function(disc){
+  const _dk='_'+disc+'RunsDayN', _ck='_'+disc+'RunsCnt';
+  if(G[_dk]!==G.day){ G[_dk]=G.day; G[_ck]=0; }
+  if((G[_ck]||0)>=3){ if(typeof showMsg==='function') showMsg(`🛹 Dzienny limit: 3 ${disc==='skate'?'przejazdy':'występy'} dziennie. Wróć jutro — turniej i inne aktywności działają bez limitu.`,'r',4500); return false; }
+  G[_ck]=(G[_ck]||0)+1; return true;
 };
 window._checkDisciplineMilestones=function(discKey){
   const d=G[discKey], cfg=window._DISC_CFG[discKey]; if(!d||!cfg) return;
@@ -53457,6 +53503,7 @@ window._tourApplyResult=function(discKey,res){
   const d=G[discKey], cfg=window._DISC_CFG[discKey]; if(!d||!cfg) return;
   if(res.money>0){ if(typeof earn==='function') earn(res.money,false); else { G.money=(G.money||0)+res.money; G.totalEarned=(G.totalEarned||0)+res.money; } }
   d.firstTournamentCompleted=true; d.lastTournamentDay=G.day||0; d.tournamentState='completed';
+  d.goodRunsAtLastTour=d.goodParkRuns||0; /* v2.3.107 A4: baza bramki re-entry (3 kolejne dobre występy przed ponownym startem) */
   d.rankPoints=(d.rankPoints||0)+Math.max(1,Math.floor((res.playerScore||0)/300));
   const ri=Math.min(cfg.ranks.length-1, Math.floor((d.rankPoints||0)/8));
   d.rank=cfg.ranks[ri];
@@ -53501,7 +53548,7 @@ window._tourShowResults=function(discKey,res,pl){
     ${money}
     <div style="color:#9ab;font-size:12.5px;font-style:italic;margin:12px 0;line-height:1.5">${cfg.orgName}: „${dlg}"</div>
     <div style="color:#8aa;font-size:12px;margin-bottom:14px">Ranga: <b>${(G[discKey]&&G[discKey].rank)||cfg.rankStart}</b></div>
-    <button onclick="document.getElementById('tour-ov').remove()" style="background:linear-gradient(135deg,#2a7ab8,#1a5a88);border:none;color:#fff;font-weight:800;padding:11px 22px;border-radius:10px;cursor:pointer;font-size:14px">Odbierz nagrodę</button>
+    <button onclick="window._tourExitArena('${discKey}')" style="background:linear-gradient(135deg,#2a7ab8,#1a5a88);border:none;color:#fff;font-weight:800;padding:11px 22px;border-radius:10px;cursor:pointer;font-size:14px">Odbierz nagrodę i wyjdź</button>
   </div>`;
 };
 /* Interaktywny turniej 60s — overlay pełnoekranowy. Input: strzałki (breakdance) / SPACJA+strzałki (skate). */
@@ -53535,6 +53582,7 @@ window.startDisciplineTournament=function(discKey){
     const exp=st.cur.s[st.inp.length];
     if(sym===exp){
       st.inp.push(sym);
+      try{ if(typeof playStep==='function') playStep(); }catch(_){} /* v2.3.107 A4 (user: „słychać kroki postaci"): krok przy każdym trafionym ruchu na parkiecie */
       if(st.inp.length===st.cur.s.length){
         const mult=window._tourComboMult(st.combo);
         const pts=Math.floor(st.cur.p*mult);
@@ -59723,6 +59771,9 @@ const PATCH_NOTES = [
   {t:'fix',d:'🔦 Poprawiliśmy oświetlenie uliczne nocą — poświata latarni nie rozlewa się już na środek jezdni, a przed blokami mieszkalnymi nie unosi się „latające" światło bez latarni pod spodem. Miasto po zmroku wygląda porządniej.'},
   {t:'fix',d:'🚶 Przechodnie w dzielnicach (zwłaszcza w Underground) nie wchodzą już w budynki ani przez nie nie przenikają — napotykając budynek zawracają i go omijają, więc ruch po dzielnicy wygląda naturalniej.'},
   {t:'ui',d:'🎡 Na starcie ruletki (przycisk „Kręć") kulka wygląda teraz tak, jakby została wrzucona do koła — najpierw krąży przy zewnętrznej krawędzi, a potem spiralnie wpada na tor liczb. Losowanie ma więcej emocji.'},
+  {t:'ui',d:'🎯 Przy skateparku i breakdance widzisz teraz wprost (w podpowiedzi obok miejsca), ile dobrych występów z wynikiem 450+ dzieli Cię od turnieju — np. 6/10 — jeszcze zanim go odblokujesz. Po każdym występie dostajesz też informację o postępie (dotyczy teraz również breakdance, nie tylko skateparku).'},
+  {t:'ui',d:'🛹 Skatepark i breakdance mają teraz dzienny limit 3 treningów każdy (turnieje i pozostałe aktywności działają bez limitu) — koniec z nieskończonym grindem w jednym miejscu.'},
+  {t:'ui',d:'🏆 Turnieje uliczne (Underground Floor Battle i Concrete Line Jam): po zakończeniu turnieju od razu wracasz na mapę, a żeby wystartować ponownie, musisz najpierw zaliczyć 3 kolejne dobre występy (450+ pkt) w parku. Podczas turnieju nie chodzisz już po mapie w tle — sterujesz tylko na parkiecie — a przy każdym trafionym ruchu słychać kroki postaci.'},
  ]
  },
  {
