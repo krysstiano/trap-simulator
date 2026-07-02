@@ -43,6 +43,14 @@ function createWindow() {
 
   const wc = win.webContents;
 
+  /* v2.3.103 (user: „jak zrobiłem mural, otworzyła mi się karta w przeglądarce z tekstem nagrody").
+     Gra jest w 100% lokalna i NIGDY nie otwiera zewnętrznych linków ani nowych okien — dlatego
+     blokujemy KAŻDĄ próbę nawigacji/otwarcia okna. Bez tego dowolny przypadkowy gest (drag tekstu,
+     środkowy klik) mógł skłonić Electron do otwarcia domyślnej przeglądarki z treścią jako wyszukiwaniem. */
+  wc.setWindowOpenHandler(() => ({ action: 'deny' }));
+  wc.on('will-navigate', (e, url) => { if (!String(url).startsWith('file://')) e.preventDefault(); });
+  wc.on('will-redirect', (e, url) => { if (!String(url).startsWith('file://')) e.preventDefault(); });
+
   wc.on('did-fail-load', (_e, code, desc, url) => {
     die('did-fail-load ' + code + ' ' + desc + ' @ ' + url);
   });

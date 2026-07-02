@@ -641,6 +641,11 @@ body.mobile-pregame #gc, body.mobile-pregame #hud, body.mobile-pregame #dmg-over
   window._ageConfirm=function(){try{localStorage.setItem('snowy_age_ok','1');}catch(e){}var g=document.getElementById('agegate');if(g)g.style.display='none';};
   window._ageDecline=function(){var b=document.getElementById('agegate-body');if(b)b.innerHTML='<p style="margin:0 0 16px;text-align:center;color:#e7a9b6;font-size:14px;line-height:1.6">Przykro nam — ta gra jest przeznaczona wyłącznie dla osób pełnoletnich (18+).<br>Wróć, gdy ukończysz 18 lat.</p><div style="text-align:center"><button onclick="location.reload()" style="cursor:pointer;background:#16243e;border:1.5px solid #2a3a5a;color:#9fb3d0;font-weight:700;font-size:14px;padding:11px 20px;border-radius:11px">← Wróć</button></div>';};
   try{if(localStorage.getItem('snowy_age_ok')==='1'){var g=document.getElementById('agegate');if(g)g.style.display='none';}}catch(e){}
+  /* v2.3.103 (user: „karta w przeglądarce z tekstem nagrody"): gra nigdy nie nawiguje — blokujemy
+     przypadkowe upuszczenie zaznaczonego tekstu/linku na stronę (w przeglądarce potrafi otworzyć
+     wyszukiwanie/nową kartę). Zapobiega otwieraniu przeglądarki z treścią komunikatu jako zapytaniem. */
+  window.addEventListener('dragover',function(e){e.preventDefault();},false);
+  window.addEventListener('drop',function(e){e.preventDefault();},false);
 })();
 </script>
 <div id="wrap">
@@ -42668,7 +42673,7 @@ window._startMuralMG=function(){
     <canvas id="mural-canvas" width="500" height="280" style="border:2px solid #888;border-radius:6px;display:block;margin:0 auto;cursor:crosshair;touch-action:none"></canvas>
     <div style="display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin-top:10px" id="mural-palette">${_sw}</div>
     <div style="display:flex;gap:8px;justify-content:center;margin-top:8px;align-items:center;flex-wrap:wrap"><span style="color:#778;font-size:12px">Pędzel:</span>${_sz}<button id="mural-clear" style="padding:5px 10px;border-radius:6px;border:2px solid #5a2a2a;background:#2a1010;color:#e88;cursor:pointer;font-family:inherit;font-size:12px">🗑 Wyczyść</button></div>
-    <button class="cbtn" id="mural-finish" style="margin-top:12px;width:100%;background:#27ae60" disabled>✅ Gotowe — wystaw mural</button>
+    <button class="cbtn" id="mural-finish" style="margin-top:12px;width:100%;background:#27ae60;color:#fff;font-weight:800;border-color:#1e8449" disabled>✅ Gotowe — wystaw mural</button>
     <button class="cbtn" id="mural-abort" style="margin-top:8px;width:100%">← Wyjdź (zwrot 50 zł)</button>
   </div>`;
   const _mg=document.getElementById('mg-job');const _mc=document.getElementById('mg-job-content');
@@ -70690,7 +70695,7 @@ setInterval(function(){
    tylko seria w krótkim czasie jest rozkładana w czasie. Treść i tak trafia do logu notyfikacji (addNotif),
    więc cap kolejki nic nie gubi. */
 let _msgQueue=[], _msgBusyUntil=0, _msgFlushTimer=null;
-const _MSG_MIN_GAP=3500;
+const _MSG_MIN_GAP=1200; /* v2.3.103 (user: „powiadomienia zamulone" — klik slumsy→baraki, toast z ~3,5s opóźnieniem): okno zajętości 3500→1200ms. Kolejny toast pokazuje się szybko po akcji zamiast czekać pełne 3,5s. */
 function _msgFlushNext(){
   _msgFlushTimer=null;
   if(!_msgQueue.length) return;
