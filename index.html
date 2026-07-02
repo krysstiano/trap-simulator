@@ -29008,7 +29008,7 @@ window.openRoulette=()=>{
     `;
     _drawWheel(currentRotation, null);
   };
-  const _drawWheel=(rotation, ballAngle)=>{
+  const _drawWheel=(rotation, ballAngle, ballRadius)=>{
     const cv=document.getElementById('roulette-cv');if(!cv)return;
     const cx=cv.getContext('2d');
     // v1.8.15: canvas 280x220 (kompaktowy, mieści w overlay bez scrollu)
@@ -29035,8 +29035,9 @@ window.openRoulette=()=>{
     cx.fillStyle='#5a3a08';cx.beginPath();cx.arc(CX,CY,20,0,Math.PI*2);cx.fill();
     cx.fillStyle='#c8a520';cx.font='bold 10px Arial';cx.textAlign='center';cx.textBaseline='middle';cx.fillText('ROYAL',CX,CY);
     if(ballAngle!==null){
-      const bx=CX+Math.cos(ballAngle-Math.PI/2)*86;
-      const by=CY+Math.sin(ballAngle-Math.PI/2)*86;
+      const _br=(typeof ballRadius==='number')?ballRadius:86; /* v2.3.107: promień kuli (throw-in animacja) */
+      const bx=CX+Math.cos(ballAngle-Math.PI/2)*_br;
+      const by=CY+Math.sin(ballAngle-Math.PI/2)*_br;
       cx.fillStyle='#fff';cx.beginPath();cx.arc(bx,by,4,0,Math.PI*2);cx.fill();
       cx.fillStyle='rgba(0,0,0,.3)';cx.beginPath();cx.arc(bx,by+1,4,0,Math.PI*2);cx.fill();
       cx.fillStyle='#fff';cx.beginPath();cx.arc(bx-1,by-1,3,0,Math.PI*2);cx.fill();
@@ -29230,7 +29231,12 @@ window.openRoulette=()=>{
       const ease=1-Math.pow(1-t,3);
       currentRotation=startRot+(targetRotation-startRot)*ease;
       const ballRot = -Math.PI*2*8*(1-ease);
-      _drawWheel(currentRotation, ballRot);
+      /* v2.3.107 (user: „delikatny efekt startu — kulka jakby wrzucona do ruletki"): promień kuli startuje przy
+         zewnętrznej krawędzi koła (rim ~99) i spiralnie „wpada" do toru (86) w pierwszej fazie spinu, na końcu drobno osiada. */
+      const _ti=Math.min(1,t/0.45);
+      let _ballRadius=99-(99-86)*(1-Math.pow(1-_ti,2));
+      if(t>0.86) _ballRadius=86+Math.sin((t-0.86)/0.14*Math.PI)*1.5; /* delikatne osiadanie kuli na torze */
+      _drawWheel(currentRotation, ballRot, _ballRadius);
       if(t<1){requestAnimationFrame(_animate);}
       else _finalize();
     };
@@ -59716,6 +59722,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'🖥️ Po wejściu w Ustawienia albo Nowości z menu głównego zniknęła brzydka pusta luka na górze ekranu — panel wypełnia teraz obszar od samej góry.'},
   {t:'fix',d:'🔦 Poprawiliśmy oświetlenie uliczne nocą — poświata latarni nie rozlewa się już na środek jezdni, a przed blokami mieszkalnymi nie unosi się „latające" światło bez latarni pod spodem. Miasto po zmroku wygląda porządniej.'},
   {t:'fix',d:'🚶 Przechodnie w dzielnicach (zwłaszcza w Underground) nie wchodzą już w budynki ani przez nie nie przenikają — napotykając budynek zawracają i go omijają, więc ruch po dzielnicy wygląda naturalniej.'},
+  {t:'ui',d:'🎡 Na starcie ruletki (przycisk „Kręć") kulka wygląda teraz tak, jakby została wrzucona do koła — najpierw krąży przy zewnętrznej krawędzi, a potem spiralnie wpada na tor liczb. Losowanie ma więcej emocji.'},
  ]
  },
  {
