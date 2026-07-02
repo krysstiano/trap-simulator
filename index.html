@@ -13569,7 +13569,10 @@ function updatePlayer(){
       G._knockbackVel = null;
     }
   }
-  if(G.car&&(dx!==0||dy!==0)&&_carRoom(currentRoom)&&G._inCar){const boost=(G.car.speed||1)*(1+0.2*((G.car.condition==null?100:G.car.condition)/100));dx*=boost;dy*=boost;
+  /* v2.3.103 (user: „sprawdź prędkość aut/boost/mnożniki"): kondycja = KARA za zniszczenie, nie bonus ponad projekt.
+     Było (1+0.2*cond/100) → pełna kondycja ×1.2 (max ~8.71, ponad dokumentowane 3.30×speed=7.26 „mapa nie pomieści").
+     Teraz (0.8+0.2*cond/100): pełna kondycja ×1.0 (=dokumentowane 7.26), auto zniszczone (0%) ×0.8 (wolniejsze) → zachęta do serwisu. */
+  if(G.car&&(dx!==0||dy!==0)&&_carRoom(currentRoom)&&G._inCar){const boost=(G.car.speed||1)*(0.8+0.2*((G.car.condition==null?100:G.car.condition)/100));dx*=boost;dy*=boost;
     /* v2.1.843 Z5 (beta-tester Vegan): zużycie auta od JEŻDŻENIA — kumuluj przejechany dystans (po boost = realny ruch w świecie), −1% kondycji co _CAR_WEAR_PX (≈1 przejazd przez miasto). Frame-rate independent (per world-distance, nie per klatka). Łączy się z −5%/dzień od czasu → aktywni kierowcy serwisują wyraźnie częściej. */
     const _CAR_WEAR_PX=4500;
     G._carWearDist=(G._carWearDist||0)+Math.abs(dx)+Math.abs(dy);
@@ -59226,6 +59229,7 @@ const PATCH_NOTES = [
   {t:'ui',d:'💡 Poradnik na dole ekranu jest teraz nieco większy po rozwinięciu (większa ikona, tytuł i odstępy) — wskazówki czyta się wygodniej. Zwinięty pasek pozostaje mały.'},
   {t:'balance',d:'💸 Wzmocnienia kariery (Wejściówka VIP, Kurs mistrzowski, Sesja PR) były wielokrotnie za tanie i psuły balans. Teraz kosztują znacznie więcej (2800–3500 zł), za to działają przez cały dzień w grze (zamiast ~12 minut) i można ich użyć najwyżej raz na 3 dni w grze.'},
   {t:'change',d:'🎯 Te wzmocnienia kariery kupisz teraz w Sklepie Muzycznym, w sekcji „Boostery kariery" — pasują tam lepiej niż do sklepu spożywczego. W spożywczym zostają przekąski, napoje i witaminy.'},
+  {t:'balance',d:'🚗 Dopracowaliśmy prędkość jazdy autem — stan techniczny auta wpływa teraz na tempo: zadbane auto jedzie pełną prędkością, a zniszczone wyraźnie wolniej (dodatkowa zachęta, by trzymać auto w dobrym stanie). Maksymalne prędkości są dostrojone tak, by dobrze grało się na mapie miasta.'},
   {t:'fix',d:'🖤 Naprawiliśmy zgłoszony błąd, przez który po umówieniu „Spotkania" lub „Towarzysza na wieczór" w Nocnym zaułku ekran robił się czarny i wyglądał, jakby gra się zawiesiła — nic nie było widać i nic się nie działo. Teraz na czarnym ekranie pojawia się napis „Wieczór trwa…", scena jest wyraźnie krótsza, a w każdej chwili możesz kliknąć, żeby ją pominąć i od razu zobaczyć skutki wieczoru. Ekran już nigdy nie zostaje czarny na stałe.'},
   {t:'change',d:'🌙 Nocny zaułek w Underground jest teraz czynny dłużej — do 05:00 (wcześniej zamykał się o 03:00).'},
  ]
