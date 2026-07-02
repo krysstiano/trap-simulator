@@ -3917,7 +3917,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'camper_underground':      drawCamper(sx,sy,w,h);break;
     case 'lab_underground':         drawLab(sx,sy,w,h);break;
     case 'plantation_underground':  drawPlantation(sx,sy,w,h);break;
-    case 'gravellot_underground':   drawBuilding(sx,sy,w,h,'#4a4030','Gravel Lot','#e0c070','🚐',true,{commercial:true});break; /* v2.3.83: był szary placeholder (drawGeneric) — komis pojazdów dostał realną fasadę (jaśniejszą, widoczną w ciemnym underground) */
+    case 'gravellot_underground':   drawGravelLotHall(sx,sy,w,h);break; /* v2.3.102 (PDF #8-24): hala serwisowa/warsztatowa zamiast zwykłej fasady */
     /* v2.1.385 Faza C' Coast new map: tropical buildings */
     case 'exit_coast':              drawCoastExitGate(sx,sy,w,h);break;
     case 'plaza_coast':             drawCoastBuilding(sx,sy,w,h,'🏖','Plaża + Bar','#d4a060');break;
@@ -10118,6 +10118,32 @@ function drawPlantation(sx,sy,w,h){
   }
 }
 
+/* v2.3.102 (PDF #8-24): Gravel Lot Motors = hala serwisowa/warsztatowa (stara hala/stocznia) zamiast zwykłej fasady.
+   Blacha falista, brama garażowa, pulpitowy dach przemysłowy, szyld. Jaśniejsza — widoczna w ciemnym Underground. */
+function drawGravelLotHall(sx,sy,w,h){
+  const _sh=[[10,12,.14],[7,9,.24],[4,8,.18],[2,5,.06]][(typeof G!=='undefined'?G.timeOfDay:1)]||[7,9,.24];
+  X.fillStyle=`rgba(0,0,0,${_sh[2]})`; X.fillRect(sx+_sh[0],sy+_sh[1],w,h);
+  /* korpus hali — blacha falista */
+  X.fillStyle='#5a5346'; X.fillRect(sx,sy+h*0.16,w,h*0.84);
+  X.fillStyle='rgba(0,0,0,.16)'; for(let i=0;i<w;i+=7){ X.fillRect(sx+i,sy+h*0.16,3,h*0.84); } /* pionowe fałdy blachy */
+  /* dach pulpitowy/przemysłowy (sawtooth) */
+  X.fillStyle='#3f3a30';
+  const rN=Math.max(3,Math.round(w/34));
+  for(let i=0;i<rN;i++){ const rx=sx+i*(w/rN); X.beginPath(); X.moveTo(rx,sy+h*0.16); X.lineTo(rx+(w/rN)*0.55,sy); X.lineTo(rx+(w/rN),sy+h*0.16); X.closePath(); X.fill(); }
+  X.fillStyle='rgba(120,150,180,.14)'; for(let i=0;i<rN;i++){ const rx=sx+i*(w/rN); X.beginPath(); X.moveTo(rx+(w/rN)*0.55,sy); X.lineTo(rx+(w/rN),sy+h*0.16); X.lineTo(rx+(w/rN)*0.78,sy+h*0.16); X.closePath(); X.fill(); } /* przeszklenie sawtooth */
+  /* brama garażowa (rolowana) */
+  const gdX=sx+w*0.28, gdW=w*0.44, gdY=sy+h*0.42, gdH=h*0.55;
+  X.fillStyle='#2c2a24'; X.fillRect(gdX,gdY,gdW,gdH);
+  X.fillStyle='rgba(255,255,255,.05)'; for(let yy=gdY+3; yy<gdY+gdH; yy+=5){ X.fillRect(gdX,yy,gdW,2); } /* segmenty bramy */
+  X.strokeStyle='#e0c070'; X.lineWidth=1.4; X.strokeRect(gdX,gdY,gdW,gdH);
+  /* okienko serwisowe + logo van */
+  X.fillStyle='#1a2230'; X.fillRect(sx+w*0.06,sy+h*0.46,w*0.16,h*0.2);
+  X.fillStyle='rgba(126,200,227,.35)'; X.fillRect(sx+w*0.07,sy+h*0.47,w*0.14,h*0.09);
+  /* szyld GRAVEL LOT */
+  X.fillStyle='#141210'; X.fillRect(sx+w*0.1,sy+h*0.2,w*0.8,h*0.14);
+  X.fillStyle='#e0c070'; X.font='bold 12px Arial'; X.textAlign='center';
+  X.fillText('GRAVEL LOT', sx+w/2, sy+h*0.31); X.textAlign='left';
+}
 function drawUndergroundDecorations(){
   const isNight=(typeof G!=='undefined' && G.timeOfDay>=2);
   const pulse=Math.sin(Date.now()/500)*0.3+0.7;
@@ -10130,6 +10156,21 @@ function drawUndergroundDecorations(){
     X.fillStyle='#2c2634'; X.fillRect(x0,rdT-4,ww,4); X.fillRect(x0,rdT+rdH,ww,4); /* krawężniki */
     X.fillStyle='rgba(225,205,120,0.45)'; const cy=wy2sy(520);
     for(let x=16;x<rw;x+=58){ const sx=wx2sx(x); if(sx>-40&&sx<1330) X.fillRect(sx,cy-1.5,28,3); } /* linia środkowa przerywana */
+  })();
+  /* v2.3.102 (PDF #8-24): podwórko Gravel Lot — gravel apron pod halą + szuter dojazdowy do jezdni + szrot. Gravel Lot: wx655-795, wy140-270. */
+  (function(){
+    const gx=wx2sx(645), gw=wx2sx(805)-wx2sx(645);
+    if(gx>1330||gx+gw<-40) return;
+    const ay=wy2sy(272), aH=wy2sy(322)-wy2sy(272);
+    X.fillStyle='#38332b'; X.fillRect(gx,ay,gw,aH);                                  /* gravel apron */
+    X.fillStyle='rgba(120,110,88,.22)'; for(let i=0;i<44;i++){ X.fillRect(gx+((i*37)%gw), ay+((i*53)%aH), 2,2); } /* żwir */
+    const dY=wy2sy(322), dH=wy2sy(486)-wy2sy(322), dx0=wx2sx(702), dw=wx2sx(758)-wx2sx(702);
+    X.fillStyle='#312c24'; X.fillRect(dx0,dY,dw,dH);                                 /* szuter dojazdowy do drogi */
+    X.fillStyle='rgba(120,110,88,.18)'; for(let i=0;i<20;i++){ X.fillRect(dx0+((i*23)%dw), dY+((i*61)%dH), 2,2); }
+    /* szrot (2 sterty) */
+    X.fillStyle='#48403a'; X.beginPath(); X.moveTo(gx+6,ay+aH); X.lineTo(gx+17,ay+aH-13); X.lineTo(gx+30,ay+aH); X.closePath(); X.fill();
+    X.fillStyle='#5a4a3a'; X.fillRect(gx+gw-28,ay+aH-11,22,11);
+    X.fillStyle='#7a3a2a'; X.fillRect(gx+gw-24,ay+aH-15,9,6);                        /* rdzawy element */
   })();
   /* 3 śmietniki w rogach (40×40 px) */
   const trash=[{wx:60,wy:340},{wx:1340,wy:840},{wx:60,wy:840}];
@@ -58879,6 +58920,7 @@ const PATCH_NOTES = [
   {t:'balance',d:'Obniżono napiwki i bonusy w pracach dorywczych (przede wszystkim myjnia i zmywak) — potrafiły przewyższać główny zarobek za zlecenie. Teraz są mniejsze i częściowo losowe, żeby postęp gracza był bardziej wyważony.'},
   {t:'ui',d:'Emoji przy produktach we wszystkich sklepach zastąpiliśmy własnymi, oryginalnymi ikonami — czytelniejszymi i spójnymi wizualnie. Objęte: spożywczy, targ, restauracja, ubrania (Urban Crown, Lumpeks), elektronika (VoltHouse), sklep muzyczny (BeatPoint) oraz salony pojazdów (CityDrive, kampery).'},
   {t:'change',d:'Przechodnie ubierają się teraz stosownie do pogody: gdy jest słonecznie, większość chodzi w krótkich ubraniach; gdy pada, mają na sobie cieplejsze rzeczy, a przygotowani niosą parasole — nieprzygotowani spieszą się do schronienia. Dotyczy miasta i wszystkich dzielnic.'},
+  {t:'change',d:'Komis Gravel Lot Motors w Underground wygląda teraz jak hala serwisowo-warsztatowa (przemysłowy dach, brama garażowa, szyld) z małym podwórkiem: żwirowym placem, szutrowym dojazdem do drogi i złomem.'},
  ]
  },
  {
