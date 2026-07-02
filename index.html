@@ -3297,12 +3297,13 @@ const ROOMS = {
          H y624, brak kolizji vs wieżowce/steakhouse). Powiększony. */
       {id:'parking', wx:140, wy:632, w:320, h:130, act:'parking:info', prompt:'[E] 🅿️ Parking', lbl:'Parking'},
       /* 5 places Business */
-      /* v2.3.103 (user: „budynki Business nachodzą na chodnik"): wy200→176 → dół budynku kończy się na krawędzi chodnika (row7 y336), nie na nim. */
+      /* v2.3.103 (user: „budynki Business nachodzą na chodnik"): wy200→176 → dół budynku kończy się na krawędzi chodnika poziomego (row7 y336), nie na nim.
+         v2.3.107 (user: „DALEJ nachodzą — PR Agency, Bank VIP, Steakhouse"): poprawka wy (2.3.103) ruszyła tylko PION; budynki dalej nachodziły na chodniki PIONOWE (kol.13 x624-672 zach. / kol.16 x768-816 wsch. wokół jezdni x672-768). Bank VIP+Steakhouse (prawa krawędź 640→ chodnik zach.) przesunięte w lewo; PR Agency (lewa krawędź 780→ chodnik wsch.) w prawo. */
       {id:'labelhq_business',  wx:180, wy:176, w:160,h:160, act:'business_labelhq',  prompt:'[E] 🏢 Label HQ',           lbl:'Label HQ'},
-      {id:'bankvip_business',  wx:480, wy:176, w:160,h:160, act:'business_bankvip',  prompt:'[E] 🏦 Bank VIP',           lbl:'Bank VIP'},
-      {id:'pragency_business', wx:780, wy:176, w:160,h:160, act:'business_pragency', prompt:'[E] 📰 PR Agency',          lbl:'PR'},
+      {id:'bankvip_business',  wx:456, wy:176, w:160,h:160, act:'business_bankvip',  prompt:'[E] 🏦 Bank VIP',           lbl:'Bank VIP'},/* v2.3.107: 480→456 (prawa krawędź 616<624=poza chodnikiem zach.) */
+      {id:'pragency_business', wx:820, wy:176, w:160,h:160, act:'business_pragency', prompt:'[E] 📰 PR Agency',          lbl:'PR'},/* v2.3.107: 780→820 (lewa krawędź 820>816=poza chodnikiem wsch.) */
       {id:'forbes_business',   wx:1080,wy:176, w:160,h:160, act:'business_forbes',   prompt:'[E] 📊 Fortuno Studio',      lbl:'Fortuno'},
-      {id:'steakhouse_business',wx:480,wy:624, w:160,h:160, act:'business_steakhouse',prompt:'[E] 🥩 Steakhouse',        lbl:'Steakhouse'},
+      {id:'steakhouse_business',wx:456,wy:624, w:160,h:160, act:'business_steakhouse',prompt:'[E] 🥩 Steakhouse',        lbl:'Steakhouse'},/* v2.3.107: 480→456 (prawa krawędź 616<624) */
     ]
   },
 
@@ -59237,6 +59238,9 @@ function _openMenuOverlay(){
     window._overlayFromMenu=true;
     m.style.display='none';
     const h=document.getElementById('hud'); if(h) h.style.display='none';
+    /* v2.3.107 (user: „luka u góry w ustawieniach/patchnotes z menu"): HUD zajmuje górne 62 px, a #overlay
+       ma top:62px zakładając że HUD tam jest. Z MENU HUD jest ukryty → pusty pasek 62 px = luka. Zsuwamy overlay do góry. */
+    const ov=document.getElementById('overlay'); if(ov) ov.style.top='0';
   }
   openOverlay();
 }
@@ -59255,6 +59259,7 @@ function closeOverlay(){
     window._overlayFromMenu=false;
     const _m=document.getElementById('menu'); if(_m) _m.style.display='flex';
     const _h=document.getElementById('hud'); if(_h) _h.style.display='';
+    const _ov=document.getElementById('overlay'); if(_ov) _ov.style.top=''; /* v2.3.107: przywróć top:62px (CSS) po zamknięciu z menu */
   }
 }
 function overlayOpen(){return document.getElementById('overlay').classList.contains('on');}
@@ -59695,6 +59700,9 @@ const PATCH_NOTES = [
   {t:'fix',d:'💬 Rozmowy z wyborem odpowiedzi (Marina na Wybrzeżu, Fortuno Studio, Cypher Battle w Underground) reagują teraz NATYCHMIAST po kliknięciu — wybrana odpowiedź od razu się podświetla (zielono/czerwono), a pozostałe przyciski blokują się, żeby nie dało się przypadkiem przeskoczyć rundy. Koniec z wrażeniem, że „nic się nie dzieje" i z zawieszaniem między pytaniami.'},
   {t:'fix',d:'🎰 W kasynie, przy wymianie żetonów, gdy wpiszesz kwotę większą niż limit (100 000 zł na raz) albo nie masz gotówki, od razu zobaczysz czytelny komunikat w samym panelu Kantoru — wcześniej wyglądało to, jakby przycisk w ogóle nie działał. Udany zakup i sprzedaż też potwierdzają się na miejscu.'},
   {t:'fix',d:'🚐 Naprawiliśmy błąd, przez który kamper z komisu Gravel Lot bywał „już Twój" jeszcze zanim go kupiłeś. Teraz kamper zdobywasz wyłącznie kupując go w komisie — samo odblokowanie dzielnicy otwiera tylko sklep, a nie daje pojazdu za darmo.'},
+  {t:'ui',d:'🧍 Przechodnie w dzielnicach (Underground, Wybrzeże, dzielnica biznesowa) mają teraz większe, lepiej wyprofilowane głowy — wyglądają bardziej jak mieszkańcy centrum, a nie jak drobne figurki.'},
+  {t:'fix',d:'🏢 W dzielnicy biznesowej Bank VIP, PR Agency i Steakhouse nie nachodzą już na chodniki — przesunęliśmy je tak, by stały równo obok chodników wzdłuż ulicy, a nie na nich.'},
+  {t:'fix',d:'🖥️ Po wejściu w Ustawienia albo Nowości z menu głównego zniknęła brzydka pusta luka na górze ekranu — panel wypełnia teraz obszar od samej góry.'},
  ]
  },
  {
@@ -75178,10 +75186,10 @@ function _drawDistrictPed(p){
     X.fillStyle=p.shortCol||'#ffffff';X.fillRect(cx-2,bsy+27,12,7);
     X.fillStyle=cc;X.beginPath();X.moveTo(cx-5,bsy+14);X.lineTo(cx+13,bsy+14);X.lineTo(cx+12,bsy+28);X.lineTo(cx-4,bsy+28);X.closePath();X.fill();
     X.fillStyle=sc;X.fillRect(cx-9,bsy+16,5,11);X.fillRect(cx+12,bsy+16,5,11);
-    X.fillStyle=sc;X.beginPath();X.arc(cx+4,bsy+8,8,0,Math.PI*2);X.fill();
-    X.fillStyle='rgba(0,0,0,.75)';X.beginPath();X.arc(cx+4+eo-2,bsy+7,1.5,0,Math.PI*2);X.fill();X.beginPath();X.arc(cx+4+eo+2,bsy+7,1.5,0,Math.PI*2);X.fill();
+    X.fillStyle=sc;X.beginPath();X.arc(cx+4,bsy+7,10,0,Math.PI*2);X.fill();
+    X.fillStyle='rgba(0,0,0,.75)';X.beginPath();X.arc(cx+4+eo-2,bsy+7,1.6,0,Math.PI*2);X.fill();X.beginPath();X.arc(cx+4+eo+2,bsy+7,1.6,0,Math.PI*2);X.fill();
     if(p.shades){X.fillStyle='#101014';X.fillRect(cx,bsy+5,8,2.6);}
-    if(!p.hat){X.fillStyle=hairC;X.beginPath();X.arc(cx+4,bsy+8,8,Math.PI*1.1,Math.PI*1.9);X.fill();}
+    if(!p.hat){X.fillStyle=hairC;X.beginPath();X.arc(cx+4,bsy+7,10,Math.PI*1.1,Math.PI*1.9);X.fill();}
     else {X.fillStyle=p.hatCol||'#ffce54';X.fillRect(cx-6,bsy+1,20,3);X.beginPath();X.arc(cx+4,bsy+1,7,Math.PI,Math.PI*2);X.fill();}
     return;
   }
@@ -75195,8 +75203,8 @@ function _drawDistrictPed(p){
   if(business){X.fillStyle='#c0392b';X.fillRect(cx+3,bsy+15,3,12);X.fillStyle='#fff';X.fillRect(cx+1,bsy+14,7,2);} /* krawat + kołnierzyk */
   X.fillStyle=(_warm||business)?cc:sc;X.fillRect(cx-10,bsy+16,5,11);X.fillRect(cx+13,bsy+16,5,11); /* ręce (rękawy/gołe) */
   if(business){X.fillStyle='#5a3a18';X.fillRect(facingRight?cx+15:cx-12,bsy+24,8,11);X.fillStyle='#3a2010';X.fillRect(facingRight?cx+15:cx-12,bsy+24,8,2);X.fillStyle='#7a5028';X.fillRect(facingRight?cx+18:cx-9,bsy+22,2,3);} /* teczka */
-  X.fillStyle=sc;X.beginPath();X.arc(cx+4,bsy+8,8,0,Math.PI*2);X.fill(); /* głowa */
-  X.fillStyle=hairC;X.beginPath();X.arc(cx+4,bsy+8,8,Math.PI*1.1,Math.PI*1.9);X.fill();X.fillRect(cx+(facingRight?6:0),bsy+1,3,3); /* włosy + kosmyk */
+  X.fillStyle=sc;X.beginPath();X.arc(cx+4,bsy+7,10,0,Math.PI*2);X.fill(); /* głowa — v2.3.107 (user: „NPC dzielnic dalej mali"): r8→10 (proporcja głowy jak w mieście drawNPC r11) */
+  X.fillStyle=hairC;X.beginPath();X.arc(cx+4,bsy+7,10,Math.PI*1.1,Math.PI*1.9);X.fill();X.fillRect(cx+(facingRight?6:0),bsy+1,3,3); /* włosy + kosmyk */
   X.fillStyle='rgba(0,0,0,.75)';X.beginPath();X.arc(cx+4+eo-2,bsy+7,1.5,0,Math.PI*2);X.fill();X.beginPath();X.arc(cx+4+eo+2,bsy+7,1.5,0,Math.PI*2);X.fill(); /* oczy */
   if(business){X.strokeStyle='#1a1a1a';X.lineWidth=0.8;X.beginPath();X.arc(cx+4+eo-2,bsy+7,2,0,Math.PI*2);X.stroke();X.beginPath();X.arc(cx+4+eo+2,bsy+7,2,0,Math.PI*2);X.stroke();} /* okulary biznes */
 }
