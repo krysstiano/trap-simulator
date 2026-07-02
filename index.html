@@ -21801,7 +21801,9 @@ window._cocaineOpenPanel=function(){
   /* Render panel */
   const _mg=document.getElementById('mg-job');const _mc=document.getElementById('mg-job-content');
   if(!_mg||!_mc) return;
-  const _c=G.cocaine;
+  /* v2.3.103 save-safe: defensywna init (jak _sanitizePlayerLists) — bez tego throw gdy G.cocaine undefined
+     (fix interakcji B1-B7 odsłonił ten handler, który wcześniej cicho no-op'ował przy zniszczonym #mg-job-content). */
+  const _c=G.cocaine||(G.cocaine={unlocked:false,importDone:false,equipmentBought:false,refineSessions:0,lastRefineDay:0,totalGrams:0});
   if(!_c.importDone){
     /* Step 1: Import precursors */
     _mc.innerHTML=`<div style="background:#0a1a25;border:2px solid #ec7063;border-radius:10px;padding:18px;max-width:540px;margin:0 auto;color:#fff">
@@ -22003,6 +22005,11 @@ window._mushroomsDailyTick=function(){
 window._renderMushroomsUI=function(){
   const _mg=document.getElementById('mg-job');const _mc=document.getElementById('mg-job-content');
   if(!_mg||!_mc) return;
+  /* v2.3.103 save-safe: defensywna init (jak _sanitizePlayerLists) — bez tego throw gdy G.mushrooms undefined
+     (fix interakcji B1-B7 odsłonił ten handler, który wcześniej cicho no-op'ował przy zniszczonym #mg-job-content). */
+  if(!G.mushrooms||typeof G.mushrooms!=='object') G.mushrooms={jars:[],inv:{spores:0,substrate:0},totalHarvested:0};
+  if(!G.mushrooms.inv||typeof G.mushrooms.inv!=='object') G.mushrooms.inv={spores:0,substrate:0};
+  if(!Array.isArray(G.mushrooms.jars)) G.mushrooms.jars=[];
   const _inLab=(typeof currentRoom!=='undefined' && currentRoom==='lab'); /* v2.1.780 produkcja tylko w labie */
   _mc.innerHTML=`<div style="background:#1a0820;border:2px solid #9b59b6;border-radius:10px;padding:14px;max-width:540px;margin:0 auto;color:#fff;max-height:88vh;overflow-y:auto">
     <h2 style="color:#bb8fce;margin-top:0;text-align:center">🍄 Mushroom Lab</h2>
@@ -23844,11 +23851,21 @@ function _syncHomeSafe(){
     else if(!has&&idx>=0){room.objects.splice(idx,1);}
   }
 }
+/* v2.3.103 (2026-07-02) ROOT FIX „interakcje dzielnic zepsute": #mg-job-content bywa
+   niszczone (np. closer gotowania robił mg-job.innerHTML=''), a ~70 modali dzielnic robi
+   `if(!_mg||!_mc) return` i cicho no-op'uje. _ensureMgJob() odtwarza dziecko jeśli zniknęło
+   (wzór jak closeMG / startCookingMG). Wołane na górze _enterDistrictPlace i _buySafe. */
+window._ensureMgJob=function(){
+  var _mj=document.getElementById('mg-job');
+  if(_mj && !document.getElementById('mg-job-content')){ _mj.innerHTML='<div id="mg-job-content"></div>'; }
+  return _mj;
+};
 window._buySafe=function(){
   if(!G.safes||typeof G.safes!=='object') G.safes={};
   const rooms=_safeAccessRooms().filter(rk=>!G.safes[rk]);
   if(rooms.length===0){ if(typeof showMsg==='function') showMsg('🔒 Masz już sejf w każdym swoim mieszkaniu.','i',4500); return false; }
   if(rooms.length===1){ return window._buySafeFor(rooms[0]); }
+  window._ensureMgJob();
   const _mg=document.getElementById('mg-job'),_mc=document.getElementById('mg-job-content'); if(!_mg||!_mc) return false;
   _mc.innerHTML=`<div style="background:#0a140a;border:2px solid #27ae60;border-radius:10px;padding:18px;max-width:520px;margin:0 auto;color:#fff">
     <h2 style="color:#2ecc71;margin-top:0;text-align:center">🔒 Kup sejf — wybierz mieszkanie</h2>
@@ -25260,7 +25277,7 @@ function startCookingMG(recId){
           <div style="color:#7ec87e;margin-bottom:4px">+${eat(rec.stress)} nastrój</div>
           <div style="color:#7ec87e">+${eat(rec.xp)} XP${accuracy>=0.65?' · 🎯 +1 skill cooking':''}</div>
         </div>
-        <button class="cbtn" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job').innerHTML='';">← Smacznego!</button>
+        <button class="cbtn" onclick="document.getElementById('mg-job').classList.remove('on');var _mjc=document.getElementById('mg-job-content');if(_mjc)_mjc.innerHTML='';">← Smacznego!</button>
       </div>`;
   }
   renderPhase();
@@ -43121,6 +43138,8 @@ window._undergroundTheftRoll=function(){
   return vt.id;
 };
 window._enterDistrictPlace=(districtId,placeId)=>{
+  /* v2.3.103: samo-naprawa #mg-job-content ZANIM dispatch — inaczej modale dzielnic cicho no-op'ują. */
+  if(typeof window._ensureMgJob==='function') window._ensureMgJob();
   /* N7 (v2.3.26): przy interakcji z miejscem Underground — szansa zdarzenia kradzieży (gdy masz auto w dzielnicy). */
   if(districtId==='underground' && typeof window._undergroundTheftRoll==='function'){ try{ window._undergroundTheftRoll(); }catch(e){} }
   /* K-3 (PDF2): w Underground gracz też może zostać okradziony (ryzyko wg warunków: noc/kasa/pod-wpływem/streetCred/ochrona). */
@@ -59141,8 +59160,10 @@ window._s9AfterDeal=function(npcId,priceTier){
 };
 const PATCH_NOTES = [
  {
- ver:'v2.3.103',date:'2026-07-02',cats:['fix'],title:'🌃 Nocny zaułek — naprawiony „czarny ekran" i dłuższe godziny',
+ ver:'v2.3.103',date:'2026-07-02',cats:['beta-tester','fix','change'],title:'🛠️ Poprawki zgłoszone podczas testów — interakcje, dzielnice i klimat',
  items:[
+  {t:'fix',d:'🏢 Naprawiliśmy poważny błąd, przez który interakcje z wieloma budynkami potrafiły nagle przestać działać — podchodziłeś, wciskałeś [E] i nic się nie otwierało. Dotyczyło to między innymi Steakhouse, Banku VIP, agencji PR i Fortuno w dzielnicy biznesowej, wszystkich lokali na luksusowym wybrzeżu, zakupu domowego sejfu, a nawet niektórych stacji w laboratorium. Błąd pojawiał się zwykle po skorzystaniu z gotowania i utrzymywał się do końca gry. Teraz wszystkie te miejsca otwierają się poprawnie w każdej sytuacji.'},
+  {t:'fix',d:'📊 Fortuno w dzielnicy biznesowej nie twierdzi już błędnie „już dziś brałeś udział", gdy quiz w ogóle się nie pojawił — teraz quiz zawsze się otwiera, a limit „raz dziennie" liczy się dopiero po jego pokazaniu.'},
   {t:'fix',d:'🖤 Naprawiliśmy zgłoszony błąd, przez który po umówieniu „Spotkania" lub „Towarzysza na wieczór" w Nocnym zaułku ekran robił się czarny i wyglądał, jakby gra się zawiesiła — nic nie było widać i nic się nie działo. Teraz na czarnym ekranie pojawia się napis „Wieczór trwa…", scena jest wyraźnie krótsza, a w każdej chwili możesz kliknąć, żeby ją pominąć i od razu zobaczyć skutki wieczoru. Ekran już nigdy nie zostaje czarny na stałe.'},
   {t:'change',d:'🌙 Nocny zaułek w Underground jest teraz czynny dłużej — do 05:00 (wcześniej zamykał się o 03:00).'},
  ]
