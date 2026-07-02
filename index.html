@@ -10274,7 +10274,8 @@ function _drawUndergroundOutskirts(){
   for(let i=0;i<70;i++){ const wx=40+((i*173)%1360), wy=920+((i*227)%980); const sx=wx2sx(wx), sy=wy2sy(wy); if(sx<-30||sx>1310||sy<-30||sy>750) continue; const s=10+((i*13)%26); X.fillStyle=(i%3===0)?'rgba(28,24,18,.5)':(i%3===1?'rgba(74,66,48,.35)':'rgba(58,72,44,.28)'); X.beginPath(); X.ellipse(sx,sy,s,s*0.6,(i%7),0,7); X.fill(); }
   /* szutrowa ścieżka: od dzielnicy (worldX ~630, worldY 900) w dół, rozgałęzia do baraki/slumsy (lewo) i zajazdu (prawo) */
   const path=(x1,y1,x2,y2,pw)=>{ const a=wx2sx(x1),b=wy2sy(y1),c=wx2sx(x2),d=wy2sy(y2); X.strokeStyle='#4a4436'; X.lineWidth=pw; X.lineCap='round'; X.beginPath(); X.moveTo(a,b); X.lineTo(c,d); X.stroke(); X.strokeStyle='rgba(120,110,88,.25)'; X.lineWidth=pw*0.5; X.beginPath(); X.moveTo(a,b); X.lineTo(c,d); X.stroke(); };
-  path(630,900,630,1300,42); path(630,1300,330,1300,36); path(630,1300,1000,1470,38); path(330,1300,300,1360,30);
+  /* v2.3.105 (user: droga szutrowa większa + ŁĄCZY się z ulicą): główna droga wyrównana z pionową jezdnią (x720), szersza (64), od granicy jezdni (y880) w dół; odnogi do baraków/slumsów, plantacji (lewa dolna), zajazdu, kampera. */
+  path(720,880,720,1300,64); path(720,1240,240,1260,46); path(400,1250,90,1490,40); path(720,1300,1000,1440,50); path(1000,1480,1000,1660,42);
   /* płot z siatki wzdłuż prawej krawędzi rubieży */
   const fx=wx2sx(1400); if(fx>-20&&fx<1310){ X.strokeStyle='rgba(90,90,90,.5)'; X.lineWidth=1; for(let wy=940;wy<1900;wy+=140){ const sy=wy2sy(wy),sy2=wy2sy(wy+120); if(sy>750||sy2<-20)continue; X.beginPath(); X.moveTo(fx,sy); X.lineTo(fx,sy2); X.stroke(); for(let k=0;k<8;k++){ const yy=sy+(sy2-sy)*k/8; X.beginPath(); X.moveTo(fx-6,yy); X.lineTo(fx+6,yy+8); X.stroke(); } } }
   /* złom/dekoracje (deterministyczne pozycje) */
@@ -10300,6 +10301,20 @@ function drawUndergroundDecorations(){
     X.fillStyle='#2c2634'; X.fillRect(x0,rdT-4,ww,4); X.fillRect(x0,rdT+rdH,ww,4); /* krawężniki */
     X.fillStyle='rgba(225,205,120,0.45)'; const cy=wy2sy(520);
     for(let x=16;x<rw;x+=58){ const sx=wx2sx(x); if(sx>-40&&sx<1330) X.fillRect(sx,cy-1.5,28,3); } /* linia środkowa przerywana */
+  })();
+  /* v2.3.105 (user: „ulica zrobiona w połowie — tylko jedna pozioma"): PIONOWA jezdnia (cols 14-15, x672-768) od górnej krawędzi do granicy rubieży (y880) = PEŁNY KRZYŻ ulic. Dół łączy się z drogą szutrową rubieży (wjazd z ulicy na szuter). */
+  (function(){
+    const vx=wx2sx(672), vw=wx2sx(768)-wx2sx(672);
+    if(vx>1330||vx+vw<-40) return;
+    const vY0=wy2sy(0), vY1=wy2sy(880), vH=vY1-vY0;
+    X.fillStyle='#131019'; X.fillRect(vx,vY0,vw,vH);                                /* asfalt pionowy */
+    X.fillStyle='#2c2634'; X.fillRect(vx-4,vY0,4,vH); X.fillRect(vx+vw,vY0,4,vH);   /* krawężniki pionowe */
+    X.fillStyle='rgba(225,205,120,0.45)'; const vcx=wx2sx(720);
+    for(let y=16;y<880;y+=58){ if(y>460&&y<560) continue; const sy=wy2sy(y); if(sy>-40&&sy<800) X.fillRect(vcx-1.5,sy,3,28); } /* linia środkowa pionowa (pominięta w skrzyżowaniu) */
+    /* wjazd na szuter: trapez asfalt→żwir na granicy rubieży (y860-930) — rozszerza się od jezdni w szuter */
+    const tY=wy2sy(860), tH=wy2sy(930)-wy2sy(860);
+    const grd=X.createLinearGradient(0,tY,0,tY+tH); grd.addColorStop(0,'#131019'); grd.addColorStop(1,'#4a4436');
+    X.fillStyle=grd; X.beginPath(); X.moveTo(vx-2,tY); X.lineTo(vx+vw+2,tY); X.lineTo(vx+vw+14,tY+tH); X.lineTo(vx-14,tY+tH); X.closePath(); X.fill();
   })();
   /* v2.3.103 (pkt4/6/7): Gravel Lot przeniesiony do RUBIEŻY (wx900-1040, wy950-1080) — gravel apron POD halą, na ziemi rubieży (bez „szutru do jezdni" — brak miejskiej drogi w rubieżach = spełnia pkt7 „szuter przez trawę nie ulicę"). Szrot pasuje do klimatu rubieży. */
   (function(){
@@ -59304,6 +59319,8 @@ const PATCH_NOTES = [
   {t:'ui',d:'🧍 Przechodnie w dzielnicach (Underground, Wybrzeże VIP, dzielnica biznesowa) wyglądają teraz dużo lepiej — mają pełne, „miejskie" sylwetki tej samej wielkości i jakości co przechodnie w centrum: buty, spodnie, koszulę, ręce, głowę z włosami, a biznesmeni nawet krawat, okulary i teczkę. Koniec z małymi, uproszczonymi figurkami.'},
   {t:'ui',d:'🏚️ Przestawiliśmy dwa miejsca na rubieżach Underground, żeby lepiej pasowały do okolicy: Plantacja stoi teraz w lewej, dolnej części mapy, a Kamper (baza Trap) przeniósł się w dół, obok Zajazdu kempingowego. Wszystkie miejsca produkcji są teraz ładnie rozłożone po obrzeżach.'},
   {t:'ui',d:'🅿️ Parking w Underground jest teraz większy i sięga równo do krawędzi chodników (nie zostawia już brzydkiej luki i nie zachodzi na chodnik) — więcej miejsc i porządniejszy układ.'},
+  {t:'ui',d:'🛣️ Ulica w Underground jest wreszcie kompletna — dorysowaliśmy pionową jezdnię, więc teraz mamy pełne skrzyżowanie (poziomo + pionowo) zamiast tylko jednej połowy drogi. Auta trzymają się teraz jezdni i nie muskają już chodnika.'},
+  {t:'ui',d:'🛤️ Droga szutrowa na rubieżach jest większa i porządniejsza — płynnie łączy się z asfaltową ulicą (widać, jak z ulicy zjeżdża się na szuter) i rozgałęzia do wszystkich miejsc na obrzeżach: baraków, slumsów, Plantacji, Zajazdu i Kampera.'},
  ]
  },
  {
@@ -74731,7 +74748,7 @@ function initDistrictLife(room){
   const stdCols=(typeof CAR_COLORS!=='undefined')?CAR_COLORS:['#2471a3','#707b7c','#1e8449','#c0392b'];
   for(let i=0;i<cfg.cars;i++){
     const lux=Math.random()<cfg.luxCarPct;
-    districtCars.push({ x:Math.random()*roomW, y:carLane+(i%2)*40-20, dx:(Math.random()>.5?1:-1)*(1.3+Math.random()*0.8),
+    districtCars.push({ x:Math.random()*roomW, y:carLane+(i%2)*28-14, dx:(Math.random()>.5?1:-1)*(1.3+Math.random()*0.8), /* v2.3.105 (user: auta delikatnie na chodnik): pasy ±14 zamiast ±20 → sprite mieści się w jezdni y488-552, nie muska chodnika */
       body:lux?cfg.luxBody[Math.floor(Math.random()*cfg.luxBody.length)]:cfg.carBody[Math.floor(Math.random()*cfg.carBody.length)],
       color:lux?exoticCols[Math.floor(Math.random()*exoticCols.length)]:stdCols[i%stdCols.length], lux });
   }
