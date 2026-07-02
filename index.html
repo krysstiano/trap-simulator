@@ -13695,6 +13695,12 @@ function updatePlayer(){
           else if(cid==='soundeng') txt=`🔒 ${carNames[cid]} — wymaga poziomu 4 (jesteś lvl ${G.level})`;
         }
       }
+      /* v2.3.103 (user: „brak info o wymogach gdy lokacja zablokowana"): aktywności uliczne (skatepark/breakdance/freestyle) używają wspólnego _earlyGate (lvl≥2 LUB 2 prace). Pokaż wymóg WPROST w promptcie (jak przy karierach/Studiu Merch), nie tylko jako ulotny toast po [E]. */
+      if(obj.act==='skate'||obj.act==='bboy'||obj.act==='freestyle'){
+        if((G.level||1)<2 && (G._jobsCompleted||0)<2){
+          txt=`🔒 ${obj.lbl||'Aktywność'} — odblokujesz po 2 pracach dorywczych (masz ${(G._jobsCompleted||0)}/2) lub na poziomie 2`;
+        }
+      }
       /* C4 (PDF most): delikatny znacznik „Trop" na budynku Kasyno Royale dopóki Brokat nieznaleziony. */
       if(txt && obj.id==='casino' && typeof window._underworldEnsure==='function'){ window._underworldEnsure(); const _uc=G.underworldIntro; if(_uc && _uc.casinoMarkerEnabled && _uc.bridgeStage==='find_brokat' && _uc.task && !_uc.task.t3) txt=txt+' · 🔎 Trop'; }
       if(txt){pr.textContent=txt;pr.style.display='block';}else pr.style.display='none';
@@ -59284,6 +59290,7 @@ const PATCH_NOTES = [
   {t:'ui',d:'📡 Antena z migającym czerwonym światłem przy lądowisku dla helikopterów VIP nie stoi już na środku chodnika — przenieśliśmy ją na trawnik obok, żeby nie blokowała przejścia.'},
   {t:'fix',d:'🏠 Mieszkanie Podstawowe nie wygląda już identycznie jak Traphouse — po wejściu jego drzwiami zobaczysz właściwy, spokojniejszy wystrój z napisem „MIESZKANIE" (zamiast „TRAPHOUSE") i własnymi plakatami. Wcześniej po wejściu do mieszkania podstawowego błędnie pokazywał się wystrój i podpis Traphouse.'},
   {t:'fix',d:'✂️ Barber Point: postać w podglądzie jest teraz wyśrodkowana (wcześniej była przesunięta w róg). Zakładka „Kolor zarostu/wąsów" pojawia się dopiero, gdy masz już jakiś zarost lub wąsy — nie da się wybrać koloru czegoś, czego się nie ma.'},
+  {t:'ui',d:'🔒 Skatepark, breakdance i freestyle w parku pokazują teraz wprost, czego wymagają, gdy są jeszcze zablokowane — podchodząc od razu widzisz „odblokujesz po 2 pracach dorywczych lub na poziomie 2" (z licznikiem prac), zamiast tylko krótkiego komunikatu po wciśnięciu klawisza. Wymóg widać, zanim spróbujesz wejść.'},
   {t:'ui',d:'🎙️ Studio nagraniowe: plakat „LIVE FEST" nie zasłania już głośnika monitorującego, a podpis na interfejsie audio nie chowa się pod krzesłem — układ studia jest czytelniejszy.'},
   {t:'ui',d:'💡 Poradnik na dole ekranu jest teraz nieco większy po rozwinięciu (większa ikona, tytuł i odstępy) — wskazówki czyta się wygodniej. Zwinięty pasek pozostaje mały.'},
   {t:'ui',d:'📻 Street FM: jeśli nie masz jeszcze żadnych bitów, radio wyjaśnia teraz, skąd je wziąć — „Bit w inwentarzu" to utwory, które tworzysz w karierze Beatmaker, a dopiero potem wysyłasz do radia i zarabiasz na odtworzeniach. Dodaliśmy też przycisk, który od razu otwiera karierę Beatmaker, żebyś mógł stworzyć pierwszy bit.'},
