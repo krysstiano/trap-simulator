@@ -58707,6 +58707,8 @@ window._s9Ensure=function(){
   d('agencyHeat',0); d('campaignsCompleted',0); d('controversyCount',0); d('crisisControlUsed',0);
   d('socialBuzz',0); d('authenticity',60); d('brandTrust',60);
   d('nikaRel',0); d('nikaTrust',0); d('nikaPatience',5); d('lastVisitDay',null);
+  /* v2.3.102 (PDF #7 §11): 4 side questy legalne + odblokowanie Controversy Spark przez Quest 3. */
+  d('q1Done',false); d('q2Done',false); d('q3Done',false); d('q4Done',false); d('controversySparkUnlocked',false);
 };
 window._s9Reqs=function(){
   window._s9Ensure();
@@ -58740,6 +58742,8 @@ window._S9_CAMPAIGNS={
 };
 window._s9BuyCampaign=function(id){
   window._s9Ensure(); const cmp=window._S9_CAMPAIGNS[id]; if(!cmp) return;
+  /* PDF #7 §11 Quest 3: Controversy Spark odblokowywany dopiero po rozmowie z Niką o scenariuszach kryzysowych. */
+  if(id==='controversySpark' && !G.signalNine.controversySparkUnlocked){ if(typeof showMsg==='function')showMsg('🔒 „Controversy Spark" to nie jest coś, co dajemy z półki. Najpierw pogadaj z Niką o scenariuszach kryzysowych.','i',5000); return; }
   if((G.money||0)<cmp.cost){ if(typeof showMsg==='function')showMsg(`💸 Potrzebujesz ${cmp.cost.toLocaleString('pl')} zł na kampanię „${cmp.name}".`,'r',3500); return; }
   G.money-=cmp.cost;
   const fx=Object.assign({},cmp.fx);
@@ -58747,6 +58751,8 @@ window._s9BuyCampaign=function(id){
   window._s9Effect(fx);
   G.signalNine.campaignsCompleted=(G.signalNine.campaignsCompleted||0)+1;
   if(typeof showMsg==='function') showMsg(`📣 Kampania „${cmp.name}" ruszyła (−${cmp.cost.toLocaleString('pl')} zł). Efekty widoczne w profilu.`,'g',5000);
+  /* Quest 1 „Pierwszy sygnał": pierwsza konsultacja + wybór stylu kampanii. */
+  if(G.signalNine.firstConsultationDone && !G.signalNine.q1Done){ G.signalNine.q1Done=true; if(typeof showMsg==='function')setTimeout(()=>showMsg('✅ Quest „Pierwszy sygnał" ukończony — masz pierwszą strategię contentu.','g',5000),700); }
   if(typeof saveGameSilent==='function') saveGameSilent();
   window.renderS9Agency();
 };
@@ -58821,6 +58827,65 @@ window._s9CheckScandal=function(){
     {label:'😏 „Obrócimy to w promocję"', fn:()=>{ s._scandalPending=false; window._s9Effect({socialBuzz:5,brandTrust:-3,agencyHeat:3}); if(typeof showMsg==='function')showMsg('📈 Ryzykowny ruch — duży buzz, ale zaufanie do marki obrywa.','i',5000); }},
   ]);
 };
+/* v2.3.102 (PDF #7 §11): Quest 2 „Live bez cięcia" — pytanie widza + ton odpowiedzi. Pytania KURATOROWANE (łagodne). */
+window._S9_LIVE_QUESTIONS=[
+  'Ej! Kiedy nowy numer?',
+  'Kiedy można spodziewać się albumu?',
+  'Grasz gdzieś? Można Cię spotkać i zamienić słowo?',
+  'Co jest Twoją misją w przestrzeni publicznej?',
+  'Skąd pomysł na takie działania w sieci?',
+  'Na ile to, co robisz, jest prawdziwe?',
+  'Kupujesz zasięgi w sieci?',
+  'Skąd czerpiesz inspiracje?',
+  'Czego możemy się po Tobie spodziewać?',
+  'Czemu nagle wszyscy o Tobie gadają?',
+  'Masz swoją wytwórnię, czy działasz w underze?',
+  'Kiedy można spodziewać się trasy koncertowej?',
+];
+window._s9QuestLive=function(){
+  window._s9Ensure(); const s=G.signalNine;
+  if(!s.q1Done){ if(typeof showMsg==='function')showMsg('🔒 Najpierw odpal pierwszą kampanię (Quest „Pierwszy sygnał").','i',4000); return; }
+  if((s.socialBuzz||0)<12){ if(typeof showMsg==='function')showMsg(`🔒 „Live bez cięcia" ma sens, gdy jest ruch. Zbierz trochę buzzu (masz ${s.socialBuzz||0}/12).`,'i',4500); return; }
+  if(s.q2Done){ if(typeof showMsg==='function')showMsg('✅ „Live bez cięcia" już za Tobą.','i',3000); return; }
+  if(typeof showEventChoice!=='function') return;
+  const q=window._S9_LIVE_QUESTIONS[Math.floor(Math.random()*window._S9_LIVE_QUESTIONS.length)];
+  const done=(m,t)=>{ s.q2Done=true; if(typeof showMsg==='function')showMsg(m,t||'g',5200); if(typeof saveGameSilent==='function')saveGameSilent(); if(document.getElementById('mg-job').classList.contains('on'))window.renderS9Agency(); };
+  showEventChoice('🔴 Live bez cięcia', `Nika: „Live może pomóc albo pogrzebać. Zero montażu — jedziesz na żywo."<br><br>Widz pyta: <i>„${q}"</i><br><br>Jak odpowiadasz?`, [
+    {label:'🙇 Pokornie', fn:()=>{ window._s9Effect({fanLoyalty:2}); done('🙇 Pokorna, ludzka odpowiedź. Fani czują szczerość (+lojalność).'); }},
+    {label:'😎 Pewnie siebie', fn:()=>{ window._s9Effect({cultureCred:2}); done('😎 Zero wahania. Ulica to szanuje (+respect).'); }},
+    {label:'😤 Agresywnie', fn:()=>{ window._s9Effect({controversy:1,brandTrust:-2}); done('😤 Ostro. Będzie o tym głośno, ale marka trochę obrywa (+kontrowersja, −zaufanie).','i'); }},
+    {label:'😏 Żartobliwie', fn:()=>{ window._s9Effect({fanLoyalty:1}); if(typeof addFriendship==='function')addFriendship('fan',1); done('😏 Rozluźniłeś atmosferę. Relacja z fanami rośnie.'); }},
+    {label:'🕶 Tajemniczo', fn:()=>{ window._s9Effect({fanHype:2,socialBuzz:2}); done('🕶 Zagadka. Ludzie zaczynają spekulować (+hype, +plotki).'); }},
+  ]);
+};
+/* Quest 3 „Afera gotowa przed premierą" — 4 wybory; „pytanie o koszt" odblokowuje Controversy Spark. */
+window._s9QuestCrisisScenario=function(){
+  window._s9Ensure(); const s=G.signalNine;
+  if(!s.q2Done){ if(typeof showMsg==='function')showMsg('🔒 Ten wątek otworzy się po „Live bez cięcia".','i',4000); return; }
+  if(s.q3Done){ if(typeof showMsg==='function')showMsg('✅ Ten wątek masz już zamknięty.','i',3000); return; }
+  if(typeof showEventChoice!=='function') return;
+  const done=(m,t)=>{ s.q3Done=true; if(typeof showMsg==='function')showMsg(m,t||'g',5500); if(typeof saveGameSilent==='function')saveGameSilent(); if(document.getElementById('mg-job').classList.contains('on'))window.renderS9Agency(); };
+  showEventChoice('🗂 Afera gotowa przed premierą', 'Słyszysz, jak agencja szykuje kryzysowy scenariusz dla innego twórcy — zanim jakakolwiek afera w ogóle wyszła.<br><br>Nika: „W tym biznesie nie czekasz, aż coś się stanie. Masz trzy wersje reakcji, zanim ktokolwiek zdąży zrobić zrzut ekranu."', [
+    {label:'👏 Uznaj to za profesjonalizm', fn:()=>{ window._s9Effect({nikaTrust:2}); done('👏 Nika docenia, że rozumiesz grę (+zaufanie Niki).'); }},
+    {label:'🤨 „Czy wy produkujecie problemy?"', fn:()=>{ window._s9Effect({authenticity:2}); s.nikaPatience=Math.max(0,(s.nikaPatience||5)-1); done('🤨 Uczciwe pytanie. Zostajesz sobą (+autentyczność), ale Nika lekko traci cierpliwość.','i'); }},
+    {label:'🚫 Odrzuć taki styl promocji', fn:()=>{ window._s9Effect({brandTrust:2,nikaRel:-1}); done('🚫 Trzymasz zasady (+zaufanie marki), choć relacja z Niką chłodnieje.','i'); }},
+    {label:'💰 Zapytaj, ile to kosztuje', fn:()=>{ s.controversySparkUnlocked=true; done('💰 „Ciekawe pytanie…" — odblokowano kampanię „Controversy Spark".'); }},
+  ]);
+};
+/* Quest 4 „Klip, który poszedł za daleko" — 4 wybory. */
+window._s9QuestClip=function(){
+  window._s9Ensure(); const s=G.signalNine;
+  if(!s.q3Done){ if(typeof showMsg==='function')showMsg('🔒 Najpierw domknij wątek „Afera gotowa przed premierą".','i',4000); return; }
+  if(s.q4Done){ if(typeof showMsg==='function')showMsg('✅ Ten klip to już zamknięty temat.','i',3000); return; }
+  if(typeof showEventChoice!=='function') return;
+  const done=(m,t)=>{ s.q4Done=true; if(typeof showMsg==='function')showMsg(m,t||'g',5500); if(typeof saveGameSilent==='function')saveGameSilent(); if(document.getElementById('mg-job').classList.contains('on'))window.renderS9Agency(); };
+  showEventChoice('🎞 Klip, który poszedł za daleko', 'Agencja zmontowała Twój content tak, że robi zasięg — ale część fanów uważa go za sztuczny i zmanipulowany.<br><br>Co robisz?', [
+    {label:'📈 Zostaw wersję agencyjną', fn:()=>{ window._s9Effect({socialBuzz:3,authenticity:-2}); done('📈 Zasięg leci, ale autentyczność obrywa.','i'); }},
+    {label:'🎥 Wrzuć surowszą, prawdziwszą wersję', fn:()=>{ window._s9Effect({fanLoyalty:2,socialBuzz:-1}); done('🎥 Mniej zasięgu, ale fani czują, że to Ty (+lojalność).'); }},
+    {label:'💬 Nagraj komentarz do fanów', fn:()=>{ window._s9Effect({brandTrust:2}); if(typeof addFriendship==='function')addFriendship('fan',1); done('💬 Szczera rozmowa gasi napięcie (+relacja, +zaufanie marki).'); }},
+    {label:'🙈 Udawaj, że nie ma problemu', fn:()=>{ window._s9Effect({controversy:1}); done('🙈 Cisza tylko podgrzała temat (+kontrowersja).','i'); }},
+  ]);
+};
 /* Główny panel agencji — render do #mg-job-content (jak district-place). */
 window.renderS9Agency=function(){
   window._s9Ensure();
@@ -58854,10 +58919,22 @@ window.renderS9Agency=function(){
   const _afterAvail=window._s9CanAfterRoom();
   const _afterKnown=s.afterHoursUnlocked;
   const camps=Object.keys(window._S9_CAMPAIGNS).map(id=>{ const c=window._S9_CAMPAIGNS[id]; const aff=(G.money||0)>=c.cost;
-    return `<div style="background:#0b1424;border:1px solid #1e3350;border-radius:8px;padding:9px 11px;margin-bottom:6px">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="color:#dfe6f2;font-size:13px">${c.name}</b><span style="color:#e8a020;font-weight:700">${c.cost.toLocaleString('pl')} zł</span></div>
-      <div style="color:#8b98ab;font-size:11px;margin:3px 0 6px">${c.desc}</div>
-      <button class="cbtn" style="width:100%;font-size:12px;padding:6px" ${aff?'':'disabled'} onclick="window._s9BuyCampaign('${id}')">${aff?'Odpal kampanię':'Za mało gotówki'}</button></div>`; }).join('');
+    const locked=(id==='controversySpark' && !s.controversySparkUnlocked);
+    return `<div style="background:#0b1424;border:1px solid #1e3350;border-radius:8px;padding:9px 11px;margin-bottom:6px;${locked?'opacity:.65':''}">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="color:#dfe6f2;font-size:13px">${c.name} ${locked?'🔒':''}</b><span style="color:#e8a020;font-weight:700">${c.cost.toLocaleString('pl')} zł</span></div>
+      <div style="color:#8b98ab;font-size:11px;margin:3px 0 6px">${locked?'Odblokowywane przez rozmowę z Niką o scenariuszach kryzysowych.':c.desc}</div>
+      <button class="cbtn" style="width:100%;font-size:12px;padding:6px" ${(locked||!aff)?'disabled':''} onclick="window._s9BuyCampaign('${id}')">${locked?'🔒 Zablokowane':(aff?'Odpal kampanię':'Za mało gotówki')}</button></div>`; }).join('');
+  /* PDF #7 §11: 4 side questy legalne — progresja narracyjna. */
+  const _qRow=(done,avail,label,fn,hint)=>`<div style="display:flex;align-items:center;gap:8px;background:#0b1424;border:1px solid ${done?'#2a5a3a':(avail?'#1e3350':'#20242e')};border-radius:8px;padding:7px 9px;margin-bottom:5px">
+    <span style="font-size:14px">${done?'✅':(avail?'▶':'🔒')}</span>
+    <div style="flex:1;min-width:0"><div style="color:${done?'#9ee89e':(avail?'#dfe6f2':'#778')};font-size:12px;font-weight:600">${label}</div>${(!done&&!avail&&hint)?`<div style="color:#667;font-size:10px">${hint}</div>`:''}</div>
+    ${(!done&&avail)?`<button class="cbtn" style="font-size:11px;padding:5px 9px" onclick="${fn}">Zajmij się</button>`:''}</div>`;
+  const _q1done=s.q1Done, _q2av=s.q1Done&&(s.socialBuzz||0)>=12, _q3av=s.q2Done, _q4av=s.q3Done;
+  const questsHtml=`<div style="color:#7ec8e3;font-weight:700;font-size:12px;margin:12px 0 6px">Wątki z agencją</div>
+    ${_qRow(_q1done,false,'Pierwszy sygnał — konsultacja i wybór stylu','',_q1done?'':'Odpal pierwszą kampanię')}
+    ${_qRow(s.q2Done,_q2av&&!s.q2Done,'Live bez cięcia — pytanie widza na żywo','window._s9QuestLive()','Zbierz min. 12 buzzu')}
+    ${_qRow(s.q3Done,_q3av&&!s.q3Done,'Afera gotowa przed premierą — rozmowa z Niką','window._s9QuestCrisisScenario()','Najpierw „Live bez cięcia"')}
+    ${_qRow(s.q4Done,_q4av&&!s.q4Done,'Klip, który poszedł za daleko — decyzja o montażu','window._s9QuestClip()','Najpierw „Afera gotowa przed premierą"')}`;
   _mc.innerHTML=`<div style="background:#0a1418;border:2px solid #3498db;border-radius:10px;padding:16px;max-width:580px;margin:0 auto;color:#dfe3ee">
     ${_head}
     <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;font-size:11px;margin-bottom:10px">
@@ -58876,6 +58953,7 @@ window.renderS9Agency=function(){
       <button class="cbtn" style="font-size:12px;padding:7px" onclick="if(typeof showMsg==='function')showMsg(window._s9NikaLine(),'f',7000)">💬 Porozmawiaj z Niką</button>
       <button class="cbtn" style="font-size:12px;padding:7px;${_afterAvail?'border-color:#6a3a8a;color:#c89eeb':'opacity:.6'}" onclick="${_afterAvail?'window._s9AfterRoom()':"if(typeof showMsg==='function')showMsg('🔒 „To nie jest część oficjalnej oferty Signal Nine.”','i',4000)"}">🚪 Zamknięta strefa ${_afterAvail?'':'🔒'}</button>
     </div>
+    ${questsHtml}
     ${_close}</div>`;
   _mg.classList.add('on');
   s.lastVisitDay=G.day||0;
