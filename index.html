@@ -38610,7 +38610,10 @@ function renderBarber(){
      Dane usług wystawione przez _barberServices() (współdzielone z helperami hover/pick/confirm). */
   window._BARBER_HAIR=hairstyles; window._BARBER_BEARD=beardstyles; window._BARBER_MUST=mustachestyles;
   if(typeof window._barberCat!=='string') window._barberCat='hairstyles';
-  const CATS=[{key:'hairstyles',label:'Fryzury'},{key:'beard',label:'Zarost / Broda'},{key:'mustache',label:'Wąsy'},{key:'hairColor',label:'Kolor włosów'},{key:'beardColor',label:'Kolor zarostu/wąsów'}];
+  const CATS=[{key:'hairstyles',label:'Fryzury'},{key:'beard',label:'Zarost / Broda'},{key:'mustache',label:'Wąsy'},{key:'hairColor',label:'Kolor włosów'}];
+  /* v2.3.103 (user: „zanim gracz wybierze kolor zarostu/wąsów, powinien najpierw MIEĆ zarost lub wąsy"): tab koloru zarostu tylko gdy jest broda lub wąsy. */
+  if((typeof G!=='undefined')&&((G.beard>0)||(G.mustache>0))) CATS.push({key:'beardColor',label:'Kolor zarostu/wąsów'});
+  if(!CATS.some(c=>c.key===window._barberCat)) window._barberCat='hairstyles'; /* aktywna zakładka zawsze istnieje (np. po zgoleniu zarostu) */
   const tabs=CATS.map(c=>{const on=window._barberCat===c.key;return `<button onclick="selectBarberCategory('${c.key}')" style="flex:0 0 auto;background:${on?'#2a5a8a':'#16202c'};border:1px solid ${on?'#3a7ab8':'#26303c'};color:${on?'#dff':'#9ab'};padding:7px 11px;border-radius:8px;cursor:pointer;font-size:12.5px;font-weight:${on?'700':'500'}">${c.label}</button>`;}).join('');
   document.getElementById('ov-content').innerHTML=`
     <h2>✂️ Barber Point</h2><p class="sub">Zmień fryzurę, zarost, wąsy i kolor swojej postaci.</p>
@@ -38701,12 +38704,14 @@ window._barberConfirm=function(){
 window.previewHaircut=function(hairId,lbl,beardId,mustacheId,hairColorId){
   const cvs=document.getElementById('barber-preview');if(!cvs)return;
   const cx=cvs.getContext('2d');
-  cx.clearRect(0,0,120,120);
-  cx.fillStyle='#0a1220';cx.fillRect(0,0,120,120);
+  /* v2.3.103 (user: „postać w podglądzie barbera jest krzywo, nie na środku"): canvas to 150×150,
+     ale rysunek szedł na 120×120 z centrum (60,60) → przesunięcie w lewy-górny róg. Teraz pełne 150 + centrum 75. */
+  cx.clearRect(0,0,150,150);
+  cx.fillStyle='#0a1220';cx.fillRect(0,0,150,150);
   // Draw simple face — G.skin może być stringiem 'light'/'medium'/'dark' (z kreatora) lub hexem
   const _skin=G.skin||P.skin||'light';
   const skinColor=SKIN_COLS[_skin]||(typeof _skin==='string'&&_skin.startsWith('#')?_skin:'#e0a870');
-  const px=60,py=60;
+  const px=75,py=75;
   // v1.9.3: Twarz/szyja PRZED włosami. Oczy/usta DOPIERO PO włosach (żeby fryzura nie zakrywała oczu)
   cx.fillStyle=skinColor;cx.beginPath();cx.arc(px,py+5,28,0,Math.PI*2);cx.fill();
   cx.fillStyle=skinColor;cx.fillRect(px-8,py+28,16,14);
@@ -59191,6 +59196,7 @@ const PATCH_NOTES = [
   {t:'ui',d:'🏙️ Dzielnica biznesowa uporządkowana: ulice sięgają teraz do krawędzi mapy (wcześniej urywały się kawałek przed nią), budynki (Label HQ, Bank VIP, PR Agency, Fortuno) nie nachodzą już na chodnik, a przechodnie chodzą po chodnikach zamiast po budynkach.'},
   {t:'ui',d:'📡 Antena z migającym czerwonym światłem przy lądowisku dla helikopterów VIP nie stoi już na środku chodnika — przenieśliśmy ją na trawnik obok, żeby nie blokowała przejścia.'},
   {t:'fix',d:'🏠 Mieszkanie Podstawowe nie wygląda już identycznie jak Traphouse — po wejściu jego drzwiami zobaczysz właściwy, spokojniejszy wystrój z napisem „MIESZKANIE" (zamiast „TRAPHOUSE") i własnymi plakatami. Wcześniej po wejściu do mieszkania podstawowego błędnie pokazywał się wystrój i podpis Traphouse.'},
+  {t:'fix',d:'✂️ Barber Point: postać w podglądzie jest teraz wyśrodkowana (wcześniej była przesunięta w róg). Zakładka „Kolor zarostu/wąsów" pojawia się dopiero, gdy masz już jakiś zarost lub wąsy — nie da się wybrać koloru czegoś, czego się nie ma.'},
   {t:'fix',d:'🖤 Naprawiliśmy zgłoszony błąd, przez który po umówieniu „Spotkania" lub „Towarzysza na wieczór" w Nocnym zaułku ekran robił się czarny i wyglądał, jakby gra się zawiesiła — nic nie było widać i nic się nie działo. Teraz na czarnym ekranie pojawia się napis „Wieczór trwa…", scena jest wyraźnie krótsza, a w każdej chwili możesz kliknąć, żeby ją pominąć i od razu zobaczyć skutki wieczoru. Ekran już nigdy nie zostaje czarny na stałe.'},
   {t:'change',d:'🌙 Nocny zaułek w Underground jest teraz czynny dłużej — do 05:00 (wcześniej zamykał się o 03:00).'},
  ]
