@@ -41971,26 +41971,28 @@ window._forbesRenderQ=function(){
     <div style="color:#aaa;font-size:13px;margin-bottom:12px">Pytanie ${q.idx+1}/${q.q.length} · Poprawnych: ${q.correct}</div>
     <div style="background:#0a1018;border-radius:6px;padding:14px;margin-bottom:14px;font-size:14px;color:#fff;line-height:1.5">${_curr.q}</div>
     <div style="display:flex;flex-direction:column;gap:6px">
-      ${_curr.a.map((ans,i)=>`<button class="bbtn" onclick="window._forbesAnswer(${i})" style="text-align:left;padding:10px">${String.fromCharCode(65+i)}. ${ans}</button>`).join('')}
+      ${_curr.a.map((ans,i)=>`<button class="bbtn" onclick="window._forbesAnswer(${i},this)" style="text-align:left;padding:10px;transition:all .12s">${String.fromCharCode(65+i)}. ${ans}</button>`).join('')}
     </div>
   </div>`;
   const mg=document.getElementById('mg-job');
   const mgc=document.getElementById('mg-job-content');
   if(mg&&mgc){mgc.innerHTML=html;mg.classList.add('on');}
 };
-window._forbesAnswer=function(idx){
+window._forbesAnswer=function(idx,btn){
   if(!G._forbesQuiz) return;
-  const q=G._forbesQuiz;
+  const q=G._forbesQuiz; if(q._ans) return; q._ans=true;
   const _curr=q.q[q.idx];
-  if(idx===_curr.correct){
+  const _ok=(idx===_curr.correct);
+  if(typeof window._dlgAnswerFX==='function') window._dlgAnswerFX(btn,_ok);
+  if(_ok){
     q.correct++;
     G.money=(G.money||0)+500;
-    if(typeof showMsg==='function') showMsg('✅ Poprawnie! +500 zł.','g',2500);
+    if(typeof showMsg==='function') showMsg('✅ Poprawnie! +500 zł.','g',2000);
   } else {
-    if(typeof showMsg==='function') showMsg(`❌ Niepoprawne. Poprawna: ${String.fromCharCode(65+_curr.correct)}. ${_curr.a[_curr.correct]}`,'r',4000);
+    if(typeof showMsg==='function') showMsg(`❌ Niepoprawne. Poprawna: ${String.fromCharCode(65+_curr.correct)}. ${_curr.a[_curr.correct]}`,'r',3500);
   }
   q.idx++;
-  setTimeout(()=>window._forbesRenderQ(), 1500);
+  setTimeout(()=>{ q._ans=false; window._forbesRenderQ(); }, 480);
 };
 /* v2.1.496 USER FEEDBACK — multi-step marihuana process: harvest produces WET BUDS,
    drying rack converts wet→dried (1 day), packing station bags dried→TRAW (real usable).
@@ -42505,20 +42507,20 @@ window._renderCypherRound=function(){
     </div>
     <div style="color:#f1c40f;font-size:13px;margin-bottom:8px;text-align:center"><strong>🎯 Dobierz wers który RYMUJE się z bitem przeciwnika</strong></div>
     <div style="display:flex;flex-direction:column;gap:8px">
-    ${_shuffled.map(o=>`<button class="bbtn" onclick="window._cypherPick(${o.rhymes})" style="text-align:left;font-style:italic">"${o.t}"</button>`).join('')}
+    ${_shuffled.map(o=>`<button class="bbtn" onclick="window._cypherPick(${o.rhymes},this)" style="text-align:left;font-style:italic;transition:all .12s">"${o.t}"</button>`).join('')}
     </div>
     <button class="cbtn" style="margin-top:14px;width:100%" onclick="window._cypherAbort()">← Przerwij</button>
   </div>`;
   _mg.classList.add('on');
 };
-window._cypherPick=function(rhymes){
+window._cypherPick=function(rhymes,btn){
   const mg=G._cypherMG;
-  if(!mg) return;
-  if(rhymes){mg.playerScore++; mg.perfect=(mg.perfect||0)+1; if(typeof showMsg==='function') showMsg('🔥 Czysty rym! Punkt dla Ciebie.','g',1800);}
-  else {mg.npcScore++; if(typeof showMsg==='function') showMsg('❌ Nie rymuje się — punkt dla NPC.','r',2200);}
+  if(!mg||mg._ans) return; mg._ans=true;
+  if(typeof window._dlgAnswerFX==='function') window._dlgAnswerFX(btn,!!rhymes);
+  if(rhymes){mg.playerScore++; mg.perfect=(mg.perfect||0)+1; if(typeof showMsg==='function') showMsg('🔥 Czysty rym! Punkt dla Ciebie.','g',1500);}
+  else {mg.npcScore++; if(typeof showMsg==='function') showMsg('❌ Nie rymuje się — punkt dla NPC.','r',1700);}
   mg.round++;
-  if(mg.round>=3){setTimeout(window._cypherFinish, 700);return;}
-  setTimeout(window._renderCypherRound, 700);
+  setTimeout(()=>{ mg._ans=false; if(mg.round>=3) window._cypherFinish(); else window._renderCypherRound(); }, 400);
 };
 window._cypherAbort=function(){
   G._cypherMG=null;
@@ -42781,6 +42783,16 @@ const MARINA_GUESTS=[
     {t:'Nie gram na żywo', ok:false},
     {t:'Kluby są przereklamowane', ok:false}]},
 ];
+/* v2.3.107 (user: „nic się nie dzieje po kliknięciu / zamulone / przeskakują z opóźnieniem"):
+   natychmiastowa reakcja w panelach wyboru (Marina/Fortuno/Cypher). Klik → od razu: blokada wszystkich
+   przycisków (koniec double-click race skip-round), podświetlenie wyboru (zielony=OK / czerwony=źle),
+   znacznik ✅/❌. Przejście do następnej rundy skrócone (~380 ms zamiast 500-1500 ms). */
+window._dlgAnswerFX=function(btn,ok){
+  if(!btn||!btn.parentElement) return;
+  [...btn.parentElement.querySelectorAll('button')].forEach(b=>{ b.disabled=true; b.style.pointerEvents='none'; if(b!==btn) b.style.opacity='.45'; });
+  btn.style.opacity='1'; btn.style.borderColor=ok?'#27ae60':'#e74c3c'; btn.style.background=ok?'rgba(39,174,96,.20)':'rgba(231,76,60,.18)';
+  if(!btn.dataset._fxd){ btn.dataset._fxd='1'; btn.insertAdjacentHTML('afterbegin', ok?'✅ ':'❌ '); }
+};
 window._startMarinaChoice=function(){
   const _mg=document.getElementById('mg-job');const _mc=document.getElementById('mg-job-content');
   if(!_mg||!_mc) return;
@@ -42807,17 +42819,17 @@ window._renderMarinaGuest=function(){
     </div>
     <div style="color:#f1c40f;font-size:12px;margin-bottom:8px;text-align:center"><strong>Jak odpowiadasz?</strong></div>
     <div style="display:flex;flex-direction:column;gap:8px">
-    ${_opts.map(o=>`<button class="bbtn" style="text-align:left" onclick="window._marinaAnswer(${o.ok})">${o.t}</button>`).join('')}
+    ${_opts.map(o=>`<button class="bbtn" style="text-align:left;transition:all .12s" onclick="window._marinaAnswer(${o.ok},this)">${o.t}</button>`).join('')}
     </div>
   </div>`;
 };
-window._marinaAnswer=function(ok){
-  const mg=G._marinaMG; if(!mg) return;
-  if(ok){mg.correct++; if(typeof showMsg==='function') showMsg('🤝 Kontakt nawiązany!','g',1500);}
-  else {if(typeof showMsg==='function') showMsg('😬 Gość stracił zainteresowanie.','r',1800);}
+window._marinaAnswer=function(ok,btn){
+  const mg=G._marinaMG; if(!mg||mg._ans) return; mg._ans=true;
+  if(typeof window._dlgAnswerFX==='function') window._dlgAnswerFX(btn,!!ok);
+  if(ok){mg.correct++; if(typeof showMsg==='function') showMsg('🤝 Kontakt nawiązany!','g',1200);}
+  else {if(typeof showMsg==='function') showMsg('😬 Gość stracił zainteresowanie.','r',1400);}
   mg.round++;
-  if(mg.round>=4){setTimeout(window._marinaFinish,500);return;}
-  setTimeout(window._renderMarinaGuest,500);
+  setTimeout(()=>{ mg._ans=false; if(mg.round>=4) window._marinaFinish(); else window._renderMarinaGuest(); },360);
 };
 window._marinaFinish=function(){
   const mg=G._marinaMG; if(!mg) return;
@@ -59658,6 +59670,12 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.107',date:'2026-07-02',cats:['beta-tester','fix','ui'],title:'🔧 Dopracowanie: płynniejsze rozmowy, kasyno, dzielnice i aktywności',
+ items:[
+  {t:'fix',d:'💬 Rozmowy z wyborem odpowiedzi (Marina na Wybrzeżu, Fortuno Studio, Cypher Battle w Underground) reagują teraz NATYCHMIAST po kliknięciu — wybrana odpowiedź od razu się podświetla (zielono/czerwono), a pozostałe przyciski blokują się, żeby nie dało się przypadkiem przeskoczyć rundy. Koniec z wrażeniem, że „nic się nie dzieje" i z zawieszaniem między pytaniami.'},
+ ]
+ },
  {
  ver:'v2.3.106',date:'2026-07-02',cats:['feature'],title:'🎧 Nowość: Piwnica Producenta — nowe miejsce do nagrywania',
  items:[
