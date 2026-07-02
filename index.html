@@ -3993,7 +3993,7 @@ function drawSprite(id,sx,sy,w,h){
     /* v2.1.930: wnętrze klubu striptiz */
     case 'striptiz_stage': drawStripStage(sx,sy,w,h);break;
     case 'striptiz_vip':   drawStripVip(sx,sy,w,h);break;
-    case 'striptiz_bar':   drawCasinoBar(sx,sy,w,h,'classic');break;
+    case 'striptiz_bar':   drawCasinoBar(sx,sy,w,h,'velvet');break;
     case 'striptiz_dj':    drawStripDj(sx,sy,w,h);break;
     case 'npc_dancer1': case 'npc_dancer2': drawStripDancer(sx,sy,w,h,id);break;
     case 'npc_barman2':    drawBarman(sx,sy,w,h);break;
@@ -7770,24 +7770,37 @@ function drawCasinoCashierObj(sx,sy,w,h){
 /* v2.1.602 (user): bar inny na KAŻDYM piętrze — tier: classic(parter)/gold(VIP)/diamond(3p)/royal(4p). */
 function drawCasinoBar(sx,sy,w,h,tier){
   tier=tier||'classic';
+  /* lvl = poziom prestiżu (im wyższe piętro, tym bardziej premium): trim(1)/lustro(2)/podświetlana półka+korony(3). velvet = osobny klimat Velvet Room. */
   const S={
-    classic:{lada:'#3a1a0a',edge:'#5a2a18',shelf:'#1a0e08',neon:'#f1c40f',neon2:'#c8a520',txt:'BAR',bottles:['#c01020','#27ae60','#3498db','#f1c40f','#9b59b6','#e67e22','#8a5a18','#1a1a1a']},
-    gold:{lada:'#2a2008',edge:'#5a4410',shelf:'#15100a',neon:'#ffd700',neon2:'#c8a520',txt:'BAR VIP',bottles:['#ffd700','#d4af37','#f1c40f','#e8c060','#b8860b','#fff0a0','#8a6a10','#fffbe0']},
-    diamond:{lada:'#1a2230',edge:'#2a3a52',shelf:'#0c141f',neon:'#22d3ee',neon2:'#5ad0e0',txt:'BAR 💎',bottles:['#22d3ee','#7ec8e3','#a0e8ff','#c8a520','#ffffff','#5ad0e0','#2a8aa0','#e0f8ff']},
-    royal:{lada:'#16161f',edge:'#2a2a3c',shelf:'#0a0a12',neon:'#cdb8ff',neon2:'#b98cff',txt:'BAR 👑',bottles:['#cdb8ff','#b98cff','#e6ddff','#c8d2e6','#9a7be0','#ffffff','#5a3aa0','#f0e8ff']},
+    classic:{lvl:0,lada:'#3a1a0a',edge:'#5a2a18',shelf:'#1a0e08',neon:'#f1c40f',neon2:'#c8a520',txt:'BAR',bottles:['#c01020','#27ae60','#3498db','#f1c40f','#9b59b6','#e67e22','#8a5a18','#1a1a1a','#c0392b','#16a085','#2980b9']},
+    gold:{lvl:1,lada:'#2a2008',edge:'#5a4410',shelf:'#15100a',neon:'#ffd700',neon2:'#c8a520',txt:'BAR VIP',bottles:['#ffd700','#d4af37','#f1c40f','#e8c060','#b8860b','#fff0a0','#8a6a10','#fffbe0','#ffe98a','#d8b840','#fff4c0']},
+    diamond:{lvl:2,lada:'#1a2230',edge:'#2a3a52',shelf:'#0c141f',neon:'#22d3ee',neon2:'#5ad0e0',txt:'BAR 💎',bottles:['#22d3ee','#7ec8e3','#a0e8ff','#c8a520','#ffffff','#5ad0e0','#2a8aa0','#e0f8ff','#4dd0e8','#b0f0ff','#7ee0f0']},
+    royal:{lvl:3,lada:'#16161f',edge:'#2a2a3c',shelf:'#0a0a12',neon:'#cdb8ff',neon2:'#b98cff',txt:'BAR 👑',bottles:['#cdb8ff','#b98cff','#e6ddff','#c8d2e6','#9a7be0','#ffffff','#5a3aa0','#f0e8ff','#d8c8ff','#a688e8','#efe6ff']},
+    velvet:{lvl:2,lada:'#2a0c1c',edge:'#7a2a4a',shelf:'#180610',neon:'#ff5fa2',neon2:'#e0a8c4',txt:'VELVET',bottles:['#ff5fa2','#e0409a','#ffd0e6','#c8a520','#ffffff','#b8407a','#ff90c0','#ffe0f0','#f070b0','#d85a98']},
   }[tier]||{};
-  const s=S;
+  const s=S; const lvl=s.lvl||0; const nB=8+lvl;
   X.fillStyle='rgba(0,0,0,.5)';X.fillRect(sx+4,sy+4,w,h);
   X.fillStyle=s.lada;X.fillRect(sx,sy,w,h);
+  /* lustrzany panel za półką (premium: diamond/royal/velvet) */
+  if(lvl>=2){ const mg=X.createLinearGradient(sx,sy+6,sx,sy+h*0.5); mg.addColorStop(0,'rgba(255,255,255,0.12)'); mg.addColorStop(1,'rgba(255,255,255,0)'); X.fillStyle=mg; X.fillRect(sx+8,sy+8,w-16,h*0.4); }
   X.fillStyle=s.edge;X.fillRect(sx,sy,w,6);
+  /* złota listwa akcentowa (premium: gold i wyżej) */
+  if(lvl>=1){ X.fillStyle=s.neon2; X.globalAlpha=0.85; X.fillRect(sx+2,sy+7,w-4,1.5); X.globalAlpha=1; }
   X.strokeStyle=s.neon2;X.lineWidth=1.5;X.strokeRect(sx+1,sy+1,w-2,h-2);
+  /* podświetlana półka (top premium: royal) */
+  if(lvl>=3){ X.shadowColor=s.neon; X.shadowBlur=9; }
   X.fillStyle=s.shelf;X.fillRect(sx+10,sy+10,w-20,30);
-  for(let i=0;i<8;i++){ const bx=sx+18+i*((w-32)/8); X.fillStyle=s.bottles[i];X.fillRect(bx,sy+15,5,20); X.fillStyle='#ccc';X.fillRect(bx+1,sy+13,3,3); }
+  X.shadowBlur=0;
+  for(let i=0;i<nB;i++){ const bx=sx+18+i*((w-36)/nB); X.fillStyle=s.bottles[i%s.bottles.length];X.fillRect(bx,sy+15,5,20); X.fillStyle='#ccc';X.fillRect(bx+1,sy+13,3,3); }
+  /* velvet: ciepłe świeczki na ladzie (klimat Velvet Room) */
+  if(tier==='velvet'){ const tt=Date.now()/400; for(const cxr of [sx+w*0.20,sx+w*0.80]){ const fl=0.6+0.4*Math.sin(tt+cxr*0.1); X.fillStyle='#3a1a10';X.fillRect(cxr-1,sy+h*0.60,2,9); X.fillStyle=`rgba(255,180,90,${0.55*fl})`; X.beginPath();X.arc(cxr,sy+h*0.60,3.5,0,Math.PI*2);X.fill(); } }
+  /* royal: narożne akcenty (korona) */
+  if(lvl>=3){ X.fillStyle=s.neon2; X.beginPath();X.moveTo(sx+5,sy+5);X.lineTo(sx+15,sy+5);X.lineTo(sx+5,sy+15);X.closePath();X.fill(); X.beginPath();X.moveTo(sx+w-5,sy+5);X.lineTo(sx+w-15,sy+5);X.lineTo(sx+w-5,sy+15);X.closePath();X.fill(); }
   const t=Date.now()/600; const barClr=Math.sin(t*0.8)>0?s.neon:s.neon2;
   X.font='bold 15px Arial,sans-serif';X.textAlign='center';X.textBaseline='middle';
   X.shadowColor=barClr;X.shadowBlur=11;
-  X.strokeStyle='rgba(0,0,0,.8)';X.lineWidth=3;X.strokeText(s.txt,sx+w/2,sy+h*0.78);
-  X.fillStyle=barClr;X.fillText(s.txt,sx+w/2,sy+h*0.78);
+  X.strokeStyle='rgba(0,0,0,.8)';X.lineWidth=3;X.strokeText(s.txt,sx+w/2,sy+h*0.80);
+  X.fillStyle=barClr;X.fillText(s.txt,sx+w/2,sy+h*0.80);
   X.shadowBlur=0;X.textBaseline='alphabetic';X.textAlign='left';
 }
 
@@ -40589,21 +40602,23 @@ window._striptizBarMG=function(){
   G.money-=fee; if(typeof spent==='function')spent(fee);
   const panel=document.getElementById('mg-job');panel.classList.add('on');panel.style.display='';
   panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
-  const W=520,H=300,col='#7ec8e3',targLo=72,targHi=94; // idealne nalanie 72-94% (przelanie = słabo)
+  const W=520,H=300,col='#ff5fa2',targLo=72,targHi=94; // idealne nalanie 72-94% (przelanie = rozlane)
   document.getElementById('mg-job-content').innerHTML=`
     <div style="display:flex;flex-direction:column;align-items:center;gap:8px;width:100%">
-      ${_gigHeaderHtml('🍸','Bar — nalej idealnego drinka',col)}
+      ${_gigHeaderHtml('🍸','Velvet Bar — zatrzymaj barmana',col)}
       <div style="display:flex;gap:18px;align-items:center;font-family:'Segoe UI',sans-serif;font-size:13px">
-        <span style="color:#7ec8e3">🍸 Drink: <span id="sb-round" style="color:#f1c40f;font-weight:700">1</span>/${ROUNDS}</span>
-        <span style="color:#7ec8e3">⭐ Jakość: <span id="sb-score" style="color:#2ecc71;font-weight:700">0</span></span>
+        <span style="color:#ff9ec8">🍸 Drink: <span id="sb-round" style="color:#ffd0e6;font-weight:700">1</span>/${ROUNDS}</span>
+        <span style="color:#ff9ec8">⭐ Jakość: <span id="sb-score" style="color:#2ecc71;font-weight:700">0</span></span>
       </div>
-      <span style="color:#9ab;font-size:12px;font-family:'Segoe UI',sans-serif">Poziom w szklance rośnie — kliknij, by ZATRZYMAĆ nalewanie w zielonej strefie. Za mało lub przelanie = słaby drink. 3 drinki.</span>
-      <canvas id="sb-cv" width="${W}" height="${H}" style="border-radius:8px;cursor:pointer;background:linear-gradient(180deg,#0a1420,#060c14)"></canvas>
+      <span style="color:#c89ab0;font-size:12px;font-family:'Segoe UI',sans-serif">Barman leje drinka — poziom w szklance rośnie. Kliknij, żeby ZATRZYMAĆ nalewanie w zielonej strefie. Za mało lub przelanie = słaby drink. 3 drinki.</span>
+      <canvas id="sb-cv" width="${W}" height="${H}" style="border-radius:8px;cursor:pointer;background:linear-gradient(180deg,#2a0c1c,#140408)"></canvas>
       <button class="cbtn" onclick="if(window._jobMgCleanup)window._jobMgCleanup()">← Wyjdź</button>
     </div>`;
   const cv=document.getElementById('sb-cv');const ctx=_crispCanvas(cv,W,H);
-  let over=false,raf,round=1,score=0,fill=0,dir=1,stopped=false,resultT=0,lastQ='';_gigFXReset();
-  const gx=W/2-45,gw=90,gTop=40,gBot=H-40,gh=gBot-gTop;
+  let over=false,raf,round=1,score=0,fill=0,stopped=false,resultT=0,lastQ='';const pourRate=0.85;_gigFXReset();
+  const gx=308,gw=86,gTop=86,gBot=H-42,gh=gBot-gTop;
+  const bx=66,by=60,bw=92,bh=172;
+  const spoutX=gx+gw*0.5, spoutY=gTop-20;
   function finish(){
     if(over)return;over=true;cancelAnimationFrame(raf);
     cv.removeEventListener('click',onClick);cv.removeEventListener('touchstart',onTouch);
@@ -40630,29 +40645,72 @@ window._striptizBarMG=function(){
     else {q=4;txt='Za mało';}
     score+=q;lastQ=txt;resultT=Date.now();
     const se=document.getElementById('sb-score');if(se)se.textContent=score;
-    setTimeout(()=>{ if(over)return; round++; if(round>ROUNDS){finish();return;} fill=0;dir=1;stopped=false; const re=document.getElementById('sb-round');if(re)re.textContent=round; },800);
+    setTimeout(()=>{ if(over)return; round++; if(round>ROUNDS){finish();return;} fill=0;stopped=false; const re=document.getElementById('sb-round');if(re)re.textContent=round; },800);
   }
   function onClick(){stop();}
   function onTouch(e){e.preventDefault();stop();}
   cv.addEventListener('click',onClick);cv.addEventListener('touchstart',onTouch,{passive:false});
+  function drawBarman(){
+    ctx.save();
+    // cień
+    ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();ctx.ellipse(bx+bw/2,by+bh,bw*0.46,5,0,0,Math.PI*2);ctx.fill();
+    // nogi
+    ctx.fillStyle='#0a0a0a';ctx.fillRect(bx+bw*0.30,by+bh*0.55,bw*0.16,bh*0.42);ctx.fillRect(bx+bw*0.54,by+bh*0.55,bw*0.16,bh*0.42);
+    // biała koszula
+    ctx.fillStyle='#f4f4f4';ctx.fillRect(bx+bw*0.24,by+bh*0.26,bw*0.52,bh*0.32);
+    // czarna kamizelka po bokach
+    ctx.fillStyle='#15121a';ctx.fillRect(bx+bw*0.20,by+bh*0.26,bw*0.11,bh*0.32);ctx.fillRect(bx+bw*0.69,by+bh*0.26,bw*0.11,bh*0.32);
+    // różowa muszka (klimat velvet)
+    ctx.fillStyle='#e0409a';ctx.beginPath();ctx.moveTo(bx+bw*0.42,by+bh*0.28);ctx.lineTo(bx+bw*0.58,by+bh*0.28);ctx.lineTo(bx+bw*0.55,by+bh*0.33);ctx.lineTo(bx+bw*0.45,by+bh*0.33);ctx.closePath();ctx.fill();
+    // głowa
+    ctx.fillStyle='#e8c090';ctx.beginPath();ctx.arc(bx+bw*0.5,by+bh*0.15,bw*0.17,0,Math.PI*2);ctx.fill();
+    // włosy
+    ctx.fillStyle='#2a1c10';ctx.fillRect(bx+bw*0.33,by+bh*0.02,bw*0.34,bh*0.09);
+    // oczy
+    ctx.fillStyle='#1a1a1a';ctx.fillRect(bx+bw*0.43,by+bh*0.14,2,2);ctx.fillRect(bx+bw*0.55,by+bh*0.14,2,2);
+    // ramię wyciągnięte ku szklance (biały rękaw)
+    const shX=bx+bw*0.74, shY=by+bh*0.32, hX=spoutX-13, hY=spoutY+3;
+    ctx.strokeStyle='#f4f4f4';ctx.lineWidth=11;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(shX,shY);ctx.lineTo(hX,hY);ctx.stroke();
+    // dłoń
+    ctx.fillStyle='#e8c090';ctx.beginPath();ctx.arc(hX,hY,5,0,Math.PI*2);ctx.fill();
+    // butelka (przechylona, dziubek nad szklanką)
+    ctx.translate(spoutX-6,spoutY-4);ctx.rotate(0.5);
+    ctx.fillStyle='#3a1830';ctx.fillRect(-9,-42,18,40);
+    ctx.fillStyle='#e0409a';ctx.fillRect(-9,-42,18,7); // różowa etykieta
+    ctx.fillStyle='#2a1024';ctx.fillRect(-3,-52,6,12); // szyjka
+    ctx.restore();
+  }
   function draw(){
     if(over)return;
-    if(!stopped){fill+=dir*1.1;if(fill>=100){fill=100;dir=-1;}else if(fill<=0){fill=0;dir=1;}}
+    if(!stopped){ fill+=pourRate; if(fill>=100){ fill=100; stop(); } } // barman leje — poziom rośnie; przelanie = auto-rozlane
     ctx.clearRect(0,0,W,H);
+    // klimat velvet — ciepła poświata
+    const amb=ctx.createRadialGradient(W/2,H*0.4,20,W/2,H*0.4,W*0.6);amb.addColorStop(0,'rgba(120,20,70,0.28)');amb.addColorStop(1,'rgba(20,4,10,0)');ctx.fillStyle=amb;ctx.fillRect(0,0,W,H);
+    // lada barowa
+    ctx.fillStyle='#3a1226';ctx.fillRect(0,gBot+6,W,H-(gBot+6));ctx.fillStyle='#7a2a4a';ctx.fillRect(0,gBot+6,W,3);
+    drawBarman();
     // strefa docelowa (zielona) na szklance
     const yLo=gBot-gh*targHi/100, yHi=gBot-gh*targLo/100;
     ctx.fillStyle='rgba(46,204,113,0.18)';ctx.fillRect(gx-6,yLo,gw+12,yHi-yLo);
     ctx.strokeStyle='rgba(46,204,113,0.6)';ctx.lineWidth=1;ctx.strokeRect(gx-6,yLo,gw+12,yHi-yLo);
     // szklanka
-    ctx.strokeStyle='#cfe6f0';ctx.lineWidth=3;ctx.strokeRect(gx,gTop,gw,gh);
-    // płyn
+    ctx.strokeStyle='#f0d0e0';ctx.lineWidth=3;ctx.strokeRect(gx,gTop,gw,gh);
+    // płyn (różany koktajl)
     const fy=gBot-gh*fill/100;
-    const grd=ctx.createLinearGradient(0,fy,0,gBot);grd.addColorStop(0,'#e8a020');grd.addColorStop(1,'#a85a10');
+    const grd=ctx.createLinearGradient(0,fy,0,gBot);grd.addColorStop(0,'#ff8ac0');grd.addColorStop(1,'#c02a70');
     ctx.fillStyle=grd;ctx.fillRect(gx+2,fy,gw-4,gBot-fy);
-    ctx.fillStyle='rgba(255,255,255,0.25)';ctx.fillRect(gx+2,fy,gw-4,3);
+    ctx.fillStyle='rgba(255,255,255,0.28)';ctx.fillRect(gx+2,fy,gw-4,3);
+    // struga (barman leje) — animowana, tylko gdy nalewa
+    if(!stopped){
+      const wob=Math.sin(Date.now()/60)*1.4;
+      ctx.strokeStyle='rgba(255,150,200,0.85)';ctx.lineWidth=3;ctx.lineCap='round';
+      ctx.beginPath();ctx.moveTo(spoutX,spoutY+6);ctx.lineTo(spoutX+wob,fy);ctx.stroke();
+      for(let d=0;d<3;d++){const dy=spoutY+10+((Date.now()/3+d*24)%Math.max(4,(fy-spoutY-10)));ctx.fillStyle='rgba(255,180,215,0.8)';ctx.beginPath();ctx.arc(spoutX+Math.sin(dy/12)*1.6,dy,1.6,0,Math.PI*2);ctx.fill();}
+    }
     // %
-    ctx.fillStyle='#cfe6f0';ctx.font='bold 16px "Segoe UI",sans-serif';ctx.textAlign='center';ctx.fillText(Math.round(fill)+'%',W/2,gTop-12);
-    if(stopped && Date.now()-resultT<800){ctx.fillStyle=lastQ.includes('Idealnie')?'#2ecc71':(lastQ.includes('Przelane')||lastQ.includes('Za mało')||lastQ.includes('Rozlane')?'#e74c3c':'#f1c40f');ctx.font='bold 20px "Segoe UI",sans-serif';ctx.fillText(lastQ,W/2,gBot+24);}
+    ctx.fillStyle='#f0d0e0';ctx.font='bold 16px "Segoe UI",sans-serif';ctx.textAlign='center';ctx.fillText(Math.round(fill)+'%',W-42,26);
+    if(stopped && Date.now()-resultT<800){ctx.fillStyle=lastQ.includes('Idealnie')?'#2ecc71':(lastQ.includes('Przelane')||lastQ.includes('Za mało')||lastQ.includes('Rozlane')?'#e74c3c':'#f1c40f');ctx.font='bold 20px "Segoe UI",sans-serif';ctx.fillText(lastQ,gx+gw/2,gBot+30);}
     ctx.textAlign='left';
     _gigDrawFX(ctx,W,H);
     raf=requestAnimationFrame(draw);
@@ -59230,6 +59288,9 @@ const PATCH_NOTES = [
   {t:'ui',d:'💡 Poradnik na dole ekranu jest teraz nieco większy po rozwinięciu (większa ikona, tytuł i odstępy) — wskazówki czyta się wygodniej. Zwinięty pasek pozostaje mały.'},
   {t:'ui',d:'📻 Street FM: jeśli nie masz jeszcze żadnych bitów, radio wyjaśnia teraz, skąd je wziąć — „Bit w inwentarzu" to utwory, które tworzysz w karierze Beatmaker, a dopiero potem wysyłasz do radia i zarabiasz na odtworzeniach. Dodaliśmy też przycisk, który od razu otwiera karierę Beatmaker, żebyś mógł stworzyć pierwszy bit.'},
   {t:'fix',d:'🍾 W minigrze rytmicznej w Strefie VIP (prywatny pokaz) nuty spadały odrobinę za szybko — teraz opadają nieco wolniej, dzięki czemu łatwiej złapać rytm i trafiać w świecącą strefę.'},
+  {t:'ui',d:'🍸 Bar w Velvet Room ma teraz własny, różowo-fioletowy klimat pasujący do klubu (neon „VELVET", ciepłe świeczki na ladzie) — wyraźnie różni się od barów w kasynie.'},
+  {t:'ui',d:'🍸 Odświeżyliśmy minigrę przy barze w Velvet Room: teraz barman naprawdę nalewa drinka, a Ty klikasz, żeby zatrzymać nalewanie w idealnym momencie (zielona strefa). Za mało albo przelanie = słabszy drink.'},
+  {t:'ui',d:'🍸 Bary w kasynie różnią się teraz wyraźniej piętro po piętrze — im wyżej, tym bardziej ekskluzywny bar (złote wykończenia, lustrzana półka, podświetlenie i więcej trunków na najwyższych piętrach).'},
   {t:'balance',d:'💸 Wzmocnienia kariery (Wejściówka VIP, Kurs mistrzowski, Sesja PR) były wielokrotnie za tanie i psuły balans. Teraz kosztują znacznie więcej (2800–3500 zł), za to działają przez cały dzień w grze (zamiast ~12 minut) i można ich użyć najwyżej raz na 3 dni w grze.'},
   {t:'change',d:'🎯 Te wzmocnienia kariery kupisz teraz w Sklepie Muzycznym, w sekcji „Boostery kariery" — pasują tam lepiej niż do sklepu spożywczego. W spożywczym zostają przekąski, napoje i witaminy.'},
   {t:'balance',d:'🚗 Dopracowaliśmy prędkość jazdy autem — stan techniczny auta wpływa teraz na tempo: zadbane auto jedzie pełną prędkością, a zniszczone wyraźnie wolniej (dodatkowa zachęta, by trzymać auto w dobrym stanie). Maksymalne prędkości są dostrojone tak, by dobrze grało się na mapie miasta.'},
