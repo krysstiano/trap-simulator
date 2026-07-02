@@ -28429,7 +28429,7 @@ function renderHomeStudioCard(){
   if(!r.allOK){
     const reqs=[
       `${r.freestylesOK?'✅':'❌'} 3+ freestyle uliczne wykonane (masz ${r.freestyles}/3)`,
-      `${r.hasMic?'✅':'❌'} Mikrofon (${r.micName}) — kup w Sklepie Muzycznym`,
+      r.hasMic?`✅ Mikrofon (${(typeof gearDisplayName==='function'?gearDisplayName(r.micName):r.micName)})`:`❌ Mikrofon — kup w Sklepie Muzycznym`,
       `${r.realizacjaOK?'✅':'❌'} Realizacja ≥1 w drzewku rapera`,
     ].join('<br>');
     /* v2.1.95 Amper: jaśniejsze opisy — "×30% jakości" myli (brzmi jak boost), zmiana na "jakość: 30% pełnego studio". */
@@ -31571,7 +31571,7 @@ function renderYTOverlay(){
       <div class="sbox"><div class="l">Filmy</div><div class="v">${G.yt.videos.length}</div></div>
       <div class="sbox"><div class="l">Seria</div><div class="v" style="font-size:13px">${(G.yt.seriesProgress||0)}/5 filmów</div></div>
       <div class="sbox"><div class="l">Kamera</div><div class="v" style="font-size:13px">${G.camera?G.camera.name:'Brak'} (${camQ}%)</div></div>
-      <div class="sbox"><div class="l">Mikrofon</div><div class="v" style="font-size:13px">${G.mic?G.mic.name:'Brak'} (${micQ}%)</div></div>
+      <div class="sbox"><div class="l">Mikrofon</div><div class="v" style="font-size:13px">${G.mic?gearDisplayName(G.mic.name):'Brak'} (${micQ}%)</div></div>
     </div>
     <div class="cards">
       <div class="card"><h3>🎥 Nagrywanie</h3><p>Wybierz gatunek i nagraj film. Każde nagranie to OSOBNY szkic w kolekcji poniżej — możesz mieć kilka i wybierać, który zmontować lub opublikować.</p><div class="cost">Energia: -15</div><button class="dbtn" ${G.energy<15?'disabled':''} onclick="startYTRecording()">Nagrywaj</button></div>
@@ -33688,7 +33688,7 @@ function renderSoundEngOverlay(){
       <div class="sbox"><div class="l">Projekty</div><div class="v">${car.projects}</div></div>
       <div class="sbox"><div class="l">Ghostwritingi</div><div class="v">${car.ghostwrites}</div></div>
       <div class="sbox"><div class="l">Albumy</div><div class="v">${G.albumsReleased||0}</div></div>
-      <div class="sbox"><div class="l">Mikrofon</div><div class="v" style="font-size:13px">${G.mic?G.mic.name:'Brak'}</div></div>
+      <div class="sbox"><div class="l">Mikrofon</div><div class="v" style="font-size:13px">${G.mic?gearDisplayName(G.mic.name):'Brak'}</div></div>
     </div>
     <div class="cards">
       <div class="card"><h3>🎤 Realizacja wokalu</h3><p>Nagraj wokale dla artysty. Mikrofon (${micQ}%) kluczowy.</p><div class="cost">Energia: -20 · Wymaga miku</div><button class="dbtn" ${G.energy<20||!G.mic?'disabled':''} onclick="recordVocal()">Nagrywaj</button></div>
@@ -33734,7 +33734,7 @@ function startVocalRecordMG(){
   // Build UI
   const title=document.createElement('h2');title.textContent='🎙 Sesja Nagraniowa';title.style.cssText='color:#e091f0;margin-bottom:4px;font-size:24px;';
   const sub=document.createElement('p');sub.style.cssText='color:#667;font-size:13px;margin-bottom:14px;';
-  sub.textContent=`Mikrofon: ${G.mic?G.mic.name:'Brak'} (${micQ}%) · Naciśnij SPACJĘ gdy kursor jest w zielonej strefie`;
+  sub.textContent=`Mikrofon: ${G.mic?gearDisplayName(G.mic.name):'Brak'} (${micQ}%) · Naciśnij SPACJĘ gdy kursor jest w zielonej strefie`;
   const cv=document.createElement('canvas');cv.width=680;cv.height=160;cv.style.cssText='border:1px solid #2a1a3a;border-radius:8px;background:#0a0412;display:block;margin:0 auto 10px;';
   const info=document.createElement('div');info.style.cssText='text-align:center;font-size:15px;color:#ccc;margin-bottom:12px;';
   const bClose=document.createElement('button');bClose.textContent='← Przerwij';bClose.className='cbtn';
@@ -34262,7 +34262,7 @@ function renderDAWOverlay(tab='beatmaker'){
       <div style="display:flex;gap:16px;justify-content:center;margin-bottom:16px">
         <div style="text-align:center;padding:14px;background:#0a1018;border-radius:8px;min-width:120px">
           <div style="font-size:32px">${micOk?'🎤':'❌'}</div>
-          <p style="color:${micOk?'#2ecc71':'#e74c3c'};font-size:12px;margin:4px 0">${micOk?G.mic.name:'Brak mikrofonu'}</p>
+          <p style="color:${micOk?'#2ecc71':'#e74c3c'};font-size:12px;margin:4px 0">${micOk?gearDisplayName(G.mic.name):'Brak mikrofonu'}</p>
           ${micOk?`<p style="color:#888;font-size:11px">Jakość: ${G.mic.quality}%</p>`:''}
         </div>
         <div style="text-align:center;padding:14px;background:#0a1018;border-radius:8px;min-width:120px">
@@ -37721,7 +37721,7 @@ function renderMusicShop(){
           return `<div class="sitem"><h3>${window._shopIco(c.emoji)} ${c.name}</h3><p style="font-size:11px;color:#8ad">${c.desc||''}</p><div class="pr">${c.price.toLocaleString('pl')} zł</div>${have?`<div style="color:#27ae60;font-size:11px">W ekwipunku: ${have.qty} szt.</div>`:''}<button class="bbtn" style="background:#1a5a4a" onclick="window.buyConsumable('${c.id}')" ${G.money<c.price?'disabled':''}>🎒 Kup do ekwipunku</button></div>`;}).join('')}</div>
       </div>`;
     })()}
-    ${micOk?`<div style="background:#0a1a2a;border:1px solid #1a3a5a;border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:14px;color:#aaa">Aktywny mikrofon: <b style="color:#7ec8e3">${G.mic.name}</b> (${G.mic.type==='xlr'?'XLR':' USB'}, jakość ${micQ}%${G.mic.type==='xlr'?' × '+Math.round((G.audioInterface?G.audioInterface.ifMult:0.3)*100)+'% interfejsu':''})</div>`:''}
+    ${micOk?`<div style="background:#0a1a2a;border:1px solid #1a3a5a;border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:14px;color:#aaa">Aktywny mikrofon: <b style="color:#7ec8e3">${gearDisplayName(G.mic.name)}</b> (${G.mic.type==='xlr'?'XLR':' USB'}, jakość ${micQ}%${G.mic.type==='xlr'?' × '+Math.round((G.audioInterface&&typeof G.audioInterface.ifMult==='number'?G.audioInterface.ifMult:0.3)*100)+'% interfejsu':''})</div>`:''}
     <div style="background:#0a1525;border:1px solid #1a3a5a;border-radius:8px;padding:10px 14px;margin-bottom:14px">
       <div style="color:#7ec8e3;font-weight:700;font-size:13px;margin-bottom:6px">🎒 Twoje mikrofony (${G.micsOwned.length})</div>
       ${ownedMicsList}
@@ -48573,7 +48573,7 @@ function renderWarsztat(){
         <button class="bbtn" ${G.camera.quality>=100||G.money<Math.max(50,(100-G.camera.quality)*15)?'disabled':''} onclick="repairGear('camera')">Napraw</button>`:'<div style="color:#667;font-size:12px">Nie posiadasz</div>'}
       </div>
       <div class="sitem"><h3>🎤 Mikrofon</h3>
-        <p>${G.mic?G.mic.name+' (jakość: '+G.mic.quality+'%)':'Brak mikrofonu'}</p>
+        <p>${G.mic?gearDisplayName(G.mic.name)+' (jakość: '+G.mic.quality+'%)':'Brak mikrofonu'}</p>
         ${G.mic?`<div class="pr">Naprawa: ${Math.max(50,Math.floor((100-G.mic.quality)*12))} zł</div>
         <button class="bbtn" ${G.mic.quality>=100||G.money<Math.max(50,(100-G.mic.quality)*12)?'disabled':''} onclick="repairGear('mic')">Napraw</button>`:'<div style="color:#667;font-size:12px">Nie posiadasz</div>'}
       </div>
@@ -53628,7 +53628,7 @@ function renderPhoneStats(){
       <div style="background:#1a0a0a;border:1px solid #3a1a1a;border-radius:8px;padding:12px;margin-top:8px">
         <div style="font-size:12px;color:#e74c3c;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Stan sprzętu</div>
         ${G.camera?`<div style="font-size:13px;color:${G.camera.quality<50?'#e74c3c':'#aaa'}" title="Wpływa na jakość filmów ViewGrid">📹 ${G.camera.name}: ${G.camera.quality}% ${G.camera.quality<50?'⚠️ Napraw w warsztacie!':''}</div>`:''}
-        ${G.mic?`<div style="font-size:13px;color:${G.mic.quality<50?'#e74c3c':'#aaa'}" title="Wpływa na jakość nagrań w studio + albumy + filmy YT">🎤 ${G.mic.name}: ${G.mic.quality}% ${G.mic.quality<50?'⚠️ Napraw w warsztacie!':''}</div>`:''}
+        ${G.mic?`<div style="font-size:13px;color:${G.mic.quality<50?'#e74c3c':'#aaa'}" title="Wpływa na jakość nagrań w studio + albumy + filmy YT">🎤 ${gearDisplayName(G.mic.name)}: ${G.mic.quality}% ${G.mic.quality<50?'⚠️ Napraw w warsztacie!':''}</div>`:''}
         ${G.midiCtrl?`<div style="font-size:13px;color:${G.midiCtrl.quality<50?'#e74c3c':'#aaa'}" title="Wpływa na jakość bitów (Beatmaker)">🎹 ${G.midiCtrl.name}: ${G.midiCtrl.quality}% ${G.midiCtrl.quality<50?'⚠️ Napraw w warsztacie!':''}</div>`:''}
         <div style="font-size:10px;color:#778;margin-top:6px;font-style:italic">💡 Jakość spada ~4%/dzień przy używaniu. Wpływa na zarobki ze studio/YT/albumów. Naprawa w warsztacie.</div>
       </div>`:''}
@@ -59295,6 +59295,14 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.105',date:'2026-07-02',cats:['beta-tester','fix'],title:'🎤 Poprawki sprzętu muzycznego i nagrywania',
+ items:[
+  {t:'fix',d:'🎤 Naprawiliśmy dziwny napis „× NaN% interfejsu" przy aktywnym mikrofonie XLR — teraz zawsze pokazuje poprawny procent wzmocnienia z interfejsu audio (a starsze zapisy bez tej wartości są automatycznie uzupełniane).'},
+  {t:'fix',d:'🎤 W wymaganiach nagrywania w domu mikrofon oznaczony jako posiadany (✅) nie namawia już błędnie „kup w Sklepie Muzycznym" — komunikat o zakupie pojawia się tylko wtedy, gdy naprawdę nie masz mikrofonu.'},
+  {t:'ui',d:'🏷️ Dokończyliśmy zamianę prawdziwych marek na własne, oryginalne odpowiedniki także dla sprzętu muzycznego — nazwy mikrofonów i interfejsów wyświetlają się teraz spójnie w całej grze (sklep, ekwipunek, statystyki, panel nagrywania).'},
+ ]
+ },
  {
  ver:'v2.3.104',date:'2026-07-02',cats:['beta-tester','fix'],title:'🛗 Czytelniejsze napisy w windzie kasyna',
  items:[
@@ -71375,9 +71383,9 @@ function adminMaxAll(){
 }
 function adminGiveGear(){
   G.camera={name:'Sony A7IV',quality:95};
-  G.mic={name:'Neumann U87',quality:95};
+  G.mic={name:'Neumann U87',quality:95,type:'xlr'};
   G.midiCtrl={name:'Akai MPC',quality:95};
-  G.audioInterface={name:'Focusrite Scarlett 4i4',quality:95};
+  G.audioInterface={name:'Focusrite Scarlett 4i4',quality:95,ifMult:0.85};
   if(typeof _adminMarkCheatUsed==='function')_adminMarkCheatUsed(); /* v2.1.763: oznacz cheat (anti-leaderboard) */
   document.getElementById('adm-msg').textContent='✅ Sprzęt dodany!';
 }
@@ -73425,6 +73433,13 @@ function loadGame(){
   if(G.headphones && !G.headphonesOwned.some(h=>h.name===G.headphones.name)){G.headphonesOwned.push({...G.headphones});}
   if(G.midiCtrl && !G.midiCtrlsOwned.some(m=>m.name===G.midiCtrl.name)){G.midiCtrlsOwned.push({...G.midiCtrl});}
   if(G.audioInterface && !G.audioInterfacesOwned.some(a=>a.name===G.audioInterface.name)){G.audioInterfacesOwned.push({...G.audioInterface});}
+  /* v2.3.105 (user: „× NaN% interfejsu"): backfill ifMult dla starych save / dev-setup bez tego pola (undefined → NaN w display i calc XLR). */
+  if(G.audioInterface && typeof G.audioInterface.ifMult!=='number'){
+    const _ifM={'Behringer UMC202HD':0.55,'Focusrite Scarlett 2i2 3rd Gen':0.78,'Focusrite Scarlett 2i2 4th Gen':0.90,'Focusrite Scarlett 4i4':0.85,'Apollo Twin X':1.0};
+    const _v=_ifM[G.audioInterface.name]||Math.max(0.3,Math.min(1,0.15+((G.audioInterface.quality||50)/100)*0.85));
+    G.audioInterface.ifMult=_v;
+    const _o=(G.audioInterfacesOwned||[]).find(a=>a.name===G.audioInterface.name); if(_o) _o.ifMult=_v;
+  }
   /* v2.1.53 Amper: jednorazowa synchronizacja statystyk merchu. Wcześniej random event "Fan buys merch" aktualizował G.merch.{sold,revenue}, daily tick G.merchStore.totalLifetime*. Telefon i panel pokazywały RÓŻNE liczby. Migracja: bierzemy wyższą wartość z każdego pola jako prawdę. */
   if(!G._merchStatsSyncedV2153){
     if(G.merch && G.merchStore){
