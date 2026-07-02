@@ -95,11 +95,10 @@ canvas{display:block;}
 }
 #overlay{position:absolute;top:62px;left:0;right:0;bottom:0;background:radial-gradient(ellipse at 30% 0%,rgba(36,46,86,0.35) 0%,rgba(8,12,24,0.98) 60%),linear-gradient(160deg,rgba(3,6,14,.98) 0%,rgba(5,10,22,.98) 50%,rgba(4,8,18,.98) 100%);display:none;flex-direction:column;overflow-y:auto;padding:14px 44px;z-index:56;animation:overlayContent .35s cubic-bezier(0.22,0.61,0.36,1);}
 #overlay.on{display:flex;}
-/* v2.3.107 (user C2: „w grach kasyna za dużo scrollowania — skalowanie ma dopasować bez scrolla"): kanwy gier
-   (ruletka/blackjack/plinko/koło/samolocik itd.) miały stałą wysokość i wystawały poza ekran → scroll. Skalują się
-   teraz responsywnie do wysokości okna (max 42vh, pod kanwą jest jeszcze panel sterowania) z zachowaniem proporcji
-   + mniejszy padding overlay = gry mieszczą się bez scrolla. */
-#ov-content canvas{max-width:100%;max-height:min(44vh,330px);}
+/* v2.3.107 (user C2: „mniej scrollowania; tam gdzie musi być scroll niech będzie, ale niech przeskakuje do gry po
+   starcie"): gry zostają w ~pełnym rozmiarze (lekki cap tylko przeciw skrajnemu przepełnieniu na małych oknach),
+   scroll dozwolony, a po otwarciu panel SAM przewija się do planszy gry (auto-scroll w openOverlay). */
+#ov-content canvas{max-width:100%;max-height:min(82vh,480px);}
 @keyframes overlayContent{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
 #char-panel.on{display:flex;}
 #overlay h2{font-size:32px;margin-bottom:6px;color:#fff;font-weight:800;letter-spacing:0.3px;text-shadow:0 2px 24px rgba(126,200,227,0.18);}
@@ -59393,6 +59392,19 @@ function openOverlay(){
       ov.appendChild(layer);
     }
   }catch(_){}
+  /* v2.3.107 (user: „tam gdzie musi być scroll niech będzie, ale niech przeskakuje do gry po starcie"): po otwarciu
+     panelu z PLANSZĄ (kanwa gry kasyna) — przewiń overlay tak, by kanwa była widoczna (wyśrodkowana). Panele bez
+     kanwy (sklepy, menu) nietknięte. Reset scrollTop dla zwykłych paneli. */
+  try{
+    const _oc=document.getElementById('ov-content');
+    if(_oc){
+      requestAnimationFrame(()=>{ try{
+        const _cv=_oc.querySelector('canvas');
+        if(_cv && _cv.offsetHeight>60){ _cv.scrollIntoView({block:'center',inline:'nearest'}); }
+        else { ov.scrollTop=0; }
+      }catch(_){} });
+    }
+  }catch(_){}
 }
 /* B1/B2 (PDF v2.3.45): „Patch Notes" / „Sterowanie" otwierane z MENU nie mogą wyglądać jak
    rozpoczęta gra — pasek HUD (z-index:10) wystawał ponad overlay (top:62px), a Esc (l.~1673)
@@ -59879,7 +59891,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'🏄 Surf Shop na Wybrzeżu można teraz sterować strzałkami ⬅/➡ na klawiaturze (nie tylko klikaniem przycisków), a sama jazda jest płynniejsza i lepiej reaguje na korekty — koniec z „mydlanym", zamulonym balansowaniem.'},
   {t:'ui',d:'🌊 Wybrzeże ma teraz realny sens — dopracowaliśmy nagrody za wszystkie aktywności. Sesja zdjęciowa to płatny gig modelingowy (im większa sława, tym wyższe honorarium), Marina płaci za networking już przy 2–3 kontaktach (nie tylko przy komplecie 4/4), a SPA dodatkowo regeneruje energię i mocniej podnosi nastrój oraz zdrowie. Gdy w jeden dzień zaliczysz 3 aktywności na Wybrzeżu, łapiesz „Coast Vibe" — bonus do sławy i obserwujących. Wybrzeże znów jest dzielnicą, do której warto wracać.'},
   {t:'new',d:'🍸 Minibar w mieszkaniach jest teraz funkcjonalny — stoi w osobnym, wydzielonym miejscu (z dala od sofy). Nalewanie drinka to mała minigra: zatrzymaj napełnianie w zielonej strefie, żeby nalać idealną szklankę. Udany drink podnosi nastrój (dostępny co jakiś czas, żeby nie przesadzać).'},
-  {t:'ui',d:'🎰 Gry w kasynie zajmują teraz mniej miejsca i skalują się do wysokości okna — plansze gier dopasowują się, a panel ma mniejsze marginesy, dzięki czemu trzeba dużo mniej (a często wcale) scrollować, żeby zobaczyć całą grę i przyciski.'},
+  {t:'ui',d:'🎰 Otwierając grę w kasynie ekran od razu przeskakuje do samej planszy — widzisz grę bez szukania, nawet jeśli panel jest dłuższy niż ekran. Gry są w pełnym rozmiarze; tam, gdzie panel jest dłuższy, po prostu przewiniesz go w dół po dodatkowe opcje.'},
   {t:'fix',d:'💾 Potwierdzamy: gra zapisuje się automatycznie (co kilka minut oraz po ważniejszych akcjach), więc Twój postęp jest bezpieczny nawet bez ręcznego zapisywania. Ręczny „Zapisz" w mieszkaniu został jako opcjonalna wygoda, a jego komunikat jaśniej tłumaczy, że nie jest konieczny.'},
  ]
  },
