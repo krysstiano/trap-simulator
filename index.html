@@ -3285,10 +3285,11 @@ const ROOMS = {
          H y624, brak kolizji vs wieżowce/steakhouse). Powiększony. */
       {id:'parking', wx:140, wy:632, w:320, h:130, act:'parking:info', prompt:'[E] 🅿️ Parking', lbl:'Parking'},
       /* 5 places Business */
-      {id:'labelhq_business',  wx:180, wy:200, w:160,h:160, act:'business_labelhq',  prompt:'[E] 🏢 Label HQ',           lbl:'Label HQ'},
-      {id:'bankvip_business',  wx:480, wy:200, w:160,h:160, act:'business_bankvip',  prompt:'[E] 🏦 Bank VIP',           lbl:'Bank VIP'},
-      {id:'pragency_business', wx:780, wy:200, w:160,h:160, act:'business_pragency', prompt:'[E] 📰 PR Agency',          lbl:'PR'},
-      {id:'forbes_business',   wx:1080,wy:200, w:160,h:160, act:'business_forbes',   prompt:'[E] 📊 Fortuno Studio',      lbl:'Fortuno'},
+      /* v2.3.103 (user: „budynki Business nachodzą na chodnik"): wy200→176 → dół budynku kończy się na krawędzi chodnika (row7 y336), nie na nim. */
+      {id:'labelhq_business',  wx:180, wy:176, w:160,h:160, act:'business_labelhq',  prompt:'[E] 🏢 Label HQ',           lbl:'Label HQ'},
+      {id:'bankvip_business',  wx:480, wy:176, w:160,h:160, act:'business_bankvip',  prompt:'[E] 🏦 Bank VIP',           lbl:'Bank VIP'},
+      {id:'pragency_business', wx:780, wy:176, w:160,h:160, act:'business_pragency', prompt:'[E] 📰 PR Agency',          lbl:'PR'},
+      {id:'forbes_business',   wx:1080,wy:176, w:160,h:160, act:'business_forbes',   prompt:'[E] 📊 Fortuno Studio',      lbl:'Fortuno'},
       {id:'steakhouse_business',wx:480,wy:624, w:160,h:160, act:'business_steakhouse',prompt:'[E] 🥩 Steakhouse',        lbl:'Steakhouse'},
     ]
   },
@@ -3707,9 +3708,11 @@ function buildMaps(){
       rb.map.push([]);
       for(let c=0;c<rb.wT;c++){
         let t;
-        if(r<=1||r>=18||c<=1||c>=28) t='gdark'; /* premium dark border */
-        else if((r>=8&&r<=11)||(c>=14&&c<=15)) t='road'; /* drogi premium */
+        /* v2.3.103 (user: „ulice powinny być do krawędzi mapy"): road/side PRZED gdark-border (jak ulica/underground) —
+           wcześniej border-first ucinał drogi 2 kafle przed krawędzią (Business był jedyny z odwróconą kolejnością). */
+        if((r>=8&&r<=11)||(c>=14&&c<=15)) t='road'; /* drogi premium — do krawędzi mapy */
         else if(r===7||r===12||c===13||c===16) t='side'; /* chodniki */
+        else if(r<=1||r>=18||c<=1||c>=28) t='gdark'; /* premium dark border (tylko poza drogami) */
         else t='marble'; /* marble premium filler */
         rb.map[r].push(t);
       }
@@ -59182,6 +59185,7 @@ const PATCH_NOTES = [
   {t:'ui',d:'🚸 Poprawiliśmy znaki drogowe: każdy znak ma teraz cień dopasowany do swojego kształtu (ośmiokątny pod znakiem STOP, rombowy pod znakiem z pierwszeństwem, kwadratowy pod znakiem przejścia dla pieszych) — wcześniej znak STOP w ogóle nie rzucał widocznego cienia. Znak przejścia dla pieszych dostał też czytelniejszą sylwetkę idącej osoby.'},
   {t:'ui',d:'💡 Nocne latarnie przy górnych krawędziach ulic świecą teraz na chodnik, a nie na środek jezdni — wcześniej ich światło rozlewało się po asfalcie (i „pod autami"). Ulice w nocy wyglądają czyściej i naturalniej.'},
   {t:'ui',d:'🧍 Przechodnie w dzielnicach (Wybrzeże VIP, dzielnica biznesowa, Underground) wyglądają teraz lepiej — mają czytelniejszą sylwetkę z ramionami, szyją i butami zamiast wcześniejszej uproszczonej, „klockowatej" postaci.'},
+  {t:'ui',d:'🏙️ Dzielnica biznesowa uporządkowana: ulice sięgają teraz do krawędzi mapy (wcześniej urywały się kawałek przed nią), budynki (Label HQ, Bank VIP, PR Agency, Fortuno) nie nachodzą już na chodnik, a przechodnie chodzą po chodnikach zamiast po budynkach.'},
   {t:'fix',d:'🖤 Naprawiliśmy zgłoszony błąd, przez który po umówieniu „Spotkania" lub „Towarzysza na wieczór" w Nocnym zaułku ekran robił się czarny i wyglądał, jakby gra się zawiesiła — nic nie było widać i nic się nie działo. Teraz na czarnym ekranie pojawia się napis „Wieczór trwa…", scena jest wyraźnie krótsza, a w każdej chwili możesz kliknąć, żeby ją pominąć i od razu zobaczyć skutki wieczoru. Ekran już nigdy nie zostaje czarny na stałe.'},
   {t:'change',d:'🌙 Nocny zaułek w Underground jest teraz czynny dłużej — do 05:00 (wcześniej zamykał się o 03:00).'},
  ]
@@ -74539,7 +74543,8 @@ function initDistrictLife(room){
   const cfg=DISTRICT_LIFE_CFG[room]; if(!cfg) return;
   const _peds=Math.max(1, Math.round(cfg.peds*_districtActivityMult(room))); // D7: aktywność wg dnia/pory
   const roomW=((ROOMS[room]&&ROOMS[room].wT)||30)*T;
-  const pedLanes=(room==='underground')?[300,660,905,1300,1560]:[300,660,905]; /* v2.3.102: Underground 2x — pasy pieszych też w dolnej części mapy */
+  /* v2.3.103 (user: NPC dzielnic): pasy pieszych na WALKALNYCH kaflach. Business [300,660,905] chodziło po budynkach (y176-336) i w gdark-border (y905) → chodniki y360/600 + niższy marmur y810. */
+  const pedLanes=(room==='underground')?[300,660,905,1300,1560]:(room==='business'?[360,600,810]:[300,660,905]); /* underground 2x; business=chodniki+marmur; coast=piasek/park */
   const elegantCloth=['#1a1a2a','#22223a','#2a2238','#1a2a3a','#30203a']; /* ciemne garnitury/suknie/marynarki */
   const casualCloth=['#2a3a5a','#3a2a4a','#1a3a2a','#3a1a1a','#4a3a1a','#205a40','#704020'];
   /* U15 (v2.3.44 PDF): Marina Coast — przechodnie plażowi/wakacyjni (różnorodnie): jaskrawe stroje/bikini, szorty, kapelusze, okulary. */
