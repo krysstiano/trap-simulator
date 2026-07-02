@@ -16201,14 +16201,11 @@ function changeRoom(id,wx,wy){
   if(id==='studio'&&!G.studioOwned){
     renderStudioForSale();openOverlay();return;
   }
-  /* v2.1.122: Wave 5 S39 — BGM fade między pokojami (wcześniej muzyka ciągnęła się przez wszystkie pokoje). Subtle volume dip 300ms. */
-  if(typeof bgmAudio!=='undefined' && bgmAudio && !bgmAudio.paused){
-    try{
-      const _origVol=bgmAudio.volume;
-      bgmAudio.volume=Math.max(0,_origVol*0.3);
-      setTimeout(()=>{try{if(bgmAudio&&!bgmAudio.paused)bgmAudio.volume=_origVol;}catch(_){}},400);
-    }catch(_){}
-  }
+  /* v2.1.122: Wave 5 S39 — BGM dip między pokojami (wcześniej muzyka ciągnęła się przez wszystkie pokoje).
+     v2.3.103 FIX (user: „muzyka czasami kompletnie się wycisza"): dip liczony z KANONICZNEJ głośności
+     (nie z live bgmAudio.volume → przy szybkich zmianach pokoi kompoundował do ciszy), restore przez
+     bgmApplyVolume() (samo-korekta niezależnie od aktywnego duckingu SFX), re-entrancy guard. */
+  if(typeof bgmAudio!=='undefined' && bgmAudio && !bgmAudio.paused){ window._bgmRoomDip(); }
   // Anti-stuck-key przy zmianie pokoju (focus może się przerwać przy fade)
   for(const k in K) delete K[k];
   currentRoom=id;
@@ -16598,6 +16595,18 @@ function bgmApplyVolume(){
   if(!bgmAudio) return;
   bgmAudio.volume=bgmVolume*_bgmDuckMult*(bgmEnabled?1:0);
 }
+/* v2.3.103: krótki dip głośności przy zmianie pokoju. Liczony z KANONICZNEJ głośności (bgmVolume*duck),
+   NIE z live bgmAudio.volume — inaczej szybkie przejścia kompoundowały dip do ciszy („muzyka się wycisza").
+   Restore przez bgmApplyVolume() = samo-korekta. Re-entrancy guard: czyści poprzedni timeout. */
+window._bgmRoomDip=function(){
+  if(typeof bgmAudio==='undefined' || !bgmAudio || typeof bgmApplyVolume!=='function') return;
+  try{
+    if(window._bgmRoomDipT){ clearTimeout(window._bgmRoomDipT); window._bgmRoomDipT=null; }
+    const _base=bgmVolume*_bgmDuckMult*(bgmEnabled?1:0);
+    bgmAudio.volume=Math.max(0,_base*0.35);
+    window._bgmRoomDipT=setTimeout(()=>{ try{ bgmApplyVolume(); }catch(_){} window._bgmRoomDipT=null; },400);
+  }catch(_){}
+};
 // v2.1.969: fade-out muzyki gry + pauza (np. wejście w koncert — podkład przejmuje audio).
 function bgmFadeOutPause(ms){
   if(!bgmAudio || bgmAudio.paused) return;
@@ -59164,6 +59173,7 @@ const PATCH_NOTES = [
  items:[
   {t:'fix',d:'🏢 Naprawiliśmy poważny błąd, przez który interakcje z wieloma budynkami potrafiły nagle przestać działać — podchodziłeś, wciskałeś [E] i nic się nie otwierało. Dotyczyło to między innymi Steakhouse, Banku VIP, agencji PR i Fortuno w dzielnicy biznesowej, wszystkich lokali na luksusowym wybrzeżu, zakupu domowego sejfu, a nawet niektórych stacji w laboratorium. Błąd pojawiał się zwykle po skorzystaniu z gotowania i utrzymywał się do końca gry. Teraz wszystkie te miejsca otwierają się poprawnie w każdej sytuacji.'},
   {t:'fix',d:'📊 Fortuno w dzielnicy biznesowej nie twierdzi już błędnie „już dziś brałeś udział", gdy quiz w ogóle się nie pojawił — teraz quiz zawsze się otwiera, a limit „raz dziennie" liczy się dopiero po jego pokazaniu.'},
+  {t:'fix',d:'🎵 Naprawiliśmy błąd, przez który muzyka w tle potrafiła czasem kompletnie ucichnąć — najczęściej przy szybkim przechodzeniu między lokacjami. Teraz muzyka przygasa tylko na moment przy zmianie miejsca i zawsze wraca do właściwej głośności. Delikatne przyciszanie przy odgłosach akcji zostaje bez zmian (kroki nadal nie przyciszają muzyki).'},
   {t:'fix',d:'🖤 Naprawiliśmy zgłoszony błąd, przez który po umówieniu „Spotkania" lub „Towarzysza na wieczór" w Nocnym zaułku ekran robił się czarny i wyglądał, jakby gra się zawiesiła — nic nie było widać i nic się nie działo. Teraz na czarnym ekranie pojawia się napis „Wieczór trwa…", scena jest wyraźnie krótsza, a w każdej chwili możesz kliknąć, żeby ją pominąć i od razu zobaczyć skutki wieczoru. Ekran już nigdy nie zostaje czarny na stałe.'},
   {t:'change',d:'🌙 Nocny zaułek w Underground jest teraz czynny dłużej — do 05:00 (wcześniej zamykał się o 03:00).'},
  ]
