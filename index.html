@@ -59176,6 +59176,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'🎵 Naprawiliśmy błąd, przez który muzyka w tle potrafiła czasem kompletnie ucichnąć — najczęściej przy szybkim przechodzeniu między lokacjami. Teraz muzyka przygasa tylko na moment przy zmianie miejsca i zawsze wraca do właściwej głośności. Delikatne przyciszanie przy odgłosach akcji zostaje bez zmian (kroki nadal nie przyciszają muzyki).'},
   {t:'ui',d:'🏷️ Zamieniliśmy pozostałe prawdziwe nazwy marek na własne, oryginalne odpowiedniki — dotyczy nazw oprogramowania muzycznego i sprzętu w studiu, jednego ze sponsorów oraz kilku słów w minigrze freestyle. Świat gry jest teraz spójny i w pełni oryginalny.'},
   {t:'ui',d:'🎨 Wróciły ikony na budynkach w mieście — sklepy, siłownia, studio, szpital, warsztat, radio i pozostałe lokale znów mają swój czytelny symbol nad nazwą. Ustawiliśmy je tak, żeby nie zasłaniały szyldów ani witryn.'},
+  {t:'ui',d:'🚸 Poprawiliśmy znaki drogowe: każdy znak ma teraz cień dopasowany do swojego kształtu (ośmiokątny pod znakiem STOP, rombowy pod znakiem z pierwszeństwem, kwadratowy pod znakiem przejścia dla pieszych) — wcześniej znak STOP w ogóle nie rzucał widocznego cienia. Znak przejścia dla pieszych dostał też czytelniejszą sylwetkę idącej osoby.'},
   {t:'fix',d:'🖤 Naprawiliśmy zgłoszony błąd, przez który po umówieniu „Spotkania" lub „Towarzysza na wieczór" w Nocnym zaułku ekran robił się czarny i wyglądał, jakby gra się zawiesiła — nic nie było widać i nic się nie działo. Teraz na czarnym ekranie pojawia się napis „Wieczór trwa…", scena jest wyraźnie krótsza, a w każdej chwili możesz kliknąć, żeby ją pominąć i od razu zobaczyć skutki wieczoru. Ekran już nigdy nie zostaje czarny na stałe.'},
   {t:'change',d:'🌙 Nocny zaułek w Underground jest teraz czynny dłużej — do 05:00 (wcześniej zamykał się o 03:00).'},
  ]
@@ -76368,10 +76369,13 @@ function drawSignPost(wx,wy,type){
   /* v2.3.94 (user: „inne znaki słabo widoczne; żółty/biały trójkąt zlewa się z pasami zebry"):
      ciemny podkład-halo pod KAŻDY znak = kontrast na białej zebrze/jasnej jezdni; znaki powiększone;
      yield dostaje DODATKOWO ciemny obrys-trójkąt + grubszy czerwony brzeg, by biały trójkąt nie ginął na zebrze. */
-  /* v2.3.100 (user: „czerwono-biały trójkąt ma okrągły cień, a jest trójkątem"): halo dopasowane kształtem — trójkątne dla yield, okrągłe dla reszty. */
+  /* v2.3.100/v2.3.103 (user: „STOP nie ma cienia, a inny znak ma; cienie mają pasować KSZTAŁTEM"):
+     halo (cień) dopasowany kształtem do KAŻDEGO typu, odrobinę większy niż znak → czytelny obrys-cień. */
   X.fillStyle='rgba(8,10,16,0.62)';
-  if(type==='yield'){ X.beginPath(); X.moveTo(sx-16,cy-13); X.lineTo(sx+16,cy-13); X.lineTo(sx,cy+16); X.closePath(); X.fill(); }
-  else { X.beginPath(); X.arc(sx,cy,15,0,Math.PI*2); X.fill(); }
+  if(type==='stop'){ _signOctagon(sx,cy,17); X.fill(); }                                                   // oktagon (był okrąg zakryty przez znak)
+  else if(type==='priority'){ X.save(); X.translate(sx,cy); X.rotate(Math.PI/4); X.fillRect(-13,-13,26,26); X.restore(); } // romb
+  else if(type==='yield'){ X.beginPath(); X.moveTo(sx-16,cy-13); X.lineTo(sx+16,cy-13); X.lineTo(sx,cy+16); X.closePath(); X.fill(); } // trójkąt
+  else { X.fillRect(sx-12,cy-12,24,24); }                                                                  // pedestrian: kwadrat (był okrąg)
   if(type==='stop'){
     X.fillStyle='#c0271b'; _signOctagon(sx,cy,15); X.fill();
     X.strokeStyle='#fff'; X.lineWidth=2; _signOctagon(sx,cy,15); X.stroke();
@@ -76388,10 +76392,16 @@ function drawSignPost(wx,wy,type){
     X.fillStyle='#fff'; X.beginPath(); X.moveTo(sx-11,cy-9); X.lineTo(sx+11,cy-9); X.lineTo(sx,cy+10); X.closePath(); X.fill();
     X.strokeStyle='#c8281b'; X.lineWidth=3; X.beginPath(); X.moveTo(sx-11,cy-9); X.lineTo(sx+11,cy-9); X.lineTo(sx,cy+10); X.closePath(); X.stroke();
   } else {
+    /* v2.3.103 (user: „znak obok freestyle dziwny, zmień"): czytelna sylwetka IDĄCEGO człowieka zamiast prymitywnej ikony. */
     X.fillStyle='#1d4ed8'; X.fillRect(sx-10,cy-10,20,20);
     X.strokeStyle='#fff'; X.lineWidth=1.4; X.strokeRect(sx-10,cy-10,20,20);
-    X.fillStyle='#fff'; X.beginPath(); X.arc(sx,cy-4,2.2,0,Math.PI*2); X.fill(); X.fillRect(sx-1.3,cy-2,2.6,7);
-    X.fillRect(sx-3,cy+5,6,1.6);
+    X.fillStyle='#fff'; X.beginPath(); X.arc(sx-0.5,cy-6,2.1,0,Math.PI*2); X.fill();          // głowa
+    X.strokeStyle='#fff'; X.lineWidth=2.1; X.lineCap='round';
+    X.beginPath(); X.moveTo(sx-0.5,cy-4); X.lineTo(sx-0.5,cy+2); X.stroke();                    // tułów
+    X.beginPath(); X.moveTo(sx-0.5,cy-2.5); X.lineTo(sx+3.5,cy-1); X.stroke();                  // ręka wymachująca
+    X.beginPath(); X.moveTo(sx-0.5,cy+2); X.lineTo(sx-3.5,cy+7); X.stroke();                    // noga tylna
+    X.beginPath(); X.moveTo(sx-0.5,cy+2); X.lineTo(sx+3,cy+7); X.stroke();                      // noga przednia (krok)
+    X.lineCap='butt';
   }
 }
 let _roadSignCache=null;
