@@ -59181,6 +59181,7 @@ const PATCH_NOTES = [
   {t:'ui',d:'🎨 Wróciły ikony na budynkach w mieście — sklepy, siłownia, studio, szpital, warsztat, radio i pozostałe lokale znów mają swój czytelny symbol nad nazwą. Ustawiliśmy je tak, żeby nie zasłaniały szyldów ani witryn.'},
   {t:'ui',d:'🚸 Poprawiliśmy znaki drogowe: każdy znak ma teraz cień dopasowany do swojego kształtu (ośmiokątny pod znakiem STOP, rombowy pod znakiem z pierwszeństwem, kwadratowy pod znakiem przejścia dla pieszych) — wcześniej znak STOP w ogóle nie rzucał widocznego cienia. Znak przejścia dla pieszych dostał też czytelniejszą sylwetkę idącej osoby.'},
   {t:'ui',d:'💡 Nocne latarnie przy górnych krawędziach ulic świecą teraz na chodnik, a nie na środek jezdni — wcześniej ich światło rozlewało się po asfalcie (i „pod autami"). Ulice w nocy wyglądają czyściej i naturalniej.'},
+  {t:'ui',d:'🧍 Przechodnie w dzielnicach (Wybrzeże VIP, dzielnica biznesowa, Underground) wyglądają teraz lepiej — mają czytelniejszą sylwetkę z ramionami, szyją i butami zamiast wcześniejszej uproszczonej, „klockowatej" postaci.'},
   {t:'fix',d:'🖤 Naprawiliśmy zgłoszony błąd, przez który po umówieniu „Spotkania" lub „Towarzysza na wieczór" w Nocnym zaułku ekran robił się czarny i wyglądał, jakby gra się zawiesiła — nic nie było widać i nic się nie działo. Teraz na czarnym ekranie pojawia się napis „Wieczór trwa…", scena jest wyraźnie krótsza, a w każdej chwili możesz kliknąć, żeby ją pominąć i od razu zobaczyć skutki wieczoru. Ekran już nigdy nie zostaje czarny na stałe.'},
   {t:'change',d:'🌙 Nocny zaułek w Underground jest teraz czynny dłużej — do 05:00 (wcześniej zamykał się o 03:00).'},
  ]
@@ -74585,28 +74586,35 @@ function _drawDistrictPed(p){
   const _warm=_wSeed>=(_wth===0?0.70:(_wth===1?0.45:0.15));
   X.fillStyle='rgba(0,0,0,.28)'; X.beginPath(); X.ellipse(sx,sy+18,9,3.5,0,0,Math.PI*2); X.fill();
   if(p.beach){ /* U15: plażowicz — gołe nogi, szorty, jaskrawa góra/bikini, opcjonalnie kapelusz + okulary */
-    X.strokeStyle=p.sc; X.lineWidth=3; X.beginPath(); X.moveTo(sx-3,sy+9); X.lineTo(sx-3+walk,sy+18); X.moveTo(sx+3,sy+9); X.lineTo(sx+3-walk,sy+18); X.stroke();
-    X.fillStyle=p.shortCol||'#ffffff'; X.fillRect(sx-5,sy+4,10,6); /* szorty */
-    X.fillStyle=p.cc; X.fillRect(sx-6,sy-6,12,11); /* góra/bikini */
+    /* v2.3.103: plażowicz bogatszy — nogi+sandały, tapered góra, szyja, mniejsza głowa. */
+    X.strokeStyle=p.sc; X.lineWidth=3; X.lineCap='round'; X.beginPath(); X.moveTo(sx-2.6,sy+8); X.lineTo(sx-2.6+walk,sy+17); X.moveTo(sx+2.6,sy+8); X.lineTo(sx+2.6-walk,sy+17); X.stroke(); X.lineCap='butt';
+    X.fillStyle='#5a4632'; X.fillRect(sx-4.4+walk,sy+16.5,3.8,1.9); X.fillRect(sx+0.6-walk,sy+16.5,3.8,1.9); /* sandały */
+    X.fillStyle=p.shortCol||'#ffffff'; X.fillRect(sx-5,sy+3,10,6); /* szorty */
+    X.fillStyle=p.cc; X.beginPath(); X.moveTo(sx-6,sy-5); X.lineTo(sx+6,sy-5); X.lineTo(sx+5,sy+4); X.lineTo(sx-5,sy+4); X.closePath(); X.fill(); /* góra/bikini tapered */
     /* v2.3.84 I1: gołe ręce (skóra), animowane przeciwnie do nóg */
     X.strokeStyle=p.sc; X.lineWidth=2.8; X.lineCap='round';
-    X.beginPath(); X.moveTo(sx-5,sy-3); X.lineTo(sx-8-walk*0.5,sy+5); X.moveTo(sx+5,sy-3); X.lineTo(sx+8+walk*0.5,sy+5); X.stroke(); X.lineCap='butt';
-    X.fillStyle=p.sc; X.beginPath(); X.arc(sx,sy-11,5,0,Math.PI*2); X.fill(); /* głowa */
+    X.beginPath(); X.moveTo(sx-5.5,sy-3); X.lineTo(sx-8-walk*0.5,sy+5); X.moveTo(sx+5.5,sy-3); X.lineTo(sx+8+walk*0.5,sy+5); X.stroke(); X.lineCap='butt';
+    X.fillStyle=p.sc; X.fillRect(sx-1.5,sy-8,3,2.6); /* szyja */
+    X.fillStyle=p.sc; X.beginPath(); X.arc(sx,sy-11,4.4,0,Math.PI*2); X.fill(); /* głowa */
     _dpFace(sx,sy); /* v2.3.100: twarz (oczy+usta) */
-    if(!p.hat){ X.fillStyle=p.hairCol||'#2a1c12'; X.beginPath(); X.arc(sx,sy-11.5,5.1,Math.PI*1.04,Math.PI*1.96); X.fill(); } /* włosy */
+    if(!p.hat){ X.fillStyle=p.hairCol||'#2a1c12'; X.beginPath(); X.arc(sx,sy-11.6,4.5,Math.PI*1.04,Math.PI*1.96); X.fill(); } /* włosy */
     if(p.shades){ X.fillStyle='#101014'; X.fillRect(sx-4,sy-12,8,2.4); } /* okulary słoneczne (na oczy) */
     if(p.hat){ X.fillStyle=p.hatCol; X.fillRect(sx-8,sy-14,16,2.6); X.beginPath(); X.arc(sx,sy-14.5,4.6,Math.PI,Math.PI*2); X.fill(); } /* kapelusz z rondem */
     return;
   }
-  X.strokeStyle='#15151c'; X.lineWidth=3; X.beginPath(); X.moveTo(sx-3,sy+8); X.lineTo(sx-3+walk,sy+18); X.moveTo(sx+3,sy+8); X.lineTo(sx+3-walk,sy+18); X.stroke();
-  X.fillStyle=p.cc; X.fillRect(sx-6,sy-6,12,16);
+  /* v2.3.103 (user: „NPC dzielnic dziwni i słabi"): bogatsza sylwetka — nogi+buty, tapered korpus, szyja, mniejsza głowa (koniec bobble-head). */
+  X.strokeStyle='#15151c'; X.lineWidth=3.1; X.lineCap='round';
+  X.beginPath(); X.moveTo(sx-2.6,sy+7); X.lineTo(sx-2.6+walk,sy+16); X.moveTo(sx+2.6,sy+7); X.lineTo(sx+2.6-walk,sy+16); X.stroke(); X.lineCap='butt';
+  X.fillStyle='#0b0b10'; X.fillRect(sx-4.6+walk,sy+15.5,4,2.4); X.fillRect(sx+0.6-walk,sy+15.5,4,2.4); /* buty */
+  X.fillStyle=p.cc; X.beginPath(); X.moveTo(sx-6,sy-5); X.lineTo(sx+6,sy-5); X.lineTo(sx+5,sy+8); X.lineTo(sx-5,sy+8); X.closePath(); X.fill(); /* tapered korpus (barki>talia) */
   /* v2.3.84 I1: ręce (animowane). v2.3.102 (PDF #8-11): rękawy w kolorze ubrania gdy „ciepło", gołe skórzane gdy krótkie (słonecznie). */
   X.strokeStyle=_warm?p.cc:p.sc; X.lineWidth=2.8; X.lineCap='round';
-  X.beginPath(); X.moveTo(sx-5,sy-3); X.lineTo(sx-8-walk*0.5,sy+6); X.moveTo(sx+5,sy-3); X.lineTo(sx+8+walk*0.5,sy+6); X.stroke(); X.lineCap='butt';
-  X.fillStyle=p.sc; X.beginPath(); X.arc(sx,sy-11,5,0,Math.PI*2); X.fill();
+  X.beginPath(); X.moveTo(sx-5.5,sy-3); X.lineTo(sx-8-walk*0.5,sy+6); X.moveTo(sx+5.5,sy-3); X.lineTo(sx+8+walk*0.5,sy+6); X.stroke(); X.lineCap='butt';
+  X.fillStyle=p.sc; X.fillRect(sx-1.5,sy-8,3,2.6); /* szyja */
+  X.fillStyle=p.sc; X.beginPath(); X.arc(sx,sy-11,4.4,0,Math.PI*2); X.fill(); /* głowa */
   _dpFace(sx,sy); /* v2.3.100: twarz (oczy+usta) */
-  X.fillStyle=p.hairCol||'#2a1c12'; X.beginPath(); X.arc(sx,sy-11.5,5.1,Math.PI*1.04,Math.PI*1.96); X.fill(); /* włosy */
-  if(p.elegant){ X.fillStyle='#3a2a1a'; X.fillRect(sx+(p.dx>0?6:-10),sy+1,4,7); } /* teczka */
+  X.fillStyle=p.hairCol||'#2a1c12'; X.beginPath(); X.arc(sx,sy-11.6,4.5,Math.PI*1.04,Math.PI*1.96); X.fill(); /* włosy */
+  if(p.elegant){ X.fillStyle='#2a1c10'; X.fillRect(sx+(p.dx>0?6:-10),sy+1,4.5,7); X.fillStyle='#4a3420'; X.fillRect(sx+(p.dx>0?6:-10),sy+1,4.5,1.4); } /* teczka z uchwytem */
 }
 function drawDistrictLife(){
   const room=currentRoom;
