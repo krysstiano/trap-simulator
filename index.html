@@ -16181,7 +16181,8 @@ function openCasinoCashier(){
           <button onclick="window._kantorBuyCustom()" style="background:linear-gradient(145deg,#2eaf5a,#1a7838);color:#fff;border:1px solid rgba(46,175,90,.6);padding:9px 14px;cursor:pointer;border-radius:8px;font-family:inherit;font-weight:600;font-size:12px">💱 Kup za X zł</button>
           <button onclick="window._kantorSellCustom()" style="background:linear-gradient(145deg,#c8a520,#8a6a10);color:#1a1408;border:1px solid rgba(200,165,32,.6);padding:9px 14px;cursor:pointer;border-radius:8px;font-family:inherit;font-weight:700;font-size:12px">💰 Spieniężyć X</button>
         </div>
-        <div style="color:#7a8aa0;font-size:11px;margin-top:10px;text-align:center;font-style:italic">Kurs 1:1 — bez prowizji. Żetony używane priorytetowo w grach.</div>
+        <div style="color:#7a8aa0;font-size:11px;margin-top:10px;text-align:center;font-style:italic">Kurs 1:1 — bez prowizji. Żetony używane priorytetowo w grach. Maks 100 000 zł na raz.</div>
+        <div id="kantor-status" style="min-height:20px;text-align:center;font-size:12.5px;font-weight:700;margin:8px auto 0;max-width:520px"></div>
       </div>
       <!-- v2.1.577: Hi-Lo + Mines PRZENIESIONE z kantoru na 3. piętro (Diamond Lounge) jako osobne maszyny (user: "nie mogą być w kantorze"). -->
       <!-- v2.0.1: Daily Wheel info — szukaj maszyny z banerem "FREE SPIN" -->
@@ -16251,38 +16252,52 @@ function openCasinoCashier(){
     if(typeof saveGameSilent==='function')saveGameSilent();
     render();
   };
+  /* v2.3.107 (user: „kupno >100000 żetonów NIC nie robi, brak info"): komunikaty walidacji kantoru były
+     wysyłane przez showMsg, który przy OTWARTYM overlay (kantor=overlay) jest odkładany do kolejki i NIE
+     pokazuje się dopóki nie zamkniesz panelu = wyglądało jak zawieszenie. Fix: komunikat INLINE w panelu
+     (#kantor-status), pokazuje się natychmiast — także sukces zakupu/sprzedaży. */
+  window._kantorMsg=(text,okc)=>{
+    const el=document.getElementById('kantor-status');
+    if(el){ el.textContent=text; el.style.color=okc?'#2ecc71':'#e74c3c'; }
+    else if(typeof showMsg==='function') showMsg(text, okc?'g':'r', 3000);
+  };
   window.casinoExchange=(action,amount)=>{
     /* v1.9.18: BUG FIX exploit — guard przeciw negatywnym ilościom (console call casinoExchange('buy',-9999) = money++) */
+    let _okMsg='';
     if(action==='buy'){
-      if(typeof amount!=='number' || amount<=0 || !Number.isFinite(amount)){if(typeof showMsg==='function')showMsg('Nieprawidłowa kwota!','r');return;}
-      if(G.money<amount){if(typeof showMsg==='function')showMsg('Brak gotówki!','r');return;}
+      if(typeof amount!=='number' || amount<=0 || !Number.isFinite(amount)){window._kantorMsg('⚠️ Nieprawidłowa kwota!',false);return;}
+      if(amount>100000){window._kantorMsg('⚠️ Maks 100 000 zł na raz — wpisz mniejszą kwotę.',false);return;}
+      if(G.money<amount){window._kantorMsg(`⚠️ Brak gotówki (masz ${(G.money||0).toLocaleString('pl')} zł).`,false);return;}
       G.money-=amount;G.casinoChips=(G.casinoChips||0)+amount;
+      _okMsg=`✅ Kupiono ${amount.toLocaleString('pl')} żetonów.`;
     } else if(action==='sell'){
       const sellAmount = amount==='all' ? (G.casinoChips||0) : Math.min(amount, G.casinoChips||0);
-      if(sellAmount<=0){if(typeof showMsg==='function')showMsg('Brak żetonów!','r');return;}
+      if(sellAmount<=0){window._kantorMsg('⚠️ Brak żetonów do spieniężenia.',false);return;}
       /* v1.9.16: BUG FIX — sprzedaż żetonów NIE liczy się do totalEarned (poprzednio exploit: kup 500k→sprzedaj 500k = +500k totalEarned, instant complete bi4 "Magnat") */
       G.casinoChips-=sellAmount;G.money+=sellAmount;
+      _okMsg=`💰 Spieniężono ${sellAmount.toLocaleString('pl')} żetonów.`;
     }
     /* v1.9.16: Trigger checkStoryline po zakupie/sprzedaży żetonów (casino side-storyline c1 dotąd nigdy nie firował tu) */
     if(typeof checkStoryline==='function') checkStoryline();
     if(typeof updateHUD==='function')updateHUD();
     if(typeof sfxCash==='function')sfxCash();
     render();
+    if(_okMsg) window._kantorMsg(_okMsg,true); /* po render() — świeży #kantor-status */
   };
   /* v2.1.256: PLAN_NOC Faza 28 — custom amount handlers z walidacją min/max + balance check. */
   window._kantorBuyCustom=()=>{
     const inp=document.getElementById('kantor-amt');
     const v=Math.floor(Number(inp?.value||0));
-    if(!v || v<1){if(typeof showMsg==='function')showMsg('⚠️ Wpisz dodatnią kwotę (min 1)','r');return;}
-    if(v>100000){if(typeof showMsg==='function')showMsg('⚠️ Maks 100 000 zł na raz','r');return;}
-    if(v>(G.money||0)){if(typeof showMsg==='function')showMsg(`⚠️ Brak gotówki (masz ${(G.money||0).toLocaleString('pl')} zł)`,'r');return;}
+    if(!v || v<1){window._kantorMsg('⚠️ Wpisz dodatnią kwotę (min 1).',false);return;}
+    if(v>100000){window._kantorMsg('⚠️ Maks 100 000 zł na raz — wpisz mniejszą kwotę.',false);return;}
+    if(v>(G.money||0)){window._kantorMsg(`⚠️ Brak gotówki (masz ${(G.money||0).toLocaleString('pl')} zł).`,false);return;}
     window.casinoExchange('buy',v);
   };
   window._kantorSellCustom=()=>{
     const inp=document.getElementById('kantor-amt');
     const v=Math.floor(Number(inp?.value||0));
-    if(!v || v<1){if(typeof showMsg==='function')showMsg('⚠️ Wpisz dodatnią ilość (min 1)','r');return;}
-    if(v>(G.casinoChips||0)){if(typeof showMsg==='function')showMsg(`⚠️ Brak żetonów (masz ${(G.casinoChips||0).toLocaleString('pl')})`,'r');return;}
+    if(!v || v<1){window._kantorMsg('⚠️ Wpisz dodatnią ilość (min 1).',false);return;}
+    if(v>(G.casinoChips||0)){window._kantorMsg(`⚠️ Brak żetonów (masz ${(G.casinoChips||0).toLocaleString('pl')}).`,false);return;}
     window.casinoExchange('sell',v);
   };
   render();
@@ -49023,7 +49038,11 @@ window._camperEnsure=function(){
   if(!Array.isArray(c.upgrades)) c.upgrades=[];
   if(!Array.isArray(c.history)) c.history=[];
   /* GRANDFATHER: istniejący gracz z odblokowanym Trapem zachowuje kamper jako posiadany (kompatybilność save). */
-  if(!c.owned && G.trap && G.trap.unlocked){ c.owned=true; c._grandfathered=true; if(!c.model) c.model='rumbler_nomad_88'; if(!c.location) c.location='underground_legacy'; c.gravelLotUnlocked=true; c.purchaseAvailable=true; }
+  /* v2.3.107 (user: „kampery do kupienia — gracz ma je OD RAZU przed zakupem"): Trap.unlocked odblokowuje tylko
+     SKLEP (Gravel Lot Motors), NIE daje własności. Kamper zdobywasz WYŁĄCZNIE kupując (buyCamper). Grandfather
+     zawężony: tylko save wcześniej oznaczony _grandfathered (stary save sprzed modułu zakupu) zachowuje kamper. */
+  if(G.trap && G.trap.unlocked){ c.gravelLotUnlocked=true; c.purchaseAvailable=true; }
+  if(c._grandfathered && !c.owned){ c.owned=true; if(!c.model) c.model='rumbler_nomad_88'; if(!c.location) c.location='underground_legacy'; }
   /* E4-FIZYKA (E4a): drive-state kampera (top-level G, analog _inCar/_carParkedAt). Save-safe defaulty —
      _inCamper=false (gracz zawsze ładuje się PIESZO/zaparkowany, nigdy „w środku jadąc" przez load, jak auto),
      _camperParkedAt=null (fizyczna pozycja {wx,wy,room} ustawiana przy parkowaniu w E4d; null=niezaparkowany). */
@@ -59674,6 +59693,8 @@ const PATCH_NOTES = [
  ver:'v2.3.107',date:'2026-07-02',cats:['beta-tester','fix','ui'],title:'🔧 Dopracowanie: płynniejsze rozmowy, kasyno, dzielnice i aktywności',
  items:[
   {t:'fix',d:'💬 Rozmowy z wyborem odpowiedzi (Marina na Wybrzeżu, Fortuno Studio, Cypher Battle w Underground) reagują teraz NATYCHMIAST po kliknięciu — wybrana odpowiedź od razu się podświetla (zielono/czerwono), a pozostałe przyciski blokują się, żeby nie dało się przypadkiem przeskoczyć rundy. Koniec z wrażeniem, że „nic się nie dzieje" i z zawieszaniem między pytaniami.'},
+  {t:'fix',d:'🎰 W kasynie, przy wymianie żetonów, gdy wpiszesz kwotę większą niż limit (100 000 zł na raz) albo nie masz gotówki, od razu zobaczysz czytelny komunikat w samym panelu Kantoru — wcześniej wyglądało to, jakby przycisk w ogóle nie działał. Udany zakup i sprzedaż też potwierdzają się na miejscu.'},
+  {t:'fix',d:'🚐 Naprawiliśmy błąd, przez który kamper z komisu Gravel Lot bywał „już Twój" jeszcze zanim go kupiłeś. Teraz kamper zdobywasz wyłącznie kupując go w komisie — samo odblokowanie dzielnicy otwiera tylko sklep, a nie daje pojazdu za darmo.'},
  ]
  },
  {
