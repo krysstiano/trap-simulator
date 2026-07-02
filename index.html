@@ -3319,7 +3319,7 @@ const ROOMS = {
       {id:'camper_underground',     wx:60,  wy:420, w:120,h:120, act:'underground_camper',    prompt:'[E] 🚐 Kamper (Trap Tier 0)',  lbl:'Kamper'},
       {id:'lab_underground',        wx:60,  wy:580, w:120,h:120, act:'underground_lab',       prompt:'[E] 🧪 Laboratorium (lvl 10+)', lbl:'Lab'},
       {id:'plantation_underground', wx:1240,wy:580, w:120,h:120, act:'underground_plantation',prompt:'[E] 🌿 Plantacja (lvl 5+)',   lbl:'Plantacja'},
-      /* v2.1.920 (PDF l.57 — nocna aktywność 18+): Nocny zaułek (prostytutki) — dyskretne miejsce w underground, gated za unlock dzielnicy + godziny 21-03 (PLACE_HOURS). Bottom-right, overlap-free vs venue. */
+      /* v2.1.920 (PDF l.57 — nocna aktywność 18+): Nocny zaułek (prostytutki) — dyskretne miejsce w underground, gated za unlock dzielnicy + godziny 21-05 (PLACE_HOURS). Bottom-right, overlap-free vs venue. */
       {id:'prostytutki_underground',wx:1240,wy:810, w:140,h:130, act:'underground_prostytutki',prompt:'[E] 💋 Nocny zaułek (noc)',  lbl:'Zaułek'},/* v2.3.87 G1 (user „zaułek nic nie robi"): był wy:720 — zaciśnięty między plantacją(580) i dealerem(1080), getNear łapał sąsiada. Przesunięty w dół do 810 (gap 110px od plantacji, gracz wchodzi w lukę i łapie zaułek). x1240-1380,y810-940 wolne (map 960). */
       /* v2.3.102 (PDF #8-24 „docelowo"): DOLNA CZĘŚĆ (nowa, y1100+) — baraki/slumsy + zajazd kempingowy. Osobne interakcje + NPC. */
       {id:'baraki_underground',     wx:200, wy:1200, w:170,h:150, act:'underground_baraki',    prompt:'[E] 🏚 Baraki',                lbl:'Baraki'},
@@ -11472,15 +11472,21 @@ window.sfxNightBlackout=sfxNightBlackout;
 window._blackoutScene=function(opts){
   opts=opts||{};
   if(document.getElementById('blackout-scene')) return; /* już trwa */
-  const fadeIn=opts.fadeIn!=null?opts.fadeIn:2000, hold=opts.hold!=null?opts.hold:6000, fadeOut=opts.fadeOut!=null?opts.fadeOut:2000;
+  const fadeIn=opts.fadeIn!=null?opts.fadeIn:1400, hold=opts.hold!=null?opts.hold:2600, fadeOut=opts.fadeOut!=null?opts.fadeOut:1400;
   const el=document.createElement('div'); el.id='blackout-scene';
-  el.style.cssText='position:fixed;inset:0;background:#000;opacity:0;z-index:99999;pointer-events:all;display:flex;align-items:center;justify-content:center;transition:opacity '+fadeIn+'ms ease';
-  if(opts.label){ const lab=document.createElement('div'); lab.id='blackout-label'; lab.textContent=opts.label; lab.style.cssText='color:rgba(233,30,140,0);font-size:15px;font-weight:600;letter-spacing:1px;font-family:inherit;transition:color .8s ease'; el.appendChild(lab); }
+  el.style.cssText='position:fixed;inset:0;background:#000;opacity:0;z-index:99999;pointer-events:all;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity '+fadeIn+'ms ease';
+  const lab=document.createElement('div'); lab.id='blackout-label'; lab.textContent=opts.label||'…'; lab.style.cssText='color:rgba(233,30,140,0);font-size:15px;font-weight:600;letter-spacing:1px;font-family:inherit;transition:color .8s ease'; el.appendChild(lab);
+  const hint=document.createElement('div'); hint.textContent='kliknij, aby pominąć'; hint.style.cssText='margin-top:14px;color:rgba(255,255,255,0);font-size:11px;transition:color .8s ease'; el.appendChild(hint);
   document.body.appendChild(el);
+  /* v2.3.103 (user: „tylko czarny ekran, nic się nie dzieje"): jednorazowe sprzątnięcie (guard `done`) +
+     KLIK-aby-pominąć + gwarancja usunięcia nawet gdy timery throttlowane (Electron/tło). Nigdy nie zawisa. */
+  let done=false; const timers=[];
+  const finalize=()=>{ if(done) return; done=true; timers.forEach(t=>{ try{clearTimeout(t);}catch(e){} }); try{ el.remove(); }catch(e){} try{ if(typeof opts.onDone==='function') opts.onDone(); }catch(e){} };
+  el.addEventListener('click', finalize); /* klik = natychmiast pomiń resztę sceny */
   requestAnimationFrame(()=>{ el.style.opacity='1'; });
-  setTimeout(()=>{ try{ if(opts.sound!==false && typeof sfxNightBlackout==='function') sfxNightBlackout(); const lab=document.getElementById('blackout-label'); if(lab) lab.style.color='rgba(233,30,140,.85)'; if(typeof opts.onMid==='function') opts.onMid(); }catch(e){} }, fadeIn+30);
-  setTimeout(()=>{ try{ el.style.transition='opacity '+fadeOut+'ms ease'; el.style.opacity='0'; const lab=document.getElementById('blackout-label'); if(lab) lab.style.color='rgba(233,30,140,0)'; }catch(e){} }, fadeIn+hold);
-  setTimeout(()=>{ try{ el.remove(); if(typeof opts.onDone==='function') opts.onDone(); }catch(e){} }, fadeIn+hold+fadeOut+60);
+  timers.push(setTimeout(()=>{ try{ if(opts.sound!==false && typeof sfxNightBlackout==='function') sfxNightBlackout(); const l=document.getElementById('blackout-label'); if(l) l.style.color='rgba(233,30,140,.85)'; if(hint) hint.style.color='rgba(255,255,255,.35)'; if(typeof opts.onMid==='function') opts.onMid(); }catch(e){} }, fadeIn+30));
+  timers.push(setTimeout(()=>{ try{ el.style.transition='opacity '+fadeOut+'ms ease'; el.style.opacity='0'; const l=document.getElementById('blackout-label'); if(l) l.style.color='rgba(233,30,140,0)'; if(hint) hint.style.color='rgba(255,255,255,0)'; }catch(e){} }, fadeIn+hold));
+  timers.push(setTimeout(finalize, fadeIn+hold+fadeOut+60));
 };
 /* v2.1.760: „boing" trampoliny (samolocik) — sprężyste odbicie. */
 function sfxBoing(){ if(!_sfxGuard('boing',200))return; if(_muted)return; try{const a=getAudio();if(!a)return;const t=a.currentTime; const o=a.createOscillator();const g=a.createGain();o.type='sine'; o.frequency.setValueAtTime(420,t); o.frequency.exponentialRampToValueAtTime(150,t+0.08); o.frequency.exponentialRampToValueAtTime(540,t+0.26); g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.10,t+0.02); g.gain.exponentialRampToValueAtTime(0.001,t+0.32); o.connect(g); g.connect(_sfxMasterGain||a.destination); o.start(t); o.stop(t+0.34); }catch(e){} }
@@ -13665,7 +13671,7 @@ function tryInteract(){
 // ═══════════════════════════════════════════════════════════════════
 const PLACE_HOURS={
   'striptiz':        {o:20, c:4,  name:'Velvet Room'}, /* v2.1.919 PDF: nocny klub 20:00-04:00 (overnight); U7 v2.3.44 nazwa własna Velvet Room */
-  'underground_prostytutki': {o:21, c:3, name:'Nocny zaułek'}, /* v2.1.920 PDF l.57: 21:00-03:00 (overnight) */
+  'underground_prostytutki': {o:21, c:5, name:'Nocny zaułek'}, /* v2.1.920 PDF l.57: 21:00-05:00 (overnight; user 2026-07-02: było do 03:00) */
   // Drip district / butiki
   'shop:lv':         {o:10, c:20, name:'Luvio'},
   'shop:chanel':     {o:10, c:20, name:'Chassé'},
@@ -40473,7 +40479,7 @@ window._striptizBarMG=function(){
   raf=requestAnimationFrame(draw);
   window._jobMgCleanup=()=>{over=true;cancelAnimationFrame(raf);cv.removeEventListener('click',onClick);cv.removeEventListener('touchstart',onTouch);panel.classList.remove('on');panel.style.display='none';document.getElementById('mg-job-content').innerHTML='';};
 };
-/* v2.1.920 (PDF l.57 — nocna aktywność 18+): Nocny zaułek (prostytutki underground). Money sink → nastrój (G.stress) ALE z RYZYKIEM (zniesławienie/zdrowie/mandat) = risk-reward, nie czysty bonus. Godziny 21-03 przez PLACE_HOURS/isPlaceOpen. */
+/* v2.1.920 (PDF l.57 — nocna aktywność 18+): Nocny zaułek (prostytutki underground). Money sink → nastrój (G.stress) ALE z RYZYKIEM (zniesławienie/zdrowie/mandat) = risk-reward, nie czysty bonus. Godziny 21-05 przez PLACE_HOURS/isPlaceOpen. */
 /* v2.1.925 (PDF l.57): dwa warianty towarzystwa DO WYBORU (gra nie ma systemu płci gracza, więc oba dostępne dla każdego zamiast bramki płci). Ten sam risk-reward, różny klimat. */
 const PROS_OPTS={
   f:{emoji:'💋',name:'Spotkanie',who:'towarzyszką'},
@@ -40482,7 +40488,7 @@ const PROS_OPTS={
 function renderProstytutkiPanel(){
   document.getElementById('ov-content').innerHTML=`
     <h2>💋 Nocny zaułek</h2>
-    <p class="sub">Dyskretne spotkanie w zaułku (czynne 21:00–03:00). Wybierz towarzystwo. Poprawia nastrój za gotówkę — ALE to ryzyko: możesz wpaść w skandal, złapać chorobę albo trafić na kontrolę. Decyzja należy do Ciebie.</p>
+    <p class="sub">Dyskretne spotkanie w zaułku (czynne 21:00–05:00). Wybierz towarzystwo. Poprawia nastrój za gotówkę — ALE to ryzyko: możesz wpaść w skandal, złapać chorobę albo trafić na kontrolę. Decyzja należy do Ciebie.</p>
     <div id="pros-res" class="res"></div>
     <div class="shopgrid">
       ${Object.entries(PROS_OPTS).map(([k,o])=>`<div class="sitem">
@@ -40519,7 +40525,7 @@ window._prostytutkiVisit=(vibe)=>{
     if(typeof updateHUD==='function')updateHUD();
     if(typeof renderProstytutkiPanel==='function'){ renderProstytutkiPanel(); const r=document.getElementById('pros-res'); if(r) r.textContent=msg; }
   };
-  if(typeof window._blackoutScene==='function') window._blackoutScene({ fadeIn:2000, hold:6000, fadeOut:2000, sound:true, onDone:_applyNight });
+  if(typeof window._blackoutScene==='function') window._blackoutScene({ label:'Wieczór trwa…', sound:true, onDone:_applyNight });
   else _applyNight();
 };
 window.buyOutfit=(id,name,price)=>{
@@ -43026,7 +43032,7 @@ window._enterDistrictPlace=(districtId,placeId)=>{
       }
       if(typeof window._trapUnlockDialog==='function') window._trapUnlockDialog();
       return;
-    /* v2.1.920 (PDF l.57): Nocny zaułek — ryzykowna nocna aktywność (godziny 21-03 egzekwowane przez isPlaceOpen/PLACE_HOURS). */
+    /* v2.1.920 (PDF l.57): Nocny zaułek — ryzykowna nocna aktywność (godziny 21-05 egzekwowane przez isPlaceOpen/PLACE_HOURS). */
     case 'underground_prostytutki':
       if(typeof renderProstytutkiPanel==='function') renderProstytutkiPanel();
       return;
@@ -59022,6 +59028,13 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.103',date:'2026-07-02',cats:['fix'],title:'🌃 Nocny zaułek — naprawiony „czarny ekran" i dłuższe godziny',
+ items:[
+  {t:'fix',d:'🖤 Naprawiliśmy zgłoszony błąd, przez który po umówieniu „Spotkania" lub „Towarzysza na wieczór" w Nocnym zaułku ekran robił się czarny i wyglądał, jakby gra się zawiesiła — nic nie było widać i nic się nie działo. Teraz na czarnym ekranie pojawia się napis „Wieczór trwa…", scena jest wyraźnie krótsza, a w każdej chwili możesz kliknąć, żeby ją pominąć i od razu zobaczyć skutki wieczoru. Ekran już nigdy nie zostaje czarny na stałe.'},
+  {t:'change',d:'🌙 Nocny zaułek w Underground jest teraz czynny dłużej — do 05:00 (wcześniej zamykał się o 03:00).'},
+ ]
+ },
  {
  ver:'v2.3.102',date:'2026-07-02',cats:['feature','fix','ui'],title:'S9 Agency, większy Underground i poprawki rozgrywki',
  items:[
