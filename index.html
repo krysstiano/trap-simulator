@@ -5739,7 +5739,10 @@ function drawStudioDecorations(){
 
 function drawMieszkanieDecorations(){
   // Rozróżnienie wizualne traphouse vs basic (oba używają tego samego room ROOMS.mieszkanie)
-  const isBasic=G.apartment==='basic';
+  // v2.3.103 (user: „mieszkanie podstawowe wygląda identycznie jak traphouse"): kluczujemy na DRZWI którymi
+  // gracz wszedł (_lastEnterDoor), NIE na główny dom (G.apartment) — bo wejście basic-drzwiami przy home=traphouse
+  // zostawiało G.apartment='traphouse' → wnętrze traphouse. _lastEnterDoor ustawia enterSpecificApartment.
+  const isBasic=(typeof G._lastEnterDoor!=='undefined')?(G._lastEnterDoor==='basic'):(G.apartment==='basic');
   // Podłoga — basic ma jasny parkiet, traphouse ciemne deski (overlay na 'wood' tile)
   if(isBasic){
     // Jasny parkiet — overlay
@@ -5932,7 +5935,7 @@ function drawMieszkanieDecorations(){
     X.shadowBlur=0;X.shadowColor='transparent';
     X.textBaseline='middle';
     X.font='bold 12px "Segoe UI",Arial,sans-serif';X.textAlign='center';
-    const _aptLbl=({traphouse:'TRAPHOUSE',basic:'MIESZKANIE',premium:'APARTAMENT',luxury:'PENTHOUSE',duplex:'DUPLEX',mansion:'REZYDENCJA',mega_villa:'MEGA VILLA'})[G.apartment]||'TRAPHOUSE';
+    const _aptLbl=isBasic?'MIESZKANIE':'TRAPHOUSE'; /* v2.3.103: label wg wejścia (isBasic), nie G.apartment — pokój mieszkanie = traphouse albo basic */
     X.strokeStyle='rgba(0,0,0,.85)';X.lineWidth=3;X.lineJoin='round';
     X.strokeText(_aptLbl,mdx+mdw/2,mdy+mdh/2+1);
     X.fillStyle=isBasic?'#dceeff':'#ffe4b8';
@@ -59187,6 +59190,7 @@ const PATCH_NOTES = [
   {t:'ui',d:'🧍 Przechodnie w dzielnicach (Wybrzeże VIP, dzielnica biznesowa, Underground) wyglądają teraz lepiej — mają czytelniejszą sylwetkę z ramionami, szyją i butami zamiast wcześniejszej uproszczonej, „klockowatej" postaci.'},
   {t:'ui',d:'🏙️ Dzielnica biznesowa uporządkowana: ulice sięgają teraz do krawędzi mapy (wcześniej urywały się kawałek przed nią), budynki (Label HQ, Bank VIP, PR Agency, Fortuno) nie nachodzą już na chodnik, a przechodnie chodzą po chodnikach zamiast po budynkach.'},
   {t:'ui',d:'📡 Antena z migającym czerwonym światłem przy lądowisku dla helikopterów VIP nie stoi już na środku chodnika — przenieśliśmy ją na trawnik obok, żeby nie blokowała przejścia.'},
+  {t:'fix',d:'🏠 Mieszkanie Podstawowe nie wygląda już identycznie jak Traphouse — po wejściu jego drzwiami zobaczysz właściwy, spokojniejszy wystrój z napisem „MIESZKANIE" (zamiast „TRAPHOUSE") i własnymi plakatami. Wcześniej po wejściu do mieszkania podstawowego błędnie pokazywał się wystrój i podpis Traphouse.'},
   {t:'fix',d:'🖤 Naprawiliśmy zgłoszony błąd, przez który po umówieniu „Spotkania" lub „Towarzysza na wieczór" w Nocnym zaułku ekran robił się czarny i wyglądał, jakby gra się zawiesiła — nic nie było widać i nic się nie działo. Teraz na czarnym ekranie pojawia się napis „Wieczór trwa…", scena jest wyraźnie krótsza, a w każdej chwili możesz kliknąć, żeby ją pominąć i od razu zobaczyć skutki wieczoru. Ekran już nigdy nie zostaje czarny na stałe.'},
   {t:'change',d:'🌙 Nocny zaułek w Underground jest teraz czynny dłużej — do 05:00 (wcześniej zamykał się o 03:00).'},
  ]
