@@ -42906,8 +42906,8 @@ window._startSurfChoice=function(){
   G._surfMG={pos:50, vel:0, time:0, maxTime:170, balanced:0, over:false};
   _mc.innerHTML=`<div style="background:#0a1a28;border:2px solid #3498db;border-radius:10px;padding:18px;max-width:560px;margin:0 auto;color:#dff">
     <h2 style="color:#7ec8e3;margin-top:0;text-align:center">🏄 Big Wave — utrzymaj balans!</h2>
-    <div style="color:#aab;font-size:12px;text-align:center;margin-bottom:10px">Korygij przechył deski ⬅ / ➡, trzymaj wskaźnik w <b style="color:#27ae60">zielonym środku</b>. Im dłużej w równowadze, tym lepszy wynik. Krawędź = wipeout!</div>
-    <div style="text-align:center;font-size:12px;margin-bottom:6px">⏱ <span id="surf-time">8.5</span>s · 🌊 Stabilność: <span id="surf-stab" style="color:#27ae60">0%</span></div>
+    <div style="color:#aab;font-size:12px;text-align:center;margin-bottom:10px">Koryguj przechył deski — <b style="color:#7ec8e3">strzałkami ⬅/➡ na klawiaturze</b> lub przyciskami. Trzymaj wskaźnik w <b style="color:#27ae60">zielonym środku</b>. Im dłużej w równowadze, tym lepszy wynik. Krawędź = wipeout!</div>
+    <div style="text-align:center;font-size:12px;margin-bottom:6px">⏱ <span id="surf-time">5.6</span>s · 🌊 Stabilność: <span id="surf-stab" style="color:#27ae60">0%</span></div>
     <div style="position:relative;height:42px;background:linear-gradient(90deg,#1a0a0a,#0a2a3a,#1a0a0a);border-radius:6px;overflow:hidden;border:1px solid #2a4a5a">
       <div style="position:absolute;left:35%;width:30%;height:100%;background:rgba(39,174,96,0.25);border-left:2px solid #27ae60;border-right:2px solid #27ae60"></div>
       <div id="surf-board" style="position:absolute;left:50%;transform:translateX(-50%);font-size:26px;top:5px">🏄</div>
@@ -42919,27 +42919,32 @@ window._startSurfChoice=function(){
     <button class="cbtn" style="margin-top:8px;width:100%" onclick="window._surfAbort()">← Zejdź z fali</button>
   </div>`;
   _mg.classList.add('on');
-  G._surfInterval=setInterval(window._surfTick, 50);
+  /* v2.3.107 (user CO2: „Surf zamulony + balans strzałkami"): sterowanie klawiszami ⬅/➡ (nie tylko klik). */
+  if(G._surfKeyH){ try{window.removeEventListener('keydown',G._surfKeyH);}catch(_){} }
+  G._surfKeyH=function(e){ if(e.key==='ArrowLeft'){e.preventDefault();window._surfLean(-1);} else if(e.key==='ArrowRight'){e.preventDefault();window._surfLean(1);} };
+  window.addEventListener('keydown',G._surfKeyH);
+  G._surfInterval=setInterval(window._surfTick, 33); /* v2.3.107: 50→33ms (30fps, płynniej — mniej „zamulone") */
 };
 window._surfTick=function(){
   const mg=G._surfMG; if(!mg||mg.over) return;
-  mg.vel += (Math.random()-0.5)*1.7;  /* siła fali */
-  mg.vel *= 0.92;                      /* tłumienie */
+  mg.vel += (Math.random()-0.5)*1.05;  /* v2.3.107: siła fali 1.7→1.05 (mniej chaosu, korekta bardziej odczuwalna) */
+  mg.vel *= 0.9;                        /* tłumienie 0.92→0.9 */
   mg.pos += mg.vel;
   if(mg.pos<=2||mg.pos>=98){ window._surfFinish(true); return; }
   if(mg.pos>35 && mg.pos<65) mg.balanced++;
   mg.time++;
   const _b=document.getElementById('surf-board'); if(_b){ _b.style.left=mg.pos+'%'; _b.style.transform=`translateX(-50%) rotate(${(mg.pos-50)*0.7}deg)`; }
-  const _t=document.getElementById('surf-time'); if(_t) _t.textContent=Math.max(0,(mg.maxTime-mg.time)*0.05).toFixed(1);
+  const _t=document.getElementById('surf-time'); if(_t) _t.textContent=Math.max(0,(mg.maxTime-mg.time)*0.033).toFixed(1);
   const _s=document.getElementById('surf-stab'); if(_s) _s.textContent=Math.round(mg.balanced/Math.max(1,mg.time)*100)+'%';
   if(mg.time>=mg.maxTime){ window._surfFinish(false); }
 };
 window._surfLean=function(dir){
   const mg=G._surfMG; if(!mg||mg.over) return;
-  mg.vel += dir*1.4;
+  mg.vel += dir*2.0; /* v2.3.107 (CO2): 1.4→2.0 — korekta bardziej odczuwalna, mniej „mydlana" */
 };
 window._surfAbort=function(){
   if(G._surfInterval){clearInterval(G._surfInterval);G._surfInterval=null;}
+  if(G._surfKeyH){try{window.removeEventListener('keydown',G._surfKeyH);}catch(_){}G._surfKeyH=null;} /* v2.3.107 CO2 */
   G._surfMG=null;
   document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';
   if(typeof showMsg==='function') showMsg('🏄 Zszedłeś z fali (wynajem niezwracany).','i',3500);
@@ -42948,6 +42953,7 @@ window._surfFinish=function(wipeout){
   const mg=G._surfMG; if(!mg||mg.over) return;
   mg.over=true;
   if(G._surfInterval){clearInterval(G._surfInterval);G._surfInterval=null;}
+  if(G._surfKeyH){try{window.removeEventListener('keydown',G._surfKeyH);}catch(_){}G._surfKeyH=null;} /* v2.3.107 CO2 */
   G._lastCoastSurfDay=G.day;
   const score=Math.max(0,Math.min(1, mg.balanced/mg.maxTime))*(wipeout?0.6:1);
   const _maxForma=typeof getMaxStat==='function'?getMaxStat('forma'):100;
@@ -59774,6 +59780,7 @@ const PATCH_NOTES = [
   {t:'ui',d:'🎯 Przy skateparku i breakdance widzisz teraz wprost (w podpowiedzi obok miejsca), ile dobrych występów z wynikiem 450+ dzieli Cię od turnieju — np. 6/10 — jeszcze zanim go odblokujesz. Po każdym występie dostajesz też informację o postępie (dotyczy teraz również breakdance, nie tylko skateparku).'},
   {t:'ui',d:'🛹 Skatepark i breakdance mają teraz dzienny limit 3 treningów każdy (turnieje i pozostałe aktywności działają bez limitu) — koniec z nieskończonym grindem w jednym miejscu.'},
   {t:'ui',d:'🏆 Turnieje uliczne (Underground Floor Battle i Concrete Line Jam): po zakończeniu turnieju od razu wracasz na mapę, a żeby wystartować ponownie, musisz najpierw zaliczyć 3 kolejne dobre występy (450+ pkt) w parku. Podczas turnieju nie chodzisz już po mapie w tle — sterujesz tylko na parkiecie — a przy każdym trafionym ruchu słychać kroki postaci.'},
+  {t:'fix',d:'🏄 Surf Shop na Wybrzeżu można teraz sterować strzałkami ⬅/➡ na klawiaturze (nie tylko klikaniem przycisków), a sama jazda jest płynniejsza i lepiej reaguje na korekty — koniec z „mydlanym", zamulonym balansowaniem.'},
  ]
  },
  {
