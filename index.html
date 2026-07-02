@@ -10235,9 +10235,37 @@ function drawZajazd(sx,sy,w,h){
   /* szyld */
   X.fillStyle='#14120e'; X.fillRect(sx+w*0.28,sy+h*0.02,w*0.44,h*0.12); X.fillStyle='#8ad0a0'; X.font='bold 12px Arial'; X.textAlign='center'; X.fillText('ZAJAZD',sx+w/2,sy+h*0.11); X.textAlign='left';
 }
+/* v2.3.103 (user: „dolna połowa mapy pusta / ulicy zrobiłeś tylko pół"): rubieże Underground.
+   Rozwija dolną część 2× mapy (worldY 900-1920) — przetarty grunt (dirt/wasteland zamiast gołej
+   trawy), szutrowa ścieżka łącząca dzielnicę z osiedlem baraki/slumsy oraz zajazdem, płot z siatki
+   i złom (opony/beczki/palety/chwasty) by wypełnić przestrzeń. Grunt rysowany POD budynkami. */
+function _drawUndergroundOutskirts(){
+  const vx0=wx2sx(0), vw=wx2sx(1440)-vx0;
+  const oy0=wy2sy(900), oy1=wy2sy(1920), oH=oy1-oy0;
+  if(oy1<-40 || oy0>760) { /* poza ekranem — pomiń */ }
+  /* przetarty grunt (ziemia/pył) — półprzezroczyście na trawie, dając rubieżowy klimat */
+  X.save(); X.globalAlpha=0.9; X.fillStyle='#3b3529'; X.fillRect(vx0,oy0,vw,oH); X.restore();
+  /* nierówne łaty ciemniejszej ziemi + jaśniejszego piachu (deterministyczne) */
+  for(let i=0;i<70;i++){ const wx=40+((i*173)%1360), wy=920+((i*227)%980); const sx=wx2sx(wx), sy=wy2sy(wy); if(sx<-30||sx>1310||sy<-30||sy>750) continue; const s=10+((i*13)%26); X.fillStyle=(i%3===0)?'rgba(28,24,18,.5)':(i%3===1?'rgba(74,66,48,.35)':'rgba(58,72,44,.28)'); X.beginPath(); X.ellipse(sx,sy,s,s*0.6,(i%7),0,7); X.fill(); }
+  /* szutrowa ścieżka: od dzielnicy (worldX ~630, worldY 900) w dół, rozgałęzia do baraki/slumsy (lewo) i zajazdu (prawo) */
+  const path=(x1,y1,x2,y2,pw)=>{ const a=wx2sx(x1),b=wy2sy(y1),c=wx2sx(x2),d=wy2sy(y2); X.strokeStyle='#4a4436'; X.lineWidth=pw; X.lineCap='round'; X.beginPath(); X.moveTo(a,b); X.lineTo(c,d); X.stroke(); X.strokeStyle='rgba(120,110,88,.25)'; X.lineWidth=pw*0.5; X.beginPath(); X.moveTo(a,b); X.lineTo(c,d); X.stroke(); };
+  path(630,900,630,1300,42); path(630,1300,330,1300,36); path(630,1300,1000,1470,38); path(330,1300,300,1360,30);
+  /* płot z siatki wzdłuż prawej krawędzi rubieży */
+  const fx=wx2sx(1400); if(fx>-20&&fx<1310){ X.strokeStyle='rgba(90,90,90,.5)'; X.lineWidth=1; for(let wy=940;wy<1900;wy+=140){ const sy=wy2sy(wy),sy2=wy2sy(wy+120); if(sy>750||sy2<-20)continue; X.beginPath(); X.moveTo(fx,sy); X.lineTo(fx,sy2); X.stroke(); for(let k=0;k<8;k++){ const yy=sy+(sy2-sy)*k/8; X.beginPath(); X.moveTo(fx-6,yy); X.lineTo(fx+6,yy+8); X.stroke(); } } }
+  /* złom/dekoracje (deterministyczne pozycje) */
+  const junk=[ {wx:520,wy:1000,t:'tire'},{wx:760,wy:960,t:'barrel'},{wx:200,wy:1450,t:'pallet'},{wx:1180,wy:1250,t:'tire'},{wx:420,wy:1520,t:'weeds'},{wx:900,wy:1620,t:'barrel'},{wx:1120,wy:1600,t:'weeds'},{wx:680,wy:1150,t:'firebarrel'},{wx:340,wy:1000,t:'weeds'},{wx:1000,wy:1050,t:'pallet'},{wx:560,wy:1680,t:'tire'},{wx:820,wy:1350,t:'weeds'} ];
+  for(const j of junk){ const sx=wx2sx(j.wx), sy=wy2sy(j.wy); if(sx<-30||sx>1310||sy<-30||sy>750) continue;
+    if(j.t==='tire'){ X.fillStyle='#2a2a2a'; X.beginPath(); X.ellipse(sx,sy,14,6,0,0,7); X.fill(); X.fillStyle='#3a3a3a'; X.beginPath(); X.ellipse(sx,sy,7,3,0,0,7); X.fill(); }
+    else if(j.t==='barrel'){ X.fillStyle='#5a4a2a'; X.fillRect(sx-7,sy-16,14,18); X.fillStyle='rgba(0,0,0,.25)'; X.fillRect(sx-7,sy-11,14,2); X.fillRect(sx-7,sy-5,14,2); X.fillStyle='#7a3a2a'; X.fillRect(sx-7,sy-16,14,3); }
+    else if(j.t==='firebarrel'){ X.fillStyle='#3a3028'; X.fillRect(sx-8,sy-16,16,18); const _f=Math.sin(Date.now()/160+sx)*0.2+0.8; X.fillStyle=`rgba(240,140,40,${_f})`; X.beginPath(); X.moveTo(sx-6,sy-16); X.quadraticCurveTo(sx,sy-30*_f,sx+6,sy-16); X.closePath(); X.fill(); X.fillStyle=`rgba(250,220,90,${_f*0.9})`; X.beginPath(); X.moveTo(sx-3,sy-16); X.quadraticCurveTo(sx,sy-22*_f,sx+3,sy-16); X.closePath(); X.fill(); }
+    else if(j.t==='pallet'){ X.fillStyle='#6a5436'; for(let k=0;k<4;k++)X.fillRect(sx-14+k*7,sy-10,4,14); X.fillRect(sx-14,sy-10,28,3); X.fillRect(sx-14,sy-1,28,3); }
+    else { /* weeds */ X.strokeStyle='#4a6a3a'; X.lineWidth=1.4; for(let k=-3;k<=3;k++){ X.beginPath(); X.moveTo(sx+k*3,sy); X.quadraticCurveTo(sx+k*3+k,sy-10,sx+k*4,sy-14); X.stroke(); } }
+  }
+}
 function drawUndergroundDecorations(){
   const isNight=(typeof G!=='undefined' && G.timeOfDay>=2);
   const pulse=Math.sin(Date.now()/500)*0.3+0.7;
+  _drawUndergroundOutskirts(); /* v2.3.103: rozwinięta dolna połowa mapy (rubieże) */
   /* v2.3.100 (user: „pojazdy jeżdżą po chodniku" — underground nie miał rysowanej jezdni, auta dzielnicowe (y500/540) wyglądały jakby jeździły po nawierzchni pieszych). Rysujemy poziomą jezdnię w pasie aut (y488-552) + krawężniki + linia środkowa. */
   (function(){
     const rw=((typeof ROOMS!=='undefined'&&ROOMS.underground&&ROOMS.underground.wT)||30)*T;
