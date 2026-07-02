@@ -3675,12 +3675,16 @@ function buildMaps(){
         const isVRoad=(c>=14&&c<=15); /* vertical road środku */
         const isHSide=(r===8||r===11); /* chodniki obok H road */
         const isVSide=(c===13||c===16); /* chodniki obok V road */
-        const isRoad=isHRoad||isVRoad;
-        const isSide=(isHSide||isVSide)&&!isRoad;
+        /* v2.3.103 (user pkt3 „pionowy chodnik V przez trawę/rubieże"): dolna połowa mapy (r>=18, worldY≥864)
+           to rubieże (grunt/ziemia z _drawUndergroundOutskirts). Miejska „krzyżówka" dróg+chodników NIE wchodzi
+           w rubieże — inaczej jasny betonowy chodnik przecinał ziemię. Poza rubieżami krzyż zostaje. */
+        const isOutskirts=(r>=18);
+        const isRoad=(isHRoad||isVRoad)&&!isOutskirts;
+        const isSide=(isHSide||isVSide)&&!isRoad&&!isOutskirts;
         let t;
         if(isRoad) t='road';
         else if(isSide) t='side';
-        else if(r<=1||r>=18||c<=1||c>=28) t='gdark'; /* dark border edges */
+        else if(r<=1||r>=18||c<=1||c>=28) t='gdark'; /* dark border edges + rubieże base (pod overlay ziemi) */
         else t='urban'; /* gritty filler */
         ru.map[r].push(t);
       }
@@ -59298,6 +59302,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'📊 Fortuno w dzielnicy biznesowej nie twierdzi już błędnie „już dziś brałeś udział", gdy quiz w ogóle się nie pojawił — teraz quiz zawsze się otwiera, a limit „raz dziennie" liczy się dopiero po jego pokazaniu.'},
   {t:'fix',d:'🎵 Naprawiliśmy błąd, przez który muzyka w tle potrafiła czasem kompletnie ucichnąć — najczęściej przy szybkim przechodzeniu między lokacjami, ale też po tworzeniu bitów w sekwencerze. Teraz muzyka przygasa tylko na moment i zawsze wraca do właściwej głośności. Delikatne przyciszanie przy odgłosach akcji zostaje bez zmian (kroki nadal nie przyciszają muzyki).'},
   {t:'fix',d:'🛡️ Dodatkowe wzmocnienia stabilności pod maską — panele handlu kryptowalutami i metalami szlachetnymi są teraz odporne na niekompletne wczytanie zapisu (nie mogą się przez to zaciąć).'},
+  {t:'ui',d:'🏚️ Uporządkowaliśmy dolną część Underground (rubieże): miejski, betonowy chodnik nie wcina się już prosto w piaszczyste pustkowie. Teraz między barakami, slumsami i zajazdem prowadzą tylko klimatyczne, szutrowe ścieżki — wygląda spójnie zamiast „chodnika z miasta pośrodku rubieży".'},
   {t:'ui',d:'🏷️ Zamieniliśmy pozostałe prawdziwe nazwy marek na własne, oryginalne odpowiedniki — dotyczy nazw oprogramowania muzycznego i sprzętu w studiu, jednego ze sponsorów oraz kilku słów w minigrze freestyle. Świat gry jest teraz spójny i w pełni oryginalny.'},
   {t:'ui',d:'🎨 Wróciły ikony na budynkach w mieście — sklepy, siłownia, studio, szpital, warsztat, radio i pozostałe lokale znów mają swój czytelny symbol nad nazwą. Ustawiliśmy je tak, żeby nie zasłaniały szyldów ani witryn.'},
   {t:'ui',d:'🚸 Poprawiliśmy znaki drogowe: każdy znak ma teraz cień dopasowany do swojego kształtu (ośmiokątny pod znakiem STOP, rombowy pod znakiem z pierwszeństwem, kwadratowy pod znakiem przejścia dla pieszych) — wcześniej znak STOP w ogóle nie rzucał widocznego cienia. Znak przejścia dla pieszych dostał też czytelniejszą sylwetkę idącej osoby.'},
