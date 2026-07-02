@@ -3294,7 +3294,7 @@ const ROOMS = {
      Exit_back na wschodniej krawędzi → goto:ulica wracając do gate_underground pozycji.
      7 obiektów (placeholder docelowo z funkcjonalnym contentem — analog ROOMS.studio approach). */
   underground: {
-    wT:30, hT:20, map:null,
+    wT:30, hT:40, map:null, /* v2.3.102 (PDF #8-24 „docelowo"): 2× skala (20→40) — dolna część: baraki/slumsy + zajazd kempingowy z osobnymi interakcjami i NPC */
     objects:[
       /* Exit back to ulica — wschodnia krawędź (gracz wchodzi z prawej = "z miasta") */
       {id:'exit_under', wx:1340, wy:420, w:60, h:120, act:'goto:ulica:120:2960', prompt:'[E] ⬅ Wróć do miasta', lbl:'Wyjście'},
@@ -3321,6 +3321,10 @@ const ROOMS = {
       {id:'plantation_underground', wx:1240,wy:580, w:120,h:120, act:'underground_plantation',prompt:'[E] 🌿 Plantacja (lvl 5+)',   lbl:'Plantacja'},
       /* v2.1.920 (PDF l.57 — nocna aktywność 18+): Nocny zaułek (prostytutki) — dyskretne miejsce w underground, gated za unlock dzielnicy + godziny 21-03 (PLACE_HOURS). Bottom-right, overlap-free vs venue. */
       {id:'prostytutki_underground',wx:1240,wy:810, w:140,h:130, act:'underground_prostytutki',prompt:'[E] 💋 Nocny zaułek (noc)',  lbl:'Zaułek'},/* v2.3.87 G1 (user „zaułek nic nie robi"): był wy:720 — zaciśnięty między plantacją(580) i dealerem(1080), getNear łapał sąsiada. Przesunięty w dół do 810 (gap 110px od plantacji, gracz wchodzi w lukę i łapie zaułek). x1240-1380,y810-940 wolne (map 960). */
+      /* v2.3.102 (PDF #8-24 „docelowo"): DOLNA CZĘŚĆ (nowa, y1100+) — baraki/slumsy + zajazd kempingowy. Osobne interakcje + NPC. */
+      {id:'baraki_underground',     wx:200, wy:1200, w:170,h:150, act:'underground_baraki',    prompt:'[E] 🏚 Baraki',                lbl:'Baraki'},
+      {id:'slumsy_underground',     wx:470, wy:1220, w:190,h:140, act:'underground_slumsy',    prompt:'[E] 🛖 Slumsy',                lbl:'Slumsy'},
+      {id:'zajazd_underground',     wx:900, wy:1400, w:260,h:170, act:'underground_zajazd',    prompt:'[E] 🏕 Zajazd kempingowy',     lbl:'Zajazd'},
     ]
   },
 
@@ -3913,6 +3917,9 @@ function drawSprite(id,sx,sy,w,h){
     case 'pawnshop_underground':    drawPawnshop(sx,sy,w,h);break;
     case 'dealer_underground':      drawDealerSpot(sx,sy,w,h);break;
     case 'prostytutki_underground': drawBuilding(sx,sy,w,h,'#1a0612','Zaułek','#e91e8c','💋',true,{commercial:true});break; /* v2.1.920 PDF — dyskretny nocny zaułek */
+    case 'baraki_underground':      drawBuilding(sx,sy,w,h,'#3a3028','Baraki','#9a8a6a','🏚',true,{commercial:false});break; /* v2.3.102 (PDF #8-24): dolna część */
+    case 'slumsy_underground':      drawBuilding(sx,sy,w,h,'#332e28','Slumsy','#8a7a5a','🛖',true,{commercial:false});break;
+    case 'zajazd_underground':      drawBuilding(sx,sy,w,h,'#22402c','Zajazd','#7ec87e','🏕',true,{commercial:true});break;
     /* v2.1.468 tier trap operations */
     case 'camper_underground':      drawCamper(sx,sy,w,h);break;
     case 'lab_underground':         drawLab(sx,sy,w,h);break;
@@ -43023,6 +43030,37 @@ window._enterDistrictPlace=(districtId,placeId)=>{
     case 'underground_prostytutki':
       if(typeof renderProstytutkiPanel==='function') renderProstytutkiPanel();
       return;
+    /* v2.3.102 (PDF #8-24 „docelowo"): dolna część Underground — realne interakcje (nie ghost). */
+    case 'underground_baraki':
+      if(typeof closeOverlay==='function') closeOverlay();
+      if((G._barakiDay||-1)===(G.day||0)){ showMsg('🏚 Baraki: byłeś tu dziś. Wróć jutro, żeby znów się przyczaić.','i',3800); return; }
+      G._barakiDay=(G.day||0);
+      if(G.trap&&G.trap.unlocked){ const _b=G.trap.heat||0; G.trap.heat=Math.max(0,_b-Math.min(_b,15)); }
+      G.stress=(typeof clampStat==='function')?clampStat('stress',(G.stress||0)+10):Math.min(100,(G.stress||0)+10);
+      showMsg('🏚 Przyczaiłeś się w barakach — nikt tu nie zagląda. Trochę spokoju (nastrój +), a jak kręci się za Tobą heat, to na chwilę tracą trop.','g',5500);
+      if(typeof updateHUD==='function') updateHUD();
+      return;
+    case 'underground_slumsy':
+      if(typeof closeOverlay==='function') closeOverlay();
+      if((G.energy||0)<8){ showMsg('⚡ Za mało energii (potrzeba 8) na przeszukiwanie slumsów.','r',3500); return; }
+      G.energy=Math.max(0,(G.energy||0)-8);
+      { const _r=Math.random();
+        if(_r<0.5){ const _c=15+Math.floor(Math.random()*40); G.money=(G.money||0)+_c; showMsg(`🛖 Przeszukałeś slumsy — trafiłeś na zapomniane ${_c} zł w kartonie.`,'g',4500); }
+        else if(_r<0.75 && typeof addXP==='function'){ addXP(8); showMsg('🛖 Nic wartościowego, ale nauczyłeś się czegoś o ulicy (+XP).','i',4000); }
+        else { showMsg('🛖 Przeszukałeś slumsy — tym razem tylko szczury i mokre kartony.','f',4000); } }
+      if(typeof updateHUD==='function') updateHUD();
+      return;
+    case 'underground_zajazd':
+      if(typeof closeOverlay==='function') closeOverlay();
+      { const _fee=60;
+        if((G._zajazdDay||-1)===(G.day||0)){ showMsg('🏕 Odpoczywałeś tu dziś. Wróć jutro.','i',3500); return; }
+        if((G.money||0)<_fee){ showMsg(`🏕 Odpoczynek w zajeździe kempingowym kosztuje ${_fee} zł.`,'r',3500); return; }
+        G._zajazdDay=(G.day||0); G.money-=_fee;
+        G.stress=(typeof clampStat==='function')?clampStat('stress',(G.stress||0)+18):Math.min(100,(G.stress||0)+18);
+        G.energy=(typeof clampStat==='function')?clampStat('energy',(G.energy||0)+20):Math.min(100,(G.energy||0)+20);
+        showMsg(`🏕 Odpocząłeś w zajeździe kempingowym na obrzeżach dzielnicy (−${_fee} zł). Cisza, kampery, ognisko — wracasz wypoczęty (nastrój i energia +).`,'g',6000);
+        if(typeof updateHUD==='function') updateHUD(); }
+      return;
     /* v2.1.482 USER FEEDBACK — kamper/lab to ENTERABLE ROOMS (gracz wchodzi do środka). */
     case 'underground_camper':
       if(typeof closeOverlay==='function') closeOverlay();
@@ -74234,7 +74272,7 @@ function drawTrafficLights(){
    −80% Underground/Coast, −40% Business. Business: 50% NPC elegancko; auta 40-50% sport/lux (sylwetki floty N4).
    Stan efemeryczny (NIE w save) — save-safe z definicji. */
 const DISTRICT_LIFE_CFG={
-  underground:{peds:5, cars:3, elegantPct:0,    luxCarPct:0.30, carBody:['compact','sedan','suv'], luxBody:['sports','luxury']},
+  underground:{peds:8, cars:3, elegantPct:0,    luxCarPct:0.30, carBody:['compact','sedan','suv'], luxBody:['sports','luxury']}, /* v2.3.102: +3 piesi na 2x powiekszona mape (dolna czesc: baraki/slumsy/zajazd) */
   coast:      {peds:7, cars:0, elegantPct:0.10, luxCarPct:0.50, carBody:['sedan','suv','compact'], luxBody:['sports','luxury']}, /* U15 (v2.3.44 PDF): bez aut (jeździły po piasku); piesi plażowi (poniżej) */
   business:   {peds:12,cars:4, elegantPct:0.50, luxCarPct:0.50, carBody:['sedan','suv'],            luxBody:['sports','luxury']},
 };
@@ -74257,7 +74295,7 @@ function initDistrictLife(room){
   const cfg=DISTRICT_LIFE_CFG[room]; if(!cfg) return;
   const _peds=Math.max(1, Math.round(cfg.peds*_districtActivityMult(room))); // D7: aktywność wg dnia/pory
   const roomW=((ROOMS[room]&&ROOMS[room].wT)||30)*T;
-  const pedLanes=[300,660,905];
+  const pedLanes=(room==='underground')?[300,660,905,1300,1560]:[300,660,905]; /* v2.3.102: Underground 2x — pasy pieszych też w dolnej części mapy */
   const elegantCloth=['#1a1a2a','#22223a','#2a2238','#1a2a3a','#30203a']; /* ciemne garnitury/suknie/marynarki */
   const casualCloth=['#2a3a5a','#3a2a4a','#1a3a2a','#3a1a1a','#4a3a1a','#205a40','#704020'];
   /* U15 (v2.3.44 PDF): Marina Coast — przechodnie plażowi/wakacyjni (różnorodnie): jaskrawe stroje/bikini, szorty, kapelusze, okulary. */
