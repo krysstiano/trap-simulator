@@ -26260,6 +26260,7 @@ function tickDecay(){
   if(typeof maybeAutoSubmitScores==='function') maybeAutoSubmitScores();
   // v1.9.9 Faza 3: sprawdź triggery SMS od NPC (raz per tick — _smsTriggerOnce zapobiega duplikatom)
   if(typeof _smsCheckTriggers==='function') _smsCheckTriggers();
+  if(typeof window._s9CheckScandal==='function') window._s9CheckScandal(); /* v2.3.102 (PDF #7): event „Ktoś ma nagranie" przy wysokim agencyHeat */
   if(typeof window._tournamentReminderCheck==='function') window._tournamentReminderCheck(); /* v2.3.99 (PDF #4/#5): przypomnienie turniejowe po 3 dniach (postponed/ignored) */
   /* v1.9.20: Pogoda min 1 timeOfDay slot przed kolejną zmianą + bias 60% słońca */
   const _wTime=(G.day||0)*4+(G.timeOfDay||0);
@@ -58766,6 +58767,21 @@ window._s9UnlockAfterHours=function(){
   if(!underworld) return false;
   if(!G.signalNine.afterHoursUnlocked){ G.signalNine.afterHoursUnlocked=true; if(typeof saveGameSilent==='function')saveGameSilent(); }
   return true;
+};
+/* v2.3.102 (PDF #7): event „Ktoś ma nagranie" — konsekwencja wysokiego agencyHeat po drugim dnie. SMS/rozmowa od Niki + wybory. */
+window._s9CheckScandal=function(){
+  window._s9Ensure(); const s=G.signalNine;
+  if(s._scandalPending) return;
+  if(!s.afterRoomVisited) return;              /* tylko po zajrzeniu w ukryty poziom */
+  if((s.agencyHeat||0)<40) return;             /* wysoki „heat" agencji */
+  if(Math.random()>0.5) return;                /* ~50% szansy na dobę */
+  if(typeof showEventChoice!=='function') return;
+  s._scandalPending=true;
+  showEventChoice('📹 Ktoś ma nagranie', 'Nika Ray: „Powiedz mi, że to nie Ty jesteś na tym filmie z korytarza… I zrób coś szybko, zanim ktoś wrzuci wersję z napisami."', [
+    {label:'😱 „To nie ja! Ktoś mnie wrabia!"', fn:()=>{ s._scandalPending=false; window._s9Effect({agencyHeat:8,brandTrust:-3}); if(typeof showMsg==='function')showMsg('😬 Zaprzeczasz — ryzyko, że afera wybuchnie mocniej później.','r',5000); }},
+    {label:'🧯 „Da się to wyciszyć?" (1500 zł)', fn:()=>{ const cost=1500; if((G.money||0)<cost){ s._scandalPending=false; window._s9Effect({agencyHeat:5,brandTrust:-2}); if(typeof showMsg==='function')showMsg('💸 Brak kasy na wyciszenie — sprawa się rozlewa.','r',4200); return; } G.money-=cost; s._scandalPending=false; s.agencyHeat=Math.max(0,(s.agencyHeat||0)-20); window._s9Effect({brandTrust:1}); if(typeof showMsg==='function')showMsg(`🧯 Wyciszone (−${cost} zł). „Heat" agencji wyraźnie spada.`,'g',5000); }},
+    {label:'😏 „Obrócimy to w promocję"', fn:()=>{ s._scandalPending=false; window._s9Effect({socialBuzz:5,brandTrust:-3,agencyHeat:3}); if(typeof showMsg==='function')showMsg('📈 Ryzykowny ruch — duży buzz, ale zaufanie do marki obrywa.','i',5000); }},
+  ]);
 };
 /* Główny panel agencji — render do #mg-job-content (jak district-place). */
 window.renderS9Agency=function(){
