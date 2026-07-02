@@ -37078,9 +37078,11 @@ const ITEM_CATALOG=[
   {id:'energy_pro',kind:'consumable',name:'Energetyk Pro',emoji:'⚡',price:300,effect:{energy:20},buff:{type:'income',mult:1.20,durSec:750},desc:'+20% zarobków przez ~12 min (+energia 20)'},
   {id:'promo_flyer',kind:'consumable',name:'Ulotki promo',emoji:'📢',price:250,instant:{followers:60},desc:'+60 obserwujących (akcja promo)'},
   /* v2.1.632: consumable z buffami czasowymi na progresję (fani/XP/sława) — analog Energetyk Pro (income). */
-  {id:'vip_pass',kind:'consumable',name:'Wejściówka VIP',emoji:'🎟️',price:280,buff:{type:'fans',mult:1.30,durSec:750},desc:'+30% fanów ze wszystkich występów przez ~12 min'},
-  {id:'master_course',kind:'consumable',name:'Kurs mistrzowski',emoji:'📚',price:300,buff:{type:'xp',mult:1.50,durSec:750},desc:'+50% XP przez ~12 min'},
-  {id:'pr_session',kind:'consumable',name:'Sesja PR',emoji:'⭐',price:350,buff:{type:'fame',mult:1.30,durSec:750},desc:'+30% sławy przez ~12 min'},
+  /* v2.3.103 (user: „bonusy wielokrotnie za tanie = game-breaker; limit raz/3 dni; działanie całą dobę nie ~12 min"):
+     ceny ×10 (fame/fani/XP = rdzeń progresji), durSec 750→900 (pełna doba w grze), cooldownDays:3 (raz na 3 dni gry). */
+  {id:'vip_pass',kind:'consumable',name:'Wejściówka VIP',emoji:'🎟️',price:2800,cooldownDays:3,buff:{type:'fans',mult:1.30,durSec:900},desc:'+30% fanów ze wszystkich występów przez cały dzień w grze (limit: raz na 3 dni)'},
+  {id:'master_course',kind:'consumable',name:'Kurs mistrzowski',emoji:'📚',price:3000,cooldownDays:3,buff:{type:'xp',mult:1.50,durSec:900},desc:'+50% XP przez cały dzień w grze (limit: raz na 3 dni)'},
+  {id:'pr_session',kind:'consumable',name:'Sesja PR',emoji:'⭐',price:3500,cooldownDays:3,buff:{type:'fame',mult:1.30,durSec:900},desc:'+30% sławy przez cały dzień w grze (limit: raz na 3 dni)'},
   /* quest — przedmiot zadaniowy (nie sprzedasz/nie zużyjesz dowolnie; obsługiwany przez konkretną pętlę zadania). */
   {id:'rush_package',kind:'quest',name:'Pilna przesyłka',emoji:'📦',desc:'Dostarcz na następnej trasie kuriera 🚴'},
   /* material — składniki do wytwarzania (warsztat). Drop z prac dorywczych + rozbiórka przedmiotów kolekcjonerskich. */
@@ -37134,12 +37136,23 @@ window.getBuffMult=getBuffMult;
 /* Użyj przedmiotu użytkowego (consumable): efekt natychmiastowy (energia/zdrowie/humor) i/lub buff czasowy i/lub instant resource. */
 window.invUse=function(id){
   invInit(); const it=G.inventory.find(i=>i.id===id&&i.type==='item'&&i.kind==='consumable'); if(!it||it.qty<=0) return;
+  /* v2.3.103 (user: „limit raz na 3 dni w grze"): boosty z cooldownDays blokowane do upływu N dni gry. */
+  if(it.cooldownDays){
+    if(!G._buffCd||typeof G._buffCd!=='object') G._buffCd={};
+    const _last=G._buffCd[id];
+    if(typeof _last==='number' && (G.day-_last)<it.cooldownDays){
+      const _left=it.cooldownDays-(G.day-_last);
+      if(typeof showMsg==='function') showMsg(`${it.emoji} ${it.name} — możesz użyć ponownie za ${_left} ${_left===1?'dzień':'dni'} (limit: raz na ${it.cooldownDays} dni w grze).`,'r',4800);
+      return;
+    }
+  }
   const e=it.effect||{}, b=it.buff, ins=it.instant;
   const _do=()=>{
     if(e.energy && typeof clampStat==='function') G.energy=clampStat('energy', G.energy+e.energy);
     if(e.health && typeof clampStat==='function') G.health=clampStat('health', G.health+e.health);
     if(e.stress && typeof clamp==='function') G.stress=clamp(G.stress+e.stress,0,100);
     if(b && typeof addBuff==='function') addBuff(b.type,b.mult,b.durSec);
+    if(it.cooldownDays){ if(!G._buffCd||typeof G._buffCd!=='object') G._buffCd={}; G._buffCd[id]=G.day; } /* v2.3.103: stempel cooldownu po użyciu */
     if(ins){ if(ins.followers) G.followers=(G.followers||0)+ins.followers; if(ins.xp && typeof addXP==='function') addXP(ins.xp); }
     invRemoveOne(id,'item');
     if(typeof playEat==='function' && (e.energy||e.health)) playEat();
@@ -59199,6 +59212,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'✂️ Barber Point: postać w podglądzie jest teraz wyśrodkowana (wcześniej była przesunięta w róg). Zakładka „Kolor zarostu/wąsów" pojawia się dopiero, gdy masz już jakiś zarost lub wąsy — nie da się wybrać koloru czegoś, czego się nie ma.'},
   {t:'ui',d:'🎙️ Studio nagraniowe: plakat „LIVE FEST" nie zasłania już głośnika monitorującego, a podpis na interfejsie audio nie chowa się pod krzesłem — układ studia jest czytelniejszy.'},
   {t:'ui',d:'💡 Poradnik na dole ekranu jest teraz nieco większy po rozwinięciu (większa ikona, tytuł i odstępy) — wskazówki czyta się wygodniej. Zwinięty pasek pozostaje mały.'},
+  {t:'balance',d:'💸 Wzmocnienia kariery (Wejściówka VIP, Kurs mistrzowski, Sesja PR) były wielokrotnie za tanie i psuły balans. Teraz kosztują znacznie więcej (2800–3500 zł), za to działają przez cały dzień w grze (zamiast ~12 minut) i można ich użyć najwyżej raz na 3 dni w grze.'},
   {t:'fix',d:'🖤 Naprawiliśmy zgłoszony błąd, przez który po umówieniu „Spotkania" lub „Towarzysza na wieczór" w Nocnym zaułku ekran robił się czarny i wyglądał, jakby gra się zawiesiła — nic nie było widać i nic się nie działo. Teraz na czarnym ekranie pojawia się napis „Wieczór trwa…", scena jest wyraźnie krótsza, a w każdej chwili możesz kliknąć, żeby ją pominąć i od razu zobaczyć skutki wieczoru. Ekran już nigdy nie zostaje czarny na stałe.'},
   {t:'change',d:'🌙 Nocny zaułek w Underground jest teraz czynny dłużej — do 05:00 (wcześniej zamykał się o 03:00).'},
  ]
