@@ -3235,6 +3235,18 @@ const ROOMS = {
     ]
   },
 
+  /* v2.3.105 (user): PIWNICA PRODUCENTA — pełnoprawny, chodliwy budynek (undergroundowa piwnica).
+     Wejście z Underground (obiekt piwnica_underground → startRoomFade('piwnica')). W środku producent-NPC
+     (klimat „crackheada") prowadzi nagrania za opłatą: bity 500-2000 zł, realizacja wokali 100-200 zł,
+     miks/master 300-500 zł. Tier POŚREDNI w hierarchii nagrań: lepszy niż traphouse (home demo), gorszy niż studio. */
+  piwnica: {
+    wT:27, hT:14, map:null, // 1296×672 — pełny viewport (jak studio)
+    objects:[
+      {id:'npc_piwnica_prod', wx:596, wy:236, w:52,h:82, act:'npc:piwnicaProducer', prompt:'[E] 🎧 Producent — nagraj kawałek', lbl:'Producent'},
+      {id:'exit_piwnica',     wx:1150,wy:430, w:72,h:150, act:'goto:underground:250:400', prompt:'[E] ⬅ Wyjście na Underground', lbl:'Wyjście'},
+    ]
+  },
+
   /* v2.3.99 (PDF #4): walkable arena turnieju breakdance — Urban Flow Academy Hall. Wejście z parku (obiekt breakdance gdy tournamentState=accepted/completed). */
   urban_flow_academy_hall: {
     wT:27, hT:14, map:null,
@@ -4039,6 +4051,8 @@ function drawSprite(id,sx,sy,w,h){
     case 'npc_fan':      drawNPC(sx,sy,w,h,'#e0a870','#1e6030','👤');break;
     case 'npc_manager':  drawNPC(sx,sy,w,h,'#c07840','#1a2a6a','🤵');break;
     case 'npc_producer': drawNPC(sx,sy,w,h,'#704020','#4a0a6a','🎧');break;
+    case 'npc_piwnica_prod': drawCrackheadProducer(sx,sy,w,h);break; /* v2.3.105 (user): producent-crackhead w Piwnicy */
+    case 'exit_piwnica': drawInteriorExit(sx,sy,w,h);break; /* v2.3.105 */
     case 'npc_vendor':   { const _ko=(typeof isPlaceOpen==='function')?isPlaceOpen('npc:vendor').open:true; drawKebabStand(sx,sy,w,h,_ko); if(_ko)drawNPC(sx,sy,w,h,'#d0a040','#3a1a0a','🌮'); break; }
     case 'npc_crew':     drawNPC(sx,sy,w,h,'#a0c080','#1a3a2a','👥');break;
     case 'npc_casino_promo': drawNPC(sx,sy,w,h,'#d4a070','#c01020','🎰');break;
@@ -5089,6 +5103,7 @@ function drawRoomDecorations(){
   else if(currentRoom==='urban_flow_academy_hall') drawTournamentArenaDecorations('breakdance'); /* v2.3.99 (PDF #4) */
   else if(currentRoom==='concrete_pulse_indoor_spot') drawTournamentArenaDecorations('skate'); /* v2.3.99 (PDF #5) */
   else if(currentRoom==='studio') drawStudioDecorations();
+  else if(currentRoom==='piwnica') drawPiwnicaInteriorDecorations(); /* v2.3.105 (user): wnętrze Piwnicy Producenta */
   else if(currentRoom==='mieszkanie') drawMieszkanieDecorations();
   else if(currentRoom==='mieszkanie_premium') drawPremiumDecorations();
   else if(currentRoom==='mieszkanie_lux') drawLuxDecorations();
@@ -9102,6 +9117,152 @@ function drawPiwnica(sx,sy,w,h){
   X.font='bold 10px Arial';X.fillStyle='#e0c060';
   X.fillText('🎙 PIWNICA',sx+w/2,sy+h*0.1);
   X.textAlign='left';
+}
+
+/* v2.3.105 (user): WNĘTRZE Piwnicy Producenta — surowa, undergroundowa piwnica (beton, wilgoć, gołe rury,
+   jedna żarówka, sprzęt producenta, brudny materac). Klimat „faktycznej piwnicy producenta". */
+function drawPiwnicaInteriorDecorations(){
+  const flx=wx2sx(0),fly=wy2sy(0),flw=wx2sx(1296)-flx,flh=wy2sy(672)-fly;
+  const W=(x,y)=>[wx2sx(x),wy2sy(y)];
+  /* Tło — bardzo ciemny beton */
+  const bg=X.createLinearGradient(flx,fly,flx,fly+flh);
+  bg.addColorStop(0,'#0d0c10');bg.addColorStop(.55,'#141218');bg.addColorStop(1,'#0a090c');
+  X.fillStyle=bg;X.fillRect(flx,fly,flw,flh);
+  /* Ściana tylna (góra) — bloczki betonowe z zaciekami */
+  const wallH=wy2sy(190)-fly;
+  const wg=X.createLinearGradient(flx,fly,flx,fly+wallH);
+  wg.addColorStop(0,'#26232c');wg.addColorStop(1,'#1a1820');
+  X.fillStyle=wg;X.fillRect(flx,fly,flw,wallH);
+  /* Fugi bloczków */
+  X.strokeStyle='rgba(0,0,0,.4)';X.lineWidth=1.5;
+  const bw=wx2sx(96)-wx2sx(0), bh=wy2sy(48)-wy2sy(0);
+  for(let ry=fly;ry<fly+wallH;ry+=bh){
+    X.beginPath();X.moveTo(flx,ry);X.lineTo(flx+flw,ry);X.stroke();
+    const off=(Math.round((ry-fly)/bh)%2)?bw/2:0;
+    for(let cx=flx+off;cx<flx+flw;cx+=bw){X.beginPath();X.moveTo(cx,ry);X.lineTo(cx,ry+bh);X.stroke();}
+  }
+  /* Wilgotne zacieki na ścianie */
+  X.fillStyle='rgba(30,45,40,.30)';
+  [[180,0,70,150],[640,0,50,120],[1050,0,90,170]].forEach(([x,y,ww,hh])=>{const[a,b]=W(x,y);X.fillRect(a,b,wx2sx(ww)-wx2sx(0),wy2sy(hh)-wy2sy(0));});
+  /* Gołe rury pod sufitem */
+  X.strokeStyle='#3a3630';X.lineWidth=Math.max(6,wy2sy(14)-wy2sy(0));X.lineCap='round';
+  {const[a,b]=W(20,26);const[c,d]=W(1276,26);X.beginPath();X.moveTo(a,b);X.lineTo(c,d);X.stroke();}
+  X.strokeStyle='#2e2b26';X.lineWidth=Math.max(4,wy2sy(9)-wy2sy(0));
+  {const[a,b]=W(20,52);const[c,d]=W(900,52);X.beginPath();X.moveTo(a,b);X.lineTo(c,d);X.stroke();}
+  /* Zawór na rurze */
+  {const[a,b]=W(760,26);X.fillStyle='#c0392b';X.beginPath();X.arc(a,b,7,0,Math.PI*2);X.fill();}
+  X.lineCap='butt';
+  /* Graffiti tag na ścianie */
+  X.fillStyle='rgba(155,89,182,.55)';X.font='italic bold 26px Arial';X.textAlign='left';
+  {const[a,b]=W(300,110);X.fillText('BASSMENT',a,b);}
+  X.fillStyle='rgba(230,126,34,.45)';X.font='italic bold 20px Arial';
+  {const[a,b]=W(880,150);X.fillText('808s',a,b);}
+  /* Podłoga — popękany beton z plamami */
+  const flrY=fly+wallH;
+  const fg=X.createLinearGradient(flx,flrY,flx,fly+flh);
+  fg.addColorStop(0,'#17151a');fg.addColorStop(1,'#0c0b0e');
+  X.fillStyle=fg;X.fillRect(flx,flrY,flw,fly+flh-flrY);
+  /* Pęknięcia */
+  X.strokeStyle='rgba(0,0,0,.5)';X.lineWidth=1.5;
+  [[120,360,320,470],[700,320,560,520],[980,430,1180,660]].forEach(([x1,y1,x2,y2])=>{const[a,b]=W(x1,y1);const[c,d]=W(x2,y2);X.beginPath();X.moveTo(a,b);X.lineTo((a+c)/2+8,(b+d)/2);X.lineTo(c,d);X.stroke();});
+  /* Plamy olejowe */
+  X.fillStyle='rgba(0,0,0,.35)';
+  [[430,540,60,22],[900,600,70,26]].forEach(([x,y,rx,ry])=>{const[a,b]=W(x,y);X.beginPath();X.ellipse(a,b,rx,ry,0,0,Math.PI*2);X.fill();});
+
+  /* ── Brudny materac (lewy dół) ── */
+  {const[a,b]=W(70,470);const mw=wx2sx(230)-wx2sx(0),mh=wy2sy(120)-wy2sy(0);
+   X.fillStyle='rgba(0,0,0,.4)';X.beginPath();X.ellipse(a+mw/2,b+mh+6,mw*0.55,10,0,0,Math.PI*2);X.fill();
+   X.fillStyle='#6a5a48';X.fillRect(a,b,mw,mh);
+   X.fillStyle='#7a6a55';X.fillRect(a,b,mw,mh*0.5);
+   X.strokeStyle='rgba(0,0,0,.3)';X.lineWidth=1;for(let i=1;i<5;i++){X.beginPath();X.moveTo(a+mw*i/5,b);X.lineTo(a+mw*i/5,b+mh);X.stroke();}
+   X.fillStyle='rgba(80,60,40,.5)';X.beginPath();X.arc(a+mw*0.35,b+mh*0.55,14,0,Math.PI*2);X.fill();/* plama */
+   /* poduszka */
+   X.fillStyle='#8a7a60';X.fillRect(a+8,b+6,mw*0.32,mh*0.3);}
+
+  /* ── Sprzęt producenta: biurko + monitor + MPC + głośniki (środek, przy NPC ~596,236) ── */
+  {const[dx,dy]=W(470,300);const dw=wx2sx(320)-wx2sx(0),dh=wy2sy(150)-wy2sy(0);
+   /* cień */X.fillStyle='rgba(0,0,0,.45)';X.beginPath();X.ellipse(dx+dw/2,dy+dh+8,dw*0.55,12,0,0,Math.PI*2);X.fill();
+   /* blat */X.fillStyle='#2a2530';X.fillRect(dx,dy,dw,dh);X.fillStyle='#332d3a';X.fillRect(dx,dy,dw,10);
+   /* nogi */X.fillStyle='#1a1620';X.fillRect(dx+6,dy+dh,10,wy2sy(60)-wy2sy(0));X.fillRect(dx+dw-16,dy+dh,10,wy2sy(60)-wy2sy(0));
+   /* monitor komputera */
+   X.fillStyle='#0a0a0f';X.fillRect(dx+dw*0.34,dy-46,dw*0.34,42);
+   X.fillStyle='#1b6ca8';X.fillRect(dx+dw*0.35,dy-44,dw*0.32,36);
+   X.fillStyle='#2ecc71';for(let i=0;i<5;i++)X.fillRect(dx+dw*0.37+i*7,dy-14-((i*5)%18),4,((i*5)%18)+3);/* waveform */
+   X.fillStyle='#0a0a0f';X.fillRect(dx+dw*0.46,dy-4,dw*0.1,6);/* podstawka */
+   /* MPC / sampler */
+   X.fillStyle='#141018';X.fillRect(dx+dw*0.06,dy+16,dw*0.22,dh*0.5);
+   X.fillStyle='#e67e22';for(let r=0;r<3;r++)for(let c=0;c<4;c++)X.fillRect(dx+dw*0.08+c*(dw*0.045),dy+22+r*(dh*0.13),dw*0.032,dh*0.09);
+   /* głośniki studyjne */
+   [0.74,0.9].forEach(fx=>{X.fillStyle='#0d0d12';X.fillRect(dx+dw*fx,dy+8,dw*0.11,dh*0.62);X.fillStyle='#333';X.beginPath();X.arc(dx+dw*fx+dw*0.055,dy+8+dh*0.34,dw*0.038,0,Math.PI*2);X.fill();X.fillStyle='#6ac5e0';X.beginPath();X.arc(dx+dw*fx+dw*0.055,dy+8+dh*0.2,3,0,Math.PI*2);X.fill();});
+  }
+
+  /* ── Żarówka na kablu nad producentem (pula ciepłego światła) ── */
+  {const[bx,by]=W(600,70);
+   X.strokeStyle='#111';X.lineWidth=2;X.beginPath();X.moveTo(bx,wy2sy(0));X.lineTo(bx,by);X.stroke();
+   const glow=X.createRadialGradient(bx,by,4,bx,by+wy2sy(300)-wy2sy(0),wx2sx(340)-wx2sx(0));
+   glow.addColorStop(0,'rgba(255,214,140,.34)');glow.addColorStop(.4,'rgba(255,190,110,.12)');glow.addColorStop(1,'rgba(0,0,0,0)');
+   X.fillStyle=glow;X.beginPath();X.moveTo(bx,by);X.lineTo(bx-(wx2sx(300)-wx2sx(0)),by+(wy2sy(360)-wy2sy(0)));X.lineTo(bx+(wx2sx(300)-wx2sx(0)),by+(wy2sy(360)-wy2sy(0)));X.closePath();X.fill();
+   X.fillStyle='#ffd27a';X.beginPath();X.arc(bx,by,7,0,Math.PI*2);X.fill();
+   X.fillStyle='rgba(255,240,200,.9)';X.beginPath();X.arc(bx-2,by-2,3,0,Math.PI*2);X.fill();}
+
+  /* ── Splątane kable na podłodze ── */
+  X.strokeStyle='#0a0a0a';X.lineWidth=3;
+  {const[a,b]=W(560,440);X.beginPath();X.moveTo(a,b);X.bezierCurveTo(wx2sx(500),wy2sy(520),wx2sx(700),wy2sy(500),wx2sx(760),wy2sy(560));X.stroke();}
+  /* wiadro / grzejnik (prawy dół) */
+  {const[a,b]=W(1000,540);X.fillStyle='#3a3a40';X.fillRect(a,b,wx2sx(70)-wx2sx(0),wy2sy(70)-wy2sy(0));X.fillStyle='#e67e22';X.fillRect(a+4,b+8,wx2sx(62)-wx2sx(0),wy2sy(6)-wy2sy(0));X.fillRect(a+4,b+24,wx2sx(62)-wx2sx(0),wy2sy(6)-wy2sy(0));}
+  /* winyl/talerz na podłodze */
+  {const[a,b]=W(360,610);X.fillStyle='#151515';X.beginPath();X.arc(a,b,18,0,Math.PI*2);X.fill();X.fillStyle='#c0392b';X.beginPath();X.arc(a,b,5,0,Math.PI*2);X.fill();}
+
+  /* Vignette / mrok krawędzi */
+  const vg=X.createRadialGradient(flx+flw/2,flrY,wx2sx(200)-wx2sx(0),flx+flw/2,flrY,Math.max(flw,flh)*0.8);
+  vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.55)');
+  X.fillStyle=vg;X.fillRect(flx,fly,flw,flh);
+  X.textAlign='left';
+}
+
+/* v2.3.105 (user): PRODUCENT-CRACKHEAD — wychudzony, roztrzęsiony, kaptur/beanie, podkrążone oczy, słuchawki na szyi. */
+function drawCrackheadProducer(sx,sy,w,h){
+  const t=Date.now();
+  const phase=(sx*0.11+sy*0.05)%6.28;
+  /* nerwowy jitter — szybki drobny + okazjonalny większy twitch */
+  const jit=Math.sin(t*0.019+phase)*1.1 + (Math.sin(t*0.0017)>0.93?Math.sin(t*0.09)*2.4:0);
+  const sway=Math.sin(t*0.0031+phase)*0.5;
+  const cx=sx+w/2+sway, top=sy+jit;
+  /* cień */
+  X.fillStyle='rgba(0,0,0,.3)';X.beginPath();X.ellipse(sx+w/2,sy+h-2,12,4.5,0,0,Math.PI*2);X.fill();
+  /* nogi — workowate dresy */
+  X.fillStyle='#1e1c22';X.fillRect(cx-9,top+h*.56,8,h*.42);X.fillRect(cx+1,top+h*.56,8,h*.42);
+  /* buty */
+  X.fillStyle='#0c0c0e';X.fillRect(cx-11,top+h*.96,10,h*.05);X.fillRect(cx+1,top+h*.96,10,h*.05);
+  /* bluza z kapturem — ciemna, wychudzona sylwetka */
+  X.fillStyle='#2b3630';X.fillRect(cx-11,top+h*.30,22,h*.30);
+  X.fillStyle='rgba(0,0,0,.25)';X.fillRect(cx-11,top+h*.50,22,h*.08);
+  /* cienkie ręce (nerwowo przy ciele) */
+  X.fillStyle='#2b3630';X.fillRect(cx-14,top+h*.32,5,h*.24);X.fillRect(cx+9,top+h*.32+jit*0.4,5,h*.24);
+  /* dłonie — blade */
+  X.fillStyle='#c9b79e';X.fillRect(cx-14,top+h*.54,5,h*.06);X.fillRect(cx+9,top+h*.54+jit*0.4,5,h*.06);
+  /* słuchawki na szyi */
+  X.strokeStyle='#111';X.lineWidth=3;X.beginPath();X.arc(cx,top+h*.30,10,Math.PI*0.15,Math.PI*0.85);X.stroke();
+  X.fillStyle='#c0392b';X.fillRect(cx-12,top+h*.28,5,7);X.fillRect(cx+7,top+h*.28,5,7);
+  /* szyja chuda */
+  X.fillStyle='#b7a488';X.fillRect(cx-3,top+h*.24,6,h*.08);
+  /* głowa — sallow, zapadnięte policzki */
+  const hy=top+h*.16;
+  X.fillStyle='#c4b096';X.beginPath();X.arc(cx,hy,10,0,Math.PI*2);X.fill();
+  /* zapadnięte policzki — cień po bokach */
+  X.fillStyle='rgba(60,50,40,.35)';X.fillRect(cx-10,hy-1,3,7);X.fillRect(cx+7,hy-1,3,7);
+  /* podkrążone oczy — szare plamy */
+  X.fillStyle='rgba(50,55,70,.55)';X.fillRect(cx-6,hy,5,4);X.fillRect(cx+1,hy,5,4);
+  /* oczy — szeroko otwarte, rozbiegane */
+  const eshift=Math.sin(t*0.011)*1.4;
+  X.fillStyle='#fff';X.fillRect(cx-5,hy-1,4,4);X.fillRect(cx+2,hy-1,4,4);
+  X.fillStyle='#111';X.fillRect(cx-4+eshift,hy,2,2);X.fillRect(cx+3+eshift,hy,2,2);
+  /* zarost — kropki */
+  X.fillStyle='rgba(30,25,20,.5)';for(let i=0;i<6;i++)X.fillRect(cx-6+i*2.2,hy+6,1,1);
+  /* beanie */
+  X.fillStyle='#3a2f28';X.fillRect(cx-10,hy-11,20,7);X.fillStyle='#4a3d33';X.fillRect(cx-10,hy-11,20,2);
+  /* emoji nad głową */
+  X.font='16px Arial';X.textAlign='center';X.fillText('🎧',sx+w/2,sy-4+jit*0.5);X.textAlign='left';
 }
 
 function drawCypher(sx,sy,w,h){
@@ -16204,6 +16365,7 @@ function _blockedByCarEnter(id){
    body (memory: fixed+scale → musi być w body). Klucze = realne ROOMS id. */
 const ROOM_INTROS = {
   studio:'🎙 Studio — tu nagrywasz utwory (beat → wokal → mix), tworzysz bity i rozwijasz karierę muzyczną.',
+  piwnica:'🎧 Piwnica Producenta — surowe, undergroundowe studio. Podejdź do producenta (E) i nagraj kawałek za opłatą: bit, wokal, miks. Jakość gorsza niż w pro-studiu, ale lepsza niż nagranie w domu.', /* v2.3.105 (user) */
   silownia:'🏋 Siłownia — ćwicz siłę i kondycję. Lepsza forma = szybszy ruch po mieście i wyższe statystyki.',
   sala:'🎤 Sala Koncertowa — tu grasz koncerty (wymagają sławy i mikrofonu). Główne źródło fanów i kasy.',
   casino:'🎰 Kasyno — gry hazardowe. Szybka kasa albo szybka strata — graj z głową.',
@@ -25361,6 +25523,33 @@ window.startCookingMG=startCookingMG;
 window.openCookingMenu=openCookingMenu;
 
 const NPC_DATA = {
+  /* v2.3.105 (user): Producent w Piwnicy — postać „crackheada", nerwowa/gadatliwa, ale zna się na bitach.
+     Prowadzi nagrania za opłatą (panel renderPiwnicaStudio). Tier pośredni: lepszy niż traphouse, gorszy niż studio. */
+  piwnicaProducer: {
+    name:'🎧 Ziutek — producent z piwnicy',
+    lines: [
+      'Ej, ej… masz kasę? To siadaj, nagramy coś grubego, tylko szybko, bo mnie nosi.',
+      'Te bity… ja je czuję w kościach, ziom. Za odpowiednią cenę dam ci najgrubszy.',
+      'Nie patrz tak na te ściany, to tylko wilgoć. Skupiamy się na muzie, nie?',
+      'Studio to studio, ale tu, w piwnicy, jest DUSZA. I mysz. Ale głównie dusza.',
+    ],
+    opts: [
+      {text:'🎙️ Nagraj kawałek (bity / wokal / miks u producenta)', fn:()=>{
+        closeNPCDlg();
+        if(typeof window.renderPiwnicaStudio==='function') window.renderPiwnicaStudio();
+        else if(typeof showMsg==='function') showMsg('🎙️ Producent szykuje sprzęt… spróbuj za chwilę.','i',3000);
+      }},
+      {text:()=>`💬 Pogadaj o ulicy (+respekt undergroundu)`, cond:()=>true, fn:()=>{
+        if(G._lastPiwnicaTalkDay===G.day){showMsg('🎧 Ziutek już się dziś wygadał. Wróć jutro.','r',3000);closeNPCDlg();return;}
+        G._lastPiwnicaTalkDay=G.day;
+        G._underworldRespect=Math.min(100,(G._underworldRespect||0)+2);
+        if(typeof addXP==='function') addXP(6);
+        closeNPCDlg();
+        if(typeof notify==='function') notify('🌑 Pogadałeś z Ziutkiem — +2 respekt undergroundu, +XP');
+      }},
+      {text:'Wyjdź', fn:()=>{ closeNPCDlg(); }},
+    ],
+  },
   fan: {
     name:'😊 Twój fan',
     lines: [
@@ -28459,6 +28648,7 @@ function renderHomeStudioCard(){
     <h3>🎙 Home Studio <span style="font-size:10px;color:#9b59b6">${aptName}</span></h3>
     <p>Nagraj demo we własnym pokoju. Jakość: <strong style="color:#9b59b6">${(mult*100).toFixed(0)}%</strong> tego, co dałoby pro studio.</p>
     <p style="font-size:11px;color:#ff8c44;margin:4px 0">🟠 Demo trafia na <strong>EchoDrop</strong> — łatwy start, ale małe zarobki (30% streamów, 20% royalty vs DAW). Pełny pipeline w studio = Loopify/AurumWave i inne platformy premium.</p>
+    ${(typeof window._micPickerHTML==='function'?window._micPickerHTML('openComputerMenu()'):'')}
     <div class="cost">${usedToday?'Wykorzystano dzisiaj — wróć jutro':'Energia: -10 · Czas: ~2h gry'}</div>
     <button class="dbtn" ${usedToday||G.energy<10?'disabled':''} onclick="closeOverlay();setTimeout(()=>recordHomeDemo(),50)">${usedToday?'⏳ Jutro':'🟠 Nagraj demo → EchoDrop'}</button>
   </div>`;
@@ -33760,11 +33950,14 @@ function startVocalRecordMG(){
     cancelAnimationFrame(animId);
     try{window.removeEventListener('keydown',onSpace);}catch(_){}
     const _wasHomeDemo=G._homeDemoMode;
+    const _wasPiwnica=G._piwnicaVocalMode; /* v2.3.105 */
     G._dawVocalMode=false;
     G._homeDemoMode=false;
+    G._piwnicaVocalMode=false; /* v2.3.105 */
     panel.classList.remove('on');
     panel.style.display='none';
-    if(!_wasHomeDemo){renderSoundEngOverlay();openOverlay();}
+    if(_wasPiwnica){ if(typeof window.renderPiwnicaStudio==='function') window.renderPiwnicaStudio(); } /* v2.3.105: wróć do panelu producenta */
+    else if(!_wasHomeDemo){renderSoundEngOverlay();openOverlay();}
   };
   panel.append(title,sub,cv,info,bClose);
 
@@ -33900,6 +34093,22 @@ function startVocalRecordMG(){
       const _mgc = document.getElementById('mg-job-content');
       if(_mgc) _mgc.innerHTML='';
       if(typeof window._completeHomeDemo==='function') window._completeHomeDemo(quality);
+      return;
+    }
+    /* v2.3.105 (user): branch dla Piwnicy Producenta — realizacja wokali u producenta.
+       Jakość z mini-gry × mnożnik zaangażowania producenta (opłata 100/200 zł) → G._piwnicaTrack.vocalQ.
+       Wraca do panelu producenta (renderPiwnicaStudio), NIE do soundeng. */
+    if(G._piwnicaVocalMode){
+      panel.classList.remove('on');panel.style.display='none';
+      const _mgc=document.getElementById('mg-job-content'); if(_mgc)_mgc.innerHTML='';
+      G._piwnicaTrack=G._piwnicaTrack||{};
+      const _vm=(typeof G._piwnicaVocalMult==='number')?G._piwnicaVocalMult:0.8;
+      G._piwnicaTrack.vocalQ=clamp(Math.round(quality*_vm),8,90);
+      G._piwnicaVocalMode=false;
+      G.energy=clampStat('energy',(G.energy||0)-12);
+      addRaperXP(4);addXP(10);
+      if(typeof window.renderPiwnicaStudio==='function') window.renderPiwnicaStudio();
+      if(typeof updateHUD==='function') updateHUD();
       return;
     }
     const micQ2=G.mic?G.mic.quality:10;
@@ -34274,6 +34483,7 @@ function renderDAWOverlay(tab='beatmaker'){
     const micOk=!!G.mic;const dawOk=G.hasDaw;
     tabContent=`
       <p style="color:#aaa;font-size:13px;margin-bottom:12px">Nagraj wokal do swojego tracku. Wymaga mikrofonu.</p>
+      ${(typeof window._micPickerHTML==='function'?window._micPickerHTML("renderDAWOverlay('recording')"):'')}
       <div style="display:flex;gap:16px;justify-content:center;margin-bottom:16px">
         <div style="text-align:center;padding:14px;background:#0a1018;border-radius:8px;min-width:120px">
           <div style="font-size:32px">${micOk?'🎤':'❌'}</div>
@@ -37709,7 +37919,7 @@ function renderMusicShop(){
   /* v2.1.51 Amper: sekcja inwentarza mikrofonów — aktywuj / sprzedaj 50%. */
   if(!Array.isArray(G.micsOwned)) G.micsOwned=[];
   /* v2.1.68 Amper: węższy przycisk Sprzedaj, ellipsis nazwy, gameConfirm w sellMic. */
-  const _ownedRow=(item,emoji,activeRef,setFn,sellFn,extraInfo)=>{
+  const _ownedRow=(item,emoji,activeRef,setFn,sellFn,extraInfo,hideUse)=>{
     const isActive=activeRef && activeRef.name===item.name;
     const refund=Math.floor((item.price||0)*0.5);
     const _safeName=item.name.replace(/'/g,'&#39;');
@@ -37719,11 +37929,12 @@ function renderMusicShop(){
         <div style="color:${isActive?'#27ae60':'#aac'};font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${(typeof gearDisplayName==='function'?gearDisplayName(item.name):item.name)} ${isActive?'<span style="font-size:9px;background:#27ae6022;padding:1px 5px;border-radius:4px;color:#27ae60">AKTYWNY</span>':''}</div>
         <div style="color:#778;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${extraInfo}</div>
       </div>
-      ${!isActive?`<button class="bbtn" style="padding:3px 8px;font-size:11px;flex-shrink:0" onclick="${setFn}('${_safeName}')" title="Ustaw jako aktywny">Użyj</button>`:''}
+      ${(!isActive&&!hideUse)?`<button class="bbtn" style="padding:3px 8px;font-size:11px;flex-shrink:0" onclick="${setFn}('${_safeName}')" title="Ustaw jako aktywny">Użyj</button>`:''}
       <button class="bbtn" style="padding:3px 8px;font-size:11px;background:#3a1a1a;border-color:#5a2a2a;color:#e74c3c;flex-shrink:0" onclick="${sellFn}('${_safeName}')" title="Sprzedaj za ${refund.toLocaleString('pl')} zł (50% ceny)">💰 ${refund.toLocaleString('pl')}</button>
     </div>`;
   };
-  const ownedMicsList=G.micsOwned.length===0?'<p style="color:#99a;font-style:italic">Brak mikrofonów. Kup pierwszy poniżej.</p>':G.micsOwned.map(m=>_ownedRow(m,'🎤',G.mic,'setActiveMic','sellMic',`${m.type==='xlr'?'XLR':'USB'} · Jakość: ${m.quality}% · ${(m.price||0).toLocaleString('pl')} zł`)).join('');
+  /* v2.3.105 (user): wybór aktywnego MIKROFONU odbywa się teraz przy NAGRYWANIU (Studio DAW / Home Studio), nie w sklepie → hideUse=true (bez „Użyj"). Sprzedaż zostaje. */
+  const ownedMicsList=G.micsOwned.length===0?'<p style="color:#99a;font-style:italic">Brak mikrofonów. Kup pierwszy poniżej.</p>':G.micsOwned.map(m=>_ownedRow(m,'🎤',G.mic,'setActiveMic','sellMic',`${m.type==='xlr'?'XLR':'USB'} · Jakość: ${m.quality}% · ${(m.price||0).toLocaleString('pl')} zł`,true)).join('');
   document.getElementById('ov-content').innerHTML=`
     <h2>🎵 Sklep Muzyczny</h2><p class="sub">Sprzęt studyjny — każdy element wpływa na jakość nagrań.</p>
     ${(()=>{ /* v2.3.103 E1b: boostery kariery przeniesione tu ze sklepu spożywczego (pasują do sklepu muzycznego). */
@@ -37739,6 +37950,7 @@ function renderMusicShop(){
     ${micOk?`<div style="background:#0a1a2a;border:1px solid #1a3a5a;border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:14px;color:#aaa">Aktywny mikrofon: <b style="color:#7ec8e3">${gearDisplayName(G.mic.name)}</b> (${G.mic.type==='xlr'?'XLR':' USB'}, jakość ${micQ}%${G.mic.type==='xlr'?' × '+Math.round((G.audioInterface&&typeof G.audioInterface.ifMult==='number'?G.audioInterface.ifMult:0.3)*100)+'% interfejsu':''})</div>`:''}
     <div style="background:#0a1525;border:1px solid #1a3a5a;border-radius:8px;padding:10px 14px;margin-bottom:14px">
       <div style="color:#7ec8e3;font-weight:700;font-size:13px;margin-bottom:6px">🎒 Twoje mikrofony (${G.micsOwned.length})</div>
+      ${G.micsOwned.length>1?'<div style="color:#889;font-size:11px;margin-bottom:6px">🎙 Który mikrofon jest aktywny wybierasz teraz <b>przy nagrywaniu</b> (Studio DAW / Home Studio).</div>':''}
       ${ownedMicsList}
     </div>
     <h3 style="color:#9b59b6;margin-bottom:8px;font-size:15px">🛒 Mikrofony USB <span style="color:#667;font-size:12px">— działają bez interfejsu</span></h3>
@@ -40251,12 +40463,30 @@ window.buyMic=(name,type,quality,price)=>{
   renderMusicShop();
 };
 /* v2.1.51 Amper: setActiveMic, sellMic. */
-window.setActiveMic=(name)=>{
+window.setActiveMic=(name,skipRerender)=>{
   const m=(G.micsOwned||[]).find(x=>x.name===name);
   if(!m){showMsg('Nie posiadasz tego mikrofonu','r');return;}
   G.mic=m;
-  showMsg(`🎤 Aktywny mikrofon: ${m.name} (${m.quality}%)`);
-  if(typeof renderMusicShop==='function') renderMusicShop();
+  showMsg(`🎤 Aktywny mikrofon: ${typeof gearDisplayName==='function'?gearDisplayName(m.name):m.name} (${m.quality}%)`);
+  /* v2.3.105 (user): wybór mikrofonu odbywa się teraz PRZY NAGRYWANIU (Studio DAW / Home Studio), nie w sklepie.
+     skipRerender=true → wywołanie z panelu nagraniowego samo odświeży swój widok. */
+  if(!skipRerender && typeof renderMusicShop==='function') renderMusicShop();
+};
+/* v2.3.105 (user): reużywalny picker aktywnego mikrofonu — wstawiany do paneli NAGRANIA (DAW/Home).
+   reRenderJs = kod JS odświeżający panel po zmianie (np. "renderDAWOverlay('recording')"). */
+window._micPickerHTML=function(reRenderJs){
+  const mics=Array.isArray(G.micsOwned)?G.micsOwned:[];
+  const _rr=(reRenderJs||'').replace(/"/g,'&quot;');
+  if(!mics.length) return `<div style="background:#2a1010;border:1px solid #5a2a2a;border-radius:8px;padding:8px 12px;margin-bottom:12px;color:#e79">🎙 Brak mikrofonu — kup go w Sklepie Muzycznym, potem wybierzesz go tutaj przy nagrywaniu.</div>`;
+  const rows=mics.map(m=>{
+    const act=G.mic&&G.mic.name===m.name;
+    const sn=m.name.replace(/'/g,'&#39;');
+    return `<button class="bbtn" style="padding:5px 10px;font-size:12px;${act?'border-color:#27ae60;color:#27ae60;background:rgba(39,174,96,0.1)':''}" onclick="setActiveMic('${sn}',true);${_rr}">${act?'✅ ':''}${typeof gearDisplayName==='function'?gearDisplayName(m.name):m.name} <span style="color:#889;font-size:10px">${m.type==='xlr'?'XLR':'USB'} ${m.quality}%</span></button>`;
+  }).join('');
+  return `<div style="background:#0a1525;border:1px solid #1a3a5a;border-radius:8px;padding:8px 12px;margin-bottom:12px">
+    <div style="color:#7ec8e3;font-size:12px;font-weight:700;margin-bottom:6px">🎙 Mikrofon do nagrania <span style="color:#778;font-weight:400">— kliknij, by ustawić aktywny</span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">${rows}</div>
+  </div>`;
 };
 window.sellMic=(name)=>{
   if(!Array.isArray(G.micsOwned)) return;
@@ -42405,6 +42635,123 @@ window._piwnicaFinish=function(){
   if(typeof saveGameSilent==='function') saveGameSilent();
 };
 
+/* ═══════════════════════════════════════════════════════════════════
+   v2.3.105 (user): PIWNICA PRODUCENTA — panel nagraniowy u producenta (renderPiwnicaStudio).
+   Tier POŚREDNI (traphouse < PIWNICA < studio). Mechanika „jak w studio" ale OGRANICZONA:
+   bity KUPUJESZ u producenta (nie komponujesz), brak osobnego kroku tekstów, miks+master łączone,
+   wydanie tylko na EchoDrop (nie premium). Płacisz producentowi ZA KAŻDY etap.
+   ═══════════════════════════════════════════════════════════════════ */
+const _PIW_BEATS=[
+  {cost:500, q:55, name:'Ograny loop z dysku',   desc:'Stary, ale wpada w ucho.'},
+  {cost:1000,q:68, name:'Świeży beat',           desc:'Ziutek sklecił go w nocy.'},
+  {cost:1500,q:80, name:'Ekskluzywny beat',      desc:'Gruby bas urywa głowę.'},
+  {cost:2000,q:90, name:'Master beat',           desc:'Najlepszy, jaki ma w piwnicy.'},
+];
+const _PIW_VOX=[
+  {cost:100, mult:0.72, name:'Szybka realizacja',       desc:'Producent słucha jednym uchem.'},
+  {cost:200, mult:0.90, name:'Zaangażowana realizacja', desc:'Ziutek wchodzi w każdy take.'},
+];
+const _PIW_MIX=[
+  {cost:300, mix:66, master:62, name:'Podstawowy miks',       desc:'Wyrówna poziomy i tyle.'},
+  {cost:500, mix:84, master:80, name:'Pełny miks & master',   desc:'Producent siada na kilka godzin.'},
+];
+function _piwFinalQ(){
+  const t=G._piwnicaTrack||{};
+  const q=Math.round((t.beatQ||0)*0.30+(t.vocalQ||0)*0.28+(t.mixQ||0)*0.22+(t.masterQ||0)*0.20);
+  return Math.min(90,Math.max(0,q)); /* sufit 90 — poniżej studia (do 100) */
+}
+window.renderPiwnicaStudio=function(){
+  const _ov=document.getElementById('ov-content'); if(!_ov) return;
+  G._piwnicaTrack=G._piwnicaTrack||{beatQ:0,vocalQ:0,mixQ:0,masterQ:0,beatName:''};
+  const t=G._piwnicaTrack;
+  const money=(G.money||0);
+  const chip=(lbl,val)=>{const on=(val||0)>0;return `<span style="display:inline-block;padding:4px 10px;margin:2px;border-radius:20px;font-size:12px;background:rgba(${on?'46,204,113':'80,90,110'},0.14);border:1px solid rgba(${on?'46,204,113':'80,90,110'},0.35);color:${on?'#2ecc71':'#667'}">${lbl} ${val||0}%</span>`;};
+  const finalQ=_piwFinalQ();
+  const beatOK=(t.beatQ||0)>0, voxOK=(t.vocalQ||0)>0, mixOK=(t.mixQ||0)>0;
+  const beatBtns=_PIW_BEATS.map((b,i)=>{const cur=(t.beatQ===b.q);const dis=money<b.cost;return `<button class="dbtn" style="display:block;width:100%;text-align:left;margin:5px 0;padding:9px 12px;${cur?'border-color:#2ecc71;background:rgba(46,204,113,0.1)':''}${dis?'opacity:.5':''}" ${dis?'disabled':''} onclick="window._piwBuyBeat(${i})"><b>${b.name}</b> — ${b.q}% jakości <span style="float:right;color:#f1c40f">${b.cost} zł</span><br><span style="font-size:11px;color:#889">${b.desc}${cur?' · ✅ wybrany':''}</span></button>`;}).join('');
+  const voxBtns=_PIW_VOX.map((v,i)=>{const dis=!beatOK||money<v.cost;return `<button class="dbtn" style="display:block;width:100%;text-align:left;margin:5px 0;padding:9px 12px;${dis?'opacity:.5':''}" ${dis?'disabled':''} onclick="window._piwRecVocal(${i})"><b>${v.name}</b> <span style="float:right;color:#f1c40f">${v.cost} zł</span><br><span style="font-size:11px;color:#889">${v.desc} (nagrywasz na żywo — trafiaj w rytm)</span></button>`;}).join('');
+  const mixBtns=_PIW_MIX.map((m,i)=>{const dis=!voxOK||money<m.cost;return `<button class="dbtn" style="display:block;width:100%;text-align:left;margin:5px 0;padding:9px 12px;${dis?'opacity:.5':''}" ${dis?'disabled':''} onclick="window._piwMixMaster(${i})"><b>${m.name}</b> — miks ${m.mix}% / master ${m.master}% <span style="float:right;color:#f1c40f">${m.cost} zł</span><br><span style="font-size:11px;color:#889">${m.desc}</span></button>`;}).join('');
+  const relDis=!(beatOK&&voxOK&&mixOK);
+  _ov.innerHTML=`
+    <h2 style="color:#bb8fce;margin-bottom:2px">🎧 Piwnica Producenta — nagranie</h2>
+    <p style="color:#889;font-size:12px;margin:0 0 10px">Ziutek prowadzi sesję. Płacisz osobno za <b>bit</b>, <b>realizację wokali</b> i <b>miks/master</b>. Kawałek wychodzi na EchoDrop. Jakość gorsza niż w studiu, ale lepsza niż nagranie w domu.</p>
+    <div style="text-align:center;margin-bottom:10px">${chip('🎹 Beat',t.beatQ)}${chip('🎤 Wokal',t.vocalQ)}${chip('🎚️ Miks',t.mixQ)}${chip('🎛️ Master',t.masterQ)}<span style="display:inline-block;padding:4px 10px;margin:2px;border-radius:20px;font-size:12px;background:rgba(155,89,182,0.18);border:1px solid #9b59b6;color:#d2a8e8">⭐ Finał ~${finalQ}%</span></div>
+    <div style="background:rgba(20,12,30,0.5);border:1px solid #3a2a4a;border-radius:10px;padding:12px;margin-bottom:10px">
+      <div style="color:#e67e22;font-weight:700;margin-bottom:4px">① Wybierz bit <span style="font-size:11px;color:#778">(500–2000 zł — droższy = lepszy)</span></div>${beatBtns}
+    </div>
+    <div style="background:rgba(20,12,30,0.5);border:1px solid #3a2a4a;border-radius:10px;padding:12px;margin-bottom:10px;${beatOK?'':'opacity:.6'}">
+      <div style="color:#e091f0;font-weight:700;margin-bottom:4px">② Realizacja wokali <span style="font-size:11px;color:#778">(100–200 zł — zaangażowanie producenta)</span></div>${voxBtns}
+    </div>
+    <div style="background:rgba(20,12,30,0.5);border:1px solid #3a2a4a;border-radius:10px;padding:12px;margin-bottom:10px;${voxOK?'':'opacity:.6'}">
+      <div style="color:#3498db;font-weight:700;margin-bottom:4px">③ Miks i master <span style="font-size:11px;color:#778">(300–500 zł — skupienie producenta)</span></div>${mixBtns}
+    </div>
+    <button class="bbtn" style="width:100%;padding:12px;font-size:15px;background:linear-gradient(135deg,#8e44ad,#5b2c6f);color:#fff;${relDis?'opacity:.45':''}" ${relDis?'disabled':''} onclick="window._piwRelease()">🚀 Wydaj kawałek na EchoDrop (jakość ~${finalQ}%)</button>
+    <button class="cbtn" style="width:100%;margin-top:8px" onclick="closeOverlay()">← Zostaw na później</button>`;
+  if(typeof openOverlay==='function') openOverlay();
+};
+window._piwBuyBeat=function(idx){
+  const b=_PIW_BEATS[idx]; if(!b) return;
+  if((G.money||0)<b.cost){showMsg(`💸 Brakuje ${b.cost} zł na ten bit.`,'r',3200);return;}
+  G._piwnicaTrack=G._piwnicaTrack||{beatQ:0,vocalQ:0,mixQ:0,masterQ:0};
+  G.money-=b.cost; G._piwnicaTrack.beatQ=b.q; G._piwnicaTrack.beatName=b.name;
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof notify==='function') notify(`🎹 Bit od Ziutka: ${b.name} (${b.q}%) — -${b.cost} zł`);
+  window.renderPiwnicaStudio();
+};
+window._piwRecVocal=function(idx){
+  const v=_PIW_VOX[idx]; if(!v) return;
+  const t=G._piwnicaTrack||{};
+  if(!((t.beatQ||0)>0)){showMsg('🎹 Najpierw wybierz bit u producenta.','r',3000);return;}
+  if((G.money||0)<v.cost){showMsg(`💸 Brakuje ${v.cost} zł na realizację wokali.`,'r',3200);return;}
+  if((G.energy||0)<15){showMsg('⚡ Za mało energii (15) na sesję wokalną.','r',3200);return;}
+  G.money-=v.cost; G._piwnicaVocalMult=v.mult; G._piwnicaVocalMode=true;
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof closeOverlay==='function') closeOverlay();
+  if(typeof startVocalRecordMG==='function') startVocalRecordMG();
+  else { G._piwnicaVocalMode=false; showMsg('🎤 Sprzęt się grzeje — spróbuj ponownie.','i',2500); window.renderPiwnicaStudio(); }
+};
+window._piwMixMaster=function(idx){
+  const m=_PIW_MIX[idx]; if(!m) return;
+  const t=G._piwnicaTrack||{};
+  if(!((t.vocalQ||0)>0)){showMsg('🎤 Najpierw nagraj wokal.','r',3000);return;}
+  if((G.money||0)<m.cost){showMsg(`💸 Brakuje ${m.cost} zł na miks/master.`,'r',3200);return;}
+  G.money-=m.cost; G._piwnicaTrack.mixQ=m.mix; G._piwnicaTrack.masterQ=m.master;
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof notify==='function') notify(`🎚️ ${m.name} gotowy — -${m.cost} zł`);
+  window.renderPiwnicaStudio();
+};
+window._piwRelease=function(){
+  const t=G._piwnicaTrack||{};
+  if(!((t.beatQ||0)>0&&(t.vocalQ||0)>0&&(t.mixQ||0)>0)){showMsg('🎙️ Kawałek niedokończony — potrzebny bit, wokal i miks.','r',3500);return;}
+  const finalQ=_piwFinalQ();
+  const trackNum=(G.studioTracks||[]).length+1;
+  const name=`[PIWNICA] Singiel #${trackNum}`;
+  const streams=Math.floor((30+(G.followers||0)*0.25)*(finalQ/100+0.25)*rnd(85,120)/100);
+  const royalties=Math.floor(streams*0.003*(G.distributor?G.distributor.royaltyPct/100:0.8));
+  /* Piwnica = tier pośredni: 55% streamów / 45% royalty na EchoDrop (lepiej niż home demo 30%/20%, gorzej niż pełne studio). */
+  const _scStreams=Math.floor(streams*0.55);
+  const _scRoy=Math.floor(royalties*0.45);
+  G.studioTracks=G.studioTracks||[];
+  G.studioTracks.push({name,quality:finalQ,streams:_scStreams,royalties:_scRoy,releaseDay:G.day,genre:'trap',platform:'soundcloud',piwnica:true});
+  G.soundcloud=G.soundcloud||{listeners:0,streams:0,royalties:0,tracksUploaded:0};
+  G.soundcloud.listeners+=Math.floor(_scStreams*0.08); G.soundcloud.streams+=_scStreams; G.soundcloud.tracksUploaded=(G.soundcloud.tracksUploaded||0)+1;
+  if(G.careers&&G.careers.raper) G.careers.raper.tracks=(G.careers.raper.tracks||0)+1;
+  const fans=Math.floor(streams*0.012); G.followers=(G.followers||0)+fans;
+  if(typeof addFame==='function') addFame(1); else G.fame=clamp((G.fame||0)+1,0,500);
+  G._underworldRespect=Math.min(100,(G._underworldRespect||0)+4);
+  if(typeof earn==='function') earn(_scRoy,false); else { G.money=(G.money||0)+_scRoy; }
+  if(G.playerCrew && typeof window._crewAddProgress==='function'){try{window._crewAddProgress('record_tracks',1);}catch(e){}}
+  if(typeof addRaperXP==='function') addRaperXP(8); if(typeof addXP==='function') addXP(20);
+  G._piwnicaTrack={beatQ:0,vocalQ:0,mixQ:0,masterQ:0,beatName:''};
+  if(typeof checkAchievements==='function') checkAchievements();
+  if(typeof checkStoryline==='function') checkStoryline();
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof closeOverlay==='function') closeOverlay();
+  if(typeof showMilestoneCinematic==='function') showMilestoneCinematic({emoji:'🎙',title:'KAWAŁEK Z PIWNICY',subtitle:name,tagline:`Jakość ${finalQ}/100 · ${_scStreams.toLocaleString('pl')} streamów · +${_scRoy.toLocaleString('pl')} zł · +${fans} fanów · +4 🌑 respekt`,accentColor:'#9b59b6',accent2:'#0a0a1a',duration:5200});
+  else showMsg(`🎙 Wydano ${name} — jakość ${finalQ}%, +${_scRoy} zł, +${fans} fanów`,'g',4000);
+};
+
 /* v2.1.483 Coast Marina choice — yacht event 3 poziomy. */
 /* v2.1.527 MARINA REDESIGN (user: coast click=nagroda): networking na jachcie —
    VIP-goście podchodzą, wybierz właściwą zagrywkę konwersacyjną (1 trafna z 3). Trafione kontakty = sława/obserwujący/deale. */
@@ -43600,11 +43947,12 @@ window._enterDistrictPlace=(districtId,placeId)=>{
       if(typeof window._startSmolarniaChoice==='function'){window._startSmolarniaChoice();return;}
       return; /* v2.1.516 fix: stop fall-through do underground_piwnica */
     case 'underground_piwnica':
-      /* v2.1.484 USER FEEDBACK: takes choice MG zamiast click=instant. */
-      if(!G.mic||G.mic.quality<10){showMsg('🎙️ Potrzebujesz mikrofonu (sklep muzyczny).','r',4000);return;}
-      if(G._lastPiwnicaDay===G.day){showMsg('🎙️ Już dziś nagrałeś u Producenta.','r',3500);return;}
+      /* v2.3.105 (user): Piwnica = pełnoprawny budynek do WEJŚCIA (ROOMS.piwnica). Nagrywanie u producenta-NPC
+         w środku (bity/wokal/miks). Wejście bez bramek — sam producent decyduje o wymaganiach nagrania.
+         (Stary daily click-mini-game `_startPiwnicaTakes` zastąpiony pełnym wnętrzem.) */
       if(typeof closeOverlay==='function') closeOverlay();
-      if(typeof window._startPiwnicaTakes==='function'){window._startPiwnicaTakes();return;}
+      if(typeof startRoomFade==='function'){ startRoomFade('piwnica',640,520); }
+      else if(typeof changeRoom==='function'){ changeRoom('piwnica',640,520); }
       return;
     /* ── COAST ── */
     case 'coast_spa':
@@ -59321,6 +59669,9 @@ const PATCH_NOTES = [
   {t:'ui',d:'🅿️ Parking w Underground jest teraz większy i sięga równo do krawędzi chodników (nie zostawia już brzydkiej luki i nie zachodzi na chodnik) — więcej miejsc i porządniejszy układ.'},
   {t:'ui',d:'🛣️ Ulica w Underground jest wreszcie kompletna — dorysowaliśmy pionową jezdnię, więc teraz mamy pełne skrzyżowanie (poziomo + pionowo) zamiast tylko jednej połowy drogi. Auta trzymają się teraz jezdni i nie muskają już chodnika.'},
   {t:'ui',d:'🛤️ Droga szutrowa na rubieżach jest większa i porządniejsza — płynnie łączy się z asfaltową ulicą (widać, jak z ulicy zjeżdża się na szuter) i rozgałęzia do wszystkich miejsc na obrzeżach: baraków, slumsów, Plantacji, Zajazdu i Kampera.'},
+  {t:'new',d:'🎧 Piwnica Producenta to teraz pełnoprawny budynek — możesz do niej wejść i pochodzić po klimatycznej, undergroundowej piwnicy (beton, gołe rury, sprzęt, jedna żarówka). W środku czeka producent, u którego nagrasz kawałek: płacisz mu osobno za bit (im droższy, tym lepszy), realizację wokali i miks/master. Wokal nagrywasz na żywo, w rytm — jak w studiu, tylko skromniej.'},
+  {t:'ui',d:'🎚️ Nagrywanie ma teraz wyraźne poziomy: w domu (traphouse) najprościej i najsłabiej, w Piwnicy Producenta lepiej i z większymi możliwościami, a w prawdziwym studiu najlepiej. Piwnica to idealny krok pośredni, gdy stać cię już na coś więcej niż demo, ale jeszcze nie na własne studio.'},
+  {t:'ui',d:'🎙 Wybór aktywnego mikrofonu przenieśliśmy tam, gdzie ma sens — prosto do panelu nagrywania (Studio DAW i Home Studio). W sklepie muzycznym dalej kupujesz i sprzedajesz sprzęt, ale to, na który mikrofon właśnie nagrywasz, ustawiasz teraz przy samym nagraniu.'},
  ]
  },
  {
@@ -73499,6 +73850,7 @@ function loadGame(){
   if(typeof G._lbLastHintDay!=='number') G._lbLastHintDay=0;
   /* v2.1.354 Strumień A audit (Faza M Round 2): _homeDemoMode FLAG STUCK edge case — jeśli crash mid recordHomeDemo (po L14904 set true, przed L14918 reset false) + auto-save 30s zdąży → stary save ma stale true → następny vocal MG → finishVocal capture _wasHomeDemo=true → niezamierzony _completeHomeDemo flow (BAD: nadgeneracja demo track + bonus payouts bez recordHomeDemo akcji). Defensive: reset false on load. */
   G._homeDemoMode=false;
+  G._piwnicaVocalMode=false; /* v2.3.105: analogiczny reset stale flag Piwnicy (crash mid-sesja → stale true) */
   /* v2.1.354 Strumień A audit (Faza AA Round 2): _stunUntilT stale value z prev session. Jeśli stary save miał active stun → load → cond > Date.now() depending on system time. Defensive: reset 0 on load. */
   if(typeof G._stunUntilT==='number' && G._stunUntilT < Date.now()) G._stunUntilT=0;
   /* v2.1.365 Faza A TIER 5: defensive init dzielnic save schema. */
