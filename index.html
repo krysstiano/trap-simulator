@@ -59372,7 +59372,9 @@ function updateQuestWidget(){
 // ═══════════════════════════════════════════════════════════════════
 function openOverlay(){
   const ov=document.getElementById('overlay');
+  const _wasOpen=ov.classList.contains('on');
   ov.classList.add('on');
+  if(!_wasOpen) ov.scrollTop=0; /* v2.3.107: ŚWIEŻE otwarcie zaczyna od góry (re-render z .on już ustawionym NIE resetuje scrolla — sklep po kupnie zostaje) */
   // v1.8.20: ambient particles w tle dużych overlay'i (kasyno/studio/itp.)
   try{
     if(!ov.querySelector('.ambient-bg-particles')){
@@ -59399,10 +59401,12 @@ function openOverlay(){
     const _oc=document.getElementById('ov-content');
     if(_oc){
       requestAnimationFrame(()=>{ try{
+        if(!ov.classList.contains('on')) return; /* zamknięto zanim klatka wypadła */
         const _cv=_oc.querySelector('canvas');
         if(_cv && _cv.offsetHeight>60){ _cv.scrollIntoView({block:'center',inline:'nearest'}); }
-        else { ov.scrollTop=0; }
       }catch(_){} });
+      /* reset pozycji przewijania robimy przy ZAMYKANIU (closeOverlay), nie na re-renderze — inaczej akcje w sklepie
+         (kup → re-render+openOverlay) przewijałyby użytkownika do góry. */
     }
   }catch(_){}
 }
@@ -59430,7 +59434,9 @@ function closeOverlay(){
   try{if(typeof window._activeCasinoFinalize==='function'){window._activeCasinoFinalize();}}catch(e){}
   // v1.8.53: zerujemy hook nawet jeśli finalize się wywaliło — uniknięcie ghost-callback'a
   window._activeCasinoFinalize=null;
-  document.getElementById('overlay').classList.remove('on');
+  const _ovEl=document.getElementById('overlay');
+  _ovEl.classList.remove('on');
+  _ovEl.scrollTop=0; /* v2.3.107: reset przewijania przy ZAMYKANIU → następne otwarcie zawsze świeże (nie dziedziczy scrolla po grze kasyna) */
   document.getElementById('ov-content').innerHTML='';
   /* B1/B2 (PDF v2.3.45): jeśli overlay otwarto z MENU (Patch Notes / Sterowanie) — przywróć
      menu i HUD niezależnie od ścieżki zamknięcia (globalny Esc handler też woła closeOverlay). */
