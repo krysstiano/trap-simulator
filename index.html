@@ -36714,7 +36714,7 @@ function renderFoodShop(){
     <div id="food-tab-extras" style="display:none">
       <p style="font-size:11px;color:#667;margin-bottom:8px">Przedmioty użytkowe — trafiają do 🎒 ekwipunku, użyjesz je gdziekolwiek (klawisz I). Energetyk Pro daje czasowy bonus do zarobków.</p>
       <div class="shopgrid">
-        ${ITEM_CATALOG.filter(i=>i.kind==='consumable').map(c=>{
+        ${ITEM_CATALOG.filter(i=>i.kind==='consumable' && !i.venue).map(c=>{ /* v2.3.103 E1b: boostery kariery (venue) sprzedawane w Sklepie Muzycznym, nie tu */
           const have=(G.inventory||[]).find(i=>i.id===c.id&&i.type==='item');
           return `<div class="sitem"><h3>${window._shopIco(c.emoji)} ${c.name}</h3>
             <p style="font-size:11px;color:#8ad">${c.desc||''}</p>
@@ -37080,9 +37080,11 @@ const ITEM_CATALOG=[
   /* v2.1.632: consumable z buffami czasowymi na progresję (fani/XP/sława) — analog Energetyk Pro (income). */
   /* v2.3.103 (user: „bonusy wielokrotnie za tanie = game-breaker; limit raz/3 dni; działanie całą dobę nie ~12 min"):
      ceny ×10 (fame/fani/XP = rdzeń progresji), durSec 750→900 (pełna doba w grze), cooldownDays:3 (raz na 3 dni gry). */
-  {id:'vip_pass',kind:'consumable',name:'Wejściówka VIP',emoji:'🎟️',price:2800,cooldownDays:3,buff:{type:'fans',mult:1.30,durSec:900},desc:'+30% fanów ze wszystkich występów przez cały dzień w grze (limit: raz na 3 dni)'},
-  {id:'master_course',kind:'consumable',name:'Kurs mistrzowski',emoji:'📚',price:3000,cooldownDays:3,buff:{type:'xp',mult:1.50,durSec:900},desc:'+50% XP przez cały dzień w grze (limit: raz na 3 dni)'},
-  {id:'pr_session',kind:'consumable',name:'Sesja PR',emoji:'⭐',price:3500,cooldownDays:3,buff:{type:'fame',mult:1.30,durSec:900},desc:'+30% sławy przez cały dzień w grze (limit: raz na 3 dni)'},
+  /* v2.3.103 E1b (user: „Corner Basket to zły sklep na te bonusy"): venue:'music' → sprzedawane w Sklepie Muzycznym (BeatPoint),
+     nie w spożywczym — pasuje tematycznie (boostery kariery muzycznej), sklep ungated i dostępny. renderFoodShop je filtruje. */
+  {id:'vip_pass',kind:'consumable',venue:'music',name:'Wejściówka VIP',emoji:'🎟️',price:2800,cooldownDays:3,buff:{type:'fans',mult:1.30,durSec:900},desc:'+30% fanów ze wszystkich występów przez cały dzień w grze (limit: raz na 3 dni)'},
+  {id:'master_course',kind:'consumable',venue:'music',name:'Kurs mistrzowski',emoji:'📚',price:3000,cooldownDays:3,buff:{type:'xp',mult:1.50,durSec:900},desc:'+50% XP przez cały dzień w grze (limit: raz na 3 dni)'},
+  {id:'pr_session',kind:'consumable',venue:'music',name:'Sesja PR',emoji:'⭐',price:3500,cooldownDays:3,buff:{type:'fame',mult:1.30,durSec:900},desc:'+30% sławy przez cały dzień w grze (limit: raz na 3 dni)'},
   /* quest — przedmiot zadaniowy (nie sprzedasz/nie zużyjesz dowolnie; obsługiwany przez konkretną pętlę zadania). */
   {id:'rush_package',kind:'quest',name:'Pilna przesyłka',emoji:'📦',desc:'Dostarcz na następnej trasie kuriera 🚴'},
   /* material — składniki do wytwarzania (warsztat). Drop z prac dorywczych + rozbiórka przedmiotów kolekcjonerskich. */
@@ -37312,7 +37314,7 @@ window.openItemGuide=function(){
     <div style="font-size:11px;color:#778;text-align:center;margin-bottom:10px">Każdy przedmiot ma jasne źródło — działaj, by go zdobyć.</div>
     ${cat('🔧','Składniki (do warsztatu)','• <b>Praca dorywcza</b> — czasem trafiasz składnik (~co 3. zlecenie).<br>• <b>Występy i koncerty</b> — ~co 4. występ daje składnik (rzadki 🔌 mikroczip TYLKO tutaj).<br>• <b>Spacer po mieście</b> — czasem coś leży na ulicy.<br>• <b>Rozbiórka ♻️</b> — rozbierz akcesoria/kolekcjonerskie na składniki (w ekwipunku).')}
     ${cat('⚙️','Akcesoria (bonusy — zakładane)','• <b>Warsztat 🔨</b> — wytwórz prawie każde akcesorium ze składników.<br>• <b>Rzadkie znalezisko</b> — czasem na ulicy trafisz gotowe akcesorium.<br>• <b>Nagroda za logowanie</b> — 🎖️ Medal Lojalności za 7 dni z rzędu (tylko tak go zdobędziesz!).')}
-    ${cat('🧪','Zużywalne (buffy czasowe)','• <b>Sklep spożywczy</b> → zakładka „🧪 Artykuły" (Energetyk Pro, kursy, sesje PR itp.).')}
+    ${cat('🧪','Zużywalne (buffy czasowe)','• <b>Sklep spożywczy</b> → zakładka „🧪 Artykuły" (Energetyk Pro, witaminy, relaks). • <b>Sklep Muzyczny</b> → „🎯 Boostery kariery" (Wejściówka VIP, Kurs mistrzowski, Sesja PR).')}
     ${cat('💎','Kolekcjonerskie (na sprzedaż)','• <b>Znaleziska na ulicy</b> podczas spaceru po mieście.<br>• Sprzedasz w <b>Lombardzie</b> (Underground) albo rozbierzesz na składniki ♻️.')}
     ${cat('👗','Ubrania i plecaki','• <b>Sklep z ubraniami</b> — stroje (drip + bonusy) i plecaki (więcej miejsca). Przebierasz się tu, w ekwipunku.')}
     ${cat('📦','Przedmioty zadaniowe','• Z <b>misji i wątków fabularnych</b> (np. „Pilna przesyłka" od kuriera).')}
@@ -37667,6 +37669,16 @@ function renderMusicShop(){
   const ownedMicsList=G.micsOwned.length===0?'<p style="color:#99a;font-style:italic">Brak mikrofonów. Kup pierwszy poniżej.</p>':G.micsOwned.map(m=>_ownedRow(m,'🎤',G.mic,'setActiveMic','sellMic',`${m.type==='xlr'?'XLR':'USB'} · Jakość: ${m.quality}% · ${(m.price||0).toLocaleString('pl')} zł`)).join('');
   document.getElementById('ov-content').innerHTML=`
     <h2>🎵 Sklep Muzyczny</h2><p class="sub">Sprzęt studyjny — każdy element wpływa na jakość nagrań.</p>
+    ${(()=>{ /* v2.3.103 E1b: boostery kariery przeniesione tu ze sklepu spożywczego (pasują do sklepu muzycznego). */
+      const boosts=ITEM_CATALOG.filter(i=>i.kind==='consumable'&&i.venue==='music');
+      if(!boosts.length) return '';
+      return `<div style="background:#0e1a10;border:1px solid #1e4a2a;border-radius:10px;padding:12px 14px;margin-bottom:14px">
+        <div style="color:#7ec87e;font-weight:800;font-size:14px;margin-bottom:4px">🎯 Boostery kariery</div>
+        <div style="color:#99a;font-size:11px;margin-bottom:9px">Czasowe wzmocnienia kariery — działają cały dzień w grze, limit raz na 3 dni.</div>
+        <div class="shopgrid">${boosts.map(c=>{ const have=(G.inventory||[]).find(i=>i.id===c.id&&i.type==='item');
+          return `<div class="sitem"><h3>${window._shopIco(c.emoji)} ${c.name}</h3><p style="font-size:11px;color:#8ad">${c.desc||''}</p><div class="pr">${c.price.toLocaleString('pl')} zł</div>${have?`<div style="color:#27ae60;font-size:11px">W ekwipunku: ${have.qty} szt.</div>`:''}<button class="bbtn" style="background:#1a5a4a" onclick="window.buyConsumable('${c.id}')" ${G.money<c.price?'disabled':''}>🎒 Kup do ekwipunku</button></div>`;}).join('')}</div>
+      </div>`;
+    })()}
     ${micOk?`<div style="background:#0a1a2a;border:1px solid #1a3a5a;border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:14px;color:#aaa">Aktywny mikrofon: <b style="color:#7ec8e3">${G.mic.name}</b> (${G.mic.type==='xlr'?'XLR':' USB'}, jakość ${micQ}%${G.mic.type==='xlr'?' × '+Math.round((G.audioInterface?G.audioInterface.ifMult:0.3)*100)+'% interfejsu':''})</div>`:''}
     <div style="background:#0a1525;border:1px solid #1a3a5a;border-radius:8px;padding:10px 14px;margin-bottom:14px">
       <div style="color:#7ec8e3;font-weight:700;font-size:13px;margin-bottom:6px">🎒 Twoje mikrofony (${G.micsOwned.length})</div>
@@ -59213,6 +59225,7 @@ const PATCH_NOTES = [
   {t:'ui',d:'🎙️ Studio nagraniowe: plakat „LIVE FEST" nie zasłania już głośnika monitorującego, a podpis na interfejsie audio nie chowa się pod krzesłem — układ studia jest czytelniejszy.'},
   {t:'ui',d:'💡 Poradnik na dole ekranu jest teraz nieco większy po rozwinięciu (większa ikona, tytuł i odstępy) — wskazówki czyta się wygodniej. Zwinięty pasek pozostaje mały.'},
   {t:'balance',d:'💸 Wzmocnienia kariery (Wejściówka VIP, Kurs mistrzowski, Sesja PR) były wielokrotnie za tanie i psuły balans. Teraz kosztują znacznie więcej (2800–3500 zł), za to działają przez cały dzień w grze (zamiast ~12 minut) i można ich użyć najwyżej raz na 3 dni w grze.'},
+  {t:'change',d:'🎯 Te wzmocnienia kariery kupisz teraz w Sklepie Muzycznym, w sekcji „Boostery kariery" — pasują tam lepiej niż do sklepu spożywczego. W spożywczym zostają przekąski, napoje i witaminy.'},
   {t:'fix',d:'🖤 Naprawiliśmy zgłoszony błąd, przez który po umówieniu „Spotkania" lub „Towarzysza na wieczór" w Nocnym zaułku ekran robił się czarny i wyglądał, jakby gra się zawiesiła — nic nie było widać i nic się nie działo. Teraz na czarnym ekranie pojawia się napis „Wieczór trwa…", scena jest wyraźnie krótsza, a w każdej chwili możesz kliknąć, żeby ją pominąć i od razu zobaczyć skutki wieczoru. Ekran już nigdy nie zostaje czarny na stałe.'},
   {t:'change',d:'🌙 Nocny zaułek w Underground jest teraz czynny dłużej — do 05:00 (wcześniej zamykał się o 03:00).'},
  ]
