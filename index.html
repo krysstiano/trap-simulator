@@ -8273,21 +8273,22 @@ function drawElevatorFloorBtn(sx,sy,w,h,emoji,label,color,reqWon,reqFame){
   /* label */
   X.font='bold 12px Arial,sans-serif';X.textAlign='center';X.textBaseline='middle';X.strokeStyle='#0a0010';X.lineWidth=2;X.lineJoin='round';X.miterLimit=2;
   const ly=Math.round(sy+h*0.45);X.strokeText(label,cxR,ly);X.fillStyle=color;X.fillText(label,cxR,ly);
-  /* pasek helper */
-  const _bar=(by,prog,txt)=>{ const barX=Math.round(sx+8),barW=w-16,barH=13,bY=Math.round(by);
+  /* pasek helper — v2.3.104 (user: napisy nieostre): etykieta (kwota) NAD paskiem na CIEMNYM tle guzika
+     (biały tekst na ciemnym = ostry, wysoki kontrast) zamiast biały-na-jasnym-pasku (nieczytelny/rozmyty). Pasek = czysty wskaźnik postępu. */
+  const _bar=(by,prog,txt)=>{ const barX=Math.round(sx+8),barW=w-16,barH=9,bY=Math.round(by);
+    X.font='bold 11px Arial,sans-serif';X.textAlign='center';X.textBaseline='alphabetic';X.strokeStyle='rgba(0,0,0,.95)';X.lineWidth=2.5;X.lineJoin='round';X.miterLimit=2;
+    const tY=Math.round(bY-3);X.strokeText(txt,cxR,tY);X.fillStyle='#fff';X.fillText(txt,cxR,tY);
     X.fillStyle='#0a0a14';X.fillRect(barX,bY,barW,barH);X.strokeStyle=color;X.lineWidth=1;X.strokeRect(barX+.5,bY+.5,barW-1,barH-1);
     const fg=X.createLinearGradient(barX,bY,barX+barW,bY);fg.addColorStop(0,'#27ae60');fg.addColorStop(.5,'#f1c40f');fg.addColorStop(1,color);
-    X.fillStyle=fg;X.fillRect(barX+1,bY+1,(barW-2)*Math.min(1,prog),barH-2);
-    X.font='bold 10px Arial,sans-serif';X.textAlign='center';X.textBaseline='middle';X.strokeStyle='rgba(0,0,0,.9)';X.lineWidth=2;X.lineJoin='round';
-    const ty=Math.round(bY+barH/2);X.strokeText(txt,cxR,ty);X.fillStyle='#fff';X.fillText(txt,cxR,ty); };
+    X.fillStyle=fg;X.fillRect(barX+1,bY+1,(barW-2)*Math.min(1,prog),barH-2); };
   if(unlocked){
     X.font='bold 13px Arial,sans-serif';X.textAlign='center';X.textBaseline='middle';X.strokeStyle='#0a0010';X.lineWidth=3;X.lineJoin='round';X.miterLimit=2;
     const oy=Math.round(sy+h*(twoBar?0.74:0.72));X.strokeText('✓ ODBLOKOWANE',cxR,oy);X.fillStyle='#ffd700';X.fillText('✓ ODBLOKOWANE',cxR,oy);
   } else if(twoBar){
-    _bar(sy+h*0.58, won/reqWon, `${won.toLocaleString('pl')} / ${reqWon.toLocaleString('pl')} zł`);
-    _bar(sy+h*0.75, fame/reqFame, `⭐ ${fame} / ${reqFame} sławy`);
+    _bar(sy+h*0.60, won/reqWon, `${won.toLocaleString('pl')} / ${reqWon.toLocaleString('pl')} zł`);
+    _bar(sy+h*0.80, fame/reqFame, `⭐ ${fame} / ${reqFame} sławy`);
   } else {
-    _bar(sy+h*0.7, won/reqWon, `${won.toLocaleString('pl')} / ${reqWon.toLocaleString('pl')} zł`);
+    _bar(sy+h*0.73, won/reqWon, `${won.toLocaleString('pl')} / ${reqWon.toLocaleString('pl')} zł`);
   }
   X.font='bold 10px Arial,sans-serif';X.textAlign='center';X.textBaseline='middle';X.strokeStyle='rgba(0,0,0,.85)';X.lineWidth=1.5;X.lineJoin='round';
   const hy=Math.round(sy+h-9), htxt=unlocked?'Wjedź!':'Zdobądź wymóg';
@@ -59294,6 +59295,12 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.104',date:'2026-07-02',cats:['beta-tester','fix'],title:'🛗 Czytelniejsze napisy w windzie kasyna',
+ items:[
+  {t:'fix',d:'🛗 W windzie kasyna kwoty wymagane do odblokowania wyższych pięter (np. „280 000 / 500 000 zł" oraz „181 / 300 sławy") były małe i nieostre — biały tekst zlewał się z kolorowym paskiem postępu. Teraz kwoty wyświetlają się wyraźnie NAD paskiem, na ciemnym tle — od razu widać, ile jeszcze brakuje do kolejnego piętra.'},
+ ]
+ },
  {
  ver:'v2.3.103',date:'2026-07-02',cats:['beta-tester','fix','change'],title:'🛠️ Poprawki zgłoszone podczas testów — interakcje, dzielnice i klimat',
  items:[
