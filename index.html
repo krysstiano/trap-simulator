@@ -11271,7 +11271,8 @@ function drawTrees(){
   }
 }
 
-function drawLamp(lx,wyPos,isNight){
+function drawLamp(lx,wyPos,isNight,glowR){
+  glowR=glowR||130; /* v2.3.107: promień poświaty na ziemi (mniejszy gdy blisko jezdni — nie rozlewa się na ulicę) */
   const sx=wx2sx(lx),sy=wy2sy(wyPos);
   if(sx<-20||sx>1300)return;
   X.fillStyle='#2a2a2a';X.fillRect(sx-3,sy-85,6,85);
@@ -11280,11 +11281,11 @@ function drawLamp(lx,wyPos,isNight){
   X.beginPath();X.ellipse(sx,sy-83,13,6,0,0,Math.PI*2);X.fill();
   if(isNight){
     // Duża poświata na ziemi
-    const grd=X.createRadialGradient(sx,sy,0,sx,sy,130);
+    const grd=X.createRadialGradient(sx,sy,0,sx,sy,glowR);
     grd.addColorStop(0,'rgba(255,210,80,.13)');
     grd.addColorStop(.5,'rgba(255,200,60,.06)');
     grd.addColorStop(1,'rgba(255,180,50,0)');
-    X.fillStyle=grd;X.beginPath();X.arc(sx,sy,130,0,Math.PI*2);X.fill();
+    X.fillStyle=grd;X.beginPath();X.arc(sx,sy,glowR,0,Math.PI*2);X.fill();
     // Poświata wokół klosza latarni
     const lamp=X.createRadialGradient(sx,sy-83,0,sx,sy-83,22);
     lamp.addColorStop(0,'rgba(255,240,160,.95)');
@@ -11308,9 +11309,14 @@ function drawLamps(){
     {wx:2412, wy:1870},  // Drip North landmark (chodnik V2 wsch × chodnik N H2)
   ];
   // F+ Walidacja: pomiń pozycje na jezdni (zgodnie z PLAN_SESJA "PAMIĘTAĆ ŻEBY NIE STAŁY NA ULICY")
+  /* v2.3.107 (user swiatlo.png: „zepsute światło na środku ulicy"): 130px poświata na ziemi rozlewała się na
+     sąsiednią jezdnię, bo walidacja _isOnRoad sprawdzała tylko punkt bazowy. Jeśli w promieniu poświaty jest
+     jezdnia → zmniejsz promień, by światło zostało na chodniku (nie na środku drogi). */
+  const _glowDirs=[[95,0],[-95,0],[0,95],[0,-95],[70,70],[-70,70],[70,-70],[-70,-70]];
   for(const lamp of SPECIAL_LAMPS){
     if(_isOnRoad(lamp.wx, lamp.wy)) continue;
-    drawLamp(lamp.wx, lamp.wy, isNight);
+    const _nearRoad=_glowDirs.some(([dx,dy])=>(typeof _isOnRoad==='function')&&_isOnRoad(lamp.wx+dx, lamp.wy+dy));
+    drawLamp(lamp.wx, lamp.wy, isNight, _nearRoad?60:130);
   }
 }
 
@@ -11941,11 +11947,16 @@ function drawNightGlows(){
      siedzą tuż nad jezdnią — ich stożek światła świecił NA DROGĘ. up:true → stożek kierowany w stronę chodnika (w górę). */
   const lampRows=[{wy:378,up:true},{wy:670},{wy:1918,up:true},{wy:2204},{wy:2878,maxX:3750,up:true},{wy:3164,maxX:3750}];
   const vRoadZones=[[768,960],[2208,2400],[3456,3648]];
+  /* v2.3.107 (user swiatlo.png: „zepsute światło DALEJ w innych miejscach"): rząd S H3 (wy3164) — fizyczne
+     słupy (streetLamps) pomijają fasady mieszkań (_aptFasadeGap), ale poświaty nocne tego NIE robiły →
+     świeciła poświata BEZ słupa pod spodem = „latające" zepsute światło. Synchronizacja tej samej luki. */
+  const _aptFasadeGap=[[1380,1720],[250,450],[3780,4020]];
   const now=Date.now();
   for(const row of lampRows){
     for(let x=160;x<4400;x+=400){
       if(row.maxX&&x>row.maxX)break;
       if(vRoadZones.some(([a,b])=>x>a-60&&x<b+60))continue;
+      if(row.wy===3164 && _aptFasadeGap.some(([a,b])=>x>=a-40&&x<=b+40))continue; /* v2.3.107: brak poświaty przed fasadą mieszkania (jak słupy) */
       const sx=wx2sx(x),sy=wy2sy(row.wy);
       if(sx<-120||sx>1400||sy<-120||sy>820)continue;
       const pulse=0.88+Math.sin(now*0.0018+x*0.013)*0.12;
@@ -59703,6 +59714,7 @@ const PATCH_NOTES = [
   {t:'ui',d:'🧍 Przechodnie w dzielnicach (Underground, Wybrzeże, dzielnica biznesowa) mają teraz większe, lepiej wyprofilowane głowy — wyglądają bardziej jak mieszkańcy centrum, a nie jak drobne figurki.'},
   {t:'fix',d:'🏢 W dzielnicy biznesowej Bank VIP, PR Agency i Steakhouse nie nachodzą już na chodniki — przesunęliśmy je tak, by stały równo obok chodników wzdłuż ulicy, a nie na nich.'},
   {t:'fix',d:'🖥️ Po wejściu w Ustawienia albo Nowości z menu głównego zniknęła brzydka pusta luka na górze ekranu — panel wypełnia teraz obszar od samej góry.'},
+  {t:'fix',d:'🔦 Poprawiliśmy oświetlenie uliczne nocą — poświata latarni nie rozlewa się już na środek jezdni, a przed blokami mieszkalnymi nie unosi się „latające" światło bez latarni pod spodem. Miasto po zmroku wygląda porządniej.'},
  ]
  },
  {
