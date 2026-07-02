@@ -59715,6 +59715,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'🏢 W dzielnicy biznesowej Bank VIP, PR Agency i Steakhouse nie nachodzą już na chodniki — przesunęliśmy je tak, by stały równo obok chodników wzdłuż ulicy, a nie na nich.'},
   {t:'fix',d:'🖥️ Po wejściu w Ustawienia albo Nowości z menu głównego zniknęła brzydka pusta luka na górze ekranu — panel wypełnia teraz obszar od samej góry.'},
   {t:'fix',d:'🔦 Poprawiliśmy oświetlenie uliczne nocą — poświata latarni nie rozlewa się już na środek jezdni, a przed blokami mieszkalnymi nie unosi się „latające" światło bez latarni pod spodem. Miasto po zmroku wygląda porządniej.'},
+  {t:'fix',d:'🚶 Przechodnie w dzielnicach (zwłaszcza w Underground) nie wchodzą już w budynki ani przez nie nie przenikają — napotykając budynek zawracają i go omijają, więc ruch po dzielnicy wygląda naturalniej.'},
  ]
  },
  {
@@ -75234,8 +75235,23 @@ function drawDistrictLife(){
     if(typeof _drawCarShape==='function') _drawCarShape(c.body, c.color);
     X.restore();
   }
+  /* v2.3.107 (user: „NPC underground przenikają przez budynki + chodzą zbyt losowo"): przechodnie tylko przesuwali
+     p.x bez żadnej kolizji → wchodzili w budynki. Dodana kolizja: gdy następny krok wchodzi w prostokąt budynku
+     na wysokości peda → zawróć i odejdź (bez przenikania). Budynki = obiekty pokoju z realną bryłą (w,h>60). */
+  const _bldgs=(ROOMS[room]&&Array.isArray(ROOMS[room].objects))?ROOMS[room].objects.filter(o=>o.w>60&&o.h>60&&!(''+o.id).startsWith('npc_')&&!(''+o.id).startsWith('exit')):[];
+  const _pedHitsBldg=(px,py)=>{ for(const o of _bldgs){ if(py>=o.wy-6 && py<=o.wy+o.h+6 && px+9>o.wx && px-9<o.wx+o.w) return true; } return false; };
+  const _pedInsideBldg=(px,py)=>{ for(const o of _bldgs){ if(py>o.wy-2 && py<o.wy+o.h+2 && px>o.wx-2 && px<o.wx+o.w+2) return o; } return null; };
   for(const p of districtPeds){
-    p.anim++; p.x+=p.dx;
+    p.anim++;
+    const _in=_pedInsideBldg(p.x,p.y);
+    if(_in){ /* ped w środku bryły (np. spawn na pasie przecinającym budynek) → wypchnij na najbliższą krawędź poziomą */
+      if((p.x-_in.wx)<(_in.wx+_in.w-p.x)){ p.x=_in.wx-11; p.dx=-Math.abs(p.dx||0.5); }
+      else { p.x=_in.wx+_in.w+11; p.dx=Math.abs(p.dx||0.5); }
+    } else {
+      const nx=p.x+p.dx;
+      if(_pedHitsBldg(nx,p.y)){ p.dx=-p.dx; p.x+=p.dx; } /* zawróć i odejdź (nie wchodź w budynek) */
+      else p.x=nx;
+    }
     if(p.x<40){ p.x=40; p.dx=Math.abs(p.dx); } else if(p.x>roomW-40){ p.x=roomW-40; p.dx=-Math.abs(p.dx); }
     _drawDistrictPed(p);
   }
