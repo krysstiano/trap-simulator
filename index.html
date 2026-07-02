@@ -3922,9 +3922,9 @@ function drawSprite(id,sx,sy,w,h){
     case 'pawnshop_underground':    drawPawnshop(sx,sy,w,h);break;
     case 'dealer_underground':      drawDealerSpot(sx,sy,w,h);break;
     case 'prostytutki_underground': drawBuilding(sx,sy,w,h,'#1a0612','Zaułek','#e91e8c','💋',true,{commercial:true});break; /* v2.1.920 PDF — dyskretny nocny zaułek */
-    case 'baraki_underground':      drawBuilding(sx,sy,w,h,'#3a3028','Baraki','#9a8a6a','🏚',true,{commercial:false});break; /* v2.3.102 (PDF #8-24): dolna część */
-    case 'slumsy_underground':      drawBuilding(sx,sy,w,h,'#332e28','Slumsy','#8a7a5a','🛖',true,{commercial:false});break;
-    case 'zajazd_underground':      drawBuilding(sx,sy,w,h,'#22402c','Zajazd','#7ec87e','🏕',true,{commercial:true});break;
+    case 'baraki_underground':      drawBaraki(sx,sy,w,h);break; /* v2.3.103: bogaty rysunek (było drawBuilding) */
+    case 'slumsy_underground':      drawSlumsy(sx,sy,w,h);break;
+    case 'zajazd_underground':      drawZajazd(sx,sy,w,h);break;
     /* v2.1.468 tier trap operations */
     case 'camper_underground':      drawCamper(sx,sy,w,h);break;
     case 'lab_underground':         drawLab(sx,sy,w,h);break;
@@ -10155,6 +10155,85 @@ function drawGravelLotHall(sx,sy,w,h){
   X.fillStyle='#141210'; X.fillRect(sx+w*0.1,sy+h*0.2,w*0.8,h*0.14);
   X.fillStyle='#e0c070'; X.font='bold 12px Arial'; X.textAlign='center';
   X.fillText('GRAVEL LOT', sx+w/2, sy+h*0.31); X.textAlign='left';
+}
+/* v2.3.103 (user: „baraki/slumsy/zajazd totalnie prymitywne"): bogate rysunki zamiast zwykłego drawBuilding. */
+function _ugShadow(sx,sy,w,h){ const _sh=[[10,12,.14],[7,9,.24],[4,8,.18],[2,5,.06]][(typeof G!=='undefined'?G.timeOfDay:1)]||[7,9,.24]; X.fillStyle=`rgba(0,0,0,${_sh[2]})`; X.fillRect(sx+_sh[0],sy+_sh[1],w,h); }
+function drawBaraki(sx,sy,w,h){
+  _ugShadow(sx,sy,w,h);
+  /* dwa niskie baraki z blachy falistej (rdza) */
+  const bY=sy+h*0.34, bH=h*0.66;
+  X.fillStyle='#4a4038'; X.fillRect(sx+w*0.04,bY,w*0.54,bH);
+  X.fillStyle='#443a30'; X.fillRect(sx+w*0.58,bY+h*0.08,w*0.38,bH-h*0.08);
+  X.fillStyle='rgba(0,0,0,.18)'; for(let i=0;i<w*0.96;i+=6){ X.fillRect(sx+w*0.04+i,bY,2,bH); } /* fałdy blachy */
+  X.fillStyle='rgba(150,80,40,.20)'; X.fillRect(sx+w*0.1,bY+bH*0.4,w*0.3,3); X.fillRect(sx+w*0.62,bY+bH*0.55,w*0.24,2); /* zacieki rdzy */
+  /* dachy pulpitowe */
+  X.fillStyle='#2e2820'; X.beginPath(); X.moveTo(sx+w*0.02,bY); X.lineTo(sx+w*0.2,sy+h*0.2); X.lineTo(sx+w*0.6,sy+h*0.2); X.lineTo(sx+w*0.6,bY); X.closePath(); X.fill();
+  X.fillStyle='#282218'; X.fillRect(sx+w*0.58,bY+h*0.02,w*0.4,h*0.07);
+  /* małe okna (część zabita deskami) */
+  X.fillStyle='#12161c'; X.fillRect(sx+w*0.1,bY+bH*0.2,w*0.1,h*0.14); X.fillRect(sx+w*0.34,bY+bH*0.2,w*0.1,h*0.14);
+  X.fillStyle='rgba(230,190,90,.28)'; X.fillRect(sx+w*0.1,bY+bH*0.2,w*0.1,h*0.06); /* jedno oświetlone */
+  X.strokeStyle='#5a4a38'; X.lineWidth=1.4; X.beginPath(); X.moveTo(sx+w*0.34,bY+bH*0.2); X.lineTo(sx+w*0.44,bY+bH*0.34); X.moveTo(sx+w*0.44,bY+bH*0.2); X.lineTo(sx+w*0.34,bY+bH*0.34); X.stroke(); /* deski na oknie */
+  /* drzwi */
+  X.fillStyle='#1a1510'; X.fillRect(sx+w*0.22,bY+bH*0.45,w*0.09,bH*0.55);
+  /* beczka + komin z dymem */
+  X.fillStyle='#6a4a2a'; X.fillRect(sx+w*0.72,bY+bH*0.6,w*0.08,bH*0.4); X.fillStyle='rgba(0,0,0,.3)'; X.fillRect(sx+w*0.72,bY+bH*0.6,w*0.08,3);
+  X.fillStyle='#3a352c'; X.fillRect(sx+w*0.85,sy+h*0.06,w*0.03,h*0.16); /* komin */
+  const _pf=Math.sin(Date.now()/700)*0.15+0.3; X.fillStyle=`rgba(120,120,120,${_pf})`; X.beginPath(); X.arc(sx+w*0.865,sy+h*0.03,4,0,7); X.arc(sx+w*0.9,sy-h*0.02,5,0,7); X.fill();
+  /* sznur na pranie */
+  X.strokeStyle='rgba(180,170,150,.5)'; X.lineWidth=1; X.beginPath(); X.moveTo(sx+w*0.04,bY+bH*0.12); X.lineTo(sx+w*0.32,bY+bH*0.18); X.stroke();
+  X.fillStyle='#8a5a6a'; X.fillRect(sx+w*0.12,bY+bH*0.13,w*0.04,h*0.06); X.fillStyle='#6a7a8a'; X.fillRect(sx+w*0.2,bY+bH*0.15,w*0.04,h*0.05);
+  /* szyld */
+  X.fillStyle='#141210'; X.fillRect(sx+w*0.28,sy+h*0.22,w*0.44,h*0.13); X.fillStyle='#c9b48a'; X.font='bold 12px Arial'; X.textAlign='center'; X.fillText('BARAKI',sx+w/2,sy+h*0.32); X.textAlign='left';
+}
+function drawSlumsy(sx,sy,w,h){
+  _ugShadow(sx,sy,w,h);
+  /* trzy krzywe szopy różnej wysokości z łatanych materiałów */
+  const huts=[{x:0.03,y:0.42,w:0.3,h:0.58,c:'#5a4c3a'},{x:0.33,y:0.3,w:0.34,h:0.7,c:'#4c4436'},{x:0.66,y:0.5,w:0.31,h:0.5,c:'#524230'}];
+  for(const ht of huts){ const hx=sx+w*ht.x, hy=sy+h*ht.y, hw=w*ht.w, hh=h*ht.h;
+    X.fillStyle=ht.c; X.fillRect(hx,hy,hw,hh);
+    X.fillStyle='rgba(0,0,0,.16)'; for(let i=0;i<hw;i+=5){ X.fillRect(hx+i,hy,2,hh); } /* łaty */
+  }
+  /* dachy: blacha + niebieska plandeka */
+  X.fillStyle='#2c281f'; X.beginPath(); X.moveTo(sx+w*0.01,sy+h*0.44); X.lineTo(sx+w*0.18,sy+h*0.32); X.lineTo(sx+w*0.35,sy+h*0.44); X.closePath(); X.fill();
+  X.fillStyle='#2f6a8a'; X.beginPath(); X.moveTo(sx+w*0.31,sy+h*0.32); X.lineTo(sx+w*0.5,sy+h*0.16); X.lineTo(sx+w*0.7,sy+h*0.32); X.closePath(); X.fill(); /* plandeka */
+  X.fillStyle='rgba(255,255,255,.08)'; X.beginPath(); X.moveTo(sx+w*0.4,sy+h*0.24); X.lineTo(sx+w*0.5,sy+h*0.16); X.lineTo(sx+w*0.55,sy+h*0.21); X.closePath(); X.fill();
+  X.fillStyle='#3a352a'; X.beginPath(); X.moveTo(sx+w*0.64,sy+h*0.52); X.lineTo(sx+w*0.81,sy+h*0.42); X.lineTo(sx+w*0.98,sy+h*0.52); X.closePath(); X.fill();
+  /* otwory wejściowe (ciemne) */
+  X.fillStyle='#100d09'; X.fillRect(sx+w*0.13,sy+h*0.62,w*0.08,h*0.38); X.fillRect(sx+w*0.44,sy+h*0.5,w*0.09,h*0.5); X.fillRect(sx+w*0.76,sy+h*0.66,w*0.07,h*0.34);
+  X.fillStyle='rgba(230,180,80,.22)'; X.fillRect(sx+w*0.44,sy+h*0.5,w*0.09,h*0.12);
+  /* antena (ironiczny detal) + złom przed szopami */
+  X.strokeStyle='#777'; X.lineWidth=1.2; X.beginPath(); X.moveTo(sx+w*0.5,sy+h*0.16); X.lineTo(sx+w*0.5,sy+h*0.04); X.moveTo(sx+w*0.46,sy+h*0.07); X.lineTo(sx+w*0.54,sy+h*0.07); X.stroke();
+  X.fillStyle='#3a3a3a'; X.beginPath(); X.arc(sx+w*0.06,sy+h*0.94,w*0.05,Math.PI,0); X.fill(); /* opona */ X.fillStyle='#2a2a2a'; X.beginPath(); X.arc(sx+w*0.06,sy+h*0.94,w*0.03,Math.PI,0); X.fill();
+  X.fillStyle='#5a4a34'; X.fillRect(sx+w*0.86,sy+h*0.88,w*0.12,4); X.fillRect(sx+w*0.88,sy+h*0.84,w*0.1,3); /* deski */
+  /* szyld */
+  X.fillStyle='#141210'; X.fillRect(sx+w*0.3,sy+h*0.04,w*0.4,h*0.12); X.fillStyle='#c9b48a'; X.font='bold 12px Arial'; X.textAlign='center'; X.fillText('SLUMSY',sx+w/2,sy+h*0.13); X.textAlign='left';
+}
+function drawZajazd(sx,sy,w,h){
+  _ugShadow(sx,sy,w,h);
+  /* domek recepcyjny (drewno) po lewej */
+  const cX=sx+w*0.04, cW=w*0.4, cY=sy+h*0.34, cH=h*0.66;
+  X.fillStyle='#6a4a30'; X.fillRect(cX,cY,cW,cH);
+  X.fillStyle='rgba(0,0,0,.14)'; for(let yy=cY;yy<cY+cH;yy+=6){ X.fillRect(cX,yy,cW,2); } /* deski poziome */
+  X.fillStyle='#3e2c1c'; X.beginPath(); X.moveTo(cX-w*0.02,cY); X.lineTo(cX+cW*0.5,sy+h*0.14); X.lineTo(cX+cW+w*0.02,cY); X.closePath(); X.fill(); /* dach dwuspadowy */
+  X.fillStyle='#1c2430'; X.fillRect(cX+cW*0.18,cY+cH*0.3,cW*0.22,cH*0.3); X.fillStyle='rgba(240,200,120,.4)'; X.fillRect(cX+cW*0.18,cY+cH*0.3,cW*0.22,cH*0.14); /* okno ciepłe */
+  X.fillStyle='#241a10'; X.fillRect(cX+cW*0.55,cY+cH*0.4,cW*0.24,cH*0.6); /* drzwi */
+  /* kamper zaparkowany po prawej */
+  const vX=sx+w*0.5, vY=sy+h*0.5, vW=w*0.32, vH=h*0.3;
+  X.fillStyle='#d8d2c4'; X.fillRect(vX,vY,vW,vH); X.fillStyle='#c14a3a'; X.fillRect(vX,vY+vH*0.55,vW,vH*0.2); /* pas */
+  X.fillStyle='#2a3846'; X.fillRect(vX+vW*0.1,vY+vH*0.15,vW*0.25,vH*0.3); X.fillRect(vX+vW*0.5,vY+vH*0.15,vW*0.35,vH*0.3); /* okna */
+  X.fillStyle='#1a1a1a'; X.beginPath(); X.arc(vX+vW*0.24,vY+vH,vH*0.22,0,7); X.arc(vX+vW*0.76,vY+vH,vH*0.22,0,7); X.fill(); /* koła */
+  /* namiot */
+  const tX=sx+w*0.86, tY=sy+h*0.66;
+  X.fillStyle='#3a7a4a'; X.beginPath(); X.moveTo(tX,tY+h*0.3); X.lineTo(tX+w*0.08,tY); X.lineTo(tX+w*0.16,tY+h*0.3); X.closePath(); X.fill();
+  X.fillStyle='#2e5e3a'; X.beginPath(); X.moveTo(tX+w*0.08,tY); X.lineTo(tX+w*0.16,tY+h*0.3); X.lineTo(tX+w*0.1,tY+h*0.3); X.closePath(); X.fill();
+  /* ognisko (migające) */
+  const fX=sx+w*0.62, fY=sy+h*0.92; X.strokeStyle='#5a3a20'; X.lineWidth=2; X.beginPath(); X.moveTo(fX-6,fY); X.lineTo(fX+6,fY-4); X.moveTo(fX-6,fY-4); X.lineTo(fX+6,fY); X.stroke();
+  const _ff=Math.sin(Date.now()/180)*0.2+0.8; X.fillStyle=`rgba(240,140,40,${_ff})`; X.beginPath(); X.moveTo(fX-5,fY-2); X.quadraticCurveTo(fX,fY-14*_ff,fX+5,fY-2); X.closePath(); X.fill(); X.fillStyle=`rgba(250,220,90,${_ff*0.9})`; X.beginPath(); X.moveTo(fX-2,fY-2); X.quadraticCurveTo(fX,fY-8*_ff,fX+2,fY-2); X.closePath(); X.fill();
+  /* girlanda światełek */
+  X.strokeStyle='rgba(230,220,150,.4)'; X.lineWidth=1; X.beginPath(); X.moveTo(cX+cW,sy+h*0.2); X.quadraticCurveTo(sx+w*0.7,sy+h*0.32,tX,sy+h*0.5); X.stroke();
+  for(let i=0;i<5;i++){ const t=i/4; const lx=cX+cW+(tX-(cX+cW))*t, ly=sy+h*0.2+(sy+h*0.5-(sy+h*0.2))*t+Math.sin(t*3.14)*8; X.fillStyle=['#ffd060','#ff8080','#80d0ff'][i%3]; X.beginPath(); X.arc(lx,ly,2,0,7); X.fill(); }
+  /* szyld */
+  X.fillStyle='#14120e'; X.fillRect(sx+w*0.28,sy+h*0.02,w*0.44,h*0.12); X.fillStyle='#8ad0a0'; X.font='bold 12px Arial'; X.textAlign='center'; X.fillText('ZAJAZD',sx+w/2,sy+h*0.11); X.textAlign='left';
 }
 function drawUndergroundDecorations(){
   const isNight=(typeof G!=='undefined' && G.timeOfDay>=2);
