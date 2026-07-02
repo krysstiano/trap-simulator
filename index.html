@@ -3315,16 +3315,17 @@ const ROOMS = {
       {id:'mural_underground',      wx:865, wy:140, w:140,h:130, act:'underground_mural',     prompt:'[E] 🎨 Mural Wall',            lbl:'Mural'},/* v2.3.100: 830→865 — przestrzeń dla Gravel Lot */
       {id:'smolarnia_underground',  wx:1080,wy:140, w:140,h:130, act:'underground_smolarnia', prompt:'[E] 🌫 Smolarnia',             lbl:'Smolarnia'},
       /* v2.3.54 MODUŁ POJAZDÓW SPECJALNYCH — komis Gravel Lot Motors (tanie kampery uzywane + Korek). Wolny spot: luka cypher(620)↔mural(830), nad jezdnia y432-528. ZERO overlap (zweryfikowane CAMP13). Gated: gravelLotUnlocked (Kantar) lub street respect. */
-      {id:'gravellot_underground',  wx:655, wy:140, w:140,h:130, act:'underground_gravellot',  prompt:'[E] 🚐 Gravel Lot Motors',     lbl:'Gravel Lot'},
+      {id:'gravellot_underground',  wx:900, wy:950, w:140,h:130, act:'underground_gravellot',  prompt:'[E] 🚐 Gravel Lot Motors',     lbl:'Gravel Lot'},/* v2.3.103: → rubieże (pkt4/6), gravel-apron przeniesiony (drawUndergroundDecorations) */
       {id:'tattoo_underground',     wx:180, wy:720, w:140,h:130, act:'underground_tattoo',    prompt:'[E] 💉 Salon Tatuażu',         lbl:'Tatuaż'},
       {id:'speakeasy_underground',  wx:480, wy:720, w:140,h:130, act:'underground_speakeasy', prompt:'[E] 🥃 Speakeasy',             lbl:'Speakeasy'},
       {id:'pawnshop_underground',   wx:830, wy:720, w:140,h:130, act:'underground_pawnshop',  prompt:'[E] 💰 Pawnshop',              lbl:'Pawnshop'},
       /* v2.1.462 ghost place fix — Dealer Underground brakowało jako fizyczny budynek (existing w PRESETS + handler, ale nie w map objects). Round 2 reguła #6 analog audit + reguła #7 ghost fix. */
       {id:'dealer_underground',     wx:1080,wy:720, w:140,h:130, act:'underground_dealer',    prompt:'[E] 🤝 Dealer (Trap)',         lbl:'Dealer'},
       /* v2.1.468 user wymaganie "kamper/laboratoria/plantacje" — Tier 0/1/2 trap fizyczne miejsca, gated per G.trap.level. */
-      {id:'camper_underground',     wx:60,  wy:420, w:120,h:120, act:'underground_camper',    prompt:'[E] 🚐 Kamper (Trap Tier 0)',  lbl:'Kamper'},
-      {id:'lab_underground',        wx:60,  wy:580, w:120,h:120, act:'underground_lab',       prompt:'[E] 🧪 Laboratorium (lvl 10+)', lbl:'Lab'},
-      {id:'plantation_underground', wx:1240,wy:580, w:120,h:120, act:'underground_plantation',prompt:'[E] 🌿 Plantacja (lvl 5+)',   lbl:'Plantacja'},
+      /* v2.3.103 (user pkt4-6): produkcja przeniesiona do RUBIEŻY (dolna połowa, worldY~950) — pasuje klimatycznie + rozrzedza stłoczone wejście. Rząd 4 budynków, gap ~140px (anti-getNear-collision, lekcja zaułek). Zaparkowany kamper-pojazd (_camperParkedAt) NIEZALEŻNY (hardcode 1120,430) — bez wpływu. */
+      {id:'camper_underground',     wx:120, wy:950, w:120,h:120, act:'underground_camper',    prompt:'[E] 🚐 Kamper (Trap Tier 0)',  lbl:'Kamper'},
+      {id:'lab_underground',        wx:380, wy:950, w:120,h:120, act:'underground_lab',       prompt:'[E] 🧪 Laboratorium (lvl 10+)', lbl:'Lab'},
+      {id:'plantation_underground', wx:640, wy:950, w:120,h:120, act:'underground_plantation',prompt:'[E] 🌿 Plantacja (lvl 5+)',   lbl:'Plantacja'},/* v2.3.103: → rubieże (pkt5) */
       /* v2.1.920 (PDF l.57 — nocna aktywność 18+): Nocny zaułek (prostytutki) — dyskretne miejsce w underground, gated za unlock dzielnicy + godziny 21-05 (PLACE_HOURS). Bottom-right, overlap-free vs venue. */
       {id:'prostytutki_underground',wx:1240,wy:810, w:140,h:130, act:'underground_prostytutki',prompt:'[E] 💋 Nocny zaułek (noc)',  lbl:'Zaułek'},/* v2.3.87 G1 (user „zaułek nic nie robi"): był wy:720 — zaciśnięty między plantacją(580) i dealerem(1080), getNear łapał sąsiada. Przesunięty w dół do 810 (gap 110px od plantacji, gracz wchodzi w lukę i łapie zaułek). x1240-1380,y810-940 wolne (map 960). */
       /* v2.3.102 (PDF #8-24 „docelowo"): DOLNA CZĘŚĆ (nowa, y1100+) — baraki/slumsy + zajazd kempingowy. Osobne interakcje + NPC. */
@@ -10299,17 +10300,15 @@ function drawUndergroundDecorations(){
     X.fillStyle='rgba(225,205,120,0.45)'; const cy=wy2sy(520);
     for(let x=16;x<rw;x+=58){ const sx=wx2sx(x); if(sx>-40&&sx<1330) X.fillRect(sx,cy-1.5,28,3); } /* linia środkowa przerywana */
   })();
-  /* v2.3.102 (PDF #8-24): podwórko Gravel Lot — gravel apron pod halą + szuter dojazdowy do jezdni + szrot. Gravel Lot: wx655-795, wy140-270. */
+  /* v2.3.103 (pkt4/6/7): Gravel Lot przeniesiony do RUBIEŻY (wx900-1040, wy950-1080) — gravel apron POD halą, na ziemi rubieży (bez „szutru do jezdni" — brak miejskiej drogi w rubieżach = spełnia pkt7 „szuter przez trawę nie ulicę"). Szrot pasuje do klimatu rubieży. */
   (function(){
-    const gx=wx2sx(645), gw=wx2sx(805)-wx2sx(645);
+    const gx=wx2sx(895), gw=wx2sx(1045)-wx2sx(895);
     if(gx>1330||gx+gw<-40) return;
-    const ay=wy2sy(272), aH=wy2sy(322)-wy2sy(272);
-    X.fillStyle='#38332b'; X.fillRect(gx,ay,gw,aH);                                  /* gravel apron */
+    const ay=wy2sy(1080), aH=wy2sy(1150)-wy2sy(1080);
+    if(ay>760||ay+aH<-40) return;
+    X.fillStyle='#38332b'; X.fillRect(gx,ay,gw,aH);                                  /* gravel apron pod halą */
     X.fillStyle='rgba(120,110,88,.22)'; for(let i=0;i<44;i++){ X.fillRect(gx+((i*37)%gw), ay+((i*53)%aH), 2,2); } /* żwir */
-    const dY=wy2sy(322), dH=wy2sy(486)-wy2sy(322), dx0=wx2sx(702), dw=wx2sx(758)-wx2sx(702);
-    X.fillStyle='#312c24'; X.fillRect(dx0,dY,dw,dH);                                 /* szuter dojazdowy do drogi */
-    X.fillStyle='rgba(120,110,88,.18)'; for(let i=0;i<20;i++){ X.fillRect(dx0+((i*23)%dw), dY+((i*61)%dH), 2,2); }
-    /* szrot (2 sterty) */
+    /* szrot (2 sterty) — klimat komisu/rubieży */
     X.fillStyle='#48403a'; X.beginPath(); X.moveTo(gx+6,ay+aH); X.lineTo(gx+17,ay+aH-13); X.lineTo(gx+30,ay+aH); X.closePath(); X.fill();
     X.fillStyle='#5a4a3a'; X.fillRect(gx+gw-28,ay+aH-11,22,11);
     X.fillStyle='#7a3a2a'; X.fillRect(gx+gw-24,ay+aH-15,9,6);                        /* rdzawy element */
@@ -59303,6 +59302,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'🎵 Naprawiliśmy błąd, przez który muzyka w tle potrafiła czasem kompletnie ucichnąć — najczęściej przy szybkim przechodzeniu między lokacjami, ale też po tworzeniu bitów w sekwencerze. Teraz muzyka przygasa tylko na moment i zawsze wraca do właściwej głośności. Delikatne przyciszanie przy odgłosach akcji zostaje bez zmian (kroki nadal nie przyciszają muzyki).'},
   {t:'fix',d:'🛡️ Dodatkowe wzmocnienia stabilności pod maską — panele handlu kryptowalutami i metalami szlachetnymi są teraz odporne na niekompletne wczytanie zapisu (nie mogą się przez to zaciąć).'},
   {t:'ui',d:'🏚️ Uporządkowaliśmy dolną część Underground (rubieże): miejski, betonowy chodnik nie wcina się już prosto w piaszczyste pustkowie. Teraz między barakami, slumsami i zajazdem prowadzą tylko klimatyczne, szutrowe ścieżki — wygląda spójnie zamiast „chodnika z miasta pośrodku rubieży".'},
+  {t:'ui',d:'🏭 Przenieśliśmy „produkcyjne" miejsca Underground — Kamper (baza Trap), Laboratorium, Plantację i Gravel Lot Motors — z zatłoczonego wejścia w dół, na rubieże dzielnicy. Pasują tam klimatycznie (produkcja i warsztaty na obrzeżach), a przy okazji odetkało to zatłoczone wejście na górze. Wszystkie działają dokładnie tak jak wcześniej — po prostu stoją teraz niżej na mapie.'},
   {t:'ui',d:'🏷️ Zamieniliśmy pozostałe prawdziwe nazwy marek na własne, oryginalne odpowiedniki — dotyczy nazw oprogramowania muzycznego i sprzętu w studiu, jednego ze sponsorów oraz kilku słów w minigrze freestyle. Świat gry jest teraz spójny i w pełni oryginalny.'},
   {t:'ui',d:'🎨 Wróciły ikony na budynkach w mieście — sklepy, siłownia, studio, szpital, warsztat, radio i pozostałe lokale znów mają swój czytelny symbol nad nazwą. Ustawiliśmy je tak, żeby nie zasłaniały szyldów ani witryn.'},
   {t:'ui',d:'🚸 Poprawiliśmy znaki drogowe: każdy znak ma teraz cień dopasowany do swojego kształtu (ośmiokątny pod znakiem STOP, rombowy pod znakiem z pierwszeństwem, kwadratowy pod znakiem przejścia dla pieszych) — wcześniej znak STOP w ogóle nie rzucał widocznego cienia. Znak przejścia dla pieszych dostał też czytelniejszą sylwetkę idącej osoby.'},
