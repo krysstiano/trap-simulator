@@ -59301,6 +59301,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'🎤 Naprawiliśmy dziwny napis „× NaN% interfejsu" przy aktywnym mikrofonie XLR — teraz zawsze pokazuje poprawny procent wzmocnienia z interfejsu audio (a starsze zapisy bez tej wartości są automatycznie uzupełniane).'},
   {t:'fix',d:'🎤 W wymaganiach nagrywania w domu mikrofon oznaczony jako posiadany (✅) nie namawia już błędnie „kup w Sklepie Muzycznym" — komunikat o zakupie pojawia się tylko wtedy, gdy naprawdę nie masz mikrofonu.'},
   {t:'ui',d:'🏷️ Dokończyliśmy zamianę prawdziwych marek na własne, oryginalne odpowiedniki także dla sprzętu muzycznego — nazwy mikrofonów i interfejsów wyświetlają się teraz spójnie w całej grze (sklep, ekwipunek, statystyki, panel nagrywania).'},
+  {t:'ui',d:'🧍 Przechodnie w dzielnicach (Underground, Wybrzeże VIP, dzielnica biznesowa) wyglądają teraz dużo lepiej — mają pełne, „miejskie" sylwetki tej samej wielkości i jakości co przechodnie w centrum: buty, spodnie, koszulę, ręce, głowę z włosami, a biznesmeni nawet krawat, okulary i teczkę. Koniec z małymi, uproszczonymi figurkami.'},
  ]
  },
  {
@@ -74742,43 +74743,46 @@ function _dpFace(sx,sy,r){
 }
 function _drawDistrictPed(p){
   const sx=wx2sx(p.x), sy=wy2sy(p.y);
-  if(sx<-40||sx>1320||sy<-40||sy>840) return;
-  const walk=Math.sin(p.anim*0.2)*2;
-  /* v2.3.102 (PDF #8-11): ubiór wg pogody także w dzielnicach — słonecznie → krótkie (gołe, skórzane ręce), deszcz/chłód → rękawy w kolorze ubrania. */
+  if(sx<-40||sx>1330||sy<-40||sy>860) return;
+  /* v2.3.105 (user: „NPC dzielnic DALEJ mali/brzydcy — nie przypominają miasta"): przechodnie dzielnic rysowani teraz w tej samej
+     SKALI i STYLU co piesi miasta (buty→spodnie→tułów typowany→ręce→głowa→włosy→oczy, ~51px). Centrowani na p.y (bsy=sy-26; cx=sx-4).
+     Warianty: beach (coast plażowicz) / business (p.elegant, garnitur+teczka+okulary) / casual. Zero zmian w pętli miasta (bez regresji city). */
+  const cx=sx-4, bsy=sy-26;
   const _wth=(typeof G!=='undefined'&&typeof G.weather==='number')?G.weather:0;
   const _wSeed=(p._wSeed!==undefined)?p._wSeed:(p._wSeed=Math.random());
   const _warm=_wSeed>=(_wth===0?0.70:(_wth===1?0.45:0.15));
-  X.fillStyle='rgba(0,0,0,.28)'; X.beginPath(); X.ellipse(sx,sy+18,9,3.5,0,0,Math.PI*2); X.fill();
-  if(p.beach){ /* U15: plażowicz — gołe nogi, szorty, jaskrawa góra/bikini, opcjonalnie kapelusz + okulary */
-    /* v2.3.103: plażowicz bogatszy — nogi+sandały, tapered góra, szyja, mniejsza głowa. */
-    X.strokeStyle=p.sc; X.lineWidth=3; X.lineCap='round'; X.beginPath(); X.moveTo(sx-2.6,sy+8); X.lineTo(sx-2.6+walk,sy+17); X.moveTo(sx+2.6,sy+8); X.lineTo(sx+2.6-walk,sy+17); X.stroke(); X.lineCap='butt';
-    X.fillStyle='#5a4632'; X.fillRect(sx-4.4+walk,sy+16.5,3.8,1.9); X.fillRect(sx+0.6-walk,sy+16.5,3.8,1.9); /* sandały */
-    X.fillStyle=p.shortCol||'#ffffff'; X.fillRect(sx-5,sy+3,10,6); /* szorty */
-    X.fillStyle=p.cc; X.beginPath(); X.moveTo(sx-6,sy-5); X.lineTo(sx+6,sy-5); X.lineTo(sx+5,sy+4); X.lineTo(sx-5,sy+4); X.closePath(); X.fill(); /* góra/bikini tapered */
-    /* v2.3.84 I1: gołe ręce (skóra), animowane przeciwnie do nóg */
-    X.strokeStyle=p.sc; X.lineWidth=2.8; X.lineCap='round';
-    X.beginPath(); X.moveTo(sx-5.5,sy-3); X.lineTo(sx-8-walk*0.5,sy+5); X.moveTo(sx+5.5,sy-3); X.lineTo(sx+8+walk*0.5,sy+5); X.stroke(); X.lineCap='butt';
-    X.fillStyle=p.sc; X.fillRect(sx-1.5,sy-8,3,2.6); /* szyja */
-    X.fillStyle=p.sc; X.beginPath(); X.arc(sx,sy-11,4.4,0,Math.PI*2); X.fill(); /* głowa */
-    _dpFace(sx,sy); /* v2.3.100: twarz (oczy+usta) */
-    if(!p.hat){ X.fillStyle=p.hairCol||'#2a1c12'; X.beginPath(); X.arc(sx,sy-11.6,4.5,Math.PI*1.04,Math.PI*1.96); X.fill(); } /* włosy */
-    if(p.shades){ X.fillStyle='#101014'; X.fillRect(sx-4,sy-12,8,2.4); } /* okulary słoneczne (na oczy) */
-    if(p.hat){ X.fillStyle=p.hatCol; X.fillRect(sx-8,sy-14,16,2.6); X.beginPath(); X.arc(sx,sy-14.5,4.6,Math.PI,Math.PI*2); X.fill(); } /* kapelusz z rondem */
+  const facingRight=(p.dx||0)>=0;
+  const ws=Math.sin(p.anim*0.22)*4;
+  const sc=p.sc||'#e0b088', cc=p.cc||'#3a3a5a', hairC=p.hairCol||'#2a1c12';
+  const eo=facingRight?2:-2;
+  X.fillStyle='rgba(0,0,0,.18)';X.beginPath();X.ellipse(cx+4,bsy+51,9,3.5,0,0,Math.PI*2);X.fill(); /* cień u stóp */
+  if(p.beach){ /* plażowicz — sandały, gołe nogi, szorty, top, gołe ręce, kapelusz/okulary */
+    X.fillStyle='#5a4632';X.fillRect(cx-3,bsy+45+ws,7,4);X.fillRect(cx+4,bsy+45-ws,7,4);
+    X.fillStyle=sc;X.fillRect(cx-1,bsy+30,5,15+ws);X.fillRect(cx+4,bsy+30,5,15-ws);
+    X.fillStyle=p.shortCol||'#ffffff';X.fillRect(cx-2,bsy+27,12,7);
+    X.fillStyle=cc;X.beginPath();X.moveTo(cx-5,bsy+14);X.lineTo(cx+13,bsy+14);X.lineTo(cx+12,bsy+28);X.lineTo(cx-4,bsy+28);X.closePath();X.fill();
+    X.fillStyle=sc;X.fillRect(cx-9,bsy+16,5,11);X.fillRect(cx+12,bsy+16,5,11);
+    X.fillStyle=sc;X.beginPath();X.arc(cx+4,bsy+8,8,0,Math.PI*2);X.fill();
+    X.fillStyle='rgba(0,0,0,.75)';X.beginPath();X.arc(cx+4+eo-2,bsy+7,1.5,0,Math.PI*2);X.fill();X.beginPath();X.arc(cx+4+eo+2,bsy+7,1.5,0,Math.PI*2);X.fill();
+    if(p.shades){X.fillStyle='#101014';X.fillRect(cx,bsy+5,8,2.6);}
+    if(!p.hat){X.fillStyle=hairC;X.beginPath();X.arc(cx+4,bsy+8,8,Math.PI*1.1,Math.PI*1.9);X.fill();}
+    else {X.fillStyle=p.hatCol||'#ffce54';X.fillRect(cx-6,bsy+1,20,3);X.beginPath();X.arc(cx+4,bsy+1,7,Math.PI,Math.PI*2);X.fill();}
     return;
   }
-  /* v2.3.103 (user: „NPC dzielnic dziwni i słabi"): bogatsza sylwetka — nogi+buty, tapered korpus, szyja, mniejsza głowa (koniec bobble-head). */
-  X.strokeStyle='#15151c'; X.lineWidth=3.1; X.lineCap='round';
-  X.beginPath(); X.moveTo(sx-2.6,sy+7); X.lineTo(sx-2.6+walk,sy+16); X.moveTo(sx+2.6,sy+7); X.lineTo(sx+2.6-walk,sy+16); X.stroke(); X.lineCap='butt';
-  X.fillStyle='#0b0b10'; X.fillRect(sx-4.6+walk,sy+15.5,4,2.4); X.fillRect(sx+0.6-walk,sy+15.5,4,2.4); /* buty */
-  X.fillStyle=p.cc; X.beginPath(); X.moveTo(sx-6,sy-5); X.lineTo(sx+6,sy-5); X.lineTo(sx+5,sy+8); X.lineTo(sx-5,sy+8); X.closePath(); X.fill(); /* tapered korpus (barki>talia) */
-  /* v2.3.84 I1: ręce (animowane). v2.3.102 (PDF #8-11): rękawy w kolorze ubrania gdy „ciepło", gołe skórzane gdy krótkie (słonecznie). */
-  X.strokeStyle=_warm?p.cc:p.sc; X.lineWidth=2.8; X.lineCap='round';
-  X.beginPath(); X.moveTo(sx-5.5,sy-3); X.lineTo(sx-8-walk*0.5,sy+6); X.moveTo(sx+5.5,sy-3); X.lineTo(sx+8+walk*0.5,sy+6); X.stroke(); X.lineCap='butt';
-  X.fillStyle=p.sc; X.fillRect(sx-1.5,sy-8,3,2.6); /* szyja */
-  X.fillStyle=p.sc; X.beginPath(); X.arc(sx,sy-11,4.4,0,Math.PI*2); X.fill(); /* głowa */
-  _dpFace(sx,sy); /* v2.3.100: twarz (oczy+usta) */
-  X.fillStyle=p.hairCol||'#2a1c12'; X.beginPath(); X.arc(sx,sy-11.6,4.5,Math.PI*1.04,Math.PI*1.96); X.fill(); /* włosy */
-  if(p.elegant){ X.fillStyle='#2a1c10'; X.fillRect(sx+(p.dx>0?6:-10),sy+1,4.5,7); X.fillStyle='#4a3420'; X.fillRect(sx+(p.dx>0?6:-10),sy+1,4.5,1.4); } /* teczka z uchwytem */
+  const business=!!p.elegant;
+  X.fillStyle=business?'#1a1a1a':'#0a0a0f';X.fillRect(cx-3,bsy+44+ws,7,5);X.fillRect(cx+4,bsy+44-ws,7,5); /* buty */
+  X.fillStyle=business?'#1a1a1a':'#1a2030';X.fillRect(cx-1,bsy+28,5,18+ws);X.fillRect(cx+4,bsy+28,5,18-ws); /* spodnie/nogawki */
+  X.fillStyle=cc;X.beginPath(); /* tułów (typowany szerokością) */
+  if(business){X.moveTo(cx-6,bsy+14);X.lineTo(cx+14,bsy+14);X.lineTo(cx+16,bsy+30);X.lineTo(cx-8,bsy+30);}
+  else {X.moveTo(cx-5,bsy+14);X.lineTo(cx+13,bsy+14);X.lineTo(cx+15,bsy+29);X.lineTo(cx-7,bsy+29);}
+  X.closePath();X.fill();
+  if(business){X.fillStyle='#c0392b';X.fillRect(cx+3,bsy+15,3,12);X.fillStyle='#fff';X.fillRect(cx+1,bsy+14,7,2);} /* krawat + kołnierzyk */
+  X.fillStyle=(_warm||business)?cc:sc;X.fillRect(cx-10,bsy+16,5,11);X.fillRect(cx+13,bsy+16,5,11); /* ręce (rękawy/gołe) */
+  if(business){X.fillStyle='#5a3a18';X.fillRect(facingRight?cx+15:cx-12,bsy+24,8,11);X.fillStyle='#3a2010';X.fillRect(facingRight?cx+15:cx-12,bsy+24,8,2);X.fillStyle='#7a5028';X.fillRect(facingRight?cx+18:cx-9,bsy+22,2,3);} /* teczka */
+  X.fillStyle=sc;X.beginPath();X.arc(cx+4,bsy+8,8,0,Math.PI*2);X.fill(); /* głowa */
+  X.fillStyle=hairC;X.beginPath();X.arc(cx+4,bsy+8,8,Math.PI*1.1,Math.PI*1.9);X.fill();X.fillRect(cx+(facingRight?6:0),bsy+1,3,3); /* włosy + kosmyk */
+  X.fillStyle='rgba(0,0,0,.75)';X.beginPath();X.arc(cx+4+eo-2,bsy+7,1.5,0,Math.PI*2);X.fill();X.beginPath();X.arc(cx+4+eo+2,bsy+7,1.5,0,Math.PI*2);X.fill(); /* oczy */
+  if(business){X.strokeStyle='#1a1a1a';X.lineWidth=0.8;X.beginPath();X.arc(cx+4+eo-2,bsy+7,2,0,Math.PI*2);X.stroke();X.beginPath();X.arc(cx+4+eo+2,bsy+7,2,0,Math.PI*2);X.stroke();} /* okulary biznes */
 }
 function drawDistrictLife(){
   const room=currentRoom;
