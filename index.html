@@ -42830,6 +42830,19 @@ const MARINA_GUESTS=[
    natychmiastowa reakcja w panelach wyboru (Marina/Fortuno/Cypher). Klik → od razu: blokada wszystkich
    przycisków (koniec double-click race skip-round), podświetlenie wyboru (zielony=OK / czerwony=źle),
    znacznik ✅/❌. Przejście do następnej rundy skrócone (~380 ms zamiast 500-1500 ms). */
+/* v2.3.107 (user CO3: „miejsca Coast nic nie dają — całkowicie bez sensu"): Coast Vibe — wspólny licznik dzienny
+   aktywności Wybrzeża. Po 3 aktywnościach w ciągu dnia: bonus wizerunkowy (sława + obserwujący) + info „jesteś na fali".
+   Daje CEL, by odwiedzać dzielnicę VIP-ów regularnie, a nie traktować jej jako pusty wydatek. */
+window._coastVibeTick=function(){
+  if(G._coastVibeDayNum!==G.day){ G._coastVibeDayNum=G.day; G._coastVibeDay=0; }
+  G._coastVibeDay=(G._coastVibeDay||0)+1;
+  if(G._coastVibeDay===3){
+    const _fb=8, _fo=60+Math.floor((G.fame||0)*0.4);
+    if(typeof addFame==='function') addFame(_fb); else G.fame=Math.min(500,(G.fame||0)+_fb);
+    G.followers=(G.followers||0)+_fo;
+    if(typeof notify==='function') notify(`🌴 Coast Vibe MAX! 3 aktywności na Wybrzeżu dziś — jesteś na fali: +${_fb} sławy, +${_fo} obserwujących.`);
+  }
+};
 window._dlgAnswerFX=function(btn,ok){
   if(!btn||!btn.parentElement) return;
   [...btn.parentElement.querySelectorAll('button')].forEach(b=>{ b.disabled=true; b.style.pointerEvents='none'; if(b!==btn) b.style.opacity='.45'; });
@@ -42879,12 +42892,12 @@ window._marinaFinish=function(){
   const _perfect=mg.correct>=4;
   const _fame=mg.correct*12;
   const _follow=mg.correct*70;
-  const _deal=_perfect?3000:0; /* wszystkie 4 kontakty = zamknięty deal */
+  const _deal=_perfect?3500:(mg.correct===3?2000:(mg.correct===2?800:0)); /* v2.3.107 (user CO3: „Marina nic nie daje"): częściowe deale za 2-3 kontakty, nie tylko perfekcyjne 4/4 — networking realnie płaci */
   if(_fame>0){ if(typeof addFame==='function') addFame(_fame); else G.fame=Math.min(500,(G.fame||0)+_fame); }
   if(_follow>0) G.followers=(G.followers||0)+_follow;
   if(_deal){ if(typeof earn==='function') earn(_deal,true); else G.money+=_deal; }
   G.stress=Math.min(100,(G.stress||50)+15);
-  G._coastVibeDay=(G._coastVibeDay||0)+1;
+  if(typeof window._coastVibeTick==='function') window._coastVibeTick();
   if(typeof progressQuest==='function') progressQuest('coast_visit');
   G._marinaMG=null;
   document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';
@@ -42965,7 +42978,7 @@ window._surfFinish=function(wipeout){
   const _followers=score>=0.7?Math.round(score*120):0;
   if(_fame){ if(typeof addFame==='function') addFame(_fame); else G.fame=Math.min(500,(G.fame||0)+_fame); }
   if(_followers) G.followers=(G.followers||0)+_followers;
-  G._coastVibeDay=(G._coastVibeDay||0)+1;
+  if(typeof window._coastVibeTick==='function') window._coastVibeTick();
   if(typeof progressQuest==='function') progressQuest('coast_visit');
   G._surfMG=null;
   document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';
@@ -43023,7 +43036,7 @@ window._beachFinish=function(){
   const _maxForma=typeof getMaxStat==='function'?getMaxStat('forma'):100;
   G.forma=Math.min(_maxForma,(G.forma||0)+Math.min(10,rally));
   G.followers=(G.followers||0)+rally*6;
-  G._coastVibeDay=(G._coastVibeDay||0)+1;
+  if(typeof window._coastVibeTick==='function') window._coastVibeTick();
   if(typeof progressQuest==='function') progressQuest('coast_visit');
   G._beachMG=null;
   document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';
@@ -43088,18 +43101,21 @@ window._spaAbort=function(){
 window._spaFinish=function(){
   if(G._spaInterval){clearInterval(G._spaInterval);G._spaInterval=null;}
   const mg=G._spaMG; if(!mg) return;
-  const _stress=Math.min(50, 12 + mg.perfects*5 + mg.goods*2);
-  const _hp=Math.min(12, 2 + mg.perfects);
+  const _stress=Math.min(60, 16 + mg.perfects*6 + mg.goods*2); /* v2.3.107 CO3: mocniejszy relaks */
+  const _hp=Math.min(14, 3 + mg.perfects);
   const _maxForma=typeof getMaxStat==='function'?getMaxStat('forma'):100;
   const _forma=Math.min(8, mg.perfects);
+  /* v2.3.107 (user CO3: „SPA nic nie daje"): SPA REGENERUJE ENERGIĘ (realny sens wellness — wracasz wypoczęty). */
+  const _en=Math.round(18+mg.perfects*4);
   G.stress=Math.min(100,(G.stress||50)+_stress);
   G.health=Math.min(100,(G.health||100)+_hp);
   G.forma=Math.min(_maxForma,(G.forma||0)+_forma);
-  G._coastVibeDay=(G._coastVibeDay||0)+1;
+  G.energy=Math.min((typeof getMaxStat==='function'?getMaxStat('energy'):100),(G.energy||0)+_en);
+  if(typeof window._coastVibeTick==='function') window._coastVibeTick();
   if(typeof progressQuest==='function') progressQuest('coast_visit');
   G._spaMG=null;
   document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';
-  if(typeof showMilestoneCinematic==='function') showMilestoneCinematic({emoji:'🧘',title:'SESJA SPA',subtitle:`${mg.perfects} idealnych oddechów`,tagline:`+${_stress} nastrój · +${_hp} HP · +${_forma} forma`,accentColor:'#bb8fce',accent2:'#252035',duration:4500});
+  if(typeof showMilestoneCinematic==='function') showMilestoneCinematic({emoji:'🧘',title:'SESJA SPA',subtitle:`${mg.perfects} idealnych oddechów`,tagline:`+${_stress} nastrój · +${_hp} HP · +${_en} energia · +${_forma} forma`,accentColor:'#bb8fce',accent2:'#252035',duration:4500});
   if(typeof addXP==='function') addXP(15+mg.perfects*2);
   if(typeof saveGameSilent==='function') saveGameSilent();
 };
@@ -43161,14 +43177,18 @@ window._photoFinish=function(){
   const avgQ=mg.shots?Math.round(mg.quality/mg.shots):0; /* 0-100 */
   const _fame=Math.round(3+avgQ*0.12); /* 3-15 */
   const _follow=Math.round((G.fame||0)*(avgQ/100)*0.6 + avgQ*3);
+  /* v2.3.107 (user CO3: „Photoshoot nic nie daje"): sesja to PŁATNY gig modelingowy — honorarium skaluje z jakością
+     zdjęć i Twoją sławą (znana twarz = wyższa stawka). Realny dochód + wizerunek, nie tylko pusty wydatek. */
+  const _money=Math.round(250+avgQ*3.5+(G.fame||0)*0.9);
   if(typeof addFame==='function') addFame(_fame); else G.fame=Math.min(500,(G.fame||0)+_fame);
   G.followers=(G.followers||0)+_follow;
-  G.drip=Math.min(200,(G.drip||0)+Math.round(avgQ/20)); /* 0-5 drip za dobre foto */
-  G._coastVibeDay=(G._coastVibeDay||0)+1;
+  G.drip=Math.min(200,(G.drip||0)+Math.round(avgQ/18)); /* drip za dobre foto */
+  if(typeof earn==='function') earn(_money,false); else { G.money=(G.money||0)+_money; }
+  if(typeof window._coastVibeTick==='function') window._coastVibeTick();
   if(typeof progressQuest==='function') progressQuest('coast_visit');
   G._photoMG=null;
   document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';
-  if(typeof showMilestoneCinematic==='function') showMilestoneCinematic({emoji:'📸',title:'SESJA ZDJĘCIOWA',subtitle:`Jakość zdjęć ${avgQ}/100`,tagline:`+${_fame} sławy · +${_follow} obserwujących · +${Math.round(avgQ/20)} drip`,accentColor:'#c8a520',accent2:'#1a1a25',duration:5000});
+  if(typeof showMilestoneCinematic==='function') showMilestoneCinematic({emoji:'📸',title:'SESJA ZDJĘCIOWA',subtitle:`Jakość zdjęć ${avgQ}/100`,tagline:`💰 +${_money.toLocaleString('pl')} zł (gig) · +${_fame} sławy · +${_follow} obserwujących · +${Math.round(avgQ/18)} drip`,accentColor:'#c8a520',accent2:'#1a1a25',duration:5000});
   if(typeof addXP==='function') addXP(15+Math.round(avgQ/4));
   if(typeof saveGameSilent==='function') saveGameSilent();
 };
@@ -59781,6 +59801,7 @@ const PATCH_NOTES = [
   {t:'ui',d:'🛹 Skatepark i breakdance mają teraz dzienny limit 3 treningów każdy (turnieje i pozostałe aktywności działają bez limitu) — koniec z nieskończonym grindem w jednym miejscu.'},
   {t:'ui',d:'🏆 Turnieje uliczne (Underground Floor Battle i Concrete Line Jam): po zakończeniu turnieju od razu wracasz na mapę, a żeby wystartować ponownie, musisz najpierw zaliczyć 3 kolejne dobre występy (450+ pkt) w parku. Podczas turnieju nie chodzisz już po mapie w tle — sterujesz tylko na parkiecie — a przy każdym trafionym ruchu słychać kroki postaci.'},
   {t:'fix',d:'🏄 Surf Shop na Wybrzeżu można teraz sterować strzałkami ⬅/➡ na klawiaturze (nie tylko klikaniem przycisków), a sama jazda jest płynniejsza i lepiej reaguje na korekty — koniec z „mydlanym", zamulonym balansowaniem.'},
+  {t:'ui',d:'🌊 Wybrzeże ma teraz realny sens — dopracowaliśmy nagrody za wszystkie aktywności. Sesja zdjęciowa to płatny gig modelingowy (im większa sława, tym wyższe honorarium), Marina płaci za networking już przy 2–3 kontaktach (nie tylko przy komplecie 4/4), a SPA dodatkowo regeneruje energię i mocniej podnosi nastrój oraz zdrowie. Gdy w jeden dzień zaliczysz 3 aktywności na Wybrzeżu, łapiesz „Coast Vibe" — bonus do sławy i obserwujących. Wybrzeże znów jest dzielnicą, do której warto wracać.'},
  ]
  },
  {
