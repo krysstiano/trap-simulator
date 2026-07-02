@@ -3090,6 +3090,8 @@ const ROOMS = {
       // Drzwi widoczne — w widocznym miejscu jadalni, save w salonie
       {id:'door',        wx:655, wy:600, w:62, h:70, act:'apt_exit', prompt:'[E] Wyjście z budynku', lbl:'Wyjście'},
       {id:'save',        wx:80,  wy:610, w:54, h:54, act:'save',            prompt:'[E] 💾 Zapisz',             lbl:''},
+      /* v2.3.107 (user MB1/MB2: „minibar funkcjonalny + własne, wydzielone miejsce, nie przy sofie"): minibar w JADALNI (osobny pokój), daleko od sofy(178,430). Nalewanie drinka podnosi nastrój. */
+      {id:'minibar',     wx:590, wy:375, w:70, h:72, act:'minibar',        prompt:'[E] 🍸 Minibar',            lbl:''},
       // ── BIURO (820-1296, 340-734) — PC obrocony 90 stopni przy PRAWEJ scianie ──
       // Biblioteka przeniesiona w DOL biura (z wy=360 → wy=620) zeby NIE blokowac przejscia do kuchni (drzwi w wy=336, wx 800-920)
       {id:'desk',        wx:1206, wy:380, w:80,h:170, act:'pc_menu',         prompt:'[E] 💻 PC',                 lbl:'', rotated:true},
@@ -3131,6 +3133,7 @@ const ROOMS = {
       {id:'save',          wx:430, wy:790, w:54, h:54,  act:'save',         prompt:'[E] 💾 Zapisz',           lbl:''},
       // ── JADALNIA (560-1120, 494-864) — stół niżej, by nie wyglądał obok sofy ──
       {id:'stol',          wx:720, wy:640, w:170,h:100, act:'eat_table',    prompt:'[E] 🍽 Stół jadalny',     lbl:''},
+      {id:'minibar',       wx:600, wy:560, w:70, h:72,  act:'minibar',      prompt:'[E] 🍸 Minibar',          lbl:''},/* v2.3.107 MB: jadalnia, z dala od sofy(60,610) */
       {id:'door',          wx:780, wy:790, w:62, h:62,  act:'apt_exit', prompt:'[E] Wyjście',       lbl:'Wyjście'},
       // ── BIURO Premium (1120-1680, 494-864) — PC obrocony 90 stopni przy PRAWEJ scianie ──
       // Biblioteka + gold_shelf na DOLE biura zeby nie blokowac drzwi kuchnia↔biuro (drzwi 1330-1430 w wy=490)
@@ -3180,6 +3183,7 @@ const ROOMS = {
       {id:'sofa',          wx:120, wy:600, w:260,h:110, act:'rest',          prompt:'[E] 🛋 Sofa Lux',           lbl:''},
       {id:'tv',            wx:170, wy:730, w:220,h:65,  act:'tv',            prompt:'[E] 📺 Telewizor 4K',       lbl:''},
       {id:'save',          wx:430, wy:740, w:54, h:54,  act:'save',          prompt:'[E] 💾 Zapisz',             lbl:''},
+      {id:'minibar',       wx:500, wy:552, w:70, h:72,  act:'minibar',      prompt:'[E] 🍸 Minibar',            lbl:''},/* v2.3.107 MB: z dala od sofy(120,600) */
       // ── BIURO (640-1176, 528-816) — v2.1.172: PC przeniesiony z LEWEJ (blokował drzwi salon↔biuro w y=643-715) na PRAWĄ ścianę biura ──
       {id:'desk',          wx:1086,wy:560, w:80, h:200, act:'pc_menu',       prompt:'[E] 💻 PC',                 lbl:''},
       {id:'biblioteka',    wx:680, wy:548, w:220,h:90, act:'biblioteka',    prompt:'[E] 📚 Biblioteka',         lbl:''},
@@ -4054,6 +4058,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'npc_producer': drawNPC(sx,sy,w,h,'#704020','#4a0a6a','🎧');break;
     case 'npc_piwnica_prod': drawCrackheadProducer(sx,sy,w,h);break; /* v2.3.105 (user): producent-crackhead w Piwnicy */
     case 'exit_piwnica': drawInteriorExit(sx,sy,w,h);break; /* v2.3.105 */
+    case 'minibar': drawMinibar(sx,sy,w,h);break; /* v2.3.107 (user MB): minibar w mieszkaniach */
     case 'npc_vendor':   { const _ko=(typeof isPlaceOpen==='function')?isPlaceOpen('npc:vendor').open:true; drawKebabStand(sx,sy,w,h,_ko); if(_ko)drawNPC(sx,sy,w,h,'#d0a040','#3a1a0a','🌮'); break; }
     case 'npc_crew':     drawNPC(sx,sy,w,h,'#a0c080','#1a3a2a','👥');break;
     case 'npc_casino_promo': drawNPC(sx,sy,w,h,'#d4a070','#c01020','🎰');break;
@@ -9266,6 +9271,19 @@ function drawCrackheadProducer(sx,sy,w,h){
   X.font='16px Arial';X.textAlign='center';X.fillText('🎧',sx+w/2,sy-4+jit*0.5);X.textAlign='left';
 }
 
+/* v2.3.107 (user MB): minibar — szafka barowa z butelkami i szklanką (własne, wydzielone miejsce w mieszkaniu). */
+function drawMinibar(sx,sy,w,h){
+  X.fillStyle='rgba(0,0,0,.28)';X.beginPath();X.ellipse(sx+w/2,sy+h-3,w*0.45,5,0,0,Math.PI*2);X.fill();
+  X.fillStyle='#3a2416';X.fillRect(sx+4,sy+h*0.36,w-8,h*0.6); /* szafka */
+  X.fillStyle='#4a2f1c';X.fillRect(sx+4,sy+h*0.36,w-8,5);
+  X.strokeStyle='rgba(0,0,0,.35)';X.lineWidth=1;X.beginPath();X.moveTo(sx+w/2,sy+h*0.42);X.lineTo(sx+w/2,sy+h*0.92);X.stroke();
+  X.fillStyle='#c8a030';X.fillRect(sx+w/2-5,sy+h*0.62,3,6);X.fillRect(sx+w/2+2,sy+h*0.62,3,6); /* uchwyty */
+  X.fillStyle='#2a1a10';X.fillRect(sx+2,sy+h*0.30,w-4,h*0.07); /* blat */
+  const bcol=['#7a1a1a','#1a5a2a','#c8a030','#2a2a6a'];
+  for(let i=0;i<4;i++){ const bx=sx+9+i*((w-20)/4); X.fillStyle=bcol[i]; X.fillRect(bx,sy+h*0.08,6,h*0.22); X.fillStyle='#111'; X.fillRect(bx+1.5,sy+h*0.03,3,h*0.06); }
+  X.fillStyle='rgba(200,220,240,.55)';X.fillRect(sx+w-15,sy+h*0.16,7,h*0.13); /* szklanka */
+  X.font='11px Arial';X.textAlign='center';X.fillText('🍸',sx+w/2,sy-2);X.textAlign='left';
+}
 function drawCypher(sx,sy,w,h){
   /* Cypher Club — circular stage, mic w środku, neon */
   const isNight=(typeof G!=='undefined' && G.timeOfDay>=2);
@@ -14417,6 +14435,9 @@ function handleAct(act,objId){
     startRestMG('pond',15,5,15,'🐠 Patrzysz na rybki w akwarium...',()=>{addXPCapped(2,'rest_aquarium',60000);});return;
   } else if(act==='tv'){
     openTVMenu();return;
+  } else if(act==='minibar'){
+    /* v2.3.107 (user MB): minibar funkcjonalny — minigra nalewania podnosi nastrój. */
+    if(typeof window._startMinibarMG==='function') window._startMinibarMG(); return;
   } else if(act==='lampka_toggle'){
     G._lampkaOn=!G._lampkaOn; /* v1.9.34: BUG FIX — proper toggle (poprzednio undefined→false→false stuck) */
     notify(G._lampkaOn?'💡 Lampka włączona':'🌙 Lampka wyłączona');
@@ -42843,6 +42864,55 @@ window._coastVibeTick=function(){
     if(typeof notify==='function') notify(`🌴 Coast Vibe MAX! 3 aktywności na Wybrzeżu dziś — jesteś na fali: +${_fb} sławy, +${_fo} obserwujących.`);
   }
 };
+/* v2.3.107 (user MB1: „minibar funkcjonalny — mechanika jak bar Velvet Room, lanie drinka, podnosi nastrój"):
+   minigra nalewania — pasek rośnie, zatrzymaj w zielonej strefie = idealny drink. Cooldown ~3h gry (anti-farm nastroju). */
+window._startMinibarMG=function(){
+  const _mg=document.getElementById('mg-job');const _mc=document.getElementById('mg-job-content');
+  if(!_mg||!_mc) return;
+  const _abs=(typeof gameMin==='number')?((G.day||1)*1440+gameMin):0;
+  if(_abs && G._lastMinibarAbs && (_abs-G._lastMinibarAbs)<180){ if(typeof showMsg==='function') showMsg('🍸 Nalewałeś niedawno — daj sobie chwilę (minibar co ~3 godziny).','i',4200); return; }
+  G._minibarMG={fill:0,over:false};
+  _mc.innerHTML=`<div style="background:#1a120a;border:2px solid #c8a030;border-radius:10px;padding:18px;max-width:520px;margin:0 auto;color:#f0e6d0">
+    <h2 style="color:#e0c060;margin-top:0;text-align:center">🍸 Minibar — nalej drinka</h2>
+    <div style="color:#c8b890;font-size:12px;text-align:center;margin-bottom:12px">Zatrzymaj nalewanie w <b style="color:#27ae60">zielonej strefie</b> — idealnie napełniona szklanka = najlepszy relaks. Przelejesz = szkoda drinka.</div>
+    <div style="position:relative;height:40px;background:#0d0a06;border-radius:6px;overflow:hidden;border:1px solid #3a2a1a">
+      <div style="position:absolute;left:72%;width:20%;height:100%;background:rgba(39,174,96,0.28);border-left:2px solid #27ae60;border-right:2px solid #27ae60"></div>
+      <div id="mb-fill" style="position:absolute;left:0;top:0;height:100%;width:0%;background:linear-gradient(90deg,#8a5a1a,#e0a830)"></div>
+    </div>
+    <button class="bbtn" style="margin-top:14px;width:100%;background:linear-gradient(135deg,#c8a030,#8a6a10);color:#1a1405;padding:13px;font-size:15px;font-weight:700" onclick="window._minibarStop(false)">🥃 STOP — nalewam tyle</button>
+    <button class="cbtn" style="margin-top:8px;width:100%" onclick="window._minibarAbort()">← Odstaw</button>
+  </div>`;
+  _mg.classList.add('on');
+  G._minibarInterval=setInterval(window._minibarTick,30);
+};
+window._minibarTick=function(){
+  const mg=G._minibarMG; if(!mg||mg.over) return;
+  mg.fill+=1.7;
+  const _b=document.getElementById('mb-fill'); if(_b) _b.style.width=Math.min(100,mg.fill)+'%';
+  if(mg.fill>=100){ window._minibarStop(true); }
+};
+window._minibarStop=function(spill){
+  const mg=G._minibarMG; if(!mg||mg.over) return; mg.over=true;
+  if(G._minibarInterval){clearInterval(G._minibarInterval);G._minibarInterval=null;}
+  const f=mg.fill; let mood,msg;
+  if(spill||f>100){ mood=4; msg='💦 Przelało się — szkoda drinka, ale łyk poprawił humor.'; }
+  else if(f>=72 && f<=92){ mood=18; msg='🍸 Idealnie nalane! Rozsiadasz się i odprężasz.'; }
+  else if(f>=55){ mood=11; msg='🥃 Nieźle nalane — miły drink.'; }
+  else { mood=6; msg='🥃 Trochę za mało, ale spoko.'; }
+  G.stress=Math.min(100,(G.stress||50)+mood);
+  G.hunger=Math.min(100,(G.hunger||0)+4);
+  if(typeof gameMin==='number') G._lastMinibarAbs=(G.day||1)*1440+gameMin;
+  G._minibarMG=null;
+  document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';
+  if(typeof showMsg==='function') showMsg(`${msg} +${mood} nastrój`,'g',3800);
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+window._minibarAbort=function(){
+  if(G._minibarInterval){clearInterval(G._minibarInterval);G._minibarInterval=null;}
+  G._minibarMG=null;
+  const _mj=document.getElementById('mg-job'); if(_mj) _mj.classList.remove('on'); const _mc=document.getElementById('mg-job-content'); if(_mc) _mc.innerHTML='';
+};
 window._dlgAnswerFX=function(btn,ok){
   if(!btn||!btn.parentElement) return;
   [...btn.parentElement.querySelectorAll('button')].forEach(b=>{ b.disabled=true; b.style.pointerEvents='none'; if(b!==btn) b.style.opacity='.45'; });
@@ -59802,6 +59872,7 @@ const PATCH_NOTES = [
   {t:'ui',d:'🏆 Turnieje uliczne (Underground Floor Battle i Concrete Line Jam): po zakończeniu turnieju od razu wracasz na mapę, a żeby wystartować ponownie, musisz najpierw zaliczyć 3 kolejne dobre występy (450+ pkt) w parku. Podczas turnieju nie chodzisz już po mapie w tle — sterujesz tylko na parkiecie — a przy każdym trafionym ruchu słychać kroki postaci.'},
   {t:'fix',d:'🏄 Surf Shop na Wybrzeżu można teraz sterować strzałkami ⬅/➡ na klawiaturze (nie tylko klikaniem przycisków), a sama jazda jest płynniejsza i lepiej reaguje na korekty — koniec z „mydlanym", zamulonym balansowaniem.'},
   {t:'ui',d:'🌊 Wybrzeże ma teraz realny sens — dopracowaliśmy nagrody za wszystkie aktywności. Sesja zdjęciowa to płatny gig modelingowy (im większa sława, tym wyższe honorarium), Marina płaci za networking już przy 2–3 kontaktach (nie tylko przy komplecie 4/4), a SPA dodatkowo regeneruje energię i mocniej podnosi nastrój oraz zdrowie. Gdy w jeden dzień zaliczysz 3 aktywności na Wybrzeżu, łapiesz „Coast Vibe" — bonus do sławy i obserwujących. Wybrzeże znów jest dzielnicą, do której warto wracać.'},
+  {t:'new',d:'🍸 Minibar w mieszkaniach jest teraz funkcjonalny — stoi w osobnym, wydzielonym miejscu (z dala od sofy). Nalewanie drinka to mała minigra: zatrzymaj napełnianie w zielonej strefie, żeby nalać idealną szklankę. Udany drink podnosi nastrój (dostępny co jakiś czas, żeby nie przesadzać).'},
  ]
  },
  {
