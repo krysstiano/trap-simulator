@@ -11737,7 +11737,9 @@ function drawNightGlows(){
   if(intensity<=0.02)return;
   X.save();X.globalCompositeOperation='lighter';
   // Lamp positions — re-utilize z drawLamps logic
-  const lampRows=[{wy:378},{wy:670},{wy:1918},{wy:2204},{wy:2878,maxX:3750},{wy:3164,maxX:3750}];
+  /* v2.3.103 (user swiatlo.png: „światło na środku drogi / pod autem"): rzędy PÓŁNOCNE (wy 378/1918/2878)
+     siedzą tuż nad jezdnią — ich stożek światła świecił NA DROGĘ. up:true → stożek kierowany w stronę chodnika (w górę). */
+  const lampRows=[{wy:378,up:true},{wy:670},{wy:1918,up:true},{wy:2204},{wy:2878,maxX:3750,up:true},{wy:3164,maxX:3750}];
   const vRoadZones=[[768,960],[2208,2400],[3456,3648]];
   const now=Date.now();
   for(const row of lampRows){
@@ -11762,22 +11764,23 @@ function drawNightGlows(){
       g2.addColorStop(0.5,`rgba(255,200,100,${0.18*intensity})`);
       g2.addColorStop(1,'rgba(255,180,80,0)');
       X.fillStyle=g2;X.beginPath();X.arc(lampX,lampY,r2,0,Math.PI*2);X.fill();
-      // Warstwa 3: stożek światła na chodnik POD lampą (na szerokość)
+      // Warstwa 3: stożek światła na chodnik POD lampą (rzędy północne: NAD postawą, w stronę chodnika — nie na jezdnię)
       const r3=70*intensity*pulse;
-      const coneY=sy+5; // chodnik
+      const coneY=row.up?sy-72:sy+5; // chodnik
       const g3=X.createRadialGradient(lampX-5,coneY,0,lampX-5,coneY,r3);
       g3.addColorStop(0,`rgba(255,210,130,${0.22*intensity})`);
       g3.addColorStop(0.4,`rgba(255,200,120,${0.12*intensity})`);
       g3.addColorStop(1,'rgba(255,180,80,0)');
       X.fillStyle=g3;X.beginPath();X.ellipse(lampX-5,coneY,r3,r3*0.4,0,0,Math.PI*2);X.fill();
-      // Smuga światła stożkowa od klosza w dół (jak prawdziwa lampa świeci)
+      // Smuga światła stożkowa od klosza do stożka (w dół dla południowych, w górę dla północnych)
       const beamG=X.createLinearGradient(lampX,lampY,lampX,coneY);
       beamG.addColorStop(0,`rgba(255,235,160,${0.30*intensity})`);
       beamG.addColorStop(0.6,`rgba(255,215,130,${0.12*intensity})`);
       beamG.addColorStop(1,'rgba(255,200,100,0)');
       X.fillStyle=beamG;
       X.beginPath();
-      X.moveTo(lampX-3,lampY+3);X.lineTo(lampX+3,lampY+3);
+      const _by=row.up?lampY-3:lampY+3;
+      X.moveTo(lampX-3,_by);X.lineTo(lampX+3,_by);
       X.lineTo(lampX+22,coneY);X.lineTo(lampX-25,coneY);X.closePath();X.fill();
     }
   }
@@ -59177,6 +59180,7 @@ const PATCH_NOTES = [
   {t:'ui',d:'🏷️ Zamieniliśmy pozostałe prawdziwe nazwy marek na własne, oryginalne odpowiedniki — dotyczy nazw oprogramowania muzycznego i sprzętu w studiu, jednego ze sponsorów oraz kilku słów w minigrze freestyle. Świat gry jest teraz spójny i w pełni oryginalny.'},
   {t:'ui',d:'🎨 Wróciły ikony na budynkach w mieście — sklepy, siłownia, studio, szpital, warsztat, radio i pozostałe lokale znów mają swój czytelny symbol nad nazwą. Ustawiliśmy je tak, żeby nie zasłaniały szyldów ani witryn.'},
   {t:'ui',d:'🚸 Poprawiliśmy znaki drogowe: każdy znak ma teraz cień dopasowany do swojego kształtu (ośmiokątny pod znakiem STOP, rombowy pod znakiem z pierwszeństwem, kwadratowy pod znakiem przejścia dla pieszych) — wcześniej znak STOP w ogóle nie rzucał widocznego cienia. Znak przejścia dla pieszych dostał też czytelniejszą sylwetkę idącej osoby.'},
+  {t:'ui',d:'💡 Nocne latarnie przy górnych krawędziach ulic świecą teraz na chodnik, a nie na środek jezdni — wcześniej ich światło rozlewało się po asfalcie (i „pod autami"). Ulice w nocy wyglądają czyściej i naturalniej.'},
   {t:'fix',d:'🖤 Naprawiliśmy zgłoszony błąd, przez który po umówieniu „Spotkania" lub „Towarzysza na wieczór" w Nocnym zaułku ekran robił się czarny i wyglądał, jakby gra się zawiesiła — nic nie było widać i nic się nie działo. Teraz na czarnym ekranie pojawia się napis „Wieczór trwa…", scena jest wyraźnie krótsza, a w każdej chwili możesz kliknąć, żeby ją pominąć i od razu zobaczyć skutki wieczoru. Ekran już nigdy nie zostaje czarny na stałe.'},
   {t:'change',d:'🌙 Nocny zaułek w Underground jest teraz czynny dłużej — do 05:00 (wcześniej zamykał się o 03:00).'},
  ]
