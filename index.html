@@ -21702,6 +21702,10 @@ window._igPublishFromComposer=function(){
 window._cryptoPromptBuy=function(coinId){
   const coin=CRYPTO_COINS.find(c=>c.id===coinId);
   if(!coin) return;
+  /* v2.3.103 AUDIT MODE (klasa błędu jak cocaine/mushroom, save-safe #1 — lekcja v817 partial-boot): defensive init G.crypto zanim czytamy .prices/.holdings, na wypadek dojścia tu bez renderu apki */
+  if(!G.crypto||typeof G.crypto!=='object') G.crypto={holdings:{},history:[],prices:{},lastPriceUpdateDay:0,leveragePositions:[],_lastScalpDay:0,_scalpCountToday:0};
+  if(!G.crypto.prices||typeof G.crypto.prices!=='object') G.crypto.prices={};
+  if(!G.crypto.holdings||typeof G.crypto.holdings!=='object') G.crypto.holdings={};
   const _price=(G.crypto.prices[coinId]||coin.initialPrice).toFixed(2);
   const _mg=document.getElementById('mg-job');const _mc=document.getElementById('mg-job-content');
   if(!_mg||!_mc) return;
@@ -21732,6 +21736,10 @@ window._cryptoDoBuy=function(coinId,amount){
 window._cryptoPromptSell=function(coinId){
   const coin=CRYPTO_COINS.find(c=>c.id===coinId);
   if(!coin) return;
+  /* v2.3.103 AUDIT MODE (klasa cocaine/mushroom, save-safe #1): defensive init G.crypto */
+  if(!G.crypto||typeof G.crypto!=='object') G.crypto={holdings:{},history:[],prices:{},lastPriceUpdateDay:0,leveragePositions:[],_lastScalpDay:0,_scalpCountToday:0};
+  if(!G.crypto.holdings||typeof G.crypto.holdings!=='object') G.crypto.holdings={};
+  if(!G.crypto.prices||typeof G.crypto.prices!=='object') G.crypto.prices={};
   const h=G.crypto.holdings[coinId];
   if(!h||h.qty<=0) return;
   const _price=(G.crypto.prices[coinId]||coin.initialPrice).toFixed(2);
@@ -23813,6 +23821,10 @@ window._metalsSell=function(metalId, qty){
 };
 window._metalsPromptBuy=function(metalId){
   const m=METALS_COMMODITIES.find(x=>x.id===metalId); if(!m) return;
+  /* v2.3.103 AUDIT MODE (klasa cocaine/mushroom, save-safe #1 — lekcja v817 partial-boot): defensive init G.metals */
+  if(!G.metals||typeof G.metals!=='object') G.metals={holdings:{},history:[],prices:{},prevPrices:{},hist:{},lastPriceUpdateDay:0};
+  if(!G.metals.prices||typeof G.metals.prices!=='object') G.metals.prices={};
+  if(!G.metals.holdings||typeof G.metals.holdings!=='object') G.metals.holdings={};
   const _price=(G.metals.prices[metalId]||m.initialPrice).toFixed(2);
   const _mg=document.getElementById('mg-job'); const _mc=document.getElementById('mg-job-content'); if(!_mg||!_mc) return;
   _mc.innerHTML=`<div style="background:#15120a;border:2px solid #d4af37;border-radius:10px;padding:18px;max-width:480px;margin:0 auto;color:#fff">
@@ -23839,6 +23851,10 @@ window._metalsDoBuy=function(metalId,amount){
 };
 window._metalsPromptSell=function(metalId){
   const m=METALS_COMMODITIES.find(x=>x.id===metalId); if(!m) return;
+  /* v2.3.103 AUDIT MODE (klasa cocaine/mushroom, save-safe #1): defensive init G.metals */
+  if(!G.metals||typeof G.metals!=='object') G.metals={holdings:{},history:[],prices:{},prevPrices:{},hist:{},lastPriceUpdateDay:0};
+  if(!G.metals.holdings||typeof G.metals.holdings!=='object') G.metals.holdings={};
+  if(!G.metals.prices||typeof G.metals.prices!=='object') G.metals.prices={};
   const h=G.metals.holdings[metalId]; if(!h||h.qty<=0) return;
   const price=(G.metals.prices[metalId]||m.initialPrice);
   const _value=(h.qty*price).toFixed(2);
@@ -59281,6 +59297,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'🏢 Naprawiliśmy poważny błąd, przez który interakcje z wieloma budynkami potrafiły nagle przestać działać — podchodziłeś, wciskałeś [E] i nic się nie otwierało. Dotyczyło to między innymi Steakhouse, Banku VIP, agencji PR i Fortuno w dzielnicy biznesowej, wszystkich lokali na luksusowym wybrzeżu, zakupu domowego sejfu, a nawet niektórych stacji w laboratorium. Błąd pojawiał się zwykle po skorzystaniu z gotowania i utrzymywał się do końca gry. Teraz wszystkie te miejsca otwierają się poprawnie w każdej sytuacji.'},
   {t:'fix',d:'📊 Fortuno w dzielnicy biznesowej nie twierdzi już błędnie „już dziś brałeś udział", gdy quiz w ogóle się nie pojawił — teraz quiz zawsze się otwiera, a limit „raz dziennie" liczy się dopiero po jego pokazaniu.'},
   {t:'fix',d:'🎵 Naprawiliśmy błąd, przez który muzyka w tle potrafiła czasem kompletnie ucichnąć — najczęściej przy szybkim przechodzeniu między lokacjami, ale też po tworzeniu bitów w sekwencerze. Teraz muzyka przygasa tylko na moment i zawsze wraca do właściwej głośności. Delikatne przyciszanie przy odgłosach akcji zostaje bez zmian (kroki nadal nie przyciszają muzyki).'},
+  {t:'fix',d:'🛡️ Dodatkowe wzmocnienia stabilności pod maską — panele handlu kryptowalutami i metalami szlachetnymi są teraz odporne na niekompletne wczytanie zapisu (nie mogą się przez to zaciąć).'},
   {t:'ui',d:'🏷️ Zamieniliśmy pozostałe prawdziwe nazwy marek na własne, oryginalne odpowiedniki — dotyczy nazw oprogramowania muzycznego i sprzętu w studiu, jednego ze sponsorów oraz kilku słów w minigrze freestyle. Świat gry jest teraz spójny i w pełni oryginalny.'},
   {t:'ui',d:'🎨 Wróciły ikony na budynkach w mieście — sklepy, siłownia, studio, szpital, warsztat, radio i pozostałe lokale znów mają swój czytelny symbol nad nazwą. Ustawiliśmy je tak, żeby nie zasłaniały szyldów ani witryn.'},
   {t:'ui',d:'🚸 Poprawiliśmy znaki drogowe: każdy znak ma teraz cień dopasowany do swojego kształtu (ośmiokątny pod znakiem STOP, rombowy pod znakiem z pierwszeństwem, kwadratowy pod znakiem przejścia dla pieszych) — wcześniej znak STOP w ogóle nie rzucał widocznego cienia. Znak przejścia dla pieszych dostał też czytelniejszą sylwetkę idącej osoby.'},
