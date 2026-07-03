@@ -27362,6 +27362,7 @@ function tickDecay(){
   if(typeof _smsCheckTriggers==='function') _smsCheckTriggers();
   if(typeof window._s9CheckScandal==='function') window._s9CheckScandal(); /* v2.3.102 (PDF #7): event „Ktoś ma nagranie" przy wysokim agencyHeat */
   if(typeof window._tournamentReminderCheck==='function') window._tournamentReminderCheck(); /* v2.3.99 (PDF #4/#5): przypomnienie turniejowe po 3 dniach (postponed/ignored) */
+  if(typeof window._novaCuraTick==='function') window._novaCuraTick(); /* PDF Nova Cura: eventy kryzysowe + naturalny spadek napięcia/przemęczenia (raz na dobę gry) */
   /* v1.9.20: Pogoda min 1 timeOfDay slot przed kolejną zmianą + bias 60% słońca */
   const _wTime=(G.day||0)*4+(G.timeOfDay||0);
   if(_wTime>(G._lastWeatherTime||0) && Math.random()<.012){
@@ -40057,22 +40058,158 @@ window.previewBeardColor=function(beardColorId,lbl){
   P.beardColor=_o;
 };
 
+/* ═══ NOVA CURA — rozbudowany moduł leczenia / terapii / kryzysów / ryzyka prawnego (PDF) ═══
+   Adaptacja do istniejących statów gry (reguła #1 save-safe): zdrowie=G.health, nastrój=G.stress (high=dobry),
+   napięcie=G.novacura.tension (NOWE, high=złe), przemęczenie=G.novacura.fatigue (NOWE), uzależnienia=G.addictions{},
+   withdrawal pochodny (max uzależnienie>50, spójne z narkobiznesem), ryzyko prawne=G.streetHeat/trap.heat.
+   Namespace G.novacura init w _5pdfEnsure (medicalTrust/hospitalRiskFlag/mentalCrisisLevel/therapyProgress/fatigue/tension/history/lastVisitDay/diagnosisAccuracy). */
+window._novaWithdrawalLevel=function(){ const a=G.addictions||{}; let mx=0; for(const k in a){ if((a[k]||0)>mx) mx=a[k]; } return mx>50?Math.round(mx-50):0; };
+window._novaAddictionRisk=function(){ const a=G.addictions||{}; let mx=0; for(const k in a){ if((a[k]||0)>mx) mx=a[k]; } return Math.round(mx); };
+window._novaRiskLabel=function(v){ return v>=70?'wysokie':v>=35?'średnie':v>=10?'niskie':'brak'; };
+window._novaLegalRisk=function(){ /* PDF §8 — NIE karze za samą wizytę; rośnie od realnych czynników (heat = zaangażowanie w nielegalne/świeży incydent). */
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure(); const n=G.novacura;
+  let risk=0; const heat=Math.max((G.streetHeat||0),((G.trap&&G.trap.heat)||0));
+  if(heat>=60) risk+=30; else if(heat>=30) risk+=15; else if(heat>=15) risk+=6;
+  if((n.hospitalRiskFlag||0)>=2) risk+=15; else if((n.hospitalRiskFlag||0)>=1) risk+=6;
+  if((n.medicalTrust||0)>=3) risk-=10;
+  if(n._anonymousChosen) risk-=15;
+  return Math.max(0,Math.min(100,risk));
+};
+window._novaLog=function(action,detail){ if(typeof _5pdfEnsure==='function') _5pdfEnsure(); const n=G.novacura; if(!Array.isArray(n.history)) n.history=[];
+  n.history.unshift({day:G.day||0,action,detail:detail||''}); if(n.history.length>20) n.history=n.history.slice(0,20); n.lastVisitDay=G.day||0; };
+window._novaLegalWarn=function(kind){ /* pokazuje ostrzeżenie/skutki zależne od progu, ale NIE blokuje leczenia ani nie „woła policji" automatycznie */
+  const r=window._novaLegalRisk(); if(r<50) return;
+  if(r>=75){ G.streetHeat=Math.min(100,(G.streetHeat||0)+3); if(typeof showMsg==='function') showMsg('🏥 Nova Cura: personel zadaje więcej pytań i robi notatkę w systemie. Jeśli masz przy sobie rzeczy, których tu być nie powinno — to zły moment na wizytę.','r',6500); }
+  else if(typeof showMsg==='function') showMsg('🏥 Nova Cura: personel jest ostrożny — więcej pytań niż zwykle. Nic groźnego, ale trzymaj się faktów.','i',5500);
+};
+
 function renderHospital(){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const n=G.novacura;
+  const maxH=(typeof getMaxStat==='function'?getMaxStat('health'):100);
+  const mood=Math.round(G.stress||0), tension=Math.round(n.tension||0), fat=Math.round(n.fatigue||0);
+  const wd=window._novaWithdrawalLevel(), addRisk=window._novaAddictionRisk(), mcl=Math.round(n.mentalCrisisLevel||0);
+  const money=G.money||0;
+  const col=(v,hiGood)=>{ const g=hiGood?v:100-v; return g>=66?'#7ec87e':g>=33?'#e0b050':'#e07050'; };
+  // ceny leczenia
+  const basicCost=Math.max(80,Math.floor((100-G.health)*3)), fullCost=Math.max(250,Math.floor((100-G.health)*8));
+  const testsCost=Math.min(4200,1200+fat*10+(mcl>=1?800:0));
+  const psychReq=(mood<=15||tension>=85||mcl>=2||wd>=40); // PDF §4.5 kiedy zalecana
+  const stabGate=(mcl>=1||tension>=50||wd>0);             // PDF §11 warunek dostępności
+  const consultCd=(n._lastConsultDay===G.day), therapyCd=(G._lastTherapyDay===G.day), psychCd=(n._lastPsychDay===G.day), testsCd=(n._lastTestsDay===G.day), stabCd=(n._lastStabDay===G.day);
+  const it=(icon,title,desc,price,handler,disabled,extra)=>`<div class="sitem"><h3>${icon} ${title}</h3><p style="font-size:11.5px;color:#8aa">${desc}</p>${extra||''}<div class="pr">${price}</div><button class="bbtn" onclick="${handler}" ${disabled?'disabled':''}>Wybierz</button></div>`;
   document.getElementById('ov-content').innerHTML=`
-    <h2>🏥 Szpital</h2><p class="sub">Wylecz swoje zdrowie za pieniądze.</p>
-    <div style="margin-bottom:20px">
-      <p style="color:#aaa;font-size:17px;margin-bottom:8px">Aktualne zdrowie: <strong style="color:#e74c3c">${Math.floor(G.health||0)}/${typeof getMaxStat==='function'?getMaxStat('health'):100}</strong></p>
-      <p style="color:#667;font-size:14px">Koszt pełnego leczenia: ${Math.floor((100-G.health)*8)} zł</p>
+    <h2>🏥 Nova Cura</h2><p class="sub">Centrum medyczne i terapeutyczne. Recepcja: Nurse Kai kieruje Cię do właściwej ścieżki.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:8px 16px;margin-bottom:14px;background:#0d1620;border:1px solid #1a2a3a;border-radius:8px;padding:10px 12px;font-size:13px">
+      <span>❤️ Zdrowie: <b style="color:${col(G.health,true)}">${Math.floor(G.health||0)}/${maxH}</b></span>
+      <span>🙂 Nastrój: <b style="color:${col(mood,true)}">${mood}/100</b></span>
+      <span>😰 Napięcie: <b style="color:${col(tension,false)}">${tension}/100</b></span>
+      <span>🥱 Przemęczenie: <b style="color:${col(fat,false)}">${fat}/100</b></span>
+      <span>💊 Ryzyko uzależnień: <b style="color:${col(addRisk,false)}">${window._novaRiskLabel(addRisk)}</b></span>
+      ${mcl>=1?`<span>⚠️ Kryzys psychiczny: <b style="color:#e07050">poziom ${mcl}</b></span>`:''}
     </div>
     <div class="shopgrid">
-      <div class="sitem"><h3>💊 Leczenie podstawowe</h3><p>+30 zdrowie</p><div class="pr">${Math.floor((100-G.health)*3)} zł</div><button class="bbtn" onclick="heal(30)" ${G.health>=100||G.money<Math.floor((100-G.health)*3)?'disabled':''}>Lecz</button></div>
-      <div class="sitem"><h3>🏥 Pełne leczenie</h3><p>Zdrowie 100%</p><div class="pr">${Math.floor((100-G.health)*8)} zł</div><button class="bbtn" onclick="heal(100)" ${G.health>=100||G.money<Math.floor((100-G.health)*8)?'disabled':''}>Pełne leczenie</button></div>
-      <div class="sitem"><h3>🧘 Terapia psychologiczna</h3><p>+50 nastrój oraz −12 do każdego uzależnienia (wyjście z nałogu)</p><div class="pr">500 zł</div><button class="bbtn" onclick="therapy()" ${G.money<500?'disabled':''}>Terapia</button></div>
+      ${it('💊','Leczenie podstawowe','Szybka pomoc przy drobnych urazach i osłabieniu. +30 zdrowia.',basicCost+' zł','_novaBasicHeal()',G.health>=100||money<basicCost)}
+      ${it('🏥','Pełne leczenie','Zdrowie do 100% + odratowanie po przemęczeniu (−20 przemęczenia).',fullCost+' zł','_novaFullHeal()',G.health>=100||money<fullCost)}
+      ${it('🩺','Konsultacja lekarska','Wywiad lekarski u dr Eleny Voss + diagnoza stanu. Twoje odpowiedzi wpływają na dokładność.','600 zł','_novaConsult()',money<600||consultCd,consultCd?'<p style="color:#e0b050;font-size:11px">Dziś już byłeś na konsultacji.</p>':'')}
+      ${it('🧘','Terapia psychologiczna','U Miry Hale: +35 nastrój, −10 napięcia, spadek uzależnień, postęp terapii.','750 zł','_novaTherapy()',money<750||therapyCd,therapyCd?'<p style="color:#e0b050;font-size:11px">Terapię masz dziś za sobą — wróć jutro.</p>':'')}
+      ${it('🧠','Konsultacja psychiatryczna','U dr Ilyi Renn: diagnoza kryzysu, stabilizacja nastroju, redukcja poziomu kryzysu.','1500 zł','_novaPsychiatric()',money<1500||psychCd,psychReq?'<p style="color:#e07050;font-size:11px">Zalecana przy Twoim obecnym stanie.</p>':'')}
+      ${it('🔬','Badania rozszerzone','Pełna diagnostyka organizmu + ocena gotowości do aktywności. Cena rośnie z przemęczeniem.',testsCost+' zł','_novaTests()',money<testsCost||testsCd)}
+      ${it('🛏️','Stabilizacja po kryzysie',(stabGate?'Krótki pobyt: −40 napięcia, +20 nastrój, −1 kryzys, złagodzenie odstawienia.':'Dostępna dopiero przy kryzysie psychicznym, wysokim napięciu lub odstawieniu.'),'2200 zł','_novaStabilize()',money<2200||!stabGate||stabCd)}
+      ${it('🕶️','Konsultacja dyskretna','Prywatna rozmowa bez rozgłosu: −ryzyko prawne, +zaufanie. Mniejsza dokładność diagnozy.','1800 zł','_novaDiscreet()',money<1800)}
+      ${it('📋','Historia leczenia','Zapis Twoich wizyt, diagnoz i zaleceń.','—','_novaHistory()',false)}
     </div>
-    <div class="res" id="shop-res">${G.health>=100?'Jesteś zdrowy!':'Wybierz leczenie.'}</div>
+    <div class="res" id="shop-res">${G.health>=100&&tension<40&&mood>=50?'Jesteś w niezłej formie. Nova Cura jest gdyby coś się działo.':'Nova Cura to miejsce decyzji o Twoim zdrowiu — wybierz, czego potrzebujesz.'}</div>
     <button class="cbtn" onclick="closeOverlay()">← Wróć</button>
   `;
 }
+/* — Zabiegi Nova Cura (każdy: koszt + cooldown = balans bez exploita; log do historii) — */
+window._novaBasicHeal=function(){ if(G.health>=100) return; const cost=Math.max(80,Math.floor((100-G.health)*3)); if((G.money||0)<cost){const e=document.getElementById('shop-res');if(e)e.textContent='Za mało pieniędzy!';return;}
+  const _nowAbs=(G.day||1)*1440+(gameMin||0); if(_nowAbs-(G._lastHealAbs||-9999)<30){ const m=Math.ceil(30-(_nowAbs-(G._lastHealAbs||-9999))); const e=document.getElementById('shop-res');if(e)e.textContent=`⏳ Lekarz potrzebuje ${m} min gry na kolejny zabieg.`;return; }
+  G.money-=cost; G.health=clampStat('health',(G.health||0)+30); G._lastHealAbs=_nowAbs; window._novaLog('Leczenie podstawowe','uraz fizyczny'); if(typeof updateHUD==='function')updateHUD();
+  const e=document.getElementById('shop-res'); if(e)e.textContent=`💊 Dr Elena Voss: załatwione. Zdrowie ${Math.floor(G.health)}/${(typeof getMaxStat==='function'?getMaxStat('health'):100)}.`; renderHospital(); };
+window._novaFullHeal=function(){ if(G.health>=100) return; const cost=Math.max(250,Math.floor((100-G.health)*8)); if((G.money||0)<cost){const e=document.getElementById('shop-res');if(e)e.textContent='Za mało pieniędzy!';return;}
+  const _nowAbs=(G.day||1)*1440+(gameMin||0); if(_nowAbs-(G._lastHealAbs||-9999)<30){ const m=Math.ceil(30-(_nowAbs-(G._lastHealAbs||-9999))); const e=document.getElementById('shop-res');if(e)e.textContent=`⏳ Lekarz potrzebuje ${m} min gry na kolejny zabieg.`;return; }
+  G.money-=cost; G.health=100; G._lastHealAbs=_nowAbs; G.novacura.fatigue=Math.max(0,(G.novacura.fatigue||0)-20); window._novaLog('Pełne leczenie','pełna regeneracja'); if(typeof updateHUD==='function')updateHUD();
+  const e=document.getElementById('shop-res'); if(e)e.textContent='🏥 Pełne leczenie zakończone. Zdrowie 100%, mniej przemęczenia.'; renderHospital(); };
+window._novaTherapy=function(){ if((G.money||0)<750){const e=document.getElementById('shop-res');if(e)e.textContent='Za mało pieniędzy!';return;} if(G._lastTherapyDay===G.day){if(typeof showMsg==='function')showMsg('🧘 Terapię masz dziś za sobą — wróć jutro.','r');return;}
+  if(typeof _5pdfEnsure==='function')_5pdfEnsure(); const n=G.novacura; G.money-=750; G._lastTherapyDay=G.day;
+  G.stress=clamp((G.stress||0)+35,0,100); n.tension=Math.max(0,(n.tension||0)-10); n.therapyProgress=(n.therapyProgress||0)+1;
+  let red=0; if(G.addictions){ for(const s in G.addictions){ const b=G.addictions[s]||0; if(b>0){ G.addictions[s]=Math.max(0,b-12); red+=b-G.addictions[s]; } } }
+  window._novaLog('Terapia psychologiczna','poprawa nastroju'+(red>0?', −'+red+' uzależnienia':'')); if(typeof updateHUD==='function')updateHUD();
+  const e=document.getElementById('shop-res'); if(e)e.textContent='🧘 Mira Hale: +35 nastrój, −10 napięcia'+(red>0?`, uzależnienia −${red}`:'')+'. Wróć, jak będziesz potrzebował.'; renderHospital(); };
+window._novaConsult=function(){ if((G.money||0)<600){const e=document.getElementById('shop-res');if(e)e.textContent='Za mało pieniędzy!';return;} if(typeof _5pdfEnsure==='function')_5pdfEnsure(); const n=G.novacura; if(n._lastConsultDay===G.day){if(typeof showMsg==='function')showMsg('🩺 Dziś już byłeś na konsultacji.','r');return;}
+  G.money-=600; n._lastConsultDay=G.day; window._novaLegalWarn('consult'); window._novaCuraInterview(false); };
+window._novaDiscreet=function(){ if((G.money||0)<1800){const e=document.getElementById('shop-res');if(e)e.textContent='Za mało pieniędzy!';return;} if(typeof _5pdfEnsure==='function')_5pdfEnsure(); const n=G.novacura;
+  G.money-=1800; n._anonymousChosen=true; n.medicalTrust=(n.medicalTrust||0)+1; window._novaLog('Konsultacja dyskretna','prywatna rozmowa'); if(typeof showMsg==='function')showMsg('🕶️ Prywatna konsultacja bez rozgłosu. Lekarz skupia się na Twoim bezpieczeństwie, nie na ocenie życia. Ryzyko prawne wizyt zmalało.','g',6000); window._novaCuraInterview(true); };
+window._novaCuraInterview=function(discreet){ if(typeof _5pdfEnsure==='function')_5pdfEnsure(); const n=G.novacura;
+  if(typeof showEventChoice!=='function'){ window._novaShowDiagnosis(); return; }
+  showEventChoice('🩺 Nova Cura — wywiad lekarski','Dr Elena Voss: „Aby dobrać właściwą pomoc, potrzebuję kilku informacji. Zakres Pana odpowiedzi wpływa na dokładność diagnozy." Co mówisz?',[
+    {label:'💬 Szczerze — przesadziłem ostatnio i zaczyna mi się to udzielać', fn:()=>{ n.medicalTrust=(n.medicalTrust||0)+2; n.therapyProgress=(n.therapyProgress||0)+1; n.diagnosisAccuracy=100; window._novaLog('Konsultacja lekarska','wywiad — szczery'); if(typeof notify==='function')notify('🩺 Dr Ilya Renn: „Dziękuję za szczerość — pozwala precyzyjniej dobrać postępowanie. Skupimy się na stabilizacji Pana stanu."'); window._novaShowDiagnosis(); }},
+    {label:'🙊 Unikam szczegółów — chcę tylko wrócić do siebie', fn:()=>{ n.medicalTrust=Math.max(0,(n.medicalTrust||0)-1); n.diagnosisAccuracy=Math.max(40,(n.diagnosisAccuracy||100)-15); window._novaLog('Konsultacja lekarska','wywiad — zdawkowy'); if(typeof notify==='function')notify('🩺 Dr Elena Voss: „Rozumiem, ale ograniczony zakres informacji obniża dokładność diagnozy i skuteczność leczenia."'); window._novaShowDiagnosis(); }},
+    {label:'😤 Ogarnijcie mnie i nie zadawajcie zbędnych pytań', fn:()=>{ n.medicalTrust=Math.max(0,(n.medicalTrust||0)-2); n.tension=Math.min(100,(n.tension||0)+5); if(!discreet) n.hospitalRiskFlag=(n.hospitalRiskFlag||0)+1; window._novaLog('Konsultacja lekarska','wywiad — odmowa współpracy'); if(typeof notify==='function')notify('🩺 Dr Elena Voss: „Bez podstawowej współpracy zakres leczenia będzie ograniczony do minimum medycznego."'); window._novaShowDiagnosis(); }},
+  ]);
+};
+window._novaShowDiagnosis=function(){ if(typeof _5pdfEnsure==='function')_5pdfEnsure(); const n=G.novacura;
+  const mood=Math.round(G.stress||0), tension=Math.round(n.tension||0), fat=Math.round(n.fatigue||0), wd=window._novaWithdrawalLevel(), mcl=Math.round(n.mentalCrisisLevel||0), acc=Math.round(n.diagnosisAccuracy||100);
+  const rec=[]; if(mcl>=2||(mood<=15&&tension>=85)) rec.push('Pilnie: konsultacja psychiatryczna + stabilizacja po kryzysie.');
+  if(wd>=25) rec.push('Objawy odstawienia — terapia u Miry Hale i stabilizacja.');
+  if(fat>=60) rec.push('Silne przemęczenie — pełne leczenie i odpoczynek.');
+  if(tension>=60) rec.push('Wysokie napięcie — terapia psychologiczna.');
+  if(mood<=30) rec.push('Niski nastrój — terapia albo konsultacja psychiatryczna.');
+  if(!rec.length) rec.push('Stan stabilny. Kontroluj przemęczenie i napięcie, nie przeciągaj maratonów.');
+  const el=document.getElementById('ov-content'); if(!el) return;
+  el.innerHTML=`<h2>🩺 Nova Cura — diagnoza</h2><p class="sub">Dokładność diagnozy: ${acc}% (zależy od Twojej szczerości w wywiadzie).</p>
+    <div style="background:#0d1620;border:1px solid #1a2a3a;border-radius:8px;padding:12px;margin-bottom:12px;font-size:13px;line-height:1.7">
+      ❤️ Zdrowie: <b>${Math.floor(G.health||0)}</b> · 🙂 Nastrój: <b>${mood}</b> · 😰 Napięcie: <b>${tension}</b> · 🥱 Przemęczenie: <b>${fat}</b><br>
+      💊 Ryzyko uzależnień: <b>${window._novaRiskLabel(window._novaAddictionRisk())}</b>${wd>0?` · odstawienie: <b>${wd}</b>`:''}${mcl>=1?` · ⚠️ kryzys: <b>${mcl}</b>`:''}
+    </div>
+    <div style="background:#101a10;border:1px solid #244a24;border-radius:8px;padding:12px;margin-bottom:12px">
+      <b style="color:#7ec87e">Zalecenia:</b><ul style="margin:6px 0 0 16px;padding:0;font-size:13px;line-height:1.7">${rec.map(r=>`<li>${r}</li>`).join('')}</ul>
+    </div>
+    <button class="cbtn" onclick="renderHospital()">← Wróć do Nova Cura</button>`;
+};
+window._novaPsychiatric=function(){ if((G.money||0)<1500){const e=document.getElementById('shop-res');if(e)e.textContent='Za mało pieniędzy!';return;} if(typeof _5pdfEnsure==='function')_5pdfEnsure(); const n=G.novacura; if(n._lastPsychDay===G.day){if(typeof showMsg==='function')showMsg('🧠 Konsultację psychiatryczną masz dziś za sobą.','r');return;}
+  G.money-=1500; n._lastPsychDay=G.day; window._novaLegalWarn('psych');
+  const inCrisis=(G.stress<=25||(n.mentalCrisisLevel||0)>=1||n.tension>=70);
+  G.stress=clamp((G.stress||0)+(inCrisis?25:12),0,100); n.tension=Math.max(0,(n.tension||0)-15); if((n.mentalCrisisLevel||0)>0) n.mentalCrisisLevel=Math.max(0,n.mentalCrisisLevel-1); n.medicalTrust=(n.medicalTrust||0)+1; n.therapyProgress=(n.therapyProgress||0)+1;
+  window._novaLog('Konsultacja psychiatryczna',inCrisis?'diagnoza kryzysu + stabilizacja nastroju':'kontrola stanu psychicznego'); if(typeof updateHUD==='function')updateHUD();
+  if(typeof showMsg==='function')showMsg('🧠 Dr Ilya Renn: „Skupiamy się na Pana bezpieczeństwie i decyzjach korzystnych na krótką i dłuższą metę." Nastrój podniesiony, napięcie i kryzys spadły.','g',6500); renderHospital(); };
+window._novaTests=function(){ if(typeof _5pdfEnsure==='function')_5pdfEnsure(); const n=G.novacura; const fat=Math.round(n.fatigue||0), mcl=Math.round(n.mentalCrisisLevel||0); const cost=Math.min(4200,1200+fat*10+(mcl>=1?800:0));
+  if((G.money||0)<cost){const e=document.getElementById('shop-res');if(e)e.textContent='Za mało pieniędzy!';return;} if(n._lastTestsDay===G.day){if(typeof showMsg==='function')showMsg('🔬 Badania masz dziś zrobione.','r');return;}
+  G.money-=cost; n._lastTestsDay=G.day; n.medicalTrust=(n.medicalTrust||0)+1; n.hospitalRiskFlag=Math.max(0,(n.hospitalRiskFlag||0)-1); n.diagnosisAccuracy=100;
+  const tox=(window._novaAddictionRisk()>=45||mcl>=1); window._novaLog('Badania rozszerzone',tox?'z testem toksykologicznym':'parametry ogólne'); if(typeof updateHUD==='function')updateHUD();
+  if(typeof showMsg==='function')showMsg('🔬 Badania rozszerzone gotowe: parametry ogólne, reakcja na stres, ocena gotowości do aktywności'+(tox?' + test toksykologiczny (uzasadniony stanem)':'')+'. Dokumentacja porządkuje Twoją sytuację.','g',6500); renderHospital(); };
+window._novaStabilize=function(){ if(typeof _5pdfEnsure==='function')_5pdfEnsure(); const n=G.novacura; const wd=window._novaWithdrawalLevel(); const gate=((n.mentalCrisisLevel||0)>=1||(n.tension||0)>=50||wd>0);
+  if(!gate){ if(typeof showMsg==='function')showMsg('🛏️ Stabilizacja dostępna dopiero przy kryzysie psychicznym, wysokim napięciu lub odstawieniu.','i',5500); return; }
+  if((G.money||0)<2200){const e=document.getElementById('shop-res');if(e)e.textContent='Za mało pieniędzy!';return;} if(n._lastStabDay===G.day){if(typeof showMsg==='function')showMsg('🛏️ Pobyt stabilizacyjny masz dziś za sobą.','r');return;}
+  G.money-=2200; n._lastStabDay=G.day; n.tension=Math.max(0,(n.tension||0)-40); G.stress=clamp((G.stress||0)+20,0,100); if((n.mentalCrisisLevel||0)>0) n.mentalCrisisLevel=Math.max(0,n.mentalCrisisLevel-1);
+  let red=0; if(G.addictions){ for(const s in G.addictions){ const b=G.addictions[s]||0; if(b>0){ G.addictions[s]=Math.max(0,b-15); red+=b-G.addictions[s]; } } }
+  window._novaLog('Stabilizacja po kryzysie','wyciszenie organizmu'+(red>0?', −'+red+' odstawienie':'')); if(typeof updateHUD==='function')updateHUD();
+  if(typeof showMsg==='function')showMsg('🛏️ Krótki pobyt stabilizacyjny pod opieką specjalisty. −40 napięcia, +20 nastrój'+(red>0?`, złagodzone odstawienie (−${red})`:'')+'. Odzyskujesz podstawową kontrolę.','g',7000); renderHospital(); };
+window._novaHistory=function(){ if(typeof _5pdfEnsure==='function')_5pdfEnsure(); const n=G.novacura; const h=Array.isArray(n.history)?n.history:[];
+  const rows=h.length?h.map(x=>`<div style="border-bottom:1px solid #16202c;padding:7px 0;font-size:13px"><b style="color:#7ec8e3">Dz. ${x.day}</b> — ${x.action}${x.detail?` <span style="color:#8aa">(${x.detail})</span>`:''}</div>`).join(''):'<p style="color:#8aa">Brak wizyt. Twoja historia leczenia pojawi się tutaj.</p>';
+  const el=document.getElementById('ov-content'); if(!el) return;
+  el.innerHTML=`<h2>📋 Historia leczenia</h2><p class="sub">Zapis wizyt w Nova Cura.</p><div style="background:#0d1620;border:1px solid #1a2a3a;border-radius:8px;padding:6px 12px;margin-bottom:12px">${rows}</div><button class="cbtn" onclick="renderHospital()">← Wróć do Nova Cura</button>`; };
+/* — Tick Nova Cura: 5 eventów kryzysowych (z realnych sygnałów gry) + naturalny spadek napięcia/przemęczenia (asymptota, reguła #11). Raz na dobę gry. — */
+window._novaCuraTick=function(){ if(typeof _5pdfEnsure==='function')_5pdfEnsure(); const n=G.novacura;
+  if(n._lastTickDay===G.day) return; n._lastTickDay=G.day;
+  /* naturalne wyciszanie (nie rośnie w nieskończoność bez leczenia) */
+  n.tension=Math.max(0,(n.tension||0)-3); n.fatigue=Math.max(0,(n.fatigue||0)-3);
+  if((n.tension||0)<40&&(G.stress||0)>50&&(n.mentalCrisisLevel||0)>0&&Math.random()<0.34) n.mentalCrisisLevel=Math.max(0,n.mentalCrisisLevel-1);
+  /* delikatny efekt: bardzo wysokie napięcie odbiera trochę nastroju (organizm pod presją) */
+  if((n.tension||0)>=70) G.stress=clamp((G.stress||0)-1,0,100);
+  if(!n._crisisCd||typeof n._crisisCd!=='object') n._crisisCd={};
+  const cd=(id,days)=>((G.day||0)-(n._crisisCd[id]||-99)>=days);
+  const fire=(id,title,msg,fx)=>{ n._crisisCd[id]=G.day||0; fx(); window._novaLog('Event: '+title,'nastrój/napięcie'); if(typeof showMsg==='function')showMsg('⚠️ '+title+' — '+msg+' Zajrzyj do Nova Cura.','r',7000); };
+  const mood=(G.stress||0), tension=(n.tension||0), fat=(n.fatigue||0), addR=window._novaAddictionRisk(), en=(G.energy||100);
+  /* priorytet od najcięższego; max 1 event na dobę */
+  if(tension>=85&&mood<=25&&cd('breakdown',4)) return fire('breakdown','Pęknięcie kontroli','myśli się zapętlają, napięcie nie schodzi — to nie da się „przeczekać".',()=>{ n.mentalCrisisLevel=(n.mentalCrisisLevel||0)+1; n.tension=Math.min(100,tension+5); G.stress=clamp(mood-10,0,100); });
+  if(addR>=55&&cd('nightcrash',4)) return fire('nightcrash','Nocny zjazd','to, co miało pomóc wytrzymać noc, zaczyna działać przeciwko Tobie — pierwsze objawy odstawienia.',()=>{ G.stress=clamp(mood-15,0,100); n.tension=Math.min(100,tension+20); });
+  if(fat>=60&&tension>=70&&cd('overload',4)) return fire('overload','Zbyt dużo naraz','zlecenia, nagrania, ludzie — każdy chce czegoś teraz, nie masz kiedy się zatrzymać.',()=>{ G.stress=clamp(mood-12,0,100); n.tension=Math.min(100,tension+10); n.fatigue=Math.min(100,fat+15); });
+  if(en<=12&&cd('marathon',3)) return fire('marathon','Zbyt długi maraton','studio, miasto, telefon, kolejne aktywności — organizm wysyła rachunek.',()=>{ n.fatigue=Math.min(100,fat+25); G.stress=clamp(mood-8,0,100); });
+  if((G.fame||0)>=10&&mood<=20&&cd('silence',5)) return fire('silence','Cisza po premierze','numer wyszedł, ale reakcja miasta była słabsza, niż zakładałeś. Nastrój mocno spadł.',()=>{ G.stress=clamp(mood-10,0,100); n.tension=Math.min(100,tension+8); });
+};
 
 function renderRestauracja(){
   const MENU=[
@@ -53914,7 +54051,7 @@ window._smsCheckTriggers=function(){
   /* v2.1.336 Faza K (user 2026-05-27 "'ostro spaliłeś' brzmi jak coś negatywnego"): zamiana na pozytywny slang. */
   if(freestyles>=1) _smsTriggerOnce('first_freestyle','kamil','widzialem ten freestyle na ulicy 🔥 zajechałeś ostro! tak trzymaj',{replySet:'freestyle'});
   // — Pierwszy track
-  /* v2.1.337 Faza T (user 2026-05-27): SMS Producent mówi o 5 single (analog do quest p_3tracks target 5, spójne z aktualnymi licznikami). */
+  /* v2.1.337 Faza T (user 2026-05-27): SMS Producent (Majkel) mówi o 5 singli (analog do quest p_3tracks target 5, spójne z aktualnymi licznikami). PDF Producent: replySet producer_first + follow-up producer_5singles. */
   if(tracks>=1) _smsTriggerOnce('first_track','producent',`Yo, ${G.name||'kolego'}. Słyszałem Twój pierwszy numer — jest tam coś, czego nie da się kupić pluginem. Dowieziesz 5 opublikowanych singli w podobnym tonie, to pogadamy o czymś poważniejszym: beaty, sesje, może i kontrakt 🎚️`,{replySet:'producer_first'});
   if(tracks>=5) _smsTriggerOnce('producer_5singles','producent',`5 numerów masz na koncie. Wbij do mnie do Studia — pogadamy o współpracy na poważnie: procenty, bity, sesje. Widzę, że nie zwijasz po jednym uploadzie 🎚️`);
   if(tracks>=3) _smsTriggerOnce('3_tracks','label','A&R Major Label tu. Twoje numery rosną w streamach. Mamy ofertę kontraktową — wbij w Telefon → Wytwórnia, żeby podpisać 🏢');
