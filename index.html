@@ -3347,7 +3347,7 @@ const ROOMS = {
        PRAWA-DÓŁ (820-1200, 430-580): lounge z kanapą do odpoczynku + stolik kawowy. */
     objects:[
       {id:'mic_booth', wx:80, wy:140, w:200,h:200, act:'studio_info_booth', prompt:'[E] 🎙 Kabina nagraniowa', lbl:'Kabina'},
-      {id:'mixer',     wx:460,wy:220, w:180,h:100, act:'studio_info_mixer', prompt:'[E] 🎛 Mikser analogowy', lbl:'Mikser'},
+      {id:'mixer',     wx:460,wy:220, w:180,h:100, act:'open:studio_complex', prompt:'[E] 🏢 Zarządzaj studiem (kup lokale / wyposaż)', lbl:'Complex'}, /* v2.3.109 (PDF13 13.2): mikser → panel Studio Complex (kup kolejne lokale, wyposaż) */
       {id:'computer',  wx:860,wy:160, w:200,h:160, act:'open:daw',          prompt:'[E] 💻 Komputer / DAW',  lbl:'DAW'},
       /* v2.1.69 Amper: sofa wyrównana — środek X=960 (= środek krzesła chX:931+29). Sofa h=110, wy=480 → środek y=535. Krzesło środek y=369. Gap pionowy 76px (krzesło dół 398, sofa góra 480). */
       {id:'studio_sofa', wx:820,wy:480, w:280,h:110, act:'rest', prompt:'[E] 🛋 Lounge — odpocznij', lbl:''},
@@ -16836,6 +16836,122 @@ window.setActiveStudioRoom=function(roomId){
   if(typeof notify==='function') notify(`🎙️ Aktywne studio: ${STUDIO_ROOMS[roomId].name}`);
   renderStudioForSale();
 };
+/* ═══ v2.3.109 (PDF13 TIER 13.2): katalog wyposażenia studia (10 kategorii, PDF §12-22). Sprzęt przypisany do konkretnego lokalu (rooms[id].equipment). score = wkład jakości (konsumowany przez formuły TIER 13.3). ═══ */
+const STUDIO_EQUIP={
+  computer_basic:{id:'computer_basic',name:'Komputer Basic',cat:'computer',price:6000,score:40,emoji:'💻'},
+  computer_studio:{id:'computer_studio',name:'Komputer Studio',cat:'computer',price:18000,score:70,emoji:'🖥️'},
+  workstation_pro:{id:'workstation_pro',name:'Workstation Pro',cat:'computer',price:42000,score:92,emoji:'🖥️'},
+  daw_starter:{id:'daw_starter',name:'DAW Starter',cat:'daw',price:2500,score:40,emoji:'🎛️'},
+  daw_pro:{id:'daw_pro',name:'DAW Pro',cat:'daw',price:9500,score:65,emoji:'🎛️'},
+  daw_ultimate:{id:'daw_ultimate',name:'DAW Ultimate',cat:'daw',price:22000,score:88,emoji:'🎛️'},
+  mic_usb:{id:'mic_usb',name:'Mikrofon USB Basic',cat:'microphone',price:1200,score:35,emoji:'🎤'},
+  mic_dynamic:{id:'mic_dynamic',name:'Mikrofon Dynamic Studio',cat:'microphone',price:3200,score:55,emoji:'🎤'},
+  mic_condenser:{id:'mic_condenser',name:'Mikrofon Condenser Pro',cat:'microphone',price:8500,score:78,emoji:'🎙️'},
+  mic_tube:{id:'mic_tube',name:'Mikrofon Tube Premium',cat:'microphone',price:24000,score:95,emoji:'🎙️'},
+  if_basic:{id:'if_basic',name:'Interface Basic',cat:'audio_interface',price:1800,score:40,emoji:'🔌'},
+  if_studio:{id:'if_studio',name:'Interface Studio',cat:'audio_interface',price:6500,score:65,emoji:'🔌'},
+  if_prorack:{id:'if_prorack',name:'Interface Pro Rack',cat:'audio_interface',price:18000,score:88,emoji:'🔌'},
+  hp_basic:{id:'hp_basic',name:'Słuchawki Basic',cat:'headphones',price:700,score:35,emoji:'🎧'},
+  hp_studio:{id:'hp_studio',name:'Słuchawki Studio',cat:'headphones',price:2400,score:60,emoji:'🎧'},
+  hp_artist:{id:'hp_artist',name:'Słuchawki Artist Pack',cat:'headphones',price:6500,score:75,emoji:'🎧'},
+  mon_basic:{id:'mon_basic',name:'Monitory Basic',cat:'monitors',price:4500,score:55,emoji:'🔊'},
+  mon_studio:{id:'mon_studio',name:'Monitory Studio',cat:'monitors',price:14000,score:78,emoji:'🔊'},
+  mon_premium:{id:'mon_premium',name:'Monitory Premium',cat:'monitors',price:38000,score:95,emoji:'🔊'},
+  midi_mini:{id:'midi_mini',name:'MIDI Mini',cat:'midi',price:1500,score:40,emoji:'🎹'},
+  midi_studio:{id:'midi_studio',name:'MIDI Studio',cat:'midi',price:4500,score:62,emoji:'🎹'},
+  midi_prokeys:{id:'midi_prokeys',name:'MIDI Pro Keys',cat:'midi',price:12000,score:82,emoji:'🎹'},
+  pad_ctrl:{id:'pad_ctrl',name:'Pad Controller',cat:'midi',price:3800,score:52,emoji:'🎛️'},
+  guitar_corner:{id:'guitar_corner',name:'Gitara / Instrument Corner',cat:'midi',price:9000,score:58,emoji:'🎸'},
+  ac_foam:{id:'ac_foam',name:'Pianki akustyczne Basic',cat:'acoustic',price:2500,score:40,emoji:'🧱'},
+  ac_panels:{id:'ac_panels',name:'Panele akustyczne Studio',cat:'acoustic',price:9500,score:66,emoji:'🧱'},
+  ac_adapt:{id:'ac_adapt',name:'Adaptacja Pro',cat:'acoustic',price:28000,score:90,emoji:'🧱'},
+  ac_booth_compact:{id:'ac_booth_compact',name:'Kabina wokalna Compact',cat:'acoustic',price:18000,score:75,emoji:'🚪'},
+  ac_booth_pro:{id:'ac_booth_pro',name:'Kabina wokalna Pro',cat:'acoustic',price:52000,score:96,emoji:'🚪'},
+  light_basic:{id:'light_basic',name:'Lampy Basic',cat:'lighting',price:1200,score:40,emoji:'💡'},
+  light_led:{id:'light_led',name:'LED Mood Kit',cat:'lighting',price:4500,score:62,emoji:'🌈'},
+  light_rgb:{id:'light_rgb',name:'RGB Studio Wall',cat:'lighting',price:11000,score:78,emoji:'🌈'},
+  light_film:{id:'light_film',name:'Film Light Kit',cat:'lighting',price:16000,score:72,emoji:'🎬'},
+  furn_chair:{id:'furn_chair',name:'Fotel Realizatora',cat:'furniture',price:2500,score:45,emoji:'🪑'},
+  furn_sofa_used:{id:'furn_sofa_used',name:'Kanapa Used',cat:'furniture',price:1800,score:40,emoji:'🛋️'},
+  furn_sofa_studio:{id:'furn_sofa_studio',name:'Kanapa Studio',cat:'furniture',price:6500,score:66,emoji:'🛋️'},
+  furn_lounge:{id:'furn_lounge',name:'Lounge Premium',cat:'furniture',price:22000,score:90,emoji:'🛋️'},
+  fridge_mini:{id:'fridge_mini',name:'Mini lodówka',cat:'fridge',price:1800,score:40,emoji:'🧊'},
+  fridge_studio:{id:'fridge_studio',name:'Lodówka Studio',cat:'fridge',price:5200,score:66,emoji:'🧊'},
+  fridge_premium:{id:'fridge_premium',name:'Lodówka Premium',cat:'fridge',price:14000,score:90,emoji:'🧊'},
+  plugins_basic:{id:'plugins_basic',name:'Pakiet pluginów Basic',cat:'plugins',price:3000,score:45,emoji:'🔮'},
+  plugins_pro:{id:'plugins_pro',name:'Pakiet pluginów Pro',cat:'plugins',price:12000,score:80,emoji:'🔮'},
+  extra_booking:{id:'extra_booking',name:'Panel rezerwacji',cat:'extras',price:7000,score:60,emoji:'📅'},
+  extra_access:{id:'extra_access',name:'System dostępu',cat:'extras',price:8500,score:55,emoji:'🔐'},
+};
+window.STUDIO_EQUIP=STUDIO_EQUIP;
+/* Grupy DISPLAY (PDF §12): łączą granularne cats (computer+daw, monitors+headphones, plugins+extras). Formuły 13.3 czytają granularne cats osobno. */
+window.STUDIO_EQUIP_GROUPS=[
+  {label:'💻 Komputer i DAW',cats:['computer','daw']},
+  {label:'🎤 Mikrofony',cats:['microphone']},
+  {label:'🔌 Interfejsy audio',cats:['audio_interface']},
+  {label:'🔊 Odsłuch i słuchawki',cats:['monitors','headphones']},
+  {label:'🎹 MIDI i instrumenty',cats:['midi']},
+  {label:'🧱 Akustyka',cats:['acoustic']},
+  {label:'💡 Oświetlenie',cats:['lighting']},
+  {label:'🛋️ Meble i komfort',cats:['furniture']},
+  {label:'🧊 Lodówka',cats:['fridge']},
+  {label:'🔮 Dodatki realizacyjne',cats:['plugins','extras']},
+];
+/* zwraca instancję lokalu (equipment array) — tworzy jeśli brak */
+window.getStudioRoomInstance=function(roomId){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const sc=G.studioComplex; if(!sc.rooms[roomId]||typeof sc.rooms[roomId]!=='object') sc.rooms[roomId]={equipment:[]};
+  if(!Array.isArray(sc.rooms[roomId].equipment)) sc.rooms[roomId].equipment=[];
+  return sc.rooms[roomId];
+};
+window.roomHasEquip=function(roomId,equipId){ const r=window.getStudioRoomInstance(roomId); return r.equipment.some(e=>e.id===equipId); };
+/* najlepszy score w danej kategorii w lokalu (dla formuł TIER 13.3) */
+window.getRoomEquipmentScore=function(roomId,cat){
+  const r=window.getStudioRoomInstance(roomId); let best=0;
+  for(const e of r.equipment){ const it=STUDIO_EQUIP[e.id]; if(it&&it.cat===cat&&it.score>best) best=it.score; }
+  return best;
+};
+window.buyStudioEquip=function(equipId,roomId){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const it=STUDIO_EQUIP[equipId], room=STUDIO_ROOMS[roomId], sc=G.studioComplex;
+  if(!it||!room) return;
+  if(!sc.ownedRooms.includes(roomId)){ if(typeof showMsg==='function') showMsg('Najpierw kup ten lokal.','r'); return; }
+  const inst=window.getStudioRoomInstance(roomId);
+  if(window.roomHasEquip(roomId,equipId)){ if(typeof showMsg==='function') showMsg('Ten sprzęt jest już w tym lokalu.','r'); return; }
+  if(inst.equipment.length>=room.maxEquipmentSlots){ if(typeof showMsg==='function') showMsg(`W tym lokalu nie ma już miejsca (${room.maxEquipmentSlots} slotów). Kup większy lokal albo usuń sprzęt.`,'r',6000); return; }
+  if((G.money||0)<it.price){ if(typeof showMsg==='function') showMsg(`Za mało gotówki — ${it.name} kosztuje ${it.price.toLocaleString('pl')} zł.`,'r',5000); return; }
+  G.money-=it.price; sc.totalInvested=(sc.totalInvested||0)+it.price;
+  inst.equipment.push({id:equipId,condition:100,installedDay:(G.day||0)});
+  if(typeof checkAchievements==='function') checkAchievements();
+  if(typeof notify==='function') notify(`✅ Kupiono ${it.name} → przypisano do ${room.name}.`);
+  if(typeof window._recalcStudioRoomStats==='function') window._recalcStudioRoomStats(roomId); /* TIER 13.3 */
+  window.renderStudioEquip(roomId);
+};
+/* Panel wyposażenia dla konkretnego lokalu (PDF §11/§39). */
+window.renderStudioEquip=function(roomId){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const room=STUDIO_ROOMS[roomId], sc=G.studioComplex; if(!room) return;
+  if(!sc.ownedRooms.includes(roomId)){ renderStudioForSale(); return; }
+  const inst=window.getStudioRoomInstance(roomId);
+  const used=inst.equipment.length, cap=room.maxEquipmentSlots;
+  let body='';
+  for(const grp of window.STUDIO_EQUIP_GROUPS){
+    const ids=Object.keys(STUDIO_EQUIP).filter(id=>grp.cats.indexOf(STUDIO_EQUIP[id].cat)>=0);
+    if(!ids.length) continue;
+    body+=`<h3 style="color:#9b59b6;font-size:12.5px;margin:10px 0 5px">${grp.label}</h3><div class="shopgrid">`;
+    for(const id of ids){ const it=STUDIO_EQUIP[id]; const owned=window.roomHasEquip(roomId,id); const full=used>=cap;
+      body+=`<div class="sitem"><h3>${it.emoji} ${it.name}</h3><div class="pr">${it.price.toLocaleString('pl')} zł</div>${owned?'<div class="owned">✅ Zainstalowane</div>':''}<button class="bbtn" ${owned||full||(G.money||0)<it.price?'disabled':''} onclick="buyStudioEquip('${id}','${roomId}')">${owned?'Zainstalowane':(full?'Brak slotu':'Kup')}</button></div>`;
+    }
+    body+='</div>';
+  }
+  document.getElementById('ov-content').innerHTML=`
+    <h2>🎛️ Wyposaż: ${room.emoji} ${room.name}</h2>
+    <p class="sub">Każdy sprzęt trafia do TEGO lokalu. Sloty: <b>${used}/${cap}</b> · Kasa: <b style="color:#2ecc71">${(G.money||0).toLocaleString('pl')} zł</b></p>
+    ${body}
+    <div class="res" id="shop-res" style="margin-top:6px">Wybierz sprzęt.</div>
+    <button class="cbtn" style="margin-top:8px" onclick="renderStudioForSale()">← Studio Complex</button>
+  `;
+};
 function renderStudioForSale(){
   if(typeof _5pdfEnsure==='function') _5pdfEnsure();
   const sc=G.studioComplex; const owned=sc.ownedRooms; const L=G.level||1;
@@ -16846,7 +16962,7 @@ function renderStudioForSale(){
       <div style="color:#8aa;font-size:11px;margin:4px 0">${r.desc}</div>
       <div style="color:#778;font-size:10.5px;display:flex;flex-wrap:wrap;gap:8px"><span>📐 ${r.sizeM2} m²</span><span>🎚️ Akustyka ${r.acousticPotential}</span><span>⭐ Prestiż ${r.prestigeBase}</span><span>🛋️ Komfort ${r.npcComfortBase}</span><span>🔧 Utrzym. ${r.weeklyMaintenance.toLocaleString('pl')} zł/tydz.</span><span>📦 Sloty ${r.maxEquipmentSlots}</span></div>
       <div style="margin-top:8px">${isOwned
-        ? `${!isActive?`<button class="bbtn" style="padding:5px 12px;font-size:12px" onclick="setActiveStudioRoom('${id}')">Ustaw jako aktywne</button> `:''}<button class="bbtn" style="padding:5px 12px;font-size:12px;background:#1a3525;border-color:#2a6a3a;color:#9ee89e" onclick="closeOverlay();changeRoom('studio',200,300)">Wejdź</button>`
+        ? `${!isActive?`<button class="bbtn" style="padding:5px 12px;font-size:12px" onclick="setActiveStudioRoom('${id}')">Ustaw jako aktywne</button> `:''}<button class="bbtn" style="padding:5px 12px;font-size:12px;background:#2a1a35;border-color:#6a3a8a;color:#c89eeb" onclick="renderStudioEquip('${id}')">🎛️ Wyposaż</button> <button class="bbtn" style="padding:5px 12px;font-size:12px;background:#1a3525;border-color:#2a6a3a;color:#9ee89e" onclick="closeOverlay();changeRoom('studio',200,300)">▶️ Wejdź</button>`
         : `<button class="dbtn" style="padding:6px 14px;font-size:13px" ${(G.money||0)<price?'disabled':''} onclick="buyStudioRoom('${id}')">Kup lokal — ${price.toLocaleString('pl')} zł</button>`}</div>
     </div>`;
   };
@@ -32001,6 +32117,7 @@ function openCareerOverlay(id){
   switch(id){
     case 'youtuber':  renderYTOverlay();break;
     case 'daw':       renderDAWOverlay();break;
+    case 'studio_complex': renderStudioForSale();break; /* v2.3.109 (PDF13 13.2): panel kompleksu z wnętrza studia (kup lokale / wyposaż) */
     case 'beatmaker': renderBeatmakerOverlay();break;
     case 'gamer':     renderGamerOverlay();break;
     case 'influencer':renderInfluencerOverlay();break;
@@ -61137,6 +61254,7 @@ const PATCH_NOTES = [
   {t:'new',d:'🎙️ Zamiast jednego studia na sprzedaż masz teraz kompleks studyjny z pięcioma przestrzeniami do kupienia — od małego Booth Roomu po topowy Penthouse. Każdy lokal ma inny metraż, cenę, potencjał akustyczny, prestiż, komfort i koszt utrzymania. Cena lokalu to sama przestrzeń — sprzęt kupujesz i montujesz osobno.'},
   {t:'change',d:'💰 Przestrzenie studyjne są znacznie droższe niż dawne studio (od 78 000 zł), więc własne studio to teraz poważna inwestycja i realny cel do wygrindowania. Cena spada wraz z Twoim poziomem.'},
   {t:'new',d:'📁 Możesz posiadać kilka lokali naraz i wskazać jeden jako aktywny do własnych nagrań. Jeśli miałeś już wcześniej studio, dostajesz w zamian gotowy Booth Room — nic nie tracisz.'},
+  {t:'new',d:'🎛️ Każdy lokal wyposażasz osobno — komputer i DAW, mikrofony, interfejsy, odsłuch, MIDI, akustyka, oświetlenie, meble, lodówka i dodatki. Sprzęt trafia do konkretnego studia, a każdy lokal ma limit miejsca (większe przestrzenie mieszczą więcej sprzętu). Panel wyposażenia i zakup kolejnych lokali otwierasz z wnętrza studia.'},
  ]
  },
  {
