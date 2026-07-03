@@ -38150,9 +38150,11 @@ window.eatFromFridge=(id)=>{
 };
 
 function renderVoltHouse(){
+  /* v2.3.109 (PDF14): nowe ceny (Basic 600/HD 1500/4K 5500/Cinema 18500) + kamery pośrednie Creator Pro/Cinema Lite (płynniejszy progres). Kamera Cinema = zakup późnej gry. */
   const cams=[
-    {name:'Kamera Basic',quality:25,price:300},{name:'Kamera HD',quality:50,price:800},
-    {name:'Kamera 4K',quality:75,price:2000},{name:'Kamera Cinema',quality:100,price:5000},
+    {name:'Kamera Basic',quality:25,price:600},{name:'Kamera HD',quality:50,price:1500},
+    {name:'Kamera 4K',quality:75,price:5500},{name:'Kamera Creator Pro',quality:85,price:9500},
+    {name:'Kamera Cinema Lite',quality:92,price:13500},{name:'Kamera Cinema',quality:100,price:18500},
   ];
   /* v2.1.51 Amper: sekcja inwentarza — gracz widzi wszystkie posiadane kamery, może aktywować inną lub sprzedać za 50%. */
   if(!Array.isArray(G.camerasOwned)) G.camerasOwned=[];
@@ -38183,8 +38185,8 @@ function renderVoltHouse(){
         const owned=G.camerasOwned.some(c=>c.name===cam.name);
         return `<div class="sitem"><h3>📹 ${cam.name}</h3><p>Jakość ${cam.quality}%</p><div class="pr">${cam.price} zł</div>${owned?'<div class="owned">✅ W inwentarzu</div>':''}<button class="bbtn" onclick="buyCamera('${cam.name}',${cam.quality},${cam.price})" ${owned||G.money<cam.price?'disabled':''}>${owned?'Posiadasz':'Kup'}</button></div>`;
       }).join('')}
-      <div class="sitem"><h3>💻 Upgrade PC</h3><p>+15% jakość montażu</p><div class="pr">800 zł</div>${G.hasPCUpgrade?'<div class="owned">✅ Posiadasz</div>':''}<button class="bbtn" ${G.hasPCUpgrade||G.money<800?'disabled':''} onclick="buyPCUpgrade()">Kup</button></div>
-      <div class="sitem"><h3>📸 Selfie Ring</h3><p>+8% jakość vlogów i FrameUp</p><div class="pr">150 zł</div>${(G._musicAcc?.ring)?'<div class="owned">✅ Posiadasz</div>':''}<button class="bbtn" onclick="buyAccessoryGlobal('ring',150)" ${(G._musicAcc?.ring)||G.money<150?'disabled':''}>${(G._musicAcc?.ring)?'✓ Posiadasz':'Kup'}</button></div>
+      <div class="sitem"><h3>💻 Upgrade PC</h3><p>+15% jakość montażu</p><div class="pr">4000 zł</div>${G.hasPCUpgrade?'<div class="owned">✅ Posiadasz</div>':''}<button class="bbtn" ${G.hasPCUpgrade||G.money<4000?'disabled':''} onclick="buyPCUpgrade()">${G.hasPCUpgrade?'Posiadasz':'Kup'}</button></div>
+      <div class="sitem"><h3>📸 Selfie Ring</h3><p>+8% jakość vlogów i FrameUp</p><div class="pr">400 zł</div>${(G._musicAcc?.ring)?'<div class="owned">✅ Posiadasz</div>':''}<button class="bbtn" onclick="buyAccessoryGlobal('ring',400)" ${(G._musicAcc?.ring)||G.money<400?'disabled':''}>${(G._musicAcc?.ring)?'Posiadasz':'Kup'}</button></div>
     </div>
     <div class="res" id="shop-res">Wybierz produkt.</div>
     <button class="cbtn" onclick="closeOverlay()">← Wróć</button>
@@ -40948,7 +40950,8 @@ window.sellCamera=(name)=>{
   else _doSell();
 };
 window.buyPCUpgrade=()=>{
-  if(G.money<800) return;G.money-=800;G.hasPCUpgrade=true;
+  if(G.money<4000){const r=document.getElementById('shop-res');if(r)r.textContent='Za mało pieniędzy (4000 zł)!';return;} /* v2.3.109 (PDF14): 800→4000 */
+  G.money-=4000;G.hasPCUpgrade=true;
   document.getElementById('shop-res').textContent='💻 PC ulepszony! +15% jakość montażu';renderVoltHouse();
 };
 window.buyMic=(name,type,quality,price)=>{
@@ -61053,6 +61056,14 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.109',date:'2026-07-03',cats:['change'],title:'📺 VoltHouse: nowe ceny, dwie nowe kamery i poprawka przycisków',
+ items:[
+  {t:'balance',d:'📺 Sprzęt w VoltHouse został przeceniony tak, by lepszy sprzęt był realną inwestycją w karierę: Kamera Basic 600 zł, HD 1500 zł, 4K 5500 zł, a topowa Kamera Cinema 18 500 zł. Upgrade PC kosztuje teraz 4000 zł, a Selfie Ring 400 zł. Najlepsza jakość obrazu nie jest już dostępna za grosze na starcie.'},
+  {t:'new',d:'📹 Doszły dwie kamery pośrednie — Creator Pro (85% jakości) i Cinema Lite (92%) — żeby skok między 4K a pełnym kinem był płynniejszy. Nadal możesz mieć kilka kamer w inwentarzu i przełączać aktywną.'},
+  {t:'fix',d:'🛒 Naprawiony błąd, przez który posiadany sprzęt potrafił pokazywać jednocześnie status i przycisk kupna. Teraz posiadane produkty jasno pokazują „Posiadasz".'},
+ ]
+ },
  {
  ver:'v2.3.109',date:'2026-07-03',cats:['feature'],title:'🤵 Nowość: rozmowa z menadżerem i wybór formy współpracy',
  items:[
