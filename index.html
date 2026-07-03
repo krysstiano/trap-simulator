@@ -20650,6 +20650,8 @@ window._5pdfEnsure=function(){
   /* PDF16 Kamil (Menadżer) — warstwa SMS NAD istniejącym managementDeal. mode: none|full|advisory|selection|independent. Warunek katalogu reużywa istniejącej logiki (album/6-singli). */
   if(!G._kamilMgr||typeof G._kamilMgr!=='object') G._kamilMgr={};
   { const r=G._kamilMgr; _num(r,[['interest',0],['trust',0],['patience',5],['careerReadiness',0],['prof',0],['respect',0],['creativeControl',0],['careerControl',0],['businessFocus',0]]); _bool(r,['introSent','cooperationUnlocked','meetingAvail','introWasLocked','meetingCompleted']); if(typeof r.mode!=='string'||['none','full','advisory','selection','independent'].indexOf(r.mode)<0) r.mode='none'; r.patience=Math.max(0,Math.min(5,r.patience)); }
+  /* PDF14 VoltHouse — nowy sprzęt wideo (LED/mic/stabilizer/softbox/monta) w inwentarzu id->true. Kamery zostają w G.camerasOwned. */
+  if(!G._voltGear||typeof G._voltGear!=='object'||Array.isArray(G._voltGear)) G._voltGear={};
   /* PDF13 Studio Complex — kompleks lokali (zastępuje proste studioOwned). Migracja studioOwned→Booth w TIER 13.1. rooms=instancje lokali (equipment/staty per id). */
   if(!G.studioComplex||typeof G.studioComplex!=='object') G.studioComplex={};
   { const s=G.studioComplex; if(!Array.isArray(s.ownedRooms)) s.ownedRooms=[]; if(s.activeRoomId!==null&&typeof s.activeRoomId!=='string') s.activeRoomId=null; if(!s.rooms||typeof s.rooms!=='object'||Array.isArray(s.rooms)) s.rooms={}; if(!s.engineers||typeof s.engineers!=='object'||Array.isArray(s.engineers)) s.engineers={}; _num(s,[['weeklyPending',0],['totalIncome',0],['totalInvested',0]]); if(s.lastSettleDay!==null&&(typeof s.lastSettleDay!=='number'||!isFinite(s.lastSettleDay))) s.lastSettleDay=null; }
@@ -32204,6 +32206,7 @@ function doRecord(){
   const ringMult=(G._musicAcc?.ring)?1.08:1;
   const base=inZone?70:40;
   let _ytQ=Math.floor((base*(camQ/100)+micQ*.12+acousticBonus+headBonus+accBonus)*ringMult+rnd(0,12));
+  _ytQ+=(typeof window._voltGearBonus==='function'?window._voltGearBonus('video'):0); /* v2.3.109 (PDF14b): PC upgrade + nowy sprzęt VoltHouse realnie podnoszą jakość */
   /* v2.1.150: Music video bonus — jeśli gracz wybrał track dla "Muzyczny" genre, jakość singla daje bonus (max +30%) */
   let _mvBonus=0;
   if(G._ytMusicVideoTrack){
@@ -32235,7 +32238,7 @@ window.finishYTMinigame=function(scorePercent,summary){
   // v1.8.97: akcesoria muzyczne (statyw/popfiltr/koszyk) + selfie ring (+8% vlog) realnie aplikowane
   const _accBonus=((G._musicAcc?.statyw)?3:0)+((G._musicAcc?.popfiltr)?2:0)+((G._musicAcc?.koszyk)?4:0);
   const _ringMult=(G._musicAcc?.ring)?1.08:1;
-  const _recQ=clamp(Math.floor((scorePercent*(camQ/100+.3)+micQ*.12+acousticBonus+headBonus+_accBonus)*_ringMult+rnd(0,10)),5,100);
+  const _recQ=clamp(Math.floor((scorePercent*(camQ/100+.3)+micQ*.12+acousticBonus+headBonus+_accBonus)*_ringMult+rnd(0,10))+(typeof window._voltGearBonus==='function'?window._voltGearBonus('video'):0),5,100); /* v2.3.109 (PDF14b): +sprzęt VoltHouse */
   window._ytAddDraft(_recQ); /* A8b: nagranie → nowy draft w kolekcji (zamiast single-slot) */
   G.energy=clampStat('energy', G.energy-15);G.hunger=clampStat('hunger', G.hunger-5);
   addXP(10);
@@ -38149,7 +38152,51 @@ window.eatFromFridge=(id)=>{
   });
 };
 
+/* v2.3.109 (PDF14 TIER 14b): katalog nowego sprzętu wideo + bonusy per typ contentu. Sprzęt REALNIE wpięty w nagrania ViewGrid (doRecord/finishYTMinigame) + podgląd jakości w sklepie. */
+window.VOLT_GEAR={
+  fast_drive:{name:'Szybki dysk montażowy',cat:'edit',emoji:'💽',price:1200,desc:'Szybszy montaż, mniej wpadek renderu',video:4},
+  color_monitor:{name:'Monitor kolorystyczny',cat:'edit',emoji:'🖥️',price:3500,desc:'Lepszy kolor — materiał wygląda profesjonalnie',video:6},
+  led_basic:{name:'LED Panel Basic',cat:'light',emoji:'💡',price:900,desc:'+jakość nagrań w pomieszczeniu',video:8,types:['indoor','music_video','vlog','video']},
+  led_pro:{name:'LED Panel Pro',cat:'light',emoji:'🔦',price:2500,desc:'Mocniejsze, bardziej pro światło indoor',video:14,types:['indoor','music_video','vlog','video']},
+  softbox:{name:'Softbox Kit',cat:'light',emoji:'📦',price:3200,desc:'Miękkie światło do teledysków i sesji',video:12,types:['music_video','indoor','video']},
+  mic_creator:{name:'Mikrofon Creator',cat:'audio',emoji:'🎙️',price:1800,desc:'Czystszy dźwięk vlogów i wywiadów',video:10,types:['vlog','interview','video']},
+  rejestrator:{name:'Rejestrator Audio',cat:'audio',emoji:'🎚️',price:4200,desc:'Lepszy dźwięk w terenie',video:8,types:['vlog','interview','street','video']},
+  stabilizer:{name:'Stabilizator do telefonu',cat:'social',emoji:'📱',price:1200,desc:'Płynne shorty i materiały uliczne',video:10,types:['short','street','vlog','video']},
+};
+window.VOLT_CATS={edit:'💻 Komputery i montaż',light:'💡 Oświetlenie',audio:'🎙️ Audio',social:'📱 Social / FrameUp'};
+/* Bonus do jakości wideo z NOWEGO sprzętu (kamera i selfie ring liczone osobno). PC upgrade: wcześniej obietnica „+15% montażu" była ghostem — teraz realnie +12 pkt. */
+window._voltGearBonus=function(contentType){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  let b=0;
+  if(G.hasPCUpgrade) b+=12;
+  const g=G._voltGear||{};
+  for(const id in window.VOLT_GEAR){
+    if(!g[id]) continue;
+    const it=window.VOLT_GEAR[id];
+    if(!it.types || it.types.indexOf(contentType)>=0) b+=it.video;
+    else b+=Math.floor(it.video*0.3); /* sprzęt poza swoim typem daje ułamek */
+  }
+  return b;
+};
+/* Finalna jakość materiału (PDF §20): aktywna kamera + montaż/oświetlenie/audio + selfie ring per typ, clamp 100. */
+window.calculateVideoQuality=function(contentType){
+  const cam=G.camera?G.camera.quality:0;
+  const ringTypes=['vlog','frameup','live','video'];
+  const ring=(G._musicAcc&&G._musicAcc.ring && ringTypes.indexOf(contentType)>=0)?8:0;
+  return Math.max(0,Math.min(100,Math.round(cam + window._voltGearBonus(contentType) + ring)));
+};
+window.buyVoltGear=function(id){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const it=window.VOLT_GEAR[id]; if(!it) return;
+  if(G._voltGear[id]){const r=document.getElementById('shop-res');if(r)r.textContent='Już posiadasz ten sprzęt.';return;}
+  if((G.money||0)<it.price){const r=document.getElementById('shop-res');if(r)r.textContent=`Za mało gotówki — ${it.name} kosztuje ${it.price.toLocaleString('pl')} zł.`;return;}
+  G.money-=it.price; G._voltGear[id]=true;
+  if(typeof checkAchievements==='function') checkAchievements();
+  const r=document.getElementById('shop-res'); if(r) r.textContent=`✅ Kupiono ${it.name}! Lepsza jakość materiału.`;
+  renderVoltHouse();
+};
 function renderVoltHouse(){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
   /* v2.3.109 (PDF14): nowe ceny (Basic 600/HD 1500/4K 5500/Cinema 18500) + kamery pośrednie Creator Pro/Cinema Lite (płynniejszy progres). Kamera Cinema = zakup późnej gry. */
   const cams=[
     {name:'Kamera Basic',quality:25,price:600},{name:'Kamera HD',quality:50,price:1500},
@@ -38188,6 +38235,21 @@ function renderVoltHouse(){
       <div class="sitem"><h3>💻 Upgrade PC</h3><p>+15% jakość montażu</p><div class="pr">4000 zł</div>${G.hasPCUpgrade?'<div class="owned">✅ Posiadasz</div>':''}<button class="bbtn" ${G.hasPCUpgrade||G.money<4000?'disabled':''} onclick="buyPCUpgrade()">${G.hasPCUpgrade?'Posiadasz':'Kup'}</button></div>
       <div class="sitem"><h3>📸 Selfie Ring</h3><p>+8% jakość vlogów i FrameUp</p><div class="pr">400 zł</div>${(G._musicAcc?.ring)?'<div class="owned">✅ Posiadasz</div>':''}<button class="bbtn" onclick="buyAccessoryGlobal('ring',400)" ${(G._musicAcc?.ring)||G.money<400?'disabled':''}>${(G._musicAcc?.ring)?'Posiadasz':'Kup'}</button></div>
     </div>
+    ${(()=>{
+      const g=G._voltGear||{};
+      const q=window.calculateVideoQuality('vlog');
+      let out=`<div style="background:#0a1525;border:1px solid #1a3a5a;border-radius:8px;padding:10px 14px;margin:14px 0"><div style="color:#7ec8e3;font-weight:700;font-size:13px;margin-bottom:6px">🎬 Twoja jakość materiału (vlog): <b style="color:${q>=76?'#27ae60':q>=56?'#f1c40f':'#e67e22'}">${q}%</b></div><div style="color:#778;font-size:10.5px">Liczona z aktywnej kamery + montażu + oświetlenia + audio + akcesoriów. Różny sprzęt pomaga różnym typom (shorty, teledyski, vlogi).</div></div>`;
+      for(const cat in window.VOLT_CATS){
+        const ids=Object.keys(window.VOLT_GEAR).filter(id=>window.VOLT_GEAR[id].cat===cat);
+        if(!ids.length) continue;
+        out+=`<h3 style="color:#9b59b6;font-size:13px;margin:12px 0 6px">${window.VOLT_CATS[cat]}</h3><div class="shopgrid">`;
+        for(const id of ids){ const it=window.VOLT_GEAR[id]; const owned=!!g[id];
+          out+=`<div class="sitem"><h3>${it.emoji} ${it.name}</h3><p>${it.desc}</p><div class="pr">${it.price.toLocaleString('pl')} zł</div>${owned?'<div class="owned">✅ Posiadasz</div>':''}<button class="bbtn" ${owned||(G.money||0)<it.price?'disabled':''} onclick="buyVoltGear('${id}')">${owned?'Posiadasz':'Kup'}</button></div>`;
+        }
+        out+='</div>';
+      }
+      return out;
+    })()}
     <div class="res" id="shop-res">Wybierz produkt.</div>
     <button class="cbtn" onclick="closeOverlay()">← Wróć</button>
   `;
@@ -61062,6 +61124,8 @@ const PATCH_NOTES = [
   {t:'balance',d:'📺 Sprzęt w VoltHouse został przeceniony tak, by lepszy sprzęt był realną inwestycją w karierę: Kamera Basic 600 zł, HD 1500 zł, 4K 5500 zł, a topowa Kamera Cinema 18 500 zł. Upgrade PC kosztuje teraz 4000 zł, a Selfie Ring 400 zł. Najlepsza jakość obrazu nie jest już dostępna za grosze na starcie.'},
   {t:'new',d:'📹 Doszły dwie kamery pośrednie — Creator Pro (85% jakości) i Cinema Lite (92%) — żeby skok między 4K a pełnym kinem był płynniejszy. Nadal możesz mieć kilka kamer w inwentarzu i przełączać aktywną.'},
   {t:'fix',d:'🛒 Naprawiony błąd, przez który posiadany sprzęt potrafił pokazywać jednocześnie status i przycisk kupna. Teraz posiadane produkty jasno pokazują „Posiadasz".'},
+  {t:'new',d:'🎬 VoltHouse ma teraz kategorie i nowy sprzęt do nagrań: panele LED, softbox, mikrofony, stabilizator, szybki dysk i monitor kolorystyczny. Różny sprzęt pomaga różnym typom materiału — światło przy nagraniach w pomieszczeniu i teledyskach, stabilizator przy krótkich formach i ujęciach z ręki. W sklepie widzisz podgląd jakości swojego materiału.'},
+  {t:'fix',d:'📈 Lepszy sprzęt realnie podnosi teraz jakość nagrań na ViewGrid — w tym Upgrade PC, który wcześniej nie dawał obiecywanego efektu. Kupujesz sprzęt, widać to w materiale.'},
  ]
  },
  {
