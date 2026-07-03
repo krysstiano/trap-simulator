@@ -20633,6 +20633,26 @@ window._newpdfEnsure=function(){
   };
   G.breakdance=_fixDisc(G.breakdance,'Park Rookie');
   G.skate=_fixDisc(G.skate,'Park Pusher');
+  /* v2.3.109 (5 PDF 13-17): init namespace'ów sponsor/marcin/kamilMgr/studioComplex na TEJ samej ścieżce (wszystkie wejścia startu) */
+  try{ if(typeof window._5pdfEnsure==='function') window._5pdfEnsure(); }catch(_e){}
+};
+/* ═══ 5 PDF (2026-07-03, 13-17): save-safe init namespace'ów — PDF15 sponsor odzieżowy SMS / PDF17 Marcin media SMS / PDF16 Kamil Menadżer SMS / PDF13 Studio Complex.
+   Idempotentne: stary save bez pól dostaje defaulty, ZERO wpływu wstecz. ADAPTACJA nie duplikat — dripScore→G.drip, brandTrust/sponsorTrust→G.publicRep.sponsorTrust, socialBuzz→istniejące. Wołane z _newpdfEnsure (po loadGame i po resetG). */
+window._5pdfEnsure=function(){
+  const _num=(o,defs)=>{ for(const [k,d] of defs){ if(typeof o[k]!=='number'||!isFinite(o[k])) o[k]=d; } };
+  const _bool=(o,keys)=>{ for(const k of keys){ if(typeof o[k]!=='boolean') o[k]=false; } };
+  /* PDF15 Sponsor odzieżowy — relacja wizerunkowo-biznesowa (drip=G.drip, zaufanie sprzęgane z G.publicRep.sponsorTrust). */
+  if(!G._sponsorRel||typeof G._sponsorRel!=='object') G._sponsorRel={};
+  { const r=G._sponsorRel; _num(r,[['interest',0],['trust',0],['patience',5],['brandReadiness',0],['offerStage',0]]); _bool(r,['offerUnlocked']); if(r.lastDay!==null&&(typeof r.lastDay!=='number'||!isFinite(r.lastDay))) r.lastDay=null; r.patience=Math.max(0,Math.min(5,r.patience)); }
+  /* PDF17 Marcin (Organizator) — media/kontrola kariery. mainstreamInterest/careerControl/authenticity nowe (brak ekwiwalentu). */
+  if(!G._marcinRel||typeof G._marcinRel!=='object') G._marcinRel={};
+  { const r=G._marcinRel; _num(r,[['trust',0],['respect',0],['boundaries',0],['gatekeeping',0],['careerControl',0],['mediaReadiness',0],['mainstreamInterest',0],['mediaRisk',0],['authenticity',0]]); _bool(r,['mustAskBeforeReject','openToOddFormats','mediaTrainingDone']); }
+  /* PDF16 Kamil (Menadżer) — warstwa SMS NAD istniejącym managementDeal. mode: none|full|advisory|selection|independent. Warunek katalogu reużywa istniejącej logiki (album/6-singli). */
+  if(!G._kamilMgr||typeof G._kamilMgr!=='object') G._kamilMgr={};
+  { const r=G._kamilMgr; _num(r,[['interest',0],['trust',0],['patience',5],['careerReadiness',0]]); _bool(r,['introSent','cooperationUnlocked','meetingAvail']); if(typeof r.mode!=='string'||['none','full','advisory','selection','independent'].indexOf(r.mode)<0) r.mode='none'; r.patience=Math.max(0,Math.min(5,r.patience)); }
+  /* PDF13 Studio Complex — kompleks lokali (zastępuje proste studioOwned). Migracja studioOwned→Booth w TIER 13.1. rooms=instancje lokali (equipment/staty per id). */
+  if(!G.studioComplex||typeof G.studioComplex!=='object') G.studioComplex={};
+  { const s=G.studioComplex; if(!Array.isArray(s.ownedRooms)) s.ownedRooms=[]; if(s.activeRoomId!==null&&typeof s.activeRoomId!=='string') s.activeRoomId=null; if(!s.rooms||typeof s.rooms!=='object'||Array.isArray(s.rooms)) s.rooms={}; if(!s.engineers||typeof s.engineers!=='object'||Array.isArray(s.engineers)) s.engineers={}; _num(s,[['weeklyPending',0],['totalIncome',0],['totalInvested',0]]); if(s.lastSettleDay!==null&&(typeof s.lastSettleDay!=='number'||!isFinite(s.lastSettleDay))) s.lastSettleDay=null; }
 };
 /* Centralny aplikator efektów stat z PDF (klamp + ADAPTACJA aliasów). Używany przez dialogi/zadania (TIER 4+). */
 window._uwAddStat=function(key,delta){
