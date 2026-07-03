@@ -20989,7 +20989,7 @@ window._underworldEnsure=function(){
 window._newpdfEnsure=function(){
   /* Relacja Kamil (Stary kumpel). Przyjaźń w G.npcFriendship.kamil (istnieje) — tu tylko dodatkowe staty relacyjne. */
   if(!G._kamilRel||typeof G._kamilRel!=='object') G._kamilRel={};
-  { const r=G._kamilRel; [['trust',0],['streak',0],['ignored',0],['annoyance',0]].forEach(([k,d])=>{ if(typeof r[k]!=='number'||!isFinite(r[k])) r[k]=d; }); if(typeof r.jobsUnlocked!=='boolean') r.jobsUnlocked=false; r.trust=Math.max(0,Math.min(100,r.trust)); }
+  { const r=G._kamilRel; [['trust',0],['streak',0],['ignored',0],['annoyance',0],['humor',0]].forEach(([k,d])=>{ if(typeof r[k]!=='number'||!isFinite(r[k])) r[k]=d; }); if(typeof r.jobsUnlocked!=='boolean') r.jobsUnlocked=false; r.trust=Math.max(0,Math.min(100,r.trust)); }
   /* Relacja Fani. Lojalność w G.publicRep.fanLoyalty, relacja w G.npcFriendship.fan (istnieją) — tu hype lokalny + liczniki. */
   if(!G._fanRel||typeof G._fanRel!=='object') G._fanRel={};
   { const r=G._fanRel; [['hype',0],['streak',0],['ignored',0]].forEach(([k,d])=>{ if(typeof r[k]!=='number'||!isFinite(r[k])) r[k]=d; }); r.hype=Math.max(0,r.hype); }
@@ -21031,6 +21031,21 @@ window._5pdfEnsure=function(){
     /* MIGRACJA (reguła #1): stary jednorazowy zakup studia (G.studioOwned) → grandfather lokal Booth w kompleksie. Idempotentne. */
     if(G.studioOwned===true && s.ownedRooms.length===0){ s.ownedRooms.push('studio_s_booth'); if(!s.activeRoomId) s.activeRoomId='studio_s_booth'; }
   }
+  /* ═══ NOWY BATCH (2026-07-03 wieczór, 5 PDF): reply-sety Marcin-crypto / Kamil-HAJS / Producent / Ryder + Nova Cura ═══ */
+  /* PDF#18 Finanse/crypto (Marcin) — świadomość ryzyka/dyscyplina. Diamond Hands reużywa istniejącego achievementu crypto_diamond_hands. */
+  if(!G._finance||typeof G._finance!=='object') G._finance={};
+  { const f=G._finance; _num(f,[['cryptoRiskAwareness',0],['financialDiscipline',0],['investmentConfidence',0],['speculativeMindset',0],['moneyAwareness',0],['riskAwareness',0]]); _bool(f,['diamondHandsIntent','cryptoTipSeen']); }
+  /* Marcin — dodatkowe klucze crypto (trendTips/humor) NAD istniejącym _marcinRel (media z PDF17). */
+  if(G._marcinRel&&typeof G._marcinRel==='object'){ const r=G._marcinRel; _num(r,[['trendTips',0],['humor',0]]); }
+  /* Producent (Majkel) — kontakt branżowy. NIE „przyjaźń" — staty branżowe (interest/trust/creativeFit/contractReadiness). */
+  if(!G._producerRel||typeof G._producerRel!=='object') G._producerRel={};
+  { const p=G._producerRel; _num(p,[['interest',0],['trust',0],['respect',0],['creativeFit',0],['contractReadiness',0],['patience',5],['relationship',0]]); _bool(p,['firstMsgSent','fiveSinglesObjSet','beatPreviewUnlocked','contractTalkUnlocked']); p.patience=Math.max(0,Math.min(5,p.patience)); }
+  /* Ryder „Link" Vale — crew scout. Rekrutacja/bonusy/ceny BEZ zmian — tu tylko relacja SMS. */
+  if(!G._ryderRel||typeof G._ryderRel!=='object') G._ryderRel={};
+  { const r=G._ryderRel; _num(r,[['relationship',0],['trust',0],['respect',0],['crewReliability',0],['recruitmentFlow',0],['patience',5],['businessFocus',0],['crewControl',0]]); _bool(r,['djMeetingObjSet','djRecruitPostponed']); r.patience=Math.max(0,Math.min(5,r.patience)); }
+  /* Nova Cura — rozbudowa modułu zdrowia. Adaptacja: nastrój=G.stress, ryzyko prawne reużywa G.heat, addiction z narkobiznesu. */
+  if(!G.novacura||typeof G.novacura!=='object') G.novacura={};
+  { const n=G.novacura; _num(n,[['medicalTrust',0],['hospitalRiskFlag',0],['mentalCrisisLevel',0],['therapyProgress',0],['fatigue',0],['tension',0]]); if(!Array.isArray(n.history)) n.history=[]; if(n.lastVisitDay!==null&&(typeof n.lastVisitDay!=='number'||!isFinite(n.lastVisitDay))) n.lastVisitDay=null; if(typeof n.diagnosisAccuracy!=='number'||!isFinite(n.diagnosisAccuracy)) n.diagnosisAccuracy=100; }
 };
 /* Centralny aplikator efektów stat z PDF (klamp + ADAPTACJA aliasów). Używany przez dialogi/zadania (TIER 4+). */
 window._uwAddStat=function(key,delta){
@@ -29037,7 +29052,7 @@ function checkCareerUnlocks(){
     if(typeof showMsg==='function') showMsg('📈 Nowa kariera: Trader! Otwórz Crypto w telefonie.','g',6000);
     /* v2.1.459 SMS od Marcina przy unlock Trader (analog phantom_mc + trap_unlocked). */
     if(typeof _smsTriggerOnce==='function'){
-      _smsTriggerOnce('trader_unlocked','marcin','📈 Słyszałem o tobie na finansowych blogach! Crypto może dać duży zwrot — ale risk wysoki. Trzymaj coin 30+ dni dla Diamond Hands achievement.');
+      _smsTriggerOnce('trader_unlocked','marcin','📈 Słyszałem o Tobie na finansowych blogach! Ktoś podpiął Twój ruch pod temat crypto. Możesz wejść w coin — zwrot może być duży, a strata szybka. Jak utrzymasz coin 30+ dni, wpada osiągnięcie: Diamond Hands 💎',{replySet:'marcin_crypto'});
     }
   }
   if(!G.merch.active&&(G.fans||0)>=5000){
@@ -53956,7 +53971,7 @@ window._smsCheckTriggers=function(){
   /* v2.1.304 Faza 6 — polskie memy/easter eggs SMS pool (~15 triggerów). Klimat polskiej sceny hip-hop + meme'y internetowe. */
   /* v2.1.309 fix: meme_biedra próg podniesiony z 500 (= initial G.money) do 2000 — żeby NIE triggerował przy starcie gry w trakcie cinematicu. */
   if(G.money>=2000 && G.totalEarned>=1000 && (typeof isPlaceOpen!=='function'||isPlaceOpen('npc:vendor').open)) _smsTriggerOnce('meme_biedra','zbyszek','Stary jutro Biedra ma promo na pączki 2+1, wpadnij. Każdy MC kiedyś tam stał w kolejce 🥯'); /* v2.3.102 (PDF #8): tylko w godzinach pracy */
-  if(G.totalEarned>=5000) _smsTriggerOnce('meme_hajs','kamil','HAJS HAJS HAJS 💸 widać że jedziesz. Pamiętaj — pierwszy milion się ukradnie, reszta sama przyjdzie');
+  if(G.totalEarned>=5000) _smsTriggerOnce('meme_hajs','kamil','HAJS HAJS HAJS 💸 widać że jedziesz. Pamiętaj — pierwszy milion się ukradnie, reszta sama przyjdzie',{replySet:'hajs'});
   if(freestyles>=3) _smsTriggerOnce('meme_punchline','kamil','siema, Twoje punchline’y rozjebały mi mózg. Dawaj diss na siebie next time 😈');
   if(tracks>=5) _smsTriggerOnce('meme_allegro','label','🏢 wystawiamy Twoje single na portalu z ogłoszeniami jako limited press CD — kolekcjonerzy szaleją. Pasek 80% Twój.');
   if((G.haters||0)>=50) _smsTriggerOnce('meme_hejt','system','📱 Pierwsi hejterzy w komentarzach piszą "to nie jest rap to disco polo". KLASYK. Każdy MC to przeszedł.');
@@ -54374,7 +54389,8 @@ window.renderSMSConversation=function(contactId){
         }
         /* Kamil (Stary kumpel) — v2.3.98 (PDF #2): kontekstowe odpowiedzi (zestaw wg replySet wiadomości: freestyle albo zlecenia). */
         if(contactId==='kamil'){
-          const _setId=(_firstUnreplied&&_firstUnreplied.replySet==='freestyle')?'freestyle':'jobs';
+          const _krs=(_firstUnreplied&&_firstUnreplied.replySet)||'';
+          const _setId=(_krs==='freestyle')?'freestyle':(_krs==='hajs')?'hajs':'jobs';
           const _kids=Object.keys(window._KAMIL_REPLIES).filter(k=>window._KAMIL_REPLIES[k].set===_setId);
           return `${_replyCounter}`+window._smsRichButtons('kamil',_kids);
         }
@@ -54410,7 +54426,7 @@ window.renderSMSConversation=function(contactId){
         }
         /* Marcin (Organizator) — v2.3.109 (PDF17): kontekstowe odpowiedzi TYLKO dla wiadomości o śniadaniówce (replySet marcin_tv/marcin_sniad).
            STRICT: inne SMS Marcina (np. o mieszkaniu/przyjacielskie) zostają z generycznymi Dzięki/Wpadnę. */
-        if(contactId==='marcin' && typeof window._MARCIN_REPLIES==='object' && _firstUnreplied && /^marcin_(tv|sniad)$/.test(_firstUnreplied.replySet||'')){
+        if(contactId==='marcin' && typeof window._MARCIN_REPLIES==='object' && _firstUnreplied && /^marcin_(tv|sniad|crypto)$/.test(_firstUnreplied.replySet||'')){
           const _mrs=_firstUnreplied.replySet.replace('marcin_','');
           let _mids=Object.keys(window._MARCIN_REPLIES).filter(k=>window._MARCIN_REPLIES[k].set===_mrs);
           if(_mrs==='tv'){
@@ -54749,6 +54765,14 @@ window._KAMIL_REPLIES={
   free_confident:{set:'freestyle', label:'🎯 Kto tu oddycha bitem (+respekt)', text:'Trzeba było pokazać, kto tu oddycha bitem. Nie mogłem wejść tam jak statysta.', fx:{streetRespect:2}},
   free_friend:{set:'freestyle', label:'👊 Dobrze to słyszeć od Ciebie (+przyjaźń)', text:'Dzięki, stary. Od Ciebie to akurat dobrze usłyszeć, bo pamiętasz mnie sprzed tego całego zamieszania.', fx:{kamilFriendship:2,kamilTrust:1}},
   free_ignore:{set:'freestyle', label:'— Zostaw na później (-przyjaźń)', text:null, fx:{kamilFriendship:-1,ignoredKamil:true}},
+  /* v2.3.x (PDF): Kamil (Stary kumpel) — „HAJS HAJS HAJS" (komentarz do progresu). set:'hajs'. Reply-set zamiast Dzięki/Wpadnę/Ignoruj — NIE odblokowuje zleceń. */
+  hajs_advice:{set:'hajs', label:'😂 Ty lepiej nie dawaj porad finansowych', text:'Dobrze, że nie dajesz małolatom porad finansowych, bo by pokończyli w rejestrach dłużników.', fx:{kamilFriendship:1,kamilHumor:1,artistMood:1}, reply:'XD dobra dobra, ja tylko motywuję z poziomu eksperta! Ale przyznaj, brzmi jak plan z charakterem.'},
+  hajs_noego:{set:'hajs', label:'🧠 Hajs się zgadza, ale bez odklejki', text:'Hajs się zgadza, nie będę pierdolił, ale wiesz — bez odklejki. Najgorzej zarobić tyci tyci i od razu myśleć, że jest się nieśmiertelnym.', fx:{moneyAwareness:1,kamilTrust:1,careerFocus:1}, reply:'O, czyli jednak czasem myślisz zanim wydasz. Szok. Ale serio, dobrze. Hajs jest fajny dopóki nie zaczyna prowadzić za ciebie.'},
+  hajs_music:{set:'hajs', label:'🎯 Fajnie, ale najpierw muzyka', text:'Fajnie, ale najpierw muzyka. Nie chcę robić wszystkiego tylko pod kasę. Hajs ma iść za tym, co buduję, a nie prowadzić za mordę.', fx:{careerFocus:2,kamilFriendship:1}, reply:'I za to Cię szanuję, mordo. Bo jak robisz tylko pod hajs, to prędzej czy później brzmisz jak zjebana reklama chwilówki. Cisnij muzykę, ale nie udawaj, że kasa nie smakuje.'},
+  hajs_risk:{set:'hajs', label:'⚠️ Pierwszy milion trzeba dowieźć bez przypału', text:'Pierwszy milion to najpierw trzeba dowieźć bez przypału. Nie sztuka się rozpędzić.', fx:{riskAwareness:1,kamilTrust:1,careerFocus:1}, reply:'Dobra, to było mocniejsze niż się spodziewałem. Ty chyba serio zaczynasz ogarniać grę. Tylko nie rób się zbyt poważny, bo Cię nie poznam…'},
+  hajs_progress:{set:'hajs', label:'👊 Dobrze mieć kogoś, kto widzi progres', text:'Dobrze mieć kogoś, kto widzi progres. Nie tylko wtedy, jak jest grubo, ale też jak człowiek dopiero składa wszystko do kupy.', fx:{kamilFriendship:2,kamilTrust:1,artistMood:1}, reply:'No wiadomo. Ja pamiętam, jak to wyglądało na starcie, dlatego piszę. Nie żebyś się wzruszał — żebyś wiedział, że widać różnicę.'},
+  hajs_tease:{set:'hajs', label:'😏 Już liczysz mój portfel, księgowy?', text:'Już liczysz mój portfel, Panie księgowy? Jeszcze trochę i zaczniesz mi wysyłać tabelki z wydatkami.', fx:{kamilHumor:1,kamilFriendship:1,artistMood:1}, reply:'Bracie, ja bym Ci zrobił tabelkę, ale sam bym jej nie rozumiał. Nieee, po prostu widzę, że coś się rusza. A jak się rusza, to trzeba pilnować, żeby nie odjechało bez Ciebie.'},
+  hajs_ignore:{set:'hajs', label:'— Zostaw bez odpowiedzi', text:null, fx:{kamilFriendship:-1,ignoredKamil:true}, reply:'Czyli hajs już jest, ale na odpisanie staremu kumplowi nie starczyło czasu XD. Dobra, zapisane mordko.'},
 };
 /* v2.3.102 (PDF #8-2): Gym Bro — kontekstowe odpowiedzi wg zestawu (reminder/good/over/milestone). Efekty lekkie: gymRel/mood/motiv. */
 window._GYMBRO_REPLIES={
@@ -54805,6 +54829,14 @@ window._MARCIN_REPLIES={
   mt_prep:{set:'tv', label:'🎓 Powiedz, jak się przygotować', text:'To powiedz, jak się do czegoś takiego przygotować. Nie chcę wskoczyć w kamery i wyjść jak ktoś, kto pierwszy raz widzi ludzi na oczy.', fx:{mediaProf:1,mediaReadiness:1,marcinTrust:1}, action:'marcinMediaTraining', reply:'To już lepiej brzmi. Zrobimy Ci mały trening rozmowy: kim jesteś, czego nie mówisz i kiedy kończysz temat, zanim temat skończy Ciebie.'},
   ms_go:{set:'sniad', label:'📺 Dobra, wchodzę w śniadaniówkę', text:'Dobra, sprawdźmy to. Wchodzę — ale po swojemu.', fx:{}, action:'marcinDoSniadaniowka'},
   ms_skip:{set:'sniad', label:'— Odpuszczam ten temat', text:'Wiesz co, odpuszczam ten temat. Nie czuję tego.', fx:{careerControl:1}, reply:'Spoko. Twoja decyzja, Twoja twarz. Filtruję dalej.'},
+  /* v2.3.x (PDF#18): Marcin (Organizator) — crypto / Diamond Hands. set:'crypto'. Reply-set zamiast Dzięki/Wpadnę/Ignoruj. */
+  mc_risk:{set:'crypto', label:'🧠 Brzmi ciekawie, ale najpierw chcę znać ryzyko', text:'Brzmi ciekawie, ale najpierw chcę znać ryzyko. Nie wchodzę w temat tylko dlatego, że ktoś napisał o mnie na blogu finansowym. Rozsądne, nie sądzisz?', fx:{cryptoRiskAwareness:1,marcinRespect:1}, reply:'Słusznie. Crypto potrafi zrobić zwrot, ale potrafi też zjechać szybciej niż nastrój po słabych komentarzach. Jak wejdziesz, traktuj to jak ryzyko, nie gwarancję. To zdrowe podejście.'},
+  mc_diamond:{set:'crypto', label:'💎 Diamond Hands? Mogę potrzymać coin 30 dni', text:'Diamond Hands? Brzmi jak wyzwanie. Mogę potrzymać coin 30 dni, ale nie zamierzam panikować przy pierwszym spadku.', fx:{financialDiscipline:1,investmentConfidence:1}, action:'cryptoDiamondObjective', reply:'No i to jest podejście! Pamiętaj tylko, że Diamond Hands to nie samo trzymanie coina. To patrzenie, jak wykres uczy się tańczyć. I nauka, żeby nie klikać sprzedaży co pięć minut.'},
+  mc_small:{set:'crypto', label:'💰 Wchodzę tylko małą kwotą, nie spalę całej kasy', text:'Jeśli wejdę, to drobną kwotą. Nie spalę całej floty tylko dlatego, że wykres wygląda jak obietnica szybkiego życia. To inwestycja, a nie hazard.', fx:{cryptoRiskAwareness:1,financialDiscipline:2,speculativeMindset:-1,marcinRespect:1}, reply:'Brzmi rozsądnie. Najgorszy typ to ten, który pierwszy raz widzi zieloną świecę i od razu sprzedaje lodówkę, żeby wejść większą kwotą. Mały ruch, kontrola i bez płaczu.'},
+  mc_joke:{set:'crypto', label:'😏 Finansowe blogi? Robicie ze mnie biznesmena?', text:'Finansowe blogi? Czyli co, już nie jestem tylko typem od muzyki, tylko miejskim Warrenem z osiedla?', fx:{marcinRelationship:1,marcinTrendTips:1,marcinHumor:1}, reply:'Spokojnie, jeszcze nie kupuj garnituru! Na razie jesteś gościem, o którym ktoś napisał, bo robi ruch. Ale fakt, zaczynasz wychodzić poza samą muzykę. Dobry znak.'},
+  mc_music:{set:'crypto', label:'🎯 Wolę cisnąć muzykę niż patrzeć na świeczki', text:'Na razie wolę cisnąć muzykę niż patrzeć na świeczki. Jak mam siedzieć 30 dni i wkurwiać się na coiny, to wolę zrobić numer, który pracuje za mnie.', fx:{careerFocus:2,speculativeMindset:-1}, reply:'W sumie… też zdrowe. Nie każdy trend musi być Twój. Jak muzyka robi Ci ruchy, to nie musisz od razu grać inwestora. Dałem znać, bo temat się pojawił.'},
+  mc_boundary:{set:'crypto', label:'✋ Nie chcę porad inwestycyjnych bez konkretów', text:'Marcin, nie chcę porad inwestycyjnych bez konkretów. Możesz mi podsyłać trendy, ale nie chcę, żeby ktoś sprzedawał mi ryzyko jako pewniaka.', fx:{boundaries:1,cryptoRiskAwareness:1,careerControl:1}, reply:'Fair, ale to nie była porada, tylko sygnał, że temat kręci się wokół Twojej ksywki. Decyzja jest Twoja. Ja mogę wskazać drzwi, ale nie powiem, że za nimi leży darmowa kasa.'},
+  mc_ignore:{set:'crypto', label:'— Zignoruj', text:null, fx:{marcinTrendTips:-1,marcinRelationship:-1}, reply:'Temat crypto zostawiłeś bez odpowiedzi. Spoko, może i lepiej. Nie każdy wykres jest wart tego, żeby tracić przez niego głowę.'},
 };
 /* v2.3.109 (PDF16): Kamil (Menadżer) — odpowiedzi na SMS wg wariantu katalogu. set:'locked' (przed spełnieniem) / 'unlocked' (po). */
 window._MANAGER_REPLIES={
@@ -54879,6 +54911,42 @@ window._applySmsRichEffect=function(fx){
     if(fx.mgrCreativeControl) k.creativeControl=cl((k.creativeControl||0)+fx.mgrCreativeControl,20);
     if(fx.mgrCareerControl) k.careerControl=cl((k.careerControl||0)+fx.mgrCareerControl,20);
     if(fx.mgrBusinessFocus) k.businessFocus=cl((k.businessFocus||0)+fx.mgrBusinessFocus,20);
+  }
+  /* ═══ NOWY BATCH (2026-07-03 wieczór): klucze fx odrębne per kontakt (Marcin crypto / Kamil HAJS / Producent / Ryder) ═══ */
+  /* PDF#18 Marcin crypto — świadomość finansowa/ryzyka (G._finance). Diamond Hands reużywa achievementu crypto_diamond_hands. */
+  if(G._finance){ const f=G._finance; const cl=(v)=>Math.max(-20,Math.min(20,v));
+    if(fx.cryptoRiskAwareness) f.cryptoRiskAwareness=cl((f.cryptoRiskAwareness||0)+fx.cryptoRiskAwareness);
+    if(fx.financialDiscipline) f.financialDiscipline=cl((f.financialDiscipline||0)+fx.financialDiscipline);
+    if(fx.investmentConfidence) f.investmentConfidence=cl((f.investmentConfidence||0)+fx.investmentConfidence);
+    if(fx.speculativeMindset) f.speculativeMindset=cl((f.speculativeMindset||0)+fx.speculativeMindset);
+    if(fx.moneyAwareness) f.moneyAwareness=cl((f.moneyAwareness||0)+fx.moneyAwareness);
+    if(fx.riskAwareness) f.riskAwareness=cl((f.riskAwareness||0)+fx.riskAwareness);
+  }
+  if(G._marcinRel){ const m=G._marcinRel; const cl=(v)=>Math.max(0,Math.min(20,v));
+    if(fx.marcinTrendTips) m.trendTips=cl((m.trendTips||0)+fx.marcinTrendTips);
+    if(fx.marcinHumor) m.humor=cl((m.humor||0)+fx.marcinHumor);
+  }
+  /* Kamil (Stary kumpel) — humor NAD istniejącym _kamilRel (PDF HAJS). */
+  if(G._kamilRel && fx.kamilHumor){ G._kamilRel.humor=Math.max(0,Math.min(20,(G._kamilRel.humor||0)+fx.kamilHumor)); }
+  /* PDF Producent (Majkel) — kontakt branżowy (G._producerRel), klucze prod* odrębne. */
+  if(G._producerRel){ const p=G._producerRel; const cl=(v)=>Math.max(0,Math.min(20,v));
+    if(fx.prodInterest) p.interest=cl((p.interest||0)+fx.prodInterest);
+    if(fx.prodTrust) p.trust=cl((p.trust||0)+fx.prodTrust);
+    if(fx.prodRespect) p.respect=cl((p.respect||0)+fx.prodRespect);
+    if(fx.prodCreativeFit) p.creativeFit=cl((p.creativeFit||0)+fx.prodCreativeFit);
+    if(fx.prodContractReadiness) p.contractReadiness=cl((p.contractReadiness||0)+fx.prodContractReadiness);
+    if(fx.prodRelationship) p.relationship=cl((p.relationship||0)+fx.prodRelationship);
+    if(fx.prodPatience) p.patience=Math.max(0,Math.min(5,(p.patience||5)+fx.prodPatience));
+  }
+  /* PDF Ryder — crew scout (G._ryderRel), klucze ryder* odrębne. */
+  if(G._ryderRel){ const r=G._ryderRel; const cl=(v)=>Math.max(0,Math.min(20,v));
+    if(fx.ryderTrust) r.trust=cl((r.trust||0)+fx.ryderTrust);
+    if(fx.ryderRelationship) r.relationship=cl((r.relationship||0)+fx.ryderRelationship);
+    if(fx.ryderRespect) r.respect=cl((r.respect||0)+fx.ryderRespect);
+    if(fx.ryderRecruitFlow) r.recruitmentFlow=cl((r.recruitmentFlow||0)+fx.ryderRecruitFlow);
+    if(fx.ryderPatience) r.patience=Math.max(0,Math.min(5,(r.patience||5)+fx.ryderPatience));
+    if(fx.ryderBizFocus) r.businessFocus=cl((r.businessFocus||0)+fx.ryderBizFocus);
+    if(fx.ryderCrewControl) r.crewControl=cl((r.crewControl||0)+fx.ryderCrewControl);
   }
 };
 window._smsKamilJobsAction=function(){
@@ -54955,6 +55023,10 @@ window._marcinHandleReply=function(opt){
   if(act==='marcinAskBefore'){ m.mustAskBeforeReject=true; if(typeof notify==='function') notify('🎤 Marcin: od teraz najpierw puszcza Ci temat, zanim odmówi mediom w Twoim imieniu.'); }
   else if(act==='marcinMediaTraining'){ window._marcinStartMediaTraining(); }
   else if(act==='marcinDoSniadaniowka'){ window._marcinStartSniadaniowka(); }
+  else if(act==='cryptoDiamondObjective'){ /* PDF#18: chęć podejścia do Diamond Hands. Nagroda = istniejące osiągnięcie crypto_diamond_hands (30 dni stakingu). */
+    if(G._finance){ G._finance.diamondHandsIntent=true; }
+    if(typeof notify==='function') notify('💎 Cel: kup crypto (Portfel/Trader) i trzymaj coin 30 dni bez sprzedaży, żeby zdobyć osiągnięcie Diamond Hands. Sprzedaż w międzyczasie resetuje licznik.');
+  }
   /* Odblokowanie wątku „Śniadaniówka" gdy gracz pokazał zainteresowanie mediami + gotowość (PDF §10, próg dostosowany do przepływu). */
   if((m.mainstreamInterest||0)>=1 && (m.mediaReadiness||0)>=1 && !m.sniadaniowkaUnlocked && !m.sniadaniowkaDone){
     m.sniadaniowkaUnlocked=true;
@@ -55034,6 +55106,7 @@ window._smsRichReply=function(contactId,replyId){
   if(opt.text!==null && typeof _smsReply==='function') _smsReply(contactId,opt.text);
   _applySmsRichEffect(opt.fx);
   if(opt.action==='kamilJobs') _smsKamilJobsAction();
+  if(contactId==='kamil' && opt.reply && typeof window._smsPushNpcReply==='function') window._smsPushNpcReply('kamil',opt.reply); /* PDF HAJS: follow-up Kamila (freestyle/jobs bez pola reply → brak double-send) */
   if(contactId==='sponsor' && typeof window._sponsorHandleReply==='function') window._sponsorHandleReply(opt);
   if(contactId==='marcin' && typeof window._marcinHandleReply==='function') window._marcinHandleReply(opt);
   if(contactId==='manager' && typeof window._kamilMgrHandleReply==='function') window._kamilMgrHandleReply(opt);
