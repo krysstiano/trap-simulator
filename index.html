@@ -3485,7 +3485,7 @@ const ROOMS = {
     /* v2.1.498 USER FEEDBACK FIX — kamper_cook BYŁ h:130 wystawał na wy 270 (drying/pack h:110 do wy 250 = nakładanie 20px na sąsiadów).
        Plus za mało odstępów horyzontalnych. ROZSZERZENIA pozycji: gap 30 między każdą stacją + cook obniżona do h:110 (jak inne). */
     objects:[
-      {id:'exit_kamper',  wx:460, wy:480, w:62, h:62,  act:'goto:underground:240:480',  prompt:'[E] ⬅ Wyjdź z kampera', lbl:'Wyjście'},
+      {id:'exit_kamper',  wx:460, wy:480, w:62, h:62,  act:'camper_exit',  prompt:'[E] ⬅ Wyjdź z kampera', lbl:'Wyjście'},
       {id:'kamper_stash', wx:30,  wy:140, w:120,h:110, act:'kamper_stash_view',          prompt:'[E] 📦 Sprawdź stash',   lbl:'Stash'},
       {id:'kamper_drying',wx:180, wy:140, w:200,h:110, act:'kamper_drying_view',         prompt:'[E] 🌬 Suszarnia',       lbl:'Suszarnia'},
       {id:'kamper_cook',  wx:410, wy:140, w:160,h:110, act:'kamper_cook_basic',          prompt:'[E] 🚬 Roluj jointa',    lbl:'Rolowanie'},
@@ -14744,6 +14744,19 @@ function handleAct(act,objId){
     }
     if(room==='silownia') G._gymVisits=(G._gymVisits||0)+1; // tracker dla osiągnięcia "Stały bywalec"
     startRoomFade(room,+wx,+wy);
+  } else if(act==='camper_exit'){
+    /* v2.3.110 (user 2026-07-03): wyjście z zaplecza kampera → pozycja PRZY zaparkowanym kamperze.
+       Wcześniej stały punkt 'goto:underground:240:480' (stary statyczny kamper) → teleport w puste miejsce,
+       daleko od pojazdu, który teraz stoi w wybranej strefie. Teraz spawn tuż obok fizycznego kampera. */
+    const pk=G._camperParkedAt;
+    if(pk && pk.room){
+      let sx=pk.wx, sy=pk.wy+90; /* stań tuż PRZED kamperem (poniżej sprite'a) */
+      const bz=(typeof window._camperBackroomZone==='function')?window._camperBackroomZone():null;
+      if(bz && bz.zone){ const Z=bz.zone; sx=Math.max(Z.wx+12,Math.min(Z.wx+Z.w-46,sx)); sy=Math.max(Z.wy+12,Math.min(Z.wy+Z.h-46,sy)); }
+      startRoomFade(pk.room, sx, sy);
+    } else {
+      startRoomFade('underground', 240, 480); /* fallback save-safe: brak zapisanej pozycji kampera */
+    }
   } else if(act==='apt_exit'){
     // F+ 2026-05-12: spawn przed DRZWIAMI z których gracz wszedł — śledzimy G._lastEnterDoor
     const exitKey=G._lastEnterDoor||G.apartment;
@@ -47218,7 +47231,11 @@ window._metalValleyScrapMenu=function(){
     const chk=window._canScrapVehicle(v);
     const nm=(v.kind==='camper'?'🚐 ':'🚗 ')+v.name;
     const reason=chk.reason==='backroom'?'zaplecze/proces aktywny':chk.reason==='driving'?'wysiądź najpierw':chk.reason==='already'?'już w rozbiórce':chk.reason==='limit'?'limit 2 rozbiórek':chk.reason==='pending'?'w trakcie sprzedaży':chk.reason==='quest'?'wątek fabularny':'';
-    return `<button class="cbtn" style="width:100%;text-align:left;margin-bottom:6px;${chk.ok?'':'opacity:.5'}" ${chk.ok?'':'disabled'} onclick="window._metalValleyValuation&&window._metalValleyValuation('${v.kind}',${JSON.stringify(v.id)})">${nm} <span style='color:#8a939a;font-size:11px'>· stan ${Math.round(v.condition)}%${chk.ok?'':' · '+reason}</span></button>`;
+    /* v2.3.110 FIX (user „klikam i nic się nie dzieje"): id pojazdu w SINGLE-quotes + escape.
+       Było ${JSON.stringify(v.id)} → wstrzykiwało PODWÓJNE cudzysłowy do atrybutu onclick="..."
+       (nazwy aut mają spacje, np. „Volkswagen Golf") → atrybut urywał się przedwcześnie → klik = SyntaxError = nic. */
+    const idEsc=String(v.id).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    return `<button class="cbtn" style="width:100%;text-align:left;margin-bottom:6px;${chk.ok?'':'opacity:.5'}" ${chk.ok?'':'disabled'} onclick="window._metalValleyValuation&&window._metalValleyValuation('${v.kind}','${idEsc}')">${nm} <span style='color:#8a939a;font-size:11px'>· stan ${Math.round(v.condition)}%${chk.ok?'':' · '+reason}</span></button>`;
   }).join('');
   panel.innerHTML=`<div id="mg-job-content" style="max-width:440px;margin:0 auto"><div style="text-align:center;font-size:18px;color:#95a5a6;font-weight:800;margin-bottom:4px">🔧 Wybierz pojazd do wyceny</div><div style="color:#8a939a;font-size:11px;text-align:center;margin-bottom:12px">Rysiek wycenia pojazd na części. Kasę dostajesz po czasie, nie od razu.</div>${rows}<button class="cbtn" style="width:100%;margin-top:6px;color:#e07070;border-color:#5a1a1a" onclick="${backJs}">← Wróć</button></div>`;
 };
@@ -47332,7 +47349,9 @@ window._metalValleySettlements=function(){
   if(!pend.length) rows='<div style="color:#9aa;font-size:13px;text-align:center;padding:12px">Brak oczekujących rozliczeń.</div>';
   else rows=pend.map(p=>{
     const ready=(p.payoutDay||0)<=(G.day||0); const daysLeft=Math.max(0,(p.payoutDay||0)-(G.day||0));
-    return `<div style="background:#0e1216;border:1px solid ${ready?'#27ae60':'#2a3238'};border-radius:8px;padding:10px;margin-bottom:7px;font-size:12.5px;color:#cdd"><div><b>${p.vehName}</b> <span style="color:#8a939a">· ${p.amount.toLocaleString('pl')} zł</span></div><div style="margin-top:3px">${ready?'<span style="color:#2ecc71;font-weight:700">Gotowe do odbioru</span>':'<span style="color:#f39c12">w trakcie rozliczenia · dostępne za '+daysLeft+' dni</span>'}</div>${ready?`<button class="cbtn" style="width:100%;margin-top:6px;border-color:#27ae60;color:#7ec87e" onclick="window._claimMetalValleyPayout&&window._claimMetalValleyPayout(${JSON.stringify(p.id)})">💰 Odbierz ${p.amount.toLocaleString('pl')} zł</button>`:''}</div>`;
+    /* v2.3.110 FIX: id w SINGLE-quotes + escape (JSON.stringify wstrzykiwał " → klik „Odbierz" nie działał). */
+    const pidEsc=String(p.id).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    return `<div style="background:#0e1216;border:1px solid ${ready?'#27ae60':'#2a3238'};border-radius:8px;padding:10px;margin-bottom:7px;font-size:12.5px;color:#cdd"><div><b>${p.vehName}</b> <span style="color:#8a939a">· ${p.amount.toLocaleString('pl')} zł</span></div><div style="margin-top:3px">${ready?'<span style="color:#2ecc71;font-weight:700">Gotowe do odbioru</span>':'<span style="color:#f39c12">w trakcie rozliczenia · dostępne za '+daysLeft+' dni</span>'}</div>${ready?`<button class="cbtn" style="width:100%;margin-top:6px;border-color:#27ae60;color:#7ec87e" onclick="window._claimMetalValleyPayout&&window._claimMetalValleyPayout('${pidEsc}')">💰 Odbierz ${p.amount.toLocaleString('pl')} zł</button>`:''}</div>`;
   }).join('');
   panel.innerHTML=`<div id="mg-job-content" style="max-width:440px;margin:0 auto"><div style="text-align:center;font-size:17px;color:#95a5a6;font-weight:800;margin-bottom:10px">📋 Rozliczenia Metal Valley Yard</div>${rows}<button class="cbtn" style="width:100%;margin-top:6px;color:#e07070;border-color:#5a1a1a" onclick="${backJs}">← Wróć</button></div>`;
 };
@@ -61487,6 +61506,13 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.110',date:'2026-07-03',cats:['fix'],title:'🔧 Poprawki: wycena pojazdu i wyjście z kampera',
+ items:[
+  {t:'fix',d:'🔧 Na Metal Valley Yard wybór pojazdu do wyceny znów działa — wcześniej kliknięcie auta lub kampera na liście nie otwierało okna wyceny. Przy okazji naprawiony przycisk odbioru gotowej wypłaty za rozbiórkę: teraz poprawnie wypłaca pieniądze.'},
+  {t:'fix',d:'🚐 Po wyjściu z zaplecza kampera lądujesz teraz tuż przy swoim pojeździe, w strefie, w której go zaparkowałeś. Wcześniej gra przenosiła Cię w stare, puste miejsce po drugiej stronie Underground, daleko od kampera.'},
+ ]
+ },
  {
  ver:'v2.3.109',date:'2026-07-03',cats:['feature'],title:'🎙️ Nowość: Soundyard Studio Complex — kupuj własne przestrzenie studyjne',
  items:[
