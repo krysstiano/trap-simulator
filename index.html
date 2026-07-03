@@ -20646,7 +20646,7 @@ window._5pdfEnsure=function(){
   { const r=G._sponsorRel; _num(r,[['interest',0],['trust',0],['patience',5],['brandReadiness',0],['offerStage',0],['prof',0],['auth',0],['biz',0],['ignored',0],['negPay',0]]); _bool(r,['offerUnlocked','purchasedWiktor','followupSent','objSet','negDone']); if(r.lastDay!==null&&(typeof r.lastDay!=='number'||!isFinite(r.lastDay))) r.lastDay=null; r.patience=Math.max(0,Math.min(5,r.patience)); }
   /* PDF17 Marcin (Organizator) — media/kontrola kariery. mainstreamInterest/careerControl/authenticity nowe (brak ekwiwalentu). */
   if(!G._marcinRel||typeof G._marcinRel!=='object') G._marcinRel={};
-  { const r=G._marcinRel; _num(r,[['trust',0],['respect',0],['boundaries',0],['gatekeeping',0],['careerControl',0],['mediaReadiness',0],['mainstreamInterest',0],['mediaRisk',0],['authenticity',0]]); _bool(r,['mustAskBeforeReject','openToOddFormats','mediaTrainingDone']); }
+  { const r=G._marcinRel; _num(r,[['trust',0],['respect',0],['boundaries',0],['gatekeeping',0],['careerControl',0],['mediaReadiness',0],['mainstreamInterest',0],['mediaRisk',0],['authenticity',0],['relationship',0],['professionalism',0]]); _bool(r,['mustAskBeforeReject','openToOddFormats','mediaTrainingDone','sniadaniowkaUnlocked','sniadaniowkaDone']); }
   /* PDF16 Kamil (Menadżer) — warstwa SMS NAD istniejącym managementDeal. mode: none|full|advisory|selection|independent. Warunek katalogu reużywa istniejącej logiki (album/6-singli). */
   if(!G._kamilMgr||typeof G._kamilMgr!=='object') G._kamilMgr={};
   { const r=G._kamilMgr; _num(r,[['interest',0],['trust',0],['patience',5],['careerReadiness',0]]); _bool(r,['introSent','cooperationUnlocked','meetingAvail']); if(typeof r.mode!=='string'||['none','full','advisory','selection','independent'].indexOf(r.mode)<0) r.mode='none'; r.patience=Math.max(0,Math.min(5,r.patience)); }
@@ -53507,7 +53507,7 @@ window._smsCheckTriggers=function(){
   if(freestyles>=3) _smsTriggerOnce('meme_punchline','kamil','siema, Twoje punchline’y rozjebały mi mózg. Dawaj diss na siebie next time 😈');
   if(tracks>=5) _smsTriggerOnce('meme_allegro','label','🏢 wystawiamy Twoje single na portalu z ogłoszeniami jako limited press CD — kolekcjonerzy szaleją. Pasek 80% Twój.');
   if((G.haters||0)>=50) _smsTriggerOnce('meme_hejt','system','📱 Pierwsi hejterzy w komentarzach piszą "to nie jest rap to disco polo". KLASYK. Każdy MC to przeszedł.');
-  if(G.fame>=40) _smsTriggerOnce('meme_tvn','marcin','śniadaniówka w telewizji dzwoni — chcą Cię w piątek. Naturalnie odmówiłem za Ciebie. Nie ten level 📺');
+  if(G.fame>=40) _smsTriggerOnce('meme_tvn','marcin',((G.fame>=20||(G.fans||0)>=1000)?'Telewizja śniadaniowa dzwoniła — chcieli Cię w piątek jako „młody głos ulicy", więc już wiesz, czemu odmówiłem. Nie pozwolę, żeby zrobili z Ciebie dekorację do fragmentu o trendach 📺':'śniadaniówka w telewizji dzwoni — chcą Cię w piątek. Naturalnie odmówiłem za Ciebie. Nie ten level 📺'),{replySet:'marcin_tv'});
   if(concerts>=3) _smsTriggerOnce('meme_sylwester','marcin','📅 Robimy listę na telewizyjnego Sylwestra. Wiem wiem, to disco polo level, ale 80k zł za 2 numery to nie hajs do pogardzenia');
   if(G.streetRep>=30) _smsTriggerOnce('meme_dzielnia','kamil','na dzielni gadają że "Ten z bloku" robi już rap. Babcie spod sklepu mówią "ładny chłopak ale śpiewa o czymś dziwnym" 👵');
   if(G.fame>=20 && freestyles>=1) _smsTriggerOnce('meme_kazik','fan','❤️ Mistrzu, masz "to coś" jak stara legenda sceny. Cisną Cię w sieci do collabu z gwiazdą rapu. Powiedz że TAK 🙏');
@@ -53942,6 +53942,17 @@ window.renderSMSConversation=function(contactId){
           if(_sset==='offer' && G._sponsorRel && G._sponsorRel.negDone) _sids=_sids.filter(k=>k!=='so_neg'); /* anti-fishing: 1 negocjacja (PDF §10) */
           return `${_replyCounter}`+window._smsRichButtons('sponsor',_sids);
         }
+        /* Marcin (Organizator) — v2.3.109 (PDF17): kontekstowe odpowiedzi TYLKO dla wiadomości o śniadaniówce (replySet marcin_tv/marcin_sniad).
+           STRICT: inne SMS Marcina (np. o mieszkaniu/przyjacielskie) zostają z generycznymi Dzięki/Wpadnę. */
+        if(contactId==='marcin' && typeof window._MARCIN_REPLIES==='object' && _firstUnreplied && /^marcin_(tv|sniad)$/.test(_firstUnreplied.replySet||'')){
+          const _mrs=_firstUnreplied.replySet.replace('marcin_','');
+          let _mids=Object.keys(window._MARCIN_REPLIES).filter(k=>window._MARCIN_REPLIES[k].set===_mrs);
+          if(_mrs==='tv'){
+            const _hi=(G.fame>=20||(G.fans||0)>=1000), _lo=(((G._marcinRel&&G._marcinRel.professionalism)||0)<3);
+            _mids=_mids.filter(k=>{ if(k==='mt_charity') return _hi; if(k==='mt_prep') return _lo; return true; });
+          }
+          return `${_replyCounter}`+window._smsRichButtons('marcin',_mids);
+        }
         /* system / bank — automaty, gracz nie buduje "przyjaźni" */
         if(contactId==='system'||contactId==='bank'){
           return `${_replyCounter}<div style="display:flex;gap:4px;flex-wrap:wrap">
@@ -54308,6 +54319,21 @@ window._SPONSOR_REPLIES={
   so_ownway:{set:'offer', label:'🎭 Mogę, ale po swojemu', text:'Mogę to zrobić, ale po swojemu — outfit dobieram sam.', fx:{authenticity:1}, action:'sponsorAccept'},
   so_refuse:{set:'offer', label:'— Nie chcę reklamować ciuchów', text:'Na razie nie chcę reklamować ciuchów. Może innym razem.', fx:{sponsorInterest:-1}, action:'sponsorRefuse'},
 };
+/* v2.3.109 (PDF17): Marcin (Organizator) — kontekstowe odpowiedzi na SMS o śniadaniówce (odmówił za gracza) zamiast Dzięki/Wpadnę/Ignoruj.
+   set:'tv'. Warianty mt_charity (high-fame) / mt_prep (low-prof) dokładane warunkowo w renderze. */
+window._MARCIN_REPLIES={
+  mt_trust:{set:'tv', label:'👍 Dobrze zrobiłeś. Nie chcę w byle format', text:'Dobrze zrobiłeś. Nie chcę wskakiwać w każdy format tylko dlatego, że ktoś zadzwonił z telewizji. Jak mam gdzieś wejść, to musi mieć sens dla tego, co buduję.', fx:{marcinTrust:1,marcinRelationship:1,mediaAuth:1,mainstreamInterest:-1}, reply:'No i właśnie dlatego odmówiłem. Nie każda kamera robi karierę. Czasem robi z człowieka ciekawostkę między pogodą a gotowaniem obiadu.'},
+  mt_boundary:{set:'tv', label:'✋ Dzięki, ale następnym razem zapytaj mnie', text:'Dzięki, ale następnym razem zapytaj mnie przed taką decyzją. Możesz doradzać, możesz filtrować syf, ale finalnie to ja wybieram, gdzie pokazuję twarz.', fx:{boundaries:2,careerControl:1,marcinRespect:1,gatekeeping:-1}, action:'marcinAskBefore', reply:'Fair. Przyjąłem do wiadomości. Odmówiłem, bo znam ten format i wiem, jak potrafi przyciąć człowieka pod własną narrację. Ale okej — następnym razem najpierw puszczę temat do Ciebie.'},
+  mt_details:{set:'tv', label:'🤔 Może warto było poznać szczegóły?', text:'Może jednak warto było poznać szczegóły? Nie mówię, że od razu bym poszedł, ale czasem nawet dziwny format da się obrócić na swoją korzyść.', fx:{mediaReadiness:1,mainstreamInterest:1,gatekeeping:-1}, reply:'Można. Tylko śniadaniówka nie pyta, kim jesteś — pyta, czy da się z Ciebie zrobić dłuższy format pod lokowanie produktu. Ale jeśli chcesz, mogę odzyskać kontakt i sprawdzić, czego dokładnie chcieli.'},
+  mt_terms:{set:'tv', label:'📋 Najpierw format, stawka i warunki', text:'Najpierw format, stawka i warunki, dopiero potem decyzja. Nie chcę odmawiać w ciemno, ale nie będę też robił za ozdobę programu za frajer.', fx:{mediaProf:1,careerControl:1,mediaReadiness:1,marcinRespect:1}, reply:'No i to jest konkret. Właśnie tak się rozmawia z ludźmi od kamer. Dowiem się zaraz, czy to była poważna propozycja, czy tylko chcieli statystę na kanapę.'},
+  mt_hard:{set:'tv', label:'🚫 Nie odmawiaj za mnie. To moja kariera', text:'Nie odmawiaj za mnie, Marcin. To moja kariera, moja twarz i moje decyzje. Możesz mieć zdanie, ale nie chcę się dowiadywać po fakcie, że ktoś zamknął temat w moim imieniu.', fx:{careerControl:2,boundaries:2,marcinRelationship:-1,gatekeeping:-2,marcinRespect:1}, action:'marcinAskBefore', reply:'Dobrze, usłyszałem. Nie będę udawał, że miło się to czyta, ale masz rację. Następnym razem dostaniesz temat pierwszy. Tylko potem nie miej pretensji, jak zrobią z Ciebie maskotkę.'},
+  mt_meme:{set:'tv', label:'😂 Śniadaniówka? Mem, ale zrobiłaby zasięg', text:'Śniadaniówka brzmi jak mem, ale nie skreślałbym tego od razu. Czasem najdziwniejszy format robi największy zasięg, jeśli wejdziesz tam po swojemu.', fx:{mainstreamInterest:1,socialBuzz:1,mediaRisk:1}, reply:'Jasne, tylko pamiętaj, że mem może zrobić zasięg, ale może też przykleić Ci twarz do czegoś głupiego na pół gry. Nie mówię „nigdy". Mówię: nie za wcześnie.'},
+  mt_ignore:{set:'tv', label:'— Zignoruj', text:null, fx:{marcinRelationship:-1,gatekeeping:1}, reply:'Widzę, że temat telewizji został bez odpowiedzi. Czyli mam dalej filtrować takie rzeczy po swojemu, czy jednak chcesz wiedzieć, kto dzwoni?'},
+  mt_charity:{set:'tv', label:'🎭 „Młody głos ulicy"? Pułapka charytatywna', text:'„Młody głos ulicy" brzmi jak pułapka charytatywna. Jeśli ktoś chce mnie zaprosić, niech wie, kogo zaprasza, a nie robi ze mnie podpis pod programem dla oglądalności.', fx:{mediaAuth:1,marcinTrust:1,mainstreamInterest:-1}, reply:'Dokładnie. Jak kamera ma wejść, to wyłącznie na Twoich warunkach. Nie jako ciekawostka do śniadania, tylko konkretny gwóźdź programu.'},
+  mt_prep:{set:'tv', label:'🎓 Powiedz, jak się przygotować', text:'To powiedz, jak się do czegoś takiego przygotować. Nie chcę wskoczyć w kamery i wyjść jak ktoś, kto pierwszy raz widzi ludzi na oczy.', fx:{mediaProf:1,mediaReadiness:1,marcinTrust:1}, action:'marcinMediaTraining', reply:'To już lepiej brzmi. Zrobimy Ci mały trening rozmowy: kim jesteś, czego nie mówisz i kiedy kończysz temat, zanim temat skończy Ciebie.'},
+  ms_go:{set:'sniad', label:'📺 Dobra, wchodzę w śniadaniówkę', text:'Dobra, sprawdźmy to. Wchodzę — ale po swojemu.', fx:{}, action:'marcinDoSniadaniowka'},
+  ms_skip:{set:'sniad', label:'— Odpuszczam ten temat', text:'Wiesz co, odpuszczam ten temat. Nie czuję tego.', fx:{careerControl:1}, reply:'Spoko. Twoja decyzja, Twoja twarz. Filtruję dalej.'},
+};
 window._applySmsRichEffect=function(fx){
   fx=fx||{};
   if(typeof _newpdfEnsure==='function') _newpdfEnsure();
@@ -54340,6 +54366,21 @@ window._applySmsRichEffect=function(fx){
     if(fx.visualIdentity) G.drip=(G.drip||0)+fx.visualIdentity;
     if(fx.ignoredSponsor) s.ignored=(s.ignored||0)+1;
   }
+  /* v2.3.109 (PDF17): Marcin (Organizator) — adaptacja stat na G._marcinRel (mediaAuth/mediaProf odrębne od sponsora). */
+  if(G._marcinRel){ const m=G._marcinRel; const cl=(v,mx)=>Math.max(0,Math.min(mx,v));
+    if(fx.marcinTrust) m.trust=cl((m.trust||0)+fx.marcinTrust,20);
+    if(fx.marcinRelationship) m.relationship=cl((m.relationship||0)+fx.marcinRelationship,20);
+    if(fx.marcinRespect) m.respect=cl((m.respect||0)+fx.marcinRespect,20);
+    if(fx.boundaries) m.boundaries=cl((m.boundaries||0)+fx.boundaries,20);
+    if(fx.gatekeeping) m.gatekeeping=cl((m.gatekeeping||0)+fx.gatekeeping,20);
+    if(fx.careerControl) m.careerControl=cl((m.careerControl||0)+fx.careerControl,20);
+    if(fx.mediaReadiness) m.mediaReadiness=cl((m.mediaReadiness||0)+fx.mediaReadiness,20);
+    if(fx.mainstreamInterest) m.mainstreamInterest=cl((m.mainstreamInterest||0)+fx.mainstreamInterest,20);
+    if(fx.mediaRisk) m.mediaRisk=cl((m.mediaRisk||0)+fx.mediaRisk,20);
+    if(fx.mediaAuth) m.authenticity=cl((m.authenticity||0)+fx.mediaAuth,20);
+    if(fx.mediaProf) m.professionalism=cl((m.professionalism||0)+fx.mediaProf,20);
+  }
+  if(fx.socialBuzz){ if(!G._fanRel||typeof G._fanRel!=='object')G._fanRel={hype:0}; G._fanRel.hype=Math.max(0,(G._fanRel.hype||0)+fx.socialBuzz); } /* buzz = realny fan-hype (brak G.socialBuzz) */
 };
 window._smsKamilJobsAction=function(){
   if(typeof _newpdfEnsure==='function') _newpdfEnsure();
@@ -54392,7 +54433,7 @@ window._sponsorAcceptOffer=function(){
 window._sponsorNegotiate=function(){
   if(typeof _5pdfEnsure==='function') _5pdfEnsure();
   const s=G._sponsorRel;
-  let chance=35 + (s.prof||0)*2 + (s.trust||0)*3 + Math.floor((G.drip||0)/10) + Math.floor((G.socialBuzz||0)/5);
+  let chance=35 + (s.prof||0)*2 + (s.trust||0)*3 + Math.floor((G.drip||0)/10) + Math.floor(((G._fanRel&&G._fanRel.hype)||0)/5); /* buzz = realny fan-hype (brak G.socialBuzz w grze) */
   chance -= Math.max(0,5-(s.patience||5))*5;
   chance=Math.max(10,Math.min(80,chance));
   const roll=Math.random()*100;
@@ -54402,8 +54443,53 @@ window._sponsorNegotiate=function(){
   else if(roll<chance+35){ s.negPay=750; s.negDone=true; window._sponsorPushNpc('Niestety, nie na tym etapie. Masz spory potencjał, ale jeszcze nie jesteś nazwiskiem, które samo sprzedaje kolekcję. Zostaje 750 zł. Bierzesz?','sponsor_offer'); }
   else { s.negPay=750; s.negDone=true; window._sponsorPushNpc('Za mocno naciskasz jak na start. Bez raisu — zostaje bazowe 750 zł. Bierzesz, czy odpuszczamy?','sponsor_offer'); }
 };
+/* ═══ v2.3.109 (PDF17): Marcin (Organizator) — obsługa odpowiedzi + side-questy Media Training / Śniadaniówka ═══ */
+window._smsPushNpcReply=function(contactId,text,replySet){
+  if(typeof _smsSend!=='function') return;
+  _smsSend(contactId,text,replySet?{bypass:true,replySet}:{bypass:true});
+  if(!replySet){ const conv=G.sms&&G.sms.conversations&&G.sms.conversations[contactId]; if(conv&&conv.length) conv[conv.length-1]._replied=true; }
+};
+window._marcinHandleReply=function(opt){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const m=G._marcinRel, act=opt.action;
+  if(opt.reply) window._smsPushNpcReply('marcin',opt.reply);
+  if(act==='marcinAskBefore'){ m.mustAskBeforeReject=true; if(typeof notify==='function') notify('🎤 Marcin: od teraz najpierw puszcza Ci temat, zanim odmówi mediom w Twoim imieniu.'); }
+  else if(act==='marcinMediaTraining'){ window._marcinStartMediaTraining(); }
+  else if(act==='marcinDoSniadaniowka'){ window._marcinStartSniadaniowka(); }
+  /* Odblokowanie wątku „Śniadaniówka" gdy gracz pokazał zainteresowanie mediami + gotowość (PDF §10, próg dostosowany do przepływu). */
+  if((m.mainstreamInterest||0)>=1 && (m.mediaReadiness||0)>=1 && !m.sniadaniowkaUnlocked && !m.sniadaniowkaDone){
+    m.sniadaniowkaUnlocked=true;
+    window._smsPushNpcReply('marcin','Odzyskałem kontakt do śniadaniówki. Piątek 9:00, krótka rozmowa o młodych, lokalnych artystach. Brzmi niewinnie — i właśnie dlatego trzeba uważać. Wchodzisz?','marcin_sniad');
+  }
+};
+window._marcinStartMediaTraining=function(){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const m=G._marcinRel;
+  if(m.mediaTrainingDone){ if(typeof notify==='function') notify('🎓 Trening medialny masz już za sobą.'); return; }
+  const fin=(msg)=>{ m.mediaTrainingDone=true; m.mediaReadiness=Math.min(20,(m.mediaReadiness||0)+2); if(typeof notify==='function') notify(msg); };
+  if(typeof showEventChoice!=='function'){ fin('🎓 Trening medialny zaliczony. +2 gotowość medialna.'); return; }
+  showEventChoice('🎓 Trening medialny z Marcinem','„Kim jesteś jako artysta? Dlaczego ludzie zaczęli Cię słuchać?" — Marcin uczy Cię krótkiej, mocnej odpowiedzi. Jaki styl wybierasz?',[
+    {label:'🎩 Profesjonalnie (+profesjonalizm, +zaufanie marek)', fn:()=>{ m.professionalism=Math.min(20,(m.professionalism||0)+2); if(G.publicRep) G.publicRep.sponsorTrust=Math.min(100,(G.publicRep.sponsorTrust||60)+2); fin('🎓 Odpowiadasz konkretnie i pewnie. +profesjonalizm, +gotowość medialna.'); }},
+    {label:'💯 Autentycznie (+autentyczność, +lojalność fanów)', fn:()=>{ m.authenticity=Math.min(20,(m.authenticity||0)+2); if(G.publicRep) G.publicRep.fanLoyalty=Math.min(100,(G.publicRep.fanLoyalty||60)+2); fin('🎓 Mówisz swoim głosem — ludzie to czują. +autentyczność, +gotowość medialna.'); }},
+    {label:'😏 Żartobliwie (+zasięg)', fn:()=>{ if(!G._fanRel||typeof G._fanRel!=='object')G._fanRel={hype:0}; G._fanRel.hype=(G._fanRel.hype||0)+2; fin('🎓 Rozbrajasz kamerę żartem. +zasięg, +gotowość medialna.'); }},
+    {label:'🕶 Tajemniczo (+hype)', fn:()=>{ m.mainstreamInterest=Math.min(20,(m.mainstreamInterest||0)+1); if(!G._fanRel||typeof G._fanRel!=='object')G._fanRel={hype:0}; G._fanRel.hype=(G._fanRel.hype||0)+1; fin('🎓 Mówisz mało, budujesz napięcie. +hype, +gotowość medialna.'); }},
+  ]);
+};
+window._marcinStartSniadaniowka=function(){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const m=G._marcinRel;
+  if(m.sniadaniowkaDone){ if(typeof notify==='function') notify('📺 Śniadaniówkę masz już za sobą.'); return; }
+  const fin=(msg)=>{ m.sniadaniowkaDone=true; if(typeof notify==='function') notify(msg); };
+  if(typeof showEventChoice!=='function'){ fin('📺 Wejście do śniadaniówki zaliczone.'); return; }
+  showEventChoice('📺 Śniadaniówka — piątek 9:00','Krótka rozmowa w programie o młodych, lokalnych artystach. Jak wchodzisz?',[
+    {label:'💪 Na swoich warunkach (udane wejście)', fn:()=>{ if(typeof addFame==='function')addFame(4); m.mainstreamInterest=Math.min(20,(m.mainstreamInterest||0)+2); m.mediaReadiness=Math.min(20,(m.mediaReadiness||0)+1); G.fans=(G.fans||0)+300; fin('📺 Weszło świetnie — po Twojemu. +sława, +fani, +zainteresowanie mediów.'); }},
+    {label:'📋 Tylko przy jasnych warunkach (nijakie)', fn:()=>{ m.careerControl=Math.min(20,(m.careerControl||0)+1); fin('📺 Bezpiecznie, bez fajerwerków. Mały zasięg, żadnych strat.'); }},
+    {label:'🎤 Zamiast wywiadu — występ (ryzyko)', fn:()=>{ if(Math.random()<0.5){ if(typeof addFame==='function')addFame(6); if(!G._fanRel||typeof G._fanRel!=='object')G._fanRel={hype:0}; G._fanRel.hype=(G._fanRel.hype||0)+3; fin('📺 Zaskoczyłeś wszystkich występem — zasięg poszybował. +sława, +hype.'); } else { m.mediaRisk=Math.min(20,(m.mediaRisk||0)+2); if(G.publicRep)G.publicRep.brandSafety=Math.max(0,(G.publicRep.brandSafety||60)-4); fin('📺 Nie wyszło jak chciałeś — trochę wtopy wizerunkowej. +ryzyko medialne.'); } }},
+    {label:'🚫 Odmawiam, nie ten moment (kontrola)', fn:()=>{ m.careerControl=Math.min(20,(m.careerControl||0)+2); m.authenticity=Math.min(20,(m.authenticity||0)+1); fin('📺 Odmówiłeś po negocjacjach. Trzymasz stery kariery. +kontrola, +autentyczność.'); }},
+  ]);
+};
 window._smsRichButtons=function(contactId,ids){
-  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:(contactId==='sponsor')?window._SPONSOR_REPLIES:window._KAMIL_REPLIES;
+  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:(contactId==='sponsor')?window._SPONSOR_REPLIES:(contactId==='marcin')?window._MARCIN_REPLIES:window._KAMIL_REPLIES;
   return '<div style="display:flex;flex-direction:column;gap:5px">'+ids.map((id,n)=>{
     const o=reg[id]; if(!o) return '';
     const isIgnore=/ignore/.test(id);
@@ -54419,7 +54505,7 @@ window._smsRichReply=function(contactId,replyId){
   let idx=-1;
   for(let i=conv.length-1;i>=0;i--){ if(conv[i].from==='me') continue; if(conv[i]._replied) continue; idx=i; break; }
   if(idx<0){ if(typeof showMsg==='function') showMsg('💬 Już odpowiedziałeś na wszystkie wiadomości od tego kontaktu. Poczekaj na nowe.','r',4500); return; }
-  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='kamil')?window._KAMIL_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:(contactId==='sponsor')?window._SPONSOR_REPLIES:null;
+  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='kamil')?window._KAMIL_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:(contactId==='sponsor')?window._SPONSOR_REPLIES:(contactId==='marcin')?window._MARCIN_REPLIES:null;
   const opt=reg&&reg[replyId];
   if(!opt) return;
   conv[idx]._replied=true;
@@ -54427,6 +54513,7 @@ window._smsRichReply=function(contactId,replyId){
   _applySmsRichEffect(opt.fx);
   if(opt.action==='kamilJobs') _smsKamilJobsAction();
   if(contactId==='sponsor' && typeof window._sponsorHandleReply==='function') window._sponsorHandleReply(opt);
+  if(contactId==='marcin' && typeof window._marcinHandleReply==='function') window._marcinHandleReply(opt);
   if(typeof renderSMSConversation==='function') renderSMSConversation(contactId);
   if(typeof saveGameSilent==='function') saveGameSilent();
 };
@@ -60896,6 +60983,13 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.109',date:'2026-07-03',cats:['feature'],title:'📺 Nowość: prawdziwe rozmowy o mediach z organizatorem',
+ items:[
+  {t:'new',d:'📺 Gdy kontakt od organizatora zdecyduje o czymś w Twoim imieniu, możesz teraz odpowiedzieć na kilka realnych sposobów — zaufać mu, spokojnie postawić granicę, zapytać o szczegóły i warunki, ostro sprzeciwić się decydowaniu za Ciebie albo pomyśleć o zasięgu. Każda postawa inaczej wpływa na Waszą relację, Twoją kontrolę nad karierą i wizerunek.'},
+  {t:'new',d:'🎓 W zależności od Twoich wyborów mogą otworzyć się dodatkowe wątki związane z mediami — od przygotowania do wystąpień po decyzję, czy i jak wejść w propozycję telewizyjną, na własnych zasadach.'},
+ ]
+ },
  {
  ver:'v2.3.109',date:'2026-07-03',cats:['feature'],title:'💼 Nowość: prawdziwa rozmowa ze sponsorem odzieżowym',
  items:[
