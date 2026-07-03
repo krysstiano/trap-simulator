@@ -1413,6 +1413,26 @@ window._timeToMinutes=_timeToMinutes; window._nowGameMinutes=_nowGameMinutes;
 window._isActivityInOptimalWindow=_isActivityInOptimalWindow;
 window._activityWeekendModifier=_activityWeekendModifier;
 window._isWeekendDay=_isWeekendDay; window._publicActivityScore=_publicActivityScore;
+/* v2.3.108 (PDF #12 §9): informacja przed aktywnością o zainteresowaniu publiczności wg pory. Freestyle
+   POZA oknem optymalnym → panel ostrzegawczy „Zacząć mimo to?" (-30%). Optymalne/weekend → start bez tarcia
+   + krótki komunikat. Cel PDF: gracz świadomie planuje aktywności. Read-only (nie zmienia save/stanu). */
+window._showActivityPrestartPanel=function(activityType, startFn){
+  if(typeof startFn!=='function') return;
+  const info=(typeof _publicActivityScore==='function')?_publicActivityScore(activityType,1000):null;
+  if(!info){ startFn(); return; }
+  const mn=(typeof _nowGameMinutes==='function')?_nowGameMinutes():360;
+  const hh=String(Math.floor(mn/60)).padStart(2,'0'), mm=String(mn%60).padStart(2,'0');
+  const timeStr=`${(typeof _getDayName==='function')?_getDayName():''}, ${hh}:${mm}`;
+  if(activityType==='freestyle' && !info.isOptimal && typeof gameConfirm==='function'){
+    const body=`🎤 <b>Freestyle na ulicy</b>\n\n🕐 Aktualna pora: <b>${timeStr}</b>\nZainteresowanie publiczności: <b style="color:#e8a020">Niskie</b>\n\nPoza optymalną porą wynik będzie mniejszy o 30%.${info.isWeekend?' <span style="color:#2ecc71">(weekend +15% trochę to złagodzi)</span>':''}\n\n💡 Najlepsza pora: dni robocze 10–20, piątek 10–22, weekend dłużej (sobota do 2:30 w nocy).\n\nZacząć mimo to?`;
+    gameConfirm(body, startFn, null);
+    return;
+  }
+  /* Optymalne (lub breakdance/skate — bez kary godzinowej): start od razu; weekend → subtelny komunikat. */
+  if(info.weekendModifier>1){ if(typeof showMsg==='function') showMsg('🎉 Weekendowy ruch w mieście — +15% do wyniku!','g',2500); }
+  else if(activityType==='freestyle' && info.isOptimal){ if(typeof addNotif==='function') addNotif(`🎤 Dobra pora na freestyle (${timeStr}) — pełny wynik.`); }
+  startFn();
+};
 let lastClockReal = Date.now();
 let npcCooldowns = {}; // key: "npcType_optIdx", value: timestamp
 // City life entities
@@ -14244,7 +14264,7 @@ function handleAct(act,objId){
     /* v2.1.138: dodano energy gate (asymetria z freestyle L8932 — wcześniej skatepark mógł być uruchomiony z 0 energii). Skatepark zużywa -10 energii w trakcie. */
     if((G.energy||0)<10){showMsg('⚡ Za mało energii (potrzeba 10)','r');return;}
     if(window._streetActDailyOk && !window._streetActDailyOk('skate')) return; /* v2.3.107 A3: limit 3/dzień */
-    startSkateparkMG();return;
+    if(window._showActivityPrestartPanel) window._showActivityPrestartPanel('skate',startSkateparkMG); else startSkateparkMG(); return; /* v2.3.108 PDF#12: info o weekendzie */
   } else if(act==='bboy'){
     if(!_earlyGate('Breakdance')) return;
     /* v2.3.99 (PDF #4): jeśli otwarty turniej — wybór trening/turniej. */
@@ -14255,7 +14275,7 @@ function handleAct(act,objId){
     /* v2.1.138: dodano energy gate (asymetria z freestyle L8932). Breakdance zużywa -8 energii. */
     if((G.energy||0)<8){showMsg('⚡ Za mało energii (potrzeba 8)','r');return;}
     if(window._streetActDailyOk && !window._streetActDailyOk('breakdance')) return; /* v2.3.107 A3: limit 3/dzień */
-    startBreakdanceMG();return;
+    if(window._showActivityPrestartPanel) window._showActivityPrestartPanel('breakdance',startBreakdanceMG); else startBreakdanceMG(); return; /* v2.3.108 PDF#12: info o weekendzie */
   } else if(act.startsWith('tour_start:')){
     /* v2.3.99 (PDF #4/#5): start turnieju z wnętrza areny (obiekt „Wejdź na turniej"). */
     const _disc=act.split(':')[1];
@@ -14306,7 +14326,7 @@ function handleAct(act,objId){
     if(!_earlyGate('Freestyle na ulicy')) return;
     /* v2.0.4: USUNIĘTY cooldown 60 min. v2.1.864: bramka energii PRZENIESIONA do startFreestyleMG (single-source). v2.1.865: koszt 10 energii + TWARDY limit 3 freestyle/dobę — wszystko w startFreestyleMG (Jeszcze raz/triggerFreestyle też respektują). */
     G._lastFreestyleMin=gameMin||0; /* zostawione dla kompatybilności save'ów + ewentualnych statystyk */
-    startFreestyleMG();return;
+    if(window._showActivityPrestartPanel) window._showActivityPrestartPanel('freestyle',startFreestyleMG); else startFreestyleMG(); return; /* v2.3.108 PDF#12: panel pory (off-peak → „Zacznij mimo to") */
   } else if(act==='save'){
     /* v2.3.33 BUGFIX (Vegan: „przycisk Zapisz nie reaguje"): manualny zapis byl CICHY
        (saveGame -> saveGameSilent, zero potwierdzenia) -> gracz klikal i nie wiedzial czy
@@ -20452,10 +20472,10 @@ window._newpdfEnsure=function(){
   if(!G._fanRel||typeof G._fanRel!=='object') G._fanRel={};
   { const r=G._fanRel; [['hype',0],['streak',0],['ignored',0]].forEach(([k,d])=>{ if(typeof r[k]!=='number'||!isFinite(r[k])) r[k]=d; }); r.hype=Math.max(0,r.hype); }
   /* Ścieżki turniejowe. tournamentState: none|invited|accepted|postponed|declined|ignored|completed */
-  const _mkDisc=(rankDef)=>({unlocked:false,parkRunsCompleted:0,goodParkRuns:0,tournamentInviteReceived:false,tournamentState:'none',tournamentReminderAvailable:false,firstTournamentCompleted:false,lastTournamentDay:null,inviteDay:0,rank:rankDef,rankPoints:0,organizerRelation:0});
+  const _mkDisc=(rankDef)=>({unlocked:false,parkRunsCompleted:0,goodParkRuns:0,tournamentInviteReceived:false,tournamentState:'none',tournamentReminderAvailable:false,firstTournamentCompleted:false,lastTournamentDay:null,inviteDay:0,rank:rankDef,rankPoints:0,organizerRelation:0,lastBaseScore:0,lastFinalScore:0});
   const _fixDisc=(d,rankDef)=>{
     if(!d||typeof d!=='object') return _mkDisc(rankDef);
-    [['parkRunsCompleted',0],['goodParkRuns',0],['rankPoints',0],['organizerRelation',0],['inviteDay',0]].forEach(([k,v])=>{ if(typeof d[k]!=='number'||!isFinite(d[k])) d[k]=v; });
+    [['parkRunsCompleted',0],['goodParkRuns',0],['rankPoints',0],['organizerRelation',0],['inviteDay',0],['lastBaseScore',0],['lastFinalScore',0]].forEach(([k,v])=>{ if(typeof d[k]!=='number'||!isFinite(d[k])) d[k]=v; }); /* v2.3.108 PDF#12 §12: telemetria wyniku */
     ['unlocked','tournamentInviteReceived','tournamentReminderAvailable','firstTournamentCompleted'].forEach(k=>{ if(typeof d[k]!=='boolean') d[k]=false; });
     if(typeof d.tournamentState!=='string') d.tournamentState='none';
     if(typeof d.rank!=='string') d.rank=rankDef;
@@ -47526,8 +47546,9 @@ function startSkateparkMG(){
   function endSkate(){
     /* v2.3.108 (PDF #12 §14/§15): weekend +15% na wynik skate (bez kary godzinowej na start). Nakładane na
        score PRZED nagrodami i progiem 450 — bonus liczy się do turnieju (§15). */
-    const _skMod=(typeof _publicActivityScore==='function')?_publicActivityScore('skate',score):{finalScore:score,weekendModifier:1};
+    const _skMod=(typeof _publicActivityScore==='function')?_publicActivityScore('skate',score):{finalScore:score,baseScore:score,weekendModifier:1};
     score=_skMod.finalScore;
+    if(G.skate){ G.skate.lastBaseScore=_skMod.baseScore; G.skate.lastFinalScore=score; } /* v2.3.108 PDF#12 §12 */
     // v1.8.61: rep cap 30→4 (skate był OP — 30 rep za 1 minutę vs 1 rep z kuriera)
     // v1.8.96: Street Art Week / Halloween — bonus rep
     /* v2.1.201 [Amper]: BUFF Skatepark reward — z -10 energii ROI ujemne. Teraz: rep cap 4→6, dodano cash tips od publiczności, follower gain, sława za big combo (≥10x).
@@ -47912,6 +47933,7 @@ function startFreestyleMG(){
     const _fsTimeBase=score;
     const _fsMod=(typeof _publicActivityScore==='function')?_publicActivityScore('freestyle',score):{finalScore:score,timeModifier:1,weekendModifier:1,isOptimal:true,isWeekend:false};
     score=_fsMod.finalScore;
+    if(G.careers&&G.careers.raper){ G.careers.raper.lastBaseScore=_fsTimeBase; G.careers.raper.lastFinalScore=score; } /* v2.3.108 PDF#12 §12 */
     if(score>0){
       if(!G.careers.raper) G.careers.raper={level:0,freestyles:0,tracks:0,xp:0,skillPts:0};
       G.careers.raper.freestyles=(G.careers.raper.freestyles||0)+1;
@@ -48138,8 +48160,9 @@ function startBreakdanceMG(){
   function endBboy(){
     /* v2.3.108 (PDF #12 §13/§15): weekend +15% na wynik breakdance (bez kary godzinowej na start). Nakładane na
        score PRZED nagrodami i progiem 450 — bonus liczy się do turnieju (§15). */
-    const _bbMod=(typeof _publicActivityScore==='function')?_publicActivityScore('breakdance',score):{finalScore:score,weekendModifier:1};
+    const _bbMod=(typeof _publicActivityScore==='function')?_publicActivityScore('breakdance',score):{finalScore:score,baseScore:score,weekendModifier:1};
     score=_bbMod.finalScore;
+    if(G.breakdance){ G.breakdance.lastBaseScore=_bbMod.baseScore; G.breakdance.lastFinalScore=score; } /* v2.3.108 PDF#12 §12 */
     // v1.8.61: rep cap 25→4 (breakdance był OP)
     // v1.8.96: Street Art Week / Halloween — bonus rep
     const _bRepFestMult=typeof festivalEffect==='function'?(festivalEffect('repMult')||1):1;
@@ -59954,6 +59977,15 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.108',date:'2026-07-03',cats:['feature'],title:'🕐 Nowość: miasto żyje różnie w zależności od dnia i godziny',
+ items:[
+  {t:'new',d:'🎤 Freestyle na ulicy ma teraz swoje najlepsze pory. W dni robocze publiczność najlepiej reaguje między 10:00 a 20:00, w piątek aż do 22:00, a w weekend jeszcze dłużej (w sobotę ruch trzyma się do 2:30 w nocy). Freestyle poza tymi godzinami daje wynik mniejszy o 30% — po prostu jest wtedy na ulicy mniej ludzi.'},
+  {t:'new',d:'🎉 Weekend się opłaca: w sobotę i niedzielę freestyle, breakdance i skatepark dają +15% do wyniku (a więc też do zdobywanego respektu i fanów). Piątek ma dłuższe dobre godziny dla freestyle, ale bonusu weekendowego jeszcze nie łapie.'},
+  {t:'new',d:'🗒️ Zanim zaczniesz freestyle w słabej porze, gra Cię uprzedzi („Zainteresowanie: niskie — wynik mniejszy o 30%") i pozwoli zdecydować, czy grasz mimo to, czy wolisz wrócić później. Po występie ekran wyniku pokazuje wynik bazowy, zastosowane bonusy i kary oraz wynik końcowy.'},
+  {t:'new',d:'🏅 Weekendowy bonus liczy się też do progu dobrych występów (450 pkt) w breakdance i na skateparku — dobrze zaplanowany weekend realnie przybliża Cię do turnieju. Krótko mówiąc: teraz warto planować, kiedy wychodzisz na miasto.'},
+ ]
+ },
  {
  ver:'v2.3.107',date:'2026-07-02',cats:['beta-tester','fix','ui'],title:'🔧 Dopracowanie: płynniejsze rozmowy, kasyno, dzielnice i aktywności',
  items:[
