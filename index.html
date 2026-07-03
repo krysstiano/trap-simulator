@@ -16943,6 +16943,24 @@ window._studioActiveMixBonus=function(){
   try{ if(G.studioOwned&&G.studioComplex&&G.studioComplex.activeRoomId){ const rs=window.getStudioRoomStats(G.studioComplex.activeRoomId); return Math.floor(((rs&&rs.mixQuality)||0)*0.15); } }catch(_e){}
   return 0;
 };
+/* ═══ v2.3.109 (PDF13 TIER 13.7): integracje — dobre studio wpływa na karierę legalną / S9 Agency / sponsora (§43-45) ═══ */
+window._studioBestRoomQuality=function(){ let b=0; for(const rid of (G.studioComplex.ownedRooms||[])){ const q=window.getStudioRoomStats(rid).recordingQuality; if(q>b)b=q; } return b; };
+window._studioBestRoomPrestige=function(){ let b=0; for(const rid of (G.studioComplex.ownedRooms||[])){ const p=window.getStudioRoomStats(rid).prestigeScore; if(p>b)b=p; } return b; };
+window._studioApplyIntegrations=function(){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const sc=G.studioComplex; if(!sc.ownedRooms.length) return;
+  /* §43/§44: dobre studio (jakość ≥75) → wiarygodność marki, agencja i partnerzy patrzą przychylniej (jednorazowo). */
+  if(window._studioBestRoomQuality()>=75 && !sc._integS9Done){ sc._integS9Done=true;
+    if(G.publicRep){ G.publicRep.brandSafety=Math.min(100,(G.publicRep.brandSafety||60)+3); G.publicRep.bookingTrust=Math.min(100,(G.publicRep.bookingTrust||60)+2); }
+    if(G.signalNine){ if(typeof window._s9Effect==='function') window._s9Effect({brandTrust:2}); else G.signalNine.brandTrust=Math.min(100,(G.signalNine.brandTrust||60)+2); }
+    if(typeof addNotif==='function') addNotif('📡 Twoje wyposażone studio robi wrażenie — agencja i partnerzy patrzą przychylniej na Twój content.');
+  }
+  /* §44: prestiżowe studio (≥70) + spójny drip → zainteresowanie sponsora odzieżowego (sprzężenie z TIER15). */
+  if(window._studioBestRoomPrestige()>=70 && (G.drip||0)>=20 && G._sponsorRel && !sc._integSponsorDone){ sc._integSponsorDone=true;
+    G._sponsorRel.interest=Math.min(20,(G._sponsorRel.interest||0)+1); G._sponsorRel.brandReadiness=Math.min(20,(G._sponsorRel.brandReadiness||0)+1);
+    if(typeof addNotif==='function') addNotif('💼 Prestiżowe studio i spójny styl — sponsor odzieżowy patrzy na Ciebie przychylniej.');
+  }
+};
 /* ═══ v2.3.109 (PDF13 TIER 13.5): wynajem lokali NPC + realizatorzy + dochód pasywny tygodniowy (§29-34) ═══ */
 const STUDIO_ENGINEERS={
   kuba:{id:'kuba',name:'Kuba „Fader" Milewski',level:'początkujący',weeklyCost:1200,revenueShare:0.35,qualityBonus:8,minRecordingQuality:0,minComfort:0,minPrestige:0},
@@ -27955,6 +27973,8 @@ function nextPeriod(){
     if(rentalInc>0){const _p=earn(rentalInc);addNotif(`🎙️ Wynajem studia: +${_p.toLocaleString('pl')} zł`);} /* v2.1.865: notif = REALNA kwota (earn return) */
     /* v2.3.109 (PDF13 TIER 13.5): tygodniowe rozliczenie wynajmu Studio Complex (accrue do weeklyPending, kasa dopiero przy Odbierz). */
     if(typeof window._studioWeeklyTick==='function') window._studioWeeklyTick();
+    /* v2.3.109 (PDF13 TIER 13.7): integracje kariera/S9/sponsor (jednorazowe boosty przy progach jakości/prestiżu). */
+    if(typeof window._studioApplyIntegrations==='function') window._studioApplyIntegrations();
     // ── Merch — dzienne sprzedaże, trendy, marketing ──
     merchDailyTick();
     // ── Festiwal tygodniowy ──
@@ -61474,6 +61494,7 @@ const PATCH_NOTES = [
   {t:'new',d:'🎧 Wokal i miks Twoich własnych numerów wychodzą lepiej, gdy nagrywasz w dobrze wyposażonym, aktywnym studiu — im lepszy sprzęt w aktywnym lokalu, tym wyższa jakość. Inwestycja we własną przestrzeń realnie przekłada się na Twoje tracki.'},
   {t:'new',d:'🏢 Nieużywane lokale możesz wynajmować artystom NPC — zatrudniasz realizatora (czterech do wyboru, od początkującego po topowego; lepsi wymagają lepiej wyposażonej przestrzeni), włączasz wynajem, a dochód z sesji rozlicza się co tydzień. Odbierasz go w panelu „Wynajem i realizatorzy". Puste studio bez realizatora nie zarabia, a utrzymanie lokalu trzeba pokryć — słabszy tydzień może wyjść na zero.'},
   {t:'new',d:'🔧 Wynajem to nie darmowy przelew: sprzęt w wynajmowanych lokalach zużywa się z czasem i wymaga serwisu, zdarzają się losowe problemy (awarie, spóźnienia, niepełne zapłaty), a zadowoleni NPC zostawiają napiwki. Lepszy komfort, prestiż i porządny sprzęt zmniejszają ryzyko problemów i podnoszą napiwki.'},
+  {t:'new',d:'📡 Dobrze wyposażone, prestiżowe studio zaczyna pracować na Twój wizerunek — agencja i partnerzy patrzą przychylniej na Twój content, a przy spójnym stylu rośnie też zainteresowanie sponsora odzieżowego. Własne, porządne studio to nie tylko lepsze nagrania, ale i mocniejsza pozycja w legalnej karierze.'},
  ]
  },
  {
