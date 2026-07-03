@@ -16798,57 +16798,67 @@ function getRecordingQuality(){
   return Math.min(100,Math.round(baseQ*flowQMult*mikserQMult*moodM*sleepM));
 }
 
+/* ═══ v2.3.109 (PDF13 TIER 13.1): Soundyard Studio Complex — 5 kupowalnych lokali zamiast jednego studia ═══
+   Cena lokalu = sama przestrzeń; wyposażenie kupowane osobno (TIER 13.2). Rabat wg poziomu (PDF §6). */
+const STUDIO_ROOMS={
+  studio_s_booth:{id:'studio_s_booth',name:'Studio S — Booth Room',emoji:'🎙️',sizeM2:18,basePrice:78000,acousticPotential:45,prestigeBase:20,npcComfortBase:25,atmosphereBase:25,weeklyMaintenance:900,maxEquipmentSlots:10,desc:'Małe, ciasne studio startowe. Wystarczy, by nagrywać własne wokale bez wynajmowania godzin.'},
+  studio_m_vocal:{id:'studio_m_vocal',name:'Studio M — Vocal Room',emoji:'🎤',sizeM2:32,basePrice:145000,acousticPotential:60,prestigeBase:38,npcComfortBase:45,atmosphereBase:40,weeklyMaintenance:1600,maxEquipmentSlots:18,desc:'Rozsądna przestrzeń pod wokale i pierwszych klientów NPC. Dobra baza pod miks/master.'},
+  studio_l_producer:{id:'studio_l_producer',name:'Studio L — Producer Suite',emoji:'🎚️',sizeM2:54,basePrice:265000,acousticPotential:72,prestigeBase:55,npcComfortBase:62,atmosphereBase:58,weeklyMaintenance:2800,maxEquipmentSlots:28,desc:'Duże studio: realizacja wokali, produkcja bitów, odsłuchy, kanapa i strefa chill.'},
+  studio_xl_lounge:{id:'studio_xl_lounge',name:'Studio XL — Artist Lounge',emoji:'🛋️',sizeM2:82,basePrice:460000,acousticPotential:82,prestigeBase:75,npcComfortBase:80,atmosphereBase:76,weeklyMaintenance:5200,maxEquipmentSlots:40,desc:'Przestronne studio z lounge — buduje markę, nie tylko nagrywa. Miejsce dla gości i realizatora.'},
+  studio_penthouse:{id:'studio_penthouse',name:'Studio Penthouse — Premium Suite',emoji:'🏙️',sizeM2:126,basePrice:850000,acousticPotential:92,prestigeBase:95,npcComfortBase:95,atmosphereBase:92,weeklyMaintenance:9500,maxEquipmentSlots:60,desc:'Topowa przestrzeń premium — symbol statusu i centrum kariery. Sesje premium i wynajem.'},
+};
+window.STUDIO_ROOMS=STUDIO_ROOMS;
+window.getStudioRoomFinalPrice=function(roomId){
+  const room=STUDIO_ROOMS[roomId]; if(!room) return 0;
+  let d=0; const L=G.level||1;
+  if(L>=3&&L<=4) d=0.08; else if(L>=5&&L<=6) d=0.15; else if(L>=7) d=0.20; /* PDF §6: rabat wg poziomu, ale lokale nadal DUŻA inwestycja */
+  return Math.floor(room.basePrice*(1-d));
+};
+window.buyStudioRoom=function(roomId){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const room=STUDIO_ROOMS[roomId]; if(!room) return;
+  const sc=G.studioComplex;
+  if(sc.ownedRooms.includes(roomId)){ if(typeof showMsg==='function') showMsg('Posiadasz już ten lokal.','r'); return; }
+  const price=window.getStudioRoomFinalPrice(roomId);
+  if((G.money||0)<price){ if(typeof showMsg==='function') showMsg(`Za mało gotówki — ${room.name} kosztuje ${price.toLocaleString('pl')} zł. To cena samej przestrzeni; sprzęt kupujesz osobno.`,'r',6500); return; }
+  G.money-=price; sc.ownedRooms.push(roomId); sc.totalInvested=(sc.totalInvested||0)+price;
+  if(!sc.activeRoomId) sc.activeRoomId=roomId;
+  G.studioOwned=true; /* KOMPAT: wszystkie istniejące bramki nagrywania (changeRoom/Majkel/questy) czytają G.studioOwned */
+  if(typeof addXP==='function') addXP(30);
+  if(typeof checkAchievements==='function') checkAchievements();
+  if(typeof notify==='function') notify(`🎙️ Kupiono lokal: ${room.name}. Pomieszczenie jest puste — wyposaż je, by w pełni działało.`);
+  renderStudioForSale();
+};
+window.setActiveStudioRoom=function(roomId){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  if(!G.studioComplex.ownedRooms.includes(roomId)) return;
+  G.studioComplex.activeRoomId=roomId;
+  if(typeof notify==='function') notify(`🎙️ Aktywne studio: ${STUDIO_ROOMS[roomId].name}`);
+  renderStudioForSale();
+};
 function renderStudioForSale(){
-  const q=getRecordingQuality();
-  /* v2.1.334 Faza AB balans early-game (user 2026-05-27: "Studio jest za tanie. Gracz powinien grindować aby odblokować studio, a aktualnie może je zdobyć nawet w jakieś 5-10 minut gry"). Ceny zwiększone 2-3× — wymaga real grindu kasy + level up. Level 5+ (mid-game) = 25k (było 15k), level 3-4 (early) = 35k (było 20k), level 1-2 (very early) = 50k (było 25k). Gracz może zacząć grindować od dnia 1 ale faktycznie kupić dopiero po znaczącym progresie. */
-  const studioPrice=G.level>=5?45000:G.level>=3?60000:85000; /* v2.1.877 (user): droższe studio (było 25k/35k/50k) — większy grind do core-unlocku */
-  document.getElementById('ov-content').innerHTML=`
-    <h2>🎙️ Studio Nagrań</h2>
-    <p class="sub" style="color:#e74c3c">🔒 To studio jest na sprzedaż. Kup je żeby nagrywać tracki!</p>
-    <div style="background:#0a1220;border:1px solid #1a3a5a;border-radius:10px;padding:16px;margin-bottom:16px">
-      <div style="font-size:14px;color:#aaa;line-height:2">
-        <div>💵 Cena: <strong style="color:#f1c40f">${studioPrice.toLocaleString('pl')} zł</strong></div>
-        <div>📊 Twoja kasa: <strong style="color:${G.money>=studioPrice?'#2ecc71':'#e74c3c'}">${G.money.toLocaleString('pl')} zł</strong></div>
-        <div>🎤 Jakość nagrań (twój sprzęt): <strong style="color:#7ec8e3">${q}%</strong></div>
-      </div>
-      <div style="font-size:11px;color:#7a8aa0;margin-top:10px;line-height:1.55;background:#0a0f18;border-left:3px solid #3498db;padding:7px 10px;border-radius:4px">💡 Cena zależy od Twojego <b>poziomu</b> i <b>spada</b>, gdy awansujesz: <b>85 000 zł</b> (poz. 1–2) → <b>60 000</b> (3–4) → <b style="color:#7ec8e3">45 000</b> (poz. 5+). ${(G.level||1)>=5?'Masz najniższą cenę (poziom 5+).':`Twój poziom: <b>${G.level||1}</b> — wbij poziom ${(G.level||1)<3?3:5} (prace / freestyle / ulica), by zapłacić mniej.`}</div>
-      <div style="font-size:12px;color:#667;margin-top:10px;line-height:1.6">
-        Po zakupie: nagrywanie wokalu, tworzenie bitów, przyjmowanie zleceń.<br>
-        Kupuj sprzęt w Sklepie Muzycznym żeby zwiększyć jakość nagrań.
-      </div>
-    </div>
-    <button class="dbtn" style="font-size:18px;padding:14px 30px" ${G.money<studioPrice?'disabled':''} onclick="window.buyStudio(${studioPrice})">💎 Kup Studio — ${studioPrice.toLocaleString('pl')} zł</button>
-    <div class="res" id="studio-sale-res" style="margin-top:10px"></div>
-    <button class="cbtn" style="margin-top:12px" onclick="closeOverlay()">← Wróć</button>
-  `;
-  window.buyStudio=(price)=>{
-    /* v1.9.16: guard przeciw double-click drain */
-    if(G.studioOwned){closeOverlay();return;}
-    if(G.money<price){document.getElementById('studio-sale-res').textContent='Za mało pieniedzy!';return;}
-    G.money-=price;G.studioOwned=true;
-    closeOverlay();
-    addNotif('🎙️ Studio zakupione!');
-    addXP(30);
-    // v1.8.18: cinematic przy zakupie studia (analogicznie do milestone'ów fanów)
-    if(typeof showMilestoneCinematic==='function'){
-      showMilestoneCinematic({
-        emoji:'🎙️',
-        title:'STUDIO NAGRAŃ',
-        subtitle:'Twoja własna przestrzeń kreatywna',
-        tagline:'Nagrywaj tracki · Twórz bity · Wydawaj single',
-        accentColor:'#9b59b6',
-        accent2:'#e91e8c',
-        duration:4500,
-        onDone:()=>{
-          showMsg('🎉 Studio gotowe! Idź na ulicę → wejdź do Studia → komputer (DAW)');
-          changeRoom('studio',200,300);
-        }
-      });
-    } else {
-      showMsg('🎉 Studio kupione! Teraz możesz nagrywać tracki, tworzyć bity i przyjmować zlecenia!');
-      changeRoom('studio',200,300);
-    }
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const sc=G.studioComplex; const owned=sc.ownedRooms; const L=G.level||1;
+  const disc=L>=7?'−20%':L>=5?'−15%':L>=3?'−8%':'brak';
+  const roomCard=(id)=>{ const r=STUDIO_ROOMS[id]; const isOwned=owned.includes(id); const isActive=sc.activeRoomId===id; const price=window.getStudioRoomFinalPrice(id);
+    return `<div style="background:${isOwned?'#0a1a12':'#0a1220'};border:1px solid ${isActive?'#27ae60':isOwned?'#2a6a3a':'#1a3a5a'};border-radius:10px;padding:12px 14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div style="font-weight:800;color:#fff;font-size:14px">${r.emoji} ${r.name} ${isActive?'<span style="font-size:9px;background:#27ae6022;color:#27ae60;padding:1px 6px;border-radius:4px">AKTYWNE</span>':''}</div><div style="color:#f1c40f;font-weight:800;font-size:13px;white-space:nowrap">${isOwned?'✅ Posiadasz':price.toLocaleString('pl')+' zł'}</div></div>
+      <div style="color:#8aa;font-size:11px;margin:4px 0">${r.desc}</div>
+      <div style="color:#778;font-size:10.5px;display:flex;flex-wrap:wrap;gap:8px"><span>📐 ${r.sizeM2} m²</span><span>🎚️ Akustyka ${r.acousticPotential}</span><span>⭐ Prestiż ${r.prestigeBase}</span><span>🛋️ Komfort ${r.npcComfortBase}</span><span>🔧 Utrzym. ${r.weeklyMaintenance.toLocaleString('pl')} zł/tydz.</span><span>📦 Sloty ${r.maxEquipmentSlots}</span></div>
+      <div style="margin-top:8px">${isOwned
+        ? `${!isActive?`<button class="bbtn" style="padding:5px 12px;font-size:12px" onclick="setActiveStudioRoom('${id}')">Ustaw jako aktywne</button> `:''}<button class="bbtn" style="padding:5px 12px;font-size:12px;background:#1a3525;border-color:#2a6a3a;color:#9ee89e" onclick="closeOverlay();changeRoom('studio',200,300)">Wejdź</button>`
+        : `<button class="dbtn" style="padding:6px 14px;font-size:13px" ${(G.money||0)<price?'disabled':''} onclick="buyStudioRoom('${id}')">Kup lokal — ${price.toLocaleString('pl')} zł</button>`}</div>
+    </div>`;
   };
+  document.getElementById('ov-content').innerHTML=`
+    <h2>🎙️ Soundyard Studio Complex</h2>
+    <p class="sub">Kup przestrzeń, wyposaż ją i zamień w miejsce, które pracuje na Twoją muzykę. Cena lokalu = sama przestrzeń; sprzęt kupujesz osobno.</p>
+    <div style="color:#7ec8e3;font-size:12px;margin-bottom:8px">Twoje lokale: <b>${owned.length}/5</b> · Twoja kasa: <b style="color:#2ecc71">${(G.money||0).toLocaleString('pl')} zł</b> · Rabat za poziom (${L}): <b>${disc}</b></div>
+    ${owned.length===0?'<div style="background:#1a1206;border-left:3px solid #f1c40f;padding:8px 11px;border-radius:4px;font-size:11.5px;color:#e8d5a5;margin-bottom:10px">Nie masz jeszcze żadnej przestrzeni studyjnej. Pamiętaj: sama przestrzeń nie wystarczy — po zakupie musisz ją wyposażyć.</div>':''}
+    ${Object.keys(STUDIO_ROOMS).map(roomCard).join('')}
+    <div class="res" id="studio-sale-res" style="margin-top:6px"></div>
+    <button class="cbtn" style="margin-top:10px" onclick="closeOverlay()">← Wróć</button>
+  `;
 }
 
 // Pasywny przychód z wynajmu studia
@@ -20654,7 +20664,10 @@ window._5pdfEnsure=function(){
   if(!G._voltGear||typeof G._voltGear!=='object'||Array.isArray(G._voltGear)) G._voltGear={};
   /* PDF13 Studio Complex — kompleks lokali (zastępuje proste studioOwned). Migracja studioOwned→Booth w TIER 13.1. rooms=instancje lokali (equipment/staty per id). */
   if(!G.studioComplex||typeof G.studioComplex!=='object') G.studioComplex={};
-  { const s=G.studioComplex; if(!Array.isArray(s.ownedRooms)) s.ownedRooms=[]; if(s.activeRoomId!==null&&typeof s.activeRoomId!=='string') s.activeRoomId=null; if(!s.rooms||typeof s.rooms!=='object'||Array.isArray(s.rooms)) s.rooms={}; if(!s.engineers||typeof s.engineers!=='object'||Array.isArray(s.engineers)) s.engineers={}; _num(s,[['weeklyPending',0],['totalIncome',0],['totalInvested',0]]); if(s.lastSettleDay!==null&&(typeof s.lastSettleDay!=='number'||!isFinite(s.lastSettleDay))) s.lastSettleDay=null; }
+  { const s=G.studioComplex; if(!Array.isArray(s.ownedRooms)) s.ownedRooms=[]; if(s.activeRoomId!==null&&typeof s.activeRoomId!=='string') s.activeRoomId=null; if(!s.rooms||typeof s.rooms!=='object'||Array.isArray(s.rooms)) s.rooms={}; if(!s.engineers||typeof s.engineers!=='object'||Array.isArray(s.engineers)) s.engineers={}; _num(s,[['weeklyPending',0],['totalIncome',0],['totalInvested',0]]); if(s.lastSettleDay!==null&&(typeof s.lastSettleDay!=='number'||!isFinite(s.lastSettleDay))) s.lastSettleDay=null;
+    /* MIGRACJA (reguła #1): stary jednorazowy zakup studia (G.studioOwned) → grandfather lokal Booth w kompleksie. Idempotentne. */
+    if(G.studioOwned===true && s.ownedRooms.length===0){ s.ownedRooms.push('studio_s_booth'); if(!s.activeRoomId) s.activeRoomId='studio_s_booth'; }
+  }
 };
 /* Centralny aplikator efektów stat z PDF (klamp + ADAPTACJA aliasów). Używany przez dialogi/zadania (TIER 4+). */
 window._uwAddStat=function(key,delta){
@@ -61118,6 +61131,14 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.109',date:'2026-07-03',cats:['feature'],title:'🎙️ Nowość: Soundyard Studio Complex — kupuj własne przestrzenie studyjne',
+ items:[
+  {t:'new',d:'🎙️ Zamiast jednego studia na sprzedaż masz teraz kompleks studyjny z pięcioma przestrzeniami do kupienia — od małego Booth Roomu po topowy Penthouse. Każdy lokal ma inny metraż, cenę, potencjał akustyczny, prestiż, komfort i koszt utrzymania. Cena lokalu to sama przestrzeń — sprzęt kupujesz i montujesz osobno.'},
+  {t:'change',d:'💰 Przestrzenie studyjne są znacznie droższe niż dawne studio (od 78 000 zł), więc własne studio to teraz poważna inwestycja i realny cel do wygrindowania. Cena spada wraz z Twoim poziomem.'},
+  {t:'new',d:'📁 Możesz posiadać kilka lokali naraz i wskazać jeden jako aktywny do własnych nagrań. Jeśli miałeś już wcześniej studio, dostajesz w zamian gotowy Booth Room — nic nie tracisz.'},
+ ]
+ },
  {
  ver:'v2.3.109',date:'2026-07-03',cats:['change'],title:'📺 VoltHouse: nowe ceny, dwie nowe kamery i poprawka przycisków',
  items:[
