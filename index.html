@@ -1364,6 +1364,55 @@ window._parkSitterVisible=_parkSitterVisible;
    trafiają oferty koncertów; w tygodniu częściej inne oferty (radio/sponsor) — pula stała, BEZ karania #11. */
 function _concertLeadWeight(){ return (typeof _getDayProfile==='function')?Math.max(0.25,_getDayProfile().concert/0.20):1; }
 window._concertLeadWeight=_concertLeadWeight;
+/* ═══ PUBLIC_ACTIVITY_MODIFIERS (PDF #12, v2.3.108): wpływ dnia tygodnia i godziny na wynik aktywności
+   ulicznych (Freestyle / Breakdance / Skate). Config-driven (§17) — NIE zmienia minigry, tylko wynik końcowy:
+   finalScore = round(baseScore * timeModifier * weekendModifier). Freestyle ma okna optymalne per dzień; poza
+   oknem wynik ×0.70 (-30%). Breakdance/Skate: brak kary godzinowej, tylko weekend ×1.15 (+15%). Sobota-przez-
+   północ (11:00→02:30 Nd) obsłużona naturalnie: doba flipuje o północy, więc wczesną niedzielę pokrywa okno
+   Nd [00:00,02:30]. Modyfikator liczony PRZED progiem 450 turniejowym (§15). Read-only z gameMin + _dayOfWeek —
+   ZERO zmian save. Dni: indeks 0=Poniedziałek..6=Niedziela (spójne z _dayOfWeek), weekend = 5,6. */
+const PUBLIC_ACTIVITY_MODIFIERS={
+  freestyle:{ timeWindowsEnabled:true, offPeakModifier:0.70, optimalWindows:{
+    monday:[['10:00','20:00']], tuesday:[['10:00','20:00']], wednesday:[['10:00','20:00']],
+    thursday:[['10:00','20:00']], friday:[['10:00','22:00']],
+    saturday:[['11:00','23:59']], sunday:[['00:00','02:30'],['13:00','20:00']] } },
+  breakdance:{ timeWindowsEnabled:false },
+  skate:{ timeWindowsEnabled:false },
+  weekendBonus:{ enabled:true, days:[5,6], activities:['freestyle','breakdance','skate'], modifier:1.15 }
+};
+const _DAY_KEYS_ENG=['monday','tuesday','wednesday','thursday','friday','saturday','sunday']; // 0=Pon
+function _timeToMinutes(hhmm){ const p=String(hhmm).split(':'); return (parseInt(p[0],10)||0)*60+(parseInt(p[1],10)||0); }
+function _nowGameMinutes(){ return (((typeof gameMin!=='undefined'?gameMin:360)%1440)+1440)%1440; }
+function _isActivityInOptimalWindow(activityType,dayIdx,minutes){
+  const cfg=PUBLIC_ACTIVITY_MODIFIERS[activityType];
+  if(!cfg||cfg.timeWindowsEnabled!==true) return true;
+  const key=_DAY_KEYS_ENG[(((dayIdx|0)%7)+7)%7];
+  const windows=(cfg.optimalWindows&&cfg.optimalWindows[key])||[];
+  return windows.some(w=>{ const s=_timeToMinutes(w[0]),e=_timeToMinutes(w[1]); return minutes>=s&&minutes<=e; });
+}
+function _isWeekendDay(dayIdx){ const wk=PUBLIC_ACTIVITY_MODIFIERS.weekendBonus; return !!wk.enabled && wk.days.indexOf((((dayIdx|0)%7)+7)%7)>=0; }
+function _activityWeekendModifier(activityType,dayIdx){
+  const wk=PUBLIC_ACTIVITY_MODIFIERS.weekendBonus;
+  if(!wk.enabled||wk.activities.indexOf(activityType)<0) return 1.00;
+  return _isWeekendDay(dayIdx)?wk.modifier:1.00;
+}
+/* Główny modyfikator wyniku aktywności — zwraca komplet danych dla nagród i UI (§18). */
+function _publicActivityScore(activityType,baseScore,dayIdx,minutes){
+  if(dayIdx===undefined||dayIdx===null) dayIdx=(typeof _dayOfWeek==='function')?_dayOfWeek():2;
+  if(minutes===undefined||minutes===null) minutes=_nowGameMinutes();
+  const isOptimal=_isActivityInOptimalWindow(activityType,dayIdx,minutes);
+  const cfg=PUBLIC_ACTIVITY_MODIFIERS[activityType]||{};
+  const timeModifier=isOptimal?1.00:(cfg.offPeakModifier||1.00);
+  const weekendModifier=_activityWeekendModifier(activityType,dayIdx);
+  const finalScore=Math.round((baseScore||0)*timeModifier*weekendModifier);
+  return { baseScore:baseScore||0, finalScore, isOptimal, isWeekend:_isWeekendDay(dayIdx),
+           timeModifier, weekendModifier, totalModifier:timeModifier*weekendModifier };
+}
+window.PUBLIC_ACTIVITY_MODIFIERS=PUBLIC_ACTIVITY_MODIFIERS;
+window._timeToMinutes=_timeToMinutes; window._nowGameMinutes=_nowGameMinutes;
+window._isActivityInOptimalWindow=_isActivityInOptimalWindow;
+window._activityWeekendModifier=_activityWeekendModifier;
+window._isWeekendDay=_isWeekendDay; window._publicActivityScore=_publicActivityScore;
 let lastClockReal = Date.now();
 let npcCooldowns = {}; // key: "npcType_optIdx", value: timestamp
 // City life entities
@@ -47475,6 +47524,10 @@ function startSkateparkMG(){
   },1000);
 
   function endSkate(){
+    /* v2.3.108 (PDF #12 §14/§15): weekend +15% na wynik skate (bez kary godzinowej na start). Nakładane na
+       score PRZED nagrodami i progiem 450 — bonus liczy się do turnieju (§15). */
+    const _skMod=(typeof _publicActivityScore==='function')?_publicActivityScore('skate',score):{finalScore:score,weekendModifier:1};
+    score=_skMod.finalScore;
     // v1.8.61: rep cap 30→4 (skate był OP — 30 rep za 1 minutę vs 1 rep z kuriera)
     // v1.8.96: Street Art Week / Halloween — bonus rep
     /* v2.1.201 [Amper]: BUFF Skatepark reward — z -10 energii ROI ujemne. Teraz: rep cap 4→6, dodano cash tips od publiczności, follower gain, sława za big combo (≥10x).
@@ -47505,7 +47558,7 @@ function startSkateparkMG(){
     addXP(Math.floor(score/5));
     progressQuest('gym');if(typeof _trackGym==='function')_trackGym();
     const _bonusLine = ` · +${fitGainSk} kondycji${(moneyTips>0||followerGain>0||fameGain>0) ? ` · +${moneyTips} zł napiwków · +${followerGain} obs.${fameGain>0?` · +${fameGain} sławy (mega combo!)`:''}`:''}`;
-    notify(`🛹 Skate zakończony! Score: ${score}, Max Combo: ${maxCombo}x. +${repGain} rep uliczna${_bonusLine}`);
+    notify(`🛹 Skate zakończony! Score: ${score}, Max Combo: ${maxCombo}x. +${repGain} rep uliczna${_bonusLine}${_skMod.weekendModifier>1?' · 🎉 weekend +15%':''}`);
     updateHUD();
     if(typeof window._disciplineParkComplete==='function') window._disciplineParkComplete('skate',score); /* v2.3.99 (PDF #5): licznik dobrych przejazdów + milestone 5/10 */
     cx.fillStyle='rgba(0,0,0,.8)';cx.fillRect(0,0,700,330);
@@ -47854,6 +47907,11 @@ function startFreestyleMG(){
     // v1.8.96: Talent Contest — bonus freestyle
     const _fsBoost=typeof festivalEffect==='function'?(festivalEffect('freestyleBoost')||1):1;
     if(_fsBoost>1){ score=Math.floor(score*_fsBoost); }
+    /* v2.3.108 (PDF #12): dzień/godzina → wynik freestyle. Poza oknem optymalnym -30% (×0.70), weekend +15% (×1.15).
+       Nakładane na score PRZED nagrodami i progiem — wszystkie efekty (rep/fani/kasa/ocena) skalują się razem. */
+    const _fsTimeBase=score;
+    const _fsMod=(typeof _publicActivityScore==='function')?_publicActivityScore('freestyle',score):{finalScore:score,timeModifier:1,weekendModifier:1,isOptimal:true,isWeekend:false};
+    score=_fsMod.finalScore;
     if(score>0){
       if(!G.careers.raper) G.careers.raper={level:0,freestyles:0,tracks:0,xp:0,skillPts:0};
       G.careers.raper.freestyles=(G.careers.raper.freestyles||0)+1;
@@ -47918,7 +47976,20 @@ function startFreestyleMG(){
     const isNewRecord=score>prevHigh&&score>0;
     if(isNewRecord){if(!G.careers.raper)G.careers.raper={level:0,freestyles:0,tracks:0,xp:0,skillPts:0};G.careers.raper.freestyleHighScore=score;}
     if(grade==='S'||grade==='A') confetti(grade==='S'?50:25);
+    /* v2.3.108 (PDF #12 §10/§19): ekran wyniku pokazuje porę + zastosowane modyfikatory (baza → -30%/+15% → finał). */
+    const _fsHasMod=(_fsMod.timeModifier!==1)||(_fsMod.weekendModifier!==1);
+    const _fsModHtml=_fsHasMod?`
+      <div style="background:#0a1220;border:1px solid #2a3a5a;border-radius:10px;padding:10px 16px;margin-bottom:12px;text-align:left">
+        <div style="font-size:12px;color:#667;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">🕐 ${_getDayName()}, ${String(Math.floor(_nowGameMinutes()/60)).padStart(2,'0')}:${String(_nowGameMinutes()%60).padStart(2,'0')} · Zainteresowanie: ${_fsMod.isOptimal?'<span style="color:#2ecc71">Optymalne</span>':'<span style="color:#e8a020">Niskie</span>'}</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:#aab">
+          <span>Baza: <b style="color:#fff">${_fsTimeBase}</b></span>
+          ${_fsMod.timeModifier!==1?`<span style="color:#e8a020">Pora: −30%</span>`:''}
+          ${_fsMod.weekendModifier!==1?`<span style="color:#2ecc71">Weekend: +15%</span>`:''}
+          <span>Finał: <b style="color:#f1c40f">${score}</b></span>
+        </div>
+      </div>`:'';
     const rewardsHtml=score>0?`
+      ${_fsModHtml}
       <div style="background:#0a1220;border:1px solid #1a3a5a;border-radius:10px;padding:12px 16px;margin-bottom:16px;text-align:left">
         <div style="font-size:12px;color:#667;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Nagrody</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:14px">
@@ -48065,6 +48136,10 @@ function startBreakdanceMG(){
   },1000);
 
   function endBboy(){
+    /* v2.3.108 (PDF #12 §13/§15): weekend +15% na wynik breakdance (bez kary godzinowej na start). Nakładane na
+       score PRZED nagrodami i progiem 450 — bonus liczy się do turnieju (§15). */
+    const _bbMod=(typeof _publicActivityScore==='function')?_publicActivityScore('breakdance',score):{finalScore:score,weekendModifier:1};
+    score=_bbMod.finalScore;
     // v1.8.61: rep cap 25→4 (breakdance był OP)
     // v1.8.96: Street Art Week / Halloween — bonus rep
     const _bRepFestMult=typeof festivalEffect==='function'?(festivalEffect('repMult')||1):1;
@@ -48094,7 +48169,7 @@ function startBreakdanceMG(){
     /* v2.1.634: drop zwykłego składnika z breakdance (street-perf, BEZ mikroczipa). */
     if(typeof window._maybePerfMaterial==='function'){ try{window._maybePerfMaterial({chance:0.15,rare:false});}catch(e){} }
     addXP(Math.floor(score/8));
-    notify(`💃 Breakdance! Score: ${score}, max combo x${maxCombo}. +${repGain} rep, +${fitGainBb} kondycji${formaGainBb>0?`, +${formaGainBb} formy`:''}, +${fansGain} fanów${followersBonus>0?`, +${followersBonus} obs.`:''}!`);
+    notify(`💃 Breakdance! Score: ${score}, max combo x${maxCombo}. +${repGain} rep, +${fitGainBb} kondycji${formaGainBb>0?`, +${formaGainBb} formy`:''}, +${fansGain} fanów${followersBonus>0?`, +${followersBonus} obs.`:''}!${_bbMod.weekendModifier>1?' · 🎉 weekend +15%':''}`);
     updateHUD();
     if(typeof window._disciplineParkComplete==='function') window._disciplineParkComplete('breakdance',score); /* v2.3.99 (PDF #4): licznik dobrych występów + milestone 5/10 */
     cx.fillStyle='rgba(0,0,0,0.8)';cx.fillRect(0,0,700,300);
