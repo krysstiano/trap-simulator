@@ -20643,7 +20643,7 @@ window._5pdfEnsure=function(){
   const _bool=(o,keys)=>{ for(const k of keys){ if(typeof o[k]!=='boolean') o[k]=false; } };
   /* PDF15 Sponsor odzieżowy — relacja wizerunkowo-biznesowa (drip=G.drip, zaufanie sprzęgane z G.publicRep.sponsorTrust). */
   if(!G._sponsorRel||typeof G._sponsorRel!=='object') G._sponsorRel={};
-  { const r=G._sponsorRel; _num(r,[['interest',0],['trust',0],['patience',5],['brandReadiness',0],['offerStage',0]]); _bool(r,['offerUnlocked']); if(r.lastDay!==null&&(typeof r.lastDay!=='number'||!isFinite(r.lastDay))) r.lastDay=null; r.patience=Math.max(0,Math.min(5,r.patience)); }
+  { const r=G._sponsorRel; _num(r,[['interest',0],['trust',0],['patience',5],['brandReadiness',0],['offerStage',0],['prof',0],['auth',0],['biz',0],['ignored',0],['negPay',0]]); _bool(r,['offerUnlocked','purchasedWiktor','followupSent','objSet','negDone']); if(r.lastDay!==null&&(typeof r.lastDay!=='number'||!isFinite(r.lastDay))) r.lastDay=null; r.patience=Math.max(0,Math.min(5,r.patience)); }
   /* PDF17 Marcin (Organizator) — media/kontrola kariery. mainstreamInterest/careerControl/authenticity nowe (brak ekwiwalentu). */
   if(!G._marcinRel||typeof G._marcinRel!=='object') G._marcinRel={};
   { const r=G._marcinRel; _num(r,[['trust',0],['respect',0],['boundaries',0],['gatekeeping',0],['careerControl',0],['mediaReadiness',0],['mainstreamInterest',0],['mediaRisk',0],['authenticity',0]]); _bool(r,['mustAskBeforeReject','openToOddFormats','mediaTrainingDone']); }
@@ -41589,6 +41589,8 @@ window.buyOutfit=(id,name,price)=>{
   }
   /* v2.1.331 Faza H iter2: immediate achievement check po założeniu outfitu (first_outfit, drip_50/100/200 jeśli drip wzrósł). */
   if(typeof checkAchievements==='function') checkAchievements();
+  /* v2.3.109 (PDF15): zakup u Wiktora (Drip District) — postęp sponsora odzieżowego, follow-up gdy drip≥20 i intro wysłane. */
+  if(window._clothShop==='ubrania'){ if(typeof _5pdfEnsure==='function')_5pdfEnsure(); G._sponsorRel.purchasedWiktor=true; if(typeof window._sponsorCheckFollowup==='function') window._sponsorCheckFollowup(); }
   /* v2.1.928 (Vegan): komunikat sukcesu USTAWIANY PO re-renderze — wcześniej re-render budował świeży pusty #shop-res i kasował „✅ Założono" (gracz nie widział potwierdzenia → „nic się nie stało"). */
   const _resMsg=firstTime?`✅ Kupiono i założono: ${name}`:`✅ Założono: ${name}`;
   (window._clothShop==='pepco'&&typeof renderPepcoShop==='function'?renderPepcoShop():renderClothingShop());
@@ -52606,7 +52608,7 @@ const SMS_CONTACTS={
   /* v2.1.228 audit-fix #46: Manager BYL physical:false ale istnieje fizyczny NPC `npc_manager` na chodniku H1 south (wx:1950, wy:596, przed Szpitalem) — gracz tam podpisuje kontrakt menadżerski. SMS "Czekam pod salą koncertową" było spójne, ale UI błędnie pokazywało "Kontakt tylko przez telefon". */
   manager:   {name:'Menadżer (Kamil)',         em:'🤵', color:'#c8a520', physical:true},
   label:     {name:'Label A&R',                em:'🏢', color:'#bdc3c7', physical:false},
-  sponsor:   {name:'Sponsor',                  em:'💼', color:'#e91e8c', physical:false},
+  sponsor:   {name:'Sponsor odzieżowy',        em:'💼', color:'#e91e8c', physical:false},
   bank:      {name:'mBank Trap',               em:'🏦', color:'#f39c12', physical:false},
   system:    {name:'TrapSimulator',            em:'📱', color:'#7ec8e3', physical:false},
   trapinfo:  {name:'TrapInfo',                  em:'🛈', color:'#7ec8e3', physical:false}, /* U8 (v2.3.44 PDF): systemowy nadawca info (np. adopcja psa) — nie Marcin; tylko treść do potwierdzenia, brak odpowiedzi */
@@ -53461,7 +53463,7 @@ window._smsCheckTriggers=function(){
   /* v2.1.228 audit-fix #46: SMS texts dopasowane do fizycznej obecności NPC.
      Manager (physical:true) — fizycznie na chodniku H1 obok Szpitala (NIE pod salą koncertową — zła wskazówka).
      Sponsor (physical:false) — phone-only, nie mówimy "wpadnij" tylko "kup drip" jako sugestia akcji. */
-  if(G.fame>=25) _smsTriggerOnce('fame_25','sponsor',`Cześć ${G.name||'kolego'}! Reprezentuję markę odzieżową. Sławę masz, czas na drip — kup ubrania w Drip District (u Wiktora), a wrócę z ofertą sponsorską gdy ogarniesz styl 💼`);
+  if(G.fame>=25) _smsTriggerOnce('fame_25','sponsor',`Cześć ${G.name||'kolego'}. Reprezentuję lokalną markę odzieżową, która obserwuje nowych artystów z ruchem w mieście. Sławę już łapiesz, ale zanim pogadamy o współpracy, musisz dopiąć wizerunek. Wpadnij do Drip District, ogarnij trochę stylu i pokaż, że Twój wygląd to nie przypadek. Jak drip usiądzie, wrócimy z konkretną ofertą 💼`,{replySet:'sponsor_intro'});
   if(G.fame>=50) _smsTriggerOnce('fame_50','manager','Yo, jestem Twoim potencjalnym menadżerem. Daj znać jak chcesz pogadać o x1.2 zarobków. Znajdź mnie na chodniku koło Szpitala 🤵');
   if(G.fame>=75) _smsTriggerOnce('fame_75','sponsor','Globalna marka chce z Tobą współpracować. Sponsoring na poziomie nie do odrzucenia — wkrótce wyślę Ci ofertę kontraktową 💼');
   // — Fani milestones
@@ -53932,6 +53934,14 @@ window.renderSMSConversation=function(contactId){
           const _gids=Object.keys(window._GYMBRO_REPLIES).filter(k=>window._GYMBRO_REPLIES[k].set===_gset);
           return `${_replyCounter}`+window._smsRichButtons('gymbro',_gids);
         }
+        /* Sponsor odzieżowy — v2.3.109 (PDF15): kontekstowe odpowiedzi wg replySet (sponsor_intro/followup/offer) zamiast generycznych Dzięki/Zadzwoń. */
+        if(contactId==='sponsor' && typeof window._SPONSOR_REPLIES==='object'){
+          const _srs=((_firstUnreplied&&_firstUnreplied.replySet)||'sponsor_intro').replace('sponsor_','');
+          const _sset=Object.values(window._SPONSOR_REPLIES).some(o=>o.set===_srs)?_srs:'intro';
+          let _sids=Object.keys(window._SPONSOR_REPLIES).filter(k=>window._SPONSOR_REPLIES[k].set===_sset);
+          if(_sset==='offer' && G._sponsorRel && G._sponsorRel.negDone) _sids=_sids.filter(k=>k!=='so_neg'); /* anti-fishing: 1 negocjacja (PDF §10) */
+          return `${_replyCounter}`+window._smsRichButtons('sponsor',_sids);
+        }
         /* system / bank — automaty, gracz nie buduje "przyjaźni" */
         if(contactId==='system'||contactId==='bank'){
           return `${_replyCounter}<div style="display:flex;gap:4px;flex-wrap:wrap">
@@ -54277,6 +54287,27 @@ window._GYMBRO_REPLIES={
   gm_disc:{set:'milestone', label:'🎯 Robota dalej do wykonania', text:'Bez podjarki. Robota jest dalej do wykonania.', fx:{gymRel:2}},
   gm_break:{set:'milestone', label:'— Teraz tydzień przerwy (−)', text:'Dobra, teraz będzie tydzień przerwy.', fx:{gymRel:-1}},
 };
+/* v2.3.109 (PDF15): Sponsor odzieżowy — kontekstowe odpowiedzi SMS zamiast generycznych Dzięki/Zadzwoń.
+   3 zestawy: intro (po 1. SMS) → followup (po zakupie u Wiktora + drip≥20) → offer (pierwsza oferta 750 zł + negocjacja).
+   reply = odpowiedź NPC (push bypass); nextSet = replySet tej odpowiedzi (kolejna runda przycisków). */
+window._SPONSOR_REPLIES={
+  sp_style:{set:'intro', label:'👕 Jasne, ogarnę świeżą stylówkę!', text:'Jasne. Wpadnę do Drip District i ogarnę coś świeżego. Jak mam wejść w potencjalną współpracę, to wygląd też musi dowozić. Pozdro.', fx:{sponsorInterest:1,professionalism:1}, action:'sponsorObjective', reply:'Dokładnie. Nie chodzi o to, żeby wyglądać drogo — chodzi o to, żeby wyglądać świadomie. Odezwij się, kiedy ogarniesz styl. Pozdrawiamy.'},
+  sp_reqs:{set:'intro', label:'📋 Jakie wymagania muszę spełnić?', text:'Jakie wymagania muszę spełnić, żeby rozmowa o sponsoringu miała sens? Nie chcę strzelać w ciemno.', fx:{professionalism:1,sponsorTrust:1}, action:'sponsorObjective', reply:'Minimum: kup przynajmniej jeden element garderoby w Drip District u Wiktora, podbij swój poziom dripu i utrzymaj spójny outfit. Nie szukamy przebrania — szukamy wizerunku. Jak drip usiądzie (ok. 20+), wracamy z ofertą.'},
+  sp_auth:{set:'intro', label:'🎭 Mam swój styl, nie chcę być manekinem', text:'Mam swój styl i nie chcę wyglądać jak manekin pod marką. Mogę ogarnąć drip, ale nie zamierzam gubić w tym siebie.', fx:{authenticity:2,sponsorInterest:1,sponsorPatience:-1}, action:'sponsorObjective', reply:'Dobrze. Najgorszy kandydat to taki, który zakłada wszystko, co mu podadzą. Ogarnij styl po swojemu. Jeśli będzie spójny, wrócimy do tematu.'},
+  sp_brief:{set:'intro', label:'🎯 Dajcie brief, zrobię z tego wizerunek', text:'Dajcie mi brief. Nie chcę tylko założyć losowych ciuchów — chcę zrobić z tego wizerunek, który ludzie zapamiętają.', fx:{brandReadiness:2,professionalism:1,visualIdentity:1}, action:'sponsorObjective', reply:'No i to już brzmi jak rozmowa. Brief jest prosty: ulica, ale bez przypadku. Styl, ale bez przebrania. Rozpoznawalność, ale bez desperacji. Drip District — zobaczymy, co z tym zrobisz.'},
+  sp_biz:{set:'intro', label:'💰 Najpierw konkrety. Co oferujecie?', text:'Najpierw konkrety — co oferujecie ze swojej strony? Jeśli mam robić komuś reklamę, chcę wiedzieć, czy mówimy o paczce ciuchów, kasie czy tylko oznaczeniu.', fx:{businessFocus:1,sponsorPatience:-1,sponsorTrust:1}, action:'sponsorObjective', reply:'Rozsądne pytanie. Najpierw sprawdzamy, czy masz styl, który da się podpisać marką. Jak dowieziesz — ubrania, cash za kampanię, kod promocyjny, możliwy bonus od sprzedaży. Najpierw drip, potem stawki.'},
+  sp_later:{set:'intro', label:'⏳ Wrócę do tematu później', text:'Dzięki za kontakt. Na ten moment mam inne sprawy, ale wrócę do tematu, kiedy będę gotowy.', fx:{}, reply:'Jasne. Tylko pamiętaj, że zainteresowanie marką nie stoi w miejscu. Jak ogarniesz styl, odezwij się.'},
+  sp_ignore:{set:'intro', label:'— Zignoruj (−zainteresowanie)', text:null, fx:{sponsorInterest:-1,sponsorPatience:-1,ignoredSponsor:true}, reply:'Widzę, że temat stylu dalej wisi. Nie naciskamy, ale jeśli zechcesz wejść w rozmowę o współpracy, Drip District jest pierwszym krokiem.'},
+  sf_ready:{set:'followup', label:'✅ Jestem gotowy. Jakie warunki?', text:'Jestem gotowy. Wygląd dowieziony — dawajcie warunki.', fx:{brandReadiness:1,professionalism:1}, action:'sponsorOffer'},
+  sf_campaign:{set:'followup', label:'🎬 Najpierw jaką kampanię robimy?', text:'Najpierw chcę wiedzieć, jaką kampanię robimy. Nie podpisuję się pod czymś, czego nie rozumiem.', fx:{professionalism:1,sponsorTrust:1}, action:'sponsorOffer'},
+  sf_ownway:{set:'followup', label:'🎭 Wchodzę, ale nie zakładam nic, co nie pasuje', text:'Wchodzę, ale nie zakładam niczego, co do mnie nie pasuje.', fx:{authenticity:1,sponsorInterest:1}, action:'sponsorOffer'},
+  sf_rate:{set:'followup', label:'💰 Pogadajmy o stawce', text:'Pogadajmy konkretnie o stawce.', fx:{businessFocus:1}, action:'sponsorOffer'},
+  sf_later:{set:'followup', label:'— Zostaw na później', text:'Na razie zostawmy to. Odezwę się.', fx:{}, reply:'Spoko. Oferta poczeka chwilę — ale nie w nieskończoność. Pozdrawiamy.'},
+  so_take:{set:'offer', label:'🤝 Biorę to (750 zł)', text:'Biorę to. Załóż, wrzuć post, pokaż w mieście — ogarnięte.', fx:{sponsorTrust:1}, action:'sponsorAccept'},
+  so_neg:{set:'offer', label:'💸 750 zł to za mało. Negocjujmy', text:'Jeśli mam podpiąć pod to twarz i zasięg, to 750 zł brzmi jak test, nie współpraca. Poproszę o stawkę, która traktuje mnie poważnie.', fx:{businessFocus:1}, action:'sponsorNegotiate'},
+  so_ownway:{set:'offer', label:'🎭 Mogę, ale po swojemu', text:'Mogę to zrobić, ale po swojemu — outfit dobieram sam.', fx:{authenticity:1}, action:'sponsorAccept'},
+  so_refuse:{set:'offer', label:'— Nie chcę reklamować ciuchów', text:'Na razie nie chcę reklamować ciuchów. Może innym razem.', fx:{sponsorInterest:-1}, action:'sponsorRefuse'},
+};
 window._applySmsRichEffect=function(fx){
   fx=fx||{};
   if(typeof _newpdfEnsure==='function') _newpdfEnsure();
@@ -54297,14 +54328,82 @@ window._applySmsRichEffect=function(fx){
   if(fx.gymRel){ if(!G._gymbro||typeof G._gymbro!=='object')G._gymbro={relationship:10}; G._gymbro.relationship=c01((G._gymbro.relationship||10)+fx.gymRel); }
   if(fx.mood) G.stress=c01((G.stress||0)+fx.mood);
   if(fx.motiv && typeof addXP==='function') addXP(fx.motiv*2);
+  /* v2.3.109 (PDF15): Sponsor odzieżowy — adaptacja stat na G._sponsorRel (+ sprzężenie publicRep.sponsorTrust, drip=istniejąca metryka). */
+  if(G._sponsorRel){ const s=G._sponsorRel; const cl20=v=>Math.max(0,Math.min(20,v));
+    if(fx.sponsorInterest) s.interest=cl20((s.interest||0)+fx.sponsorInterest);
+    if(fx.sponsorTrust){ s.trust=cl20((s.trust||0)+fx.sponsorTrust); G.publicRep.sponsorTrust=c01((G.publicRep.sponsorTrust||60)+fx.sponsorTrust); }
+    if(fx.brandReadiness) s.brandReadiness=cl20((s.brandReadiness||0)+fx.brandReadiness);
+    if(fx.sponsorPatience) s.patience=Math.max(0,Math.min(5,(s.patience||5)+fx.sponsorPatience));
+    if(fx.professionalism) s.prof=cl20((s.prof||0)+fx.professionalism);
+    if(fx.authenticity) s.auth=cl20((s.auth||0)+fx.authenticity);
+    if(fx.businessFocus) s.biz=cl20((s.biz||0)+fx.businessFocus);
+    if(fx.visualIdentity) G.drip=(G.drip||0)+fx.visualIdentity;
+    if(fx.ignoredSponsor) s.ignored=(s.ignored||0)+1;
+  }
 };
 window._smsKamilJobsAction=function(){
   if(typeof _newpdfEnsure==='function') _newpdfEnsure();
   G._kamilRel.jobsUnlocked=true; G._kamilRel.trust=Math.min(100,(G._kamilRel.trust||0)+1);
   if(typeof showMsg==='function') showMsg('👊 Kamil: „Dobra, mam parę tematów. Rozejrzyj się za pracami dorywczymi w mieście — dam znać, jak coś grubszego wpadnie."','f',5500);
 };
+/* ═══ v2.3.109 (PDF15): Sponsor odzieżowy — obsługa odpowiedzi + oferta/negocjacja + follow-up ═══ */
+window._sponsorPushNpc=function(text,replySet){
+  if(typeof _smsSend!=='function') return;
+  _smsSend('sponsor',text,replySet?{bypass:true,replySet}:{bypass:true});
+  if(!replySet){ const conv=G.sms&&G.sms.conversations&&G.sms.conversations['sponsor']; if(conv&&conv.length) conv[conv.length-1]._replied=true; } /* terminalna odpowiedź — bez kolejnych przycisków */
+};
+window._sponsorHandleReply=function(opt){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const s=G._sponsorRel, act=opt.action;
+  if(opt.reply) window._sponsorPushNpc(opt.reply); /* terminalna odpowiedź NPC */
+  if(act==='sponsorObjective'){
+    if(!s.objSet){ s.objSet=true; if(typeof notify==='function') notify('🎯 Cel: kup ubranie w Drip District (u Wiktora) i podbij drip do 20+, żeby sponsor wrócił z ofertą współpracy.'); }
+  } else if(act==='sponsorOffer'){ window._sponsorSendOffer();
+  } else if(act==='sponsorAccept'){ window._sponsorAcceptOffer();
+  } else if(act==='sponsorNegotiate'){ window._sponsorNegotiate();
+  } else if(act==='sponsorRefuse'){ window._sponsorPushNpc('Szkoda. Jakbyś zmienił zdanie co do współpracy — wiesz, gdzie nas znaleźć. Pozdrawiamy.'); }
+};
+/* Follow-up: sponsor wraca po zakupie u Wiktora + dripie 20+ (PDF §7-8). Wołane z buyOutfit (wariant Wiktor). */
+window._sponsorCheckFollowup=function(){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const s=G._sponsorRel;
+  if(s.followupSent) return;
+  if(!(G.sms&&G.sms._triggeredEvents&&G.sms._triggeredEvents.fame_25)) return; /* intro musi być wysłane */
+  if(!s.purchasedWiktor || (G.drip||0)<20) return;
+  s.followupSent=true;
+  window._sponsorPushNpc('Widzimy zmianę. Teraz to zaczyna wyglądać jak wizerunek, nie losowy outfit z przeceny. Jeśli chcesz, możemy pogadać o pierwszej małej współpracy.','sponsor_followup');
+};
+window._sponsorSendOffer=function(){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const s=G._sponsorRel;
+  if(s.offerStage>=1) return; /* oferta już wysłana */
+  s.offerStage=1;
+  window._sponsorPushNpc('Pierwsza propozycja: załóż nasz element w outficie, wrzuć post i pokaż się w nim przy jednej dowolnej aktywności miejskiej. Nie musi być wielki billboard — ma wyglądać naturalnie. Wynagrodzenie: 750 zł + możliwy bonus, jeśli post dobrze usiądzie.','sponsor_offer');
+};
+window._sponsorAcceptOffer=function(){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const s=G._sponsorRel;
+  if(s.offerStage>=2) return;
+  const pay=s.negPay>0?s.negPay:750;
+  G.money=(G.money||0)+pay; s.offerStage=2; s.offerUnlocked=true;
+  if(typeof notify==='function') notify(`💼 Sponsor odzieżowy: kampania przyjęta. +${pay} zł na koncie.`);
+  window._sponsorPushNpc(`Dobra. ${pay} zł leci na Twoje konto. Załóż element, pokaż się z klasą — jak post usiądzie, pogadamy o większej współpracy. Pozdrawiamy.`);
+};
+window._sponsorNegotiate=function(){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const s=G._sponsorRel;
+  let chance=35 + (s.prof||0)*2 + (s.trust||0)*3 + Math.floor((G.drip||0)/10) + Math.floor((G.socialBuzz||0)/5);
+  chance -= Math.max(0,5-(s.patience||5))*5;
+  chance=Math.max(10,Math.min(80,chance));
+  const roll=Math.random()*100;
+  /* negDone=true po pierwszej negocjacji z wynikiem — blokuje reroll-fishing (so_neg znika z rundy), PDF §10 jedna próba. */
+  if(roll<chance*0.5){ s.negPay=1100; s.negDone=true; window._sponsorPushNpc('Dobrze. Widzę, że rozumiesz wartość swojego profilu. Podbijamy stawkę do 1100 zł — oczekuję, że dowieziesz to bez krzywego posta i przypadkowego outfitu. Bierzesz?','sponsor_offer'); }
+  else if(roll<chance){ s.negPay=900; s.negDone=true; window._sponsorPushNpc('Okej, spotkajmy się w połowie. 900 zł i pokaż, że warto. Bierzesz?','sponsor_offer'); }
+  else if(roll<chance+35){ s.negPay=750; s.negDone=true; window._sponsorPushNpc('Niestety, nie na tym etapie. Masz spory potencjał, ale jeszcze nie jesteś nazwiskiem, które samo sprzedaje kolekcję. Zostaje 750 zł. Bierzesz?','sponsor_offer'); }
+  else { s.negPay=750; s.negDone=true; window._sponsorPushNpc('Za mocno naciskasz jak na start. Bez raisu — zostaje bazowe 750 zł. Bierzesz, czy odpuszczamy?','sponsor_offer'); }
+};
 window._smsRichButtons=function(contactId,ids){
-  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:window._KAMIL_REPLIES;
+  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:(contactId==='sponsor')?window._SPONSOR_REPLIES:window._KAMIL_REPLIES;
   return '<div style="display:flex;flex-direction:column;gap:5px">'+ids.map((id,n)=>{
     const o=reg[id]; if(!o) return '';
     const isIgnore=/ignore/.test(id);
@@ -54320,13 +54419,14 @@ window._smsRichReply=function(contactId,replyId){
   let idx=-1;
   for(let i=conv.length-1;i>=0;i--){ if(conv[i].from==='me') continue; if(conv[i]._replied) continue; idx=i; break; }
   if(idx<0){ if(typeof showMsg==='function') showMsg('💬 Już odpowiedziałeś na wszystkie wiadomości od tego kontaktu. Poczekaj na nowe.','r',4500); return; }
-  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='kamil')?window._KAMIL_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:null;
+  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='kamil')?window._KAMIL_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:(contactId==='sponsor')?window._SPONSOR_REPLIES:null;
   const opt=reg&&reg[replyId];
   if(!opt) return;
   conv[idx]._replied=true;
   if(opt.text!==null && typeof _smsReply==='function') _smsReply(contactId,opt.text);
   _applySmsRichEffect(opt.fx);
   if(opt.action==='kamilJobs') _smsKamilJobsAction();
+  if(contactId==='sponsor' && typeof window._sponsorHandleReply==='function') window._sponsorHandleReply(opt);
   if(typeof renderSMSConversation==='function') renderSMSConversation(contactId);
   if(typeof saveGameSilent==='function') saveGameSilent();
 };
@@ -60796,6 +60896,13 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.109',date:'2026-07-03',cats:['feature'],title:'💼 Nowość: prawdziwa rozmowa ze sponsorem odzieżowym',
+ items:[
+  {t:'new',d:'💼 Sponsor odzieżowy pisze teraz do Ciebie po ludzku — zamiast paru pustych odpowiedzi masz kilka realnych postaw: możesz podejść zawodowo, zapytać o wymagania, postawić na swój styl, poprosić o brief albo od razu zagrać na konkrety. Każda odpowiedź ma inny ton i inaczej buduje Twój wizerunek w jego oczach.'},
+  {t:'new',d:'👕 Sponsor kieruje Cię do Drip District — jak kupisz tam ubranie u Wiktora i podbijesz swój styl, wraca z propozycją pierwszej małej współpracy. Ofertę możesz przyjąć albo powalczyć o wyższą stawkę: im lepszy Twój styl, zasięg i sposób prowadzenia rozmowy, tym większa szansa na lepsze warunki.'},
+ ]
+ },
  {
  ver:'v2.3.108',date:'2026-07-03',cats:['feature'],title:'♻️ Nowość: Metal Valley Yard — rozbiórka pojazdów na części',
  items:[
