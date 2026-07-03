@@ -1844,7 +1844,15 @@ document.addEventListener('keydown', e => {
   // gracz musi wrócić na parking, żeby odebrać auto (koniec teleportowania V z dowolnego miejsca).
   if(e.key==='v'||e.key==='V'){
     if(!_busyMG && G.car && _carRoom(currentRoom)){
-      if(G._carParkedAt && !G._inCar){
+      if(typeof window._vehStateEnsure==='function') window._vehStateEnsure();
+      const _vst=(G._vehState&&G._vehState.car)||{};
+      if(G._inCar){
+        /* v2.3.108 PDF#9: gracz siedzi w środku → cykl silnika/wyjścia (§18): odpal → jazda → zgaś → wysiądź. */
+        if(typeof window._vehCycleInside==='function') window._vehCycleInside('car', e.repeat===true);
+      } else if(_vst.locked){
+        /* v2.3.108 PDF#9 §14: zamknięty pojazd blokuje wejście. */
+        if(typeof showMsg==='function') showMsg('🔒 Pojazd jest zamknięty. Odblokuj klawiszem [J], stojąc blisko auta.','r',3800);
+      } else if(G._carParkedAt){
         /* N6 (v2.3.25): auto zaparkowane w INNEJ lokacji (miasto/dzielnica) — nie wsiądziesz tutaj. */
         if(_carParkRoom()!==currentRoom){
           if(typeof showMsg==='function') showMsg('🚗 Twoje auto jest zaparkowane w innej lokacji — wróć tam, żeby wsiąść.','r',4500);
@@ -1867,23 +1875,16 @@ document.addEventListener('keydown', e => {
           }
           return;
         }
-        // Gracz przy aucie — wsiada
+        // Gracz przy aucie — wsiada (silnik WYŁĄCZONY, trzeba go odpalić [V], §1)
         G._carParkedAt=null;
         G._inCar=true;
-        { const _en=(G.gender==='f')?'Wsiadłaś do pojazdu':'Wsiadłeś do pojazdu'; if(typeof window._subtleMsg==='function') window._subtleMsg('🚗 '+_en); else if(typeof showMsg==='function') showMsg('🚗 '+_en,'i',3000); } /* U4 (v2.3.44 PDF): subtelny napis zamiast okna+boost */
+        if(typeof window._vehOnEnter==='function') window._vehOnEnter('car');
+        { const _en=(G.gender==='f')?'Wsiadłaś za kółko — naciśnij [V], aby uruchomić silnik':'Wsiadłeś za kółko — naciśnij [V], aby uruchomić silnik'; if(typeof window._subtleMsg==='function') window._subtleMsg('🚗 '+_en); else if(typeof showMsg==='function') showMsg('🚗 '+_en,'i',3200); }
       } else {
-        // v1.9.17: BUG FIX — wysiadanie z auta poza parkingiem ustawia _carParkedAt na obecnej pozycji (anti-teleport exploit: walk daleko, V = teleport do auta)
-        if(G._inCar){
-          G._inCar=false;
-          G._carParkedAt={wx:P.wx,wy:P.wy,room:currentRoom}; /* N6: zapamiętaj pokój parkowania */
-          /* U3 (v2.3.13): subtelny gender-aware komunikat 3s zamiast prostokątnego okna (gdzie auto stoi → żółty marker 🚗 na mapie + pływające „[V] Wsiądź"). */
-          const _ex = (G.gender==='f') ? 'Wyszłaś z pojazdu' : 'Wyszedłeś z pojazdu';
-          if(typeof window._subtleMsg==='function') window._subtleMsg('🚶 '+_ex);
-          else if(typeof showMsg==='function') showMsg('🚶 '+_ex,'i',3000);
-        } else {
-          G._inCar=true;
-          { const _en=(G.gender==='f')?'Wsiadłaś do pojazdu':'Wsiadłeś do pojazdu'; if(typeof window._subtleMsg==='function') window._subtleMsg('🚗 '+_en); else if(typeof showMsg==='function') showMsg('🚗 '+_en,'i',3000); } /* U4 (v2.3.44 PDF): subtelny napis zamiast okna+boost */
-        }
+        // brak zapamiętanej pozycji (świeżo kupione/teleport) — wsiadanie w miejscu, silnik wyłączony
+        G._inCar=true;
+        if(typeof window._vehOnEnter==='function') window._vehOnEnter('car');
+        { const _en=(G.gender==='f')?'Wsiadłaś za kółko — naciśnij [V], aby uruchomić silnik':'Wsiadłeś za kółko — naciśnij [V], aby uruchomić silnik'; if(typeof window._subtleMsg==='function') window._subtleMsg('🚗 '+_en); else if(typeof showMsg==='function') showMsg('🚗 '+_en,'i',3200); }
       }
     } else if(!G.car && !_busyMG){
       if(typeof showMsg==='function') showMsg('🚗 Nie masz auta. Kup w Salonie Samochodowym.','r');
@@ -1894,14 +1895,16 @@ document.addEventListener('keydown', e => {
   /* E4d (silnik jazdy): K — wsiądź/wysiądź z KAMPERA (osobny klawisz od V=auto → brak ambiguity przy obu pojazdach). */
   if(e.key==='k'||e.key==='K'){
     if(typeof window._camperEnsure==='function') window._camperEnsure();
+    if(typeof window._vehStateEnsure==='function') window._vehStateEnsure();
     const _cOwn = G.camper && G.camper.owned;
+    const _kst=(G._vehState&&G._vehState.camper)||{};
     if(!_busyMG && _cOwn && _carRoom(currentRoom)){
       if(G._inCamper){
-        /* wysiadanie — zaparkuj na obecnej pozycji (anti-teleport: zapamiętaj gdzie zostawiłeś, jak auto). */
-        G._inCamper=false;
-        G._camperParkedAt={wx:P.wx,wy:P.wy,room:currentRoom};
-        const _ex=(G.gender==='f')?'Wyszłaś z kampera':'Wyszedłeś z kampera';
-        if(typeof window._subtleMsg==='function') window._subtleMsg('🚶 '+_ex); else if(typeof showMsg==='function') showMsg('🚶 '+_ex,'i',3000);
+        /* v2.3.108 PDF#9: siedzisz w kamperze → cykl silnika/wyjścia (§18): odpal → jazda → zgaś → wysiądź. */
+        if(typeof window._vehCycleInside==='function') window._vehCycleInside('camper', e.repeat===true);
+      } else if(_kst.locked){
+        /* v2.3.108 PDF#9 §14: zamknięty kamper blokuje wejście. */
+        if(typeof showMsg==='function') showMsg('🔒 Kamper jest zamknięty. Odblokuj klawiszem [J], stojąc blisko.','r',3800);
       } else if(G._camperParkedAt){
         if(G._camperParkedAt.room && G._camperParkedAt.room!==currentRoom){
           if(typeof showMsg==='function') showMsg('🚐 Twój kamper jest zaparkowany w innej lokacji — wróć tam, żeby wsiąść.','r',4500); return;
@@ -1912,8 +1915,9 @@ document.addEventListener('keydown', e => {
         const _dist=Math.hypot(_px-_cX,_py-_cY);
         if(_dist>=80){ if(typeof showMsg==='function') showMsg('🚐 Twój kamper stoi '+Math.round(_dist*1.5/48)+' m stąd — podejdź do niego (marker 🚐 na mapie).','r'); return; }
         G._camperParkedAt=null; G._inCamper=true;
-        const _en=(G.gender==='f')?'Wsiadłaś do kampera':'Wsiadłeś do kampera';
-        if(typeof window._subtleMsg==='function') window._subtleMsg('🚐 '+_en); else if(typeof showMsg==='function') showMsg('🚐 '+_en,'i',3000);
+        if(typeof window._vehOnEnter==='function') window._vehOnEnter('camper');
+        const _en='Wsiadłeś do kampera — naciśnij [K], aby uruchomić silnik';
+        if(typeof window._subtleMsg==='function') window._subtleMsg('🚐 '+_en); else if(typeof showMsg==='function') showMsg('🚐 '+_en,'i',3200);
       } else {
         if(typeof showMsg==='function') showMsg('🚐 Twój kamper nie ma jeszcze pozycji na mapie — sprawdź panel kampera (Kariera → Trap → Kamper).','r',4500);
       }
@@ -1921,6 +1925,48 @@ document.addEventListener('keydown', e => {
       if(typeof showMsg==='function') showMsg('🚐 Nie masz kampera. Kup go w salonie pojazdów dostawczych.','r');
     } else if(!_carRoom(currentRoom) && _cOwn && !_busyMG){
       if(typeof showMsg==='function') showMsg('🚐 Kamperem jeździsz po ulicy i w dzielnicach miasta.','r');
+    }
+  }
+  /* v2.3.108 PDF#9 §8-9: [G] światła pojazdu — 3-cykl (dzienne→długie→wyłączone), niezależne od silnika. Siedząc w pojeździe. */
+  if((e.key==='g'||e.key==='G') && !_busyMG){
+    const _gk = G._inCar?'car':(G._inCamper?'camper':null);
+    if(_gk){
+      if(typeof window._vehStateEnsure==='function') window._vehStateEnsure();
+      const st=G._vehState[_gk];
+      st.lightMode = st.lightMode==='off'?'daytime':(st.lightMode==='daytime'?'highBeam':'off');
+      const lbl = st.lightMode==='off'?'wyłączone':(st.lightMode==='daytime'?'dzienne':'długie (drogowe)');
+      if(typeof window._subtleMsg==='function') window._subtleMsg('💡 Światła: '+lbl); else if(typeof showMsg==='function') showMsg('💡 Światła: '+lbl,'i',1800);
+    }
+  }
+  /* v2.3.108 PDF#9 §14: [J] zamek pojazdu — zamknij/otwórz w promieniu ~4 m (blokuje wejście/kradzież). Oba pojazdy. */
+  if((e.key==='j'||e.key==='J') && !_busyMG){
+    if(typeof window._vehStateEnsure==='function') window._vehStateEnsure();
+    let _jk=null;
+    if(G._inCar) _jk='car'; else if(G._inCamper) _jk='camper';
+    else if(_carRoom(currentRoom)){
+      const _pc=(P.wx+P.w/2), _pcy=(P.wy+P.h/2);
+      const _near=(pos)=>{ if(!pos||(pos.room&&pos.room!==currentRoom)) return 1e9; return Math.hypot(_pc-(pos.wx+P.w/2),_pcy-(pos.wy+P.h/2)); };
+      const _dc=(G.car)?_near(G._carParkedAt):1e9;
+      const _dk=(G.camper&&G.camper.owned)?_near(G._camperParkedAt):1e9;
+      const _best=Math.min(_dc,_dk);
+      if(_best<=128){ _jk = _dc<=_dk?'car':'camper'; }
+      else if(_best<1e9){ if(typeof showMsg==='function') showMsg('🔒 Podejdź bliżej pojazdu (max ~4 m), żeby go zamknąć lub otworzyć.','r',3000); }
+    }
+    if(_jk){
+      const st=G._vehState[_jk]; st.locked=!st.locked;
+      const em=(_jk==='camper'?'🚐':'🚗');
+      if(typeof showMsg==='function') showMsg(st.locked?('🔒 '+em+' Pojazd zamknięty — nikt nie wejdzie do środka.'):('🔓 '+em+' Pojazd odblokowany.'),'i',2200);
+    }
+  }
+  /* v2.3.108 PDF#9 §15: [H] pasy bezpieczeństwa — zapnij/odepnij (opcjonalne). Zapięte = -70% szansy mandatu. */
+  if((e.key==='h'||e.key==='H') && !_busyMG){
+    const _hk = G._inCar?'car':(G._inCamper?'camper':null);
+    if(_hk){
+      if(typeof window._vehStateEnsure==='function') window._vehStateEnsure();
+      const st=G._vehState[_hk]; st.seatbeltOn=!st.seatbeltOn;
+      if(typeof showMsg==='function') showMsg(st.seatbeltOn?'🔒 Pasy bezpieczeństwa zapięte — mniejsze ryzyko mandatu podczas jazdy.':'🔓 Pasy bezpieczeństwa odpięte.','i',2200);
+    } else {
+      if(typeof showMsg==='function') showMsg('🔒 Pasy zapniesz siedząc w pojeździe (klawisz [H]).','i',2200);
     }
   }
   /* v2.3.102 (PDF #8-30): klawisz L = panel zaplecza mobilnego kampera (tylko gdy jesteś W kamperze). P zajęty przez telefon. Dostępny dla WSZYSTKICH właścicieli kampera (nie tylko półświatek). */
@@ -12703,6 +12749,33 @@ function _drawCarShape(type, body){
   X.strokeStyle=dk2; X.lineWidth=1;
   X.beginPath(); X.moveTo(bw/2-18,-bh/2); X.lineTo(bw/2-18,bh/2); X.stroke();
 }
+/* v2.3.108 PDF#9 §8/§11-12: efekty pojazdu podczas jazdy — stożek świateł (lightMode) + dym z wydechu
+   (tylko spalinowe + silnik uruchomiony). d = kierunek (0=góra,1=prawo,2=dół,3=lewo). Czysto wizualne. */
+function _drawVehicleFx(kind, sx, sy, d){
+  try{
+    const st=(G._vehState&&G._vehState[kind]); if(!st) return;
+    const fx=[0,1,0,-1][d]||0, fy=[-1,0,1,0][d]||0; /* wektor „przód" wg kierunku */
+    if(st.lightMode && st.lightMode!=='off'){
+      const long=st.lightMode==='highBeam';
+      const len=long?150:82, wid=long?46:30, alpha=long?0.32:0.20;
+      X.save(); X.translate(sx,sy); X.rotate(Math.atan2(fy,fx));
+      const g=X.createLinearGradient(14,0,14+len,0);
+      g.addColorStop(0,`rgba(255,248,190,${alpha})`); g.addColorStop(1,'rgba(255,248,190,0)');
+      X.fillStyle=g; X.beginPath(); X.moveTo(14,-6); X.lineTo(14+len,-wid); X.lineTo(14+len,wid); X.lineTo(14,6); X.closePath(); X.fill();
+      X.restore();
+    }
+    if(typeof window._vehShouldShowExhaust==='function' && window._vehShouldShowExhaust(kind)){
+      const t=Date.now()/220;
+      for(let i=0;i<3;i++){
+        const ph=((t+i*0.5)%1);
+        const rx=sx - fx*(24+ph*22) + Math.sin((t+i)*3)*4;
+        const ry=sy - fy*(24+ph*22) + Math.cos((t+i)*3)*4;
+        X.fillStyle=`rgba(120,120,120,${0.22*(1-ph)})`;
+        X.beginPath(); X.arc(rx,ry,3+ph*5,0,Math.PI*2); X.fill();
+      }
+    }
+  }catch(_){}
+}
 function drawPlayerCar(){
   /* v2.1.60 Amper: rysuj również ZAPARKOWANE auto na pozycji G._carParkedAt — gracz musi wiedzieć gdzie wysiadł.
      Wcześniej auto znikało po wysiadce (G._inCar=false) i gracz nie miał wskazówki gdzie wrócić. */
@@ -12729,9 +12802,12 @@ function drawPlayerCar(){
     const _ppx=P.wx+P.w/2, _ppy=P.wy+P.h/2;
     if(Math.hypot(_ppx-_pcx,_ppy-_pcy)<80){
       X.font='bold 12px system-ui';X.textAlign='center';X.textBaseline='alphabetic';
-      const _vLbl='[V] Wsiądź';const _vW=X.measureText(_vLbl).width+14;const _vp=0.6+Math.sin(Date.now()/350)*0.4;
+      /* v2.3.108 PDF#9 §20: etykieta zależna od stanu — „[J] Odblokuj" gdy zamknięty, inaczej „[V] Wsiądź". */
+      const _vLbl=(typeof window._getVehiclePrompt==='function')?window._getVehiclePrompt('car'):'[V] Wsiądź';
+      const _vLock=(typeof window._vehLocked==='function')&&window._vehLocked('car');
+      const _vW=X.measureText(_vLbl).width+14;const _vp=0.6+Math.sin(Date.now()/350)*0.4;
       X.fillStyle='rgba(8,16,12,0.82)';X.beginPath();if(X.roundRect)X.roundRect(-_vW/2,-58,_vW,18,5);else X.rect(-_vW/2,-58,_vW,18);X.fill();
-      X.fillStyle=`rgba(46,204,113,${0.75+_vp*0.25})`;X.fillText(_vLbl,0,-45);
+      X.fillStyle=_vLock?`rgba(231,160,32,${0.75+_vp*0.25})`:`rgba(46,204,113,${0.75+_vp*0.25})`;X.fillText(_vLbl,0,-45);
     }
     X.textAlign='left';X.textBaseline='alphabetic';
     X.restore();
@@ -12751,6 +12827,8 @@ function drawPlayerCar(){
   // Car body (front = right) — sylwetka per typ auta (v2.1.693)
   _drawCarShape(carBodyType(G.car.name), body);
   X.restore();
+  /* v2.3.108 PDF#9 §8/§11-12: stożek świateł (przed pojazdem, wg lightMode) + dym z wydechu (spalinowe, silnik on). */
+  _drawVehicleFx('car', sx, sy, d);
   /* v2.1.843 Z5 (beta-tester Vegan): wskaźnik STANU auta nad pojazdem podczas jazdy — gracz widzi kondycję na bieżąco (spada od czasu i od jeżdżenia). */
   const _cc=(G.car.condition==null?100:G.car.condition);
   const _ccCol=_cc>=66?'#2ecc71':(_cc>=33?'#f39c12':'#e74c3c');
@@ -12761,6 +12839,22 @@ function drawPlayerCar(){
   X.fillStyle='rgba(8,12,20,0.72)'; X.fillRect(sx-_ccW/2, sy-46, _ccW, 16);
   X.fillStyle=_ccCol; X.fillText(_ccLbl, sx, sy-34);
   X.restore();
+  _drawVehicleInsidePrompt('car', sx, sy);
+}
+/* v2.3.108 PDF#9 §20: dyskretna podpowiedź stanu podczas jazdy (odkrywalność sterowania silnik/pasy/światła). */
+function _drawVehicleInsidePrompt(kind, sx, sy){
+  try{
+    const st=(G._vehState&&G._vehState[kind]); if(!st) return;
+    const key=kind==='camper'?'K':'V';
+    const hint = (!st.engineOn && !st.engineStartedThisSession) ? `[${key}] Uruchom silnik`
+      : (st.engineOn ? `[${key}] Zgaś · [H] pasy · [G] światła` : `[${key}] Wysiądź · przytrzymaj = odpal`);
+    X.save(); X.font='bold 10px system-ui'; X.textAlign='center'; X.textBaseline='alphabetic';
+    const hw=X.measureText(hint).width+12;
+    X.fillStyle='rgba(8,12,20,0.72)'; X.fillRect(sx-hw/2, sy-28, hw, 15);
+    X.fillStyle=st.engineOn?'#7ec8e3':'#f1c40f'; X.fillText(hint, sx, sy-17);
+    if(st.seatbeltOn){ X.fillStyle='#2ecc71'; X.fillText('🔒 pasy', sx, sy-2); }
+    X.restore();
+  }catch(_){}
 }
 
 /* ═══ E4-FIZYKA (E4b): rysuj KAMPERA gdy gracz jedzie (G._inCamper) — analog drawPlayerCar (gałąź jazdy), ale WIĘKSZY ×widthMul.
@@ -12798,9 +12892,12 @@ function drawPlayerCamper(){
     const _pcx=G._camperParkedAt.wx+P.w/2,_pcy=G._camperParkedAt.wy+P.h/2,_ppx=P.wx+P.w/2,_ppy=P.wy+P.h/2;
     if(Math.hypot(_ppx-_pcx,_ppy-_pcy)<80){
       X.save();X.font='bold 12px system-ui';X.textAlign='center';X.textBaseline='alphabetic';
-      const _vLbl='[K] Wsiądź';const _vW=X.measureText(_vLbl).width+14;const _vp=0.6+Math.sin(Date.now()/350)*0.4;
+      /* v2.3.108 PDF#9 §20: etykieta zależna od stanu — „[J] Odblokuj" gdy zamknięty, inaczej „[K] Wsiądź". */
+      const _vLbl=(typeof window._getVehiclePrompt==='function')?window._getVehiclePrompt('camper'):'[K] Wsiądź';
+      const _vLock=(typeof window._vehLocked==='function')&&window._vehLocked('camper');
+      const _vW=X.measureText(_vLbl).width+14;const _vp=0.6+Math.sin(Date.now()/350)*0.4;
       X.fillStyle='rgba(8,16,12,0.82)';X.beginPath();if(X.roundRect)X.roundRect(_psx-_vW/2,_psy-58,_vW,18,5);else X.rect(_psx-_vW/2,_psy-58,_vW,18);X.fill();
-      X.fillStyle='rgba(46,204,113,'+(0.75+_vp*0.25)+')';X.fillText(_vLbl,_psx,_psy-45);X.restore();
+      X.fillStyle=(_vLock?'rgba(231,160,32,':'rgba(46,204,113,')+(0.75+_vp*0.25)+')';X.fillText(_vLbl,_psx,_psy-45);X.restore();
     }
   }
   if(!G._inCamper || !G.camper || !G.camper.owned || !_carRoom(currentRoom) || G._inCar) return;
@@ -12827,6 +12924,8 @@ function drawPlayerCamper(){
   X.strokeStyle='#6a7280';X.lineWidth=1;X.beginPath();X.moveTo(-L/2+2,2);X.lineTo(L/2-3,2);X.stroke();
   X.fillStyle='rgba(255,245,160,0.95)';X.fillRect(L/2-2,-H/2+4,2,5);X.fillRect(L/2-2,H/2-9,2,5);
   X.restore();
+  /* v2.3.108 PDF#9 §8/§11-12: światła + dym z wydechu kampera (spalinowy, silnik on). */
+  _drawVehicleFx('camper', sx, sy, d);
   // wskaźnik kondycji nad kamperem (analog auta)
   const _cc=(G.camper.condition==null?100:G.camper.condition);
   const _ccCol=_cc>=66?'#2ecc71':(_cc>=33?'#f39c12':'#e74c3c');
@@ -12836,6 +12935,7 @@ function drawPlayerCamper(){
   X.fillStyle='rgba(8,12,20,0.72)';X.fillRect(sx-_ccW/2,sy-50,_ccW,16);
   X.fillStyle=_ccCol;X.fillText(_ccLbl,sx,sy-38);
   X.restore();
+  _drawVehicleInsidePrompt('camper', sx, sy-4); /* v2.3.108 PDF#9 §20: podpowiedź stanu (kamper wyższy → niżej) */
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -13868,12 +13968,17 @@ function updatePlayer(){
   /* v2.3.103 (user: „sprawdź prędkość aut/boost/mnożniki"): kondycja = KARA za zniszczenie, nie bonus ponad projekt.
      Było (1+0.2*cond/100) → pełna kondycja ×1.2 (max ~8.71, ponad dokumentowane 3.30×speed=7.26 „mapa nie pomieści").
      Teraz (0.8+0.2*cond/100): pełna kondycja ×1.0 (=dokumentowane 7.26), auto zniszczone (0%) ×0.8 (wolniejsze) → zachęta do serwisu. */
-  if(G.car&&(dx!==0||dy!==0)&&_carRoom(currentRoom)&&G._inCar){const boost=(G.car.speed||1)*(0.8+0.2*((G.car.condition==null?100:G.car.condition)/100));dx*=boost;dy*=boost;
+  /* v2.3.108 PDF#9 §11: w pojeździe z WYŁĄCZONYM silnikiem nie ruszasz (wejście ≠ jazda). Odpal silnik ([V]/[K]). */
+  if((dx!==0||dy!==0)&&_carRoom(currentRoom)){
+    if(G._inCar&&G.car&&!(typeof window._vehEngineOn==='function'&&window._vehEngineOn('car'))){ dx=0; dy=0; }
+    else if(G._inCamper&&G.camper&&G.camper.owned&&!(typeof window._vehEngineOn==='function'&&window._vehEngineOn('camper'))){ dx=0; dy=0; }
+  }
+  if(G.car&&(dx!==0||dy!==0)&&_carRoom(currentRoom)&&G._inCar&&(typeof window._vehEngineOn!=='function'||window._vehEngineOn('car'))){const boost=(G.car.speed||1)*(0.8+0.2*((G.car.condition==null?100:G.car.condition)/100));dx*=boost;dy*=boost;
     /* v2.1.843 Z5 (beta-tester Vegan): zużycie auta od JEŻDŻENIA — kumuluj przejechany dystans (po boost = realny ruch w świecie), −1% kondycji co _CAR_WEAR_PX (≈1 przejazd przez miasto). Frame-rate independent (per world-distance, nie per klatka). Łączy się z −5%/dzień od czasu → aktywni kierowcy serwisują wyraźnie częściej. */
     const _CAR_WEAR_PX=4500;
     G._carWearDist=(G._carWearDist||0)+Math.abs(dx)+Math.abs(dy);
     if(G._carWearDist>=_CAR_WEAR_PX){ const _wn=Math.floor(G._carWearDist/_CAR_WEAR_PX); G._carWearDist-=_wn*_CAR_WEAR_PX; if(G.car.condition==null)G.car.condition=100; G.car.condition=Math.max(0,G.car.condition-_wn); }
-  } else if(G.camper&&G.camper.owned&&(dx!==0||dy!==0)&&_carRoom(currentRoom)&&G._inCamper){
+  } else if(G.camper&&G.camper.owned&&(dx!==0||dy!==0)&&_carRoom(currentRoom)&&G._inCamper&&(typeof window._vehEngineOn!=='function'||window._vehEngineOn('camper'))){
     /* E4c (silnik jazdy): boost jazdy KAMPEREM — WOLNIEJSZY niż auto (_camperDriveParams). OSOBNY else-if:
        auto i kamper wykluczają się (_inCar vs _inCamper) → boost auta NIENARUSZONY. Kolizja celowo bazowa (P.w) —
        szerszy sprite może minimalnie zachodzić na ściany (jak auto), ale NIE psuje chodzenia (priorytet #1). */
@@ -18205,11 +18310,11 @@ const RANDOM_EVENTS = [
     notify(`🔧 Mechanik doliczył „wykryte ukryte usterki" — rachunek wyższy niż zakładałeś. -${extra} zł, -6 nastrój.`,'r',6500);
   }},
   /* Okresowo słony mandat (PDF: „raz mandat wyższy o 100%") — rzadszy i wyższy niż zwykły Police fine. */
-  {name:'Słony mandat', chance:0.004, maxPerDay:1, cond:()=>currentRoom==='ulica'&&(G.money||0)>800, fn:()=>{
+  {name:'Słony mandat', chance:0.004, maxPerDay:1, cond:()=>currentRoom==='ulica'&&(G.money||0)>800&&!(typeof window._vehMandateShield==='function'&&window._vehMandateShield()), fn:()=>{ /* v2.3.108 PDF#9 §15: pasy -70% szansy mandatu */
     const fine=rnd(400,900); const paid=Math.min(G.money,fine); G.money-=paid; G.stress=clamp((G.stress||0)-10,0,100);
     notify(`🚔 Wyjątkowo słony mandat — dziś bez taryfy ulgowej. -${paid} zł, -10 nastrój.`,'r',7000);
   }},
-  {name:'Police fine', chance:0.008, maxPerDay:1, cond:()=>currentRoom==='ulica'&&G.streetRep>50, fn:()=>{
+  {name:'Police fine', chance:0.008, maxPerDay:1, cond:()=>currentRoom==='ulica'&&G.streetRep>50&&!(typeof window._vehMandateShield==='function'&&window._vehMandateShield()), fn:()=>{ /* v2.3.108 PDF#9 §15: pasy -70% szansy mandatu */
     /* v1.9.13: silent fail fixed — pokazujemy realnie pobraną kwotę */
     const fine=rnd(100,400);const paid=Math.min(G.money,fine);G.money-=paid;G.streetRep=clamp(G.streetRep-5,0,100);
     notify(`🚔 Mandat! -${paid} zł${paid<fine?' (resztę darowali)':''}. Uważaj na ulicy!`);
@@ -39900,7 +40005,10 @@ window._enterCamper=function(){
   if(G._inCar){ if(typeof showMsg==='function')showMsg('🚐 Najpierw wysiądź z auta (V).','r'); return false; }
   const _px=P.wx+P.w/2,_py=P.wy+P.h/2,_cX=G._camperParkedAt.wx+P.w/2,_cY=G._camperParkedAt.wy+P.h/2;
   if(Math.hypot(_px-_cX,_py-_cY)>=80){ if(typeof showMsg==='function')showMsg('🚐 Podejdź bliżej do kampera (marker 🚐) i kliknij ponownie — lub naciśnij K.','i',4500); return false; }
+  if(typeof window._vehStateEnsure==='function') window._vehStateEnsure();
+  if(G._vehState&&G._vehState.camper&&G._vehState.camper.locked){ if(typeof showMsg==='function')showMsg('🔒 Kamper jest zamknięty. Odblokuj klawiszem [J], stojąc blisko.','r',3800); return false; } /* v2.3.108 PDF#9 §14 */
   G._camperParkedAt=null; G._inCamper=true;
+  if(typeof window._vehOnEnter==='function') window._vehOnEnter('camper'); /* v2.3.108 PDF#9: reset stanu silnika przy wejściu (analog handlera K) */
   const _en=(G.gender==='f')?'Wsiadłaś do kampera':'Wsiadłeś do kampera';
   if(typeof window._subtleMsg==='function') window._subtleMsg('🚐 '+_en); else if(typeof showMsg==='function') showMsg('🚐 '+_en,'i',3000);
   if(typeof phoneOpen==='function' && phoneOpen() && typeof togglePhone==='function') togglePhone(); /* zamknij telefon, by gracz widział jazdę */
@@ -49246,6 +49354,7 @@ window._sanitizePlayerLists=function(){
     if(G.safes&&typeof G.safes==='object') for(const _k of Object.keys(G.safes)){ if(!G.safes[_k]||typeof G.safes[_k]!=='object') delete G.safes[_k]; }
     if(G.trap&&G.trap.unlocked){ if(!G.trapInv||typeof G.trapInv!=='object') G.trapInv={traw:0,krysztal:0,prosz:0,products:{}}; if(!G.trapInv.products||typeof G.trapInv.products!=='object') G.trapInv.products={}; }
     if(typeof window._camperEnsure==='function') window._camperEnsure(); /* v2.3.54 moduł kampera: defaulty + grandfather (save-safe D0) */
+    if(typeof window._vehStateEnsure==='function') window._vehStateEnsure(); /* v2.3.108 PDF#9: stan interakcji pojazdu (silnik/światła/zamek/pasy), save-safe */
   }catch(_e){}
 };
 /* v2.3.54 MODUŁ POJAZDÓW SPECJALNYCH — defaulty stanu kampera (save-safe #1) + GRANDFATHER (D0):
@@ -49285,6 +49394,109 @@ window._camperEnsure=function(){
   if(c.owned && !G._inCamper && G._camperParkedAt && G._camperParkedAt.room==='underground' && G._camperParkedAt.wy>=480 && G._camperParkedAt.wy<=560){
     G._camperParkedAt.wy=430;
   }
+};
+/* ═══ PDF #9 (v2.3.108): STAN INTERAKCJI POJAZDU — silnik / światła / zamek / pasy (auto + kamper).
+   Rozdziela wejście → uruchomienie silnika → jazdę: po wejściu NIE ruszysz, dopóki nie odpalisz silnika.
+   playerInside = istniejące _inCar/_inCamper (semantyka bez zmian). Reszta stanu w G._vehState[kind]. Save-safe #1
+   (defaulty w _vehStateEnsure wołanym z _sanitizePlayerLists). Boost ruchu bramkowany _vehEngineOn (patrz loop). */
+window._vehStateEnsure=function(){
+  if(!G._vehState||typeof G._vehState!=='object') G._vehState={};
+  const mk=(o)=>{ if(!o||typeof o!=='object') o={};
+    if(typeof o.engineOn!=='boolean') o.engineOn=false;
+    if(typeof o.engineStartedThisSession!=='boolean') o.engineStartedThisSession=false;
+    if(typeof o.engineStoppedAfterDrive!=='boolean') o.engineStoppedAfterDrive=false;
+    if(o.lightMode!=='off'&&o.lightMode!=='daytime'&&o.lightMode!=='highBeam') o.lightMode='off';
+    if(typeof o.locked!=='boolean') o.locked=false;
+    if(typeof o.seatbeltOn!=='boolean') o.seatbeltOn=false;
+    return o; };
+  G._vehState.car=mk(G._vehState.car);
+  G._vehState.camper=mk(G._vehState.camper);
+  /* MIGRACJA save-safe #1 (jednorazowa): stary zapis, w którym gracz był W TRAKCIE jazdy (_inCar/_inCamper=true),
+     nie miał stanu silnika → po wczytaniu gracz „stałby w miejscu". Traktujemy go jak z odpalonym silnikiem,
+     żeby jazda była ciągła bez zaskoczenia. Nowa gra: _inCar/_inCamper=false → bez efektu. */
+  if(!G._vehStateMigrated){
+    G._vehStateMigrated=true;
+    if(G._inCar){ G._vehState.car.engineOn=true; G._vehState.car.engineStartedThisSession=true; }
+    if(G._inCamper){ G._vehState.camper.engineOn=true; G._vehState.camper.engineStartedThisSession=true; }
+  }
+  /* jednorazowy listener keyup do rozróżnienia krótkie-kliknięcie vs przytrzymanie (wyjdź vs odpal silnik). */
+  if(!window._vehKeyupBound){
+    window._vehKeyupBound=true;
+    document.addEventListener('keyup',function(e){
+      if(!(e.key==='v'||e.key==='V'||e.key==='k'||e.key==='K')) return;
+      const p=window._vehHoldPending; if(!p) return;
+      window._vehHoldPending=null; if(window._vehHoldTimer){ clearTimeout(window._vehHoldTimer); window._vehHoldTimer=null; }
+      if((Date.now()-p.t)<420){ try{ p.onShort(); }catch(_){} } /* krótkie = SHORT; long już wykonane przez timer */
+    });
+  }
+};
+window._vehGet=function(kind){ if(!(G._vehState&&G._vehState[kind])) window._vehStateEnsure(); return G._vehState[kind]; };
+window._vehIsInside=function(kind){ return kind==='camper'?!!G._inCamper:!!G._inCar; };
+window._vehEngineOn=function(kind){ return !!(G._vehState&&G._vehState[kind]&&G._vehState[kind].engineOn); };
+window._vehLocked=function(kind){ return !!(G._vehState&&G._vehState[kind]&&G._vehState[kind].locked); };
+window._vehSeatbeltOn=function(kind){ return !!(G._vehState&&G._vehState[kind]&&G._vehState[kind].seatbeltOn); };
+/* PDF#9 §15/§21.10: zapięte pasy w pojeździe zmniejszają SZANSĘ mandatu o 70%. Zwraca true = mandat wyblokowany
+   (event nie odpala tym razem). Bez pojazdu / bez pasów → false (mandat na normalnych zasadach). */
+window._vehMandateShield=function(){
+  const inV=(G._inCar||G._inCamper); if(!inV) return false;
+  const kind=G._inCar?'car':'camper';
+  if(!window._vehSeatbeltOn(kind)) return false;
+  return Math.random()<0.70;
+};
+/* powertrain: dla efektu spalin (§12). Elektryk/hybryda → brak dymu. Domyślnie spalinowy. */
+window._vehPowertrain=function(kind){
+  if(kind==='car'&&G.car&&G.car.name){ const n=(''+G.car.name).toLowerCase(); if(/elektr|electric|\bev\b|tesla|\bvolt/.test(n)) return 'electric'; if(/hybr/.test(n)) return 'hybrid'; }
+  return 'combustion';
+};
+window._vehShouldShowExhaust=function(kind){ if(!window._vehEngineOn(kind)) return false; const p=window._vehPowertrain(kind); return p!=='electric'&&p!=='hybrid'; };
+/* czy gracz aktywnie porusza pojazdem (klawisze ruchu wciśnięte) — brak „speed", więc: trzymany kierunek (§6). */
+window._vehActivelyMoving=function(){ try{ return !!(typeof K!=='undefined'&&K&&(K['ArrowUp']||K['ArrowDown']||K['ArrowLeft']||K['ArrowRight']||K['w']||K['W']||K['s']||K['S']||K['a']||K['A']||K['d']||K['D'])); }catch(_){ return false; } };
+/* prompt zależny od stanu (§20). kind='car'|'camper'. */
+window._getVehiclePrompt=function(kind){
+  const key=kind==='camper'?'K':'V'; const st=window._vehGet(kind);
+  if(!window._vehIsInside(kind)){ return st.locked?`[J] Odblokuj pojazd`:`[${key}] Wsiądź`; }
+  if(!st.engineOn && !st.engineStartedThisSession) return `[${key}] Uruchom silnik · [J] zamek · przytrzymaj [${key}] = wysiądź`;
+  if(st.engineOn) return `[${key}] Zgaś silnik · [H] pasy · [G] światła`;
+  return `[${key}] Wysiądź · przytrzymaj [${key}] = odpal silnik`;
+};
+window._vehStartEngine=function(kind){
+  const st=window._vehGet(kind);
+  st.engineOn=true; st.engineStartedThisSession=true; st.engineStoppedAfterDrive=false;
+  if(st.lightMode==='off') st.lightMode='daytime'; /* §10: po uruchomieniu silnika światła dzienne */
+  const em=(kind==='camper'?'🚐':'🚗');
+  if(typeof window._subtleMsg==='function') window._subtleMsg(em+' Silnik uruchomiony — możesz jechać'); else if(typeof showMsg==='function') showMsg(em+' Silnik uruchomiony','i',2200);
+};
+window._vehStopEngine=function(kind){
+  const st=window._vehGet(kind);
+  st.engineOn=false; st.engineStoppedAfterDrive=true;
+  const em=(kind==='camper'?'🚐':'🚗');
+  if(typeof window._subtleMsg==='function') window._subtleMsg(em+' Silnik zgaszony'); else if(typeof showMsg==='function') showMsg(em+' Silnik zgaszony','i',2000);
+};
+window._vehOnEnter=function(kind){ const st=window._vehGet(kind); st.engineOn=false; st.engineStartedThisSession=false; st.engineStoppedAfterDrive=false; st.seatbeltOn=false; };
+window._vehExitVehicle=function(kind){
+  const st=window._vehGet(kind); st.engineOn=false; st.engineStartedThisSession=false; st.engineStoppedAfterDrive=false; st.seatbeltOn=false; /* §15: pasy auto-odpięte przy wyjściu */
+  if(kind==='camper'){ G._inCamper=false; G._camperParkedAt={wx:P.wx,wy:P.wy,room:currentRoom};
+    const _ex=(G.gender==='f')?'Wyszłaś z kampera':'Wyszedłeś z kampera';
+    if(typeof window._subtleMsg==='function') window._subtleMsg('🚶 '+_ex); else if(typeof showMsg==='function') showMsg('🚶 '+_ex,'i',3000);
+  } else { G._inCar=false; G._carParkedAt={wx:P.wx,wy:P.wy,room:currentRoom};
+    const _ex=(G.gender==='f')?'Wyszłaś z pojazdu':'Wyszedłeś z pojazdu';
+    if(typeof window._subtleMsg==='function') window._subtleMsg('🚶 '+_ex); else if(typeof showMsg==='function') showMsg('🚶 '+_ex,'i',3000);
+  }
+};
+/* cykl akcji WEWNĄTRZ pojazdu (PDF §18). engineOn→zgaś (gdy stoi); engine-off → krótkie/długie (start/wyjście). */
+window._vehCycleInside=function(kind, isRepeat){
+  if(isRepeat) return; /* ignoruj auto-powtórzenia klawisza (hold obsługiwany timerem/keyup) */
+  const st=window._vehGet(kind);
+  if(st.engineOn){
+    if(window._vehActivelyMoving()){ if(typeof showMsg==='function') showMsg('🚗 Najpierw zatrzymaj pojazd, potem zgaś silnik.','r',2500); return; }
+    window._vehStopEngine(kind); return;
+  }
+  const fresh = !st.engineStartedThisSession; /* dopiero co wsiadłeś (silnik jeszcze nieodpalony) */
+  const onShort = fresh ? ()=>window._vehStartEngine(kind) : ()=>window._vehExitVehicle(kind);
+  const onLong  = fresh ? ()=>window._vehExitVehicle(kind)  : ()=>window._vehStartEngine(kind);
+  window._vehHoldPending={kind, t:Date.now(), onShort, onLong};
+  if(window._vehHoldTimer) clearTimeout(window._vehHoldTimer);
+  window._vehHoldTimer=setTimeout(()=>{ const p=window._vehHoldPending; if(p&&p.kind===kind){ window._vehHoldPending=null; window._vehHoldTimer=null; try{ p.onLong(); }catch(_){} } },420);
 };
 function togglePhone(){
   const ph=document.getElementById('phone');
@@ -59977,6 +60189,15 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.108',date:'2026-07-03',cats:['feature'],title:'🚗 Nowość: pojazdy jak naprawdę — silnik, światła, zamek i pasy',
+ items:[
+  {t:'new',d:'🔑 Wsiadanie i jazda to teraz dwa osobne kroki. Po wejściu do auta lub kampera silnik jest wyłączony — najpierw go uruchom (tym samym klawiszem: [V] dla auta, [K] dla kampera), a dopiero potem ruszysz. Krótkie kliknięcie po zatrzymaniu = wysiadka, a przytrzymanie klawisza odpala silnik ponownie, bez wychodzenia z pojazdu.'},
+  {t:'new',d:'💡 Światłami sterujesz klawiszem [G] — trzy tryby po kolei: dzienne, długie (drogowe) i wyłączone. W nocy realnie oświetlają drogę przed pojazdem, a po uruchomieniu silnika same włączają się na dzienne.'},
+  {t:'new',d:'🔒 Klawiszem [J] zamkniesz i otworzysz pojazd, stojąc obok niego (do jakichś 4 metrów). Zamknięty pojazd blokuje wejście — nikt się do środka nie dostanie. Przy zaparkowanym aucie widać teraz, czy jest zamknięte (podpowiedź zmienia się na „[J] Odblokuj").'},
+  {t:'new',d:'🎗️ Pasy bezpieczeństwa zapniesz klawiszem [H] podczas jazdy. Są całkiem opcjonalne, ale zapięte zmniejszają szansę na mandat od policji o 70%. Przy wysiadaniu odpinają się same. Dodatkowo spalinowym pojazdom z rury leci teraz dym, gdy silnik pracuje.'},
+ ]
+ },
  {
  ver:'v2.3.108',date:'2026-07-03',cats:['feature'],title:'🕐 Nowość: miasto żyje różnie w zależności od dnia i godziny',
  items:[
