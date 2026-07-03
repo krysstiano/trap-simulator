@@ -24361,6 +24361,8 @@ window._cryptoSell=function(coinId, qty){
   if(h.qty<=0.0001) delete G.crypto.holdings[coinId];
   if(typeof showMsg==='function') showMsg(`💱 Sprzedane: ${qty.toFixed(4)} ${coin.symbol} po ${price.toFixed(2)} zł. PnL: ${pnl>=0?'+':''}${pnl.toFixed(2)} zł.${_peakSell?' 📈 GÓRKA — sprzedałeś na wzroście, -40% fee!':''}`,pnl>=0?'g':'r',4000);
   if(typeof progressQuest==='function') progressQuest('crypto_sell'); /* v2.1.430 Faza Z'+++: quest hook */
+  /* PDF#18 §15: duża strata (≥25% wkładu i ≥500 zł) → event „Czerwona świeca" (nastrój/napięcie). */
+  if(pnl<0 && costBasis>0 && Math.abs(pnl)>=500 && Math.abs(pnl)>=costBasis*0.25 && typeof window._novaRedCandle==='function') window._novaRedCandle(Math.abs(pnl));
   if(typeof updateHUD==='function') updateHUD();
   if(typeof renderPhoneApp==='function') renderPhoneApp('crypto');
   return true;
@@ -40210,6 +40212,17 @@ window._novaCuraTick=function(){ if(typeof _5pdfEnsure==='function')_5pdfEnsure(
   if(en<=12&&cd('marathon',3)) return fire('marathon','Zbyt długi maraton','studio, miasto, telefon, kolejne aktywności — organizm wysyła rachunek.',()=>{ n.fatigue=Math.min(100,fat+25); G.stress=clamp(mood-8,0,100); });
   if((G.fame||0)>=10&&mood<=20&&cd('silence',5)) return fire('silence','Cisza po premierze','numer wyszedł, ale reakcja miasta była słabsza, niż zakładałeś. Nastrój mocno spadł.',()=>{ G.stress=clamp(mood-10,0,100); n.tension=Math.min(100,tension+8); });
 };
+/* PDF#18 §15 — event „Czerwona świeca": po dużej stracie na crypto nastrój mocno spada, napięcie rośnie (łączy ryzyko crypto z Nova Cura). Cooldown 3 dni. Wołane z _cryptoSell. */
+window._novaRedCandle=function(lossZl){ if(typeof _5pdfEnsure==='function') _5pdfEnsure(); const n=G.novacura;
+  if(!n._crisisCd||typeof n._crisisCd!=='object') n._crisisCd={};
+  if((G.day||0)-(n._crisisCd.redcandle||-99)<3) return false;
+  n._crisisCd.redcandle=G.day||0;
+  G.stress=clamp((G.stress||0)-20,0,100); n.tension=Math.min(100,(n.tension||0)+15);
+  window._novaLog('Event: Czerwona świeca','strata na crypto (-'+Math.round(lossZl||0)+' zł)');
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof showMsg==='function') showMsg('🕯️ Czerwona świeca — coin spadł mocniej, niż zakładałeś. Telefon świeci powiadomieniami, a wykres wygląda jak zjazd bez hamulców. Nastrój mocno w dół, napięcie w górę. Jak Cię to przygniata — wpadnij do Nova Cura.','r',7500);
+  return true;
+};
 
 function renderRestauracja(){
   const MENU=[
@@ -54053,16 +54066,23 @@ window._smsCheckTriggers=function(){
   // — Pierwszy track
   /* v2.1.337 Faza T (user 2026-05-27): SMS Producent (Majkel) mówi o 5 singli (analog do quest p_3tracks target 5, spójne z aktualnymi licznikami). PDF Producent: replySet producer_first + follow-up producer_5singles. */
   if(tracks>=1) _smsTriggerOnce('first_track','producent',`Yo, ${G.name||'kolego'}. Słyszałem Twój pierwszy numer — jest tam coś, czego nie da się kupić pluginem. Dowieziesz 5 opublikowanych singli w podobnym tonie, to pogadamy o czymś poważniejszym: beaty, sesje, może i kontrakt 🎚️`,{replySet:'producer_first'});
-  if(tracks>=5) _smsTriggerOnce('producer_5singles','producent',`5 numerów masz na koncie. Wbij do mnie do Studia — pogadamy o współpracy na poważnie: procenty, bity, sesje. Widzę, że nie zwijasz po jednym uploadzie 🎚️`);
+  if(tracks>=5){
+    const _pct=(typeof window._producerContractTier==='function')?window._producerContractTier():{tier:'normal'};
+    const _pTierMsg=_pct.tier==='strong'?'Numery trzymają wysoki poziom — z takim materiałem gadamy o konkretach: lepsze warunki, procenty, sesje.'
+      :_pct.tier==='normal'?'Materiał jest równy i słychać kierunek — jest o czym gadać: normalna oferta producencka, bity i sesje.'
+      :_pct.tier==='small'?'Jest potencjał, ale nie wszystko dowiezione — możemy zacząć od małego: jeden beat albo testowa sesja.'
+      :'Numery masz, ale jakość jeszcze skacze — na razie oferta będzie ostrożna. Podszlifuj brzmienie i wróć po coś większego.';
+    _smsTriggerOnce('producer_5singles','producent',`5 numerów masz na koncie. Wbij do mnie do Studia — ${_pTierMsg} Widzę, że nie zwijasz po jednym uploadzie 🎚️`);
+  }
   if(tracks>=3) _smsTriggerOnce('3_tracks','label','A&R Major Label tu. Twoje numery rosną w streamach. Mamy ofertę kontraktową — wbij w Telefon → Wytwórnia, żeby podpisać 🏢');
   // — Pierwszy koncert
   if(concerts>=1) _smsTriggerOnce('first_concert','marcin',`Świetny występ ${G.name||'kolego'}! Ludzie pytają kiedy nastepny. Daj znać jak chcesz wbic większą scenę 🎤`);
   if(concerts>=5) _smsTriggerOnce('5_concerts','marcin','5 koncertów masz na koncie, jesteś już rozpoznawalny w mieście. Festiwal może być następnym krokiem — myśl o tym');
   // — U14 (v2.3.44 PDF): odblokowania progów rekrutacji ekipy (powiadomienia w konkretnych momentach)
   if((G.fans||0)>=2000) _smsTriggerOnce('crew_dj_unlocked','crew','Masz już 2 000 fanów. To moment, w którym nie wszystko musisz robić sam. Znam DJ-a, który podepnie się pod Twoje bity i podbije sprzedaż — efekt: +15% zarobku ze sprzedaży bitów. Chcesz go sprawdzić? Podbij do mnie na chodnik — H2 north 🎧',{replySet:'ryder_dj_bits'});
-  if((G.fans||0)>=50000) _smsTriggerOnce('crew_hype_unlocked','crew','📢 50 tysięcy fanów! Teraz hype-man ma dla kogo robić szum (+20% wzrost obserwujących). Odezwij się.');
-  if(concerts>=5) _smsTriggerOnce('crew_junior_unlocked','crew','🤵 Pięć występów za Tobą — junior manager jest dostępny (+5% wszystkie zarobki). Wpadnij zrekrutować.');
-  if(concerts>=10) _smsTriggerOnce('crew_djkonc_unlocked','crew','🎧 Dziesięć koncertów! DJ koncertowy na kontrakt wchodzi w grę. Pogadamy o tym przy ekipie.');
+  if((G.fans||0)>=50000) _smsTriggerOnce('crew_hype_unlocked','crew','📢 Pięćdziesiąt tysięcy fanów. Znam hype-mana, który potrafi solidnie podbić Twój wzrost obserwujących (+20%). Chcesz go sprawdzić? Wbij na H2 north.',{replySet:'ryder_hype'});
+  if(concerts>=5) _smsTriggerOnce('crew_junior_unlocked','crew','🤵 Pięć występów za Tobą — robi się z tego ruch, którego nie ogarniesz w głowie. Mam junior managera do porządku w kalendarzu i propozycjach. Wbij na H2 north, jak chcesz pogadać.',{replySet:'ryder_junior'});
+  if(concerts>=10) _smsTriggerOnce('crew_djkonc_unlocked','crew','🎧 Dziesięć koncertów — to już poziom, na którym wchodzi DJ koncertowy, stricte od sceny na żywo. Jak dojrzejesz do tematu, wbij na H2 north.',{replySet:'ryder_djkonc'});
   // E2 (PDF _pdf_nox): odblokowanie NOX Route gdy gracz ma front+lab (komunikat systemowy; handshake/Emir przy otwarciu apki).
   if(typeof window._checkNoxUnlockAfterLab==='function') window._checkNoxUnlockAfterLab();
   // — Sława
@@ -54584,9 +54604,10 @@ window.renderSMSConversation=function(contactId){
           const _pids=Object.keys(window._PRODUCER_REPLIES).filter(k=>window._PRODUCER_REPLIES[k].set==='producer_first');
           return `${_replyCounter}`+window._smsRichButtons('producent',_pids);
         }
-        /* Ryder „Link" Vale (crew) — PDF: kontekstowe odpowiedzi TYLKO dla SMS o rekrutacji DJ-a do bitów (replySet ryder_dj_bits). STRICT: inne SMS ekipy zostają z generycznymi. */
-        if(contactId==='crew' && typeof window._RYDER_REPLIES==='object' && _firstUnreplied && (_firstUnreplied.replySet||'')==='ryder_dj_bits'){
-          const _rids=Object.keys(window._RYDER_REPLIES).filter(k=>window._RYDER_REPLIES[k].set==='ryder_dj_bits');
+        /* Ryder „Link" Vale (crew) — PDF: kontekstowe odpowiedzi dla ofert rekrutacyjnych (DJ-bits/hype/junior/DJ-koncertowy). STRICT: inne SMS ekipy zostają z generycznymi. */
+        if(contactId==='crew' && typeof window._RYDER_REPLIES==='object' && _firstUnreplied && /^ryder_(dj_bits|hype|junior|djkonc)$/.test(_firstUnreplied.replySet||'')){
+          const _rset=_firstUnreplied.replySet;
+          const _rids=Object.keys(window._RYDER_REPLIES).filter(k=>window._RYDER_REPLIES[k].set===_rset);
           return `${_replyCounter}`+window._smsRichButtons('crew',_rids);
         }
         /* system / bank — automaty, gracz nie buduje "przyjaźni" */
@@ -55022,6 +55043,13 @@ window._producerHandleReply=function(opt){
     if(!p.beatPreviewUnlocked){ p.beatPreviewUnlocked=true; if(typeof notify==='function') notify('🎧 Majkel podrzuci Ci szkic bitu, jak wpadniesz do Studia. Bez zobowiązań — sprawdzicie wspólny kierunek.'); }
   }
 };
+/* PDF Producent §7: atrakcyjność oferty zależy od średniej jakości ostatnich singli (reużywa _albumAvgQuality). Próg 5 singli zachowany; jakość tieruje ofertę (weak<50 / small 50-64 / normal 65-79 / strong 80+). */
+window._producerContractTier=function(){
+  const avgQ=(typeof _albumAvgQuality==='function')?_albumAvgQuality():50;
+  const singles=((G.careers&&G.careers.raper&&G.careers.raper.tracks)||0);
+  const tier=avgQ>=80?'strong':avgQ>=65?'normal':avgQ>=50?'small':'weak';
+  return { hasEnough:singles>=5, avgQ, tier };
+};
 /* v2.3.x (PDF Ryder): Ryder „Link" Vale (Crew Scout) — SMS o rekrutacji DJ-a do bitów. set:'ryder_dj_bits'. Klucze ryder* odrębne. Ceny/bonusy rekrutacji BEZ zmian — cel kieruje na H2 north (istniejący panel ekipy). */
 window._RYDER_REPLIES={
   rd_interested:{set:'ryder_dj_bits', label:'👍 Brzmi konkretnie. DJ od bitów może się przydać', text:'Brzmi konkretnie. DJ od bitów może się przydać, jeśli faktycznie umie podbić sprzedaż, a nie tylko nawijać makaron na uszy.', fx:{ryderTrust:1,ryderRelationship:1,ryderRecruitFlow:1}, reply:'Spokojnie. Nie podsyłam ludzi, którzy tylko stoją w tle i robią minę od branży. Ten typ ogarnia bity, selekcję i sprzedaż. Wpadnij na H2 north, zobaczysz czy Ci siądzie.'},
@@ -55031,6 +55059,24 @@ window._RYDER_REPLIES={
   rd_visit:{set:'ryder_dj_bits', label:'📍 Dobra, wpadnę na H2 north i pogadamy', text:'Dobra, wpadnę na H2 north i pogadamy. Jeśli ten DJ faktycznie dowozi, to może być dobry ruch dla podkładów.', fx:{ryderRelationship:1,ryderRecruitFlow:1}, action:'meetingObjective', reply:'Tak jest. Będę na chodniku przy H2 north. Nie przychodź z nastawieniem, że kupujesz bonus — przychodzisz sprawdzić potencjalnego człowieka do ekipy.'},
   rd_postpone:{set:'ryder_dj_bits', label:'🕊 Nie teraz. Najpierw domknę swoje rzeczy', text:'Nie teraz. Najpierw domknę swoje tematy, a potem pomyślę o dokładaniu kolejnych ludzi do ekipy.', fx:{}, action:'postpone', reply:'Jasne. Lepiej dobrać ekipę później, niż zbierać ludzi tylko dlatego, że system daje takie opcje. Jak będziesz gotowy, wiesz gdzie mnie znaleźć.'},
   rd_ignore:{set:'ryder_dj_bits', label:'— Zignoruj', text:null, fx:{ryderRelationship:-1,ryderPatience:-1}, reply:'Temat DJ-a zostawiłeś bez słowa. Spoko, tylko pamiętaj — ludzie z kontaktem nie zawsze czekają w nieskończoność.'},
+  /* Hype man (900 zł... właściwie 750, +20% wzrost obserwujących) — set:'ryder_hype' */
+  rh_in:{set:'ryder_hype', label:'👍 Przyda się szum wokół mnie', text:'Przyda się szum wokół mnie, jeśli to ktoś, kto realnie potrafi podbić zasięg, a nie tylko robić hałas dla hałasu.', fx:{ryderTrust:1,ryderRelationship:1,ryderRecruitFlow:1}, reply:'Ten gość umie zrobić ruch tam, gdzie trzeba. Wpadnij na H2 north, przedstawię Ci go.'},
+  rh_value:{set:'ryder_hype', label:'🔎 Co ten hype-man realnie daje?', text:'Co ten hype-man realnie daje poza samym szumem? Chcę wiedzieć, czy to realny wzrost, czy tylko puste liczniki.', fx:{ryderRespect:1,ryderTrust:1}, reply:'Konkretnie: +20% do wzrostu obserwujących. Nie robi Ci muzyki, ale sprawia, że więcej ludzi w ogóle ją zauważa. Koszt jednorazowy, wpadnij pogadać.'},
+  rh_visit:{set:'ryder_hype', label:'📍 Wpadnę na H2 north', text:'Dobra, wpadnę na H2 north i zobaczę, co to za człowiek.', fx:{ryderRelationship:1,ryderRecruitFlow:1}, action:'crewMeeting', reply:'Będę na chodniku. Poznasz gościa, zdecydujesz sam.'},
+  rh_later:{set:'ryder_hype', label:'🕊 Nie teraz', text:'Nie teraz. Najpierw domknę swoje tematy.', fx:{}, action:'postpone', reply:'Jasne. Hype-man ma sens, jak jest już co podbijać. Odezwij się, jak będziesz gotowy.'},
+  rh_ignore:{set:'ryder_hype', label:'— Zignoruj', text:null, fx:{ryderRelationship:-1,ryderPatience:-1}, reply:'Temat hype-mana zostawiłeś bez słowa. Spoko, wrócimy do niego kiedyś.'},
+  /* Junior manager (4000 zł, wymóg 5 koncertów) — set:'ryder_junior' */
+  rj_in:{set:'ryder_junior', label:'👍 Przyda się ktoś do ogarniania ruchu', text:'Przyda się ktoś do ogarniania ruchu, jeśli faktycznie zdejmie ze mnie logistykę, a nie doda kolejnego szefa nad głową.', fx:{ryderTrust:1,ryderRelationship:1}, reply:'Junior manager to nie szef, tylko człowiek od porządku w kalendarzu i propozycjach. Masz już koncerty na koncie, więc jest sens. Wpadnij na H2 north.'},
+  rj_value:{set:'ryder_junior', label:'🔎 Po co mi junior manager?', text:'Po co mi junior manager na tym etapie? Chcę wiedzieć, co realnie zdejmuje ze mnie z głowy.', fx:{ryderRespect:1,ryderTrust:1}, reply:'Ogarnia terminy, odsiewa słabe propozycje i pilnuje ruchu, którego robi się za dużo, żeby liczyć to w głowie. Ma sens dopiero, jak masz co ogarniać — a Ty już masz. Koszt jednorazowy.'},
+  rj_visit:{set:'ryder_junior', label:'📍 Wpadnę na H2 north', text:'Dobra, wpadnę na H2 north i pogadam z nim na spokojnie.', fx:{ryderRelationship:1,ryderRecruitFlow:1}, action:'crewMeeting', reply:'Tak jest. Będę na miejscu. Zobaczysz, czy nadajecie na tych samych falach.'},
+  rj_later:{set:'ryder_junior', label:'🕊 Jeszcze nie teraz', text:'Jeszcze nie teraz. Sam pociągnę temat trochę dłużej.', fx:{}, action:'postpone', reply:'Rozumiem. Manager to inwestycja, nie zabawka. Jak poczujesz, że ruch Cię przerasta, wiesz gdzie mnie znaleźć.'},
+  rj_ignore:{set:'ryder_junior', label:'— Zignoruj', text:null, fx:{ryderRelationship:-1,ryderPatience:-1}, reply:'Temat junior managera zostawiłeś bez słowa. Bez spiny, wróci jak będzie trzeba.'},
+  /* DJ koncertowy (wymóg 10 koncertów) — set:'ryder_djkonc' */
+  rk_in:{set:'ryder_djkonc', label:'👍 Scena zasługuje na porządny set', text:'Scena zasługuje na porządny set, jeśli to ktoś, kto naprawdę czuje energię koncertu, a nie tylko odtwarza pliki.', fx:{ryderTrust:1,ryderRelationship:1}, reply:'Ten człowiek jest stricte od sceny — buduje energię na żywo, nie klika playbacku. Masz już dziesięć koncertów, więc gadamy poważnie. Wpadnij na H2 north.'},
+  rk_value:{set:'ryder_djkonc', label:'🔎 Czym różni się od DJ-a od bitów?', text:'Czym DJ koncertowy różni się od tego od bitów? Nie chcę dublować ludzi na tej samej robocie.', fx:{ryderRespect:1,ryderTrust:1}, reply:'DJ od bitów siedzi przy sprzedaży i selekcji. Koncertowy robi całą scenę na żywo: przejścia, energię, timing. Dwie różne roboty. Ten wchodzi dopiero przy Twoim poziomie występów.'},
+  rk_visit:{set:'ryder_djkonc', label:'📍 Wpadnę na H2 north', text:'Dobra, wpadnę na H2 north. Jak czuje scenę, to gadamy.', fx:{ryderRelationship:1,ryderRecruitFlow:1}, action:'crewMeeting', reply:'Będę na chodniku. To już poziom, na którym dobiera się ludzi pod konkretną scenę, nie pod panel.'},
+  rk_later:{set:'ryder_djkonc', label:'🕊 Nie ten moment', text:'Nie ten moment. Skupiam się na innych rzeczach.', fx:{}, action:'postpone', reply:'Spoko. DJ koncertowy nie ucieka. Jak dojdziesz do sceny, która tego potrzebuje, odezwij się.'},
+  rk_ignore:{set:'ryder_djkonc', label:'— Zignoruj', text:null, fx:{ryderRelationship:-1,ryderPatience:-1}, reply:'Temat DJ-a koncertowego zostawiłeś bez słowa. Bez presji — wróci przy kolejnej dużej scenie.'},
 };
 /* v2.3.x (PDF Ryder): obsługa odpowiedzi + cel spotkania H2 north (kieruje na istniejący panel rekrutacji ekipy). */
 window._ryderHandleReply=function(opt){
@@ -55038,6 +55084,7 @@ window._ryderHandleReply=function(opt){
   const r=G._ryderRel, act=opt.action;
   if(opt.reply) window._smsPushNpcReply('crew',opt.reply);
   if(act==='meetingObjective'){ if(!r.djMeetingObjSet){ r.djMeetingObjSet=true; if(typeof notify==='function') notify('👥 Cel: wbij na chodnik H2 north (środek miasta, na południe od Sali Koncertowej) — Ryder pokaże Ci DJ-a do bitów: 1200 zł, +15% zarobku ze sprzedaży bitów.'); } }
+  else if(act==='crewMeeting'){ if(typeof notify==='function') notify('👥 Cel: wbij na chodnik H2 north (środek miasta, na południe od Sali Koncertowej) — Ryder pokaże Ci nowego członka ekipy. Rekrutujesz w panelu ekipy (ceny i bonusy bez zmian).'); }
   else if(act==='postpone'){ r.djRecruitPostponed=true; }
 };
 window._applySmsRichEffect=function(fx){
@@ -61781,19 +61828,20 @@ const PATCH_NOTES = [
  items:[
   {t:'new',d:'💎 Wiadomość o inwestycjach w crypto ma teraz własny zestaw odpowiedzi zamiast ogólników. Możesz dopytać o ryzyko, wejść w wyzwanie Diamond Hands, zaznaczyć że wchodzisz tylko małą kwotą, zażartować, powiedzieć że wolisz skupić się na muzyce albo postawić granicę — każda opcja ma własną odpowiedź i wpływa na Twoje podejście do pieniędzy.'},
   {t:'new',d:'🎯 Jeśli podejmiesz wyzwanie Diamond Hands, dostajesz jasny cel: kup crypto i utrzymaj je przez 30 dni bez sprzedaży. Temat jest w pełni opcjonalny — możesz go odrzucić i grać dalej po swojemu.'},
+  {t:'new',d:'📉 Uwaga: crypto to prawdziwe ryzyko — sprzedaż z większą stratą potrafi mocno odbić się na nastroju. Jak Cię to przygniecie, wpadnij do Nova Cura.'},
  ]
  },
  {
  ver:'v2.3.111',date:'2026-07-03',cats:['feature'],title:'🎚️ Nowość: pierwszy kontakt z producentem to prawdziwa rozmowa',
  items:[
-  {t:'new',d:'🎚️ Po wydaniu pierwszego numeru odzywa się producent — i zamiast ogólników masz teraz zestaw branżowych odpowiedzi: podziękuj za odsłuch, dopytaj czego oczekuje, obiecaj kolejne numery, poproś o beat, zapytaj o warunki albo jasno postaw sprawę. Jak dowieziesz pięć numerów, odezwie się ponownie z propozycją współpracy.'},
+  {t:'new',d:'🎚️ Po wydaniu pierwszego numeru odzywa się producent — i zamiast ogólników masz teraz zestaw branżowych odpowiedzi: podziękuj za odsłuch, dopytaj czego oczekuje, obiecaj kolejne numery, poproś o beat, zapytaj o warunki albo jasno postaw sprawę. Jak dowieziesz pięć numerów, odezwie się ponownie z propozycją współpracy — a jej ton zależy od tego, jak trzymają poziom Twoje numery.'},
   {t:'change',d:'✍️ Drobna poprawka językowa w jego wiadomości.'},
  ]
  },
  {
  ver:'v2.3.111',date:'2026-07-03',cats:['feature'],title:'👥 Nowość: rekrutacja ekipy z konkretnym łącznikiem',
  items:[
-  {t:'new',d:'👥 Za rekrutację ekipy odpowiada teraz konkretna postać — łącznik od ludzi, który podsyła Ci kandydatów. Wiadomość o DJ-u do bitów ma własny zestaw odpowiedzi: dopytaj co ten DJ realnie daje, zapytaj o koszt, chciej go najpierw sprawdzić albo umów się na spotkanie. Ceny, bonusy i wymagania rekrutacji zostają bez zmian.'},
+  {t:'new',d:'👥 Za rekrutację ekipy odpowiada teraz konkretna postać — łącznik od ludzi, który podsyła Ci kandydatów. Wiadomości o rekrutacji (DJ do bitów, hype-man, junior manager, DJ koncertowy) mają własne zestawy odpowiedzi: dopytaj co dany członek realnie daje, zapytaj o koszt, chciej go najpierw sprawdzić albo umów się na spotkanie. Ceny, bonusy i wymagania rekrutacji zostają bez zmian.'},
  ]
  },
  {
