@@ -16911,6 +16911,37 @@ window.getRoomEquipmentScore=function(roomId,cat){
   for(const e of r.equipment){ const it=STUDIO_EQUIP[e.id]; if(it&&it.cat===cat&&it.score>best) best=it.score; }
   return best;
 };
+/* ═══ v2.3.109 (PDF13 TIER 13.3): formuły statystyk lokalu (§25-28) — konsumują scores wyposażenia + bazę lokalu ═══ */
+window._recalcStudioRoomStats=function(roomId){
+  const room=STUDIO_ROOMS[roomId]; if(!room) return null;
+  const inst=window.getStudioRoomInstance(roomId);
+  const S=(cat)=>window.getRoomEquipmentScore(roomId,cat);
+  const cl=(v)=>Math.max(0,Math.min(100,Math.round(v)));
+  const computer=S('computer'), daw=S('daw'), mic=S('microphone'), iface=S('audio_interface'),
+        headphones=S('headphones'), monitors=S('monitors'), plugins=S('plugins'),
+        lighting=S('lighting'), furniture=S('furniture'), fridge=S('fridge');
+  const acoustic=cl(room.acousticPotential*0.35 + S('acoustic')*0.65); /* baza lokalu + adaptacja/kabina */
+  const recordingQuality=cl(computer*0.10+daw*0.15+mic*0.30+iface*0.15+headphones*0.10+acoustic*0.20); /* §25 */
+  const mixQuality=cl(computer*0.15+daw*0.20+monitors*0.30+plugins*0.20+acoustic*0.15); /* §26 */
+  const atmosphere=cl(room.atmosphereBase*0.30+lighting*0.25+furniture*0.35+fridge*0.10); /* §27 (furniture=meble+lounge) */
+  const comfort=cl(room.npcComfortBase*0.35+furniture*0.45+fridge*0.10+lighting*0.10); /* §27 */
+  const prestige=cl(room.prestigeBase + (recordingQuality+atmosphere)/20 + (S('acoustic')>=90?5:0));
+  const tipChance=cl(3+comfort*0.08+atmosphere*0.06+(fridge>0?fridge*0.10:0)); /* §28 */
+  inst.stats={recordingQuality,mixQuality,acousticScore:acoustic,comfortScore:comfort,atmosphereScore:atmosphere,prestigeScore:prestige,npcTipChance:tipChance};
+  return inst.stats;
+};
+window.getStudioRoomStats=function(roomId){ const inst=window.getStudioRoomInstance(roomId); if(!inst.stats) window._recalcStudioRoomStats(roomId); return inst.stats||{recordingQuality:0,mixQuality:0,acousticScore:0,comfortScore:0,atmosphereScore:0,prestigeScore:0,npcTipChance:0}; };
+/* czy lokal ma minimalny zestaw do nagrywania wokalu (PDF §8): komputer+DAW+interfejs+mikrofon+słuchawki+akustyka */
+window.studioRoomCanRecord=function(roomId){
+  return window.getRoomEquipmentScore(roomId,'computer')>0 && window.getRoomEquipmentScore(roomId,'daw')>0 &&
+         window.getRoomEquipmentScore(roomId,'audio_interface')>0 && window.getRoomEquipmentScore(roomId,'microphone')>0 &&
+         window.getRoomEquipmentScore(roomId,'headphones')>0 && window.getRoomEquipmentScore(roomId,'acoustic')>0;
+};
+/* czego brakuje do nagrywania wokalu (PDF §40) */
+window.studioRoomMissing=function(roomId){
+  const need=[['computer','komputer'],['daw','DAW'],['audio_interface','interfejs audio'],['microphone','mikrofon'],['headphones','słuchawki'],['acoustic','akustyka']];
+  return need.filter(([c])=>window.getRoomEquipmentScore(roomId,c)===0).map(([,n])=>n);
+};
 window.buyStudioEquip=function(equipId,roomId){
   if(typeof _5pdfEnsure==='function') _5pdfEnsure();
   const it=STUDIO_EQUIP[equipId], room=STUDIO_ROOMS[roomId], sc=G.studioComplex;
@@ -16934,6 +16965,16 @@ window.renderStudioEquip=function(roomId){
   if(!sc.ownedRooms.includes(roomId)){ renderStudioForSale(); return; }
   const inst=window.getStudioRoomInstance(roomId);
   const used=inst.equipment.length, cap=room.maxEquipmentSlots;
+  window._recalcStudioRoomStats(roomId);
+  const s=window.getStudioRoomStats(roomId), miss=window.studioRoomMissing(roomId);
+  const qcol=(v)=>v>=70?'#27ae60':v>=45?'#f1c40f':'#e67e22';
+  const statsBar=`<div style="background:#0a1220;border:1px solid #1a3a5a;border-radius:8px;padding:9px 12px;margin-bottom:8px;display:flex;flex-wrap:wrap;gap:10px;font-size:11px">
+    <span>🎤 Nagrania: <b style="color:${qcol(s.recordingQuality)}">${s.recordingQuality}%</b></span>
+    <span>🎚️ Miks/master: <b style="color:${qcol(s.mixQuality)}">${s.mixQuality}%</b></span>
+    <span>🛋️ Komfort NPC: <b style="color:${qcol(s.comfortScore)}">${s.comfortScore}%</b></span>
+    <span>✨ Atmosfera: <b style="color:${qcol(s.atmosphereScore)}">${s.atmosphereScore}%</b></span>
+    <span>⭐ Prestiż: <b style="color:${qcol(s.prestigeScore)}">${s.prestigeScore}%</b></span>
+  </div>${miss.length?`<div style="background:#1a1206;border-left:3px solid #f1c40f;padding:6px 10px;border-radius:4px;font-size:11px;color:#e8d5a5;margin-bottom:8px">🔧 Aby w pełni nagrywać wokal, brakuje: <b>${miss.join(', ')}</b>.</div>`:'<div style="background:#0a1a0a;border-left:3px solid #27ae60;padding:6px 10px;border-radius:4px;font-size:11px;color:#9ee89e;margin-bottom:8px">✅ Lokal gotowy do nagrywania wokalu.</div>'}`;
   let body='';
   for(const grp of window.STUDIO_EQUIP_GROUPS){
     const ids=Object.keys(STUDIO_EQUIP).filter(id=>grp.cats.indexOf(STUDIO_EQUIP[id].cat)>=0);
@@ -16947,6 +16988,7 @@ window.renderStudioEquip=function(roomId){
   document.getElementById('ov-content').innerHTML=`
     <h2>🎛️ Wyposaż: ${room.emoji} ${room.name}</h2>
     <p class="sub">Każdy sprzęt trafia do TEGO lokalu. Sloty: <b>${used}/${cap}</b> · Kasa: <b style="color:#2ecc71">${(G.money||0).toLocaleString('pl')} zł</b></p>
+    ${statsBar}
     ${body}
     <div class="res" id="shop-res" style="margin-top:6px">Wybierz sprzęt.</div>
     <button class="cbtn" style="margin-top:8px" onclick="renderStudioForSale()">← Studio Complex</button>
@@ -61255,6 +61297,7 @@ const PATCH_NOTES = [
   {t:'change',d:'💰 Przestrzenie studyjne są znacznie droższe niż dawne studio (od 78 000 zł), więc własne studio to teraz poważna inwestycja i realny cel do wygrindowania. Cena spada wraz z Twoim poziomem.'},
   {t:'new',d:'📁 Możesz posiadać kilka lokali naraz i wskazać jeden jako aktywny do własnych nagrań. Jeśli miałeś już wcześniej studio, dostajesz w zamian gotowy Booth Room — nic nie tracisz.'},
   {t:'new',d:'🎛️ Każdy lokal wyposażasz osobno — komputer i DAW, mikrofony, interfejsy, odsłuch, MIDI, akustyka, oświetlenie, meble, lodówka i dodatki. Sprzęt trafia do konkretnego studia, a każdy lokal ma limit miejsca (większe przestrzenie mieszczą więcej sprzętu). Panel wyposażenia i zakup kolejnych lokali otwierasz z wnętrza studia.'},
+  {t:'new',d:'📊 Wyposażenie realnie kształtuje jakość lokalu — panel pokazuje jakość nagrań, miks i master, komfort, atmosferę oraz prestiż, a także podpowiada, czego jeszcze brakuje, by w pełni nagrywać wokal (komputer, DAW, interfejs, mikrofon, słuchawki i akustyka to minimum).'},
  ]
  },
  {
