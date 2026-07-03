@@ -3459,7 +3459,11 @@ const ROOMS = {
       {id:'dealer_underground',     wx:1080,wy:720, w:140,h:130, act:'underground_dealer',    prompt:'[E] 🤝 Dealer (Trap)',         lbl:'Dealer'},
       /* v2.1.468 user wymaganie "kamper/laboratoria/plantacje" — Tier 0/1/2 trap fizyczne miejsca, gated per G.trap.level. */
       /* v2.3.103 (user pkt4-6): produkcja przeniesiona do RUBIEŻY (dolna połowa, worldY~950) — pasuje klimatycznie + rozrzedza stłoczone wejście. Rząd 4 budynków, gap ~140px (anti-getNear-collision, lekcja zaułek). Zaparkowany kamper-pojazd (_camperParkedAt) NIEZALEŻNY (hardcode 1120,430) — bez wpływu. */
-      {id:'camper_underground',     wx:950, wy:1660,w:120,h:120, act:'underground_camper',    prompt:'[E] 🚐 Kamper (Trap Tier 0)',  lbl:'Kamper'},/* v2.3.105 (user): → obok zajazdu (dół), gap 90px */
+      /* v2.3.108 PDF#10: statyczny „Kamper" USUNIĘTY — zastąpiony 3 strefami zaplecza. Kamper = kupiony pojazd
+         zaparkowany w strefie; wnętrze (ROOMS.kamper) otwierasz panelem [L] „Wejdź do wnętrza". */
+      {id:'zone_old_parking',       wx:1000,wy:1700,w:110,h:110, act:'ug_zone:old_parking',    prompt:'[E] 🅿️ Strefa: Stary Postój',  lbl:'Stary Postój'},
+      {id:'zone_silent_channel',    wx:150, wy:1700,w:110,h:110, act:'ug_zone:silent_channel', prompt:'[E] 🌀 Strefa: Cichy Kanał',    lbl:'Cichy Kanał'},
+      {id:'zone_rear_yard',         wx:1285,wy:1300,w:110,h:110, act:'ug_zone:rear_yard',       prompt:'[E] 🏭 Strefa: Tylny Plac',     lbl:'Tylny Plac'},
       {id:'lab_underground',        wx:380, wy:950, w:120,h:120, act:'underground_lab',       prompt:'[E] 🧪 Laboratorium (lvl 10+)', lbl:'Lab'},
       {id:'plantation_underground', wx:60,  wy:1470,w:120,h:120, act:'underground_plantation',prompt:'[E] 🌿 Plantacja (lvl 5+)',   lbl:'Plantacja'},/* v2.3.105 (user): → lewa dolna (droga szutrowa ma biec w x630) */
       /* v2.1.920 (PDF l.57 — nocna aktywność 18+): Nocny zaułek (prostytutki) — dyskretne miejsce w underground, gated za unlock dzielnicy + godziny 21-05 (PLACE_HOURS). Bottom-right, overlap-free vs venue. */
@@ -4070,7 +4074,9 @@ function drawSprite(id,sx,sy,w,h){
     case 'slumsy_underground':      drawSlumsy(sx,sy,w,h);break;
     case 'zajazd_underground':      drawZajazd(sx,sy,w,h);break;
     /* v2.1.468 tier trap operations */
-    case 'camper_underground':      drawCamper(sx,sy,w,h);break;
+    case 'zone_old_parking':        drawBackroomZoneMarker(sx,sy,w,h,'old_parking');break; /* v2.3.108 PDF#10 */
+    case 'zone_silent_channel':     drawBackroomZoneMarker(sx,sy,w,h,'silent_channel');break;
+    case 'zone_rear_yard':          drawBackroomZoneMarker(sx,sy,w,h,'rear_yard');break;
     case 'lab_underground':         drawLab(sx,sy,w,h);break;
     case 'plantation_underground':  drawPlantation(sx,sy,w,h);break;
     case 'gravellot_underground':   drawGravelLotHall(sx,sy,w,h);break; /* v2.3.102 (PDF #8-24): hala serwisowa/warsztatowa zamiast zwykłej fasady */
@@ -10587,10 +10593,43 @@ function _drawUndergroundOutskirts(){
     else { /* weeds */ X.strokeStyle='#4a6a3a'; X.lineWidth=1.4; for(let k=-3;k<=3;k++){ X.beginPath(); X.moveTo(sx+k*3,sy); X.quadraticCurveTo(sx+k*3+k,sy-10,sx+k*4,sy-14); X.stroke(); } }
   }
 }
+/* v2.3.108 PDF#10: znak strefy zaplecza (miejsce parkowania kampera) — dispatch z draw-switch obiektów mapy. */
+function drawBackroomZoneMarker(sx,sy,w,h,zoneId){
+  const z=(typeof window._backroomZoneById==='function')?window._backroomZoneById(zoneId):null;
+  const unlocked=(typeof window._camperZoneUnlocked==='function')?window._camperZoneUnlocked(zoneId):false;
+  const cx=sx+w/2, cy=sy+h/2;
+  X.fillStyle=unlocked?'rgba(60,45,80,0.40)':'rgba(42,42,50,0.34)';
+  if(X.roundRect){X.beginPath();X.roundRect(sx+4,sy+4,w-8,h-8,8);X.fill();}else X.fillRect(sx+4,sy+4,w-8,h-8);
+  X.strokeStyle=unlocked?'rgba(155,89,182,0.75)':'rgba(120,120,130,0.5)'; X.lineWidth=2; if(X.setLineDash)X.setLineDash([6,5]);
+  if(X.roundRect){X.beginPath();X.roundRect(sx+4,sy+4,w-8,h-8,8);X.stroke();}else X.strokeRect(sx+4,sy+4,w-8,h-8);
+  if(X.setLineDash)X.setLineDash([]);
+  const emoji=zoneId==='old_parking'?'🅿️':(zoneId==='silent_channel'?'🌀':'🏭');
+  X.font='26px system-ui'; X.textAlign='center'; X.textBaseline='middle';
+  X.fillText(emoji, cx, cy-8);
+  X.font='bold 11px system-ui'; X.fillStyle=unlocked?'#c79be3':'#8a8a95';
+  X.fillText(z?z.name:zoneId, cx, cy+20);
+  if(!unlocked){ X.font='14px system-ui'; X.fillText('🔒', cx+28, cy-16); }
+  X.textAlign='left'; X.textBaseline='alphabetic';
+}
+/* v2.3.108 PDF#10: subtelny obrys obszarów stref (tolerancja parkowania) + etykieta — rysowane pod dekoracjami Underground. */
+function drawUndergroundBackroomZones(){
+  if(typeof UNDERGROUND_BACKROOM_ZONES==='undefined') return;
+  for(const z of UNDERGROUND_BACKROOM_ZONES){
+    const sx=wx2sx(z.wx), sy=wy2sy(z.wy);
+    const unlocked=(typeof window._camperZoneUnlocked==='function')?window._camperZoneUnlocked(z.id):false;
+    X.save();
+    X.fillStyle=unlocked?'rgba(120,70,160,0.06)':'rgba(90,90,110,0.05)';
+    X.fillRect(sx,sy,z.w,z.h);
+    X.strokeStyle=unlocked?'rgba(155,89,182,0.28)':'rgba(120,120,140,0.20)'; X.lineWidth=1.5; if(X.setLineDash)X.setLineDash([10,8]);
+    X.strokeRect(sx,sy,z.w,z.h); if(X.setLineDash)X.setLineDash([]);
+    X.restore();
+  }
+}
 function drawUndergroundDecorations(){
   const isNight=(typeof G!=='undefined' && G.timeOfDay>=2);
   const pulse=Math.sin(Date.now()/500)*0.3+0.7;
   _drawUndergroundOutskirts(); /* v2.3.103: rozwinięta dolna połowa mapy (rubieże) */
+  drawUndergroundBackroomZones(); /* v2.3.108 PDF#10: obszary stref zaplecza */
   /* v2.3.100 (user: „pojazdy jeżdżą po chodniku" — underground nie miał rysowanej jezdni, auta dzielnicowe (y500/540) wyglądały jakby jeździły po nawierzchni pieszych). Rysujemy poziomą jezdnię w pasie aut (y488-552) + krawężniki + linia środkowa. */
   (function(){
     const rw=((typeof ROOMS!=='undefined'&&ROOMS.underground&&ROOMS.underground.wT)||30)*T;
@@ -14515,6 +14554,10 @@ function handleAct(act,objId){
     const placeId=act.replace('business_','');
     if(typeof window._enterDistrictPlace==='function') window._enterDistrictPlace('business',placeId);
     else if(typeof showMsg==='function') showMsg('🚧 Content w przygotowaniu','f',3000);
+  } else if(act&&act.startsWith('ug_zone:')){
+    /* v2.3.108 PDF#10: znak strefy zaplecza Underground → panel info + wejście do wnętrza gdy zaplecze aktywne. */
+    const zoneId=act.split(':')[1];
+    if(typeof window._showBackroomZoneInfo==='function') window._showBackroomZoneInfo(zoneId);
   } else if(act&&act.startsWith('grow_pot:')){
     /* v2.1.782 FAZA 1 — interakcja z wolnostojącą doniczką (grow_pot:<site>:<idx>).
        v2.1.817 UTWARDZENIE (user: "na Netlify doniczka nie reagowala az do refreshu"):
@@ -39948,6 +39991,136 @@ window.canUseCamperWorkspace=function(){
      Dwa modele współistnieją: abstract=zaplecze/ryzyko, fizyczny=jazda. */
   return !!(c && c.owned && !c.destroyed && c.location && window._camperWorkZoneIds.includes(c.location));
 };
+/* ═══ PDF #10 (v2.3.108): STREFY ZAPLECZA UNDERGROUND + wnętrze kampera zależne od modelu ═══
+   Zaplecze = kupiony kamper zaparkowany (fizycznie) w ODBLOKOWANEJ strefie Underground + silnik off + !uszkodzony.
+   3 strefy (§3/§14/§15/§23): Stary Postój (w miejscu usuniętego statycznego „Kamper"), Cichy Kanał, Tylny Plac.
+   Prostokąty w mapie Underground (1440×1920) — ZERO overlap z budynkami (#8). */
+const UNDERGROUND_BACKROOM_ZONES=[
+  {id:'old_parking',    name:'Stary Postój', wx:860, wy:1600, w:320, h:262, unlock:'has_camper',
+    riskModifier:5,  discretionModifier:0,  reliabilityModifier:-5, capacityBonus:0,
+    desc:'Stary fragment Underground, gdzie kiedyś stał cudzy kamper. Trochę blachy, trochę cienia i wystarczająco dużo ciszy, żeby nikt nie zadawał pytań.'},
+  {id:'silent_channel', name:'Cichy Kanał',  wx:40,  wy:1620, w:340, h:250, unlock:'underworld_intro',
+    riskModifier:-5, discretionModifier:10, reliabilityModifier:0,  capacityBonus:5,
+    desc:'Dolna odnoga techniczna, do której nie prowadzi żadna oficjalna droga. Miasto tu nie zagląda, chyba że ktoś zrobi za dużo hałasu.'},
+  {id:'rear_yard',      name:'Tylny Plac',   wx:1200,wy:1150, w:230, h:342, unlock:'underworld_rep_10',
+    riskModifier:-10,discretionModifier:15, reliabilityModifier:5,  capacityBonus:10,
+    desc:'Tylny plac za linią starych magazynów. Nie wygląda jak miejsce, w którym coś się dzieje. I właśnie dlatego coś się tam dzieje.'},
+];
+window._backroomZoneById=function(id){ return UNDERGROUND_BACKROOM_ZONES.find(z=>z.id===id)||null; };
+/* §11-12: statystyki wnętrza per model (quality/capacity/reliability/discretion/comfort/prestige, 0-100). */
+const CAMPER_INTERIOR_STATS={
+  rumbler_nomad_88:     {quality:25,capacity:30,reliability:20,discretion:45,comfort:15,prestige:5},
+  vanton_drifter_91:    {quality:40,capacity:45,reliability:40,discretion:50,comfort:30,prestige:10},
+  arko_trailbox_96:     {quality:55,capacity:60,reliability:50,discretion:60,comfort:40,prestige:15},
+  northvan_pilgrim_2004:{quality:65,capacity:60,reliability:65,discretion:60,comfort:55,prestige:35},
+  valora_horizon_c7:    {quality:80,capacity:75,reliability:80,discretion:70,comfort:75,prestige:60},
+  aurum_roamer_x:       {quality:95,capacity:90,reliability:92,discretion:80,comfort:90,prestige:90},
+};
+window._camperInterior=function(modelId){
+  const m=modelId||(G.camper&&G.camper.model);
+  return CAMPER_INTERIOR_STATS[m]||{quality:30,capacity:30,reliability:30,discretion:40,comfort:20,prestige:5};
+};
+/* §6/§7: kampery Gravel Lot wolniejsze w produkcji, CityDrive szybsze. Mnożnik czasu cyklu na bazie quality wnętrza. */
+window._camperProductionSpeed=function(){
+  const q=(window._camperInterior().quality||30); /* 25..95 */
+  return Math.round((0.80+0.007*q)*100)/100; /* q25→~0.98, q95→~1.47 (wyższa jakość = szybciej) */
+};
+/* §15: warunki odblokowania stref. */
+window._camperZoneUnlocked=function(zoneId){
+  const z=window._backroomZoneById(zoneId); if(!z) return false;
+  const hasCamper=!!(G.camper&&G.camper.owned);
+  if(z.unlock==='has_camper') return hasCamper;
+  const introDone=!!(G.underworldIntro && (G.underworldIntro.completed===true || G.underworldIntro.state==='completed'));
+  if(z.unlock==='underworld_intro') return hasCamper && introDone;
+  if(z.unlock==='underworld_rep_10') return hasCamper && introDone && (G._underworldRespect||0)>=10;
+  return false;
+};
+/* fizyczna pozycja kampera w Underground — jadąc: pozycja gracza; zaparkowany: _camperParkedAt. null = poza Underground. */
+window._camperUndergroundPos=function(){
+  if(G._inCamper && typeof currentRoom!=='undefined' && currentRoom==='underground') return {wx:P.wx, wy:P.wy};
+  if(G._camperParkedAt && G._camperParkedAt.room==='underground') return {wx:G._camperParkedAt.wx, wy:G._camperParkedAt.wy};
+  return null;
+};
+/* strefa, w której stoi kamper (rect zawiera środek pozycji). Zwraca {zone,unlocked} lub null (poza strefami/Underground). */
+window._camperBackroomZone=function(){
+  const pos=window._camperUndergroundPos(); if(!pos) return null;
+  const hw=(typeof P!=='undefined'?P.w/2:16), hh=(typeof P!=='undefined'?P.h/2:16);
+  const cx=pos.wx+hw, cy=pos.wy+hh;
+  for(const z of UNDERGROUND_BACKROOM_ZONES){
+    if(cx>=z.wx && cx<=z.wx+z.w && cy>=z.wy && cy<=z.wy+z.h) return {zone:z, unlocked:window._camperZoneUnlocked(z.id)};
+  }
+  return null;
+};
+/* pełna bramka zaplecza (§7/§24): owned + !destroyed + !pendingScrap/Sale + silnik off + strefa Underground odblokowana. */
+window._camperBackroomActive=function(){
+  window._camperEnsure(); const c=G.camper;
+  if(!c||!c.owned||c.destroyed||c.pendingScrap||c.pendingSale) return false;
+  if(typeof window._vehEngineOn==='function' && window._vehEngineOn('camper')) return false; /* §13: silnik wyłączony */
+  const bz=window._camperBackroomZone();
+  return !!(bz && bz.unlocked);
+};
+/* powód niedostępności zaplecza (do komunikatów §8). */
+window._camperBackroomBlockReason=function(){
+  window._camperEnsure(); const c=G.camper;
+  if(!c||!c.owned) return 'no_camper';
+  if(c.destroyed) return 'destroyed';
+  if(c.pendingScrap||c.pendingSale) return 'pending';
+  if(typeof window._vehEngineOn==='function' && window._vehEngineOn('camper')) return 'engine';
+  const pos=window._camperUndergroundPos();
+  if(!pos) return 'not_underground';
+  const bz=window._camperBackroomZone();
+  if(!bz) return 'exposed';
+  if(!bz.unlocked) return 'zone_locked';
+  return null; /* dostępne */
+};
+/* Wejście do wnętrza kampera (ROOMS.kamper) — TYLKO gdy zaplecze aktywne (§6/§27.10). Zastępuje stary statyczny punkt. */
+window._enterCamperInterior=function(){
+  if(!window._camperBackroomActive()){
+    const r=window._camperBackroomBlockReason();
+    const msg = r==='no_camper' ? '🚐 Potrzebujesz własnego kampera. Kup go w Gravel Lot Motors albo CityDrive Motors.' :
+      r==='engine' ? '🚐 Najpierw zgaś silnik kampera (klawisz K), zanim wejdziesz do zaplecza.' :
+      r==='destroyed' ? '🚐 Pojazd wymaga naprawy. W takim stanie zaplecze jest niedostępne.' :
+      r==='pending' ? '🚐 Kamper jest w trakcie sprzedaży/rozbiórki — zaplecze niedostępne.' :
+      r==='not_underground' ? '🚐 Zbyt publiczna lokalizacja. Przestaw kampera do jednej ze stref Underground District.' :
+      r==='exposed' ? '🚐 To miejsce jest zbyt odsłonięte. Poszukaj oznaczonej strefy zaplecza (Stary Postój / Cichy Kanał / Tylny Plac).' :
+      r==='zone_locked' ? '🚐 Ta strefa nie jest jeszcze dostępna — potrzebujesz większego progresu w Underground.' :
+      '🚐 Zaplecze chwilowo niedostępne.';
+    if(typeof showMsg==='function') showMsg(msg,'r',5500);
+    return false;
+  }
+  if(typeof closeOverlay==='function') closeOverlay();
+  if(typeof closePhone==='function') closePhone();
+  if(typeof changeRoom==='function'){ changeRoom('kamper',480,400); return true; }
+  return false;
+};
+/* Panel informacyjny strefy (interakcja [E] przy znaku strefy) — nazwa/opis/ryzyko + wejście gdy zaplecze aktywne. */
+window._showBackroomZoneInfo=function(zoneId){
+  const z=window._backroomZoneById(zoneId); if(!z) return;
+  const unlocked=window._camperZoneUnlocked(zoneId);
+  const bz=window._camperBackroomZone();
+  const activeHere = window._camperBackroomActive() && bz && bz.zone.id===zoneId;
+  const riskTxt = z.riskModifier<0?'niższe':(z.riskModifier>0?'wyższe':'średnie');
+  let body=`🅿️ <b>${z.name}</b>\n\n${z.desc}\n\nRyzyko: ${riskTxt} · Dyskrecja: ${z.discretionModifier>=0?'+':''}${z.discretionModifier} · Pojemność: ${z.capacityBonus>=0?'+':''}${z.capacityBonus}\n\n`;
+  if(!unlocked){
+    body += (zoneId==='old_parking') ? 'Potrzebujesz własnego kampera, żeby korzystać z zaplecza.' :
+      (zoneId==='silent_channel' ? 'Strefa otwiera się po zbudowaniu relacji z półświatkiem Underground.' :
+       'Strefa dla kogoś z wyższą reputacją w Underground.');
+    if(typeof gameAlert==='function') gameAlert(body); else if(typeof showMsg==='function') showMsg(body.replace(/<[^>]+>/g,''),'i',6000);
+    return;
+  }
+  if(activeHere){
+    body += 'Twój kamper stoi w tej strefie, silnik wyłączony. Wejść do wnętrza?';
+    if(typeof gameConfirm==='function') gameConfirm(body, ()=>{ window._enterCamperInterior&&window._enterCamperInterior(); });
+    else { window._enterCamperInterior&&window._enterCamperInterior(); }
+    return;
+  }
+  const reason=window._camperBackroomBlockReason();
+  body += reason==='no_camper' ? 'Najpierw kup kampera (Gravel Lot Motors / CityDrive Motors).' :
+    reason==='engine' ? 'Zgaś silnik kampera, zanim skorzystasz z zaplecza.' :
+    reason==='destroyed' ? 'Kamper wymaga naprawy — w tym stanie zaplecze jest niedostępne.' :
+    'Przyprowadź tu kampera (klawisz K), zaparkuj w tej strefie i zgaś silnik. Potem otwórz panel [L] albo wejdź tutaj.';
+  if(typeof gameAlert==='function') gameAlert(body); else if(typeof showMsg==='function') showMsg(body.replace(/<[^>]+>/g,''),'i',6000);
+};
 window.renderCamperPanel=function(){
   window._camperEnsure(); const c=G.camper;
   const ph=document.getElementById('ph-content'); if(!ph) return;
@@ -44031,9 +44204,10 @@ window._enterDistrictPlace=(districtId,placeId)=>{
       return;
     /* v2.1.482 USER FEEDBACK — kamper/lab to ENTERABLE ROOMS (gracz wchodzi do środka). */
     case 'underground_camper':
+      /* v2.3.108 PDF#10: stary statyczny punkt USUNIĘTY — przekierowanie na nowy system (wnętrze kupionego kampera). */
       if(typeof closeOverlay==='function') closeOverlay();
-      if(!G.trap?.unlocked){showMsg('🚐 Kamper to baza dla Trap Tier 0. Najpierw odwiedź Dealer (Underground).','i',5500);return;}
-      if(typeof changeRoom==='function'){changeRoom('kamper',480,400);return;}
+      if(typeof window._camperBackroomActive==='function' && window._camperBackroomActive()){ window._enterCamperInterior&&window._enterCamperInterior(); return; }
+      if(typeof showMsg==='function') showMsg('🚐 Kamper to teraz Twój pojazd. Kup go, zaparkuj w strefie Underground (np. Stary Postój, obok zajazdu) i wejdź do wnętrza panelem [L].','i',6500);
       return;
     /* v2.3.54 MODUŁ POJAZDÓW SPECJALNYCH — komis Gravel Lot Motors (Korek → tanie kampery używane). */
     case 'underground_gravellot':
@@ -49388,11 +49562,40 @@ window._camperEnsure=function(){
      (stary save sprzed E4d / grandfather Trap) dostaje domyślną pozycję w Underground, żeby móc wsiąść (K/panel).
      Guard !G._inCamper KONIECZNY — podczas jazdy _camperParkedAt=null CELOWO (nie nadpisuj jadącego kampera). */
   if(c.owned && !G._inCamper && (!G._camperParkedAt || !G._camperParkedAt.room)){
-    G._camperParkedAt={wx:1120,wy:430,room:'underground'};/* v2.3.100: nad jezdnią (był wy:540 = pas aut) */
+    G._camperParkedAt={wx:1020,wy:1710,room:'underground'};/* v2.3.108 PDF#10: domyślnie w strefie Stary Postój (zaplecze) */
   }
   /* v2.3.100 migracja: kamper zaparkowany na pasie aut underground (wy 480-560) → przesuń nad jezdnię (auta przenikały). Idempotentne. */
   if(c.owned && !G._inCamper && G._camperParkedAt && G._camperParkedAt.room==='underground' && G._camperParkedAt.wy>=480 && G._camperParkedAt.wy<=560){
     G._camperParkedAt.wy=430;
+  }
+  /* ═══ v2.3.108 PDF#10 MIGRACJA (jednorazowa, save-safe #1 TWARDA): stary statyczny punkt „Kamper" → 3 strefy zaplecza. ═══
+     (a) Istniejący gracz PRODUKCJI (trap.unlocked) BEZ kampera → legacy Rumbler Nomad 88 w Stary Postój (produkcja NIE zbrickowana).
+     (b) Istniejący WŁAŚCICIEL kampera domyślnie zaparkowany w górnym Underground (poza strefami) → przenieś do Stary Postój.
+     Nowa gra: _pdf10Migrated ustawia się WCZEŚNIE (trap jeszcze nieodblokowany) → późniejszy unlock trapa NIE daje darmowego kampera. */
+  if(!G._pdf10Migrated){
+    G._pdf10Migrated=true;
+    const _STARY={wx:1020,wy:1710,room:'underground'};
+    if(G.trap && G.trap.unlocked && !c.owned){
+      c.owned=true; c._legacyCamper=true; if(!c.model) c.model='rumbler_nomad_88'; if(c.condition==null) c.condition=55;
+      if(!c.camouflage) c.camouflage=10; if(!c.sourceShop) c.sourceShop='legacy'; if(!c.location) c.location='old_overpass_parking';
+      if(!G._inCamper) G._camperParkedAt={wx:_STARY.wx,wy:_STARY.wy,room:_STARY.room};
+      G._pdf10MigrationMsg='legacy';
+    } else if(c.owned && !G._inCamper && G._camperParkedAt && G._camperParkedAt.room==='underground' && G._camperParkedAt.wy<1100){
+      G._camperParkedAt={wx:_STARY.wx,wy:_STARY.wy,room:_STARY.room};
+      G._pdf10MigrationMsg='zones';
+    }
+  }
+  /* deferred komunikat migracji (UI gotowe ~2.5s po load); jednorazowe zaplanowanie na sesję. */
+  if(G._pdf10MigrationMsg && !window._pdf10MsgScheduled && typeof setTimeout==='function'){
+    window._pdf10MsgScheduled=true;
+    setTimeout(()=>{
+      if(!G._pdf10MigrationMsg) return; const m=G._pdf10MigrationMsg; G._pdf10MigrationMsg=null;
+      const txt = m==='legacy'
+        ? '🚐 Stara lokacja „Kamper" została zastąpiona strefą Underground: Stary Postój. Dostajesz zapasowy kamper (Rumbler Nomad 88) — stoi w Stary Postój, żeby Twoja produkcja działała dalej.'
+        : '🚐 Stara lokacja „Kamper" została zastąpiona strefą Underground: Stary Postój. Twój kamper czeka tam zaparkowany — wejdź do wnętrza panelem [L].';
+      if(typeof showMsg==='function') showMsg(txt,'i',9000);
+      if(typeof window.addPhoneNote==='function'){ try{ window.addPhoneNote('Zaplecze','Pojazd ma więcej zastosowań, niż wygląda na pierwszy rzut oka. Jeśli znajdziesz odpowiednie miejsce, panel [L] pokaże więcej.'); }catch(e){} }
+    }, 2500);
   }
 };
 /* ═══ PDF #9 (v2.3.108): STAN INTERAKCJI POJAZDU — silnik / światła / zamek / pasy (auto + kamper).
