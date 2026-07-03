@@ -53070,7 +53070,7 @@ window.renderCrewPanel=function(){
 const SMS_CONTACTS={
   wiktor:    {name:'Wiktor (Drip District)',  em:'👔', color:'#7ec8e3', physical:true},
   marcin:    {name:'Marcin (Organizator)',    em:'🎤', color:'#9b59b6', physical:true},
-  producent: {name:'Producent',                em:'🎚️', color:'#e67e22', physical:true},
+  producent: {name:'Majkel (Producent)',       em:'🎚️', color:'#e67e22', physical:true}, /* PDF Producent: konkretny NPC (Majkel istnieje jako fizyczny producent w Studio) zamiast bezosobowego „Producent" */
   kamil:     {name:'Kamil (Stary kumpel)',    em:'👊', color:'#27ae60', physical:false},
   zbyszek:   {name:'Zbyszek (Kebab)',          em:'🌮', color:'#f1c40f', physical:true},
   /* v2.1.228 audit-fix #46: Manager BYL physical:false ale istnieje fizyczny NPC `npc_manager` na chodniku H1 south (wx:1950, wy:596, przed Szpitalem) — gracz tam podpisuje kontrakt menadżerski. SMS "Czekam pod salą koncertową" było spójne, ale UI błędnie pokazywało "Kontakt tylko przez telefon". */
@@ -53915,7 +53915,8 @@ window._smsCheckTriggers=function(){
   if(freestyles>=1) _smsTriggerOnce('first_freestyle','kamil','widzialem ten freestyle na ulicy 🔥 zajechałeś ostro! tak trzymaj',{replySet:'freestyle'});
   // — Pierwszy track
   /* v2.1.337 Faza T (user 2026-05-27): SMS Producent mówi o 5 single (analog do quest p_3tracks target 5, spójne z aktualnymi licznikami). */
-  if(tracks>=1) _smsTriggerOnce('first_track','producent',`Yo, ${G.name||'kolego'}! Twój track wpadł mi w ucho. Jak zrobisz 5 single — pogadamy o kontrakcie 🎚️`);
+  if(tracks>=1) _smsTriggerOnce('first_track','producent',`Yo, ${G.name||'kolego'}. Słyszałem Twój pierwszy numer — jest tam coś, czego nie da się kupić pluginem. Dowieziesz 5 opublikowanych singli w podobnym tonie, to pogadamy o czymś poważniejszym: beaty, sesje, może i kontrakt 🎚️`,{replySet:'producer_first'});
+  if(tracks>=5) _smsTriggerOnce('producer_5singles','producent',`5 numerów masz na koncie. Wbij do mnie do Studia — pogadamy o współpracy na poważnie: procenty, bity, sesje. Widzę, że nie zwijasz po jednym uploadzie 🎚️`);
   if(tracks>=3) _smsTriggerOnce('3_tracks','label','A&R Major Label tu. Twoje numery rosną w streamach. Mamy ofertę kontraktową — wbij w Telefon → Wytwórnia, żeby podpisać 🏢');
   // — Pierwszy koncert
   if(concerts>=1) _smsTriggerOnce('first_concert','marcin',`Świetny występ ${G.name||'kolego'}! Ludzie pytają kiedy nastepny. Daj znać jak chcesz wbic większą scenę 🎤`);
@@ -54441,6 +54442,11 @@ window.renderSMSConversation=function(contactId){
           const _kids=Object.keys(window._MANAGER_REPLIES).filter(k=>window._MANAGER_REPLIES[k].set===_kset);
           return `${_replyCounter}`+window._smsRichButtons('manager',_kids);
         }
+        /* Producent (Majkel) — PDF: kontekstowe odpowiedzi TYLKO dla pierwszego propsu (replySet producer_first). STRICT: inne SMS producenta zostają z generycznymi. */
+        if(contactId==='producent' && typeof window._PRODUCER_REPLIES==='object' && _firstUnreplied && (_firstUnreplied.replySet||'')==='producer_first'){
+          const _pids=Object.keys(window._PRODUCER_REPLIES).filter(k=>window._PRODUCER_REPLIES[k].set==='producer_first');
+          return `${_replyCounter}`+window._smsRichButtons('producent',_pids);
+        }
         /* system / bank — automaty, gracz nie buduje "przyjaźni" */
         if(contactId==='system'||contactId==='bank'){
           return `${_replyCounter}<div style="display:flex;gap:4px;flex-wrap:wrap">
@@ -54853,6 +54859,27 @@ window._MANAGER_REPLIES={
   ku_postpone:{set:'unlocked', label:'🕊 Jeszcze nie teraz. Sam pociągnę', text:'Jeszcze nie teraz. Chcę chwilę sam pociągnąć temat i zobaczyć, gdzie dojdę bez pomocy managera.', fx:{}, action:'mgrPostpone', reply:'Rozumiem. Samodzielność to podstawa — dopóki nie zaczyna się tracić rzeczy, o których się nie wiedziało. Jak uznasz, że czas uporządkować ruchy, wiesz gdzie mnie znaleźć.'},
   ku_ignore:{set:'unlocked', label:'— Zignoruj', text:null, fx:{mgrInterest:-1,mgrPatience:-1}, reply:'Bez spiny. Jak będziesz gotów rozmawiać o prowadzeniu kariery, odezwij się.'},
 };
+/* v2.3.x (PDF Producent): Majkel — pierwszy props po debiutanckim singlu. set:'producer_first'. Kontakt BRANŻOWY (nie „przyjaźń") — staty prod* w G._producerRel. Cel: 5 singli → rozmowa u Majkla w Studiu. Klucze fx odrębne (prod*) — brak cross-contamination. */
+window._PRODUCER_REPLIES={
+  pr_listen:{set:'producer_first', label:'🙏 Dzięki za odsłuch, numer nie przeszedł bokiem', text:'Dzięki za odsłuch. Dobrze wiedzieć, że numer nie przeszedł bokiem. Dopiero układam brzmienie, ale fajnie, że coś w tym usłyszałeś.', fx:{prodInterest:1,prodRelationship:1,artistMood:1}, reply:'Spokojnie. Nie propsuję z grzeczności. Dyskografii jeszcze nie masz, ale masz coś, od czego można zacząć. Dowieziesz kolejne numery — zobaczymy, czy to przypadek, czy kierunek.'},
+  pr_expect:{set:'producer_first', label:'🎯 Co dokładnie chcesz usłyszeć w tych 5 singlach?', text:'Co dokładnie chcesz usłyszeć w tych 5 singlach? Jakość, konsekwencję, brzmienie, czy to, czy mam ustalony kierunek?', fx:{prodTrust:1,prodRespect:1}, action:'showReq', reply:'Wszystko po trochu. Jeden numer może być fartem. Pięć pokazuje, czy masz ucho, charakter i powtarzalność. Nie muszą być identyczne — mają pokazać, że wiesz, po co wchodzisz na beat.'},
+  pr_promise:{set:'producer_first', label:'💪 Jeden numer to start. Dowiozę więcej', text:'Jeden numer to dopiero start, mam tego świadomość. Dowiozę więcej i wtedy pogadamy na poważnie. Nie chcę być typem, co zwija po jednym uploadzie.', fx:{prodContractReadiness:1,prodRespect:1,careerFocus:1}, action:'objective', reply:'I to jest właściwa odpowiedź. Nie interesuje mnie jednorazowy skok, tylko ktoś, kto wraca do studia i za każdym razem wychodzi z czymś lepszym.'},
+  pr_beat:{set:'producer_first', label:'🎧 Podeślij vibe albo beat, zobaczę czy to mój kierunek', text:'Podeślij vibe albo beat, zobaczę, czy to mój kierunek. Nie obiecuję współprac po SMS-ie, ale chętnie sprawdzę, czy mamy wspólny feeling.', fx:{prodCreativeFit:2,prodRelationship:1}, action:'beatPreview', reply:'Mogę Ci później podrzucić szkic. Bez zobowiązań. Jak wejdziesz na to naturalnie, będziemy wiedzieć więcej niż po dwudniowej gadce.'},
+  pr_terms:{set:'producer_first', label:'📋 Kontrakt brzmi dobrze, ale najpierw chcę znać warunki', text:'Kontrakt brzmi dobrze, ale najpierw chcę poznać warunki. Nie podpisuję niczego w ciemno tylko dlatego, że ktoś słyszy potencjał.', fx:{prodContractReadiness:1,prodTrust:1,prodPatience:-1}, reply:'I dobrze. Artysta, który nie pyta o warunki, zwykle płaci za to później. Na razie nic nie podpisujemy. Dowozisz 5 singli, wtedy gadamy o procentach, bitach i sesjach.'},
+  pr_auth:{set:'producer_first', label:'💯 Nie podpiszę nic tylko dlatego, że ktoś dał props', text:'Doceniam props, serio. Ale nie wchodzę w collaby tylko dlatego, że ktoś usłyszał jeden numer. Najpierw chcę wiedzieć, czy patrzymy muzycznie w tę samą stronę.', fx:{prodRespect:1,prodCreativeFit:1,prodPatience:-1}, reply:'Mega fair i to szanuję. Bardziej niż ślepe „wchodzę w to". Jak artysta nie ma zdania, potem brzmi jak cudzy folder. Zrób swoje pięć numerów na spokojnie — wtedy sprawdzimy kierunek.'},
+  pr_ignore:{set:'producer_first', label:'— Zignoruj', text:null, fx:{prodInterest:-1,prodPatience:-1}, reply:'Nie cisnę. Jak będziesz miał więcej numerów, temat może wrócić. Albo nie. Branża nie stoi w miejscu.'},
+};
+/* v2.3.x (PDF Producent): Majkel — obsługa odpowiedzi + cel 5 singli / szkic bitu. Wskazuje istniejący kontrakt u fizycznego Majkla (Studio). */
+window._producerHandleReply=function(opt){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const p=G._producerRel, act=opt.action;
+  if(opt.reply) window._smsPushNpcReply('producent',opt.reply);
+  if(act==='objective'||act==='showReq'){
+    if(!p.fiveSinglesObjSet){ p.fiveSinglesObjSet=true; if(typeof notify==='function') notify('🎚️ Cel od Majkla: opublikuj 5 numerów w podobnym tonie, potem wbij do niego do Studia — pogadacie o współpracy (beaty, sesje, kontrakt).'); }
+  } else if(act==='beatPreview'){
+    if(!p.beatPreviewUnlocked){ p.beatPreviewUnlocked=true; if(typeof notify==='function') notify('🎧 Majkel podrzuci Ci szkic bitu, jak wpadniesz do Studia. Bez zobowiązań — sprawdzicie wspólny kierunek.'); }
+  }
+};
 window._applySmsRichEffect=function(fx){
   fx=fx||{};
   if(typeof _newpdfEnsure==='function') _newpdfEnsure();
@@ -55083,7 +55110,7 @@ window._kamilOpenCooperation=function(){
   ]);
 };
 window._smsRichButtons=function(contactId,ids){
-  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:(contactId==='sponsor')?window._SPONSOR_REPLIES:(contactId==='marcin')?window._MARCIN_REPLIES:(contactId==='manager')?window._MANAGER_REPLIES:window._KAMIL_REPLIES;
+  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:(contactId==='sponsor')?window._SPONSOR_REPLIES:(contactId==='marcin')?window._MARCIN_REPLIES:(contactId==='manager')?window._MANAGER_REPLIES:(contactId==='producent')?window._PRODUCER_REPLIES:window._KAMIL_REPLIES;
   return '<div style="display:flex;flex-direction:column;gap:5px">'+ids.map((id,n)=>{
     const o=reg[id]; if(!o) return '';
     const isIgnore=/ignore/.test(id);
@@ -55099,7 +55126,7 @@ window._smsRichReply=function(contactId,replyId){
   let idx=-1;
   for(let i=conv.length-1;i>=0;i--){ if(conv[i].from==='me') continue; if(conv[i]._replied) continue; idx=i; break; }
   if(idx<0){ if(typeof showMsg==='function') showMsg('💬 Już odpowiedziałeś na wszystkie wiadomości od tego kontaktu. Poczekaj na nowe.','r',4500); return; }
-  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='kamil')?window._KAMIL_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:(contactId==='sponsor')?window._SPONSOR_REPLIES:(contactId==='marcin')?window._MARCIN_REPLIES:(contactId==='manager')?window._MANAGER_REPLIES:null;
+  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='kamil')?window._KAMIL_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:(contactId==='sponsor')?window._SPONSOR_REPLIES:(contactId==='marcin')?window._MARCIN_REPLIES:(contactId==='manager')?window._MANAGER_REPLIES:(contactId==='producent')?window._PRODUCER_REPLIES:null;
   const opt=reg&&reg[replyId];
   if(!opt) return;
   conv[idx]._replied=true;
@@ -55110,6 +55137,8 @@ window._smsRichReply=function(contactId,replyId){
   if(contactId==='sponsor' && typeof window._sponsorHandleReply==='function') window._sponsorHandleReply(opt);
   if(contactId==='marcin' && typeof window._marcinHandleReply==='function') window._marcinHandleReply(opt);
   if(contactId==='manager' && typeof window._kamilMgrHandleReply==='function') window._kamilMgrHandleReply(opt);
+  if(contactId==='producent' && typeof window._producerHandleReply==='function') window._producerHandleReply(opt);
+  if(contactId==='crew' && typeof window._ryderHandleReply==='function') window._ryderHandleReply(opt);
   if(typeof renderSMSConversation==='function') renderSMSConversation(contactId);
   if(typeof saveGameSilent==='function') saveGameSilent();
 };
