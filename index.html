@@ -20649,7 +20649,7 @@ window._5pdfEnsure=function(){
   { const r=G._marcinRel; _num(r,[['trust',0],['respect',0],['boundaries',0],['gatekeeping',0],['careerControl',0],['mediaReadiness',0],['mainstreamInterest',0],['mediaRisk',0],['authenticity',0],['relationship',0],['professionalism',0]]); _bool(r,['mustAskBeforeReject','openToOddFormats','mediaTrainingDone','sniadaniowkaUnlocked','sniadaniowkaDone']); }
   /* PDF16 Kamil (Menadżer) — warstwa SMS NAD istniejącym managementDeal. mode: none|full|advisory|selection|independent. Warunek katalogu reużywa istniejącej logiki (album/6-singli). */
   if(!G._kamilMgr||typeof G._kamilMgr!=='object') G._kamilMgr={};
-  { const r=G._kamilMgr; _num(r,[['interest',0],['trust',0],['patience',5],['careerReadiness',0]]); _bool(r,['introSent','cooperationUnlocked','meetingAvail']); if(typeof r.mode!=='string'||['none','full','advisory','selection','independent'].indexOf(r.mode)<0) r.mode='none'; r.patience=Math.max(0,Math.min(5,r.patience)); }
+  { const r=G._kamilMgr; _num(r,[['interest',0],['trust',0],['patience',5],['careerReadiness',0],['prof',0],['respect',0],['creativeControl',0],['careerControl',0],['businessFocus',0]]); _bool(r,['introSent','cooperationUnlocked','meetingAvail','introWasLocked','meetingCompleted']); if(typeof r.mode!=='string'||['none','full','advisory','selection','independent'].indexOf(r.mode)<0) r.mode='none'; r.patience=Math.max(0,Math.min(5,r.patience)); }
   /* PDF13 Studio Complex — kompleks lokali (zastępuje proste studioOwned). Migracja studioOwned→Booth w TIER 13.1. rooms=instancje lokali (equipment/staty per id). */
   if(!G.studioComplex||typeof G.studioComplex!=='object') G.studioComplex={};
   { const s=G.studioComplex; if(!Array.isArray(s.ownedRooms)) s.ownedRooms=[]; if(s.activeRoomId!==null&&typeof s.activeRoomId!=='string') s.activeRoomId=null; if(!s.rooms||typeof s.rooms!=='object'||Array.isArray(s.rooms)) s.rooms={}; if(!s.engineers||typeof s.engineers!=='object'||Array.isArray(s.engineers)) s.engineers={}; _num(s,[['weeklyPending',0],['totalIncome',0],['totalInvested',0]]); if(s.lastSettleDay!==null&&(typeof s.lastSettleDay!=='number'||!isFinite(s.lastSettleDay))) s.lastSettleDay=null; }
@@ -40513,7 +40513,7 @@ function renderSalaKoncertowa(){
   if(scena>=6) _bonusChips.push('🎤 Festival Headliner (Scena 6): +1 sławy/koncert');
   if(scena>=7) _bonusChips.push('🏟️ Stadium Star (Scena 7): +5% bonusu obserwujących');
   if(scena>=8) _bonusChips.push('🌍 World Megastar (Scena 8): +200 fanów/koncert');
-  if(G.managementDeal) _bonusChips.push('💼 Management Kamila: ×1.2 zarobków');
+  if(G.managementDeal) _bonusChips.push(`💼 Management Kamila: ×${(G.managementBonus||1.2)} zarobków`);
   if(G._repBoost75) _bonusChips.push('👑 Rep75: +25% fanów koncertu');
   /* v2.1.207 [Amper]: ROZBUDOWANE chipy — brakowały: drip, friendship Marcin, prestige, mood, mogul, tour magnate, streak, diamond hands. */
   /* v2.1.210 [Amper]: drip + PU połączone w jeden czytelny chip — gracz widzi "Drip 200/200 + PU" zamiast "drip ×1.5 effective 300". Liczba dripu ZAWSZE max 200. */
@@ -53509,6 +53509,19 @@ window._smsCheckTriggers=function(){
   if((G.haters||0)>=50) _smsTriggerOnce('meme_hejt','system','📱 Pierwsi hejterzy w komentarzach piszą "to nie jest rap to disco polo". KLASYK. Każdy MC to przeszedł.');
   if(G.fame>=40) _smsTriggerOnce('meme_tvn','marcin',((G.fame>=20||(G.fans||0)>=1000)?'Telewizja śniadaniowa dzwoniła — chcieli Cię w piątek jako „młody głos ulicy", więc już wiesz, czemu odmówiłem. Nie pozwolę, żeby zrobili z Ciebie dekorację do fragmentu o trendach 📺':'śniadaniówka w telewizji dzwoni — chcą Cię w piątek. Naturalnie odmówiłem za Ciebie. Nie ten level 📺'),{replySet:'marcin_tv'});
   if(concerts>=3) _smsTriggerOnce('meme_sylwester','marcin','📅 Robimy listę na telewizyjnego Sylwestra. Wiem wiem, to disco polo level, ale 80k zł za 2 numery to nie hajs do pogardzenia');
+  /* v2.3.109 (PDF16): Kamil (Menadżer) — SMS wariant locked/unlocked wg warunku katalogu (reuse _managerEligible). Kontakt wcześnie, współpraca dopiero po katalogu. */
+  if(((G.fame||0)>=10 || (G.fans||0)>=500) && !G.managementDeal && !(G.sms&&G.sms._triggeredEvents&&G.sms._triggeredEvents.mgr_intro)){
+    if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+    const _elig=!!(window._managerEligible&&window._managerEligible());
+    const _txt=_elig
+      ? 'Dobra, teraz możemy rozmawiać poważniej. Masz już godny materiał — minimum 6 numerów na poziomie, z którym da się iść dalej. Jeśli zechcesz, podejdź pod Nova Cura. Pogadajmy, czy potrzebujesz menadżera. Pozdro.'
+      : 'Widzę, że robi się wokół Ciebie ruch — fani rosną, ludzie pytają. Ale menadżer nie ma czym zarządzać, jeśli artysta nie ma własnego katalogu. Zbuduj i opublikuj min. 6 numerów na jakości 65 procent i wyżej (może być EP albo LP, min. 6 utworów). Wtedy pogadamy poważnie — wpadnij pod Nova Cura.';
+    if(_smsTriggerOnce('mgr_intro','manager',_txt,{replySet:_elig?'kamil_mgr_unlocked':'kamil_mgr_locked'})){ G._kamilMgr.introSent=true; G._kamilMgr.introWasLocked=!_elig; if(_elig) G._kamilMgr.cooperationUnlocked=true; }
+  }
+  /* Follow-up: intro poszło zablokowane, a teraz katalog spełniony (PDF §17). */
+  if(G._kamilMgr && G._kamilMgr.introSent && G._kamilMgr.introWasLocked && !G._kamilMgr.cooperationUnlocked && (window._managerEligible&&window._managerEligible())){
+    if(_smsTriggerOnce('mgr_unlock','manager','No i teraz możemy rozmawiać. Masz już sześć numerów, które trzymają poziom. To nie koniec drogi, ale przynajmniej jest co prowadzić. Podejdź pod Nova Cura, jeśli chcesz pogadać o współpracy.',{replySet:'kamil_mgr_unlocked'})){ G._kamilMgr.cooperationUnlocked=true; }
+  }
   if(G.streetRep>=30) _smsTriggerOnce('meme_dzielnia','kamil','na dzielni gadają że "Ten z bloku" robi już rap. Babcie spod sklepu mówią "ładny chłopak ale śpiewa o czymś dziwnym" 👵');
   if(G.fame>=20 && freestyles>=1) _smsTriggerOnce('meme_kazik','fan','❤️ Mistrzu, masz "to coś" jak stara legenda sceny. Cisną Cię w sieci do collabu z gwiazdą rapu. Powiedz że TAK 🙏');
   if((G.fans||0)>=2000) _smsTriggerOnce('meme_paluch','fan','Słyszałem Twój ostatni numer 5x dziennie w autobusie nr 175. Cała Warszawa jedzie w słuchawkach. KONKURENCJA MOŻE SIĘ SCHOWAĆ 🚌');
@@ -53953,6 +53966,12 @@ window.renderSMSConversation=function(contactId){
           }
           return `${_replyCounter}`+window._smsRichButtons('marcin',_mids);
         }
+        /* Kamil (Menadżer) — v2.3.109 (PDF16): odpowiedzi locked/unlocked wg replySet. STRICT: inne SMS managera (np. żart) zostają z generycznymi Dzięki/Wpadnę. */
+        if(contactId==='manager' && typeof window._MANAGER_REPLIES==='object' && _firstUnreplied && /^kamil_mgr_(locked|unlocked)$/.test(_firstUnreplied.replySet||'')){
+          const _kset=_firstUnreplied.replySet.replace('kamil_mgr_','');
+          const _kids=Object.keys(window._MANAGER_REPLIES).filter(k=>window._MANAGER_REPLIES[k].set===_kset);
+          return `${_replyCounter}`+window._smsRichButtons('manager',_kids);
+        }
         /* system / bank — automaty, gracz nie buduje "przyjaźni" */
         if(contactId==='system'||contactId==='bank'){
           return `${_replyCounter}<div style="display:flex;gap:4px;flex-wrap:wrap">
@@ -54334,6 +54353,21 @@ window._MARCIN_REPLIES={
   ms_go:{set:'sniad', label:'📺 Dobra, wchodzę w śniadaniówkę', text:'Dobra, sprawdźmy to. Wchodzę — ale po swojemu.', fx:{}, action:'marcinDoSniadaniowka'},
   ms_skip:{set:'sniad', label:'— Odpuszczam ten temat', text:'Wiesz co, odpuszczam ten temat. Nie czuję tego.', fx:{careerControl:1}, reply:'Spoko. Twoja decyzja, Twoja twarz. Filtruję dalej.'},
 };
+/* v2.3.109 (PDF16): Kamil (Menadżer) — odpowiedzi na SMS wg wariantu katalogu. set:'locked' (przed spełnieniem) / 'unlocked' (po). */
+window._MANAGER_REPLIES={
+  kl_build:{set:'locked', label:'✅ Jasne. Najpierw zbuduję katalog', text:'Jasne, rozumiem. Najpierw zbuduję katalog, a potem wrócimy do rozmowy. Nie chcę wchodzić w managerkę na samym hypie.', fx:{mgrCareerReadiness:1,mgrProf:1,mgrInterest:1}, action:'mgrObjective', reply:'I to jest zdrowe podejście. Hype robi hałas, ale to katalog buduje pozycję. Jak dowieziesz sześć jakościowych numerów, będziemy mieli o czym gadać.'},
+  kl_reqs:{set:'locked', label:'📋 Co dokładnie liczy się do warunku?', text:'Co dokładnie liczy się do tego warunku? Single, EP czy od razu pełniejszy projekt?', fx:{mgrProf:1,mgrTrust:1}, reply:'Trzy drogi: 6 opublikowanych singli, każdy min. 65 procent jakości. Albo EP z min. 6 utworami, każdy 65+. Albo LP, min. 6 utworów, każdy 65+. Tylko nie paczka przypadkowych szkiców — materiał, który da się pokazać dalej.'},
+  kl_early:{set:'locked', label:'🔥 Hype już jest. Nie da się wcześniej?', text:'Hype już jest. Nie da się zacząć wcześniej, zanim domknę te sześć numerów?', fx:{mgrPatience:-1}, reply:'Nie. I mówię to dla Twojego dobra. Za wcześnie wejdziesz w układ, za szybko podpiszesz rzeczy, których nie zrozumiesz. Najpierw materiał, potem rozmowa o prowadzeniu kariery.'},
+  kl_feedback:{set:'locked', label:'📍 Wpadnę pod Nova Cura po feedback', text:'Wpadnę pod Nova Cura. Nie musimy gadać o współpracy, ale chcę usłyszeć konkretnie, czego mi brakuje na tym etapie.', fx:{mgrTrust:1}, action:'mgrMeetingFeedback', reply:'Spoko. Podejdź, jak będziesz w okolicy. Managerki nie obiecam, ale powiem Ci, czy budujesz coś, co da się zdrowo prowadzić.'},
+  kl_complain:{set:'locked', label:'😤 Sześć numerów? To przesada', text:'Sześć numerów na takim poziomie to przesada, stary. Jak jest ruch i ludzie słuchają, to chyba można działać szybciej?', fx:{mgrPatience:-1,mgrRespect:-1}, reply:'Można działać szybciej. I właśnie dlatego tylu kończy jako jednosezonowa ciekawostka. Chcesz managera, czy kogoś, kto poklaszcze przy chwilowym ruchu?'},
+  kl_ignore:{set:'locked', label:'— Zignoruj', text:null, fx:{mgrInterest:-1,mgrPatience:-1}, reply:'Nie będę Cię ciągnął za rękę. Ale jak zechcesz pogadać o prowadzeniu kariery, zacznij od katalogu. Sześć jakościowych numerów. Bez tego nie ma tematu.'},
+  ku_ready:{set:'unlocked', label:'🤝 Jestem gotowy pogadać o współpracy', text:'Jestem gotowy pogadać o współpracy. Mam już materiał, więc chcę usłyszeć, co realnie możesz wnieść.', fx:{mgrInterest:1}, action:'mgrMeeting', reply:'Dobrze. Podbij pod Nova Cura. Nie będziemy gadać o marzeniach, tylko o game-planie, kalendarzu i tym, czego nie podpisywać bez czytania. Czekam.'},
+  ku_scope:{set:'unlocked', label:'📋 Najpierw zakres i warunki', text:'Najpierw chcę znać zakres i warunki współpracy. Nie podpisuję relacji zawodowej tylko dlatego, że ktoś mówi, że ogarnia branżę.', fx:{mgrProf:1,mgrCareerControl:1,mgrRespect:1,mgrTrust:1}, action:'mgrMeeting', reply:'Bardzo dobrze. Zakres jasno: koncerty, kontakty, terminy, stawki, selekcja propozycji i ochrona przed głupimi decyzjami. Masz to jak w banku.'},
+  ku_control:{set:'unlocked', label:'🎛 Potrzebuję wsparcia, ale nie stracić kontroli', text:'Potrzebuję wsparcia, ale nie chcę przy tym stracić kontroli. Nie szukam kogoś, kto będzie mi mówił, kim mam być.', fx:{mgrCreativeControl:2,mgrCareerControl:1,mgrTrust:1}, reply:'I dobrze. Manager nie powinien robić z artysty produktu bez kręgosłupa. Mogę układać rozmowy, terminy i ryzyko — ale nie będę Ci pisał osobowości.'},
+  ku_contacts:{set:'unlocked', label:'📇 Masz kontakty? Pokaż konkrety', text:'Jeśli masz kontakty, to pokaż jakieś konkrety. Nie interesuje mnie wizytówka, tylko realne ruchy.', fx:{mgrBusinessFocus:1,mgrPatience:-1,mgrRespect:1}, reply:'Ostro, ale fair. Mogę pokazać trzy kierunki: mały koncert, lokalny podcast i rozmowę z człowiekiem od kampanii. Ale cudów po jednym SMS-ie nie oczekuj.'},
+  ku_postpone:{set:'unlocked', label:'🕊 Jeszcze nie teraz. Sam pociągnę', text:'Jeszcze nie teraz. Chcę chwilę sam pociągnąć temat i zobaczyć, gdzie dojdę bez pomocy managera.', fx:{}, action:'mgrPostpone', reply:'Rozumiem. Samodzielność to podstawa — dopóki nie zaczyna się tracić rzeczy, o których się nie wiedziało. Jak uznasz, że czas uporządkować ruchy, wiesz gdzie mnie znaleźć.'},
+  ku_ignore:{set:'unlocked', label:'— Zignoruj', text:null, fx:{mgrInterest:-1,mgrPatience:-1}, reply:'Bez spiny. Jak będziesz gotów rozmawiać o prowadzeniu kariery, odezwij się.'},
+};
 window._applySmsRichEffect=function(fx){
   fx=fx||{};
   if(typeof _newpdfEnsure==='function') _newpdfEnsure();
@@ -54381,6 +54415,18 @@ window._applySmsRichEffect=function(fx){
     if(fx.mediaProf) m.professionalism=cl((m.professionalism||0)+fx.mediaProf,20);
   }
   if(fx.socialBuzz){ if(!G._fanRel||typeof G._fanRel!=='object')G._fanRel={hype:0}; G._fanRel.hype=Math.max(0,(G._fanRel.hype||0)+fx.socialBuzz); } /* buzz = realny fan-hype (brak G.socialBuzz) */
+  /* v2.3.109 (PDF16): Kamil (Menadżer) — adaptacja stat na G._kamilMgr (klucze mgr* odrębne od sponsora/marcina). */
+  if(G._kamilMgr){ const k=G._kamilMgr; const cl=(v,mx)=>Math.max(0,Math.min(mx,v));
+    if(fx.mgrInterest) k.interest=cl((k.interest||0)+fx.mgrInterest,20);
+    if(fx.mgrTrust) k.trust=cl((k.trust||0)+fx.mgrTrust,20);
+    if(fx.mgrPatience) k.patience=Math.max(0,Math.min(5,(k.patience||5)+fx.mgrPatience));
+    if(fx.mgrCareerReadiness) k.careerReadiness=cl((k.careerReadiness||0)+fx.mgrCareerReadiness,20);
+    if(fx.mgrProf) k.prof=cl((k.prof||0)+fx.mgrProf,20);
+    if(fx.mgrRespect) k.respect=cl((k.respect||0)+fx.mgrRespect,20);
+    if(fx.mgrCreativeControl) k.creativeControl=cl((k.creativeControl||0)+fx.mgrCreativeControl,20);
+    if(fx.mgrCareerControl) k.careerControl=cl((k.careerControl||0)+fx.mgrCareerControl,20);
+    if(fx.mgrBusinessFocus) k.businessFocus=cl((k.businessFocus||0)+fx.mgrBusinessFocus,20);
+  }
 };
 window._smsKamilJobsAction=function(){
   if(typeof _newpdfEnsure==='function') _newpdfEnsure();
@@ -54488,8 +54534,31 @@ window._marcinStartSniadaniowka=function(){
     {label:'🚫 Odmawiam, nie ten moment (kontrola)', fn:()=>{ m.careerControl=Math.min(20,(m.careerControl||0)+2); m.authenticity=Math.min(20,(m.authenticity||0)+1); fin('📺 Odmówiłeś po negocjacjach. Trzymasz stery kariery. +kontrola, +autentyczność.'); }},
   ]);
 };
+/* ═══ v2.3.109 (PDF16): Kamil (Menadżer) — obsługa odpowiedzi + wybór formy współpracy ═══ */
+window._kamilMgrHandleReply=function(opt){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const act=opt.action;
+  if(opt.reply) window._smsPushNpcReply('manager',opt.reply);
+  if(act==='mgrObjective'){ if(typeof notify==='function') notify('🎯 Cel: opublikuj 6 numerów jakości 65 procent i wyżej (albo EP/LP z min. 6 utworami), żeby Kamil otworzył rozmowę o współpracy przy Nova Cura.'); }
+  else if(act==='mgrMeetingFeedback'){ G._kamilMgr.meetingAvail=true; if(typeof notify==='function') notify('📍 Podejdź pod Nova Cura — Kamil da Ci szczery feedback, bez zobowiązań.'); }
+  else if(act==='mgrMeeting'){ G._kamilMgr.meetingAvail=true; window._kamilOpenCooperation(); }
+  else if(act==='mgrPostpone'){ if(G._kamilMgr.mode==='none') G._kamilMgr.mode='independent'; }
+};
+window._kamilOpenCooperation=function(){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  if(!(window._managerEligible&&window._managerEligible())){ if(typeof notify==='function') notify('🤵 Kamil: najpierw zbuduj katalog — album EP/LP albo 6 singli 65 procent i wyżej.'); return; }
+  if(G.managementDeal || (G._kamilMgr.mode==='selection')){ if(typeof notify==='function') notify('🤵 Masz już ustaloną formę współpracy z Kamilem.'); return; }
+  const setMode=(mode,msg)=>{ G._kamilMgr.mode=mode; G._kamilMgr.meetingCompleted=true; G._kamilMgr.cooperationUnlocked=true; if(typeof notify==='function') notify(msg); };
+  if(typeof showEventChoice!=='function'){ return; }
+  showEventChoice('🤵 Kamil — forma współpracy','Kim ma być dla Ciebie Kamil? Przy Nova Cura ustalacie zakres. Menadżer nie miesza się w półświatek ani Twoje prywatne finanse.',[
+    {label:'🤝 Pełna managerka (2500 zł, +20% legalnych zarobków)', fn:()=>{ if((G.money||0)<2500){ if(typeof showMsg==='function')showMsg('Za mało gotówki (2500 zł).','r'); return; } G.money-=2500; G.managementDeal=true; G.managementBonus=1.2; setMode('full','🤝 Pełna współpraca menadżerska podpisana. Legalne zarobki ×1.2.'); }},
+    {label:'🧭 Doradztwo (1200 zł, +10% zarobków, pełna kontrola)', fn:()=>{ if((G.money||0)<1200){ if(typeof showMsg==='function')showMsg('Za mało gotówki (1200 zł).','r'); return; } G.money-=1200; G.managementDeal=true; G.managementBonus=1.1; setMode('advisory','🧭 Doradztwo Kamila. Legalne zarobki ×1.1, decyzje po Twojej stronie.'); }},
+    {label:'🗂 Selekcja propozycji (bez opłaty, Kamil odsiewa słabe oferty)', fn:()=>{ if(G.publicRep) G.publicRep.bookingTrust=Math.min(100,(G.publicRep.bookingTrust||60)+3); setMode('selection','🗂 Kamil będzie odsiewał słabe propozycje. Bez opłat i bez bonusu do zarobków — za to spokój i pełna kontrola.'); }},
+    {label:'🕊 Zostaję niezależny', fn:()=>{ setMode('independent','🕊 Zostajesz niezależny. Bez bonusów, pełna autonomia.'); }},
+  ]);
+};
 window._smsRichButtons=function(contactId,ids){
-  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:(contactId==='sponsor')?window._SPONSOR_REPLIES:(contactId==='marcin')?window._MARCIN_REPLIES:window._KAMIL_REPLIES;
+  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:(contactId==='sponsor')?window._SPONSOR_REPLIES:(contactId==='marcin')?window._MARCIN_REPLIES:(contactId==='manager')?window._MANAGER_REPLIES:window._KAMIL_REPLIES;
   return '<div style="display:flex;flex-direction:column;gap:5px">'+ids.map((id,n)=>{
     const o=reg[id]; if(!o) return '';
     const isIgnore=/ignore/.test(id);
@@ -54505,7 +54574,7 @@ window._smsRichReply=function(contactId,replyId){
   let idx=-1;
   for(let i=conv.length-1;i>=0;i--){ if(conv[i].from==='me') continue; if(conv[i]._replied) continue; idx=i; break; }
   if(idx<0){ if(typeof showMsg==='function') showMsg('💬 Już odpowiedziałeś na wszystkie wiadomości od tego kontaktu. Poczekaj na nowe.','r',4500); return; }
-  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='kamil')?window._KAMIL_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:(contactId==='sponsor')?window._SPONSOR_REPLIES:(contactId==='marcin')?window._MARCIN_REPLIES:null;
+  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='kamil')?window._KAMIL_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:(contactId==='sponsor')?window._SPONSOR_REPLIES:(contactId==='marcin')?window._MARCIN_REPLIES:(contactId==='manager')?window._MANAGER_REPLIES:null;
   const opt=reg&&reg[replyId];
   if(!opt) return;
   conv[idx]._replied=true;
@@ -54514,6 +54583,7 @@ window._smsRichReply=function(contactId,replyId){
   if(opt.action==='kamilJobs') _smsKamilJobsAction();
   if(contactId==='sponsor' && typeof window._sponsorHandleReply==='function') window._sponsorHandleReply(opt);
   if(contactId==='marcin' && typeof window._marcinHandleReply==='function') window._marcinHandleReply(opt);
+  if(contactId==='manager' && typeof window._kamilMgrHandleReply==='function') window._kamilMgrHandleReply(opt);
   if(typeof renderSMSConversation==='function') renderSMSConversation(contactId);
   if(typeof saveGameSilent==='function') saveGameSilent();
 };
@@ -60983,6 +61053,13 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.109',date:'2026-07-03',cats:['feature'],title:'🤵 Nowość: rozmowa z menadżerem i wybór formy współpracy',
+ items:[
+  {t:'new',d:'🤵 Kontakt z potencjalnym menadżerem to teraz prawdziwa rozmowa przez telefon — zanim weźmie Cię pod skrzydła, sprawdza, czy masz już własny dorobek muzyczny. Bez katalogu usłyszysz wprost, czego brakuje; z gotowym materiałem możesz umówić się na poważną rozmowę o prowadzeniu kariery.'},
+  {t:'new',d:'🤝 Gdy dorobek jest gotowy, sam wybierasz formę współpracy: pełną managerkę z bonusem do legalnych zarobków, lżejsze doradztwo za mniejszą opłatą, samą selekcję propozycji bez opłat albo pełną niezależność. Każda opcja to inny kompromis między wsparciem a kontrolą nad karierą.'},
+ ]
+ },
  {
  ver:'v2.3.109',date:'2026-07-03',cats:['feature'],title:'📺 Nowość: prawdziwe rozmowy o mediach z organizatorem',
  items:[
