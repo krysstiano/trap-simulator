@@ -40073,6 +40073,7 @@ window._camperBackroomZone=function(){
 window._camperBackroomActive=function(){
   window._camperEnsure(); const c=G.camper;
   if(!c||!c.owned||c.destroyed||c.pendingScrap||c.pendingSale) return false;
+  if(typeof window._vehLocked==='function' && window._vehLocked('camper') && !G._inCamper) return false; /* PDF#9 §14/§21.7: zamknięty pojazd blokuje dostęp do zawartości/zaplecza */
   if(typeof window._vehEngineOn==='function' && window._vehEngineOn('camper')) return false; /* §13: silnik wyłączony */
   const bz=window._camperBackroomZone();
   return !!(bz && bz.unlocked);
@@ -40083,6 +40084,7 @@ window._camperBackroomBlockReason=function(){
   if(!c||!c.owned) return 'no_camper';
   if(c.destroyed) return 'destroyed';
   if(c.pendingScrap||c.pendingSale) return 'pending';
+  if(typeof window._vehLocked==='function' && window._vehLocked('camper') && !G._inCamper) return 'locked'; /* §14/§21.7 */
   if(typeof window._vehEngineOn==='function' && window._vehEngineOn('camper')) return 'engine';
   const pos=window._camperUndergroundPos();
   if(!pos) return 'not_underground';
@@ -40096,6 +40098,7 @@ window._enterCamperInterior=function(){
   if(!window._camperBackroomActive()){
     const r=window._camperBackroomBlockReason();
     const msg = r==='no_camper' ? '🚐 Potrzebujesz własnego kampera. Kup go w Gravel Lot Motors albo CityDrive Motors.' :
+      r==='locked' ? '🔒 Kamper jest zamknięty. Odblokuj klawiszem [J], stojąc blisko, zanim wejdziesz do zaplecza.' :
       r==='engine' ? '🚐 Najpierw zgaś silnik kampera (klawisz K), zanim wejdziesz do zaplecza.' :
       r==='destroyed' ? '🚐 Pojazd wymaga naprawy. W takim stanie zaplecze jest niedostępne.' :
       r==='pending' ? '🚐 Kamper jest w trakcie sprzedaży/rozbiórki — zaplecze niedostępne.' :
@@ -40166,6 +40169,7 @@ window.renderCamperPanel=function(){
   /* §13: akcje zaplecza — nazwy NEUTRALNE/ABSTRAKCYJNE (BEZ realnych instrukcji/procesów). */
   const workActions=['Przygotuj cykl','Sprawdź zapas','Zabezpiecz stanowisko','Oceń jakość partii','Spakuj partię','Oczyść zaplecze','Zakończ cykl'];
   const blockMsg =
+    blockReason==='locked' ? 'Kamper jest zamknięty. Odblokuj go klawiszem [J], stojąc blisko, żeby dostać się do zaplecza.' :
     blockReason==='engine' ? 'Najpierw zaparkuj pojazd i zgaś silnik. Zaplecze wymaga spokoju, nie ruchu.' :
     blockReason==='not_underground' ? 'Zbyt publiczna lokalizacja. Przestaw kampera do jednej ze stref Underground District.' :
     blockReason==='exposed' ? 'To miejsce jest zbyt odsłonięte. Poszukaj strefy, w której da się działać bez zbędnych oczu (Stary Postój / Cichy Kanał / Tylny Plac).' :
@@ -40299,11 +40303,24 @@ window.moveCamper=function(locId){
   return true;
 };
 /* Codzienny tick kampera (Tier 2 podstawa; Tier 5 doda pełne ryzyko/eventy/awarie). Wołany z new-day handlera. */
+/* PDF#10 §14: modyfikatory AKTYWNEJ strefy zaplecza (ryzyko/dyskrecja/stabilność/pojemność) — realny wpływ, nie kosmetyka. */
+window._camperZoneModifiers=function(){
+  const bz=(typeof window._camperBackroomZone==='function')?window._camperBackroomZone():null;
+  if(bz && bz.zone && bz.unlocked) return {risk:bz.zone.riskModifier||0, discretion:bz.zone.discretionModifier||0, reliability:bz.zone.reliabilityModifier||0, capacity:bz.zone.capacityBonus||0, inZone:true};
+  return {risk:0, discretion:0, reliability:0, capacity:0, inZone:false};
+};
 window._camperDailyTick=function(){
   window._camperEnsure(); const c=G.camper;
   if(!c.owned||c.destroyed) return;
   c.daysInLoc=(c.daysInLoc||0)+1;
-  if(c.daysInLoc>3) c.heat=Math.min(100,(c.heat||0)+5); /* PDF: za długo w jednym miejscu budzi zainteresowanie */
+  if(c.daysInLoc>3){
+    /* PDF#10 §14: strefa wpływa na RYZYKO/DYSKRECJĘ → modyfikuje przyrost „zainteresowania" (heat). Lepsza strefa
+       (Tylny Plac: risk -10, discretion +15) → mniej heat → pośrednio niższe ryzyko nalotu (heat zasila _heatBust).
+       Gorsza (Stary Postój: risk +5) → więcej. Gładka progresja (#11). */
+    const zm=window._camperZoneModifiers();
+    const heatUp = zm.inZone ? Math.max(0, Math.round(5 + zm.risk*0.4 - zm.discretion*0.2)) : 5;
+    c.heat=Math.min(100,(c.heat||0)+heatUp);
+  }
   c.routeNoise=Math.max(0,(c.routeNoise||0)-3); /* ślad trasy stygnie z czasem */
 };
 const CAR_CLASS_LABELS={A:'🅰️ Klasa A — miejskie',B:'🅱️ Klasa B — segment B',C:'🔤 Klasa C — kompakty',D:'🇩 Klasa D — klasa średnia / premium','EF':'💎 Klasa E/F — luksusowe i hiperauta',J:'🚙 Klasa J — SUV',M:'🚐 Klasa M — minivan / van'};
@@ -75914,6 +75931,7 @@ function startGame(){
   G._econVersion=2;
   if(typeof window._underworldEnsure==='function') window._underworldEnsure(); /* v2.3.38: init stat modułu „Numer zastrzeżony" po resetG (nowa gra) */
   if(typeof window._newpdfEnsure==='function') window._newpdfEnsure(); /* v2.3.97: init SMS Kamil/Fani + turnieje breakdance/skate po resetG (nowa gra) */
+  if(typeof window._sanitizePlayerLists==='function') window._sanitizePlayerLists(); /* v2.3.108 TIER-F fix: init ensure'ów (kamper/vehState/metalValley) na starcie NOWEJ GRY — jak loadGame. KRYTYCZNE: ustawia G._pdf10Migrated=true ZANIM gracz odblokuje Trapa, więc nowa gra NIE dostaje darmowego legacy-kampera (anti-exploit #1). */
   G.name=name;G.hair=creatorState.hair;G.cloth=creatorState.cloth;G.pants=creatorState.pants||'#1a2a3a';G.shoes=creatorState.shoes||'#0a0a0a';
   G.gender=creatorState.gender||'m'; /* v2.1.931 (Vegan): płeć gracza → awatar + treści */
   P.skin=creatorState.skin;P.hair=creatorState.hair;P.cloth=creatorState.cloth;P.pants=creatorState.pants||'#1a2a3a';P.shoes=creatorState.shoes||'#0a0a0a';P.gender=G.gender;
