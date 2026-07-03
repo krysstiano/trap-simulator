@@ -14428,8 +14428,10 @@ function handleAct(act,objId){
     if(typeof startDisciplineTournament==='function') startDisciplineTournament(_disc);
     return;
   } else if(act==='zlomowisko'){
-    /* v2.1.916 (PDF — nowa lokacja): złomowisko = fizyczny punkt sortowania złomu. Uruchamia istniejącą minigrę sortowania (startScrapMG ma własną bramkę energii ≥6 i intro). */
-    if(typeof startScrapMG==='function') startScrapMG(); return;
+    /* v2.3.108 PDF#11: Metal Valley Yard = HUB (Sortuj złom + Wycena rozbiórki + Rozliczenia + Rysiek). „Sortuj złom" zachowane. */
+    if(typeof window._metalValleyHub==='function') window._metalValleyHub();
+    else if(typeof startScrapMG==='function') startScrapMG();
+    return;
   } else if(act==='striptiz'){
     /* v2.1.930 (Vegan — przebudowa na budynek): wejście do klubu jako ROOM (jak kasyno). Godziny (20-04) egzekwowane wyżej przez isPlaceOpen/PLACE_HOURS. */
     if(typeof startRoomFade==='function'){ if(!G.visitedRooms)G.visitedRooms={}; G.visitedRooms.striptiz_club=true; startRoomFade('striptiz_club',600,520); }
@@ -27102,6 +27104,7 @@ function nextPeriod(){
   if(G.timeOfDay>=4){
     G.timeOfDay=0;G.day++;G.hunger=clampStat('hunger', G.hunger-15);
     if(typeof _noxTickContracts==='function') _noxTickContracts(); /* NX-3 (v2.3.44 PDF): rozstrzygnij zlecenia NOX po deadline */
+    if(typeof window._metalValleyTickPayouts==='function') window._metalValleyTickPayouts(); /* v2.3.108 PDF#11: dojrzewanie wypłat rozbiórki + SMS Ryśka */
     if((G.defamation||0)>0) G.defamation=Math.max(0,G.defamation-2); /* v2.1.874: zniesławienie opada powoli (-2/dobę) */
     if(G.car){G.car.condition=Math.max(0,(G.car.condition==null?100:G.car.condition)-4);} /* T3.2 / v2.1.843 (Vegan: auto psuło się za rzadko — pełne zużycie 5h gry): zużycie od czasu 2%→4%/dzień gry (v844: 5→4). Dodatkowo zużycie od JEŻDŻENIA w updatePlayer (aktywni kierowcy serwisują częściej). Przegląd w warsztacie przywraca pełny stan +20% przyspieszenia. */
     /* v2.1.627: wygaśnięcie nieddostarczonej "Pilnej przesyłki" po deadline (gdy gracz nie zrobił kolejnej trasy kuriera). */
@@ -39813,6 +39816,7 @@ window.buyCamper=function(modelId,source){
   if((G.money||0) < m.price){ if(typeof showMsg==='function')showMsg('Nie masz wystarczajaco gotowki (potrzeba '+m.price.toLocaleString('pl')+' zl).','r',4500); return false; }
   G.money -= m.price;
   c.owned=true; c.model=modelId; c.condition=m.cond||70; c.camouflage=m.camouflage||10; c.destroyed=false; c.daysInLoc=0;
+  c.partsAtMetalValley=false; /* v2.3.108 PDF#11: nowy kamper — wyczyść ghost-flagę po ew. poprzedniej rozbiórce */
   /* v2.3.102 (PDF #6): zapis źródła zakupu — odkup u Korka tylko dla kamperów z Gravel Lot (po 14 dniach, 50%). */
   c.purchaseDay=G.day||0; c.purchasePrice=m.price; c.sourceShop=(source==='gravel')?'gravel_lot_motors':(source==='citydrive'?'citydrive_motors':(source||'')); c.sellerNpc=(source==='gravel')?'korek':''; c.soldBack=false; c.stolen=false;
   /* E4d (silnik jazdy): spawn fizycznej pozycji kampera na mapie (do wsiadania klawiszem K). Kupujesz w pokoju jezdnym → tam; inaczej domyślnie underground. */
@@ -46575,6 +46579,317 @@ function _startResellGame(){
    Minigra SZYBKOŚĆ+TRAFNOŚĆ: na taśmę co ~1.4 s wpada element złomu danego surowca (metal/szkło/elektronika).
    Wrzuć go do właściwego pojemnika (klik / klawisze 1-2-3) zanim wpadnie następny. Zła klasyfikacja = element zniszczony (0).
    Throughput STAŁY (cadence taśmy) — spam jednego kosza ≈ 1/3 trafień, opłaca się tylko poprawne sortowanie. 45 s. Payout = wartość × getPracaBonus('zlom'). */
+/* ═══ PDF #11 (v2.3.108): METAL VALLEY YARD — rozbiórka pojazdów na części ═══
+   Legalna, wolniejsza, ryzykownie opłacalna alternatywa dla szybkiej sprzedaży. Pojazd znika po zatwierdzeniu,
+   pieniądze przychodzą po czasie (opóźniona wypłata). Dotyczy auta I kampera. NPC Rysiek „Prasa" Walczak (≠ Korek).
+   18+ SAFETY: rozbiórka ABSTRAKCYJNA (części/waga/liczba), ZERO realnych procesów. */
+const SCRAP_CLASS_CFG={
+  cheap:    {label:'budżetowy', grossMin:0.48,grossMax:0.58,feeMin:0.15,feeMax:0.25,daysMin:1,daysMax:2},
+  medium:   {label:'średni',    grossMin:0.52,grossMax:0.64,feeMin:0.14,feeMax:0.22,daysMin:2,daysMax:3},
+  expensive:{label:'wyższy',    grossMin:0.55,grossMax:0.70,feeMin:0.18,feeMax:0.28,daysMin:3,daysMax:5},
+  camper:   {label:'kamper',    grossMin:0.50,grossMax:0.66,feeMin:0.18,feeMax:0.30,daysMin:3,daysMax:7},
+};
+window._metalValleyEnsure=function(){
+  if(!G.metalValley||typeof G.metalValley!=='object') G.metalValley={};
+  const mv=G.metalValley;
+  if(typeof mv.introDone!=='boolean') mv.introDone=false;
+  if(typeof mv.relation!=='number'||!isFinite(mv.relation)) mv.relation=0;
+  if(typeof mv.scrapJobsCompleted!=='number'||!isFinite(mv.scrapJobsCompleted)) mv.scrapJobsCompleted=0;
+  if(typeof mv.lastScrapDay!=='number' && mv.lastScrapDay!==null) mv.lastScrapDay=null;
+  if(!Array.isArray(mv.pending)) mv.pending=[];
+  mv.pending=mv.pending.filter(p=>p&&typeof p==='object');
+  mv.activeScrapCount=mv.pending.filter(p=>p.status==='pending').length; /* single source: liczba z pending */
+};
+window._vehScrapClass=function(veh){
+  if(veh.kind==='camper') return 'camper';
+  const cls=((typeof CAR_CATALOG!=='undefined'?CAR_CATALOG.find(x=>x.name===veh.id):null)||{}).cls||'B';
+  if(cls==='A'||cls==='B') return 'cheap';
+  if(cls==='C'||cls==='D') return 'medium';
+  return 'expensive';
+};
+window._vehMarketValue=function(veh){
+  if(veh.kind==='camper'){ const m=window._camperModelById(G.camper&&G.camper.model)||{}; return m.price||(G.camper&&G.camper.purchasePrice)||35000; }
+  const c=(typeof CAR_CATALOG!=='undefined'?CAR_CATALOG.find(x=>x.name===veh.id):null)||{}; return c.price||5000;
+};
+window._vehQuickSellRef=function(veh){
+  if(veh.kind==='camper'){ const m=window._camperModelById(G.camper&&G.camper.model)||{}; return Math.floor(((G.camper&&G.camper.purchasePrice)||m.price||0)*0.5); }
+  return (typeof window._carSellPrice==='function')?window._carSellPrice(veh.id, veh.condition):0;
+};
+/* §9: modyfikator stanu (+8%…-25%). */
+window._scrapCondMod=function(cond){
+  cond=(cond==null?100:cond);
+  if(cond>=90) return 0.08; if(cond>=70) return 0.04; if(cond>=45) return 0;
+  if(cond>=25) return -0.08; if(cond>=10) return -0.15; if(cond>0) return -0.20; return -0.25;
+};
+/* §10: wycena procentowo-losowa {class,market,gross,fee,net,days,cond,quick}. Balans #11: net (nawet ×1.15) < szybka sprzedaż. */
+window._calcVehicleScrap=function(veh){
+  const cls=window._vehScrapClass(veh); const cfg=SCRAP_CLASS_CFG[cls];
+  const market=window._vehMarketValue(veh); const cond=(veh.condition==null?100:veh.condition);
+  const randPct=cfg.grossMin+Math.random()*(cfg.grossMax-cfg.grossMin);
+  const finalPct=Math.max(0.30, randPct+window._scrapCondMod(cond));
+  let gross=Math.floor(market*finalPct);
+  const feePct=cfg.feeMin+Math.random()*(cfg.feeMax-cfg.feeMin);
+  let net=Math.max(0, gross-Math.floor(gross*feePct));
+  const quick=window._vehQuickSellRef(veh);
+  const capNet=quick>0?Math.floor(quick*0.82):net; /* ×1.15 po negocjacji → 0.943 < quick */
+  net=Math.min(net, capNet);
+  const minPay=Math.min(500+Math.floor(Math.random()*1001), capNet); /* §8 min wypłata 500-1500 (nie ponad cap balansu) */
+  net=Math.max(net, minPay);
+  let fee=Math.max(0, gross-net);
+  const days=cfg.daysMin+Math.floor(Math.random()*(cfg.daysMax-cfg.daysMin+1));
+  return {class:cls, market, gross, fee, net, days, cond, quick};
+};
+/* czy kamper ma aktywne zaplecze/zawartość (§6 blokada rozbiórki, sprzężenie z PDF10). */
+window._camperHasActiveWork=function(){
+  if(typeof window._camperBackroomActive==='function' && window._camperBackroomActive()) return true;
+  const pots=(G.grow&&G.grow.kamper&&G.grow.kamper.pots)||[];
+  if(pots.some(p=>p&&p.stage&&p.stage!=='empty'&&p.stage!=='harvested')) return true;
+  return false;
+};
+/* lista pojazdów gracza do rozbiórki (auto z floty + aktywne + kamper). */
+window._ownedScrapableVehicles=function(){
+  const out=[]; const seen={};
+  const cars=Array.isArray(G._ownedCars)?G._ownedCars.slice():[];
+  if(G.car && G.car.name && cars.indexOf(G.car.name)<0) cars.push(G.car.name);
+  for(const name of cars){
+    if(seen[name]) continue; seen[name]=1;
+    const isActive=!!(G.car&&G.car.name===name);
+    const cond=isActive?(G.car.condition==null?100:G.car.condition):((G._carCond&&G._carCond[name]&&G._carCond[name].cond!=null)?G._carCond[name].cond:100);
+    out.push({kind:'car', id:name, name, condition:cond, isActive});
+  }
+  if(G.camper && G.camper.owned){ const m=window._camperModelById(G.camper.model)||{}; out.push({kind:'camper', id:'camper', name:m.name||'Kamper', condition:(G.camper.condition==null?100:G.camper.condition)}); }
+  return out;
+};
+/* §6/§25: czy pojazd można rozebrać. Zwraca {ok, reason}. */
+window._canScrapVehicle=function(veh){
+  if(!veh) return {ok:false, reason:'none'};
+  window._metalValleyEnsure();
+  if(G.metalValley.pending.some(p=>p.status==='pending' && p.vehKind===veh.kind && p.vehId===veh.id)) return {ok:false, reason:'already'};
+  if(G.metalValley.activeScrapCount>=2) return {ok:false, reason:'limit'};
+  if(veh.kind==='camper'){
+    const c=G.camper;
+    if(!c||!c.owned) return {ok:false, reason:'notowned'};
+    if(c.stolen) return {ok:false, reason:'stolen'};
+    if(c.pendingScrap||c.pendingSale) return {ok:false, reason:'pending'};
+    if(G._inCamper) return {ok:false, reason:'driving'};
+    if(window._camperHasActiveWork()) return {ok:false, reason:'backroom'};
+    return {ok:true};
+  }
+  if(veh.questLocked) return {ok:false, reason:'quest'};
+  const isActive=!!(G.car&&G.car.name===veh.id);
+  if(isActive && G._inCar) return {ok:false, reason:'driving'};
+  return {ok:true};
+};
+/* NPC Rysiek „Prasa" Walczak — szorstki, techniczny, cyniczny (styl RÓŻNY od Korka, §5/§12). */
+window._RYSIEK_NPC={name:'Rysiek „Prasa"', emoji:'♻️'};
+window._ryszekDialog=function(){
+  window._metalValleyEnsure();
+  const W=window._RYSIEK_NPC;
+  const back=()=>{ if(typeof closeNPCDlg==='function') closeNPCDlg(); if(typeof window._metalValleyHub==='function') window._metalValleyHub(); };
+  const close=()=>{ if(typeof closeNPCDlg==='function') closeNPCDlg(); };
+  const intro = G.metalValley.introDone
+    ? 'No, wróciłeś. Auto zamierzasz sprzedać czy oglądać? Bo do oglądania to masz lusterko w domu.'
+    : 'Auto zamierzasz sprzedać czy opłakiwać? Bo jak opłakiwać, to nie u mnie. Tutaj pojazd ma łącznie trzy stany: jeździ, nie jeździ albo jeszcze da się z niego coś wyjąć.';
+  G.metalValley.introDone=true;
+  if(typeof window._uwShowDlg!=='function'){ if(typeof window._metalValleyHub==='function') window._metalValleyHub(); return; }
+  window._uwShowDlg(intro,[
+    {text:'„Chcę wycenić pojazd na części."', fn:()=>{ close(); if(window._metalValleyScrapMenu) window._metalValleyScrapMenu(); }},
+    {text:'„W jaki sposób działa rozbiórka?"', fn:()=>{ window._uwShowDlg('Prosto. Biorę pojazd, patrzę co da się zdjąć, sprzedać, przetopić albo odłożyć na magazyn. Wyceniam na procent wartości — losowo, bo rynek to nie tabelka. Zdejmuję prowizję, a kasę dostajesz po czasie, jak się rozliczę. Nie od razu. Kto chce od razu, idzie do Korka.',[{text:'„Rozumiem."', fn:back}], W); }},
+    {text:'„Szukam pracy przy złomie."', fn:()=>{ close(); const _e=document.getElementById('mg-job'); if(_e){_e.classList.remove('on');_e.style.display='none';_e.innerHTML='';} if(window.startScrapMG) window.startScrapMG(); }},
+    {text:'„Na razie tylko się rozglądam."', fn:back},
+  ], W);
+};
+/* HUB Metal Valley Yard (§23): [Sortuj złom][Wycena rozbiórki][Sprawdź rozliczenia][Porozmawiaj z Ryśkiem][Wróć]. */
+window._metalValleyHub=function(){
+  window._metalValleyEnsure();
+  const panel=document.getElementById('mg-job'); if(!panel){ if(window.startScrapMG) window.startScrapMG(); return; }
+  panel.classList.add('on'); panel.style.display='';
+  const mv=G.metalValley;
+  const nVeh=window._ownedScrapableVehicles().length;
+  const nPending=mv.pending.filter(p=>p.status==='pending').length;
+  const nReady=mv.pending.filter(p=>p.status==='pending' && (p.payoutDay||0)<=(G.day||0)).length;
+  const closeJs="var _e=document.getElementById('mg-job');_e.classList.remove('on');_e.style.display='none';_e.innerHTML='';";
+  const btn=(oc,txt,extra)=>`<button class="cbtn" style="width:100%;text-align:left;padding:11px 14px;margin-bottom:7px;font-size:14px${extra||''}" onclick="${oc}">${txt}</button>`;
+  panel.innerHTML=`<div id="mg-job-content" style="width:100%;max-width:460px;margin:0 auto">
+    <div style="text-align:center;margin-bottom:6px"><div style="font-size:20px;font-weight:800;color:#95a5a6">♻️ Metal Valley Yard</div>
+      <div style="font-size:11.5px;color:#8a939a;line-height:1.5;margin-top:4px">Słychać metal, wózki i radio gdzieś między regałami. Na hali rozebrane karoserie, palety z częściami. Nikt nie pyta, czy auto miało sentyment — tutaj wszystko kończy jako liczba albo część.</div></div>
+    <div style="margin-top:12px">
+      ${btn(closeJs+'if(window.startScrapMG)startScrapMG();',`♻️ Sortuj złom <span style='color:#8a939a;font-size:11px'>· szybka gotówka, zero ryzyka</span>`)}
+      ${btn('window._metalValleyScrapMenu&&window._metalValleyScrapMenu()','🔧 Wycena rozbiórki pojazdu'+(nVeh?` <span style='color:#7ec8e3;font-size:11px'>· ${nVeh} pojazd(y)</span>`:` <span style='color:#667;font-size:11px'>· brak pojazdów</span>`))}
+      ${btn('window._metalValleySettlements&&window._metalValleySettlements()','📋 Sprawdź rozliczenia'+(nReady?` <span style='color:#2ecc71;font-size:11px'>· ${nReady} gotowe do odbioru</span>`:(nPending?` <span style='color:#f39c12;font-size:11px'>· ${nPending} w toku</span>`:'')))}
+      ${btn('window._ryszekDialog&&window._ryszekDialog()','🗣 Porozmawiaj z Ryśkiem')}
+      ${btn(closeJs,'← Wróć','; color:#e07070; border-color:#5a1a1a')}
+    </div></div>`;
+};
+window._scrapBlockMsg=function(reason,veh){
+  return reason==='backroom'?'🚐 Rysiek: „Nie przyjmuję pojazdu, w którym coś jeszcze pracuje. Najpierw ogarnij środek, potem gadaj o rozbiórce."':
+    reason==='driving'?'🚗 Najpierw zaparkuj pojazd i wysiądź.':
+    reason==='already'?'🔧 Ten pojazd jest już w rozbiórce.':
+    reason==='limit'?'🚗 Rysiek: „Masz już dwa tematy na placu. Najpierw odbierz rozliczenie, potem przywoź kolejne."':
+    reason==='pending'?'🔧 Pojazd jest w trakcie sprzedaży.':
+    reason==='quest'?'🔧 Ten pojazd jest powiązany z aktywnym wątkiem i nie może zostać oddany do rozbiórki.':
+    reason==='stolen'?'🔧 Skradzionego pojazdu nie przyjmę.':'🔧 Tego pojazdu nie można oddać do rozbiórki.';
+};
+/* §23: wybór pojazdu do wyceny. */
+window._metalValleyScrapMenu=function(){
+  window._metalValleyEnsure();
+  const panel=document.getElementById('mg-job'); if(!panel) return;
+  panel.classList.add('on'); panel.style.display='';
+  const vehs=window._ownedScrapableVehicles();
+  const backJs="window._metalValleyHub&&window._metalValleyHub()";
+  if(!vehs.length){
+    panel.innerHTML=`<div id="mg-job-content" style="max-width:440px;margin:0 auto;text-align:center"><div style="font-size:18px;color:#95a5a6;font-weight:800;margin-bottom:8px">🔧 Wycena rozbiórki</div><div style="color:#9aa;font-size:13px;margin-bottom:14px">Nie posiadasz pojazdu, który można oddać do rozbiórki.</div><button class="cbtn" style="width:100%" onclick="${backJs}">← Wróć</button></div>`;
+    return;
+  }
+  const rows=vehs.map(v=>{
+    const chk=window._canScrapVehicle(v);
+    const nm=(v.kind==='camper'?'🚐 ':'🚗 ')+v.name;
+    const reason=chk.reason==='backroom'?'zaplecze/proces aktywny':chk.reason==='driving'?'wysiądź najpierw':chk.reason==='already'?'już w rozbiórce':chk.reason==='limit'?'limit 2 rozbiórek':chk.reason==='pending'?'w trakcie sprzedaży':chk.reason==='quest'?'wątek fabularny':'';
+    return `<button class="cbtn" style="width:100%;text-align:left;margin-bottom:6px;${chk.ok?'':'opacity:.5'}" ${chk.ok?'':'disabled'} onclick="window._metalValleyValuation&&window._metalValleyValuation('${v.kind}',${JSON.stringify(v.id)})">${nm} <span style='color:#8a939a;font-size:11px'>· stan ${Math.round(v.condition)}%${chk.ok?'':' · '+reason}</span></button>`;
+  }).join('');
+  panel.innerHTML=`<div id="mg-job-content" style="max-width:440px;margin:0 auto"><div style="text-align:center;font-size:18px;color:#95a5a6;font-weight:800;margin-bottom:4px">🔧 Wybierz pojazd do wyceny</div><div style="color:#8a939a;font-size:11px;text-align:center;margin-bottom:12px">Rysiek wycenia pojazd na części. Kasę dostajesz po czasie, nie od razu.</div>${rows}<button class="cbtn" style="width:100%;margin-top:6px;color:#e07070;border-color:#5a1a1a" onclick="${backJs}">← Wróć</button></div>`;
+};
+/* §7-10: policz ofertę + zapisz sesję negocjacji. */
+window._metalValleyValuation=function(kind,id){
+  window._metalValleyEnsure();
+  const veh=window._ownedScrapableVehicles().find(v=>v.kind===kind && v.id===id);
+  if(!veh){ if(window._metalValleyScrapMenu) window._metalValleyScrapMenu(); return; }
+  const chk=window._canScrapVehicle(veh);
+  if(!chk.ok){ if(typeof showMsg==='function') showMsg(window._scrapBlockMsg(chk.reason,veh),'r',5500); return; }
+  const offer=window._calcVehicleScrap(veh);
+  window._mvSession={veh, baseNet:offer.net, currentNet:offer.net, gross:offer.gross, fee:offer.fee, days:offer.days, market:offer.market, attempts:0};
+  window._metalValleyRenderValuation();
+};
+/* §11: okno wyceny. */
+window._metalValleyRenderValuation=function(){
+  const s=window._mvSession; if(!s){ if(window._metalValleyScrapMenu) window._metalValleyScrapMenu(); return; }
+  const panel=document.getElementById('mg-job'); if(!panel) return; panel.classList.add('on'); panel.style.display='';
+  const v=s.veh; const em=v.kind==='camper'?'🚐':'🚗'; const negLeft=2-s.attempts;
+  panel.innerHTML=`<div id="mg-job-content" style="max-width:440px;margin:0 auto">
+    <div style="text-align:center;font-size:17px;color:#95a5a6;font-weight:800;margin-bottom:8px">🔧 Wycena rozbiórki pojazdu</div>
+    <div style="background:#0e1216;border:1px solid #2a3238;border-radius:8px;padding:12px;font-size:13px;color:#cdd;line-height:1.9">
+      <div>Pojazd: <b>${em} ${v.name}</b> · ${v.kind==='camper'?'Kamper':'Auto'} · Stan: <b>${Math.round(v.condition)}%</b></div>
+      <div>Szacunkowa wartość pojazdu: <b>${s.market.toLocaleString('pl')} zł</b></div>
+      <div style="border-top:1px solid #2a3238;margin:6px 0"></div>
+      <div>Wartość części po rozbiórce: <b style="color:#7ec8e3">${s.gross.toLocaleString('pl')} zł</b></div>
+      <div>Prowizja Metal Valley Yard: <b style="color:#e08a8a">${s.fee.toLocaleString('pl')} zł</b></div>
+      <div style="font-size:15px;margin-top:4px">Otrzymasz: <b style="color:#2ecc71">${s.currentNet.toLocaleString('pl')} zł</b></div>
+      <div>Czas rozliczenia: <b style="color:#f39c12">${s.days} dni gry</b></div>
+    </div>
+    <div style="color:#8a939a;font-size:10.5px;margin:8px 2px;line-height:1.5">⚠️ Po zatwierdzeniu pojazd zostanie usunięty z Twoich pojazdów. Nie otrzymasz pieniędzy od razu.</div>
+    <div style="display:flex;gap:8px;margin-top:6px">
+      <button class="cbtn" style="flex:1;${negLeft<=0?'opacity:.5':''}" ${negLeft<=0?'disabled':''} onclick="window._metalValleyNegotiate&&window._metalValleyNegotiate()">🗣 Negocjuj${negLeft<2?' ('+negLeft+')':''}</button>
+      <button class="cbtn" style="flex:1;border-color:#27ae60;color:#7ec87e" onclick="window._metalValleyConfirmModal&&window._metalValleyConfirmModal()">✓ Zatwierdź</button>
+      <button class="cbtn" style="flex:1;color:#e07070;border-color:#5a1a1a" onclick="window._metalValleyScrapMenu&&window._metalValleyScrapMenu()">✕ Odmów</button>
+    </div></div>`;
+};
+/* §13-16: negocjacje (max 2, cap 115%, style, relacja). */
+window._metalValleyNegotiate=function(){
+  const s=window._mvSession; if(!s) return;
+  if(s.attempts>=2){ if(typeof showMsg==='function') showMsg('🔧 Rysiek: „Dwie rundy pogadanki wystarczą. To ostateczna propozycja."','i',4500); return; }
+  const panel=document.getElementById('mg-job'); if(!panel) return;
+  panel.innerHTML=`<div id="mg-job-content" style="max-width:440px;margin:0 auto">
+    <div style="text-align:center;font-size:16px;color:#95a5a6;font-weight:800;margin-bottom:8px">🗣 Negocjacje z Ryśkiem</div>
+    <div style="color:#8a939a;font-size:11.5px;text-align:center;margin-bottom:12px">Runda ${s.attempts+1}/2. Aktualna oferta: <b style='color:#2ecc71'>${s.currentNet.toLocaleString('pl')} zł</b>. Całość nie przekroczy ~115% pierwszej oferty.</div>
+    <button class="cbtn" style="width:100%;text-align:left;margin-bottom:6px" onclick="window._metalValleyNegoTry('calm')">🙂 Spokojnie <span style='color:#8a939a;font-size:11px'>· średnia szansa, bez ryzyka</span></button>
+    <button class="cbtn" style="width:100%;text-align:left;margin-bottom:6px" onclick="window._metalValleyNegoTry('tech')">🔧 Technicznie <span style='color:#8a939a;font-size:11px'>· lepiej przy kamperach i droższych</span></button>
+    <button class="cbtn" style="width:100%;text-align:left;margin-bottom:6px" onclick="window._metalValleyNegoTry('hard')">😤 Twardo <span style='color:#8a939a;font-size:11px'>· większa podwyżka, ryzyko utraty cierpliwości</span></button>
+    <button class="cbtn" style="width:100%;color:#e07070;border-color:#5a1a1a" onclick="window._metalValleyRenderValuation()">↩ Zostaję przy tej ofercie</button></div>`;
+};
+window._metalValleyNegoTry=function(style){
+  const s=window._mvSession; if(!s) return; window._metalValleyEnsure();
+  s.attempts++;
+  const isSecond=s.attempts>=2;
+  const bizCred=(G.streetCredibility||0), rel=(G.metalValley.relation||0);
+  let successChance=35 + Math.min(30,bizCred/50) + rel;
+  if(style==='tech') successChance += (s.veh.kind==='camper'||s.market>50000)?18:-6;
+  if(style==='hard') successChance += 6;
+  const success=Math.random()*100 < successChance;
+  const cap=Math.floor(s.baseNet*1.15);
+  const done=()=>{ if(typeof closeNPCDlg==='function') closeNPCDlg(); window._metalValleyRenderValuation(); };
+  if(success){
+    const lo=isSecond?0.03:0.05, hi=isSecond?0.06:0.10;
+    const inc=lo+Math.random()*(hi-lo);
+    s.currentNet=Math.min(cap, Math.floor(s.currentNet*(1+inc)));
+    s.gross=s.currentNet+s.fee;
+    G.metalValley.relation=(style==='hard')?Math.max(-20,rel-1):Math.min(50,rel+1);
+    if(typeof window._uwShowDlg==='function') window._uwShowDlg('Dobra, niech Ci będzie… Trochę dorzucę. Nie dlatego, że mnie przekonałeś, tylko dlatego, że faktycznie da się z tego coś jeszcze wyjąć.',[{text:'OK',fn:done}],window._RYSIEK_NPC); else done();
+  } else {
+    if(style==='hard'){ G.metalValley.relation=Math.max(-20,rel-3);
+      if(typeof window._uwShowDlg==='function') window._uwShowDlg('Jak chcesz się obrażać na matematykę, to obrażaj się poza moim placem. Oferta jest ostateczna.',[{text:'OK',fn:done}],window._RYSIEK_NPC); else done();
+    } else if(typeof window._uwShowDlg==='function') window._uwShowDlg('Nie. To nie jest licytacja w internecie. Ja Ci mówię, ile z tego zostaje po naszej robocie.',[{text:'OK',fn:done}],window._RYSIEK_NPC); else done();
+  }
+};
+/* §17: modal potwierdzenia. */
+window._metalValleyConfirmModal=function(){
+  const s=window._mvSession; if(!s) return; const v=s.veh;
+  const body=`Potwierdzenie rozbiórki\n\nPojazd: ${v.kind==='camper'?'🚐':'🚗'} ${v.name}\nOtrzymasz: ${s.currentNet.toLocaleString('pl')} zł\nCzas rozliczenia: ${s.days} dni gry\n\nPo zatwierdzeniu pojazd zniknie z Twoich pojazdów, nie będzie można nim jeździć ani go odzyskać, a pieniądze otrzymasz dopiero po rozliczeniu.\n\nZatwierdzić rozbiórkę?`;
+  if(typeof gameConfirm==='function') gameConfirm(body, ()=>{ window._confirmVehicleScrap(); }, null); else window._confirmVehicleScrap();
+};
+/* §18: zatwierdzenie — usuń pojazd + dodaj oczekującą wypłatę. */
+window._confirmVehicleScrap=function(){
+  const s=window._mvSession; if(!s) return; window._metalValleyEnsure();
+  const v=s.veh; const chk=window._canScrapVehicle(v);
+  if(!chk.ok){ if(typeof showMsg==='function') showMsg(window._scrapBlockMsg(chk.reason,v),'r',5500); return; }
+  if(v.kind==='camper'){
+    G.camper.owned=false; G.camper.partsAtMetalValley=true; /* ghost #7 aktywowany */
+    G.camper.activeCamperId=null; G._camperParkedAt=null; G._inCamper=false; G.camper.destroyed=false;
+  } else {
+    if(Array.isArray(G._ownedCars)) G._ownedCars=G._ownedCars.filter(n=>n!==v.id);
+    if(G._carCond) delete G._carCond[v.id];
+    if(G.car&&G.car.name===v.id){ G.car=null; G._inCar=false; G._carParkedAt=null; }
+  }
+  const id='mvp'+(G.day||0)+'_'+G.metalValley.pending.length+'_'+Math.floor(s.currentNet||0);
+  G.metalValley.pending.push({ id, vehKind:v.kind, vehId:v.id, vehName:v.name, amount:s.currentNet, payoutDay:(G.day||0)+s.days, status:'pending', complication:null });
+  G.metalValley.scrapJobsCompleted=(G.metalValley.scrapJobsCompleted||0)+1; G.metalValley.lastScrapDay=(G.day||0);
+  window._metalValleyEnsure();
+  const amt=s.currentNet, dd=s.days; window._mvSession=null;
+  if(typeof showMsg==='function') showMsg('🔧 Pojazd przyjęty do rozbiórki. Rozliczenie ('+amt.toLocaleString('pl')+' zł) będzie dostępne za '+dd+' dni.','g',7000);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  if(typeof updateHUD==='function') updateHUD();
+  if(window._metalValleyHub) window._metalValleyHub();
+};
+/* §21: panel oczekujących rozliczeń. */
+window._metalValleySettlements=function(){
+  window._metalValleyEnsure();
+  const panel=document.getElementById('mg-job'); if(!panel) return; panel.classList.add('on'); panel.style.display='';
+  const pend=G.metalValley.pending.filter(p=>p.status==='pending');
+  const backJs="window._metalValleyHub&&window._metalValleyHub()";
+  let rows;
+  if(!pend.length) rows='<div style="color:#9aa;font-size:13px;text-align:center;padding:12px">Brak oczekujących rozliczeń.</div>';
+  else rows=pend.map(p=>{
+    const ready=(p.payoutDay||0)<=(G.day||0); const daysLeft=Math.max(0,(p.payoutDay||0)-(G.day||0));
+    return `<div style="background:#0e1216;border:1px solid ${ready?'#27ae60':'#2a3238'};border-radius:8px;padding:10px;margin-bottom:7px;font-size:12.5px;color:#cdd"><div><b>${p.vehName}</b> <span style="color:#8a939a">· ${p.amount.toLocaleString('pl')} zł</span></div><div style="margin-top:3px">${ready?'<span style="color:#2ecc71;font-weight:700">Gotowe do odbioru</span>':'<span style="color:#f39c12">w trakcie rozliczenia · dostępne za '+daysLeft+' dni</span>'}</div>${ready?`<button class="cbtn" style="width:100%;margin-top:6px;border-color:#27ae60;color:#7ec87e" onclick="window._claimMetalValleyPayout&&window._claimMetalValleyPayout(${JSON.stringify(p.id)})">💰 Odbierz ${p.amount.toLocaleString('pl')} zł</button>`:''}</div>`;
+  }).join('');
+  panel.innerHTML=`<div id="mg-job-content" style="max-width:440px;margin:0 auto"><div style="text-align:center;font-size:17px;color:#95a5a6;font-weight:800;margin-bottom:10px">📋 Rozliczenia Metal Valley Yard</div>${rows}<button class="cbtn" style="width:100%;margin-top:6px;color:#e07070;border-color:#5a1a1a" onclick="${backJs}">← Wróć</button></div>`;
+};
+/* §19: odbiór wypłaty. */
+window._claimMetalValleyPayout=function(id){
+  window._metalValleyEnsure();
+  const p=G.metalValley.pending.find(x=>x.id===id);
+  if(!p||p.status!=='pending') return;
+  if((p.payoutDay||0)>(G.day||0)){ if(typeof showMsg==='function') showMsg('🔧 Rozliczenie nie jest jeszcze gotowe.','r'); return; }
+  const amount=p.amount; G.money=(G.money||0)+amount; G.totalEarned=(G.totalEarned||0)+amount;
+  p.status='claimed'; window._metalValleyEnsure();
+  if(typeof showMsg==='function') showMsg('💰 Odebrano rozliczenie z Metal Valley Yard: +'+amount.toLocaleString('pl')+' zł'+(p.complication?' (część elementów poszła taniej)':''),'g',6000);
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._metalValleySettlements();
+};
+/* §19/§20: dojrzewanie wypłat (nowy dzień, obok NOX) — komplikacja 10% (max -5-10%) + SMS Ryśka. */
+window._metalValleyTickPayouts=function(){
+  window._metalValleyEnsure();
+  for(const p of G.metalValley.pending){
+    if(p.status!=='pending' || p._matured) continue;
+    if((p.payoutDay||0)<=(G.day||0)){
+      p._matured=true;
+      if(!p.complication && Math.random()<0.10){ const cut=0.05+Math.random()*0.05; p.amount=Math.max(1,Math.floor(p.amount*(1-cut))); p.complication='parts_lower'; }
+      const sms='Rozliczenie za pojazd '+p.vehName+' gotowe. Części poszły, plac odetchnął, a Ty możesz odebrać swoje pieniądze. Wpadnij do Metal Valley Yard albo potwierdź odbiór w panelu.';
+      if(typeof window._sendSMS==='function'){ try{ window._sendSMS('Rysiek „Prasa"', sms); }catch(e){ if(typeof notify==='function') notify('📩 '+sms); } }
+      else if(typeof notify==='function') notify('📩 Rysiek: '+sms);
+    }
+  }
+};
 function startScrapMG(){
   if((G.energy||0)<6){if(typeof showMsg==='function')showMsg('⚡ Za mało energii na sortowanie złomu (potrzeba 6)','r');return;}
   showJobIntro({icon:'♻️',name:'Skup złomu — sortowanie',wage:'90–180',difficulty:'Średnia',diffColor:'#f1c40f',
@@ -49580,6 +49895,7 @@ window._sanitizePlayerLists=function(){
     if(G.trap&&G.trap.unlocked){ if(!G.trapInv||typeof G.trapInv!=='object') G.trapInv={traw:0,krysztal:0,prosz:0,products:{}}; if(!G.trapInv.products||typeof G.trapInv.products!=='object') G.trapInv.products={}; }
     if(typeof window._camperEnsure==='function') window._camperEnsure(); /* v2.3.54 moduł kampera: defaulty + grandfather (save-safe D0) */
     if(typeof window._vehStateEnsure==='function') window._vehStateEnsure(); /* v2.3.108 PDF#9: stan interakcji pojazdu (silnik/światła/zamek/pasy), save-safe */
+    if(typeof window._metalValleyEnsure==='function') window._metalValleyEnsure(); /* v2.3.108 PDF#11: Metal Valley (rozbiórka/wypłaty), save-safe */
   }catch(_e){}
 };
 /* v2.3.54 MODUŁ POJAZDÓW SPECJALNYCH — defaulty stanu kampera (save-safe #1) + GRANDFATHER (D0):
@@ -60443,6 +60759,15 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.108',date:'2026-07-03',cats:['feature'],title:'♻️ Nowość: Metal Valley Yard — rozbiórka pojazdów na części',
+ items:[
+  {t:'new',d:'♻️ Na Metal Valley Yard (dawne złomowisko) możesz teraz oddać swój pojazd — auto albo kampera — do rozbiórki na części. Sortowanie złomu zostaje bez zmian; doszła osobna opcja „Wycena rozbiórki pojazdu" oraz panel rozliczeń.'},
+  {t:'new',d:'🗣 Wyceną zajmuje się nowy, szorstki gość, który patrzy na auto jak na części, a nie na wspomnienia. Wycena jest procentowa i losowa — zależy od klasy i stanu pojazdu, a warsztat pobiera prowizję. Możesz negocjować maksymalnie dwa razy: uda się podbić ofertę o kilka procent, ale nie w nieskończoność.'},
+  {t:'new',d:'⏳ To wolniejsza, ale legalna alternatywa dla szybkiej sprzedaży. Po zatwierdzeniu pojazd znika i nie da się go odzyskać, a pieniądze przychodzą dopiero po 1–7 dniach gry (zależnie od klasy). Dostaniesz SMS, gdy rozliczenie będzie gotowe do odbioru.'},
+  {t:'new',d:'⚖️ Rozbiórka wygląda kusząco na papierze, ale po prowizji i czasie wychodzi z niej mniej niż z szybkiej sprzedaży — to opcja dla cierpliwych, nie sposób na szybki zarobek. Naraz możesz mieć maksymalnie dwie rozbiórki w toku.'},
+ ]
+ },
  {
  ver:'v2.3.108',date:'2026-07-03',cats:['feature'],title:'🚐 Nowość: kamper jako Twój pojazd + strefy zaplecza w Underground',
  items:[
