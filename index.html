@@ -16963,10 +16963,10 @@ window._studioApplyIntegrations=function(){
 };
 /* ═══ v2.3.109 (PDF13 TIER 13.5): wynajem lokali NPC + realizatorzy + dochód pasywny tygodniowy (§29-34) ═══ */
 const STUDIO_ENGINEERS={
-  kuba:{id:'kuba',name:'Kuba „Fader" Milewski',level:'początkujący',weeklyCost:1200,revenueShare:0.35,qualityBonus:8,minRecordingQuality:0,minComfort:0,minPrestige:0},
-  nina:{id:'nina',name:'Nina Reverb',level:'średni',weeklyCost:2800,revenueShare:0.40,qualityBonus:15,minRecordingQuality:50,minComfort:40,minPrestige:30},
-  rolf:{id:'rolf',name:'Rolf „Masterbus" Gant',level:'profesjonalny',weeklyCost:6500,revenueShare:0.45,qualityBonus:22,minRecordingQuality:70,minComfort:60,minPrestige:50},
-  mira:{id:'mira',name:'Mira Sol',level:'premium',weeklyCost:12000,revenueShare:0.50,qualityBonus:30,minRecordingQuality:80,minComfort:75,minPrestige:70},
+  kuba:{id:'kuba',name:'Kuba „Fader" Milewski',level:'początkujący',hireCost:1200,revenueShare:0.35,qualityBonus:8,minRecordingQuality:0,minComfort:0,minPrestige:0},
+  nina:{id:'nina',name:'Nina Reverb',level:'średni',hireCost:2800,revenueShare:0.40,qualityBonus:15,minRecordingQuality:50,minComfort:40,minPrestige:30},
+  rolf:{id:'rolf',name:'Rolf „Masterbus" Gant',level:'profesjonalny',hireCost:6500,revenueShare:0.45,qualityBonus:22,minRecordingQuality:70,minComfort:60,minPrestige:50},
+  mira:{id:'mira',name:'Mira Sol',level:'premium',hireCost:12000,revenueShare:0.50,qualityBonus:30,minRecordingQuality:80,minComfort:75,minPrestige:70},
 };
 window.STUDIO_ENGINEERS=STUDIO_ENGINEERS;
 window.canHireStudioEngineer=function(engId,roomId){
@@ -16979,8 +16979,12 @@ window.hireStudioEngineer=function(engId,roomId){
   const e=STUDIO_ENGINEERS[engId], sc=G.studioComplex;
   if(!e||!sc.ownedRooms.includes(roomId)) return;
   if(!window.canHireStudioEngineer(engId,roomId)){ if(typeof showMsg==='function') showMsg(`${e.name} nie chce pracować w tej przestrzeni. Wymaga: jakość nagrań ≥${e.minRecordingQuality}%, komfort ≥${e.minComfort}%, prestiż ≥${e.minPrestige}%. Dopakuj wyposażenie.`,'r',8000); return; }
+  if(sc.engineers[roomId]!==engId){ /* opłata rekrutacyjna tylko przy zmianie na tego realizatora */
+    if((G.money||0)<e.hireCost){ if(typeof showMsg==='function') showMsg(`Zatrudnienie ${e.name} kosztuje ${e.hireCost.toLocaleString('pl')} zł (opłata rekrutacyjna). Za mało gotówki.`,'r',6000); return; }
+    G.money-=e.hireCost;
+  }
   sc.engineers[roomId]=engId;
-  if(typeof notify==='function') notify(`🎚️ Zatrudniono realizatora: ${e.name} → ${STUDIO_ROOMS[roomId].name}. Bierze ${Math.round(e.revenueShare*100)}% od przychodu z sesji NPC (+${e.qualityBonus}% do jakości usług).`);
+  if(typeof notify==='function') notify(`🎚️ Zatrudniono realizatora: ${e.name} → ${STUDIO_ROOMS[roomId].name} (opłata ${e.hireCost.toLocaleString('pl')} zł). Bierze ${Math.round(e.revenueShare*100)}% od przychodu z sesji NPC (+${e.qualityBonus}% do jakości usług).`);
   if(typeof window.renderStudioRental==='function') window.renderStudioRental();
 };
 window.setStudioRoomRental=function(roomId,on){
@@ -17090,7 +17094,7 @@ window.renderStudioRental=function(){
     const isActive=sc.activeRoomId===rid; const engId=sc.engineers[rid]; const eng=engId?STUDIO_ENGINEERS[engId]:null;
     const estMin=window._studioRoomWeeklyIncome(rid,true);
     let engBlock=`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px">`+Object.values(STUDIO_ENGINEERS).map(e=>{ const okReq=window.canHireStudioEngineer(e.id,rid); const cur=engId===e.id;
-      return `<button class="bbtn" style="padding:3px 8px;font-size:10.5px;${cur?'background:#1a3525;border-color:#2a6a3a;color:#9ee89e':(okReq?'':'opacity:.5')}" ${(!okReq&&!cur)?'disabled':''} onclick="hireStudioEngineer('${e.id}','${rid}')" title="Bierze ${Math.round(e.revenueShare*100)}% od przychodu. Wymaga: nagrania ${e.minRecordingQuality}%, komfort ${e.minComfort}%, prestiż ${e.minPrestige}%">${cur?'✓ ':''}${e.name.split(' ')[0]} (+${e.qualityBonus}%)</button>`;
+      return `<button class="bbtn" style="padding:3px 8px;font-size:10.5px;${cur?'background:#1a3525;border-color:#2a6a3a;color:#9ee89e':(okReq?'':'opacity:.5')}" ${(!okReq&&!cur)?'disabled':''} onclick="hireStudioEngineer('${e.id}','${rid}')" title="Opłata rekrutacyjna ${e.hireCost.toLocaleString('pl')} zł. Bierze ${Math.round(e.revenueShare*100)}% od przychodu. Wymaga: nagrania ${e.minRecordingQuality}%, komfort ${e.minComfort}%, prestiż ${e.minPrestige}%">${cur?'✓ ':''}${e.name.split(' ')[0]} (+${e.qualityBonus}%)</button>`;
     }).join('')+`</div>`;
     body+=`<div style="background:#0a1220;border:1px solid ${inst.rentalEnabled?'#2a6a3a':'#1a3a5a'};border-radius:9px;padding:11px 13px;margin-bottom:9px">
       <div style="font-weight:800;color:#fff;font-size:13px">${room.emoji} ${room.name} ${isActive?'<span style="font-size:9px;color:#7ec8e3">(aktywne — Twoje nagrania)</span>':inst.rentalEnabled?'<span style="font-size:9px;color:#27ae60">(WYNAJMOWANE)</span>':''}</div>
@@ -54909,7 +54913,7 @@ window._sponsorAcceptOffer=function(){
 window._sponsorNegotiate=function(){
   if(typeof _5pdfEnsure==='function') _5pdfEnsure();
   const s=G._sponsorRel;
-  let chance=35 + (s.prof||0)*2 + (s.trust||0)*3 + Math.floor((G.drip||0)/10) + Math.floor(((G._fanRel&&G._fanRel.hype)||0)/5); /* buzz = realny fan-hype (brak G.socialBuzz w grze) */
+  let chance=35 + (s.prof||0)*2 + (s.trust||0)*3 + Math.floor((G.drip||0)/10) + Math.floor(((G._fanRel&&G._fanRel.hype)||0)/5) + Math.floor((s.auth||0)/2) + Math.floor((s.biz||0)/3); /* buzz = realny fan-hype; autentyczność (spójny styl) i podejście biznesowe też pomagają */
   chance -= Math.max(0,5-(s.patience||5))*5;
   chance=Math.max(10,Math.min(80,chance));
   const roll=Math.random()*100;
@@ -61492,7 +61496,7 @@ const PATCH_NOTES = [
   {t:'new',d:'🎛️ Każdy lokal wyposażasz osobno — komputer i DAW, mikrofony, interfejsy, odsłuch, MIDI, akustyka, oświetlenie, meble, lodówka i dodatki. Sprzęt trafia do konkretnego studia, a każdy lokal ma limit miejsca (większe przestrzenie mieszczą więcej sprzętu). Panel wyposażenia i zakup kolejnych lokali otwierasz z wnętrza studia.'},
   {t:'new',d:'📊 Wyposażenie realnie kształtuje jakość lokalu — panel pokazuje jakość nagrań, miks i master, komfort, atmosferę oraz prestiż, a także podpowiada, czego jeszcze brakuje, by w pełni nagrywać wokal (komputer, DAW, interfejs, mikrofon, słuchawki i akustyka to minimum).'},
   {t:'new',d:'🎧 Wokal i miks Twoich własnych numerów wychodzą lepiej, gdy nagrywasz w dobrze wyposażonym, aktywnym studiu — im lepszy sprzęt w aktywnym lokalu, tym wyższa jakość. Inwestycja we własną przestrzeń realnie przekłada się na Twoje tracki.'},
-  {t:'new',d:'🏢 Nieużywane lokale możesz wynajmować artystom NPC — zatrudniasz realizatora (czterech do wyboru, od początkującego po topowego; lepsi wymagają lepiej wyposażonej przestrzeni), włączasz wynajem, a dochód z sesji rozlicza się co tydzień. Odbierasz go w panelu „Wynajem i realizatorzy". Puste studio bez realizatora nie zarabia, a utrzymanie lokalu trzeba pokryć — słabszy tydzień może wyjść na zero.'},
+  {t:'new',d:'🏢 Nieużywane lokale możesz wynajmować artystom NPC — zatrudniasz realizatora za jednorazową opłatą rekrutacyjną (czterech do wyboru, od początkującego po topowego; lepsi wymagają lepiej wyposażonej przestrzeni), włączasz wynajem, a dochód z sesji rozlicza się co tydzień. Odbierasz go w panelu „Wynajem i realizatorzy". Puste studio bez realizatora nie zarabia, a utrzymanie lokalu trzeba pokryć — słabszy tydzień może wyjść na zero.'},
   {t:'new',d:'🔧 Wynajem to nie darmowy przelew: sprzęt w wynajmowanych lokalach zużywa się z czasem i wymaga serwisu, zdarzają się losowe problemy (awarie, spóźnienia, niepełne zapłaty), a zadowoleni NPC zostawiają napiwki. Lepszy komfort, prestiż i porządny sprzęt zmniejszają ryzyko problemów i podnoszą napiwki.'},
   {t:'new',d:'📡 Dobrze wyposażone, prestiżowe studio zaczyna pracować na Twój wizerunek — agencja i partnerzy patrzą przychylniej na Twój content, a przy spójnym stylu rośnie też zainteresowanie sponsora odzieżowego. Własne, porządne studio to nie tylko lepsze nagrania, ale i mocniejsza pozycja w legalnej karierze.'},
  ]
