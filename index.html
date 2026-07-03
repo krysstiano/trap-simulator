@@ -26612,10 +26612,10 @@ const NPC_DATA = {
     ]
   },
   crew: {
-    name:'👥 Ekipa — Rekrutacja',
+    name:'👥 Ryder „Link” Vale — Rekrutacja ekipy',
     lines:[
-      'Szukasz ludzi do ekipy? Mogę Ci kogoś polecić.',
-      'Dobra ekipa to połowa sukcesu. Razem jesteście silniejsi.',
+      'Ryder „Link” Vale, crew scout. Znam grafików, DJ-ów, hype manów i realizatorów — kogo potrzebujesz?',
+      'Dobra ekipa to połowa sukcesu. Ja tylko znam ludzi. Ty decydujesz, kogo wpuszczasz do środka.',
       'Mam tu kilku zdolnych gości. Tylko powiedz słowo.',
     ],
     opts:[
@@ -53082,7 +53082,7 @@ const SMS_CONTACTS={
   trapinfo:  {name:'TrapInfo',                  em:'🛈', color:'#7ec8e3', physical:false}, /* U8 (v2.3.44 PDF): systemowy nadawca info (np. adopcja psa) — nie Marcin; tylko treść do potwierdzenia, brak odpowiedzi */
   fan:       {name:'Fan nr 1',                 em:'❤️', color:'#e74c3c', physical:true},
   /* v2.1.228 audit-fix #48: Crew BYL physical:false ale istnieje fizyczny NPC `npc_crew` na chodniku H2 north (wx:2499, wy:1781) — gracz tam rekrutuje DJ/grafika/menadżera. */
-  crew:      {name:'Ekipa',                    em:'👥', color:'#3498db', physical:true},
+  crew:      {name:'Ryder „Link” Vale',        em:'👥', color:'#3498db', physical:true}, /* PDF Ryder: konkretny NPC (Crew Scout) zamiast bezosobowej „Ekipa"; senderId 'crew' bez zmian (save-safe) */
   gymbro:    {name:'Gym Bro',                  em:'💪', color:'#e67e22', physical:false}, /* v2.1.179: Gym Bro SMS contact (wcześniej osobny G.gymBroMessages array, NIE pojawiał się w Wiadomości) */
   maya_voss: {name:'Maya Voss (Urban Flow)',   em:'💃', color:'#e84393', physical:false}, /* v2.3.99 (PDF #4): organizatorka turniejów breakdance */
   jade_mercer:{name:'Jade Mercer (Concrete Pulse)', em:'🛹', color:'#00b894', physical:false}, /* v2.3.99 (PDF #5): organizatorka contestów skate */
@@ -53922,7 +53922,7 @@ window._smsCheckTriggers=function(){
   if(concerts>=1) _smsTriggerOnce('first_concert','marcin',`Świetny występ ${G.name||'kolego'}! Ludzie pytają kiedy nastepny. Daj znać jak chcesz wbic większą scenę 🎤`);
   if(concerts>=5) _smsTriggerOnce('5_concerts','marcin','5 koncertów masz na koncie, jesteś już rozpoznawalny w mieście. Festiwal może być następnym krokiem — myśl o tym');
   // — U14 (v2.3.44 PDF): odblokowania progów rekrutacji ekipy (powiadomienia w konkretnych momentach)
-  if((G.fans||0)>=2000) _smsTriggerOnce('crew_dj_unlocked','crew','🎧 Masz już 2 000 fanów — mogę Ci załatwić DJ-a do bitów (+15% zarobek ze sprzedaży bitów). Wbij do mnie na chodnik (H2 north).');
+  if((G.fans||0)>=2000) _smsTriggerOnce('crew_dj_unlocked','crew','Masz już 2 000 fanów. To moment, w którym nie wszystko musisz robić sam. Znam DJ-a, który podepnie się pod Twoje bity i podbije sprzedaż — efekt: +15% zarobku ze sprzedaży bitów. Chcesz go sprawdzić? Podbij do mnie na chodnik — H2 north 🎧',{replySet:'ryder_dj_bits'});
   if((G.fans||0)>=50000) _smsTriggerOnce('crew_hype_unlocked','crew','📢 50 tysięcy fanów! Teraz hype-man ma dla kogo robić szum (+20% wzrost obserwujących). Odezwij się.');
   if(concerts>=5) _smsTriggerOnce('crew_junior_unlocked','crew','🤵 Pięć występów za Tobą — junior manager jest dostępny (+5% wszystkie zarobki). Wpadnij zrekrutować.');
   if(concerts>=10) _smsTriggerOnce('crew_djkonc_unlocked','crew','🎧 Dziesięć koncertów! DJ koncertowy na kontrakt wchodzi w grę. Pogadamy o tym przy ekipie.');
@@ -54447,6 +54447,11 @@ window.renderSMSConversation=function(contactId){
           const _pids=Object.keys(window._PRODUCER_REPLIES).filter(k=>window._PRODUCER_REPLIES[k].set==='producer_first');
           return `${_replyCounter}`+window._smsRichButtons('producent',_pids);
         }
+        /* Ryder „Link" Vale (crew) — PDF: kontekstowe odpowiedzi TYLKO dla SMS o rekrutacji DJ-a do bitów (replySet ryder_dj_bits). STRICT: inne SMS ekipy zostają z generycznymi. */
+        if(contactId==='crew' && typeof window._RYDER_REPLIES==='object' && _firstUnreplied && (_firstUnreplied.replySet||'')==='ryder_dj_bits'){
+          const _rids=Object.keys(window._RYDER_REPLIES).filter(k=>window._RYDER_REPLIES[k].set==='ryder_dj_bits');
+          return `${_replyCounter}`+window._smsRichButtons('crew',_rids);
+        }
         /* system / bank — automaty, gracz nie buduje "przyjaźni" */
         if(contactId==='system'||contactId==='bank'){
           return `${_replyCounter}<div style="display:flex;gap:4px;flex-wrap:wrap">
@@ -54880,6 +54885,24 @@ window._producerHandleReply=function(opt){
     if(!p.beatPreviewUnlocked){ p.beatPreviewUnlocked=true; if(typeof notify==='function') notify('🎧 Majkel podrzuci Ci szkic bitu, jak wpadniesz do Studia. Bez zobowiązań — sprawdzicie wspólny kierunek.'); }
   }
 };
+/* v2.3.x (PDF Ryder): Ryder „Link" Vale (Crew Scout) — SMS o rekrutacji DJ-a do bitów. set:'ryder_dj_bits'. Klucze ryder* odrębne. Ceny/bonusy rekrutacji BEZ zmian — cel kieruje na H2 north (istniejący panel ekipy). */
+window._RYDER_REPLIES={
+  rd_interested:{set:'ryder_dj_bits', label:'👍 Brzmi konkretnie. DJ od bitów może się przydać', text:'Brzmi konkretnie. DJ od bitów może się przydać, jeśli faktycznie umie podbić sprzedaż, a nie tylko nawijać makaron na uszy.', fx:{ryderTrust:1,ryderRelationship:1,ryderRecruitFlow:1}, reply:'Spokojnie. Nie podsyłam ludzi, którzy tylko stoją w tle i robią minę od branży. Ten typ ogarnia bity, selekcję i sprzedaż. Wpadnij na H2 north, zobaczysz czy Ci siądzie.'},
+  rd_value:{set:'ryder_dj_bits', label:'🔎 Co dokładnie daje ten DJ poza bonusem?', text:'Co dokładnie daje ten DJ poza samym bonusem do sprzedaży? Chcę wiedzieć, czy to człowiek do ekipy na realną robotę, czy kolejny koszt na liście.', fx:{ryderRespect:1,ryderTrust:1}, reply:'Dobre pytanie. DJ od bitów daje +15% zarobku ze sprzedaży bitów, lepszą selekcję materiału i większy sens sprzedawania paczek produkcyjnych. Nie robi kariery za Ciebie, ale sprawia, że bity pracują czyściej.'},
+  rd_cost:{set:'ryder_dj_bits', label:'💰 +15% brzmi dobrze. Ile mnie to wyniesie?', text:'+15% od bitów brzmi całkiem dobrze. Ile mnie to wyniesie na wejściu? Nie chcę budować ekipy, która zjada więcej, niż wnosi.', fx:{ryderBizFocus:1,ryderRespect:1}, reply:'1200 za rekrutację, jednorazowo. Jak sprzedajesz bity regularnie, to nie koszt, a dźwignia. Jak nie sprzedajesz — będzie kolejny człowiek do pochwałki w panelu. Musisz odpowiedzieć sobie sam, czy warto.'},
+  rd_check:{set:'ryder_dj_bits', label:'🕶 Najpierw chcę go sprawdzić, nie biorę w ciemno', text:'Najpierw chcę go sprawdzić. Nie biorę ludzi do ekipy w ciemno. Gość musi przejść weryfikację.', fx:{ryderCrewControl:1,ryderRespect:1}, reply:'I bardzo dobrze. Ekipa to nie kolekcja awatarów. Wpadnij na H2 north, poznasz gościa, zobaczysz vibe i dopiero wtedy zdecydujesz, czy go bierzesz.'},
+  rd_visit:{set:'ryder_dj_bits', label:'📍 Dobra, wpadnę na H2 north i pogadamy', text:'Dobra, wpadnę na H2 north i pogadamy. Jeśli ten DJ faktycznie dowozi, to może być dobry ruch dla podkładów.', fx:{ryderRelationship:1,ryderRecruitFlow:1}, action:'meetingObjective', reply:'Tak jest. Będę na chodniku przy H2 north. Nie przychodź z nastawieniem, że kupujesz bonus — przychodzisz sprawdzić potencjalnego człowieka do ekipy.'},
+  rd_postpone:{set:'ryder_dj_bits', label:'🕊 Nie teraz. Najpierw domknę swoje rzeczy', text:'Nie teraz. Najpierw domknę swoje tematy, a potem pomyślę o dokładaniu kolejnych ludzi do ekipy.', fx:{}, action:'postpone', reply:'Jasne. Lepiej dobrać ekipę później, niż zbierać ludzi tylko dlatego, że system daje takie opcje. Jak będziesz gotowy, wiesz gdzie mnie znaleźć.'},
+  rd_ignore:{set:'ryder_dj_bits', label:'— Zignoruj', text:null, fx:{ryderRelationship:-1,ryderPatience:-1}, reply:'Temat DJ-a zostawiłeś bez słowa. Spoko, tylko pamiętaj — ludzie z kontaktem nie zawsze czekają w nieskończoność.'},
+};
+/* v2.3.x (PDF Ryder): obsługa odpowiedzi + cel spotkania H2 north (kieruje na istniejący panel rekrutacji ekipy). */
+window._ryderHandleReply=function(opt){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const r=G._ryderRel, act=opt.action;
+  if(opt.reply) window._smsPushNpcReply('crew',opt.reply);
+  if(act==='meetingObjective'){ if(!r.djMeetingObjSet){ r.djMeetingObjSet=true; if(typeof notify==='function') notify('👥 Cel: wbij na chodnik H2 north (środek miasta, na południe od Sali Koncertowej) — Ryder pokaże Ci DJ-a do bitów: 1200 zł, +15% zarobku ze sprzedaży bitów.'); } }
+  else if(act==='postpone'){ r.djRecruitPostponed=true; }
+};
 window._applySmsRichEffect=function(fx){
   fx=fx||{};
   if(typeof _newpdfEnsure==='function') _newpdfEnsure();
@@ -55110,7 +55133,7 @@ window._kamilOpenCooperation=function(){
   ]);
 };
 window._smsRichButtons=function(contactId,ids){
-  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:(contactId==='sponsor')?window._SPONSOR_REPLIES:(contactId==='marcin')?window._MARCIN_REPLIES:(contactId==='manager')?window._MANAGER_REPLIES:(contactId==='producent')?window._PRODUCER_REPLIES:window._KAMIL_REPLIES;
+  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:(contactId==='sponsor')?window._SPONSOR_REPLIES:(contactId==='marcin')?window._MARCIN_REPLIES:(contactId==='manager')?window._MANAGER_REPLIES:(contactId==='producent')?window._PRODUCER_REPLIES:(contactId==='crew')?window._RYDER_REPLIES:window._KAMIL_REPLIES;
   return '<div style="display:flex;flex-direction:column;gap:5px">'+ids.map((id,n)=>{
     const o=reg[id]; if(!o) return '';
     const isIgnore=/ignore/.test(id);
@@ -55126,7 +55149,7 @@ window._smsRichReply=function(contactId,replyId){
   let idx=-1;
   for(let i=conv.length-1;i>=0;i--){ if(conv[i].from==='me') continue; if(conv[i]._replied) continue; idx=i; break; }
   if(idx<0){ if(typeof showMsg==='function') showMsg('💬 Już odpowiedziałeś na wszystkie wiadomości od tego kontaktu. Poczekaj na nowe.','r',4500); return; }
-  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='kamil')?window._KAMIL_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:(contactId==='sponsor')?window._SPONSOR_REPLIES:(contactId==='marcin')?window._MARCIN_REPLIES:(contactId==='manager')?window._MANAGER_REPLIES:(contactId==='producent')?window._PRODUCER_REPLIES:null;
+  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='kamil')?window._KAMIL_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:(contactId==='sponsor')?window._SPONSOR_REPLIES:(contactId==='marcin')?window._MARCIN_REPLIES:(contactId==='manager')?window._MANAGER_REPLIES:(contactId==='producent')?window._PRODUCER_REPLIES:(contactId==='crew')?window._RYDER_REPLIES:null;
   const opt=reg&&reg[replyId];
   if(!opt) return;
   conv[idx]._replied=true;
