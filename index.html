@@ -1972,13 +1972,12 @@ document.addEventListener('keydown', e => {
   /* v2.3.102 (PDF #8-30): klawisz L = panel zaplecza mobilnego kampera (tylko gdy jesteś W kamperze). P zajęty przez telefon. Dostępny dla WSZYSTKICH właścicieli kampera (nie tylko półświatek). */
   if((e.key==='l'||e.key==='L') && !_busyMG){
     if(typeof window._camperEnsure==='function') window._camperEnsure();
-    if(G._inCamper){
+    /* v2.3.108 PDF#10 §17: panel [L] „Zaplecze" — otwierany gdy jedziesz kamperem LUB gdy masz kampera (parked). */
+    if(G._inCamper || (G.camper && G.camper.owned)){
       const _ph=document.getElementById('phone');
       if(_ph && !_ph.classList.contains('on') && typeof togglePhone==='function') togglePhone();
       if(typeof renderCamperPanel==='function') renderCamperPanel();
       else if(typeof renderPhoneApp==='function') renderPhoneApp('trap');
-    } else if(G.camper && G.camper.owned){
-      if(typeof showMsg==='function') showMsg('🚐 Panel zaplecza (L) otwierasz siedząc W kamperze — podejdź do niego i wsiądź klawiszem K.','i',4200);
     }
   }
   if(e.key==='m'||e.key==='M'){
@@ -39824,6 +39823,21 @@ window.buyCamper=function(modelId,source){
   /* E4 discoverability: nowy właściciel uczy się o jeździe (klawisz K) — kamper ma fizyczną pozycję na mapie. */
   if(typeof notify==='function') notify('🚐 Aby jeździć kamperem: podejdź do niego na mapie (marker 🚐) i naciśnij K. Do budynków kamperem nie wjedziesz — wtedy K, żeby wysiąść.');
   window._chooseInitialCamperLocation();
+  /* v2.3.108 PDF#10 §5/§16/§26: po zakupie — tajemniczy komunikat o zapleczu pod [L] + wpis do telefonu + wiadomość salonu. */
+  if(!c.backroomIntroduced){
+    c.backroomIntroduced=true;
+    setTimeout(()=>{
+      if(typeof showMsg==='function') showMsg('🔓 Nowe zaplecze dostępne pod klawiszem [L]. Nie wszystko musi być widoczne z mapy.','i',7000);
+      if(typeof window.addPhoneNote==='function'){ try{ window.addPhoneNote('Zaplecze','Pojazd ma więcej zastosowań, niż wygląda na pierwszy rzut oka. Jeśli znajdziesz odpowiednie miejsce (strefa Underground), panel [L] pokaże więcej.'); }catch(e){} }
+      const srcMsg = (source==='gravel')
+        ? 'Korek: „Tylko pamiętaj — to nie apartament. Jak coś trzeszczy, to znaczy, że jeszcze żyje. Jak będziesz szukał spokojnego postoju, Underground ma kilka miejsc, gdzie ludzie mniej pytają."'
+        : (source==='citydrive')
+          ? 'CityDrive Motors: „Dziękujemy za zakup pojazdu kempingowego. Panel wyposażenia dodatkowego znajdziesz pod [L]. Życzymy spokojnej trasy."'
+          : '';
+      if(srcMsg && typeof window._sendSMS==='function'){ try{ window._sendSMS(source==='gravel'?'Korek':'CityDrive Motors', srcMsg); }catch(e){ if(typeof notify==='function') notify('📩 '+srcMsg); } }
+      else if(srcMsg && typeof notify==='function') notify('📩 '+srcMsg);
+    }, 900);
+  }
   if(typeof saveGameSilent==='function') saveGameSilent();
   if(typeof updateHUD==='function') updateHUD();
   return true;
@@ -40127,45 +40141,82 @@ window.renderCamperPanel=function(){
   document.getElementById('ph-title') && (document.getElementById('ph-title').textContent='🚐 Kamper');
   const back='<div style="padding:8px 14px"><button class="cbtn" style="width:100%" onclick="renderPhoneApp(\'trap\')">← Wróć</button></div>';
   if(!c.owned){ ph.innerHTML=`<div class="ph-screen"><div style="background:#0a1220;border:1px solid #1a3a5a;border-radius:8px;padding:16px;text-align:center;color:#99a;font-size:13px;line-height:1.5">Nie masz jeszcze kampera.<br>Kup go w salonie CityDrive Motors lub na Gravel Lot.</div></div>${back}`; return; }
-  const model=(window._camperModelById(c.model)||{}); const loc=(window._camperLocById(c.location)||{});
+  const model=(window._camperModelById(c.model)||{});
   const destroyed=!!c.destroyed;
-  const workOk=window.canUseCamperWorkspace();
-  const locName=destroyed?'—':(loc.name||'Nieprzypisana lokacja');
-  const statusTxt=destroyed?'Uszkodzony':'Zaparkowany';
-  const statusCol=destroyed?'#e74c3c':(workOk?'#9b59b6':'#7ec8e3');
   const cond=Math.max(0,Math.round(c.condition||0)), fuel=Math.max(0,Math.round(c.fuel||0));
-  /* Stan 2: zaplecze aktywne (strefa Underground) — abstrakcyjne nazwy akcji (PDF §9, BEZ realnych instrukcji). */
-  const workActions=['Przygotuj partię','Przetwórz surowce','Sprawdź jakość','Zabezpiecz zapas','Oczyść stanowisko'];
+  /* v2.3.108 PDF#10: sekcja zaplecza oparta na STREFACH fizycznych (nie starym abstrakcyjnym postoju). */
+  const interior=window._camperInterior(c.model);
+  const backroomActive=window._camperBackroomActive();
+  const bz=window._camperBackroomZone();
+  const blockReason=window._camperBackroomBlockReason();
+  const sourceLbl = c.sourceShop==='gravel_lot_motors'?'Gravel Lot Motors':(c.sourceShop==='citydrive_motors'?'CityDrive Motors':(c._legacyCamper?'Zaplecze startowe':'—'));
+  const inUgPos=window._camperUndergroundPos();
+  const zoneName = bz?bz.zone.name:(inUgPos?'Underground — poza strefą':(G._camperParkedAt&&G._camperParkedAt.room&&G._camperParkedAt.room!=='underground'?'Poza Underground':'—'));
+  const interiorDesc = interior.quality>=80?'Nowoczesne i zadbane':(interior.quality>=55?'Zużyte, ale funkcjonalne':(interior.quality>=40?'Stare, ale da się pracować':'Zużyte, ciasne, prowizoryczne'));
+  const capWord = c=>c>=75?'Wysoka':(c>=50?'Średnia+':(c>=35?'Średnia':'Niska'));
+  const capBonus = bz?bz.zone.capacityBonus:0;
+  const capLbl = capWord(interior.capacity+capBonus);
+  const riskLbl = bz ? (bz.zone.riskModifier<0?'Niskie':(bz.zone.riskModifier>0?'Podwyższone':'Umiarkowane')) : (destroyed?'—':'Nieznane');
+  const statusTxt=destroyed?'Uszkodzony':(backroomActive?'Zaplecze gotowe':'Zaparkowany');
+  const statusCol=destroyed?'#e74c3c':(backroomActive?'#9b59b6':'#7ec8e3');
+  /* §13: akcje zaplecza — nazwy NEUTRALNE/ABSTRAKCYJNE (BEZ realnych instrukcji/procesów). */
+  const workActions=['Przygotuj cykl','Sprawdź zapas','Zabezpiecz stanowisko','Oceń jakość partii','Spakuj partię','Oczyść zaplecze','Zakończ cykl'];
+  const blockMsg =
+    blockReason==='engine' ? 'Najpierw zaparkuj pojazd i zgaś silnik. Zaplecze wymaga spokoju, nie ruchu.' :
+    blockReason==='not_underground' ? 'Zbyt publiczna lokalizacja. Przestaw kampera do jednej ze stref Underground District.' :
+    blockReason==='exposed' ? 'To miejsce jest zbyt odsłonięte. Poszukaj strefy, w której da się działać bez zbędnych oczu (Stary Postój / Cichy Kanał / Tylny Plac).' :
+    blockReason==='zone_locked' ? 'Ta strefa nie jest jeszcze dostępna — potrzebujesz większego progresu w Underground.' :
+    blockReason==='pending' ? 'Kamper jest w trakcie sprzedaży albo rozbiórki — zaplecze niedostępne.' :
+    'Przyprowadź kampera do oznaczonej strefy Underground i zgaś silnik.';
   const workSection = destroyed
-    ? `<div style="background:#1a0a0a;border:1px solid #e74c3c;border-radius:8px;padding:12px;margin-bottom:10px;color:#e87">Pojazd uszkodzony — odzyskaj resztki na Metal Valley Yard.</div>`
-    : workOk
+    ? `<div style="background:#1a0a0a;border:1px solid #e74c3c;border-radius:8px;padding:12px;margin-bottom:10px;color:#e87;font-size:11.5px;line-height:1.5">Pojazd wymaga naprawy. W takim stanie zaplecze jest niedostępne. Resztki odzyskasz na Metal Valley Yard.</div>`
+    : backroomActive
       ? `<div style="background:#150a22;border:1px solid #9b59b6;border-radius:8px;padding:12px;margin-bottom:10px">
-          <div style="color:#c79be3;font-weight:700;font-size:13px;margin-bottom:4px">Zaplecze aktywne</div>
-          <div style="color:#9aa;font-size:11px;line-height:1.5;margin-bottom:8px">Pojazd stoi w dozwolonej strefie. Funkcje zaplecza obsłużysz na miejscu — wejdź do kampera w Underground District.</div>
+          <div style="color:#c79be3;font-weight:700;font-size:13px;margin-bottom:4px">Zaplecze aktywne · ${bz.zone.name}</div>
+          <div style="color:#9aa;font-size:11px;line-height:1.5;margin-bottom:8px">Pojazd stoi w dozwolonej strefie, silnik wyłączony. Wejdź do wnętrza, żeby zająć się cyklem.</div>
+          <button class="cbtn" style="width:100%;border-color:#9b59b6;color:#e8d0ff;font-weight:700;margin-bottom:8px" onclick="window._enterCamperInterior&&window._enterCamperInterior()">🚪 Wejdź do wnętrza</button>
           <div style="display:flex;flex-wrap:wrap;gap:5px">${workActions.map(a=>`<span style="background:#1f1230;border:1px solid #3a2a50;color:#b79bd0;font-size:10.5px;padding:3px 8px;border-radius:10px">${a}</span>`).join('')}</div>
         </div>`
       : `<div style="background:#0e1220;border:1px solid #2a3a50;border-radius:8px;padding:12px;margin-bottom:10px">
           <div style="color:#7ec8e3;font-weight:700;font-size:13px;margin-bottom:4px">Zaplecze niedostępne</div>
-          <div style="color:#9aa;font-size:11.5px;line-height:1.5">Zbyt publiczna lokalizacja. Przestaw kampera do jednej z dozwolonych stref Underground District, aby uruchomić zaplecze.</div>
+          <div style="color:#9aa;font-size:11.5px;line-height:1.5">${blockMsg}</div>
         </div>`;
   ph.innerHTML=`<div class="ph-screen">
     <div style="background:#0a1220;border:1px solid #1a3a5a;border-radius:8px;padding:12px;margin-bottom:10px">
       <div style="font-size:15px;font-weight:800;color:#fff">${model.name||'Kamper'}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;margin-top:8px;font-size:12px;color:#aab">
         <div>Status: <b style="color:${statusCol}">${statusTxt}</b></div>
-        <div>Pojazd: <b style="color:#27ae60">dostępny</b></div>
-        <div style="grid-column:1/3">Lokalizacja: <b style="color:#cdd">${locName}</b></div>
-        <div>Stan techn.: <b style="color:${cond>=60?'#27ae60':cond>=30?'#f39c12':'#e74c3c'}">${cond}%</b></div>
-        <div>Paliwo: <b style="color:${fuel>=30?'#27ae60':'#e74c3c'}">${fuel}%</b></div>
+        <div>Źródło: <b style="color:#cdd">${sourceLbl}</b></div>
+        <div style="grid-column:1/3">Strefa: <b style="color:${bz?'#c79be3':'#cdd'}">${zoneName}</b></div>
+        <div>Stan wnętrza: <b style="color:#cdd">${interiorDesc}</b></div>
+        <div>Pojemność: <b style="color:#cdd">${capLbl}</b></div>
+        <div>Ryzyko: <b style="color:${riskLbl==='Niskie'?'#27ae60':riskLbl==='Podwyższone'?'#e74c3c':'#f39c12'}">${riskLbl}</b></div>
+        <div>Stan techn.: <b style="color:${cond>=60?'#27ae60':cond>=30?'#f39c12':'#e74c3c'}">${cond}%</b> · Paliwo: <b style="color:${fuel>=30?'#27ae60':'#e74c3c'}">${fuel}%</b></div>
       </div>
     </div>
     ${workSection}
     <div style="display:flex;flex-direction:column;gap:6px">
+      <button class="cbtn" style="width:100%" onclick="window._camperInteriorStatus&&window._camperInteriorStatus()">🔎 Sprawdź stan zaplecza</button>
+      <button class="cbtn" style="width:100%" onclick="window._camperSwitchActive&&window._camperSwitchActive()">🔁 Zmień aktywny kamper</button>
       <button class="cbtn" style="width:100%;border-color:#9b59b6;color:#d8c0ee" ${destroyed?'disabled':''} onclick="window._enterCamper&&window._enterCamper()">🚐 Jedź kamperem (lub klawisz K przy pojeździe)</button>
       <button class="cbtn" style="width:100%" onclick="window._camperShowOnMap&&window._camperShowOnMap()">Pokaż na mapie</button>
-      <button class="cbtn" style="width:100%" ${destroyed?'disabled':''} onclick="window._camperOpenRelocate&&window._camperOpenRelocate()">Zmień lokalizację</button>
     </div>
   </div>${back}`;
+};
+/* §19: „Sprawdź stan zaplecza" — pełne statystyki wnętrza wg modelu (quality/capacity/reliability/discretion). */
+window._camperInteriorStatus=function(){
+  window._camperEnsure(); const c=G.camper;
+  if(!c.owned){ if(typeof showMsg==='function') showMsg('🚐 Nie masz kampera.','r'); return; }
+  const model=(window._camperModelById(c.model)||{}); const it=window._camperInterior(c.model);
+  const bar=(v)=>`${v}/100`;
+  const body=`🚐 <b>Wnętrze — ${model.name||'Kamper'}</b>\n\nJakość wnętrza: ${bar(it.quality)}\nPojemność zaplecza: ${bar(it.capacity)}\nStabilność: ${bar(it.reliability)}\nDyskrecja: ${bar(it.discretion)}\nKomfort: ${bar(it.comfort)}\nPrestiż: ${bar(it.prestige)}\n\n${it.quality>=80?'Czyste powierzchnie, dobre światło i przestrzeń — zaplecze przypomina plan, a nie desperację.':(it.quality>=55?'Nie wygląda luksusowo, ale ma miejsce — a w Underground przestrzeń czasem znaczy więcej niż wygląd.':'Ciasno, zużyte szafki i blat, który widział zbyt wielu właścicieli. Ale da się tu pracować.')}`;
+  if(typeof gameAlert==='function') gameAlert(body); else if(typeof showMsg==='function') showMsg(body.replace(/<[^>]+>/g,''),'i',7000);
+};
+/* §6: „Zmień aktywny kamper" — obecnie jeden pojazd; stub informacyjny (rozszerzalne przy flocie). */
+window._camperSwitchActive=function(){
+  window._camperEnsure(); const c=G.camper;
+  if(!c.owned){ if(typeof showMsg==='function') showMsg('🚐 Nie masz kampera.','r'); return; }
+  if(typeof showMsg==='function') showMsg('🚐 Masz jeden aktywny kamper. Kolejne pojazdy będzie można przełączać, gdy powiększysz flotę.','i',4500);
 };
 /* E4e (silnik jazdy): wsiadanie do kampera z PANELU (reuse logiki klawisza K — gdy gracz blisko zaparkowanego). */
 window._enterCamper=function(){
@@ -51126,7 +51177,7 @@ function renderPhoneApp(app){
           <div style="background:#0a0a14;border-radius:3px;height:4px;overflow:hidden;margin-top:3px"><div style="width:${Math.min(100,_h)}%;height:100%;background:${_col}"></div></div>
           <div style="font-size:10px;color:#9aa;margin-top:4px;line-height:1.45"><b style="color:#bcd">Heat</b> = jak bardzo policja Cię szuka. Rośnie z każdej <b>Twojej sprzedaży</b> (Joint +1, Shard +3, Proszek +5, Mix +6, Ecstasy +7, LSD +8), <b>wojen o terytorium</b> (+12) i pracy <b>chemika</b> (+2/szt). <b style="color:#f39c12">50+</b> = ~5% nalotu/dzień, <b style="color:#e74c3c">80+</b> = ~25% — przegrany nalot = konfiskata towaru + areszt + kara. Spada sam o <b>−20/dzień</b> (szybciej z filtrami/informatorem). Dealerzy sprzedają BEZ podnoszenia heat.</div>`;})()}
           <button class="cbtn" style="width:100%;padding:6px;font-size:11px;color:#7ec8e3;border-color:#3a6a8a;margin-top:6px" ${_inJail?'disabled':''} onclick="window._trapRelocateKamper()">📍 Przestaw kryjówkę (−heat, raz/dobę · 15⚡)</button>
-          ${(G.camper&&G.camper.owned)?`<button class="cbtn" style="width:100%;padding:6px;font-size:11px;color:#b79bd0;border-color:#5a3a7a;margin-top:5px" onclick="window.renderCamperPanel&&window.renderCamperPanel()">🚐 Kamper — status pojazdu i zaplecza${window.canUseCamperWorkspace&&window.canUseCamperWorkspace()?' · zaplecze aktywne':''}</button>`:''}
+          ${(G.camper&&G.camper.owned)?`<button class="cbtn" style="width:100%;padding:6px;font-size:11px;color:#b79bd0;border-color:#5a3a7a;margin-top:5px" onclick="window.renderCamperPanel&&window.renderCamperPanel()">🚐 Kamper — status pojazdu i zaplecza${window._camperBackroomActive&&window._camperBackroomActive()?' · zaplecze aktywne':''}</button>`:''}
         </div>
         ${_inJail?`<div style="background:#2a0a0a;border:2px solid #e74c3c;padding:10px;border-radius:6px;margin-bottom:10px;color:#e74c3c"><strong>🚨 W areszcie!</strong><div style="font-size:12px;color:#aaa;margin-top:4px">Wyjdziesz za ${_jailDays} dni gry.</div></div>`:''}
         <div style="background:#0a1505;border-radius:6px;padding:10px;margin-bottom:10px">
@@ -60392,6 +60443,15 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.108',date:'2026-07-03',cats:['feature'],title:'🚐 Nowość: kamper jako Twój pojazd + strefy zaplecza w Underground',
+ items:[
+  {t:'new',d:'🅿️ Stary stały punkt „Kamper" w Underground zniknął — teraz zaplecze to Twój KUPIONY kamper, którego parkujesz w jednej z trzech oznaczonych stref: Stary Postój, Cichy Kanał i Tylny Plac. Każda strefa ma inny poziom ryzyka, dyskrecji i pojemności, a kolejne odblokowują się wraz z Twoim progresem w Underground.'},
+  {t:'new',d:'🚪 Kiedy zaparkujesz kampera w dozwolonej strefie i zgasisz silnik, otwórz panel klawiszem [L] i wejdź do wnętrza. Panel pokazuje Twój kamper, źródło zakupu, aktualną strefę, stan wnętrza, pojemność i poziom ryzyka.'},
+  {t:'new',d:'🛠️ Wnętrze zależy od modelu: tańsze kampery z Gravel Lot są ciasne i bardziej prowizoryczne, a droższe z CityDrive — czystsze, pojemniejsze i wygodniejsze. Po zakupie dostajesz krótką wiadomość, gdzie szukać nowego zaplecza.'},
+  {t:'new',d:'♻️ Jeśli korzystałeś już wcześniej ze starego Kampera, nic nie tracisz — dostajesz zapasowy kamper zaparkowany w strefie Stary Postój, żeby Twoja dotychczasowa produkcja działała bez przerwy.'},
+ ]
+ },
  {
  ver:'v2.3.108',date:'2026-07-03',cats:['feature'],title:'🚗 Nowość: pojazdy jak naprawdę — silnik, światła, zamek i pasy',
  items:[
