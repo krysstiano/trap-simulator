@@ -16943,6 +16943,108 @@ window._studioActiveMixBonus=function(){
   try{ if(G.studioOwned&&G.studioComplex&&G.studioComplex.activeRoomId){ const rs=window.getStudioRoomStats(G.studioComplex.activeRoomId); return Math.floor(((rs&&rs.mixQuality)||0)*0.15); } }catch(_e){}
   return 0;
 };
+/* ═══ v2.3.109 (PDF13 TIER 13.5): wynajem lokali NPC + realizatorzy + dochód pasywny tygodniowy (§29-34) ═══ */
+const STUDIO_ENGINEERS={
+  kuba:{id:'kuba',name:'Kuba „Fader" Milewski',level:'początkujący',weeklyCost:1200,revenueShare:0.35,qualityBonus:8,minRecordingQuality:0,minComfort:0,minPrestige:0},
+  nina:{id:'nina',name:'Nina Reverb',level:'średni',weeklyCost:2800,revenueShare:0.40,qualityBonus:15,minRecordingQuality:50,minComfort:40,minPrestige:30},
+  rolf:{id:'rolf',name:'Rolf „Masterbus" Gant',level:'profesjonalny',weeklyCost:6500,revenueShare:0.45,qualityBonus:22,minRecordingQuality:70,minComfort:60,minPrestige:50},
+  mira:{id:'mira',name:'Mira Sol',level:'premium',weeklyCost:12000,revenueShare:0.50,qualityBonus:30,minRecordingQuality:80,minComfort:75,minPrestige:70},
+};
+window.STUDIO_ENGINEERS=STUDIO_ENGINEERS;
+window.canHireStudioEngineer=function(engId,roomId){
+  const e=STUDIO_ENGINEERS[engId]; if(!e) return false;
+  const s=window.getStudioRoomStats(roomId);
+  return s.recordingQuality>=e.minRecordingQuality && s.comfortScore>=e.minComfort && s.prestigeScore>=e.minPrestige; /* §31 */
+};
+window.hireStudioEngineer=function(engId,roomId){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const e=STUDIO_ENGINEERS[engId], sc=G.studioComplex;
+  if(!e||!sc.ownedRooms.includes(roomId)) return;
+  if(!window.canHireStudioEngineer(engId,roomId)){ if(typeof showMsg==='function') showMsg(`${e.name} nie chce pracować w tej przestrzeni. Wymaga: jakość nagrań ≥${e.minRecordingQuality}%, komfort ≥${e.minComfort}%, prestiż ≥${e.minPrestige}%. Dopakuj wyposażenie.`,'r',8000); return; }
+  sc.engineers[roomId]=engId;
+  if(typeof notify==='function') notify(`🎚️ Zatrudniono realizatora: ${e.name} → ${STUDIO_ROOMS[roomId].name}. Bierze ${Math.round(e.revenueShare*100)}% od przychodu z sesji NPC (+${e.qualityBonus}% do jakości usług).`);
+  if(typeof window.renderStudioRental==='function') window.renderStudioRental();
+};
+window.setStudioRoomRental=function(roomId,on){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const sc=G.studioComplex; const inst=window.getStudioRoomInstance(roomId);
+  if(on){
+    if(roomId===sc.activeRoomId){ if(typeof showMsg==='function') showMsg('Nie wynajmiesz aktywnego studia (nagrywasz w nim sam). Ustaw inny lokal jako aktywny albo zmień aktywne studio.','r',7000); return; }
+    if(!window.studioRoomCanRecord(roomId)){ if(typeof showMsg==='function') showMsg('Lokal potrzebuje minimalnego zestawu sprzętu (komputer, DAW, interfejs, mikrofon, słuchawki, akustyka), zanim go wynajmiesz.','r',7000); return; }
+    if(!sc.engineers[roomId]){ if(typeof showMsg==='function') showMsg('Najpierw zatrudnij realizatora do tego lokalu.','r',5000); return; }
+    inst.rentalEnabled=true; if(typeof notify==='function') notify(`✅ ${STUDIO_ROOMS[roomId].name} wynajmowany — realizator prowadzi sesje NPC. Dochód rozliczany tygodniowo.`);
+  } else { inst.rentalEnabled=false; if(typeof notify==='function') notify(`⏹️ Wstrzymano wynajem: ${STUDIO_ROOMS[roomId].name}.`); }
+  if(typeof window.renderStudioRental==='function') window.renderStudioRental();
+};
+/* przychód tygodniowy z wynajmowanego lokalu (§32). deterministyczny=false → losowy popyt; anti-exploit §42: bez wynajmu/realizatora = 0. */
+window._studioRoomWeeklyIncome=function(roomId,deterministic){
+  const sc=G.studioComplex; const inst=window.getStudioRoomInstance(roomId); const room=STUDIO_ROOMS[roomId];
+  if(!inst.rentalEnabled || !sc.engineers[roomId] || !window.studioRoomCanRecord(roomId)) return 0;
+  const e=STUDIO_ENGINEERS[sc.engineers[roomId]]; const s=window.getStudioRoomStats(roomId);
+  const demandScore=s.recordingQuality*0.35+s.comfortScore*0.20+s.prestigeScore*0.25+e.qualityBonus*0.20;
+  let demand; const _r=(a,b)=>deterministic?Math.floor((a+b)/2):(typeof rnd==='function'?rnd(a,b):a);
+  if(demandScore<40) demand=_r(0,2); else if(demandScore<60) demand=_r(1,4); else if(demandScore<80) demand=_r(3,7); else demand=_r(5,10);
+  const sessionPrice=350+s.recordingQuality*12+s.mixQuality*8+s.prestigeScore*10;
+  const gross=demand*sessionPrice;
+  const net=gross-Math.floor(gross*e.revenueShare)-room.weeklyMaintenance; /* §32: koszty = udział realizatora (jego zapłata) + utrzymanie lokalu */
+  return Math.max(0,Math.floor(net));
+};
+/* Wołane z dziennego ticka. Co 7 dni gry: nalicz do weeklyPending (NIE dodaje do kasy — kasa tylko przy collectStudioIncome). Anti-double-pay. */
+window._studioWeeklyTick=function(){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const sc=G.studioComplex; if(!sc.ownedRooms.length) return;
+  if(sc.lastSettleDay===null){ sc.lastSettleDay=(G.day||0); return; }
+  if(((G.day||0)-sc.lastSettleDay)<7) return;
+  sc.lastSettleDay=(G.day||0);
+  let total=0; for(const rid of sc.ownedRooms) total+=window._studioRoomWeeklyIncome(rid,false);
+  if(total>0){ sc.weeklyPending=(sc.weeklyPending||0)+total; if(typeof addNotif==='function') addNotif(`🎙️ Studio Complex: tygodniowe rozliczenie gotowe — +${total.toLocaleString('pl')} zł do odebrania w panelu wynajmu.`); }
+};
+window.collectStudioIncome=function(){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const sc=G.studioComplex; const amt=Math.floor(sc.weeklyPending||0);
+  if(amt<=0){ if(typeof showMsg==='function') showMsg('Nic do odebrania — poczekaj na tygodniowe rozliczenie z wynajmu.','f',4500); return; }
+  sc.weeklyPending=0; sc.totalIncome=(sc.totalIncome||0)+amt;
+  if(typeof earn==='function') earn(amt,false); else G.money=(G.money||0)+amt;
+  if(typeof notify==='function') notify(`💰 Odebrano dochód z wynajmu studia: +${amt.toLocaleString('pl')} zł.`);
+  if(typeof window.renderStudioRental==='function') window.renderStudioRental();
+};
+/* Panel wynajmu i realizatorów (§29-34). */
+window.renderStudioRental=function(){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const sc=G.studioComplex; if(!sc.ownedRooms.length){ renderStudioForSale(); return; }
+  const pend=Math.floor(sc.weeklyPending||0);
+  let body='';
+  for(const rid of sc.ownedRooms){ const room=STUDIO_ROOMS[rid]; const inst=window.getStudioRoomInstance(rid); const s=window.getStudioRoomStats(rid);
+    const isActive=sc.activeRoomId===rid; const engId=sc.engineers[rid]; const eng=engId?STUDIO_ENGINEERS[engId]:null;
+    const estMin=window._studioRoomWeeklyIncome(rid,true);
+    let engBlock=`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px">`+Object.values(STUDIO_ENGINEERS).map(e=>{ const okReq=window.canHireStudioEngineer(e.id,rid); const cur=engId===e.id;
+      return `<button class="bbtn" style="padding:3px 8px;font-size:10.5px;${cur?'background:#1a3525;border-color:#2a6a3a;color:#9ee89e':(okReq?'':'opacity:.5')}" ${(!okReq&&!cur)?'disabled':''} onclick="hireStudioEngineer('${e.id}','${rid}')" title="Bierze ${Math.round(e.revenueShare*100)}% od przychodu. Wymaga: nagrania ${e.minRecordingQuality}%, komfort ${e.minComfort}%, prestiż ${e.minPrestige}%">${cur?'✓ ':''}${e.name.split(' ')[0]} (+${e.qualityBonus}%)</button>`;
+    }).join('')+`</div>`;
+    body+=`<div style="background:#0a1220;border:1px solid ${inst.rentalEnabled?'#2a6a3a':'#1a3a5a'};border-radius:9px;padding:11px 13px;margin-bottom:9px">
+      <div style="font-weight:800;color:#fff;font-size:13px">${room.emoji} ${room.name} ${isActive?'<span style="font-size:9px;color:#7ec8e3">(aktywne — Twoje nagrania)</span>':inst.rentalEnabled?'<span style="font-size:9px;color:#27ae60">(WYNAJMOWANE)</span>':''}</div>
+      <div style="color:#778;font-size:10.5px;margin:3px 0">Jakość ${s.recordingQuality}% · komfort ${s.comfortScore}% · prestiż ${s.prestigeScore}% · realizator: <b style="color:#c8a520">${eng?eng.name:'brak'}</b></div>
+      ${isActive?'<div style="color:#7a8aa0;font-size:10.5px">To Twoje aktywne studio — nie wynajmujesz go NPC.</div>':`
+        <div style="color:#8aa;font-size:10.5px">Realizator (wymagany do wynajmu):</div>${engBlock}
+        <div style="margin-top:7px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          ${inst.rentalEnabled
+            ? `<span style="color:#27ae60;font-size:11px">≈ ${estMin.toLocaleString('pl')} zł/tydz. netto</span><button class="bbtn" style="padding:4px 10px;font-size:11px;background:#352525;border-color:#6a3a3a;color:#e89e9e" onclick="setStudioRoomRental('${rid}',false)">Zatrzymaj wynajem</button>`
+            : `<button class="dbtn" style="padding:5px 12px;font-size:12px" onclick="setStudioRoomRental('${rid}',true)">Włącz wynajem</button>`}
+        </div>`}
+    </div>`;
+  }
+  document.getElementById('ov-content').innerHTML=`
+    <h2>🏢 Wynajem i realizatorzy</h2>
+    <p class="sub">Wynajmuj nieużywane lokale artystom NPC — realizator prowadzi sesje, a Ty inkasujesz dochód rozliczany co tydzień.</p>
+    <div style="background:#0a1a0a;border:1px solid #1a4a1a;border-radius:8px;padding:9px 12px;margin-bottom:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="color:#9ee89e;font-size:13px">💰 Do odebrania: <b>${pend.toLocaleString('pl')} zł</b></span>
+      <button class="dbtn" style="padding:5px 12px;font-size:12px" ${pend<=0?'disabled':''} onclick="collectStudioIncome()">Odbierz</button>
+      <span style="color:#667;font-size:10px;margin-left:auto">Łącznie z wynajmu: ${(sc.totalIncome||0).toLocaleString('pl')} zł</span>
+    </div>
+    ${body}
+    <div class="res" id="shop-res" style="margin-top:4px"></div>
+    <button class="cbtn" style="margin-top:8px" onclick="renderStudioForSale()">← Studio Complex</button>
+  `;
+};
 /* czy lokal ma minimalny zestaw do nagrywania wokalu (PDF §8): komputer+DAW+interfejs+mikrofon+słuchawki+akustyka */
 window.studioRoomCanRecord=function(roomId){
   return window.getRoomEquipmentScore(roomId,'computer')>0 && window.getRoomEquipmentScore(roomId,'daw')>0 &&
@@ -17024,6 +17126,7 @@ function renderStudioForSale(){
     <h2>🎙️ Soundyard Studio Complex</h2>
     <p class="sub">Kup przestrzeń, wyposaż ją i zamień w miejsce, które pracuje na Twoją muzykę. Cena lokalu = sama przestrzeń; sprzęt kupujesz osobno.</p>
     <div style="color:#7ec8e3;font-size:12px;margin-bottom:8px">Twoje lokale: <b>${owned.length}/5</b> · Twoja kasa: <b style="color:#2ecc71">${(G.money||0).toLocaleString('pl')} zł</b> · Rabat za poziom (${L}): <b>${disc}</b></div>
+    ${owned.length?`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px"><button class="bbtn" style="padding:5px 12px;font-size:12px;background:#2a2510;border-color:#6a5a1a;color:#e8d55a" onclick="renderStudioRental()">🏢 Wynajem i realizatorzy</button>${(Math.floor((sc.weeklyPending||0))>0)?`<span style="color:#9ee89e;font-size:11px">💰 ${Math.floor(sc.weeklyPending).toLocaleString('pl')} zł z wynajmu do odebrania</span>`:''}</div>`:''}
     ${owned.length===0?'<div style="background:#1a1206;border-left:3px solid #f1c40f;padding:8px 11px;border-radius:4px;font-size:11.5px;color:#e8d5a5;margin-bottom:10px">Nie masz jeszcze żadnej przestrzeni studyjnej. Pamiętaj: sama przestrzeń nie wystarczy — po zakupie musisz ją wyposażyć.</div>':''}
     ${Object.keys(STUDIO_ROOMS).map(roomCard).join('')}
     <div class="res" id="studio-sale-res" style="margin-top:6px"></div>
@@ -27795,6 +27898,8 @@ function nextPeriod(){
     // ── Studio: pasywny wynajem ──
     const rentalInc=studioRentalIncome();
     if(rentalInc>0){const _p=earn(rentalInc);addNotif(`🎙️ Wynajem studia: +${_p.toLocaleString('pl')} zł`);} /* v2.1.865: notif = REALNA kwota (earn return) */
+    /* v2.3.109 (PDF13 TIER 13.5): tygodniowe rozliczenie wynajmu Studio Complex (accrue do weeklyPending, kasa dopiero przy Odbierz). */
+    if(typeof window._studioWeeklyTick==='function') window._studioWeeklyTick();
     // ── Merch — dzienne sprzedaże, trendy, marketing ──
     merchDailyTick();
     // ── Festiwal tygodniowy ──
@@ -61312,6 +61417,7 @@ const PATCH_NOTES = [
   {t:'new',d:'🎛️ Każdy lokal wyposażasz osobno — komputer i DAW, mikrofony, interfejsy, odsłuch, MIDI, akustyka, oświetlenie, meble, lodówka i dodatki. Sprzęt trafia do konkretnego studia, a każdy lokal ma limit miejsca (większe przestrzenie mieszczą więcej sprzętu). Panel wyposażenia i zakup kolejnych lokali otwierasz z wnętrza studia.'},
   {t:'new',d:'📊 Wyposażenie realnie kształtuje jakość lokalu — panel pokazuje jakość nagrań, miks i master, komfort, atmosferę oraz prestiż, a także podpowiada, czego jeszcze brakuje, by w pełni nagrywać wokal (komputer, DAW, interfejs, mikrofon, słuchawki i akustyka to minimum).'},
   {t:'new',d:'🎧 Wokal i miks Twoich własnych numerów wychodzą lepiej, gdy nagrywasz w dobrze wyposażonym, aktywnym studiu — im lepszy sprzęt w aktywnym lokalu, tym wyższa jakość. Inwestycja we własną przestrzeń realnie przekłada się na Twoje tracki.'},
+  {t:'new',d:'🏢 Nieużywane lokale możesz wynajmować artystom NPC — zatrudniasz realizatora (czterech do wyboru, od początkującego po topowego; lepsi wymagają lepiej wyposażonej przestrzeni), włączasz wynajem, a dochód z sesji rozlicza się co tydzień. Odbierasz go w panelu „Wynajem i realizatorzy". Puste studio bez realizatora nie zarabia, a utrzymanie lokalu trzeba pokryć — słabszy tydzień może wyjść na zero.'},
  ]
  },
  {
