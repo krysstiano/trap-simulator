@@ -16790,7 +16790,10 @@ function getRecordingQuality(){
   const dawPts={1:15,2:25,3:40};const daw=G.hasDaw?(dawPts[G.dawTier||1]||15):0;
   const monitor=G.headphones?Math.floor(G.headphones.quality/20):0; /* v2.1.750 (audyt): /8 → /20 — spójne z etykietą sklepu „Monitoring +floor(q/20)" oraz ścieżką YT (doRecord/finishYTMinigame). Wcześniej studio dawało 2.5× więcej niż obiecywała UI (niespójność #3). */
   const skilBonus=(getRaperST('realizacja')||0)*4+(getRaperST('mikser')||0)*3;
-  const baseQ=Math.min(100,Math.round(micEff+acoustic+daw+monitor+skilBonus));
+  /* v2.3.109 (PDF13 TIER 13.4 §43): aktywny wyposażony lokal Studio Complex podnosi jakość nagrań własnych tracków (inwestycja w studio = lepsze numery). Bonus, nie blokada — nie łamie nagrywania na globalnym sprzęcie. */
+  let studioBonus=0;
+  try{ if(G.studioComplex&&G.studioComplex.activeRoomId&&typeof window.getStudioRoomStats==='function'){ const _rs=window.getStudioRoomStats(G.studioComplex.activeRoomId); studioBonus=Math.floor(((_rs&&_rs.recordingQuality)||0)*0.20); } }catch(_e){}
+  const baseQ=Math.min(100,Math.round(micEff+acoustic+daw+monitor+skilBonus+studioBonus));
   const flowQMult=getRaperST('flow')>=5?1.25:getRaperST('flow')>=3?1.1:1; // Flow 3→+10%, Flow 5→+25%
   // v1.8.98: Mikser 1 "+10% jakości własnych tracków" — multiplikatywny boost (poprzednio tylko liniowe +3pkt z skilBonus)
   const mikserQMult=getRaperST('mikser')>=1?1.10:1;
@@ -16931,6 +16934,15 @@ window._recalcStudioRoomStats=function(roomId){
   return inst.stats;
 };
 window.getStudioRoomStats=function(roomId){ const inst=window.getStudioRoomInstance(roomId); if(!inst.stats) window._recalcStudioRoomStats(roomId); return inst.stats||{recordingQuality:0,mixQuality:0,acousticScore:0,comfortScore:0,atmosphereScore:0,prestigeScore:0,npcTipChance:0}; };
+/* v2.3.109 (PDF13 TIER 13.4 §43): bonus jakości do nagrania z AKTYWNEGO wyposażonego lokalu (własne tracki nagrywane w pro-studiu). Bonus, nie blokada. */
+window._studioActiveRecBonus=function(){
+  try{ if(G.studioOwned&&G.studioComplex&&G.studioComplex.activeRoomId){ const rs=window.getStudioRoomStats(G.studioComplex.activeRoomId); return Math.floor(((rs&&rs.recordingQuality)||0)*0.15); } }catch(_e){}
+  return 0;
+};
+window._studioActiveMixBonus=function(){
+  try{ if(G.studioOwned&&G.studioComplex&&G.studioComplex.activeRoomId){ const rs=window.getStudioRoomStats(G.studioComplex.activeRoomId); return Math.floor(((rs&&rs.mixQuality)||0)*0.15); } }catch(_e){}
+  return 0;
+};
 /* czy lokal ma minimalny zestaw do nagrywania wokalu (PDF §8): komputer+DAW+interfejs+mikrofon+słuchawki+akustyka */
 window.studioRoomCanRecord=function(roomId){
   return window.getRoomEquipmentScore(roomId,'computer')>0 && window.getRoomEquipmentScore(roomId,'daw')>0 &&
@@ -34603,7 +34615,7 @@ function startVocalRecordMG(){
     // Store in currentTrack if launched from DAW
     // v1.8.18: pipeline — po nagraniu wokalu sugeruj mixer.
     const _wasDawVocal = !!G._dawVocalMode;
-    if(G._dawVocalMode){G.currentTrack.vocalQ=Math.round(quality);G._dawVocalMode=false;}
+    if(G._dawVocalMode){G.currentTrack.vocalQ=Math.min(100,Math.round(quality)+(typeof window._studioActiveRecBonus==='function'?window._studioActiveRecBonus():0));G._dawVocalMode=false;} /* v2.3.109 (13.4): aktywny lokal Studio Complex podnosi wokal */
     let _nextStepBtn;
     if(_wasDawVocal && G.hasDaw){
       _nextStepBtn=`<button class="cbtn" style="margin-top:18px;background:#1a0a2a;border-color:#9b59b6;color:#9b59b6" onclick="document.getElementById('mg-job').classList.remove('on');renderDAWOverlay('mixer');openOverlay()">🎚️ Następny krok: Miks →</button>`;
@@ -35524,7 +35536,8 @@ window.dawDoMix=()=>{
   /* v1.9.18: DAW tier bonus aplikowany do mixu (poprzednio nie różniło Basic vs Logic Pro) */
   const _dawTierMixBonus={1:3,2:8,3:14}[G.dawTier]||0;
   /* v2.1.122: Wave 1 W1 — BUFF mix plugin bonus 0.4→1.0 mult (UI obiecuje "+8% jakości miksu" dla eqPro, kod dawał +8×0.4=+3.2% — nerf). Teraz pełny +8 pkt = +8% jakości faktycznie. */
-  ct.mixQ=Math.round(clamp(score*0.9*beatMult*vocalMult+plugBonus*1.0+_dawTierMixBonus,10,baseMax+_dawTierMixBonus));
+  const _studioMixB=(typeof window._studioActiveMixBonus==='function'?window._studioActiveMixBonus():0); /* v2.3.109 (13.4): aktywny lokal Studio Complex podnosi miks */
+  ct.mixQ=Math.round(clamp(score*0.9*beatMult*vocalMult+plugBonus*1.0+_dawTierMixBonus+_studioMixB,10,baseMax+_dawTierMixBonus+_studioMixB));
   G.energy=clampStat('energy', G.energy-15);addXP(15);
   // v1.8.18: pipeline — po miksie automatycznie przejdź do masteringu
   if(typeof showMsg==='function')showMsg(`🎚️ Miks gotowy: ${ct.mixQ}%. Następny krok: 🎛️ Master →`,'g',5000);
@@ -61298,6 +61311,7 @@ const PATCH_NOTES = [
   {t:'new',d:'📁 Możesz posiadać kilka lokali naraz i wskazać jeden jako aktywny do własnych nagrań. Jeśli miałeś już wcześniej studio, dostajesz w zamian gotowy Booth Room — nic nie tracisz.'},
   {t:'new',d:'🎛️ Każdy lokal wyposażasz osobno — komputer i DAW, mikrofony, interfejsy, odsłuch, MIDI, akustyka, oświetlenie, meble, lodówka i dodatki. Sprzęt trafia do konkretnego studia, a każdy lokal ma limit miejsca (większe przestrzenie mieszczą więcej sprzętu). Panel wyposażenia i zakup kolejnych lokali otwierasz z wnętrza studia.'},
   {t:'new',d:'📊 Wyposażenie realnie kształtuje jakość lokalu — panel pokazuje jakość nagrań, miks i master, komfort, atmosferę oraz prestiż, a także podpowiada, czego jeszcze brakuje, by w pełni nagrywać wokal (komputer, DAW, interfejs, mikrofon, słuchawki i akustyka to minimum).'},
+  {t:'new',d:'🎧 Wokal i miks Twoich własnych numerów wychodzą lepiej, gdy nagrywasz w dobrze wyposażonym, aktywnym studiu — im lepszy sprzęt w aktywnym lokalu, tym wyższa jakość. Inwestycja we własną przestrzeń realnie przekłada się na Twoje tracki.'},
  ]
  },
  {
