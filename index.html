@@ -16911,7 +16911,7 @@ window.roomHasEquip=function(roomId,equipId){ const r=window.getStudioRoomInstan
 /* najlepszy score w danej kategorii w lokalu (dla formuł TIER 13.3) */
 window.getRoomEquipmentScore=function(roomId,cat){
   const r=window.getStudioRoomInstance(roomId); let best=0;
-  for(const e of r.equipment){ const it=STUDIO_EQUIP[e.id]; if(it&&it.cat===cat&&it.score>best) best=it.score; }
+  for(const e of r.equipment){ const it=STUDIO_EQUIP[e.id]; if(it&&it.cat===cat){ const cond=(typeof e.condition==='number')?Math.max(0,Math.min(100,e.condition)):100; const eff=Math.floor(it.score*(0.7+0.3*cond/100)); if(eff>best) best=eff; } } /* v2.3.109 (13.6 §38): zużyty sprzęt = niższy efektywny score (cond 100=pełny) */
   return best;
 };
 /* ═══ v2.3.109 (PDF13 TIER 13.3): formuły statystyk lokalu (§25-28) — konsumują scores wyposażenia + bazę lokalu ═══ */
@@ -16976,7 +16976,15 @@ window.setStudioRoomRental=function(roomId,on){
   } else { inst.rentalEnabled=false; if(typeof notify==='function') notify(`⏹️ Wstrzymano wynajem: ${STUDIO_ROOMS[roomId].name}.`); }
   if(typeof window.renderStudioRental==='function') window.renderStudioRental();
 };
-/* przychód tygodniowy z wynajmowanego lokalu (§32). deterministyczny=false → losowy popyt; anti-exploit §42: bez wynajmu/realizatora = 0. */
+/* szansa problemu tygodniowego (§37) — obniża dochód; mniejsza przy komforcie/prestiżu/systemie dostępu. */
+window.calculateStudioProblemChance=function(roomId){
+  const s=window.getStudioRoomStats(roomId), sc=G.studioComplex;
+  let c=12; c-=Math.floor(s.comfortScore/20); c-=Math.floor(s.prestigeScore/25);
+  if(window.getRoomEquipmentScore(roomId,'extras')>0) c-=3; /* System dostępu/rezerwacji = mniej problemów z NPC */
+  if(s.recordingQuality<50) c+=8; if(!sc.engineers[roomId]) c+=5;
+  return Math.max(3,Math.min(30,c));
+};
+/* przychód tygodniowy z wynajmowanego lokalu (§32 + napiwki §28 + ryzyko §37). deterministyczny=false → losowy popyt/problem; anti-exploit §42: bez wynajmu/realizatora/min.zestawu = 0. */
 window._studioRoomWeeklyIncome=function(roomId,deterministic){
   const sc=G.studioComplex; const inst=window.getStudioRoomInstance(roomId); const room=STUDIO_ROOMS[roomId];
   if(!inst.rentalEnabled || !sc.engineers[roomId] || !window.studioRoomCanRecord(roomId)) return 0;
@@ -16986,18 +16994,64 @@ window._studioRoomWeeklyIncome=function(roomId,deterministic){
   if(demandScore<40) demand=_r(0,2); else if(demandScore<60) demand=_r(1,4); else if(demandScore<80) demand=_r(3,7); else demand=_r(5,10);
   const sessionPrice=350+s.recordingQuality*12+s.mixQuality*8+s.prestigeScore*10;
   const gross=demand*sessionPrice;
-  const net=gross-Math.floor(gross*e.revenueShare)-room.weeklyMaintenance; /* §32: koszty = udział realizatora (jego zapłata) + utrzymanie lokalu */
+  const tipPerSession=(s.npcTipChance/100)*(50+Math.floor(s.prestigeScore*1.5)+Math.floor(s.comfortScore*3)); /* §28 */
+  const tips=Math.floor(demand*tipPerSession);
+  let net=gross+tips-Math.floor(gross*e.revenueShare)-room.weeklyMaintenance; /* §32: koszty = udział realizatora + utrzymanie; napiwki dla właściciela */
+  if(!deterministic){ const pc=window.calculateStudioProblemChance(roomId); if((typeof rnd==='function'?rnd(1,100):50)<=pc) net=Math.floor(net*0.55); } /* §37: problem tygodniowy tnie dochód */
   return Math.max(0,Math.floor(net));
 };
-/* Wołane z dziennego ticka. Co 7 dni gry: nalicz do weeklyPending (NIE dodaje do kasy — kasa tylko przy collectStudioIncome). Anti-double-pay. */
+/* komentarz NPC po sesji wg jakości studia (§36). */
+window._studioNpcComment=function(q){
+  const _r=(a,b)=>(typeof rnd==='function'?rnd(a,b):a);
+  const pools={
+    weak:['Numer siadł, ale tu jest trochę jak w piwnicy po remoncie, którego nikt nie skończył.','Sprzęt działa, ale klimat średni — następnym razem wezmę krótszą sesję.'],
+    mid:['Dobra, to już ma sens. Da się tu konkretnie robić.','Nie luksus, ale jest swój vibe. Wrócę z kolejnym zamysłem.'],
+    good:['Teraz rozumiem, czemu ludzie zaczynają tu przychodzić.','Dobra robota — sesja poszła sprawniej, niż myślałem.'],
+    top:['To już nie miejscówka, tylko movement. Kosmos.','Jak ktoś pyta o studio, będę mówił, że warto tu przyjść.'],
+  };
+  const p=q>=85?pools.top:q>=65?pools.good:q>=45?pools.mid:pools.weak;
+  return p[_r(0,p.length-1)];
+};
+/* Wołane z dziennego ticka. Co 7 dni gry: zużycie sprzętu (§38) → nalicz do weeklyPending (NIE do kasy — kasa tylko przy collectStudioIncome). Anti-double-pay. */
 window._studioWeeklyTick=function(){
   if(typeof _5pdfEnsure==='function') _5pdfEnsure();
   const sc=G.studioComplex; if(!sc.ownedRooms.length) return;
   if(sc.lastSettleDay===null){ sc.lastSettleDay=(G.day||0); return; }
   if(((G.day||0)-sc.lastSettleDay)<7) return;
   sc.lastSettleDay=(G.day||0);
-  let total=0; for(const rid of sc.ownedRooms) total+=window._studioRoomWeeklyIncome(rid,false);
-  if(total>0){ sc.weeklyPending=(sc.weeklyPending||0)+total; if(typeof addNotif==='function') addNotif(`🎙️ Studio Complex: tygodniowe rozliczenie gotowe — +${total.toLocaleString('pl')} zł do odebrania w panelu wynajmu.`); }
+  const _r=(a,b)=>(typeof rnd==='function'?rnd(a,b):Math.floor((a+b)/2));
+  let total=0, bestQ=0;
+  for(const rid of sc.ownedRooms){
+    const inst=window.getStudioRoomInstance(rid);
+    if(!(inst.rentalEnabled && sc.engineers[rid])) continue;
+    /* §38 zużycie: sesje zużywają sprzęt (droższy = stabilniejszy → wolniej się zużywa). */
+    for(const eq of inst.equipment){ const it=STUDIO_EQUIP[eq.id]; const wear=(it&&it.price>=15000)?_r(1,3):_r(2,6); eq.condition=Math.max(0,((typeof eq.condition==='number')?eq.condition:100)-wear); }
+    window._recalcStudioRoomStats(rid);
+    total+=window._studioRoomWeeklyIncome(rid,false);
+    const q=window.getStudioRoomStats(rid).recordingQuality; if(q>bestQ) bestQ=q;
+  }
+  if(total>0){ sc.weeklyPending=(sc.weeklyPending||0)+total;
+    const cmt=window._studioNpcComment(bestQ);
+    if(typeof addNotif==='function') addNotif(`🎙️ Studio Complex: rozliczenie tygodniowe +${total.toLocaleString('pl')} zł do odebrania.${cmt?' NPC: „'+cmt+'"':''}`);
+  }
+};
+/* Serwis sprzętu w lokalu (§38) — przywraca kondycję za opłatą (~5% ceny × zużycie). */
+window.serviceStudioRoom=function(roomId){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  const inst=window.getStudioRoomInstance(roomId);
+  let cost=0; for(const eq of inst.equipment){ const cond=(typeof eq.condition==='number')?eq.condition:100; if(cond<100){ const it=STUDIO_EQUIP[eq.id]; cost+=Math.floor((it?it.price:1000)*0.05*((100-cond)/100)); } }
+  if(cost<=0){ if(typeof showMsg==='function') showMsg('Sprzęt w tym lokalu jest sprawny — serwis niepotrzebny.','f',4000); return; }
+  if((G.money||0)<cost){ if(typeof showMsg==='function') showMsg(`Serwis kosztuje ${cost.toLocaleString('pl')} zł — za mało gotówki.`,'r',5000); return; }
+  G.money-=cost; for(const eq of inst.equipment) eq.condition=100;
+  window._recalcStudioRoomStats(roomId);
+  if(typeof notify==='function') notify(`🔧 Serwis wyposażenia: ${STUDIO_ROOMS[roomId].name} — sprzęt jak nowy. Koszt: ${cost.toLocaleString('pl')} zł.`);
+  if(typeof window.renderStudioRental==='function') window.renderStudioRental();
+};
+/* średnia kondycja sprzętu w lokalu (0-100, 100 gdy pusty). */
+window.getStudioRoomCondition=function(roomId){
+  const inst=window.getStudioRoomInstance(roomId); if(!inst.equipment.length) return 100;
+  let sum=0; for(const eq of inst.equipment) sum+=(typeof eq.condition==='number')?eq.condition:100;
+  return Math.round(sum/inst.equipment.length);
 };
 window.collectStudioIncome=function(){
   if(typeof _5pdfEnsure==='function') _5pdfEnsure();
@@ -17023,6 +17077,7 @@ window.renderStudioRental=function(){
     body+=`<div style="background:#0a1220;border:1px solid ${inst.rentalEnabled?'#2a6a3a':'#1a3a5a'};border-radius:9px;padding:11px 13px;margin-bottom:9px">
       <div style="font-weight:800;color:#fff;font-size:13px">${room.emoji} ${room.name} ${isActive?'<span style="font-size:9px;color:#7ec8e3">(aktywne — Twoje nagrania)</span>':inst.rentalEnabled?'<span style="font-size:9px;color:#27ae60">(WYNAJMOWANE)</span>':''}</div>
       <div style="color:#778;font-size:10.5px;margin:3px 0">Jakość ${s.recordingQuality}% · komfort ${s.comfortScore}% · prestiż ${s.prestigeScore}% · realizator: <b style="color:#c8a520">${eng?eng.name:'brak'}</b></div>
+      ${(()=>{ const cond=window.getStudioRoomCondition(rid); return `<div style="color:${cond>=80?'#778':cond>=50?'#f1c40f':'#e67e22'};font-size:10.5px;margin-bottom:3px">🔧 Kondycja sprzętu: <b>${cond}%</b>${cond<100?` <button class="bbtn" style="padding:2px 7px;font-size:10px;margin-left:4px" onclick="serviceStudioRoom('${rid}')">Serwis</button>`:''}</div>`; })()}
       ${isActive?'<div style="color:#7a8aa0;font-size:10.5px">To Twoje aktywne studio — nie wynajmujesz go NPC.</div>':`
         <div style="color:#8aa;font-size:10.5px">Realizator (wymagany do wynajmu):</div>${engBlock}
         <div style="margin-top:7px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -61418,6 +61473,7 @@ const PATCH_NOTES = [
   {t:'new',d:'📊 Wyposażenie realnie kształtuje jakość lokalu — panel pokazuje jakość nagrań, miks i master, komfort, atmosferę oraz prestiż, a także podpowiada, czego jeszcze brakuje, by w pełni nagrywać wokal (komputer, DAW, interfejs, mikrofon, słuchawki i akustyka to minimum).'},
   {t:'new',d:'🎧 Wokal i miks Twoich własnych numerów wychodzą lepiej, gdy nagrywasz w dobrze wyposażonym, aktywnym studiu — im lepszy sprzęt w aktywnym lokalu, tym wyższa jakość. Inwestycja we własną przestrzeń realnie przekłada się na Twoje tracki.'},
   {t:'new',d:'🏢 Nieużywane lokale możesz wynajmować artystom NPC — zatrudniasz realizatora (czterech do wyboru, od początkującego po topowego; lepsi wymagają lepiej wyposażonej przestrzeni), włączasz wynajem, a dochód z sesji rozlicza się co tydzień. Odbierasz go w panelu „Wynajem i realizatorzy". Puste studio bez realizatora nie zarabia, a utrzymanie lokalu trzeba pokryć — słabszy tydzień może wyjść na zero.'},
+  {t:'new',d:'🔧 Wynajem to nie darmowy przelew: sprzęt w wynajmowanych lokalach zużywa się z czasem i wymaga serwisu, zdarzają się losowe problemy (awarie, spóźnienia, niepełne zapłaty), a zadowoleni NPC zostawiają napiwki. Lepszy komfort, prestiż i porządny sprzęt zmniejszają ryzyko problemów i podnoszą napiwki.'},
  ]
  },
  {
