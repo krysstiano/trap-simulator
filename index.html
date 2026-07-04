@@ -50747,6 +50747,7 @@ window._vehTrafficEnsure=function(){
   if(!('_repair' in t)) t._repair=null; /* Tier D: bieżąca naprawa {kind,level,readyDay,cost} */
   if(!Array.isArray(G.trafficFines)) G.trafficFines=[];
   if(!Array.isArray(G.wreckCases)) G.wreckCases=[];
+  if(!Array.isArray(G._worldPosts)) G._worldPosts=[]; /* Tier H §32: wpisy social o wypadkach gracza */
 };
 window._vehDmg=function(kind){ const st=window._vehGet(kind); return (st&&st.dmg)?st.dmg:null; };
 window._vehCondRef=function(kind){ return kind==='camper'?(G.camper||{}):(G.car||{}); };
@@ -50923,6 +50924,99 @@ window._vehBanHint=function(){
   const left=(typeof window._vehDrivingBanDaysLeft==='function')?window._vehDrivingBanDaysLeft():0;
   const m='🚫 Masz czasowy zakaz prowadzenia pojazdów (pozostało '+left+' dni). Po serii niebezpiecznych incydentów drogowych.';
   if(typeof window._subtleMsg==='function') window._subtleMsg(m); else if(typeof showMsg==='function') showMsg(m,'r',3500);
+};
+
+/* ═══ TIER H: HIT-AND-RUN + SOCIAL MEDIA + S9 CRASH CONTROL + REAKCJE NPC + KARIERA (§31-35) ═══ */
+window._VEH_CRASH_AUTHORS=[
+  {author:'Miejskie Newsy', handle:'city_newsy', avatar:'📰'},
+  {author:'Trap Tea', handle:'trap_tea', avatar:'🫖'},
+  {author:'Anonim z osiedla', handle:'anon_hood', avatar:'👀'}
+];
+/* §32 auto-wpis social o wypadku (third-party, feed ChirpNet). Szansa rośnie z fame/haters/tłumem (cap 90%). */
+window._vehMaybeCrashPost=function(incident){
+  incident=incident||{};
+  if(typeof window._vehTrafficEnsure==='function') window._vehTrafficEnsure();
+  const fame=(G.fame||0), haters=(G.haters||0);
+  const crowd=Math.min(0.2,((G.traffic&&G.traffic.roadIncidentScore)||0)/500);
+  let p=0.15 + (fame/500)*0.40 + Math.min(haters/200,0.20) + crowd;
+  if(incident.severity==='major') p+=0.15;
+  if(incident.involvesNpcPedestrian) p+=0.25;
+  if(incident.fled) p+=0.20;
+  p=Math.max(0,Math.min(0.90,p));
+  if(Math.random()>=p) return false;
+  const hostile=(haters>fame*0.5)||incident.fled;
+  const src=hostile?window._VEH_CRASH_AUTHORS[2]:(fame>150?window._VEH_CRASH_AUTHORS[0]:window._VEH_CRASH_AUTHORS[1]);
+  const nm=G.name||'Ktoś';
+  let text;
+  if(incident.involvesNpcPedestrian) text=incident.fled?('Podobno '+nm+' potrącił kogoś autem i ODJECHAŁ z miejsca zdarzenia. Kto ma nagranie?'):('Słyszałem, że '+nm+' potrącił przechodnia. Miasto to nie tor wyścigowy...');
+  else if(incident.fled) text='Czy to serio '+nm+' rozwalił auto w mieście i uciekł? Ktoś ma pełne nagranie?';
+  else if(incident.severity==='major') text=nm+' znowu zrobił z ulicy test zderzeniowy. Ciekawe ile miasto jeszcze wytrzyma.';
+  else text='Widziałem jak '+nm+' kasuje miejski element po drodze. Mordo, może bez tego? 😅';
+  if(!Array.isArray(G._worldPosts)) G._worldPosts=[];
+  G._worldPosts.push({ author:src.author, handle:src.handle, avatar:src.avatar, text, day:(G.day||0), isThirdParty:true, likes:Math.floor(fame*(0.1+Math.random()*0.2))+rnd(5,40) });
+  if(G._worldPosts.length>40) G._worldPosts.shift();
+  if(G.traffic) G.traffic.publicCrashExposure=(G.traffic.publicCrashExposure||0)+(incident.severity==='major'?2:1);
+  if(typeof addNotif==='function') addNotif('💬 Nagranie Twojego wypadku krąży po sieci ('+src.author+').');
+  if(typeof window._s9OnCrashExposure==='function') window._s9OnCrashExposure(incident);
+  if(typeof window._vehNpcCrashReactions==='function') window._vehNpcCrashReactions(incident);
+  return true;
+};
+/* §31 ucieczka z miejsca zdarzenia — mocno pogarsza sytuację. */
+window._vehHandleHitAndRun=function(incident){
+  incident=incident||{}; incident.fled=true;
+  if(typeof window._uwAddStat==='function'){ try{ window._uwAddStat('street_heat',25); }catch(_){} }
+  G.violenceHeat=(G.violenceHeat||0)+10;
+  if(typeof addDefamation==='function') addDefamation(20);
+  if(typeof window._vehAddIncidentScore==='function') window._vehAddIncidentScore(20);
+  if(G.signalNine && typeof window._s9Effect==='function'){ try{ window._s9Effect({agencyHeat:8,brandTrust:-2}); }catch(_){} }
+  if(typeof window._vehMaybeCrashPost==='function') window._vehMaybeCrashPost(incident);
+  if(typeof showMsg==='function') showMsg('🏃 Uciekasz z miejsca zdarzenia. Ryzyko nagrania i uwagi służb rośnie — „heat" i zniesławienie mocno w górę.','r',6000);
+};
+/* §33 wpływ powaznych wypadków na karierę muzyczną (przez S9/publicRep). */
+window._vehCrashCareerConsequences=function(incident){
+  incident=incident||{}; const sev=incident.severity||'minor';
+  if(!(G.signalNine && typeof window._s9Effect==='function')) return;
+  if(sev==='minor' && !incident.involvesNpcPedestrian && !incident.fled) return;
+  let fx={};
+  if(sev==='medium') fx={agencyHeat:4,brandTrust:-1};
+  if(sev==='major') fx={agencyHeat:8,brandTrust:-2};
+  if(incident.involvesNpcPedestrian||incident.fled){ fx.agencyHeat=(fx.agencyHeat||0)+6; fx.brandTrust=(fx.brandTrust||0)-3; fx.fanLoyalty=-5; }
+  try{ window._s9Effect(fx); }catch(_){}
+};
+/* §34 reakcje NPC (Kamil/Marcin) po powaznym wypadku — 1×/dobę, w wątkach SMS. */
+window._vehNpcCrashReactions=function(incident){
+  incident=incident||{};
+  if(incident.severity!=='major' && !incident.involvesNpcPedestrian && !incident.fled) return;
+  if(typeof window._vehTrafficEnsure==='function') window._vehTrafficEnsure();
+  if(G.traffic && G.traffic._lastCrashReactDay===(G.day||0)) return; if(G.traffic) G.traffic._lastCrashReactDay=(G.day||0);
+  const pool=[
+    ['kamil','Słyszałem, że znowu zrobiłeś z ulicy test zderzeniowy. Sprawdzasz, ile miasto wytrzyma, zanim odda?'],
+    ['marcin','Nie mogę Cię wrzucać w wydarzenia, jeśli po mieście krążą filmiki, jak kasujesz słupy. To nie kontrowersja, to ryzyko organizacyjne.'],
+  ];
+  const pick=pool[Math.floor(Math.random()*pool.length)];
+  if(typeof window._smsSend==='function'){ try{ window._smsSend(pick[0], pick[1], {bypass:true}); return; }catch(_){} }
+  if(typeof addNotif==='function') addNotif('💬 '+(pick[0]==='kamil'?'Kamil':'Marcin')+': '+pick[1]);
+};
+/* §33/§35 rozgłos wypadku → S9 „heat" + ewentualnie oferta Crash Control. */
+window._s9OnCrashExposure=function(incident){
+  if(typeof window._s9Ensure==='function') window._s9Ensure(); const s=G.signalNine; if(!s) return;
+  s.agencyHeat=(s.agencyHeat||0)+((incident&&incident.severity==='major')?6:3);
+  if(!s._crashControlPending && (((G.traffic&&G.traffic.publicCrashExposure)||0)>=6 || (s.agencyHeat||0)>=30)){
+    s._crashControlPending=true;
+    setTimeout(()=>{ if(G.signalNine) G.signalNine._crashControlPending=false; if(typeof window._vehCrashControlOffer==='function') window._vehCrashControlOffer(); }, 1200);
+  }
+};
+/* §35 S9 Crash Control — 3 decyzje (Wycisz / Oświadczenie / Przekuj w akcję) + zignoruj. */
+window._vehCrashControlOffer=function(){
+  if(typeof showEventChoice!=='function'){ if(typeof showMsg==='function') showMsg('📡 S9 Agency proponuje Crash Control po Twoim wypadku.','i',4000); return; }
+  if(typeof window._s9Ensure==='function') window._s9Ensure();
+  const s9=(fx)=>{ if(typeof window._s9Effect==='function'){ try{ window._s9Effect(fx); }catch(_){} } };
+  showEventChoice('📡 S9 Agency — Crash Control', 'Nika Ray: „Twoje nazwisko pojawia się przy niebezpiecznych incydentach drogowych. Zrób coś, zanim to urośnie."', [
+    {label:'🔇 Wycisz nagrania (9000 zł)', fn:()=>{ if((G.money||0)<9000){ if(typeof showMsg==='function')showMsg('💸 Brak 9000 zł na wyciszenie.','r',3500); return; } G.money-=9000; if(G.traffic) G.traffic.publicCrashExposure=Math.max(0,(G.traffic.publicCrashExposure||0)-10); s9({agencyHeat:-10}); if(typeof showMsg==='function')showMsg('🔇 Nagrania wyciszone — mniej rozgłosu wypadku.','g',5000); }},
+    {label:'📄 Oświadczenie o odpowiedzialności (12000 zł)', fn:()=>{ if((G.money||0)<12000){ if(typeof showMsg==='function')showMsg('💸 Brak 12000 zł.','r',3500); return; } G.money-=12000; G.defamation=Math.max(0,(G.defamation||0)-12); s9({fanLoyalty:5,brandTrust:-1}); if(typeof showMsg==='function')showMsg('📄 Oświadczenie wydane — zniesławienie spada, fani doceniają szczerość.','g',5500); }},
+    {label:'🛡️ Przekuj w akcję bezpieczeństwa (22000 zł)', fn:()=>{ if((G.money||0)<22000){ if(typeof showMsg==='function')showMsg('💸 Brak 22000 zł.','r',3500); return; } G.money-=22000; if(G.traffic) G.traffic.publicCrashExposure=Math.max(0,(G.traffic.publicCrashExposure||0)-20); s9({brandTrust:1}); if(typeof showMsg==='function')showMsg('🛡️ Kampania bezpieczeństwa — wizerunek podreperowany. Nie rozbijaj się przez kilka dni!','g',6000); }},
+    {label:'🙈 Zignoruj', fn:()=>{ if(G.signalNine) G.signalNine.agencyHeat=(G.signalNine.agencyHeat||0)+10; s9({brandTrust:-1}); if(typeof showMsg==='function')showMsg('🙈 Ignorujesz sprawę — ryzyko, że urośnie.','r',4500); }},
+  ]);
 };
 /* §3-7: impakt pojazdu w obiekt mapy. hitX/hitY = zablokowany obiekt (bok / przód-tył), dx/dy = boostowany ruch.
    Adaptacja: brak „speed" — siła = wielkość ruchu (|dx|+|dy|) × twardość. Cooldown 600 ms przeciw drenażowi
@@ -51376,9 +51470,17 @@ window._vehHitPedestrian=function(ped){
   if(typeof addNotif==='function') addNotif(fatal?'🚑🚔 Potrąciłeś przechodnia — na miejsce jadą służby. Bardzo poważne konsekwencje.':'🚑 Potrącenie przechodnia — świadkowie dzwonią po pomoc.');
   if(typeof showMsg==='function') showMsg(fatal?'⚠️ POTRĄCENIE! Zdarzenie bardzo poważne — służby i media.':'⚠️ Potrącenie pieszego! Świadkowie zauważyli.','r',5500);
   if(G.signalNine && typeof window._s9Effect==='function'){ try{ window._s9Effect({agencyHeat:fatal?12:5, brandTrust:fatal?-3:-1}); }catch(_){} }
-  if(typeof window._vehMaybeCrashPost==='function') window._vehMaybeCrashPost({severity:fatal?'major':'medium', involvesNpcPedestrian:true, fled:false});
+  const _inc={severity:fatal?'major':'medium', involvesNpcPedestrian:true, fled:false};
+  if(typeof window._vehCrashCareerConsequences==='function') window._vehCrashCareerConsequences(_inc);
   if(ped) ped._hitFlashT=Date.now();
   if(typeof updateHUD==='function') updateHUD();
+  /* §31 wybór: zatrzymać się czy uciec (hit-and-run). */
+  if(typeof showEventChoice==='function'){
+    showEventChoice('⚠️ Potrącenie pieszego', 'Ludzie się zatrzymują, ktoś już wyjmuje telefon. Co robisz?', [
+      {label:'🛑 Zatrzymaj się i zaczekaj na służby', fn:()=>{ G.defamation=Math.max(0,(G.defamation||0)-3); if(typeof window._vehMaybeCrashPost==='function') window._vehMaybeCrashPost(_inc); if(typeof showMsg==='function')showMsg('🛑 Zostałeś na miejscu — świadkowie to zauważyli. Konsekwencje prawne zostają, ale bez zarzutu ucieczki.','i',5500); }},
+      {label:'🏃 Odjedź (ucieczka z miejsca zdarzenia)', fn:()=>{ if(typeof window._vehHandleHitAndRun==='function') window._vehHandleHitAndRun(_inc); }},
+    ]);
+  } else { if(typeof window._vehMaybeCrashPost==='function') window._vehMaybeCrashPost(_inc); }
 };
 /* §30 kolizja z autem NPC — twarde uszkodzenie obu + mandat. */
 window._vehNpcCarHitClock=0;
@@ -52283,10 +52385,11 @@ function renderPhoneApp(app){
       ${(()=>{
         /* v2.1.396 Faza AP.2 Etap 2 (user 2026-05-28): merge user custom tweets (G.userTweets v2.1.393) z dynamic generic feed.
            User tweets latest first, dynamic generic uzupełniają do 5 entries total. Real stats z tweet object dla user. */
+        const _world=(G._worldPosts||[]).slice(-3).reverse(); /* §32 (nowy PDF kolizje): świat gada o graczu (wypadki) */
         const _userTweets=(G.userTweets||[]).slice(-5).reverse();
-        const _genericCount=Math.max(0, 5-_userTweets.length);
-        const _genericTweets=tweets.slice(0, _genericCount);
-        const _mergedTweets=[..._userTweets.map(t=>({...t,isUser:true})), ..._genericTweets.map(t=>({text:t,isUser:false}))];
+        const _genericCount=Math.max(0, 5-_userTweets.length-_world.length);
+        const _genericTweets=tweets.slice(0, Math.max(0,_genericCount));
+        const _mergedTweets=[..._world.map(t=>({...t,isWorld:true})), ..._userTweets.map(t=>({...t,isUser:true})), ..._genericTweets.map(t=>({text:t,isUser:false}))];
         if(_mergedTweets.length===0) return `<div style="background:#06080f;border:1px dashed #1f2f4a;border-radius:8px;padding:18px;text-align:center;color:#667;font-size:12px;line-height:1.5">💬 Brak wpisów.<br>Opublikuj swój pierwszy wpis powyżej!</div>`;
         return _mergedTweets.map((t,i)=>{
           const tweetText=t.text; /* v2.1.853 (Vegan): FIX [object Object] — generic tweety to też obiekty {text,isUser:false} po merge (L41497), więc t.text dla obu (było: t.isUser?t.text:t → dla generic zwracało CAŁY obiekt → [object Object]). */
@@ -52297,17 +52400,22 @@ function renderPhoneApp(app){
           const replies=t.isUser?(t.replies||Math.max(0,Math.floor(likes*(0.02+Math.random()*0.06)))):rnd(1,20); // odpowiedzi << lajki
           const retweets=t.isUser?(t.retweets||Math.max(0,Math.floor(likes*(0.05+Math.random()*0.12)))):rnd(2+i,80+i*10); // podania dalej < lajki
           const views=likes*rnd(8,15);
-          const dayAgo=t.isUser?(t.day===G.day?'teraz':`Dz. ${t.day}`):(i===0?'teraz':i===1?'2h':i+'d');
+          const dayAgo=t.isWorld?(t.day===G.day?'teraz':`Dz. ${t.day}`):(t.isUser?(t.day===G.day?'teraz':`Dz. ${t.day}`):(i===0?'teraz':i===1?'2h':i+'d'));
           const _sponsoredBadge=t.isUser&&t.sponsored?`<span style="background:#c8a520;color:#000;font-size:9px;font-weight:900;padding:1px 5px;border-radius:3px;margin-left:4px">💼 #ad</span>`:'';
-          return `<div style="background:${t.isUser?'#0a1832':'#0a1220'};border-radius:10px;padding:10px 12px;margin-bottom:8px;border:1px solid ${t.isUser?'#43B7FF50':'#0f1f35'}">
+          /* §32: wpis third-party (obce konto o wypadku gracza) — inny autor/handle/awatar/kolor. */
+          const _pAuthor=t.isWorld?(t.author||'Miejskie Newsy'):G.name;
+          const _pHandle=t.isWorld?(t.handle||'miasto_news'):handle;
+          const _pAvatar=t.isWorld?(t.avatar||'📰'):initial;
+          const _pGrad=t.isWorld?'linear-gradient(135deg,#e67e22,#c0392b)':'linear-gradient(135deg,#43B7FF,#0d8bd9)';
+          return `<div style="background:${t.isWorld?'#1a1206':(t.isUser?'#0a1832':'#0a1220')};border-radius:10px;padding:10px 12px;margin-bottom:8px;border:1px solid ${t.isWorld?'#e67e2255':(t.isUser?'#43B7FF50':'#0f1f35')}">
             <!-- Tweet header — avatar + name + handle -->
             <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:6px">
-              <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#43B7FF,#0d8bd9);display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;font-weight:900;flex-shrink:0">${initial}</div>
+              <div style="width:36px;height:36px;border-radius:50%;background:${_pGrad};display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;font-weight:900;flex-shrink:0">${_pAvatar}</div>
               <div style="flex:1;min-width:0">
                 <div style="display:flex;align-items:center;gap:4px;font-size:12px;flex-wrap:wrap">
-                  <span style="color:#fff;font-weight:700">${G.name}</span>
-                  ${verified?`<span style="color:${verifiedColor}">${verifiedIcon}</span>`:''}
-                  <span style="color:#778">@${handle} · ${dayAgo}</span>
+                  <span style="color:#fff;font-weight:700">${_pAuthor}</span>
+                  ${(!t.isWorld&&verified)?`<span style="color:${verifiedColor}">${verifiedIcon}</span>`:''}
+                  <span style="color:#778">@${_pHandle} · ${dayAgo}</span>
                   ${_sponsoredBadge}
                 </div>
               </div>
