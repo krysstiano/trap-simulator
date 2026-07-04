@@ -1914,6 +1914,7 @@ document.addEventListener('keydown', e => {
         const _cX=G._camperParkedAt.wx+P.w/2, _cY=G._camperParkedAt.wy+P.h/2;
         const _dist=Math.hypot(_px-_cX,_py-_cY);
         if(_dist>=80){ if(typeof showMsg==='function') showMsg('🚐 Twój kamper stoi '+Math.round(_dist*1.5/48)+' m stąd — podejdź do niego (marker 🚐 na mapie).','r'); return; }
+        if(G.camper && G.camper.destroyed){ if(typeof showMsg==='function') showMsg('🚐 Kamper jest zniszczony — najpierw napraw go w warsztacie albo skasuj (Metal Valley Yard).','r',4500); return; } /* fix audytu #7 */
         G._camperParkedAt=null; G._inCamper=true;
         if(typeof window._vehOnEnter==='function') window._vehOnEnter('camper');
         const _en='Wsiadłeś do kampera — naciśnij [K], aby uruchomić silnik';
@@ -47406,7 +47407,7 @@ window._metalValleyHub=function(){
   const nVeh=window._ownedScrapableVehicles().length;
   const nPending=mv.pending.filter(p=>p.status==='pending').length;
   const nReady=mv.pending.filter(p=>p.status==='pending' && (p.payoutDay||0)<=(G.day||0)).length;
-  const closeJs="var _e=document.getElementById('mg-job');_e.classList.remove('on');_e.style.display='none';_e.innerHTML='';";
+  const closeJs="var _e=document.getElementById('mg-job');_e.classList.remove('on');_e.style.display='none';_e.innerHTML='<div id=mg-job-content></div>';";/* fix audytu #2: odtwórz #mg-job-content (inaczej ~70 modali guard-return no-op) */
   const btn=(oc,txt,extra)=>`<button class="cbtn" style="width:100%;text-align:left;padding:11px 14px;margin-bottom:7px;font-size:14px${extra||''}" onclick="${oc}">${txt}</button>`;
   panel.innerHTML=`<div id="mg-job-content" style="width:100%;max-width:460px;margin:0 auto">
     <div style="text-align:center;margin-bottom:6px"><div style="font-size:20px;font-weight:800;color:#95a5a6">♻️ Metal Valley Yard</div>
@@ -50555,6 +50556,10 @@ function renderWarsztat(){
       ${(typeof window._vehRepairCard==='function')?window._vehRepairCard('camper'):''}
     </div>
     <div class="res" id="warz-res">Wybierz co naprawić.</div>
+    ${((G.car&&G.car.name)||(G.camper&&G.camper.owned))?`<div style="display:flex;gap:8px;margin-bottom:6px">
+      <button class="cbtn" style="flex:1" onclick="closeOverlay();if(window._vehStatusPanel)window._vehStatusPanel();">🚗 Stan pojazdu</button>
+      <button class="cbtn" style="flex:1" onclick="closeOverlay();if(window._vehInsuranceInfo)window._vehInsuranceInfo();">🛡️ Ubezpieczenie</button>
+    </div>`:''}
     <button class="cbtn" style="background:#16402e;color:#9fd;border:1px solid #2a6a4a" onclick="window.openCrafting(false)">🔨 Wytwarzanie (crafting)</button>
     <button class="cbtn" onclick="closeOverlay()">← Wróć</button>
   `;
@@ -50922,7 +50927,7 @@ window._vehCheckRoadIncidentWarning=function(){
 window._vehShowConfiscationPanel=function(fine){
   const panel=document.getElementById('mg-job'); if(!panel){ if(typeof showMsg==='function') showMsg('🚔 KONFISKATA pojazdu — zakaz jazdy 3 dni + mandat '+fine.toLocaleString('pl')+' zł.','r',9000); return; }
   panel.classList.add('on'); panel.style.display='';
-  const closeJs="var _e=document.getElementById('mg-job');_e.classList.remove('on');_e.style.display='none';_e.innerHTML='';";
+  const closeJs="var _e=document.getElementById('mg-job');_e.classList.remove('on');_e.style.display='none';_e.innerHTML='<div id=mg-job-content></div>';";/* fix audytu #2: odtwórz #mg-job-content (inaczej ~70 modali guard-return no-op) */
   panel.innerHTML=`<div id="mg-job-content" style="max-width:440px;margin:0 auto">
     <div style="text-align:center;font-size:19px;font-weight:800;color:#e74c3c;margin-bottom:8px">🚔 Konfiskata pojazdu</div>
     <div style="font-size:12.5px;color:#cdd;line-height:1.6;margin-bottom:10px">Po serii niebezpiecznych incydentów drogowych pojazd został zabezpieczony przez służby.<br><br>Skutki:<br>• pojazd niedostępny,<br>• zakaz prowadzenia: <b>3 dni gry</b>,<br>• mandat: <b>${(fine||0).toLocaleString('pl')} zł</b>,<br>• wzrost „heat" i zniesławienia.</div>
@@ -51035,9 +51040,9 @@ window._vehCrashControlOffer=function(){
 /* §40 ubezpieczenie pojazdu — składka tygodniowa, pokrycie % naprawy, zawieszenie przy braku kasy (nie anulowanie #11). */
 window._VEH_INSURANCE_TIERS=[
   {id:'none', name:'Brak ubezpieczenia', weekly:0, coverage:0},
-  {id:'basic', name:'OC podstawowe', weekly:800, coverage:0.20},
-  {id:'standard', name:'Standard', weekly:1800, coverage:0.40},
-  {id:'premium', name:'Premium', weekly:4200, coverage:0.60},
+  {id:'basic', name:'OC podstawowe', weekly:500, coverage:0.20},
+  {id:'standard', name:'Standard', weekly:1200, coverage:0.40},
+  {id:'premium', name:'Premium', weekly:2500, coverage:0.60}, /* fix audytu #9: obniżone składki (proporcjonalniej; ubezpieczenie opłaca się dla droższych aut / częstych kolizji) */
 ];
 window._vehInsuranceEnsure=function(){
   if(!G.insurance||typeof G.insurance!=='object') G.insurance={};
@@ -51059,14 +51064,27 @@ window._vehInsuranceTick=function(){
     else { ins.suspended=true; if(typeof addNotif==='function') addNotif('⚠️ Brak środków na składkę ubezpieczenia — ochrona zawieszona do opłacenia (polisa NIE anulowana).'); }
   }
 };
-window._vehSetInsurance=function(id){ window._vehInsuranceEnsure(); if(['none','basic','standard','premium'].indexOf(id)<0) return; G.insurance.tier=id; G.insurance.suspended=false; if(id!=='none' && G.insurance.lastChargeDay==null) G.insurance.lastChargeDay=(G.day||0); if(typeof showMsg==='function') showMsg('🛡️ Pakiet ubezpieczenia: '+(window._vehInsuranceTier().name)+'.','g',4000); if(typeof saveGameSilent==='function') saveGameSilent(); if(typeof window._vehInsuranceInfo==='function') window._vehInsuranceInfo(); };
+window._vehSetInsurance=function(id){
+  window._vehInsuranceEnsure(); if(['none','basic','standard','premium'].indexOf(id)<0) return;
+  const prevTier=G.insurance.tier; G.insurance.tier=id;
+  if(id==='none'){ G.insurance.suspended=false; G.insurance.lastChargeDay=null; }
+  else if(prevTier!==id || G.insurance.lastChargeDay==null){
+    /* FIX audytu #1 (arbitraż): pobierz PIERWSZĄ składkę OD RAZU przy zmianie na płatny pakiet — pokrycie
+       nie jest darmowe, a „subskrybuj→napraw taniej→anuluj" już nie działa. */
+    const tier=window._vehInsuranceTier();
+    if((G.money||0)>=tier.weekly){ G.money-=tier.weekly; if(typeof spent==='function'){try{spent(tier.weekly);}catch(_){}} G.insurance.suspended=false; G.insurance.lastChargeDay=(G.day||0); }
+    else { G.insurance.suspended=true; G.insurance.lastChargeDay=(G.day||0); if(typeof showMsg==='function') showMsg('🛡️ Brak '+tier.weekly.toLocaleString('pl')+' zł na pierwszą składkę — polisa zapisana, ochrona zawieszona do opłacenia.','r',5000); if(typeof saveGameSilent==='function') saveGameSilent(); if(typeof window._vehInsuranceInfo==='function') window._vehInsuranceInfo(); return; }
+  }
+  if(typeof showMsg==='function') showMsg('🛡️ Pakiet ubezpieczenia: '+(window._vehInsuranceTier().name)+(id!=='none'?' (składka pobrana)':'')+'.','g',4000);
+  if(typeof saveGameSilent==='function') saveGameSilent(); if(typeof window._vehInsuranceInfo==='function') window._vehInsuranceInfo();
+};
 /* §40 panel wyboru ubezpieczenia (był ghost w panelu holowania — teraz realny). */
 window._vehInsuranceInfo=function(){
   window._vehInsuranceEnsure();
   const panel=document.getElementById('mg-job'); if(!panel){ if(typeof showMsg==='function') showMsg('🛡️ Ubezpieczenie pojazdu — wybierz pakiet w warsztacie/telefonie.','i',3500); return; }
   panel.classList.add('on'); panel.style.display='';
   const cur=G.insurance.tier;
-  const closeJs="var _e=document.getElementById('mg-job');_e.classList.remove('on');_e.style.display='none';_e.innerHTML='';";
+  const closeJs="var _e=document.getElementById('mg-job');_e.classList.remove('on');_e.style.display='none';_e.innerHTML='<div id=mg-job-content></div>';";/* fix audytu #2: odtwórz #mg-job-content (inaczej ~70 modali guard-return no-op) */
   const row=(t)=>{ const active=cur===t.id; return `<button class="cbtn" style="width:100%;text-align:left;margin-bottom:6px;${active?'border-color:#2ecc71;color:#7ec87e':''}" onclick="window._vehSetInsurance('${t.id}')">${active?'✓ ':''}${t.name}${t.weekly>0?(' · '+t.weekly.toLocaleString('pl')+' zł/tydz · pokrywa '+Math.round(t.coverage*100)+'% naprawy'):' · bez ochrony'}</button>`; };
   panel.innerHTML=`<div id="mg-job-content" style="max-width:440px;margin:0 auto">
     <div style="text-align:center;font-size:18px;font-weight:800;color:#3498db;margin-bottom:8px">🛡️ Ubezpieczenie pojazdu</div>
@@ -51083,7 +51101,7 @@ window._vehStatusPanel=function(kind){
   const em=kind==='camper'?'🚐':'🚗'; const oh=window._vehOverall(kind);
   const nm=kind==='camper'?'Kamper':((G.car&&G.car.name)||'Auto');
   const bar=(lbl,v)=>{ v=(v==null?100:v); const col=v>=66?'#2ecc71':v>=33?'#f39c12':'#e74c3c'; return `<div style="display:flex;justify-content:space-between;font-size:12px;color:#cdd;margin-bottom:3px"><span>${lbl}</span><span style="color:${col};font-weight:700">${Math.round(v)}%</span></div>`; };
-  const closeJs="var _e=document.getElementById('mg-job');_e.classList.remove('on');_e.style.display='none';_e.innerHTML='';";
+  const closeJs="var _e=document.getElementById('mg-job');_e.classList.remove('on');_e.style.display='none';_e.innerHTML='<div id=mg-job-content></div>';";/* fix audytu #2: odtwórz #mg-job-content (inaczej ~70 modali guard-return no-op) */
   const statusTxt=oh<=0?'unieruchomiony':oh<10?'ledwo działa':oh<35?'poważnie uszkodzony':oh<60?'uszkodzony':oh<80?'lekkie zużycie':'dobry';
   const ohCol=oh>=66?'#2ecc71':oh>=33?'#f39c12':'#e74c3c';
   panel.innerHTML=`<div id="mg-job-content" style="max-width:440px;margin:0 auto">
@@ -51327,7 +51345,7 @@ window._vehTowPanel=function(kind){
   const oh=window._vehOverall(kind); const em=kind==='camper'?'🚐':'🚗';
   const towWork=window._vehTowCost(kind,'workshop'); const towMV=window._vehTowCost(kind,'metal_valley');
   const rep=window._vehEvaluateRepairability(kind);
-  const closeJs="var _e=document.getElementById('mg-job');_e.classList.remove('on');_e.style.display='none';_e.innerHTML='';";
+  const closeJs="var _e=document.getElementById('mg-job');_e.classList.remove('on');_e.style.display='none';_e.innerHTML='<div id=mg-job-content></div>';";/* fix audytu #2: odtwórz #mg-job-content (inaczej ~70 modali guard-return no-op) */
   const btn=(oc,txt,extra)=>`<button class="cbtn" style="width:100%;text-align:left;padding:11px 14px;margin-bottom:7px;font-size:14px${extra||''}" onclick="${oc}">${txt}</button>`;
   panel.innerHTML=`<div id="mg-job-content" style="width:100%;max-width:460px;margin:0 auto">
     <div style="text-align:center;margin-bottom:6px"><div style="font-size:20px;font-weight:800;color:#e67e22">${em} Pojazd unieruchomiony</div>
@@ -51335,7 +51353,7 @@ window._vehTowPanel=function(kind){
     <div style="margin-top:12px">
       ${btn("window._vehCallTow('"+kind+"','workshop');"+closeJs,'🚚 Wezwij holowanie do warsztatu · '+towWork.toLocaleString('pl')+' zł')}
       ${btn("window._vehCallTow('"+kind+"','metal_valley');"+closeJs,'♻️ Holowanie do Metal Valley Yard (kasacja) · '+towMV.toLocaleString('pl')+' zł')}
-      ${btn("if(typeof window._vehInsuranceInfo==='function')window._vehInsuranceInfo();else if(typeof showMsg==='function')showMsg('🛡️ Ubezpieczenie pojazdu — wkrótce.','i',3000);",'📞 Ubezpieczenie (wkrótce)')}
+      ${btn(closeJs+"if(typeof window._vehInsuranceInfo==='function')window._vehInsuranceInfo();",'🛡️ Ubezpieczenie pojazdu')}
       ${btn("window._vehExitVehicle&&window._vehExitVehicle('"+kind+"');"+closeJs,'🚶 Wróć pieszo / zostaw pojazd','; color:#e07070; border-color:#5a1a1a')}
     </div></div>`;
 };
@@ -51489,6 +51507,16 @@ window._vehTickDaily=function(){
       if(typeof addNotif==='function') addNotif('⚠️ Zostawiłeś wrak po pożarze — miasto się upomina. Rośnie „heat" i zniesławienie, doszła dopłata za zwłokę.');
     }
   }
+  /* FIX audytu #5/#6: zaległy mandat (status partial) ściągany z bieżącej gotówki — nie przepada, gdy byłeś spłukany. */
+  for(const f of G.trafficFines){
+    if(f.status!=='partial') continue;
+    const owed=Math.max(0,(f.amount||0)-(f.paid||0));
+    if(owed<=0){ f.status='paid'; continue; }
+    const take=Math.min(G.money||0, owed);
+    if(take>0){ G.money-=take; if(typeof spent==='function'){try{spent(take);}catch(_){}} f.paid=(f.paid||0)+take; if(f.paid>=f.amount) f.status='paid'; if(typeof addNotif==='function') addNotif('🚔 Ściągnięto zaległy mandat: −'+take.toLocaleString('pl')+' zł'+(f.paid>=f.amount?' (spłacony).':' (część długu).')); }
+  }
+  /* FIX audytu #8: rozgłos wypadku opada w czasie (asymptota #11) + cap. */
+  if((t.publicCrashExposure||0)>0) t.publicCrashExposure=Math.max(0,Math.min(100,(t.publicCrashExposure||0)-1));
 };
 /* ── efekty wizualne pożaru/eksplozji (reuse cząstek + wzorca level-up burst + red flash) ── */
 window._vehExplo=null;
