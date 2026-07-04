@@ -14056,25 +14056,29 @@ function updatePlayer(){
     const _kebabCol=_kebab?[{wx:_kebab.wx+_kebab.w/2-68, wy:_kebab.wy-115+_kebab.h-10, w:136, h:88}]:[];
     const allCollide=[...bldgs,...DB_DECORATIVE,...parkFence,..._kebabCol];
     const pw=P.w,ph=P.h;
+    let _hitX=null,_hitY=null; /* KOLIZJE Tier B: zapamiętaj obiekt zablokowania (do impaktu pojazdu) */
     // Try X movement first
     const testX={wx:nx,wy:P.wy};
     for(const b of allCollide){
-      if(testX.wx<b.wx+b.w&&testX.wx+pw>b.wx&&testX.wy<b.wy+b.h&&testX.wy+ph>b.wy){nx=P.wx;break;}
+      if(testX.wx<b.wx+b.w&&testX.wx+pw>b.wx&&testX.wy<b.wy+b.h&&testX.wy+ph>b.wy){nx=P.wx;_hitX=b;break;}
     }
     // Try Y movement
     const testY={wx:nx,wy:ny};
     for(const b of allCollide){
-      if(testY.wx<b.wx+b.w&&testY.wx+pw>b.wx&&testY.wy<b.wy+b.h&&testY.wy+ph>b.wy){ny=P.wy;break;}
+      if(testY.wx<b.wx+b.w&&testY.wx+pw>b.wx&&testY.wy<b.wy+b.h&&testY.wy+ph>b.wy){ny=P.wy;_hitY=b;break;}
     }
+    if((_hitX||_hitY)&&typeof window._vehMaybeImpact==='function') window._vehMaybeImpact(_hitX,_hitY,dx,dy);
   } else {
-    // Wewnątrz pokojów (mieszkanie/premium/lux/studio/silownia/merch_studio) — kolizja z obiektami solid (ściany)
+    // Wewnątrz pokojów (mieszkanie/premium/lux/studio/silownia/merch_studio) + dzielnice — kolizja z obiektami solid (ściany/budynki)
     const walls=room.objects.filter(o=>o.solid);
     if(walls.length){
       const pw=P.w,ph=P.h;
+      let _hitX=null,_hitY=null;
       const testX={wx:nx,wy:P.wy};
-      for(const b of walls){if(testX.wx<b.wx+b.w&&testX.wx+pw>b.wx&&testX.wy<b.wy+b.h&&testX.wy+ph>b.wy){nx=P.wx;break;}}
+      for(const b of walls){if(testX.wx<b.wx+b.w&&testX.wx+pw>b.wx&&testX.wy<b.wy+b.h&&testX.wy+ph>b.wy){nx=P.wx;_hitX=b;break;}}
       const testY={wx:nx,wy:ny};
-      for(const b of walls){if(testY.wx<b.wx+b.w&&testY.wx+pw>b.wx&&testY.wy<b.wy+b.h&&testY.wy+ph>b.wy){ny=P.wy;break;}}
+      for(const b of walls){if(testY.wx<b.wx+b.w&&testY.wx+pw>b.wx&&testY.wy<b.wy+b.h&&testY.wy+ph>b.wy){ny=P.wy;_hitY=b;break;}}
+      if((_hitX||_hitY)&&typeof window._vehMaybeImpact==='function') window._vehMaybeImpact(_hitX,_hitY,dx,dy);
     }
   }
   P.wx=nx;P.wy=ny;
@@ -50764,6 +50768,62 @@ window._vehApplyDamage=function(kind,zone,amount,source){
   else if(zone==='roof'){ dec('windows',Math.floor(amount*0.65)); dec('electronics',Math.floor(amount*0.25)); }
   window._vehRecalcOverall(kind);
   return amount;
+};
+/* ── Tier B: DETEKCJA KOLIZJI + SIŁA (impakt pojazdu w obiekt mapy) ─────────────────────────── */
+/* §6: klasyfikacja przeszkody → typ twardości (po id obiektu; fallback: budynek gdy duży, else ściana). */
+window._vehClassifyObstacle=function(b){
+  if(!b) return 'wall';
+  const id=(''+(b.id||'')).toLowerCase();
+  if(id.includes('fence')||id.includes('plot')) return 'fence';
+  if(id.includes('lamp')||id.includes('latarn')) return 'street_lamp';
+  if(id.includes('hydrant')) return 'hydrant';
+  if(id.includes('tree')||id.includes('bush')||id.includes('drzew')||id.includes('krzew')) return 'tree';
+  if(id.includes('bench')||id.includes('lawk')) return 'bench';
+  if(id.includes('sign')||id.includes('znak')) return 'road_sign';
+  if(id.includes('trash')||id.includes('kosz')||id.includes('bin')) return 'trash_bin';
+  if(id.includes('barrier')||id.includes('barier')) return 'metal_barrier';
+  if((b.w||0)>60 && (b.h||0)>60) return 'building';
+  return 'wall';
+};
+/* §25 (lekki akumulator; Tier G rozbuduje ostrzeżenie/konfiskatę). */
+window._vehAddIncidentScore=function(pts){
+  if(typeof window._vehTrafficEnsure==='function') window._vehTrafficEnsure();
+  const t=G.traffic; if(!t) return;
+  t.roadIncidentScore=Math.max(0,(t.roadIncidentScore||0)+(pts||0));
+  if(typeof window._vehCheckRoadIncidentWarning==='function') window._vehCheckRoadIncidentWarning();
+};
+/* §3-7: impakt pojazdu w obiekt mapy. hitX/hitY = zablokowany obiekt (bok / przód-tył), dx/dy = boostowany ruch.
+   Adaptacja: brak „speed" — siła = wielkość ruchu (|dx|+|dy|) × twardość. Cooldown 600 ms przeciw drenażowi
+   przy ocieraniu o ścianę. */
+window._vehImpactClock=0;
+window._vehMaybeImpact=function(hitX,hitY,dx,dy){
+  const kind=G._inCar?'car':(G._inCamper?'camper':null); if(!kind) return;
+  if(!window._vehEngineOn(kind)) return;
+  const hit=hitX||hitY; if(!hit) return;
+  const mag=Math.abs(dx)+Math.abs(dy); if(mag<2) return;
+  const now=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
+  if(now-(window._vehImpactClock||0)<600) return;
+  window._vehImpactClock=now;
+  const xDominant=hitX&&(!hitY||Math.abs(dx)>=Math.abs(dy));
+  const zone = xDominant ? ((dx<0)?'leftSide':'rightSide') : ((dy<0)?'front':'rear');
+  const type=window._vehClassifyObstacle(xDominant?hitX:hitY);
+  const hard=window._vehHardness(type);
+  const amount=Math.max(3,Math.min(45,Math.round(mag*hard*0.7)));
+  const dealt=window._vehApplyDamage(kind,zone,amount,'collision');
+  window._vehAddIncidentScore(dealt>=25?20:5); /* duże uderzenie=poważna kolizja, małe=mała (§25) */
+  window._vehImpactFx(kind,type,dealt);
+};
+window._vehImpactFx=function(kind,type,amount){
+  try{
+    const em=(kind==='camper'?'🚐':'🚗');
+    const overall=window._vehOverall(kind);
+    let msg;
+    if(overall<=0) msg=`${em}💥 Pojazd unieruchomiony! Wymaga holowania.`;
+    else if(amount>=25) msg=`${em}💥 Mocne uderzenie — pojazd poważnie oberwał (stan ${overall}%)`;
+    else msg=`${em}💥 Stuknięcie — pojazd oberwał (stan ${overall}%)`;
+    if(typeof window._subtleMsg==='function') window._subtleMsg(msg); else if(typeof showMsg==='function') showMsg(msg,'r',2000);
+    if(typeof _sfxNoise==='function'){ try{ _sfxNoise(amount>=25?0.22:0.12,'lowpass',amount>=25?260:420,amount>=25?0.5:0.32); }catch(_){} }
+  }catch(_){}
 };
 /* prompt zależny od stanu (§20). kind='car'|'camper'. */
 window._getVehiclePrompt=function(kind){
