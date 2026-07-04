@@ -50613,6 +50613,31 @@ function renderWIP(id){
    crasha FrameUpa na igPosts): inventory, studioTracks, notifications, workers, sms itp.
    Render iterujacy taka liste (np. .streams/.role/.time/.qty na null) sie wykladal i panel
    „nie dzialal". Filtruje tylko bledne wpisy (reguła #1 — poprawne save nietkniete). */
+/* v2.3.113 (PDF new/111 folder — Nova Cura §3): rozbudowany model uzależnień per-kategoria.
+   6 kategorii (alkohol/pobudzające/imprezowe/uspokajające/opioidowe/mixedUse), każda useLevel/tolerance/dependence/withdrawal/craving/relapseRisk/daysClean/lastUseDay.
+   Save-safe: uzupełnia brakujące pola; MIGRACJA jednorazowa płaskiego G.addictions (weed/meth/mushrooms/cocaine) → kategorie, by weterani nie stracili postępu. */
+window._addictionSysEnsure=function(){
+  try{
+    const CATS=['alcohol','stimulants','partySubstances','downers','opioids'];
+    const FIELDS=['useLevel','tolerance','dependence','withdrawal','craving','relapseRisk','daysClean'];
+    const fresh=!G.addictionSystem||typeof G.addictionSystem!=='object';
+    if(fresh) G.addictionSystem={};
+    const AS=G.addictionSystem;
+    for(const c of CATS){
+      if(!AS[c]||typeof AS[c]!=='object') AS[c]={useLevel:0,tolerance:0,dependence:0,withdrawal:0,craving:0,relapseRisk:0,daysClean:0,lastUseDay:null};
+      else { FIELDS.forEach(f=>{ if(typeof AS[c][f]!=='number') AS[c][f]=0; }); if(AS[c].lastUseDay===undefined) AS[c].lastUseDay=null; }
+    }
+    if(!AS.mixedUse||typeof AS.mixedUse!=='object') AS.mixedUse={active:false,riskLevel:0,crisisChanceModifier:0};
+    else { if(typeof AS.mixedUse.riskLevel!=='number') AS.mixedUse.riskLevel=0; if(typeof AS.mixedUse.crisisChanceModifier!=='number') AS.mixedUse.crisisChanceModifier=0; if(typeof AS.mixedUse.active!=='boolean') AS.mixedUse.active=false; }
+    /* MIGRACJA jednorazowa: przenieś istniejące płaskie G.addictions do kategorii (weteran nie traci postępu).
+       weed→uspokajające, meth/cocaine→pobudzające, mushrooms→imprezowe. */
+    if(fresh && !G._addictionSysMigrated && G.addictions && typeof G.addictions==='object'){
+      const map={meth:'stimulants',cocaine:'stimulants',mushrooms:'partySubstances',weed:'downers'};
+      for(const k in map){ const v=G.addictions[k]||0; if(v>0){ const c=AS[map[k]]; c.useLevel=Math.max(c.useLevel,v); c.dependence=Math.max(c.dependence,Math.min(100,Math.round(v*0.7))); } }
+    }
+    G._addictionSysMigrated=true;
+  }catch(e){}
+};
 window._sanitizePlayerLists=function(){
   try{
     const F=k=>{ if(Array.isArray(G[k])) G[k]=G[k].filter(x=>x&&typeof x==='object'); };
@@ -50627,6 +50652,7 @@ window._sanitizePlayerLists=function(){
     if(G.trap&&G.trap.unlocked){ if(!G.trapInv||typeof G.trapInv!=='object') G.trapInv={traw:0,krysztal:0,prosz:0,products:{}}; if(!G.trapInv.products||typeof G.trapInv.products!=='object') G.trapInv.products={}; }
     if(typeof window._camperEnsure==='function') window._camperEnsure(); /* v2.3.54 moduł kampera: defaulty + grandfather (save-safe D0) */
     if(typeof window._vehStateEnsure==='function') window._vehStateEnsure(); /* v2.3.108 PDF#9: stan interakcji pojazdu (silnik/światła/zamek/pasy), save-safe */
+    if(typeof window._addictionSysEnsure==='function') window._addictionSysEnsure(); /* v2.3.113 (PDF new/5 Nova Cura): model uzależnień per-kategoria (6), save-safe + migracja płaskich G.addictions */
     if(typeof window._metalValleyEnsure==='function') window._metalValleyEnsure(); /* v2.3.108 PDF#11: Metal Valley (rozbiórka/wypłaty), save-safe */
   }catch(_e){}
 };
