@@ -1846,6 +1846,13 @@ document.addEventListener('keydown', e => {
     if(!_busyMG && G.car && _carRoom(currentRoom)){
       if(typeof window._vehStateEnsure==='function') window._vehStateEnsure();
       const _vst=(G._vehState&&G._vehState.car)||{};
+      if(G._inCamper && !G._inCar){
+        /* v2.3.113 (PDF new/111 pkt 10): symetria — [V]=auto działa też gdy siedzisz w kamperze (nie blokują się).
+           Silnik kampera pracuje → najpierw zatrzymaj/wysiądź (K); stoi → automatyczna przesiadka do auta. */
+        const _cs=(typeof window._vehGet==='function')?window._vehGet('camper'):null;
+        if(_cs && _cs.engineOn){ if(typeof showMsg==='function') showMsg('🚗 Najpierw zatrzymaj i wysiądź z kampera (K), zanim wsiądziesz do auta.','r',3500); return; }
+        if(typeof window._vehExitVehicle==='function') window._vehExitVehicle('camper');
+      }
       if(G._inCar){
         /* v2.3.108 PDF#9: gracz siedzi w środku → cykl silnika/wyjścia (§18): odpal → jazda → zgaś → wysiądź. */
         if(typeof window._vehCycleInside==='function') window._vehCycleInside('car', e.repeat===true);
@@ -1909,7 +1916,13 @@ document.addEventListener('keydown', e => {
         if(G._camperParkedAt.room && G._camperParkedAt.room!==currentRoom){
           if(typeof showMsg==='function') showMsg('🚐 Twój kamper jest zaparkowany w innej lokacji — wróć tam, żeby wsiąść.','r',4500); return;
         }
-        if(G._inCar){ if(typeof showMsg==='function') showMsg('🚐 Najpierw wysiądź z auta (V), zanim wsiądziesz do kampera.','r',3500); return; }
+        if(G._inCar){
+          /* v2.3.113 (PDF new/111 pkt 10): [K]=kamper i [V]=auto NIE blokują się. Gdy silnik auta PRACUJE — najpierw zatrzymaj/wysiądź.
+             Gdy auto STOI z wyłączonym silnikiem (gracz „zaparkował") — automatycznie przesiądź się do kampera, bez mylącego „wyjdź z auta". */
+          const _cs=(typeof window._vehGet==='function')?window._vehGet('car'):null;
+          if(_cs && _cs.engineOn){ if(typeof showMsg==='function') showMsg('🚐 Najpierw zatrzymaj i wysiądź z auta (V), zanim wsiądziesz do kampera.','r',3500); return; }
+          if(typeof window._vehExitVehicle==='function') window._vehExitVehicle('car'); /* ustawia _inCar=false + parkuje auto w miejscu */
+        }
         const _px=P.wx+P.w/2, _py=P.wy+P.h/2;
         const _cX=G._camperParkedAt.wx+P.w/2, _cY=G._camperParkedAt.wy+P.h/2;
         const _dist=Math.hypot(_px-_cX,_py-_cY);
@@ -62835,6 +62848,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'🌙 Pory dnia są teraz spójne w całym mieście. Wcześniej w dzielnicach (Underground, Marina Coast, Business) było zawsze jasno, nawet nocą — teraz panuje tam ta sama pora dnia i oświetlenie co w głównej części miasta.'},
   {t:'fix',d:'🙋 Znacznik fana na mapie pojawia się tylko wtedy, gdy fan faktycznie jest w mieście. Wcześniej potrafił wisieć na mapie, choć jego akurat nie było — teraz znika i wraca razem z nim.'},
   {t:'fix',d:'🛹 Naprawione zawieszanie ekranu po skończonej jeździe na deskorolce. Teraz ekran z wynikiem pokazuje się przez chwilę i płynnie wraca do gry — tak jak przy breakdance.'},
+  {t:'fix',d:'🚐 Kamper i auto stojące obok siebie nie blokują się już nawzajem: klawisz [K] wsiada do kampera, [V] do auta. Gdy stoisz przy zaparkowanym pojeździe z wyłączonym silnikiem, od razu przesiadasz się do drugiego — bez mylącego komunikatu „wysiądź z auta", gdy wcale w nim nie jedziesz.'},
  ]
  },
  {
