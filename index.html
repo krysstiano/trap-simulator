@@ -21070,6 +21070,9 @@ window._5pdfEnsure=function(){
   /* Ryder „Link" Vale — crew scout. Rekrutacja/bonusy/ceny BEZ zmian — tu tylko relacja SMS. */
   if(!G._ryderRel||typeof G._ryderRel!=='object') G._ryderRel={};
   { const r=G._ryderRel; _num(r,[['relationship',0],['trust',0],['respect',0],['crewReliability',0],['recruitmentFlow',0],['patience',5],['businessFocus',0],['crewControl',0]]); _bool(r,['djMeetingObjSet','djRecruitPostponed']); r.patience=Math.max(0,Math.min(5,r.patience)); }
+  /* Knox „Towline" Mercer (nowy PDF Fizyczne kolizje) — holownik/wraki. Relacja SMS + liczniki. */
+  if(!G._knox||typeof G._knox!=='object') G._knox={};
+  { const k=G._knox; _num(k,[['relationship',0],['trust',0],['towsCalled',0]]); _bool(k,['introSent','contactsAsked']); if(k.lastTowDay!==null&&(typeof k.lastTowDay!=='number'||!isFinite(k.lastTowDay))) k.lastTowDay=null; }
   /* Nova Cura — rozbudowa modułu zdrowia. Adaptacja: nastrój=G.stress, ryzyko prawne reużywa G.heat, addiction z narkobiznesu. */
   if(!G.novacura||typeof G.novacura!=='object') G.novacura={};
   { const n=G.novacura; _num(n,[['medicalTrust',0],['hospitalRiskFlag',0],['mentalCrisisLevel',0],['therapyProgress',0],['fatigue',0],['tension',0]]); if(!Array.isArray(n.history)) n.history=[]; if(n.lastVisitDay!==null&&(typeof n.lastVisitDay!=='number'||!isFinite(n.lastVisitDay))) n.lastVisitDay=null; if(typeof n.diagnosisAccuracy!=='number'||!isFinite(n.diagnosisAccuracy)) n.diagnosisAccuracy=100; }
@@ -27548,6 +27551,7 @@ function nextPeriod(){
     G.timeOfDay=0;G.day++;G.hunger=clampStat('hunger', G.hunger-15);
     if(typeof _noxTickContracts==='function') _noxTickContracts(); /* NX-3 (v2.3.44 PDF): rozstrzygnij zlecenia NOX po deadline */
     if(typeof window._metalValleyTickPayouts==='function') window._metalValleyTickPayouts(); /* v2.3.108 PDF#11: dojrzewanie wypłat rozbiórki + SMS Ryśka */
+    if(typeof window._vehRepairTick==='function') window._vehRepairTick(); /* nowy PDF Fizyczne kolizje TIER D: odbiór pojazdu z naprawy po readyDay */
     if((G.defamation||0)>0) G.defamation=Math.max(0,G.defamation-2); /* v2.1.874: zniesławienie opada powoli (-2/dobę) */
     if(G.car){G.car.condition=Math.max(0,(G.car.condition==null?100:G.car.condition)-4);} /* T3.2 / v2.1.843 (Vegan: auto psuło się za rzadko — pełne zużycie 5h gry): zużycie od czasu 2%→4%/dzień gry (v844: 5→4). Dodatkowo zużycie od JEŻDŻENIA w updatePlayer (aktywni kierowcy serwisują częściej). Przegląd w warsztacie przywraca pełny stan +20% przyspieszenia. */
     /* v2.1.627: wygaśnięcie nieddostarczonej "Pilnej przesyłki" po deadline (gdy gracz nie zrobił kolejnej trasy kuriera). */
@@ -50531,10 +50535,8 @@ function renderWarsztat(){
         ${G.midiCtrl?`<div class="pr">Naprawa: ${Math.max(30,Math.floor((100-G.midiCtrl.quality)*8))} zł</div>
         <button class="bbtn" ${G.midiCtrl.quality>=100||G.money<Math.max(30,(100-G.midiCtrl.quality)*8)?'disabled':''} onclick="repairGear('midi')">Napraw</button>`:'<div style="color:#667;font-size:12px">Nie posiadasz</div>'}
       </div>
-      <div class="sitem"><h3>🚗 Samochód</h3>
-        <p>${G.car?G.car.name+' (stan: '+(G.car.condition==null?100:G.car.condition)+'%)':'Brak samochodu'}</p>
-        ${G.car?(()=>{const _c=(G.car.condition==null?100:G.car.condition);const _cost=_carServiceCost();return _c>=100?`<div style="color:#27ae60;font-size:12px;margin-top:4px">✓ Idealny stan (+20% przyspieszenia)</div>`:`<div class="pr">Przegląd: ${_cost.toLocaleString('pl')} zł</div><div style="color:#778;font-size:9px;margin-bottom:4px">Cena serwisu rośnie z wartością auta</div><button class="bbtn" ${G.money<_cost?'disabled':''} onclick="repairGear('car')">Przegląd</button>`;})():'<div style="color:#667;font-size:12px">Nie posiadasz</div>'}
-      </div>
+      ${(typeof window._vehRepairCard==='function')?window._vehRepairCard('car'):''}
+      ${(typeof window._vehRepairCard==='function')?window._vehRepairCard('camper'):''}
     </div>
     <div class="res" id="warz-res">Wybierz co naprawić.</div>
     <button class="cbtn" style="background:#16402e;color:#9fd;border:1px solid #2a6a4a" onclick="window.openCrafting(false)">🔨 Wytwarzanie (crafting)</button>
@@ -50545,7 +50547,7 @@ function renderWarsztat(){
     if(type==='camera'&&G.camera){cost=Math.max(50,Math.floor((100-G.camera.quality)*15));G.camera.quality=100;msg='📹 Kamera naprawiona — jakość 100%!';}
     else if(type==='mic'&&G.mic){cost=Math.max(50,Math.floor((100-G.mic.quality)*12));G.mic.quality=100;G.mic.origQuality=100;msg='🎤 Mikrofon naprawiony — jakość 100%!';}
     else if(type==='midi'&&G.midiCtrl){cost=Math.max(30,Math.floor((100-G.midiCtrl.quality)*8));G.midiCtrl.quality=100;msg='🎹 MIDI naprawiony — jakość 100%!';}
-    else if(type==='car'&&G.car){const _c=(G.car.condition==null?100:G.car.condition);if(_c>=100)return;cost=_carServiceCost();G.car.condition=100;msg='🚗 Przegląd wykonany — auto w idealnym stanie (+20% przyspieszenia)!';}
+    else if(type==='car'&&G.car){const _c=(G.car.condition==null?100:G.car.condition);if(_c>=100)return;cost=_carServiceCost();if(typeof window._vehRepairZones==='function')window._vehRepairZones('car','full');else G.car.condition=100;msg='🚗 Przegląd wykonany — auto w idealnym stanie!';}/* Tier D fix: podnieś strefy dmg, inaczej recalc cofa naprawę po kolizji */
     if(cost>0){G.money-=cost;document.getElementById('warz-res').textContent=`✅ ${msg} -${cost} zł`;renderWarsztat();}
   };
 }
@@ -50735,6 +50737,7 @@ window._vehTrafficEnsure=function(){
   if(typeof t.criticalDrivingWarningShown!=='boolean') t.criticalDrivingWarningShown=false;
   if(!('drivingBanUntilDay' in t)) t.drivingBanUntilDay=null;
   if(!('lastMajorCrashDay' in t)) t.lastMajorCrashDay=null;
+  if(!('_repair' in t)) t._repair=null; /* Tier D: bieżąca naprawa {kind,level,readyDay,cost} */
   if(!Array.isArray(G.trafficFines)) G.trafficFines=[];
   if(!Array.isArray(G.wreckCases)) G.wreckCases=[];
 };
@@ -50880,13 +50883,200 @@ window._vehImmobilized=function(kind){ return window._vehOverall(kind)<=0; };
 /* §11 podpowiedź przy próbie jazdy unieruchomionym pojazdem (throttle, żeby nie spamować). */
 window._vehImmobHintClock=0;
 window._vehImmobilizedHint=function(kind){
+  if(typeof window._knoxUnlock==='function') window._knoxUnlock(); /* unieruchomienie odblokowuje kontakt holownika */
+  /* otwórz panel holowania RAZ na unieruchomienie (gdy nic innego nie otwarte) */
+  const busy=(typeof mgOpen==='function'&&mgOpen())||(typeof overlayOpen==='function'&&overlayOpen())||(typeof phoneOpen==='function'&&phoneOpen())||(typeof npcDlgOpen==='function'&&npcDlgOpen());
+  if(window._vehTowOfferedKind!==kind && !busy && typeof window._vehTowPanel==='function'){ window._vehTowOfferedKind=kind; window._vehTowPanel(kind); return; }
   const now=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
   if(now-(window._vehImmobHintClock||0)<3000) return; window._vehImmobHintClock=now;
   const em=(kind==='camper'?'🚐':'🚗');
-  const m=em+'❌ Pojazd unieruchomiony (0%) — wezwij holowanie do warsztatu lub Metal Valley Yard.';
+  const m=em+'❌ Pojazd unieruchomiony (0%) — wezwij holowanie (telefon → Knox) do warsztatu lub Metal Valley Yard.';
   if(typeof window._subtleMsg==='function') window._subtleMsg(m); else if(typeof showMsg==='function') showMsg(m,'r',3200);
 };
 window._vehTowClock=0;
+
+/* ═══ TIER D: HOLOWANIE + NAPRAWA + KASACJA + NPC Knox „Towline" Mercer (§11-15, §39) ═══ */
+window._VEH_BODY_ZONES=['front','rear','leftSide','rightSide','roof','windows','lights'];
+window._VEH_MECH_ZONES=['engine','transmission','suspension','wheels','brakes','radiator'];
+/* §12 ocena naprawialności: totalLoss gdy structuralne+mechaniczne+pożar zbyt duże (lub eksplodowany). */
+window._vehEvaluateRepairability=function(kind){
+  const d=window._vehDmg(kind); if(!d) return {repairable:true,totalLossScore:0};
+  const structuralDamage=100-((d.front+d.rear+d.leftSide+d.rightSide+d.roof)/5);
+  const mechanicalDamage=100-((d.engine+d.transmission+d.suspension+d.fuelSystem)/4);
+  const fireDamage=(d.visual&&d.visual.fireDamage)?40:0;
+  const totalLossScore=structuralDamage*0.45+mechanicalDamage*0.40+fireDamage*0.15;
+  const exploded=!!(d.visual&&d.visual.exploded);
+  return {repairable:(totalLossScore<75 && !exploded), totalLossScore:Math.round(totalLossScore), exploded};
+};
+/* naprawa stref (per poziom): PODNIEŚ strefy → visual → ustaw condition WPROST (omija clamp-w-dół recalc).
+   basic=blacharka, mech=+mechanika, full=wszystko+gaśnie pożar. */
+window._vehRepairZones=function(kind,level){
+  const d=window._vehDmg(kind); if(!d) return 0;
+  let zones;
+  if(level==='basic') zones=window._VEH_BODY_ZONES.slice();
+  else if(level==='mech') zones=window._VEH_BODY_ZONES.concat(window._VEH_MECH_ZONES);
+  else zones=window._VEH_DMG_ZONES.slice();
+  for(const z of zones) if(window._VEH_DMG_ZONES.indexOf(z)>=0) d[z]=100;
+  if(level==='full'){ for(const z of window._VEH_DMG_ZONES) d[z]=100; d.fireState={status:'none',startedAt:null,explosionAt:null}; d.failedStartAttempts=0; if(d.visual){ d.visual.fireDamage=false; d.visual.exploded=false; } }
+  window._vehUpdateVisual(kind);
+  const struct=(d.front+d.rear+d.leftSide+d.rightSide+d.roof)/5;
+  const mech=(d.engine+d.transmission+d.suspension+d.fuelSystem+d.wheels+d.brakes)/6;
+  const other=(d.radiator+d.electronics+d.windows+d.lights)/4;
+  const overall=Math.max(0,Math.min(100,Math.round(struct*0.40+mech*0.45+other*0.15)));
+  const r=window._vehCondRef(kind); r.condition=overall; /* naprawa PODNOSI → ustaw wprost (nie przez recalc, który klampuje w dół) */
+  window._vehUpdateVisual(kind);
+  if(kind==='car' && G.car && G.car.name){ if(!G._carCond) G._carCond={}; if(!G._carCond[G.car.name]||typeof G._carCond[G.car.name]!=='object') G._carCond[G.car.name]={}; G._carCond[G.car.name].cond=overall; }
+  if(kind==='camper' && G.camper && overall>0){ G.camper.destroyed=false; }
+  if(window._vehTowOfferedKind===kind && overall>0) window._vehTowOfferedKind=null; /* naprawiony → panel holowania może się znów pojawić przy kolejnym unieruchomieniu */
+  return overall;
+};
+window._vehRepairCost=function(kind,level){
+  let val;
+  if(kind==='camper'){ const m=(typeof window._camperModelById==='function')?(window._camperModelById(G.camper&&G.camper.model)||{}):{}; val=(G.camper&&G.camper.purchasePrice>0)?G.camper.purchasePrice:(m.price>0?m.price:25000); }
+  else { val=(G.car&&typeof G.car.price==='number'&&G.car.price>0)?G.car.price:25000; }
+  const cond=window._vehOverall(kind); const dmgFrac=Math.max(0,(100-cond)/100);
+  const mult=level==='basic'?0.015:(level==='mech'?0.03:0.05);
+  return Math.max(500, Math.floor(dmgFrac*val*mult));
+};
+window._vehRepairDays=function(level){ return level==='basic'?0:(level==='mech'?1:2); };
+window._vehInRepair=function(kind){ const t=G.traffic; return !!(t&&t._repair&&t._repair.kind===kind); };
+/* wykonaj/zaplanuj naprawę pojazdu (poziom basic/mech/full). */
+window._vehRepairVehicle=function(kind,level){
+  window._vehTrafficEnsure();
+  if(G.traffic._repair){ if(typeof showMsg==='function') showMsg('🔧 Inny pojazd jest już w naprawie — odbierz go najpierw.','r',3500); return false; }
+  const cost=window._vehRepairCost(kind,level);
+  if((G.money||0)<cost){ if(typeof showMsg==='function') showMsg('💸 Za mało gotówki na naprawę ('+cost.toLocaleString('pl')+' zł).','r',3500); return false; }
+  G.money-=cost; if(typeof spent==='function') spent(cost);
+  const days=window._vehRepairDays(level);
+  if(days<=0){ window._vehRepairZones(kind,level); if(typeof showMsg==='function') showMsg('🔧 Naprawa wykonana — stan '+window._vehOverall(kind)+'% (−'+cost.toLocaleString('pl')+' zł).','g',5000); }
+  else { G.traffic._repair={kind,level,readyDay:(G.day||0)+days,cost}; if(typeof showMsg==='function') showMsg('🔧 Pojazd w naprawie — gotowy za '+days+' dni gry (−'+cost.toLocaleString('pl')+' zł).','g',5500); }
+  if(typeof updateHUD==='function') updateHUD(); if(typeof saveGameSilent==='function') saveGameSilent();
+  return true;
+};
+/* dojrzewanie napraw (nextPeriod, idempotentne per dzień). */
+window._vehRepairTick=function(){
+  window._vehTrafficEnsure(); const t=G.traffic; if(!t._repair) return;
+  if((G.day||0)>=(t._repair.readyDay||0)){ const rp=t._repair; t._repair=null; window._vehRepairZones(rp.kind,rp.level);
+    const nm=rp.kind==='camper'?'Kamper':'Auto'; if(typeof notify==='function') notify('🔧 '+nm+' odebrany z warsztatu — stan '+window._vehOverall(rp.kind)+'%.','g',6000);
+  }
+};
+/* §11 koszt holowania (adaptacja: brak realnego dystansu → stała + modyfikatory + zniżka relacji Knoxa). */
+window._vehTowCost=function(kind,destination){
+  let cost=900;
+  if(window._vehOverall(kind)<=0) cost+=600;
+  const d=window._vehDmg(kind); if(d&&d.visual&&d.visual.fireDamage) cost+=1500;
+  if(destination==='metal_valley') cost-=300;
+  const k=G._knox; if(k&&k.trust>=4) cost=Math.floor(cost*0.85);
+  return Math.max(700,cost);
+};
+/* §13 PATH B: total-loss/wrak → Metal Valley (omija limit-2, bez okna negocjacji). */
+window._vehScrapTotalLoss=function(kind){
+  if(typeof window._metalValleyEnsure==='function') window._metalValleyEnsure();
+  let veh;
+  if(kind==='camper'){ if(!G.camper||!G.camper.owned) return false; const m=(typeof window._camperModelById==='function')?(window._camperModelById(G.camper.model)||{}):{}; veh={kind:'camper',id:'camper',name:m.name||'Kamper',condition:window._vehOverall('camper')}; }
+  else { if(!G.car||!G.car.name) return false; veh={kind:'car',id:G.car.name,name:G.car.name,condition:window._vehOverall('car')}; }
+  const o=(typeof window._calcVehicleScrap==='function')?window._calcVehicleScrap(veh):{net:500,days:2};
+  const id='mvp'+(G.day||0)+'_'+G.metalValley.pending.length+'_'+Math.floor(o.net||0)+'_wreck';
+  G.metalValley.pending.push({id,vehKind:veh.kind,vehId:veh.id,vehName:veh.name,amount:o.net,payoutDay:(G.day||0)+(o.days||2),status:'pending',complication:null});
+  G.metalValley.scrapJobsCompleted=(G.metalValley.scrapJobsCompleted||0)+1; G.metalValley.lastScrapDay=(G.day||0);
+  if(kind==='camper'){ G.camper.owned=false; G.camper.partsAtMetalValley=true; G.camper.destroyed=false; G.camper.activeCamperId=null; G._camperParkedAt=null; G._inCamper=false; }
+  else { if(Array.isArray(G._ownedCars)) G._ownedCars=G._ownedCars.filter(n=>n!==veh.id); if(G._carCond) delete G._carCond[veh.id]; if(G.car&&G.car.name===veh.id){ G.car=null; G._inCar=false; G._carParkedAt=null; } }
+  if(typeof window._metalValleyEnsure==='function') window._metalValleyEnsure();
+  const sms='Knox dowiózł wrak na plac. Rozbieramy — rozliczenie ('+((o.net||0).toLocaleString('pl'))+' zł) za '+(o.days||2)+' dni.';
+  if(typeof window._sendSMS==='function'){ try{ window._sendSMS('Rysiek „Prasa"', sms); }catch(e){ if(typeof notify==='function') notify('📩 Rysiek: '+sms); } }
+  else if(typeof notify==='function') notify('📩 Rysiek: '+sms);
+  return {net:o.net,days:o.days};
+};
+/* §11 wezwij holowanie: warsztat (odholuj → można naprawić) albo metal_valley (kasacja). */
+window._vehCallTow=function(kind,destination){
+  if(typeof window._5pdfEnsure==='function') window._5pdfEnsure(); window._vehTrafficEnsure();
+  const cost=window._vehTowCost(kind,destination);
+  if((G.money||0)<cost){ if(typeof showMsg==='function') showMsg('💸 Nie masz gotówki na holowanie ('+cost.toLocaleString('pl')+' zł).','r',3500); return false; }
+  G.money-=cost; if(typeof spent==='function') spent(cost);
+  const k=G._knox; if(k){ k.towsCalled=(k.towsCalled||0)+1; k.trust=Math.min(100,(k.trust||0)+1); k.relationship=Math.min(100,(k.relationship||0)+1); k.lastTowDay=(G.day||0); }
+  if(destination==='metal_valley'){ const r=window._vehScrapTotalLoss(kind); if(typeof showMsg==='function') showMsg('🚚 Knox odholował wrak do Metal Valley Yard (−'+cost.toLocaleString('pl')+' zł). Rozliczenie w Metal Valley.','g',6500); }
+  else { /* do warsztatu: przestaw zaparkowany pojazd pod Garage 77 i odblokuj naprawę mimo unieruchomienia */
+    if(kind==='car'){ G._carParkedAt={wx:3200,wy:2360,room:'ulica'}; G._inCar=false; }
+    else { G._camperParkedAt={wx:3200,wy:2360,room:'ulica'}; G._inCamper=false; }
+    if(typeof showMsg==='function') showMsg('🚚 Knox odholował pojazd pod Garage 77 (−'+cost.toLocaleString('pl')+' zł). Wejdź do warsztatu, żeby naprawić.','g',6500);
+  }
+  if(typeof updateHUD==='function') updateHUD(); if(typeof saveGameSilent==='function') saveGameSilent();
+  return true;
+};
+/* pojazd „najbardziej potrzebujący" (najniższy stan spośród posiadanych). */
+window._vehNeediestKind=function(){
+  const cands=[]; if(G.car&&G.car.name) cands.push('car'); if(G.camper&&G.camper.owned) cands.push('camper');
+  if(!cands.length) return null;
+  cands.sort((a,b)=>window._vehOverall(a)-window._vehOverall(b));
+  return cands[0];
+};
+/* §11 panel unieruchomienia/holowania — klon _metalValleyHub na #mg-job. */
+window._vehTowPanel=function(kind){
+  window._vehTrafficEnsure();
+  kind=kind||window._vehNeediestKind()||'car';
+  const panel=document.getElementById('mg-job'); if(!panel){ if(typeof showMsg==='function') showMsg('🚚 Wezwij Knoxa (holownik) przez telefon.','i',4000); return; }
+  panel.classList.add('on'); panel.style.display='';
+  const oh=window._vehOverall(kind); const em=kind==='camper'?'🚐':'🚗';
+  const towWork=window._vehTowCost(kind,'workshop'); const towMV=window._vehTowCost(kind,'metal_valley');
+  const rep=window._vehEvaluateRepairability(kind);
+  const closeJs="var _e=document.getElementById('mg-job');_e.classList.remove('on');_e.style.display='none';_e.innerHTML='';";
+  const btn=(oc,txt,extra)=>`<button class="cbtn" style="width:100%;text-align:left;padding:11px 14px;margin-bottom:7px;font-size:14px${extra||''}" onclick="${oc}">${txt}</button>`;
+  panel.innerHTML=`<div id="mg-job-content" style="width:100%;max-width:460px;margin:0 auto">
+    <div style="text-align:center;margin-bottom:6px"><div style="font-size:20px;font-weight:800;color:#e67e22">${em} Pojazd unieruchomiony</div>
+      <div style="font-size:12px;color:#8a939a;margin-top:4px">Stan pojazdu: <b style="color:${oh<=10?'#e74c3c':'#f39c12'}">${oh}%</b>. Nie da się nim jechać — potrzebne holowanie.${rep.repairable?'':' <span style="color:#e74c3c">Naprawa nieopłacalna → kasacja.</span>'}</div></div>
+    <div style="margin-top:12px">
+      ${btn("window._vehCallTow('"+kind+"','workshop');"+closeJs,'🚚 Wezwij holowanie do warsztatu · '+towWork.toLocaleString('pl')+' zł')}
+      ${btn("window._vehCallTow('"+kind+"','metal_valley');"+closeJs,'♻️ Holowanie do Metal Valley Yard (kasacja) · '+towMV.toLocaleString('pl')+' zł')}
+      ${btn("if(typeof window._vehInsuranceInfo==='function')window._vehInsuranceInfo();else if(typeof showMsg==='function')showMsg('🛡️ Ubezpieczenie pojazdu — wkrótce.','i',3000);",'📞 Zadzwoń do ubezpieczenia')}
+      ${btn(closeJs,'🚶 Wróć pieszo / zostaw pojazd','; color:#e07070; border-color:#5a1a1a')}
+    </div></div>`;
+};
+/* ── NPC Knox „Towline" Mercer (kontakt telefoniczny SMS z usługami) ── */
+window._knoxUnlock=function(reason){
+  if(typeof window._5pdfEnsure==='function') window._5pdfEnsure();
+  const k=G._knox||(G._knox={}); if(k.introSent) return;
+  k.introSent=true;
+  const txt='Knox „Towline" Mercer. Rysiek dał namiar — jak coś dymi, cieknie albo leży bokiem na drodze, piszesz do mnie. Holowanie, wraki, sprzątanie, transport na Metal Valley. '+(reason==='wreck'?'Słyszałem, że masz wrak do ogarnięcia.':'Dobrze mieć kogoś od rzeczy, które nie dojechały o własnych kołach.');
+  if(typeof window._smsTriggerOnce==='function') window._smsTriggerOnce('knox_intro','knox',txt,{bypass:true});
+  else if(typeof notify==='function') notify('📩 Knox „Towline" Mercer: '+txt);
+};
+/* usługa Knoxa z menu SMS. */
+window._knoxService=function(id){
+  if(typeof window._5pdfEnsure==='function') window._5pdfEnsure(); window._vehTrafficEnsure();
+  const k=G._knox||(G._knox={});
+  const kind=window._vehNeediestKind()||'car';
+  const has=(G.car&&G.car.name)||(G.camper&&G.camper.owned);
+  const push=(t)=>{ if(typeof window._smsPushNpcReply==='function') window._smsPushNpcReply('knox',t); else if(typeof notify==='function') notify('📩 Knox: '+t); };
+  const mine=(t)=>{ if(typeof window._smsReply==='function') window._smsReply('knox',t); };
+  if(id==='tow'){ mine('Podeślij lawetę — auto stoi.'); if(!has){ push('Nie widzę u Ciebie żadnej fury. Nie ma czego holować.'); return; } const ok=window._vehCallTow(kind,'workshop'); push(ok?'Laweta jedzie. Zostawiam pod Garage 77 — reszta u mechanika.':'Brakło Ci na lawetę. Zbierz kasę, odezwij się.'); }
+  else if(id==='transport'){ mine('Zabierz to na Metal Valley.'); if(!has){ push('Nie ma czego wozić.'); return; } const ok=window._vehCallTow(kind,'metal_valley'); push(ok?'Załadowane. Rysiek Cię rozliczy jak zejdzie na części.':'Bez kasy nie ruszę wraka.'); }
+  else if(id==='wreck'){ mine('Zostań po tym wraku porządek.'); const wc=(Array.isArray(G.wreckCases)?G.wreckCases.find(w=>w.status==='unpaid'):null); if(!wc){ push('Nie widzę żadnego wraka do sprzątnięcia. Na razie czysto.'); return; } if((G.money||0)<wc.amount){ push('Sprzątnięcie kosztuje '+wc.amount.toLocaleString('pl')+' zł. Nie stać Cię teraz.'); return; } G.money-=wc.amount; if(typeof spent==='function') spent(wc.amount); wc.status='paid'; push('Ekipa zebrała szczątki i wywiozła. −'+wc.amount.toLocaleString('pl')+' zł, temat zamknięty.'); if(typeof updateHUD==='function') updateHUD(); }
+  else if(id==='quote'){ mine('Ile to realnie kosztuje?'); if(!has){ push('Nie ma czego wyceniać.'); return; } const rep=window._vehEvaluateRepairability(kind); const oh=window._vehOverall(kind); push(oh>=90?'Ledwie rysa. Szkoda mojego czasu — jedź dalej.':rep.repairable?('Da się to poskładać. Stan '+oh+'%. Holowanie do warsztatu '+window._vehTowCost(kind,'workshop').toLocaleString('pl')+' zł, potem mechanik.'):'To nie jest rysa na zderzaku. To pojazd, który właśnie przestał mieć przyszłość. Mogę zabrać na Metal Valley — nie będzie pięknie, ale zniknie z ulicy.'); }
+  else if(id==='contacts'){ mine('Znasz kogoś od... innych spraw?'); const trust=(k.trust||0); if(trust<4){ push('Spokojnie. Najpierw popracujmy razem parę razy, potem pogadamy o znajomościach.'); } else { k.contactsAsked=true; push('Znam ludzi od różnych rzeczy — nocne życie, zamknięte stoły, tacy co pomagają „wejść wyżej". Każdy taki kontakt to koszt i ryzyko. Odezwę się, jak będzie temat.'); if(typeof window._uwAddStat==='function'){ try{ window._uwAddStat('street_heat',1); }catch(e){} } } }
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  if(typeof renderSMSConversation==='function' && typeof phoneOpen==='function' && phoneOpen()){ try{ renderSMSConversation('knox'); }catch(e){} }
+};
+/* §39 karta naprawy pojazdu w Warsztacie (3 poziomy) — HTML dla renderWarsztat. */
+window._vehRepairCard=function(kind){
+  const em=kind==='camper'?'🚐':'🚗'; const title=kind==='camper'?'Kamper':'Samochód';
+  const owned=kind==='camper'?!!(G.camper&&G.camper.owned):!!(G.car&&G.car.name);
+  if(!owned) return '';
+  const nm=kind==='camper'?((typeof window._camperModelById==='function'&&window._camperModelById(G.camper.model)||{}).name||'Kamper'):G.car.name;
+  const oh=window._vehOverall(kind);
+  window._vehTrafficEnsure();
+  let body;
+  if(window._vehInRepair(kind)){ const rp=G.traffic._repair; const left=Math.max(0,(rp.readyDay||0)-(G.day||0)); body=`<div style="color:#f39c12;font-size:12px;margin-top:4px">🔧 W naprawie — gotowy za ${left} dni gry</div>`; }
+  else if(oh>=100){ body=`<div style="color:#27ae60;font-size:12px;margin-top:4px">✓ Idealny stan</div>`; }
+  else {
+    const rep=window._vehEvaluateRepairability(kind);
+    const cb=(lvl,lbl)=>{ const c=window._vehRepairCost(kind,lvl); const dd=window._vehRepairDays(lvl); return `<button class="bbtn" style="font-size:11.5px;padding:6px 8px;margin:2px 0" ${(G.money||0)<c?'disabled':''} onclick="window.repairVehicleLevel('${kind}','${lvl}')">${lbl} · ${c.toLocaleString('pl')} zł${dd>0?' · '+dd+'d':''}</button>`; };
+    if(!rep.repairable){ body=`<div style="color:#e74c3c;font-size:11.5px;margin:4px 0">✗ Zbyt zniszczony — naprawa nieopłacalna.</div><button class="bbtn" style="font-size:11.5px;padding:6px 8px;border-color:#7a2a2a;color:#e6a0a0" onclick="closeOverlay();window._vehTowPanel&&window._vehTowPanel('${kind}')">♻️ Kasacja / holowanie</button>`; }
+    else { body=`<div style="display:flex;flex-direction:column;gap:2px;margin-top:4px">${cb('basic','Naprawa podstawowa (blacharka)')}${cb('mech','Naprawa mechaniczna')}${cb('full','Naprawa pełna')}</div>`; }
+  }
+  return `<div class="sitem"><h3>${em} ${title}</h3><p>${nm} (stan: ${oh}%)</p>${body}</div>`;
+};
+/* wykonaj naprawę wybranego poziomu + re-render warsztatu. */
+window.repairVehicleLevel=function(kind,level){ if(window._vehRepairVehicle(kind,level)){ if(typeof renderWarsztat==='function') renderWarsztat(); } };
 /* prompt zależny od stanu (§20). kind='car'|'camper'. */
 window._getVehiclePrompt=function(kind){
   const key=kind==='camper'?'K':'V'; const st=window._vehGet(kind);
@@ -53464,6 +53654,7 @@ const SMS_CONTACTS={
   maya_voss: {name:'Maya Voss (Urban Flow)',   em:'💃', color:'#e84393', physical:false}, /* v2.3.99 (PDF #4): organizatorka turniejów breakdance */
   jade_mercer:{name:'Jade Mercer (Concrete Pulse)', em:'🛹', color:'#00b894', physical:false}, /* v2.3.99 (PDF #5): organizatorka contestów skate */
   kantar:    {name:'Numer zastrzeżony',         em:'📵', color:'#9b59b6', physical:true}, /* v2.3.38 moduł „Numer zastrzeżony" — nadawca SMS (broker Kantar w Velvet Room); name→„Kantar” po ukończeniu questa (mutowane w TIER 8) */
+  knox:      {name:'Knox „Towline” Mercer',     em:'🛻', color:'#e67e22', physical:false}, /* nowy PDF Fizyczne kolizje: holownik/wraki, usługi powtarzalne (menu w renderSMSConversation) */
 };
 function _ensureSMS(){
   if(!G.sms||typeof G.sms!=='object') G.sms={conversations:{},unread:0,_triggeredEvents:{}};
@@ -54761,6 +54952,19 @@ window.renderSMSConversation=function(contactId){
            albo przycisk akcji questa (actionBtn nad spodem). Poza tym czeka, aż kontakt odezwie się pierwszy. */
         if(contactId==='kantar'){
           return `<div style="background:#0a0512;border:1px solid #3a2a4a;border-radius:6px;padding:9px 11px;font-size:11px;color:#b59ad5;text-align:center;font-style:italic">📵 Z tym numerem nie pogadasz ot tak. Odezwie się, kiedy będzie miał sprawę.</div>`;
+        }
+        /* Knox „Towline" Mercer (nowy PDF Fizyczne kolizje) — MENU USŁUG powtarzalnych (zawsze dostępne, jak kantar). */
+        if(contactId==='knox'){
+          const _kn=(typeof window._vehNeediestKind==='function')?window._vehNeediestKind():null;
+          const _oh=(_kn&&typeof window._vehOverall==='function')?window._vehOverall(_kn):100;
+          const _kb=(opt,label,sub,col)=>`<button onclick="window._knoxService('${opt}')" style="width:100%;text-align:left;background:#1a1206;border:1px solid ${col}66;border-left:4px solid ${col};color:#f0e2d0;padding:9px 11px;border-radius:8px;cursor:pointer;font-size:12.5px;margin-bottom:6px"><b>${label}</b><div style="color:#b5a58a;font-size:10.5px;margin-top:2px">${sub}</div></button>`;
+          let _btns='';
+          _btns+=_kb('tow','🚚 Wezwij holowanie','Laweta pod warsztat (Garage 77).','#e67e22');
+          _btns+=_kb('transport','♻️ Transport do Metal Valley','Kasacja wraka na części (rozliczenie po czasie).','#95a5a6');
+          _btns+=_kb('wreck','🧹 Sprzątnięcie wraku','Uprzątnięcie i utylizacja szczątków po pożarze.','#c0392b');
+          _btns+=_kb('quote','💰 Wycena szkody','Ile realnie kosztuje pozbieranie tego pojazdu.','#f1c40f');
+          _btns+=_kb('contacts','📇 Zapytaj o kontakty','Ryzykowne znajomości miejskie (wymaga zaufania).','#3498db');
+          return `<div style="background:#120a02;border:1px solid #4a3520;border-radius:6px;padding:6px 9px;margin-bottom:7px;font-size:10.5px;color:#d5b58a;text-align:center">🛻 Knox — holowanie, wraki, transport. ${_kn?('Twój pojazd: '+_oh+'%'):'Nie masz teraz pojazdu.'}</div>${_btns}`;
         }
         if(_unrepliedCount===0){
           return `<div style="background:#0a1a0a;border:1px solid #1a4a1a;border-radius:6px;padding:8px 10px;font-size:11px;color:#7ec87e;text-align:center;font-style:italic">✓ Wszystkie wiadomości od ${(SMS_CONTACTS[contactId]||{}).name||contactId} odpowiedziane. Poczekaj na nowe.</div>`;
