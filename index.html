@@ -50628,16 +50628,30 @@ window._camperEnsure=function(){
    (defaulty w _vehStateEnsure wołanym z _sanitizePlayerLists). Boost ruchu bramkowany _vehEngineOn (patrz loop). */
 window._vehStateEnsure=function(){
   if(!G._vehState||typeof G._vehState!=='object') G._vehState={};
-  const mk=(o)=>{ if(!o||typeof o!=='object') o={};
+  const mk=(o,kind)=>{ if(!o||typeof o!=='object') o={};
     if(typeof o.engineOn!=='boolean') o.engineOn=false;
     if(typeof o.engineStartedThisSession!=='boolean') o.engineStartedThisSession=false;
     if(typeof o.engineStoppedAfterDrive!=='boolean') o.engineStoppedAfterDrive=false;
     if(o.lightMode!=='off'&&o.lightMode!=='daytime'&&o.lightMode!=='highBeam') o.lightMode='off';
     if(typeof o.locked!=='boolean') o.locked=false;
     if(typeof o.seatbeltOn!=='boolean') o.seatbeltOn=false;
+    /* KOLIZJE (nowy PDF): model uszkodzeń per pojazd — save-safe, seed z istniejącego condition,
+       reseed przy ZMIANIE tożsamości pojazdu (nowe auto nie dziedziczy wraku poprzedniego). */
+    if(!o.dmg||typeof o.dmg!=='object') o.dmg={};
+    const _d=o.dmg;
+    const _ZK=(window._VEH_DMG_ZONES||['front','rear','leftSide','rightSide','roof','engine','radiator','suspension','wheels','brakes','transmission','fuelSystem','electronics','windows','lights']);
+    const _condRaw=(kind==='camper'?(G.camper&&G.camper.condition):(G.car&&G.car.condition));
+    const _seed=(typeof _condRaw==='number'&&!isNaN(_condRaw))?Math.max(0,Math.min(100,_condRaw)):100;
+    const _idNow=(kind==='camper'?((G.camper&&G.camper.model)||(G.camper&&G.camper.owned?'camper':null)):((G.car&&G.car.name)||null));
+    if(_idNow!=null && _d.dmgFor!==_idNow){ _d.dmgFor=_idNow; for(const z of _ZK){ _d[z]=_seed; } _d.visual={}; _d.fireState={status:'none',startedAt:null,explosionAt:null}; _d.failedStartAttempts=0; }
+    for(const z of _ZK){ if(typeof _d[z]!=='number'||isNaN(_d[z])) _d[z]=_seed; }
+    if(!_d.visual||typeof _d.visual!=='object') _d.visual={};
+    if(!_d.fireState||typeof _d.fireState!=='object') _d.fireState={status:'none',startedAt:null,explosionAt:null};
+    if(typeof _d.failedStartAttempts!=='number') _d.failedStartAttempts=0;
     return o; };
-  G._vehState.car=mk(G._vehState.car);
-  G._vehState.camper=mk(G._vehState.camper);
+  G._vehState.car=mk(G._vehState.car,'car');
+  G._vehState.camper=mk(G._vehState.camper,'camper');
+  if(typeof window._vehTrafficEnsure==='function') window._vehTrafficEnsure();
   /* MIGRACJA save-safe #1 (jednorazowa): stary zapis, w którym gracz był W TRAKCIE jazdy (_inCar/_inCamper=true),
      nie miał stanu silnika → po wczytaniu gracz „stałby w miejscu". Traktujemy go jak z odpalonym silnikiem,
      żeby jazda była ciągła bez zaskoczenia. Nowa gra: _inCar/_inCamper=false → bez efektu. */
@@ -50678,6 +50692,79 @@ window._vehPowertrain=function(kind){
 window._vehShouldShowExhaust=function(kind){ if(!window._vehEngineOn(kind)) return false; const p=window._vehPowertrain(kind); return p!=='electric'&&p!=='hybrid'; };
 /* czy gracz aktywnie porusza pojazdem (klawisze ruchu wciśnięte) — brak „speed", więc: trzymany kierunek (§6). */
 window._vehActivelyMoving=function(){ try{ return !!(typeof K!=='undefined'&&K&&(K['ArrowUp']||K['ArrowDown']||K['ArrowLeft']||K['ArrowRight']||K['w']||K['W']||K['s']||K['S']||K['a']||K['A']||K['d']||K['D'])); }catch(_){ return false; } };
+
+/* ═══ FIZYCZNE KOLIZJE POJAZDÓW (nowy PDF, v2.3.112) — RDZEŃ: model uszkodzeń + stan drogowy ═══
+   ADAPTACJA nie duplikat: gra top-down bez fizyki prędkość/masa/kąt/pasy. overallHealth = istniejące
+   `condition` (0-100) = jedyne źródło prawdy (spójne z boostem/zużyciem/Metal Valley). Strefy uszkodzeń
+   (dmg.*) = WARSTWA szczegółu; kolizja obniża strefę + powiązane + synchronizuje condition W DÓŁ (nigdy w górę).
+   18+ SAFETY: wszystko abstrakcyjne (liczby/procenty), zero realnych procedur. */
+window._VEH_DMG_ZONES=['front','rear','leftSide','rightSide','roof','engine','radiator','suspension','wheels','brakes','transmission','fuelSystem','electronics','windows','lights'];
+/* stan drogowy gracza (§25) + rejestry mandatów/wraków — save-safe, idempotentne. */
+window._vehTrafficEnsure=function(){
+  if(!G.traffic||typeof G.traffic!=='object') G.traffic={};
+  const t=G.traffic;
+  const dn=(k,v)=>{ if(typeof t[k]!=='number'||isNaN(t[k])) t[k]=v; };
+  dn('roadIncidentScore',0); dn('vehicleConfiscations',0); dn('repeatedCrashCount',0); dn('publicCrashExposure',0);
+  if(typeof t.criticalDrivingWarningShown!=='boolean') t.criticalDrivingWarningShown=false;
+  if(!('drivingBanUntilDay' in t)) t.drivingBanUntilDay=null;
+  if(!('lastMajorCrashDay' in t)) t.lastMajorCrashDay=null;
+  if(!Array.isArray(G.trafficFines)) G.trafficFines=[];
+  if(!Array.isArray(G.wreckCases)) G.wreckCases=[];
+};
+window._vehDmg=function(kind){ const st=window._vehGet(kind); return (st&&st.dmg)?st.dmg:null; };
+window._vehCondRef=function(kind){ return kind==='camper'?(G.camper||{}):(G.car||{}); };
+window._vehOverall=function(kind){ const r=window._vehCondRef(kind); return (typeof r.condition==='number'&&!isNaN(r.condition))?Math.max(0,Math.min(100,r.condition)):100; };
+/* §8 poziomy wizualne: przerzucaj flagi na progach overallHealth (+ pojedyncze strefy krytyczne). */
+window._vehUpdateVisual=function(kind){
+  const d=window._vehDmg(kind); if(!d) return;
+  const h=window._vehOverall(kind); const v=d.visual||(d.visual={});
+  v.scratches      = h<80;
+  v.dents          = h<60;
+  v.brokenLights   = h<45 || d.lights<40;
+  v.crackedWindows = h<35 || d.windows<40;
+  v.smoke          = h<25 || d.radiator<25 || d.engine<20;
+  v.fluidLeak      = h<15 || d.fuelSystem<20;
+  v.disabled       = h<=0;
+};
+/* §7 recalc overall = ważona średnia stref, ale NIGDY powyżej dotychczasowego condition (czas/zużycie tylko obniża). */
+window._vehRecalcOverall=function(kind){
+  const d=window._vehDmg(kind); if(!d) return;
+  const struct=(d.front+d.rear+d.leftSide+d.rightSide+d.roof)/5;
+  const mech=(d.engine+d.transmission+d.suspension+d.fuelSystem+d.wheels+d.brakes)/6;
+  const other=(d.radiator+d.electronics+d.windows+d.lights)/4;
+  const overall=Math.max(0,Math.min(100,Math.round(struct*0.40+mech*0.45+other*0.15)));
+  const r=window._vehCondRef(kind);
+  const prev=(typeof r.condition==='number'&&!isNaN(r.condition))?r.condition:100;
+  r.condition=Math.max(0,Math.min(prev,overall));
+  window._vehUpdateVisual(kind);
+  return r.condition;
+};
+/* §6 twardość obiektów mapy (mnożnik siły). */
+window._vehHardness=function(type){
+  const H={ pedestrian_npc:0.35, bench:0.45, road_sign:0.50, trash_bin:0.35, street_lamp:0.85,
+    tree:0.95, wall:1.20, building:1.50, concrete_block:1.60, parked_vehicle:1.00,
+    moving_vehicle:1.10, metal_barrier:1.25, hydrant:0.70, fence:0.60 };
+  return H[type]!=null?H[type]:1.00;
+};
+/* §3 strefa uderzenia z kierunku ruchu (adaptacja: brak kąta — kierunek dx/dy). */
+window._vehImpactZoneFromDir=function(dx,dy){
+  if(Math.abs(dy)>=Math.abs(dx)){ return (dy<0)?'front':'rear'; }
+  return (dx<0)?'leftSide':'rightSide';
+};
+/* §7 RDZEŃ: nałóż uszkodzenie na strefę + strefy powiązane, zsynchronizuj condition. Zwraca faktyczny ubytek. */
+window._vehApplyDamage=function(kind,zone,amount,source){
+  const d=window._vehDmg(kind); if(!d) return 0;
+  if(window._VEH_DMG_ZONES.indexOf(zone)<0) zone='front';
+  amount=Math.max(0,Math.round(amount||0));
+  const dec=(z,a)=>{ d[z]=Math.max(0,Math.min(100,(d[z]==null?100:d[z])-Math.max(0,a))); };
+  dec(zone,amount);
+  if(zone==='front'){ dec('engine',Math.floor(amount*0.55)); dec('radiator',Math.floor(amount*0.65)); dec('lights',Math.floor(amount*0.40)); }
+  else if(zone==='rear'){ dec('lights',Math.floor(amount*0.35)); dec('suspension',Math.floor(amount*0.25)); }
+  else if(zone==='leftSide'||zone==='rightSide'){ dec('suspension',Math.floor(amount*0.45)); dec('windows',Math.floor(amount*0.35)); }
+  else if(zone==='roof'){ dec('windows',Math.floor(amount*0.65)); dec('electronics',Math.floor(amount*0.25)); }
+  window._vehRecalcOverall(kind);
+  return amount;
+};
 /* prompt zależny od stanu (§20). kind='car'|'camper'. */
 window._getVehiclePrompt=function(kind){
   const key=kind==='camper'?'K':'V'; const st=window._vehGet(kind);
