@@ -14024,7 +14024,9 @@ function updatePlayer(){
      Teraz (0.8+0.2*cond/100): pełna kondycja ×1.0 (=dokumentowane 7.26), auto zniszczone (0%) ×0.8 (wolniejsze) → zachęta do serwisu. */
   /* v2.3.108 PDF#9 §11: w pojeździe z WYŁĄCZONYM silnikiem nie ruszasz (wejście ≠ jazda). Odpal silnik ([V]/[K]). */
   if((dx!==0||dy!==0)&&_carRoom(currentRoom)){
-    if(G._inCar&&G.car&&!(typeof window._vehEngineOn==='function'&&window._vehEngineOn('car'))){ dx=0; dy=0; }
+    /* KOLIZJE Tier G §29: zakaz prowadzenia (po konfiskacie/serii incydentów) — pojazd nie rusza. */
+    if((G._inCar||G._inCamper) && typeof window._vehCanDrive==='function' && !window._vehCanDrive()){ dx=0; dy=0; if(typeof window._vehBanHint==='function') window._vehBanHint(); }
+    else if(G._inCar&&G.car&&!(typeof window._vehEngineOn==='function'&&window._vehEngineOn('car'))){ dx=0; dy=0; }
     else if(G._inCamper&&G.camper&&G.camper.owned&&!(typeof window._vehEngineOn==='function'&&window._vehEngineOn('camper'))){ dx=0; dy=0; }
     /* KOLIZJE Tier C §11: pojazd na 0% żywotności = unieruchomiony, nie rusza (wymaga holowania). */
     else if(G._inCar&&G.car&&typeof window._vehImmobilized==='function'&&window._vehImmobilized('car')){ dx=0; dy=0; if(typeof window._vehImmobilizedHint==='function') window._vehImmobilizedHint('car'); }
@@ -50849,7 +50851,78 @@ window._vehAddIncidentScore=function(pts){
   if(typeof window._vehTrafficEnsure==='function') window._vehTrafficEnsure();
   const t=G.traffic; if(!t) return;
   t.roadIncidentScore=Math.max(0,(t.roadIncidentScore||0)+(pts||0));
+  if((pts||0)>=20){ /* §25 poważny incydent → licznik recydywy w oknie 7 dni */
+    if(t.lastMajorCrashDay!=null && (G.day||0)-(t.lastMajorCrashDay)<=7) t.repeatedCrashCount=(t.repeatedCrashCount||0)+1;
+    else t.repeatedCrashCount=1;
+    t.lastMajorCrashDay=(G.day||0);
+  }
   if(typeof window._vehCheckRoadIncidentWarning==='function') window._vehCheckRoadIncidentWarning();
+};
+/* ═══ TIER G: OSTRZEŻENIE → KONFISKATA → ZAKAZ JAZDY (§25-29) ═══ */
+/* §29 czy gracz może prowadzić (zakaz po konfiskacie/serii incydentów). */
+window._vehCanDrive=function(){
+  window._vehTrafficEnsure(); const t=G.traffic;
+  if(t.drivingBanUntilDay!=null && (G.day||0)<t.drivingBanUntilDay) return false;
+  return true;
+};
+window._vehDrivingBanDaysLeft=function(){ window._vehTrafficEnsure(); const t=G.traffic; return (t.drivingBanUntilDay!=null)?Math.max(0,(t.drivingBanUntilDay)-(G.day||0)):0; };
+/* §28 mandat przy konfiskacie (5000-10000). */
+window._vehConfiscationFine=function(){
+  window._vehTrafficEnsure(); const t=G.traffic;
+  let fine=5000; fine+=(t.vehicleConfiscations||0)*1500; fine+=Math.min((t.repeatedCrashCount||0)*800,3000);
+  if((t.roadIncidentScore||0)>=120) fine+=2000;
+  return Math.max(5000,Math.min(10000,fine));
+};
+/* §27 warunek konfiskaty. */
+window._vehShouldConfiscate=function(){
+  window._vehTrafficEnsure(); const t=G.traffic;
+  return (t.roadIncidentScore||0)>=100 || ((t.roadIncidentScore||0)>=80 && (t.repeatedCrashCount||0)>=3);
+};
+/* §27 konfiskata = zakaz jazdy 3 dni + mandat + heat/zniesławienie (pojazd NIE usuwany z save — reguła #1; „niedostępny" = zakaz). */
+window._vehConfiscateVehicle=function(){
+  window._vehTrafficEnsure(); const t=G.traffic;
+  t.vehicleConfiscations=(t.vehicleConfiscations||0)+1;
+  t.drivingBanUntilDay=(G.day||0)+3;
+  const fine=window._vehConfiscationFine();
+  window._vehIssueFine('Konfiskata pojazdu po serii niebezpiecznych incydentów', fine);
+  if(typeof window._uwAddStat==='function'){ try{ window._uwAddStat('street_heat',20); }catch(_){} }
+  if(typeof addDefamation==='function') addDefamation(15);
+  if(G.signalNine && typeof window._s9Effect==='function'){ try{ window._s9Effect({agencyHeat:10,brandTrust:-2}); }catch(_){} }
+  t.roadIncidentScore=Math.min(t.roadIncidentScore||0, 45); /* po konfiskacie licznik poniżej progu (nie insta-recydywa) */
+  t.criticalDrivingWarningShown=false;
+  if(G._inCar){ G._inCar=false; } if(G._inCamper){ G._inCamper=false; }
+  if(typeof window._vehShowConfiscationPanel==='function') window._vehShowConfiscationPanel(fine);
+  else if(typeof showMsg==='function') showMsg('🚔 KONFISKATA! Po serii niebezpiecznych incydentów służby zabrały pojazd. Zakaz prowadzenia: 3 dni gry, mandat '+fine.toLocaleString('pl')+' zł.','r',9000);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+/* §26 ostrzeżenie + §27 konfiskata (ex-GHOST — teraz realnie zdefiniowany; był wołany z _vehAddIncidentScore bez definicji). */
+window._vehCheckRoadIncidentWarning=function(){
+  window._vehTrafficEnsure(); const t=G.traffic;
+  if(window._vehShouldConfiscate()){ window._vehConfiscateVehicle(); return; }
+  if((t.roadIncidentScore||0)>=60 && t.criticalDrivingWarningShown!==true){
+    t.criticalDrivingWarningShown=true;
+    if(typeof showMsg==='function') showMsg('⚠️ Krytyczny poziom incydentów drogowych. Twoja jazda przyciąga uwagę służb i miasta. Kolejne poważne zdarzenia mogą skończyć się konfiskatą pojazdu, zakazem prowadzenia i wysokim mandatem.','r',9000);
+    if(typeof addNotif==='function') addNotif('⚠️ Krytyczny poziom incydentów drogowych — uważaj, bo stracisz pojazd.');
+  }
+};
+/* §27 panel konfiskaty. */
+window._vehShowConfiscationPanel=function(fine){
+  const panel=document.getElementById('mg-job'); if(!panel){ if(typeof showMsg==='function') showMsg('🚔 KONFISKATA pojazdu — zakaz jazdy 3 dni + mandat '+fine.toLocaleString('pl')+' zł.','r',9000); return; }
+  panel.classList.add('on'); panel.style.display='';
+  const closeJs="var _e=document.getElementById('mg-job');_e.classList.remove('on');_e.style.display='none';_e.innerHTML='';";
+  panel.innerHTML=`<div id="mg-job-content" style="max-width:440px;margin:0 auto">
+    <div style="text-align:center;font-size:19px;font-weight:800;color:#e74c3c;margin-bottom:8px">🚔 Konfiskata pojazdu</div>
+    <div style="font-size:12.5px;color:#cdd;line-height:1.6;margin-bottom:10px">Po serii niebezpiecznych incydentów drogowych pojazd został zabezpieczony przez służby.<br><br>Skutki:<br>• pojazd niedostępny,<br>• zakaz prowadzenia: <b>3 dni gry</b>,<br>• mandat: <b>${(fine||0).toLocaleString('pl')} zł</b>,<br>• wzrost „heat" i zniesławienia.</div>
+    <button class="cbtn" style="width:100%;color:#e07070;border-color:#5a1a1a" onclick="${closeJs}">Rozumiem — wracam pieszo</button></div>`;
+};
+/* §29 podpowiedź przy próbie jazdy z zakazem (throttle). */
+window._vehBanHintClock=0;
+window._vehBanHint=function(){
+  const now=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
+  if(now-(window._vehBanHintClock||0)<3000) return; window._vehBanHintClock=now;
+  const left=(typeof window._vehDrivingBanDaysLeft==='function')?window._vehDrivingBanDaysLeft():0;
+  const m='🚫 Masz czasowy zakaz prowadzenia pojazdów (pozostało '+left+' dni). Po serii niebezpiecznych incydentów drogowych.';
+  if(typeof window._subtleMsg==='function') window._subtleMsg(m); else if(typeof showMsg==='function') showMsg(m,'r',3500);
 };
 /* §3-7: impakt pojazdu w obiekt mapy. hitX/hitY = zablokowany obiekt (bok / przód-tył), dx/dy = boostowany ruch.
    Adaptacja: brak „speed" — siła = wielkość ruchu (|dx|+|dy|) × twardość. Cooldown 600 ms przeciw drenażowi
