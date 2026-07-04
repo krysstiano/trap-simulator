@@ -12826,6 +12826,8 @@ function _drawVehicleFx(kind, sx, sy, d){
         X.beginPath(); X.arc(rx,ry,4+ph*7,0,Math.PI*2); X.fill();
       }
     }
+    /* KOLIZJE Tier E §18: PŁOMIENIE gdy pojazd płonie (przed eksplozją). */
+    if(st.dmg && st.dmg.visual && st.dmg.visual.fire && typeof window._vehDrawFlames==='function'){ window._vehDrawFlames(sx,sy); }
   }catch(_){}
 }
 function drawPlayerCar(){
@@ -27552,6 +27554,7 @@ function nextPeriod(){
     if(typeof _noxTickContracts==='function') _noxTickContracts(); /* NX-3 (v2.3.44 PDF): rozstrzygnij zlecenia NOX po deadline */
     if(typeof window._metalValleyTickPayouts==='function') window._metalValleyTickPayouts(); /* v2.3.108 PDF#11: dojrzewanie wypłat rozbiórki + SMS Ryśka */
     if(typeof window._vehRepairTick==='function') window._vehRepairTick(); /* nowy PDF Fizyczne kolizje TIER D: odbiór pojazdu z naprawy po readyDay */
+    if(typeof window._vehTickDaily==='function') window._vehTickDaily(); /* TIER E/G: wygaśnięcie zakazu jazdy + konsekwencje porzuconego wraku */
     if((G.defamation||0)>0) G.defamation=Math.max(0,G.defamation-2); /* v2.1.874: zniesławienie opada powoli (-2/dobę) */
     if(G.car){G.car.condition=Math.max(0,(G.car.condition==null?100:G.car.condition)-4);} /* T3.2 / v2.1.843 (Vegan: auto psuło się za rzadko — pełne zużycie 5h gry): zużycie od czasu 2%→4%/dzień gry (v844: 5→4). Dodatkowo zużycie od JEŻDŻENIA w updatePlayer (aktywni kierowcy serwisują częściej). Przegląd w warsztacie przywraca pełny stan +20% przyspieszenia. */
     /* v2.1.627: wygaśnięcie nieddostarczonej "Pilnej przesyłki" po deadline (gdy gracz nie zrobił kolejnej trasy kuriera). */
@@ -50868,6 +50871,8 @@ window._vehMaybeImpact=function(hitX,hitY,dx,dy){
   const dealt=window._vehApplyDamage(kind,zone,amount,'collision');
   window._vehAddIncidentScore(dealt>=25?20:5); /* duże uderzenie=poważna kolizja, małe=mała (§25) */
   window._vehImpactFx(kind,type,dealt);
+  /* §17 Tier E: pojazd zbity do 0% w kolizji może zapłonąć. */
+  if(window._vehOverall(kind)<=0 && typeof window._vehShouldCatchFire==='function' && window._vehShouldCatchFire(kind,'collision')){ if(typeof window._vehStartFire==='function') window._vehStartFire(kind); }
 };
 window._vehImpactFx=function(kind,type,amount){
   try{
@@ -51110,6 +51115,149 @@ window._vehRepairCard=function(kind){
 };
 /* wykonaj naprawę wybranego poziomu + re-render warsztatu. */
 window.repairVehicleLevel=function(kind,level){ if(window._vehRepairVehicle(kind,level)){ if(typeof renderWarsztat==='function') renderWarsztat(); } };
+
+/* ═══ TIER E: POŻAR + EKSPLOZJA + WRAK (§17-21) ═══ */
+/* §17 czy pojazd na 0% ma się zapalić (szansa wg układu paliwowego/silnika/źródła). */
+window._vehShouldCatchFire=function(kind,source){
+  const d=window._vehDmg(kind); if(!d) return false;
+  if(window._vehOverall(kind)>0) return false; /* §17: tylko przy 0% */
+  if(d.fireState && d.fireState.status!=='none') return false;
+  let chance=10;
+  if((d.fuelSystem==null?100:d.fuelSystem)<=20) chance+=25;
+  if((d.engine==null?100:d.engine)<=10) chance+=15;
+  if(source==='gunfire') chance+=20;
+  if(source==='high_speed_crash'||source==='collision') chance+=20;
+  const fuel=(kind==='camper'?(G.camper&&G.camper.fuel):null); if(typeof fuel==='number'&&fuel>50) chance+=10;
+  chance=Math.max(0,Math.min(80,chance));
+  return Math.random()*100<chance;
+};
+/* §18 rozpocznij pożar: iskra → (10s) ogień → (10s) eksplozja. */
+window._vehStartFire=function(kind){
+  const d=window._vehDmg(kind); if(!d) return;
+  if(d.fireState && d.fireState.status && d.fireState.status!=='none') return;
+  const now=Date.now();
+  d.fireState={status:'spark',startedAt:now,explosionAt:now+20000,_lastTick:now};
+  if(!d.visual) d.visual={}; d.visual.fire=true;
+  if(typeof showMsg==='function') showMsg('🔥 Z pojazdu bucha ogień i dym! Masz kilka sekund — WYSIĄDŹ i oddal się, zanim wybuchnie.','r',7000);
+  if(typeof window._knoxUnlock==='function') window._knoxUnlock('wreck');
+};
+/* §18 per-frame update pożaru (wołane z loop, gated !_paused; pauza/tło przesuwa znaczniki, nie „przeskakuje"). */
+window._vehUpdateFire=function(){
+  if(typeof window._vehStateEnsure==='function') window._vehStateEnsure();
+  if(!G._vehState) return;
+  const now=Date.now();
+  for(const kind of ['car','camper']){
+    const st=G._vehState[kind]; if(!st||!st.dmg) continue;
+    const fs=st.dmg.fireState; if(!fs||fs.status==='none'||fs.status==='exploded') continue;
+    const gap=now-(fs._lastTick||now); fs._lastTick=now;
+    if((typeof _paused!=='undefined'&&_paused) || gap>1500){ if(typeof fs.startedAt==='number') fs.startedAt+=gap; if(typeof fs.explosionAt==='number') fs.explosionAt+=gap; continue; }
+    const elapsed=now-(fs.startedAt||now);
+    if(fs.status==='spark' && elapsed>=10000){ fs.status='burning'; if(typeof showMsg==='function') showMsg('🔥 Pojazd stanął w ogniu! Natychmiast się oddal — zaraz wybuchnie.','r',6000); }
+    if(now>=(fs.explosionAt||Infinity)){ window._vehTriggerExplosion(kind); }
+  }
+};
+/* §18 eksplozja: wrak nienaprawialny, efekty, obrażenia od bliskości, sprawa sprzątnięcia. */
+window._vehTriggerExplosion=function(kind){
+  if(typeof window._vehStateEnsure==='function') window._vehStateEnsure();
+  const d=window._vehDmg(kind); if(!d) return;
+  if(d.fireState && d.fireState.status==='exploded') return;
+  d.fireState={status:'exploded',startedAt:null,explosionAt:null,_lastTick:Date.now()};
+  if(!d.visual) d.visual={}; d.visual.exploded=true; d.visual.fireDamage=true; d.visual.fire=false;
+  const r=window._vehCondRef(kind); r.condition=0; for(const z of window._VEH_DMG_ZONES) d[z]=0; window._vehUpdateVisual(kind);
+  if(kind==='car'&&G.car&&G.car.name&&G._carCond){ if(!G._carCond[G.car.name]||typeof G._carCond[G.car.name]!=='object') G._carCond[G.car.name]={}; G._carCond[G.car.name].cond=0; }
+  let wx,wy; const inside=(kind==='camper'?G._inCamper:G._inCar);
+  if(inside){ wx=P.wx+P.w/2; wy=P.wy+P.h/2; }
+  else { const pk=(kind==='camper'?G._camperParkedAt:G._carParkedAt); wx=pk?(pk.wx+P.w/2):(P.wx+P.w/2); wy=pk?(pk.wy+P.h/2):(P.wy+P.h/2); }
+  if(typeof window._vehSpawnExplosionFX==='function') window._vehSpawnExplosionFX(wx,wy);
+  window._vehExplosionProximity(kind,wx,wy);
+  if(kind==='camper'&&G._inCamper){ G._inCamper=false; } if(kind==='car'&&G._inCar){ G._inCar=false; }
+  if(kind==='camper'&&G.camper){ G.camper.destroyed=true; } /* §42: zaplecze kampera zablokowane (kaskada destroyed) */
+  window._vehCreateWreckCase(kind,wx,wy);
+  if(typeof window._subtleMsg==='function') window._subtleMsg('💥 Pojazd eksplodował!'); else if(typeof showMsg==='function') showMsg('💥 Pojazd eksplodował!','r',4000);
+  if(typeof updateHUD==='function') updateHUD(); if(typeof saveGameSilent==='function') saveGameSilent();
+};
+/* §19 obrażenia od bliskości eksplozji (dystans w kratkach T=48). */
+window._vehExplosionProximity=function(kind,wx,wy){
+  const px=P.wx+P.w/2, py=P.wy+P.h/2;
+  const dist=Math.hypot(px-wx,py-wy)/48;
+  let hp=0, tension=0;
+  if(dist<4){ hp=60; tension=30; } else if(dist<9){ hp=25; tension=15; } else if(dist<15){ tension=8; }
+  if(hp>0 && typeof clampStat==='function'){ G.health=Math.max(1, clampStat('health',(G.health||100)-hp)); if(typeof showMsg==='function') showMsg('🔥 Fala uderzeniowa Cię dosięgła — tracisz zdrowie. Następnym razem oddal się szybciej.','r',5500); }
+  if(tension>0){ if(typeof _5pdfEnsure==='function') _5pdfEnsure(); if(G.novacura){ G.novacura.tension=Math.min(100,(G.novacura.tension||0)+tension); } G.stress=Math.max(0,Math.min(100,(G.stress||0)-Math.floor(tension/2))); if(typeof updateHUD==='function') updateHUD(); }
+};
+/* §20 koszt sprzątnięcia wraku. */
+window._vehWreckCleanupCost=function(kind){
+  let cost=3500;
+  if(kind==='camper') cost+=2000;
+  const d=window._vehDmg(kind); if(d&&d.visual&&d.visual.exploded) cost+=3000;
+  if(currentRoom==='ulica') cost+=1500; /* centrum */
+  return cost;
+};
+/* §20 utwórz sprawę sprzątnięcia wraku (termin 7 dni). */
+window._vehCreateWreckCase=function(kind,wx,wy){
+  window._vehTrafficEnsure();
+  const amount=window._vehWreckCleanupCost(kind);
+  const id='wreck'+(G.day||0)+'_'+G.wreckCases.length+'_'+Math.floor(amount);
+  G.wreckCases.push({ id, vehKind:kind, reason:'burned_vehicle_wreck', amount, dueDay:(G.day||0)+7, status:'unpaid', day:(G.day||0) });
+  if(typeof window._knoxUnlock==='function') window._knoxUnlock('wreck');
+  if(typeof addNotif==='function') addNotif('🧹 Po pożarze pojazdu został wrak do sprzątnięcia ('+amount.toLocaleString('pl')+' zł). Napisz do Knoxa albo zajmij się tym sam — masz 7 dni, potem konsekwencje.');
+  else if(typeof notify==='function') notify('🧹 Wrak do sprzątnięcia: '+amount.toLocaleString('pl')+' zł (7 dni).','r',6000);
+};
+/* §21 tick dzienny: przeterminowany nieopłacony wrak → heat/zniesławienie/dopłata; wygaśnięcie zakazu jazdy. */
+window._vehTickDaily=function(){
+  window._vehTrafficEnsure(); const t=G.traffic;
+  if(t.drivingBanUntilDay!=null && (G.day||0)>=t.drivingBanUntilDay){ t.drivingBanUntilDay=null; if(typeof addNotif==='function') addNotif('🚗 Zakaz prowadzenia pojazdów wygasł — możesz znów jeździć.'); }
+  for(const w of G.wreckCases){
+    if(w.status!=='unpaid') continue;
+    if((G.day||0)>(w.dueDay||0) && !w._overdue){
+      w._overdue=true; w.status='overdue';
+      if(G.trap&&typeof G.trap==='object') G.trap.heat=Math.min(100,(G.trap.heat||0)+10);
+      if(typeof addDefamation==='function') addDefamation(8); else G.defamation=Math.min(100,(G.defamation||0)+8);
+      w.amount=Math.floor((w.amount||0)*1.3);
+      if(G.signalNine && typeof window._s9Effect==='function'){ try{ window._s9Effect({brandTrust:-1}); }catch(_){} }
+      if(typeof addNotif==='function') addNotif('⚠️ Zostawiłeś wrak po pożarze — miasto się upomina. Rośnie „heat" i zniesławienie, doszła dopłata za zwłokę.');
+    }
+  }
+};
+/* ── efekty wizualne pożaru/eksplozji (reuse cząstek + wzorca level-up burst + red flash) ── */
+window._vehExplo=null;
+window._vehSpawnExplosionFX=function(wx,wy){
+  window._vehExplo={wx,wy,t:0,max:34}; G._exploFlashUntilT=Date.now()+250;
+  if(typeof emitSpark==='function'){ emitSpark(wx,wy,'rgba(255,140,40,'); emitSpark(wx,wy,'rgba(255,90,20,'); emitSpark(wx,wy,'rgba(255,220,120,'); }
+  if(typeof emitSmoke==='function'){ for(let i=0;i<4;i++) emitSmoke(wx+(Math.random()-0.5)*20,wy+(Math.random()-0.5)*20); }
+  if(typeof _spawnParticle==='function'){ for(let k=0;k<16;k++){ const a=Math.random()*Math.PI*2,sp=2+Math.random()*3.5; _spawnParticle({wx,wy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-0.8,life:38,max:38,col:'rgba(255,140,40,',size:2+Math.random()*3,grav:0.05}); } }
+  if(typeof _sfxNoise==='function'){ try{ _sfxNoise(0.4,'lowpass',180,0.55); }catch(_){} }
+};
+window._drawVehExplosionFX=function(){
+  if(!window._vehExplo) return; const e=window._vehExplo; e.t++;
+  if(e.t>=e.max){ window._vehExplo=null; return; }
+  const a=e.t/e.max; if(typeof wx2sx!=='function') return; const cx=wx2sx(e.wx), cy=wy2sy(e.wy);
+  X.save();
+  const rr=10+a*60; const g=X.createRadialGradient(cx,cy,0,cx,cy,rr);
+  g.addColorStop(0,`rgba(255,240,180,${(1-a)*0.9})`); g.addColorStop(0.4,`rgba(255,140,40,${(1-a)*0.75})`); g.addColorStop(1,'rgba(255,80,20,0)');
+  X.fillStyle=g; X.beginPath(); X.arc(cx,cy,rr,0,Math.PI*2); X.fill();
+  if(a<0.3){ X.fillStyle=`rgba(255,255,255,${(0.3-a)*2})`; X.beginPath(); X.arc(cx,cy,rr*0.4,0,Math.PI*2); X.fill(); }
+  X.strokeStyle=`rgba(255,200,120,${(1-a)*0.7})`; X.lineWidth=3; X.beginPath(); X.arc(cx,cy,12+a*70,0,Math.PI*2); X.stroke();
+  X.restore();
+};
+window._drawVehExploFlash=function(){
+  if(!G._exploFlashUntilT) return; const now=Date.now();
+  if(now>=G._exploFlashUntilT){ G._exploFlashUntilT=0; return; }
+  const alpha=0.5*((G._exploFlashUntilT-now)/250);
+  X.save(); X.fillStyle=`rgba(255,180,90,${Math.max(0,alpha)})`; X.fillRect(0,62,1280,720-62); X.restore();
+};
+/* płomienie na pozycji ekranu (reuse w _drawVehicleFx driving + branchach zaparkowanego pojazdu). */
+window._vehDrawFlames=function(sx,sy){
+  const t=Date.now()/120;
+  for(let i=0;i<5;i++){
+    const fx=sx+(Math.sin(t+i*1.7)*7)+(i-2)*4;
+    const fh=10+Math.abs(Math.sin(t*1.3+i))*12;
+    const fy=sy-4-fh;
+    const g=X.createLinearGradient(fx,sy,fx,fy);
+    g.addColorStop(0,'rgba(255,90,20,0.85)'); g.addColorStop(0.5,'rgba(255,160,40,0.7)'); g.addColorStop(1,'rgba(255,230,120,0)');
+    X.fillStyle=g; X.beginPath(); X.moveTo(fx-4,sy); X.quadraticCurveTo(fx-2,fy+fh*0.4,fx,fy); X.quadraticCurveTo(fx+2,fy+fh*0.4,fx+4,sy); X.closePath(); X.fill();
+  }
+};
 /* prompt zależny od stanu (§20). kind='car'|'camper'. */
 window._getVehiclePrompt=function(kind){
   const key=kind==='camper'?'K':'V'; const st=window._vehGet(kind);
@@ -82139,6 +82287,8 @@ function loop(){
   _safe(()=>drawVignette(),'drawVignette');
   _safe(()=>drawRedFlash(),'drawRedFlash');
   _safe(()=>drawLevelUpBurstFX(),'drawLevelUpBurstFX');
+  _safe(()=>{if(typeof window._drawVehExploFlash==='function')window._drawVehExploFlash();},'vehExploFlash'); /* KOLIZJE Tier E: błysk eksplozji pojazdu */
+  _safe(()=>{if(typeof window._drawVehExplosionFX==='function')window._drawVehExplosionFX();},'vehExploFX'); /* KOLIZJE Tier E: kula ognia */
   _safe(()=>drawQuestCompass(),'drawQuestCompass');
   _safe(()=>drawStorylinePill(),'drawStorylinePill');
   // v1.8.77: usuń wyświetlający się smart-hint pop-up gdy gracz otworzy blokujący UI (telefon, drzewko, etc.)
@@ -82165,6 +82315,7 @@ function loop(){
   _safe(()=>updateHUD(),'updateHUD');
   _safe(()=>updateHUDFace(),'updateHUDFace');
   _safe(()=>tickDecay(),'tickDecay');
+  _safe(()=>{if(typeof window._vehUpdateFire==='function')window._vehUpdateFire();},'vehFire'); /* KOLIZJE Tier E: timer pożaru→eksplozji (10s+10s) */
   _safe(()=>tutorialTick(),'tutorialTick');
   _safe(()=>checkSmartHints(),'checkSmartHints');
   /* v2.1.45 [Amper]: trigger auto-submit z gameLoop — wewnętrzny throttle (60s normalny, 10s gdy świeża wygrana w kasynie) odpowiada za rate-limit. Wcześniej leciał tylko z nextPeriod() (~1.5min) → wygrane Ampera nie nadążały. */
