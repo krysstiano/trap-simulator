@@ -12598,8 +12598,10 @@ function drawWeatherFX(){
     X.restore();
   }
   // Wnętrza (mieszkanie/studio/silownia/etc.) — pomijamy globalny tint pora-dnia,
-  // bo tam świeci sztuczne światło. Tylko zewnątrz (ulica) reaguje na czas.
-  const isInterior=currentRoom!=='ulica';
+  // bo tam świeci sztuczne światło. Tylko zewnątrz reaguje na czas.
+  /* v2.3.113 (PDF new/111 pkt 5): pory dnia spójne między dzielnicami — Underground/Marina Coast/Business
+     (plenerowe mapy) dostają ten sam tint nocy co ulica. Reużyj `outdoor` (single source, ten sam warunek co opady). */
+  const isInterior=!outdoor;
   const dc=CFG.DAY_COLORS[G.timeOfDay];
   // v1.8.18: SMOOTH alpha — wcześniej dyskretne 0/0.18/0.42 powodowało skok jasności o 6:00 i 18:00.
   // Teraz: liniowa interpolacja na keyframach gameMin (0-1440) — świt 5:30-7:30, zmierzch 17:30-22:30.
@@ -37507,6 +37509,7 @@ window.buyFurniture=(id,price)=>{
 //  SKLEPY
 // ═══════════════════════════════════════════════════════════════════
 function openShopOverlay(id){
+  window._curShopId=id; /* v2.3.113 (PDF new/111 pkt 2): zapamiętaj aktywny sklep, by po zakupie re-renderować TEN sklep (nie zawsze spożywczy) */
   /* v2.1.558 P5 fix: first-entry intro dla budynków-overlay (sala/pizzeria/spozywczy itd.) — wcześniej _showRoomIntro odpalał TYLKO z changeRoom (pokoje), więc overlay-budynki nigdy nie pokazywały tooltipa "co tu robisz". Namespace 'shop_' żeby nie kolidować z bonusami odkrycia pokoju. _showRoomIntro sam pomija id bez wpisu w ROOM_INTROS. */
   try{ if(!G.visitedRooms) G.visitedRooms={}; const _vk='shop_'+id; if(!G.visitedRooms[_vk] && typeof ROOM_INTROS!=='undefined' && ROOM_INTROS[id]){ G.visitedRooms[_vk]=true; if(typeof _showRoomIntro==='function') _showRoomIntro(id); } }catch(e){}
   if(typeof window._startAmbience==='function') window._startAmbience('shop'); /* v2.1.873: ambience sklepu (skaner+rozmowy), stop w closeOverlay */
@@ -37762,7 +37765,10 @@ window.buyConsumable=function(id){
   invInit(); if(invSpace()<1){ if(resEl)resEl.textContent=`🎒 Ekwipunek pełny (limit ${invCap()}).`; return; }
   G.money-=_price; window.invGiveItem(id);
   if(resEl)resEl.textContent=`✅ ${it.emoji} ${it.name} → ekwipunek! -${_price} zł`;
-  renderFoodShop();
+  /* v2.3.113 (PDF new/111 pkt 2): re-renderuj sklep, w którym gracz faktycznie jest (BeatPoint/muzyczny → renderMusicShop),
+     zamiast zawsze pokazywać panel spożywczy. Domyślnie spożywczy (jedyny inny sprzedawca konsumpcyjny). */
+  if(window._curShopId==='muzyczny' && typeof renderMusicShop==='function') renderMusicShop();
+  else renderFoodShop();
 };
 window.buyIngredient=(id)=>{
   const ing=HOME_INGREDIENTS.find(i=>i.id===id);
@@ -62678,7 +62684,8 @@ window.renderS9Agency=function(){
   const _mg=document.getElementById('mg-job'), _mc=document.getElementById('mg-job-content');
   if(!_mg||!_mc) return;
   const s=G.signalNine; const r=window._s9Reqs();
-  const _close='<button class="cbtn" style="width:100%;margin-top:10px" onclick="document.getElementById(\'mg-job\').classList.remove(\'on\');document.getElementById(\'mg-job-content\').innerHTML=\'\'">← Wyjdź</button>';
+  /* v2.3.113 (PDF new/111 pkt 4): „Wyjdź" wraca do folderu Kariera w telefonie (jak inne apki), a nie do świata gry. */
+  const _close='<button class="cbtn" style="width:100%;margin-top:10px" onclick="document.getElementById(\'mg-job\').classList.remove(\'on\');document.getElementById(\'mg-job-content\').innerHTML=\'\';var _ph=document.getElementById(\'phone\');if(_ph)_ph.classList.add(\'on\');if(typeof renderPhoneFolder===\'function\')renderPhoneFolder(\'career\')">← Wyjdź</button>';
   const _head='<h2 style="color:#7ec8e3;margin-top:0;text-align:center">📡 S9 Agency <span style="font-size:12px;color:#889">Signal Nine</span></h2>';
   if(!r.ok){
     _mc.innerHTML=`<div style="background:#0a1418;border:2px solid #3498db;border-radius:10px;padding:18px;max-width:560px;margin:0 auto;color:#dfe3ee">
@@ -62814,6 +62821,9 @@ const PATCH_NOTES = [
   {t:'fix',d:'🟢 Zielone powiadomienia możesz teraz po prostu kliknąć, żeby zniknęły od razu — nie musisz czekać, aż same wygasną. Przydaje się, gdy zbiera się ich więcej naraz.'},
   {t:'fix',d:'▶️ Naprawione: na samym starcie gry potrafiła wyskoczyć wiadomość, że „Twój film wystrzelił", mimo że nie miałeś jeszcze żadnego nagranego filmu. Teraz taka informacja pojawia się dopiero, gdy masz na koncie co najmniej 3 opublikowane filmy.'},
   {t:'fix',d:'🔒 Wytwórnia, S9 Agency i NOX Route w folderze Kariera odblokowują się po ukończeniu poradnika na start — dzięki temu nowy gracz nie jest od razu zasypany wszystkimi opcjami. Jeśli grasz już od dłuższego czasu, korzystasz z nich bez zmian.'},
+  {t:'fix',d:'🛒 Naprawione: po zakupie w niektórych sklepach (np. muzycznym) pokazywał się przez pomyłkę panel sklepu spożywczego. Teraz po zakupie zostajesz w tym samym sklepie, w którym akurat robisz zakupy.'},
+  {t:'fix',d:'📡 W aplikacji S9 Agency przycisk „Wyjdź" wraca teraz do folderu Kariera w telefonie, zamiast zamykać cały telefon — tak samo jak w pozostałych aplikacjach.'},
+  {t:'fix',d:'🌙 Pory dnia są teraz spójne w całym mieście. Wcześniej w dzielnicach (Underground, Marina Coast, Business) było zawsze jasno, nawet nocą — teraz panuje tam ta sama pora dnia i oświetlenie co w głównej części miasta.'},
  ]
  },
  {
