@@ -40349,7 +40349,20 @@ window._novaCuraTick=function(){ if(typeof _5pdfEnsure==='function')_5pdfEnsure(
   const cd=(id,days)=>((G.day||0)-(n._crisisCd[id]||-99)>=days);
   const fire=(id,title,msg,fx)=>{ n._crisisCd[id]=G.day||0; fx(); window._novaLog('Event: '+title,'nastrój/napięcie'); if(typeof showMsg==='function')showMsg('⚠️ '+title+' — '+msg+' Zajrzyj do Nova Cura.','r',7000); };
   const mood=(G.stress||0), tension=(n.tension||0), fat=(n.fatigue||0), addR=window._novaAddictionRisk(), en=(G.energy||100);
+  /* v2.3.113 (PDF new/Nova Cura §10): 5 nazwanych eventów per-kategoria z nowego addictionSystem.
+     UWAGA: G.stress to MOOD (high=dobrze) → z PDF "+stress"/"-mood" = SPADEK G.stress. */
+  if(typeof window._addictionSysEnsure==='function') window._addictionSysEnsure();
+  const AS=G.addictionSystem||{};
+  const _cat=k=>AS[k]||{useLevel:0,dependence:0,withdrawal:0,craving:0};
+  const _wdMax=Math.max(_cat('alcohol').withdrawal,_cat('stimulants').withdrawal,_cat('partySubstances').withdrawal,_cat('downers').withdrawal,_cat('opioids').withdrawal);
+  const _mix=(AS.mixedUse&&AS.mixedUse.riskLevel)||0;
+  const _wdBumpWorst=(amt)=>{ const w=window._worstAddiction&&window._worstAddiction(); if(w&&w.category&&AS[w.category]) AS[w.category].withdrawal=Math.min(100,(AS[w.category].withdrawal||0)+amt); };
   /* priorytet od najcięższego; max 1 event na dobę */
+  if(_cat('opioids').useLevel>=45&&cd('opioid_comfort',4)) return fire('opioid_comfort','Ból robi się wygodny','to, co miało uśmierzać, zaczyna sterować dniem — spada motywacja, rośnie zależność.',()=>{ G.stress=clamp(mood-12,0,100); _cat('opioids').dependence=Math.min(100,_cat('opioids').dependence+3); });
+  if(_cat('alcohol').dependence>=60&&_cat('alcohol').withdrawal>=35&&cd('shakes',4)) return fire('shakes','Ręce się trzęsą','poranek bez picia daje się we znaki — drżenie, napięcie, słabszy fokus. Warto do Nova Cura.',()=>{ G.stress=clamp(mood-20,0,100); n.tension=Math.min(100,tension+20); });
+  if((_cat('partySubstances').useLevel>=55||_mix>=40||_wdMax>=35)&&cd('nightcrashpdf',4)) return fire('nightcrashpdf','Nocny zjazd','impreza się skończyła, ale ciało dopiero teraz wystawia rachunek — zjazd nastroju i objawy odstawienia.',()=>{ G.stress=clamp(mood-30,0,100); n.tension=Math.min(100,tension+20); _wdBumpWorst(20); n.mentalCrisisLevel=(n.mentalCrisisLevel||0)+1; });
+  if(_cat('stimulants').useLevel>=50&&fat>=50&&cd('endless_studio',4)) return fire('endless_studio','Studio bez końca','kolejna sesja na dopalaczu — tempo rośnie, ale sen znika, a stres i ryzyko zjazdu idą w górę.',()=>{ G.stress=clamp(mood-25,0,100); n.fatigue=Math.min(100,fat+20); });
+  if(_cat('downers').useLevel>=50&&mood<=30&&cd('muffler',4)) return fire('muffler','Wyciszacz','na chwilę ciszej w głowie, ale kolejny dzień przychodzi z gorszą motywacją i mniejszym fokusem.',()=>{ n.tension=Math.max(0,tension-15); _cat('downers').dependence=Math.min(100,_cat('downers').dependence+10); });
   if(tension>=85&&mood<=25&&cd('breakdown',4)) return fire('breakdown','Pęknięcie kontroli','myśli się zapętlają, napięcie nie schodzi — to nie da się „przeczekać".',()=>{ n.mentalCrisisLevel=(n.mentalCrisisLevel||0)+1; n.tension=Math.min(100,tension+5); G.stress=clamp(mood-10,0,100); });
   if(addR>=55&&cd('nightcrash',4)) return fire('nightcrash','Nocny zjazd','to, co miało pomóc wytrzymać noc, zaczyna działać przeciwko Tobie — pierwsze objawy odstawienia.',()=>{ G.stress=clamp(mood-15,0,100); n.tension=Math.min(100,tension+20); });
   if(fat>=60&&tension>=70&&cd('overload',4)) return fire('overload','Zbyt dużo naraz','zlecenia, nagrania, ludzie — każdy chce czegoś teraz, nie masz kiedy się zatrzymać.',()=>{ G.stress=clamp(mood-12,0,100); n.tension=Math.min(100,tension+10); n.fatigue=Math.min(100,fat+15); });
