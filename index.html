@@ -12812,6 +12812,20 @@ function _drawVehicleFx(kind, sx, sy, d){
         X.beginPath(); X.arc(rx,ry,3+ph*5,0,Math.PI*2); X.fill();
       }
     }
+    /* KOLIZJE Tier C §8: DYM Z USZKODZEŃ — gdy stan krytyczny (visual.smoke), pojazd dymi z przodu (silnik/chłodnica).
+       Gęstszy/ciemniejszy niż wydech; wrak (0%) = czarny gęsty dym. */
+    if(st.dmg && st.dmg.visual && st.dmg.visual.smoke){
+      const t2=Date.now()/300;
+      const dark=(typeof window._vehOverall==='function' && window._vehOverall(kind)<=0);
+      for(let i=0;i<4;i++){
+        const ph=((t2+i*0.35)%1);
+        const rx=sx + fx*14 + Math.sin((t2+i)*2.3)*6;
+        const ry=sy + fy*14 - ph*18 + Math.cos((t2+i)*2.3)*4;
+        const a=(dark?0.42:0.28)*(1-ph);
+        X.fillStyle=dark?`rgba(38,38,42,${a})`:`rgba(88,88,94,${a})`;
+        X.beginPath(); X.arc(rx,ry,4+ph*7,0,Math.PI*2); X.fill();
+      }
+    }
   }catch(_){}
 }
 function drawPlayerCar(){
@@ -14010,8 +14024,15 @@ function updatePlayer(){
   if((dx!==0||dy!==0)&&_carRoom(currentRoom)){
     if(G._inCar&&G.car&&!(typeof window._vehEngineOn==='function'&&window._vehEngineOn('car'))){ dx=0; dy=0; }
     else if(G._inCamper&&G.camper&&G.camper.owned&&!(typeof window._vehEngineOn==='function'&&window._vehEngineOn('camper'))){ dx=0; dy=0; }
+    /* KOLIZJE Tier C §11: pojazd na 0% żywotności = unieruchomiony, nie rusza (wymaga holowania). */
+    else if(G._inCar&&G.car&&typeof window._vehImmobilized==='function'&&window._vehImmobilized('car')){ dx=0; dy=0; if(typeof window._vehImmobilizedHint==='function') window._vehImmobilizedHint('car'); }
+    else if(G._inCamper&&G.camper&&G.camper.owned&&typeof window._vehImmobilized==='function'&&window._vehImmobilized('camper')){ dx=0; dy=0; if(typeof window._vehImmobilizedHint==='function') window._vehImmobilizedHint('camper'); }
   }
   if(G.car&&(dx!==0||dy!==0)&&_carRoom(currentRoom)&&G._inCar&&(typeof window._vehEngineOn!=='function'||window._vehEngineOn('car'))){const boost=(G.car.speed||1)*(0.8+0.2*((G.car.condition==null?100:G.car.condition)/100));dx*=boost;dy*=boost;
+    /* KOLIZJE Tier C §9: przy CIĘŻKO uszkodzonym zawieszeniu (<40%) pojazd ściąga na bok (dryf).
+       Prędkość NIE jest tu dodatkowo karana — istniejący czynnik condition (v2.3.103) już to robi (bez podwójnej kary);
+       silniejsze skutki uszkodzeń to unieruchomienie 0%, problemy z odpalaniem <10% i dym. */
+    if(typeof window._vehSteerDrift==='function'){ const _dr=window._vehSteerDrift('car'); dx+=_dr; }
     /* v2.1.843 Z5 (beta-tester Vegan): zużycie auta od JEŻDŻENIA — kumuluj przejechany dystans (po boost = realny ruch w świecie), −1% kondycji co _CAR_WEAR_PX (≈1 przejazd przez miasto). Frame-rate independent (per world-distance, nie per klatka). Łączy się z −5%/dzień od czasu → aktywni kierowcy serwisują wyraźnie częściej. */
     const _CAR_WEAR_PX=4500;
     G._carWearDist=(G._carWearDist||0)+Math.abs(dx)+Math.abs(dy);
@@ -14022,6 +14043,8 @@ function updatePlayer(){
        szerszy sprite może minimalnie zachodzić na ściany (jak auto), ale NIE psuje chodzenia (priorytet #1). */
     const _cb=(typeof window._camperDriveParams==='function')?((window._camperDriveParams().speed)||1):1;
     dx*=_cb; dy*=_cb;
+    /* KOLIZJE Tier C §9: kamper z ciężko uszkodzonym zawieszeniem (<40%) ściąga na bok (bez podwójnej kary prędkości). */
+    if(typeof window._vehSteerDrift==='function'){ const _dr=window._vehSteerDrift('camper'); dx+=_dr; }
     /* zużycie kampera od jazdy (analog auta, większy próg = wolniej się zużywa per dystans). */
     const _CAMPER_WEAR_PX=7000;
     G._camperWearDist=(G._camperWearDist||0)+Math.abs(dx)+Math.abs(dy);
@@ -50825,6 +50848,45 @@ window._vehImpactFx=function(kind,type,amount){
     if(typeof _sfxNoise==='function'){ try{ _sfxNoise(amount>=25?0.22:0.12,'lowpass',amount>=25?260:420,amount>=25?0.5:0.32); }catch(_){} }
   }catch(_){}
 };
+/* ── Tier C: WPŁYW USZKODZEŃ NA PROWADZENIE + ODPALANIE + UNIERUCHOMIENIE (§9-11) ──────────────── */
+/* §9 mnożnik prowadzenia: silnik ogranicza prędkość, zawieszenie+koła sterowność. Clamp jak w PDF. */
+window._vehHandlingMult=function(kind){
+  const d=window._vehDmg(kind); if(!d) return 1;
+  const eng=Math.max(0.15,Math.min(1,(d.engine==null?100:d.engine)/100));
+  const steer=Math.max(0.25,Math.min(1,((d.suspension==null?100:d.suspension)+(d.wheels==null?100:d.wheels))/200));
+  return Math.max(0.15,Math.min(1, eng*0.7+steer*0.3));
+};
+/* §9 flagi statusu prowadzenia (do panelu statusu §44 + komunikatów). */
+window._vehHandlingStatus=function(kind){
+  const d=window._vehDmg(kind); if(!d) return {pullToSide:false,wobble:false,longBrakeDistance:false};
+  return {
+    pullToSide:(d.suspension==null?100:d.suspension)<40,
+    wobble:(d.wheels==null?100:d.wheels)<30,
+    longBrakeDistance:(d.brakes==null?100:d.brakes)<35,
+    maxSpeedMult:Math.max(0.15,Math.min(1,(d.engine==null?100:d.engine)/100)),
+    steeringMult:Math.max(0.25,Math.min(1,((d.suspension==null?100:d.suspension)+(d.wheels==null?100:d.wheels))/200)),
+    brakeMult:Math.max(0.20,Math.min(1,(d.brakes==null?100:d.brakes)/100))
+  };
+};
+/* §9 „pojazd ściąga na jedną stronę" — subtelny dryf boczny gdy zawieszenie <40 (adaptacja top-down). */
+window._vehSteerDrift=function(kind){
+  const d=window._vehDmg(kind); if(!d) return 0;
+  const s=(d.suspension==null?100:d.suspension); if(s>=40) return 0;
+  const strength=(40-s)/40; /* 0..1 im gorzej tym mocniej */
+  return Math.sin(Date.now()/900)*1.6*strength; /* px, delikatny */
+};
+/* §10/§11: czy pojazd unieruchomiony (0%). */
+window._vehImmobilized=function(kind){ return window._vehOverall(kind)<=0; };
+/* §11 podpowiedź przy próbie jazdy unieruchomionym pojazdem (throttle, żeby nie spamować). */
+window._vehImmobHintClock=0;
+window._vehImmobilizedHint=function(kind){
+  const now=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
+  if(now-(window._vehImmobHintClock||0)<3000) return; window._vehImmobHintClock=now;
+  const em=(kind==='camper'?'🚐':'🚗');
+  const m=em+'❌ Pojazd unieruchomiony (0%) — wezwij holowanie do warsztatu lub Metal Valley Yard.';
+  if(typeof window._subtleMsg==='function') window._subtleMsg(m); else if(typeof showMsg==='function') showMsg(m,'r',3200);
+};
+window._vehTowClock=0;
 /* prompt zależny od stanu (§20). kind='car'|'camper'. */
 window._getVehiclePrompt=function(kind){
   const key=kind==='camper'?'K':'V'; const st=window._vehGet(kind);
@@ -50835,10 +50897,28 @@ window._getVehiclePrompt=function(kind){
 };
 window._vehStartEngine=function(kind){
   const st=window._vehGet(kind);
+  const em=(kind==='camper'?'🚐':'🚗');
+  /* KOLIZJE Tier C §10-11: pojazd na 0% = unieruchomiony (nie odpala); poniżej 10% odpala ~1 na 4 próby. */
+  if(typeof window._vehOverall==='function'){
+    const oh=window._vehOverall(kind);
+    if(oh<=0){
+      st.engineOn=false;
+      if(typeof window._subtleMsg==='function') window._subtleMsg(em+'❌ Pojazd unieruchomiony (0%) — wymaga holowania.'); else if(typeof showMsg==='function') showMsg(em+' Pojazd unieruchomiony — wymaga holowania.','r',3000);
+      return false;
+    }
+    if(oh<10 && Math.random()>=0.25){
+      const d=(typeof window._vehDmg==='function')?window._vehDmg(kind):null; if(d) d.failedStartAttempts=(d.failedStartAttempts||0)+1;
+      if(typeof window._subtleMsg==='function') window._subtleMsg(em+'🔧 Silnik nie odpalił — pojazd poważnie uszkodzony. Spróbuj ponownie.'); else if(typeof showMsg==='function') showMsg(em+' Silnik nie odpalił — pojazd poważnie uszkodzony.','r',2600);
+      return false;
+    }
+  }
   st.engineOn=true; st.engineStartedThisSession=true; st.engineStoppedAfterDrive=false;
   if(st.lightMode==='off') st.lightMode='daytime'; /* §10: po uruchomieniu silnika światła dzienne */
-  const em=(kind==='camper'?'🚐':'🚗');
-  if(typeof window._subtleMsg==='function') window._subtleMsg(em+' Silnik uruchomiony — możesz jechać'); else if(typeof showMsg==='function') showMsg(em+' Silnik uruchomiony','i',2200);
+  const _oh=(typeof window._vehOverall==='function')?window._vehOverall(kind):100;
+  const _hard=_oh<10; /* odpalił z trudem */
+  const _m=_hard?(em+' Silnik odpalił z trudem'):(em+' Silnik uruchomiony — możesz jechać');
+  if(typeof window._subtleMsg==='function') window._subtleMsg(_m); else if(typeof showMsg==='function') showMsg(_m,'i',2200);
+  return true;
 };
 window._vehStopEngine=function(kind){
   const st=window._vehGet(kind);
