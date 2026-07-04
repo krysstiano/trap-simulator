@@ -18849,6 +18849,17 @@ const RANDOM_EVENTS = [
     const _safeMsg=(typeof _hasAnySafe==='function'&&_hasAnySafe())?'Dobrze, że trzymasz resztę w sejfie — tego nie ruszyli.':'💡 Z SEJFEM (kupisz go w sklepie NorthRoom) mógłbyś schować gotówkę — napastnicy biorą tylko to, co masz przy sobie.';
     notify(`🥷 NAPAD! Zabrali ${lost.toLocaleString('pl')} zł z gotówki przy sobie, -15 nastrój. ${_safeMsg}`,'r',8000);
   }},
+  /* §43 (nowy PDF kolizje): losowa strzelanina uliczna trafia POJAZD gracza (noc, w trakcie jazdy). Broń odstrasza (70%). */
+  {name:'Ostrzelany pojazd', chance:0.006, maxPerDay:1, cond:()=>(G._inCar||G._inCamper)&&(typeof _carRoom==='function'&&_carRoom(currentRoom))&&(G.timeOfDay===2||G.timeOfDay===3), fn:()=>{
+    const kind=G._inCar?'car':'camper';
+    if(G.weapon&&G.weapon.owned&&G.weapon.durability>0&&Math.random()<0.70){
+      G.weapon.durability-=1; const _broke=G.weapon.durability<=0; if(_broke) G.weapon={owned:false,durability:0};
+      G.streetRep=Math.min(100,(G.streetRep||0)+2);
+      if(typeof notify==='function') notify(`🔫 Ktoś zaczął strzelać w Twoją stronę — odpowiedziałeś, odjechali. Pojazd bez szwanku. +2 street rep.${_broke?' (Pistolet się zużył.)':''}`,'g',6500);
+      return;
+    }
+    if(typeof window._vehApplyGunfireDamage==='function') window._vehApplyGunfireDamage(kind);
+  }},
   /* v2.1.875 (PDF): anonimowy handlarz broni — nocny uliczny event (gdy nie masz broni, lvl 5+) */
   {name:'Anonimowy handlarz broni', chance:0.006, maxPerDay:1, cond:()=>currentRoom==='ulica'&&(G.timeOfDay===2||G.timeOfDay===3)&&!(G.weapon&&G.weapon.owned)&&(G.level||1)>=5, fn:()=>{
     if(typeof window._weaponDealerOffer==='function') window._weaponDealerOffer();
@@ -50748,6 +50759,7 @@ window._vehTrafficEnsure=function(){
   if(!Array.isArray(G.trafficFines)) G.trafficFines=[];
   if(!Array.isArray(G.wreckCases)) G.wreckCases=[];
   if(!Array.isArray(G._worldPosts)) G._worldPosts=[]; /* Tier H §32: wpisy social o wypadkach gracza */
+  if(typeof window._vehInsuranceEnsure==='function') window._vehInsuranceEnsure(); /* Tier I §40: G.insurance save-safe */
 };
 window._vehDmg=function(kind){ const st=window._vehGet(kind); return (st&&st.dmg)?st.dmg:null; };
 window._vehCondRef=function(kind){ return kind==='camper'?(G.camper||{}):(G.car||{}); };
@@ -51018,6 +51030,92 @@ window._vehCrashControlOffer=function(){
     {label:'🙈 Zignoruj', fn:()=>{ if(G.signalNine) G.signalNine.agencyHeat=(G.signalNine.agencyHeat||0)+10; s9({brandTrust:-1}); if(typeof showMsg==='function')showMsg('🙈 Ignorujesz sprawę — ryzyko, że urośnie.','r',4500); }},
   ]);
 };
+
+/* ═══ TIER I: PANEL STATUSU (§44) + UBEZPIECZENIE (§40) + KAMPER (§42) + STRZELANINY (§43) ═══ */
+/* §40 ubezpieczenie pojazdu — składka tygodniowa, pokrycie % naprawy, zawieszenie przy braku kasy (nie anulowanie #11). */
+window._VEH_INSURANCE_TIERS=[
+  {id:'none', name:'Brak ubezpieczenia', weekly:0, coverage:0},
+  {id:'basic', name:'OC podstawowe', weekly:800, coverage:0.20},
+  {id:'standard', name:'Standard', weekly:1800, coverage:0.40},
+  {id:'premium', name:'Premium', weekly:4200, coverage:0.60},
+];
+window._vehInsuranceEnsure=function(){
+  if(!G.insurance||typeof G.insurance!=='object') G.insurance={};
+  const ins=G.insurance;
+  if(typeof ins.tier!=='string'||['none','basic','standard','premium'].indexOf(ins.tier)<0) ins.tier='none';
+  if(!('lastChargeDay' in ins)) ins.lastChargeDay=null;
+  if(typeof ins.suspended!=='boolean') ins.suspended=false;
+};
+window._vehInsuranceTier=function(){ window._vehInsuranceEnsure(); return window._VEH_INSURANCE_TIERS.find(t=>t.id===G.insurance.tier)||window._VEH_INSURANCE_TIERS[0]; };
+window._vehInsuranceCoverage=function(){ window._vehInsuranceEnsure(); if(G.insurance.suspended) return 0; return window._vehInsuranceTier().coverage; };
+/* pobór składki co 7 dni (wołane z _vehTickDaily). */
+window._vehInsuranceTick=function(){
+  window._vehInsuranceEnsure(); const ins=G.insurance; const tier=window._vehInsuranceTier();
+  if(tier.weekly<=0) return;
+  if(ins.lastChargeDay==null){ ins.lastChargeDay=(G.day||0); return; }
+  if((G.day||0)-(ins.lastChargeDay)>=7){
+    ins.lastChargeDay=(G.day||0);
+    if((G.money||0)>=tier.weekly){ G.money-=tier.weekly; if(typeof spent==='function'){try{spent(tier.weekly);}catch(_){}} ins.suspended=false; if(typeof addNotif==='function') addNotif('🛡️ Składka ubezpieczenia pojazdu: −'+tier.weekly.toLocaleString('pl')+' zł ('+tier.name+').'); }
+    else { ins.suspended=true; if(typeof addNotif==='function') addNotif('⚠️ Brak środków na składkę ubezpieczenia — ochrona zawieszona do opłacenia (polisa NIE anulowana).'); }
+  }
+};
+window._vehSetInsurance=function(id){ window._vehInsuranceEnsure(); if(['none','basic','standard','premium'].indexOf(id)<0) return; G.insurance.tier=id; G.insurance.suspended=false; if(id!=='none' && G.insurance.lastChargeDay==null) G.insurance.lastChargeDay=(G.day||0); if(typeof showMsg==='function') showMsg('🛡️ Pakiet ubezpieczenia: '+(window._vehInsuranceTier().name)+'.','g',4000); if(typeof saveGameSilent==='function') saveGameSilent(); if(typeof window._vehInsuranceInfo==='function') window._vehInsuranceInfo(); };
+/* §40 panel wyboru ubezpieczenia (był ghost w panelu holowania — teraz realny). */
+window._vehInsuranceInfo=function(){
+  window._vehInsuranceEnsure();
+  const panel=document.getElementById('mg-job'); if(!panel){ if(typeof showMsg==='function') showMsg('🛡️ Ubezpieczenie pojazdu — wybierz pakiet w warsztacie/telefonie.','i',3500); return; }
+  panel.classList.add('on'); panel.style.display='';
+  const cur=G.insurance.tier;
+  const closeJs="var _e=document.getElementById('mg-job');_e.classList.remove('on');_e.style.display='none';_e.innerHTML='';";
+  const row=(t)=>{ const active=cur===t.id; return `<button class="cbtn" style="width:100%;text-align:left;margin-bottom:6px;${active?'border-color:#2ecc71;color:#7ec87e':''}" onclick="window._vehSetInsurance('${t.id}')">${active?'✓ ':''}${t.name}${t.weekly>0?(' · '+t.weekly.toLocaleString('pl')+' zł/tydz · pokrywa '+Math.round(t.coverage*100)+'% naprawy'):' · bez ochrony'}</button>`; };
+  panel.innerHTML=`<div id="mg-job-content" style="max-width:440px;margin:0 auto">
+    <div style="text-align:center;font-size:18px;font-weight:800;color:#3498db;margin-bottom:8px">🛡️ Ubezpieczenie pojazdu</div>
+    <div style="font-size:11.5px;color:#8a939a;margin-bottom:10px">Składka pobierana co tydzień gry. Ochrona pokrywa część kosztu naprawy pojazdu. Brak kasy = ochrona zawieszona (polisa zostaje).${G.insurance.suspended?'<br><b style="color:#e67e22">⚠️ Ochrona zawieszona (nieopłacona składka).</b>':''}</div>
+    ${window._VEH_INSURANCE_TIERS.map(row).join('')}
+    <button class="cbtn" style="width:100%;margin-top:6px;color:#e07070;border-color:#5a1a1a" onclick="${closeJs}">← Zamknij</button></div>`;
+};
+/* §44 panel statusu pojazdu — kluczowe strefy + status + akcje. */
+window._vehStatusPanel=function(kind){
+  kind=kind||(typeof window._vehNeediestKind==='function'&&window._vehNeediestKind())||'car';
+  window._vehStateEnsure(); const d=window._vehDmg(kind); if(!d) return;
+  const panel=document.getElementById('mg-job'); if(!panel){ if(typeof showMsg==='function') showMsg('🚗 Stan pojazdu: '+window._vehOverall(kind)+'%.','i',3500); return; }
+  panel.classList.add('on'); panel.style.display='';
+  const em=kind==='camper'?'🚐':'🚗'; const oh=window._vehOverall(kind);
+  const nm=kind==='camper'?'Kamper':((G.car&&G.car.name)||'Auto');
+  const bar=(lbl,v)=>{ v=(v==null?100:v); const col=v>=66?'#2ecc71':v>=33?'#f39c12':'#e74c3c'; return `<div style="display:flex;justify-content:space-between;font-size:12px;color:#cdd;margin-bottom:3px"><span>${lbl}</span><span style="color:${col};font-weight:700">${Math.round(v)}%</span></div>`; };
+  const closeJs="var _e=document.getElementById('mg-job');_e.classList.remove('on');_e.style.display='none';_e.innerHTML='';";
+  const statusTxt=oh<=0?'unieruchomiony':oh<10?'ledwo działa':oh<35?'poważnie uszkodzony':oh<60?'uszkodzony':oh<80?'lekkie zużycie':'dobry';
+  const ohCol=oh>=66?'#2ecc71':oh>=33?'#f39c12':'#e74c3c';
+  panel.innerHTML=`<div id="mg-job-content" style="max-width:440px;margin:0 auto">
+    <div style="text-align:center;font-size:18px;font-weight:800;color:#95a5a6;margin-bottom:6px">${em} Stan pojazdu — ${nm}</div>
+    <div style="text-align:center;font-size:24px;font-weight:900;color:${ohCol}">${oh}%</div>
+    <div style="text-align:center;font-size:11.5px;color:#8a939a;margin-bottom:10px">Status: ${statusTxt}</div>
+    <div style="background:#0e1216;border:1px solid #2a3238;border-radius:8px;padding:10px;margin-bottom:8px">
+      ${bar('Silnik',d.engine)}${bar('Zawieszenie',d.suspension)}${bar('Hamulce',d.brakes)}${bar('Koła',d.wheels)}${bar('Układ paliwowy',d.fuelSystem)}${bar('Szyby',d.windows)}${bar('Światła',d.lights)}
+    </div>
+    <button class="cbtn" style="width:100%;margin-bottom:6px" onclick="${closeJs}if(window._vehInsuranceInfo)window._vehInsuranceInfo()">🛡️ Ubezpieczenie</button>
+    ${oh<=0?`<button class="cbtn" style="width:100%;margin-bottom:6px" onclick="${closeJs}if(window._vehTowPanel)window._vehTowPanel('${kind}')">🚚 Holowanie</button>`:''}
+    <button class="cbtn" style="width:100%;color:#e07070;border-color:#5a1a1a" onclick="${closeJs}">← Zamknij</button></div>`;
+};
+/* §42 poważne uszkodzenie kampera → zaplecze zablokowane (kaskada destroyed), condition 0. */
+window._handleCamperSevereDamage=function(){
+  if(!G.camper||!G.camper.owned) return;
+  window._vehStateEnsure(); const d=window._vehDmg('camper'); if(d){ for(const z of window._VEH_DMG_ZONES) d[z]=0; }
+  const r=window._vehCondRef('camper'); r.condition=0;
+  G.camper.destroyed=true; /* kaskadowo blokuje zaplecze/wnętrze/jazdę (czytane w ~8 miejscach) */
+  if(typeof window._vehUpdateVisual==='function') window._vehUpdateVisual('camper');
+  if(typeof addNotif==='function') addNotif('🚐 Kamper poważnie uszkodzony — mobilne zaplecze zablokowane. Wymaga naprawy albo kasacji (Metal Valley).');
+};
+/* §43 uszkodzenie pojazdu od ostrzału (losowa strefa + ryzyko pożaru). */
+window._vehApplyGunfireDamage=function(kind){
+  window._vehStateEnsure();
+  const zones=['windows','leftSide','rightSide','engine','fuelSystem'];
+  const z=zones[Math.floor(Math.random()*zones.length)];
+  window._vehApplyDamage(kind, z, 12+Math.floor(Math.random()*20), 'gunfire');
+  if(window._vehOverall(kind)<=0 && typeof window._vehShouldCatchFire==='function' && window._vehShouldCatchFire(kind,'gunfire')){ if(typeof window._vehStartFire==='function') window._vehStartFire(kind); }
+  if(typeof showMsg==='function') showMsg('🔫 Twój pojazd oberwał! Metaliczne uderzenia i pękające szkło. Jeśli zacznie dymić — natychmiast się oddal.','r',6000);
+  if(typeof updateHUD==='function') updateHUD();
+};
 /* §3-7: impakt pojazdu w obiekt mapy. hitX/hitY = zablokowany obiekt (bok / przód-tył), dx/dy = boostowany ruch.
    Adaptacja: brak „speed" — siła = wielkość ruchu (|dx|+|dy|) × twardość. Cooldown 600 ms przeciw drenażowi
    przy ocieraniu o ścianę. */
@@ -51150,9 +51248,12 @@ window._vehInRepair=function(kind){ const t=G.traffic; return !!(t&&t._repair&&t
 window._vehRepairVehicle=function(kind,level){
   window._vehTrafficEnsure();
   if(G.traffic._repair){ if(typeof showMsg==='function') showMsg('🔧 Inny pojazd jest już w naprawie — odbierz go najpierw.','r',3500); return false; }
-  const cost=window._vehRepairCost(kind,level);
+  const fullCost=window._vehRepairCost(kind,level);
+  const cov=(typeof window._vehInsuranceCoverage==='function')?window._vehInsuranceCoverage():0; /* §40 ubezpieczenie pokrywa część */
+  const cost=Math.max(0,Math.round(fullCost*(1-cov)));
   if((G.money||0)<cost){ if(typeof showMsg==='function') showMsg('💸 Za mało gotówki na naprawę ('+cost.toLocaleString('pl')+' zł).','r',3500); return false; }
   G.money-=cost; if(typeof spent==='function') spent(cost);
+  if(cov>0 && typeof showMsg==='function') showMsg('🛡️ Ubezpieczenie pokryło '+Math.round(cov*100)+'% kosztu naprawy.','i',3500);
   const days=window._vehRepairDays(level);
   if(days<=0){ window._vehRepairZones(kind,level); if(typeof showMsg==='function') showMsg('🔧 Naprawa wykonana — stan '+window._vehOverall(kind)+'% (−'+cost.toLocaleString('pl')+' zł).','g',5000); }
   else { G.traffic._repair={kind,level,readyDay:(G.day||0)+days,cost}; if(typeof showMsg==='function') showMsg('🔧 Pojazd w naprawie — gotowy za '+days+' dni gry (−'+cost.toLocaleString('pl')+' zł).','g',5500); }
@@ -51340,7 +51441,7 @@ window._vehTriggerExplosion=function(kind){
   if(typeof window._vehSpawnExplosionFX==='function') window._vehSpawnExplosionFX(wx,wy);
   window._vehExplosionProximity(kind,wx,wy);
   if(kind==='camper'&&G._inCamper){ G._inCamper=false; } if(kind==='car'&&G._inCar){ G._inCar=false; }
-  if(kind==='camper'&&G.camper){ G.camper.destroyed=true; } /* §42: zaplecze kampera zablokowane (kaskada destroyed) */
+  if(kind==='camper'&&G.camper){ if(typeof window._handleCamperSevereDamage==='function') window._handleCamperSevereDamage(); else G.camper.destroyed=true; } /* §42: zaplecze kampera zablokowane (kaskada destroyed) */
   window._vehCreateWreckCase(kind,wx,wy);
   if(typeof window._subtleMsg==='function') window._subtleMsg('💥 Pojazd eksplodował!'); else if(typeof showMsg==='function') showMsg('💥 Pojazd eksplodował!','r',4000);
   if(typeof updateHUD==='function') updateHUD(); if(typeof saveGameSilent==='function') saveGameSilent();
@@ -51375,6 +51476,7 @@ window._vehCreateWreckCase=function(kind,wx,wy){
 /* §21 tick dzienny: przeterminowany nieopłacony wrak → heat/zniesławienie/dopłata; wygaśnięcie zakazu jazdy. */
 window._vehTickDaily=function(){
   window._vehTrafficEnsure(); const t=G.traffic;
+  if(typeof window._vehInsuranceTick==='function') window._vehInsuranceTick(); /* §40 składka tygodniowa */
   if(t.drivingBanUntilDay!=null && (G.day||0)>=t.drivingBanUntilDay){ t.drivingBanUntilDay=null; if(typeof addNotif==='function') addNotif('🚗 Zakaz prowadzenia pojazdów wygasł — możesz znów jeździć.'); }
   for(const w of G.wreckCases){
     if(w.status!=='unpaid') continue;
