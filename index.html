@@ -68,7 +68,7 @@ canvas{display:block;}
 /* v1.9.15: Fade-in NAPRAWIONY — base opacity:0 + translateY(10px), .show podnosi (poprzednio toast SNAPował przy pojawieniu) */
 #msg{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(10px);background:linear-gradient(135deg,rgba(10,25,10,.98),rgba(15,30,15,.98));border:3px solid #2a6a2a;color:#b8f8b8;font-size:22px;font-weight:700;padding:22px 42px;border-radius:14px;pointer-events:none;display:none;z-index:9999;max-width:820px;text-align:center;transition:opacity 0.3s, transform 0.3s;opacity:0;box-shadow:0 12px 48px rgba(0,0,0,.7),0 0 40px rgba(46,175,90,.35),inset 0 1px 0 rgba(255,255,255,.1);letter-spacing:.3px;}
 /* v1.9.82: jeszcze większe toasty (gracz wciąż przegapiał — font 22px, padding 22px, gradient bg, glow) */
-#msg.show{opacity:1;transform:translateX(-50%) translateY(0);}
+#msg.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;cursor:pointer;}
 #msg.hide{opacity:0;transform:translateX(-50%) translateY(10px);}
 
 /* ── OVERLAY — v1.8.19 redesign system ── */
@@ -29017,7 +29017,7 @@ function _careerEvent(){
   const _ce=(typeof showEventChoice==='function');
   const POOLS={
     youtuber:[
-      {auto:true, run:()=>{ const s=_rnd(200,800), a=_rnd(150,500); if(!G.yt)G.yt={subs:0}; G.yt.subs=(G.yt.subs||0)+s; _cash(a); _say(`▶️ Twój film wystrzelił! +${s} subów, +${a} zł z reklam.`); }},
+      {auto:true, run:()=>{ if(((G.yt&&G.yt.videos)?G.yt.videos.length:0)<3) return; /* v2.3.113 (PDF new/111 pkt 9): brak eventu „film wystrzelił" dopóki gracz nie ma min. 3 opublikowanych filmów na ViewGrid — spójne z guardem Demonetyzacji niżej */ const s=_rnd(200,800), a=_rnd(150,500); if(!G.yt)G.yt={subs:0}; G.yt.subs=(G.yt.subs||0)+s; _cash(a); _say(`▶️ Twój film wystrzelił! +${s} subów, +${a} zł z reklam.`); }},
       {decide:()=>{ if(((G.yt&&G.yt.videos)?G.yt.videos.length:0)<3) return; /* v2.3.102 (PDF #8): brak demonetyzacji dopóki gracz nie ma min. 3 filmów na ViewGrid */ const cost=_rnd(300,700); showEventChoice('▶️ Demonetyzacja!', `ViewGrid zdemonetyzował Twój ostatni film za „kontrowersyjną treść". Złożysz odwołanie (prawnik ${cost} zł) czy odpuścisz?`, [
         {label:`⚖️ Odwołanie (-${cost} zł, szansa odzyskać)`, fn:()=>{ if((G.money||0)>=cost){G.money-=cost; if(Math.random()<0.6){const a=_rnd(400,900);_cash(a);_say(`✅ Odwołanie przyjęte! +${a} zł.`);} else _say('❌ Odwołanie odrzucone.','r');} else _say('⚠️ Brak kasy na prawnika.','r'); }},
         {label:'🤷 Odpuść', fn:()=>{ _say('😐 Film bez reklam — zero z niego.','f'); }},
@@ -51715,6 +51715,11 @@ function phoneOpen(){return document.getElementById('phone').classList.contains(
 /* v2.1.900: opcjonalne locked/lockedMsg — apka widoczna ale szara/zablokowana (klik → showMsg lockedMsg zamiast fn). */
 const _phApp=(em,label,bg,glow,fn,locked,lockedMsg)=>({em,label,bg,glow,fn,locked,lockedMsg});
 function _getPhoneFolders(){
+  /* v2.3.113 (PDF new/111 pkt 8): Wytwórnia/S9 Agency/NOX Route zablokowane do ukończenia poradnika startowego,
+     by nie przytłaczać nowego gracza. Warunek save-safe (wzorzec z L61166): poradnik NIEUKOŃCZONY = brak _tutorialSeen ORAZ istnieje obiekt _tutorial.
+     Stary save (bez _tutorial) i po ukończeniu/pominięciu (_tutorialSeen=true) → odblokowane. */
+  const _tutLock = (!G._tutorialSeen && !!G._tutorial);
+  const _tutLockMsg = '🔒 Odblokujesz po ukończeniu poradnika na start gry.';
   return {
     /* D9 (PDF „Fikcyjne platformy" sekcja 9): układ ikon Muzyka/Content/Social. Sociale = CZYSTO social (Artist Hub + FrameUp + ChirpNet); platformy publikacji treści (audio+wideo) razem w „Streaming". ViewGrid przeniesiony tu z Sociale (to platforma streamingu wideo, NIE social). */
     social:{em:'🌐',label:'Sociale',preview:['📡','📸','💬'],apps:[
@@ -51738,7 +51743,7 @@ function _getPhoneFolders(){
       _phApp('🧰','Gigi','#1a0e05','#e67e22',"renderPhoneApp('gigs')"),
       /* v2.1.911 (user „wszystkie apki szare+unlock zamiast niewidzialne"): Studio Setup ZAWSZE widoczne, szare gdy brak studia. */
       _phApp('🎚️',`Studio Setup${G.studioOwned&&G._mixingRecipeActive?' ✅':''}`,'#1a0a25','#9b59b6',"renderStudioSetup()", !G.studioOwned, '🎚️ Studio Setup zablokowane — najpierw kup własne studio nagraniowe.'),
-      _phApp('🎼','Wytwórnia','#100a1a','#9b59b6',"renderPhoneApp('label')"),
+      _phApp('🎼','Wytwórnia','#100a1a','#9b59b6',"renderPhoneApp('label')", _tutLock, _tutLockMsg),
       /* v2.1.911 (user): Beef/Merch/Kontrakty/Atelier/Trap ZAWSZE widoczne — szare/zablokowane do odblokowania (zamiast ukrytych „pop-in"). Notif „odblokowano" przy progu (_checkAppReveals). Te same progi. */
       _phApp('🥊','Beef','#1a0a14','#e91e8c',"renderPhoneBeef()", !((G.fame||0)>=100), '🥊 Beef (rywalizacje rapowe) odblokujesz przy 100 sławy.'),
       _phApp('🧢','Merch','#1a0e05','#e67e22',"renderPhoneApp('merch')", !(G.merch&&G.merch.active), '🧢 Merch odblokujesz po założeniu własnej linii odzieżowej (apka aktywuje się po starcie marki).'),
@@ -51747,9 +51752,9 @@ function _getPhoneFolders(){
       /* v2.1.911 (user): Trap ZAWSZE widoczne — szare do poznania dealera (zamiast ukryte). */
       _phApp('🤝',`Trap${G._trapDealerMet&&G.trap&&G.trap.unlocked?(' · L'+G.trap.level):''}`,'#1a0a0a','#e91e8c',"renderPhoneApp('trap')", !G._trapDealerMet, '🤝 Trap odblokujesz po spotkaniu dealera w mieście.'),
       /* NX (v2.3.44 PDF): NOX Route — czarnorynkowy komunikator. Widoczny od początku; klik → ekran blokady z checklistą (renderNoxApp dispatcher) dopóki nie spełnisz warunków. */
-      _phApp('⬢','NOX Route','#06080c','#1ad9c0',"renderNoxApp()"),
+      _phApp('⬢','NOX Route','#06080c','#1ad9c0',"renderNoxApp()", _tutLock, _tutLockMsg),
       /* v2.3.102 (PDF #7): S9 Agency (Signal Nine) — agencja marketingowa. Widoczna od początku; klik → panel z wymaganiami dopóki nie spełnisz warunków (singiel/freestyle/posty). */
-      _phApp('📡','S9 Agency','#0a1420','#3498db',"(function(){var p=document.getElementById('phone');if(p&&p.classList.contains('on')&&typeof togglePhone==='function')togglePhone();if(typeof window.renderS9Agency==='function')window.renderS9Agency();})()"),
+      _phApp('📡','S9 Agency','#0a1420','#3498db',"(function(){var p=document.getElementById('phone');if(p&&p.classList.contains('on')&&typeof togglePhone==='function')togglePhone();if(typeof window.renderS9Agency==='function')window.renderS9Agency();})()", _tutLock, _tutLockMsg),
     ]},
     finance:{em:'💰',label:'Finanse',preview:['🏦','💸','💰','📈'],apps:[
       _phApp('🏦','Bank','#12100a','#f1c40f',"renderPhoneApp('bank')"),
@@ -62803,6 +62808,14 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.113',date:'2026-07-05',cats:['fix'],title:'🧹 Poprawki wygody: odklikiwanie powiadomień, mniej chaosu na start',
+ items:[
+  {t:'fix',d:'🟢 Zielone powiadomienia możesz teraz po prostu kliknąć, żeby zniknęły od razu — nie musisz czekać, aż same wygasną. Przydaje się, gdy zbiera się ich więcej naraz.'},
+  {t:'fix',d:'▶️ Naprawione: na samym starcie gry potrafiła wyskoczyć wiadomość, że „Twój film wystrzelił", mimo że nie miałeś jeszcze żadnego nagranego filmu. Teraz taka informacja pojawia się dopiero, gdy masz na koncie co najmniej 3 opublikowane filmy.'},
+  {t:'fix',d:'🔒 Wytwórnia, S9 Agency i NOX Route w folderze Kariera odblokowują się po ukończeniu poradnika na start — dzięki temu nowy gracz nie jest od razu zasypany wszystkimi opcjami. Jeśli grasz już od dłuższego czasu, korzystasz z nich bez zmian.'},
+ ]
+ },
  {
  ver:'v2.3.112',date:'2026-07-04',cats:['feature'],title:'🚗 Nowość: pojazdy to fizyczne obiekty — kolizje, zniszczenia, pożary, holowanie i konsekwencje',
  items:[
@@ -74743,6 +74756,12 @@ function _showMsgNow(t,type,duration){
   el._t=setTimeout(()=>{el.classList.remove('show');el.classList.add('hide');setTimeout(()=>{
     el.style.display='none';el.classList.remove('hide');
   },300);},ms);
+  /* v2.3.113 (PDF new/111 pkt 6): klik w toast = szybkie zniknięcie (skip). Gracz może odklikać nadmiar
+     powiadomień zamiast czekać 8 s. Po zamknięciu przewija kolejkę (_msgFlushNext) do następnego. */
+  el.onclick=()=>{ clearTimeout(el._t); el.classList.remove('show'); el.classList.add('hide');
+    setTimeout(()=>{ el.style.display='none'; el.classList.remove('hide'); el.onclick=null; },300);
+    if(_msgFlushTimer){ clearTimeout(_msgFlushTimer); _msgFlushTimer=null; }
+    _msgBusyUntil=0; if(typeof _msgFlushNext==='function') setTimeout(_msgFlushNext,320); };
   playNotifSound(type);
 }
 
