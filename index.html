@@ -20806,6 +20806,42 @@ window._applySubstanceUse=function(category, opts){
   AS.mixedUse.crisisChanceModifier = Math.round(AS.mixedUse.riskLevel*0.3);
   return a;
 };
+/* v2.3.113 (PDF new/Nova Cura §8): poziomy uzależnienia — 5 pasm wg useLevel. */
+window._ADDICTION_BANDS=[
+  {min:0,  max:20, key:'control',    label:'kontrola'},
+  {min:21, max:40, key:'risk',       label:'ryzyko'},
+  {min:41, max:60, key:'problem',    label:'problem'},
+  {min:61, max:80, key:'dependence', label:'zależność'},
+  {min:81, max:100,key:'severe',     label:'ciężkie uzależnienie'},
+];
+window._addictionBand=function(useLevel){ const v=Math.max(0,Math.min(100,useLevel||0)); return window._ADDICTION_BANDS.find(b=>v>=b.min&&v<=b.max)||window._ADDICTION_BANDS[0]; };
+window._addictionLevel=function(category){ const AS=G.addictionSystem; if(!AS||!AS[category]) return window._ADDICTION_BANDS[0]; return window._addictionBand(AS[category].useLevel); };
+window._worstAddiction=function(){
+  const AS=G.addictionSystem; const CATS=['alcohol','stimulants','partySubstances','downers','opioids'];
+  if(!AS) return {category:null,useLevel:0,band:window._ADDICTION_BANDS[0]};
+  let w={category:null,useLevel:-1};
+  CATS.forEach(c=>{ if(AS[c]&&(AS[c].useLevel||0)>w.useLevel) w={category:c,useLevel:AS[c].useLevel||0}; });
+  return {category:w.category,useLevel:Math.max(0,w.useLevel),band:window._addictionBand(Math.max(0,w.useLevel))};
+};
+/* v2.3.113 (PDF new/Nova Cura §9): odstawienie per-kategoria. Gdy dependence>=30 i gracz nie używa — withdrawal narasta wg dni od użycia. */
+window._updateWithdrawal=function(category){
+  const AS=G.addictionSystem; if(!AS||!AS[category]||category==='mixedUse') return;
+  const a=AS[category];
+  const daysSinceUse = (a.lastUseDay!=null) ? Math.max(0,(G.day||0)-a.lastUseDay) : 0;
+  a.daysClean = (a.lastUseDay!=null) ? daysSinceUse : (a.daysClean||0)+1;
+  if((a.dependence||0)<30){ a.withdrawal=Math.max(0,(a.withdrawal||0)-2); if(daysSinceUse>=2) a.craving=Math.max(0,(a.craving||0)-1); a.relapseRisk=Math.min(100,Math.round((a.dependence||0)*0.6+(a.craving||0)*0.4)); return; }
+  const gain=Math.floor(a.dependence/15);
+  if(daysSinceUse>=1) a.withdrawal+=gain;
+  if(daysSinceUse>=3) a.withdrawal+=gain*2;
+  if(daysSinceUse>=7) a.withdrawal+=gain;
+  a.withdrawal=clamp(a.withdrawal,0,100);
+  a.craving=clamp((a.craving||0)+Math.floor(gain/2),0,100);
+  a.relapseRisk=clamp(Math.round(a.dependence*0.6+a.craving*0.4+a.withdrawal*0.2),0,100);
+};
+window._updateAllWithdrawal=function(){
+  if(typeof window._addictionSysEnsure==='function') window._addictionSysEnsure();
+  ['alcohol','stimulants','partySubstances','downers','opioids'].forEach(c=>window._updateWithdrawal(c));
+};
 
 window._useSubstance=function(substanceKey){
   const sub=SUBSTANCE_EFFECTS[substanceKey];
@@ -27465,6 +27501,7 @@ function tickDecay(){
   if(typeof _smsCheckTriggers==='function') _smsCheckTriggers();
   if(typeof window._s9CheckScandal==='function') window._s9CheckScandal(); /* v2.3.102 (PDF #7): event „Ktoś ma nagranie" przy wysokim agencyHeat */
   if(typeof window._tournamentReminderCheck==='function') window._tournamentReminderCheck(); /* v2.3.99 (PDF #4/#5): przypomnienie turniejowe po 3 dniach (postponed/ignored) */
+  if(typeof window._updateAllWithdrawal==='function') window._updateAllWithdrawal(); /* v2.3.113 (Nova Cura §9): odstawienie per-kategoria — raz na dobę gry */
   if(typeof window._novaCuraTick==='function') window._novaCuraTick(); /* PDF Nova Cura: eventy kryzysowe + naturalny spadek napięcia/przemęczenia (raz na dobę gry) */
   /* v1.9.20: Pogoda min 1 timeOfDay slot przed kolejną zmianą + bias 60% słońca */
   const _wTime=(G.day||0)*4+(G.timeOfDay||0);
