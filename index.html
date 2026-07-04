@@ -15359,6 +15359,8 @@ window._registerAlcohol=function(type){
   _alcoholEnsure();
   if(G._alcoholDay!==G.day){ G._alcoholDay=G.day; G._alcoholToday=0; G._alcoholTypesToday=[]; }
   G._alcoholToday++;
+  /* v2.3.113 (Nova Cura §7): alkohol zasila kategorię 'alcohol' w nowym systemie uzależnień (per drink, niski przyrost). */
+  if(typeof window._applySubstanceUse==='function') window._applySubstanceUse('alcohol', { baseRate: 4 });
   if(type && G._alcoholTypesToday.indexOf(type)<0){
     G._alcoholTypesToday.push(type);
     if(G._alcoholTypesToday.length===3){
@@ -20771,6 +20773,39 @@ const SUBSTANCE_EFFECTS={
   meth:    {name:'Meta',         emoji:'💎', mood:0,  hunger:0,  energy:60,  forma:0,  fame:20,  duration:1, addRate:15, desc:'Energia +60, produktywność +20 fame. ALE -15 HP! Addiction risky.', healthLoss:15},
   cocaine: {name:'Kokaina',      emoji:'❄️', mood:40, hunger:0,  energy:40,  forma:0,  fame:10,  duration:1, addRate:10, desc:'Premium energy + mood. Risk OVERDOSE 1% → szpital -2000 zł.', overdoseRisk:0.01},
 };
+/* v2.3.113 (PDF new/Nova Cura §7): mechanika narastania uzależnienia per-kategoria.
+   Każde użycie podbija useLevel/tolerance/craving danej kategorii; progi useLevel 35/60/80 dokładają dependence (+1/+2/+3).
+   Kontekst (afterConcert/studioMarathon/stressEvent/marinaParty/undergroundMeeting) zwiększa przyrost dla ryzykownych kategorii. */
+window._SUBSTANCE_CATEGORY={weed:'downers', mushrooms:'partySubstances', meth:'stimulants', cocaine:'stimulants', alcohol:'alcohol'};
+window._CTX_RISK={
+  afterConcert:['alcohol','partySubstances'], studioMarathon:['stimulants'],
+  stressEvent:['alcohol','downers','opioids'], marinaParty:['alcohol','partySubstances'], undergroundMeeting:['stimulants','opioids']
+};
+window._applySubstanceUse=function(category, opts){
+  opts=opts||{};
+  if(typeof window._addictionSysEnsure==='function') window._addictionSysEnsure();
+  const AS=G.addictionSystem; if(!AS||!AS[category]||category==='mixedUse') return null;
+  const a=AS[category];
+  const base=Math.max(1, opts.baseRate||5);
+  const ctx=opts.context;
+  const ctxMult=(ctx && Array.isArray(window._CTX_RISK[ctx]) && window._CTX_RISK[ctx].indexOf(category)>=0) ? 1.5 : 1;
+  a.useLevel=Math.min(100, a.useLevel + Math.round(base*ctxMult));
+  a.tolerance=Math.min(100, a.tolerance + Math.max(1, Math.round(base*0.4)));
+  a.craving=Math.min(100, a.craving + Math.max(1, Math.round(base*0.5)));
+  if(a.useLevel>=35) a.dependence=Math.min(100, a.dependence+1);
+  if(a.useLevel>=60) a.dependence=Math.min(100, a.dependence+2);
+  if(a.useLevel>=80) a.dependence=Math.min(100, a.dependence+3);
+  a.daysClean=0;
+  a.lastUseDay=(G.day||0);
+  a.relapseRisk=Math.min(100, Math.round(a.dependence*0.6 + a.craving*0.4));
+  /* mixedUse: użycie ≥2 kategorii tego samego dnia = ryzyko mieszania */
+  if(!G._catsUsedToday||G._catsUsedDay!==G.day){ G._catsUsedDay=G.day; G._catsUsedToday=[]; }
+  if(G._catsUsedToday.indexOf(category)<0) G._catsUsedToday.push(category);
+  AS.mixedUse.active = G._catsUsedToday.length>=2;
+  AS.mixedUse.riskLevel = AS.mixedUse.active ? Math.min(100, (G._catsUsedToday.length-1)*25) : 0;
+  AS.mixedUse.crisisChanceModifier = Math.round(AS.mixedUse.riskLevel*0.3);
+  return a;
+};
 
 window._useSubstance=function(substanceKey){
   const sub=SUBSTANCE_EFFECTS[substanceKey];
@@ -20812,9 +20847,14 @@ window._doUseSubstance=function(substanceKey){
   } else {
     if(typeof showMilestoneCinematic==='function') showMilestoneCinematic({emoji:sub.emoji,title:`ZAŻYTO: ${sub.name.toUpperCase()}`,subtitle:`Addiction +${sub.addRate}`,tagline:`Mood ${sub.mood?'+'+sub.mood:'0'} · Energy ${sub.energy>=0?'+':''}${sub.energy} · Fame ${sub.fame?'+'+sub.fame:'0'}${sub.healthLoss?` · HP -${sub.healthLoss}`:''}`,accentColor:'#9b59b6',accent2:'#1a0820',duration:5000});
   }
-  /* Addiction */
+  /* Addiction (stary płaski system — ZOSTAJE, istniejące mechaniki go czytają) */
   G.addictions=G.addictions||{weed:0,meth:0,mushrooms:0,cocaine:0};
   G.addictions[substanceKey]=Math.min(100,(G.addictions[substanceKey]||0)+sub.addRate);
+  /* v2.3.113 (Nova Cura §7): zasil nowy per-kategoria system uzależnień */
+  if(typeof window._applySubstanceUse==='function'){
+    const _cat=(window._SUBSTANCE_CATEGORY||{})[substanceKey];
+    if(_cat) window._applySubstanceUse(_cat, { baseRate: sub.addRate });
+  }
   if(typeof window._addLifestyleDebt==='function') window._addLifestyleDebt(2); /* v2.1.990 TIER 5: zażycie podbija dług stylu życia */
   G._lastSubstanceUseDay=G._lastSubstanceUseDay||{};
   G._lastSubstanceUseDay[substanceKey]=G.day;
