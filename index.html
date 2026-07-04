@@ -50681,6 +50681,8 @@ window._vehStateEnsure=function(){
   G._vehState.car=mk(G._vehState.car,'car');
   G._vehState.camper=mk(G._vehState.camper,'camper');
   if(typeof window._vehTrafficEnsure==='function') window._vehTrafficEnsure();
+  /* FIX audytu #1/#2: utrzymaj strefy spójne z condition po zużyciu czasowym/jeździe/wandalizmie (skalowanie w dół). */
+  if(typeof window._vehReconcileZones==='function'){ try{ window._vehReconcileZones('car'); window._vehReconcileZones('camper'); }catch(_){} }
   /* MIGRACJA save-safe #1 (jednorazowa): stary zapis, w którym gracz był W TRAKCIE jazdy (_inCar/_inCamper=true),
      nie miał stanu silnika → po wczytaniu gracz „stałby w miejscu". Traktujemy go jak z odpalonym silnikiem,
      żeby jazda była ciągła bez zaskoczenia. Nowa gra: _inCar/_inCamper=false → bez efektu. */
@@ -50757,17 +50759,32 @@ window._vehUpdateVisual=function(kind){
   v.disabled       = h<=0;
 };
 /* §7 recalc overall = ważona średnia stref, ale NIGDY powyżej dotychczasowego condition (czas/zużycie tylko obniża). */
+/* §7 zone-overall = ważona średnia 15 stref (NaN-defensywne). */
+window._vehZoneOverall=function(d){
+  if(!d) return 100;
+  const g=(v)=>(typeof v==='number'&&!isNaN(v))?v:100;
+  const struct=(g(d.front)+g(d.rear)+g(d.leftSide)+g(d.rightSide)+g(d.roof))/5;
+  const mech=(g(d.engine)+g(d.transmission)+g(d.suspension)+g(d.fuelSystem)+g(d.wheels)+g(d.brakes))/6;
+  const other=(g(d.radiator)+g(d.electronics)+g(d.windows)+g(d.lights))/4;
+  return struct*0.40+mech*0.45+other*0.15;
+};
 window._vehRecalcOverall=function(kind){
   const d=window._vehDmg(kind); if(!d) return;
-  const struct=(d.front+d.rear+d.leftSide+d.rightSide+d.roof)/5;
-  const mech=(d.engine+d.transmission+d.suspension+d.fuelSystem+d.wheels+d.brakes)/6;
-  const other=(d.radiator+d.electronics+d.windows+d.lights)/4;
-  const overall=Math.max(0,Math.min(100,Math.round(struct*0.40+mech*0.45+other*0.15)));
+  const overall=Math.max(0,Math.min(100,Math.round(window._vehZoneOverall(d))));
   const r=window._vehCondRef(kind);
   const prev=(typeof r.condition==='number'&&!isNaN(r.condition))?r.condition:100;
   r.condition=Math.max(0,Math.min(prev,overall));
   window._vehUpdateVisual(kind);
   return r.condition;
+};
+/* FIX audytu #1/#2 (condition/zone desync): zużycie (czas L27556 / jazda L14039 / wandalizm) obniża
+   condition ale NIE strefy → strefy „odjeżdżają" w górę, przez co (a) kolizja przestaje ruszać condition
+   (recalc klampuje min(prev,overall)) i (b) tania naprawa „blacharka" cofa też zużycie mechaniczne.
+   Reconcile skaluje strefy W DÓŁ proporcjonalnie do condition (nigdy w górę), tolerancja 1.5 (anty-oscylacja). */
+window._vehReconcileZones=function(kind){
+  const d=window._vehDmg(kind); if(!d) return;
+  const cond=window._vehOverall(kind); const zo=window._vehZoneOverall(d);
+  if(zo>cond+1.5){ const scale=cond/(zo||1); for(const z of window._VEH_DMG_ZONES){ d[z]=Math.max(0,Math.min(100,Math.round((d[z]==null?100:d[z])*scale))); } window._vehUpdateVisual(kind); }
 };
 /* §6 twardość obiektów mapy (mnożnik siły). */
 window._vehHardness=function(type){
@@ -50781,18 +50798,31 @@ window._vehImpactZoneFromDir=function(dx,dy){
   if(Math.abs(dy)>=Math.abs(dx)){ return (dy<0)?'front':'rear'; }
   return (dx<0)?'leftSide':'rightSide';
 };
-/* §7 RDZEŃ: nałóż uszkodzenie na strefę + strefy powiązane, zsynchronizuj condition. Zwraca faktyczny ubytek. */
+/* §7 RDZEŃ: nałóż uszkodzenie na strefę + strefy powiązane; condition spada RÓŻNICOWO (delta zone-overall),
+   dzięki czemu kolizja ZAWSZE bije — także na aucie zużytym czasowo (FIX audytu #2). Zwraca ubytek strefy. */
 window._vehApplyDamage=function(kind,zone,amount,source){
   const d=window._vehDmg(kind); if(!d) return 0;
+  window._vehReconcileZones(kind); /* strefy spójne z condition PRZED liczeniem delty */
   if(window._VEH_DMG_ZONES.indexOf(zone)<0) zone='front';
   amount=Math.max(0,Math.round(amount||0));
+  const before=window._vehZoneOverall(d);
   const dec=(z,a)=>{ d[z]=Math.max(0,Math.min(100,(d[z]==null?100:d[z])-Math.max(0,a))); };
   dec(zone,amount);
   if(zone==='front'){ dec('engine',Math.floor(amount*0.55)); dec('radiator',Math.floor(amount*0.65)); dec('lights',Math.floor(amount*0.40)); }
   else if(zone==='rear'){ dec('lights',Math.floor(amount*0.35)); dec('suspension',Math.floor(amount*0.25)); }
   else if(zone==='leftSide'||zone==='rightSide'){ dec('suspension',Math.floor(amount*0.45)); dec('windows',Math.floor(amount*0.35)); }
   else if(zone==='roof'){ dec('windows',Math.floor(amount*0.65)); dec('electronics',Math.floor(amount*0.25)); }
-  window._vehRecalcOverall(kind);
+  /* ogólny „wstrząs całego pojazdu" — małe uszkodzenie WSZYSTKICH 15 stref przy każdym uderzeniu. Inaczej strefy
+     nietrafiane kierunkowo (roof/electronics/transmission/wheels/brakes/fuelSystem) trzymają condition nad 0 i auta
+     nie da się „skasować" serią kolizji (§11 unieruchomienie/total-loss). Bonus: spadek fuelSystem → ryzyko pożaru §17. */
+  const _jolt=Math.floor(amount*0.10); if(_jolt>0){ for(const z of window._VEH_DMG_ZONES) dec(z,_jolt); }
+  const after=window._vehZoneOverall(d);
+  const delta=Math.max(0, before-after);
+  const r=window._vehCondRef(kind);
+  const prevC=(typeof r.condition==='number'&&!isNaN(r.condition))?r.condition:100;
+  r.condition=Math.max(0,Math.min(100, prevC-delta));
+  if(kind==='car' && G.car && G.car.name){ if(!G._carCond) G._carCond={}; if(!G._carCond[G.car.name]||typeof G._carCond[G.car.name]!=='object') G._carCond[G.car.name]={}; G._carCond[G.car.name].cond=r.condition; }
+  window._vehUpdateVisual(kind);
   return amount;
 };
 /* ── Tier B: DETEKCJA KOLIZJI + SIŁA (impakt pojazdu w obiekt mapy) ─────────────────────────── */
@@ -50901,6 +50931,7 @@ window._VEH_MECH_ZONES=['engine','transmission','suspension','wheels','brakes','
 /* §12 ocena naprawialności: totalLoss gdy structuralne+mechaniczne+pożar zbyt duże (lub eksplodowany). */
 window._vehEvaluateRepairability=function(kind){
   const d=window._vehDmg(kind); if(!d) return {repairable:true,totalLossScore:0};
+  if(typeof window._vehReconcileZones==='function') window._vehReconcileZones(kind); /* strefy spójne z condition (fix #1) */
   const structuralDamage=100-((d.front+d.rear+d.leftSide+d.rightSide+d.roof)/5);
   const mechanicalDamage=100-((d.engine+d.transmission+d.suspension+d.fuelSystem)/4);
   const fireDamage=(d.visual&&d.visual.fireDamage)?40:0;
@@ -50912,6 +50943,7 @@ window._vehEvaluateRepairability=function(kind){
    basic=blacharka, mech=+mechanika, full=wszystko+gaśnie pożar. */
 window._vehRepairZones=function(kind,level){
   const d=window._vehDmg(kind); if(!d) return 0;
+  if(typeof window._vehReconcileZones==='function') window._vehReconcileZones(kind); /* fix #1: najpierw zsync strefy w dół do condition (nie „lecz" zużycia mechanicznego blacharką), potem podnieś naprawiane */
   let zones;
   if(level==='basic') zones=window._VEH_BODY_ZONES.slice();
   else if(level==='mech') zones=window._VEH_BODY_ZONES.concat(window._VEH_MECH_ZONES);
@@ -50982,6 +51014,7 @@ window._vehScrapTotalLoss=function(kind){
   if(kind==='camper'){ G.camper.owned=false; G.camper.partsAtMetalValley=true; G.camper.destroyed=false; G.camper.activeCamperId=null; G._camperParkedAt=null; G._inCamper=false; }
   else { if(Array.isArray(G._ownedCars)) G._ownedCars=G._ownedCars.filter(n=>n!==veh.id); if(G._carCond) delete G._carCond[veh.id]; if(G.car&&G.car.name===veh.id){ G.car=null; G._inCar=false; G._carParkedAt=null; } }
   if(typeof window._metalValleyEnsure==='function') window._metalValleyEnsure();
+  if(window._vehTowOfferedKind===kind) window._vehTowOfferedKind=null; /* fix audytu #4: pojazd skasowany → nowy znów zaoferuje panel holowania */
   const sms='Knox dowiózł wrak na plac. Rozbieramy — rozliczenie ('+((o.net||0).toLocaleString('pl'))+' zł) za '+(o.days||2)+' dni.';
   if(typeof window._sendSMS==='function'){ try{ window._sendSMS('Rysiek „Prasa"', sms); }catch(e){ if(typeof notify==='function') notify('📩 Rysiek: '+sms); } }
   else if(typeof notify==='function') notify('📩 Rysiek: '+sms);
@@ -51027,8 +51060,8 @@ window._vehTowPanel=function(kind){
     <div style="margin-top:12px">
       ${btn("window._vehCallTow('"+kind+"','workshop');"+closeJs,'🚚 Wezwij holowanie do warsztatu · '+towWork.toLocaleString('pl')+' zł')}
       ${btn("window._vehCallTow('"+kind+"','metal_valley');"+closeJs,'♻️ Holowanie do Metal Valley Yard (kasacja) · '+towMV.toLocaleString('pl')+' zł')}
-      ${btn("if(typeof window._vehInsuranceInfo==='function')window._vehInsuranceInfo();else if(typeof showMsg==='function')showMsg('🛡️ Ubezpieczenie pojazdu — wkrótce.','i',3000);",'📞 Zadzwoń do ubezpieczenia')}
-      ${btn(closeJs,'🚶 Wróć pieszo / zostaw pojazd','; color:#e07070; border-color:#5a1a1a')}
+      ${btn("if(typeof window._vehInsuranceInfo==='function')window._vehInsuranceInfo();else if(typeof showMsg==='function')showMsg('🛡️ Ubezpieczenie pojazdu — wkrótce.','i',3000);",'📞 Ubezpieczenie (wkrótce)')}
+      ${btn("window._vehExitVehicle&&window._vehExitVehicle('"+kind+"');"+closeJs,'🚶 Wróć pieszo / zostaw pojazd','; color:#e07070; border-color:#5a1a1a')}
     </div></div>`;
 };
 /* ── NPC Knox „Towline" Mercer (kontakt telefoniczny SMS z usługami) ── */
@@ -54961,7 +54994,7 @@ window.renderSMSConversation=function(contactId){
           let _btns='';
           _btns+=_kb('tow','🚚 Wezwij holowanie','Laweta pod warsztat (Garage 77).','#e67e22');
           _btns+=_kb('transport','♻️ Transport do Metal Valley','Kasacja wraka na części (rozliczenie po czasie).','#95a5a6');
-          _btns+=_kb('wreck','🧹 Sprzątnięcie wraku','Uprzątnięcie i utylizacja szczątków po pożarze.','#c0392b');
+          if(Array.isArray(G.wreckCases)&&G.wreckCases.some(w=>w&&w.status==='unpaid')) _btns+=_kb('wreck','🧹 Sprzątnięcie wraku','Uprzątnięcie i utylizacja szczątków po pożarze/eksplozji.','#c0392b'); /* fix #7: tylko gdy jest realny wrak */
           _btns+=_kb('quote','💰 Wycena szkody','Ile realnie kosztuje pozbieranie tego pojazdu.','#f1c40f');
           _btns+=_kb('contacts','📇 Zapytaj o kontakty','Ryzykowne znajomości miejskie (wymaga zaufania).','#3498db');
           return `<div style="background:#120a02;border:1px solid #4a3520;border-radius:6px;padding:6px 9px;margin-bottom:7px;font-size:10.5px;color:#d5b58a;text-align:center">🛻 Knox — holowanie, wraki, transport. ${_kn?('Twój pojazd: '+_oh+'%'):'Nie masz teraz pojazdu.'}</div>${_btns}`;
