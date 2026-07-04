@@ -48815,6 +48815,7 @@ function startSkateparkMG(){
   function arrowKey(k){return{Space:'SPACJA',ArrowUp:'↑',ArrowDown:'↓',ArrowLeft:'←',ArrowRight:'→'}[k]||k;}
 
   let gameActive=true,timeLeft=25,score=0,combo=0,maxCombo=0;
+  let _skEnded=false; /* v2.3.113 (PDF new/111 pkt 3): po zakończeniu blokuj przerysowanie sceny nad ekranem wyniku (jak breakdance) */
   let currentTrick=null,inputSeq=[];
   let skaterX=80,skaterVX=4,skaterY=200,inAir=false,airTime=0;
   let flashText='',flashAlpha=0,flashColor='#f1c40f';
@@ -48903,6 +48904,7 @@ function startSkateparkMG(){
   },1000);
 
   function endSkate(){
+    _skEnded=true; /* v2.3.113: od teraz draw() nie przerysowuje sceny — ekran wyniku zostaje widoczny do zamknięcia panelu */
     /* v2.3.108 (PDF #12 §14/§15): weekend +15% na wynik skate (bez kary godzinowej na start). Nakładane na
        score PRZED nagrodami i progiem 450 — bonus liczy się do turnieju (§15). */
     const _skMod=(typeof _publicActivityScore==='function')?_publicActivityScore('skate',score):{finalScore:score,baseScore:score,weekendModifier:1};
@@ -48946,7 +48948,10 @@ function startSkateparkMG(){
     cx.fillText(`Score: ${score}  |  Max Combo: ${maxCombo}x`,350,140);
     cx.fillStyle='#27ae60';cx.font='20px Arial';
     cx.fillText(`+${repGain} rep · +${fitGainSk} kondycji · +${moneyTips} zł · +${followerGain} obs.${fameGain>0?` · +${fameGain} sławy!`:''}`,350,180);cx.textAlign='left';
-    closeJobPanelAfter(3000);
+    /* v2.3.113 (PDF new/111 pkt 3) FIX HANGU: closeJobPanelAfter usuwał tylko klasę .on, ale inline display:flex
+       zostawał → panel wisiał z zamrożoną klatką. Użyj dedykowanego _jobMgCleanup (chowa panel display:none,
+       czyści timer/handler) — dokładnie jak breakdance wraca do gry po kilku sekundach. */
+    const _cl=window._jobMgCleanup; setTimeout(()=>{ if(typeof _cl==='function') _cl(); },3000);
   }
 
   // Ramp layout
@@ -48955,6 +48960,7 @@ function startSkateparkMG(){
 
   let lastTime=performance.now();
   function draw(now){
+    if(_skEnded)return; /* v2.3.113 (PDF new/111 pkt 3): po zakończeniu nie przerysowuj sceny — zostaw ekran wyniku */
     if(!gameActive&&!el.style.display)return;
     const dt=Math.min((now-lastTime)/16,3);lastTime=now;
 
@@ -61358,6 +61364,9 @@ function _refreshMapNpcs(){
     if(!obj.id.startsWith('npc_')) continue;
     const def=npcMap[obj.id];
     if(!def) continue;
+    /* v2.3.113 (PDF new/111 pkt 1): znacznik NPC na mapie znika, gdy NPC nie jest fizycznie obecny (harmonogram godzin/pogody) —
+       ten sam warunek co render w świecie (drawObjects). Fan wraca na mapę, gdy znów pojawia się na ulicy. */
+    if(typeof _npcStreetVisible==='function' && !_npcStreetVisible(obj.id)) continue;
     MAP_LANDMARKS.push({wx:obj.wx+(obj.w||34)/2, wy:obj.wy+(obj.h||56)/2, name:def.name, cat:'npc'});
   }
 }
@@ -62824,6 +62833,8 @@ const PATCH_NOTES = [
   {t:'fix',d:'🛒 Naprawione: po zakupie w niektórych sklepach (np. muzycznym) pokazywał się przez pomyłkę panel sklepu spożywczego. Teraz po zakupie zostajesz w tym samym sklepie, w którym akurat robisz zakupy.'},
   {t:'fix',d:'📡 W aplikacji S9 Agency przycisk „Wyjdź" wraca teraz do folderu Kariera w telefonie, zamiast zamykać cały telefon — tak samo jak w pozostałych aplikacjach.'},
   {t:'fix',d:'🌙 Pory dnia są teraz spójne w całym mieście. Wcześniej w dzielnicach (Underground, Marina Coast, Business) było zawsze jasno, nawet nocą — teraz panuje tam ta sama pora dnia i oświetlenie co w głównej części miasta.'},
+  {t:'fix',d:'🙋 Znacznik fana na mapie pojawia się tylko wtedy, gdy fan faktycznie jest w mieście. Wcześniej potrafił wisieć na mapie, choć jego akurat nie było — teraz znika i wraca razem z nim.'},
+  {t:'fix',d:'🛹 Naprawione zawieszanie ekranu po skończonej jeździe na deskorolce. Teraz ekran z wynikiem pokazuje się przez chwilę i płynnie wraca do gry — tak jak przy breakdance.'},
  ]
  },
  {
