@@ -40209,8 +40209,11 @@ window.previewBeardColor=function(beardColorId,lbl){
    napięcie=G.novacura.tension (NOWE, high=złe), przemęczenie=G.novacura.fatigue (NOWE), uzależnienia=G.addictions{},
    withdrawal pochodny (max uzależnienie>50, spójne z narkobiznesem), ryzyko prawne=G.streetHeat/trap.heat.
    Namespace G.novacura init w _5pdfEnsure (medicalTrust/hospitalRiskFlag/mentalCrisisLevel/therapyProgress/fatigue/tension/history/lastVisitDay/diagnosisAccuracy). */
-window._novaWithdrawalLevel=function(){ const a=G.addictions||{}; let mx=0; for(const k in a){ if((a[k]||0)>mx) mx=a[k]; } return mx>50?Math.round(mx-50):0; };
-window._novaAddictionRisk=function(){ const a=G.addictions||{}; let mx=0; for(const k in a){ if((a[k]||0)>mx) mx=a[k]; } return Math.round(mx); };
+/* v2.3.113 (Nova Cura §11): withdrawal/ryzyko czytają nowy addictionSystem (superset ze starym płaskim G.addictions). */
+window._novaWithdrawalLevel=function(){ let mx=0; const AS=G.addictionSystem; if(AS){ ['alcohol','stimulants','partySubstances','downers','opioids'].forEach(c=>{ const w=(AS[c]&&AS[c].withdrawal)||0; if(w>mx)mx=w; }); } if(mx>0) return Math.round(mx); const a=G.addictions||{}; let f=0; for(const k in a){ if((a[k]||0)>f) f=a[k]; } return f>50?Math.round(f-50):0; };
+window._novaAddictionRisk=function(){ let mx=0; const AS=G.addictionSystem; if(AS){ ['alcohol','stimulants','partySubstances','downers','opioids'].forEach(c=>{ const u=(AS[c]&&AS[c].useLevel)||0; if(u>mx)mx=u; }); } const a=G.addictions||{}; for(const k in a){ if((a[k]||0)>mx) mx=a[k]; } return Math.round(mx); };
+/* etykieta ryzyka per useLevel kategorii (PDF §11: brak/niskie/średnie/wysokie/bardzo wysokie) */
+window._novaCatRisk=function(useLevel){ const b=(window._addictionBand?window._addictionBand(useLevel):{key:'control'}).key; return {control:'brak / niskie',risk:'niskie',problem:'średnie',dependence:'wysokie',severe:'bardzo wysokie'}[b]||'niskie'; };
 window._novaRiskLabel=function(v){ return v>=70?'wysokie':v>=35?'średnie':v>=10?'niskie':'brak'; };
 window._novaLegalRisk=function(){ /* PDF §8 — NIE karze za samą wizytę; rośnie od realnych czynników (heat = zaangażowanie w nielegalne/świeży incydent). */
   if(typeof _5pdfEnsure==='function') _5pdfEnsure(); const n=G.novacura;
@@ -40244,6 +40247,19 @@ function renderHospital(){
   const stabGate=(mcl>=1||tension>=50||wd>0);             // PDF §11 warunek dostępności
   const consultCd=(n._lastConsultDay===G.day), therapyCd=(G._lastTherapyDay===G.day), psychCd=(n._lastPsychDay===G.day), testsCd=(n._lastTestsDay===G.day), stabCd=(n._lastStabDay===G.day);
   const it=(icon,title,desc,price,handler,disabled,extra)=>`<div class="sitem"><h3>${icon} ${title}</h3><p style="font-size:11.5px;color:#8aa">${desc}</p>${extra||''}<div class="pr">${price}</div><button class="bbtn" onclick="${handler}" ${disabled?'disabled':''}>Wybierz</button></div>`;
+  /* v2.3.113 (PDF new/Nova Cura §11): panel ryzyka uzależnień per-kategoria. */
+  if(typeof window._addictionSysEnsure==='function') window._addictionSysEnsure();
+  const _AS=G.addictionSystem||{};
+  const _catRow=(key,label,em)=>{ const u=(_AS[key]&&_AS[key].useLevel)||0; const risk=window._novaCatRisk(u); return `<span>${em} ${label}: <b style="color:${col(u,false)}">${risk}</b></span>`; };
+  const _catRiskHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:14px;background:#0d1620;border:1px solid #24384a;border-radius:8px;padding:10px 12px;font-size:12.5px">
+      <div style="width:100%;font-weight:800;color:#9fd0f5;margin-bottom:2px;letter-spacing:.3px">💊 Uzależnienia i stabilizacja</div>
+      ${_catRow('alcohol','Alkohol','🍷')}
+      ${_catRow('stimulants','Pobudzające','⚡')}
+      ${_catRow('partySubstances','Imprezowe','🎉')}
+      ${_catRow('downers','Uspokajające','💤')}
+      ${_catRow('opioids','Opioidowe','💉')}
+      <span style="width:100%">🌡 Objawy odstawienia: <b style="color:${col(wd,false)}">${wd}/100</b>${_AS.mixedUse&&_AS.mixedUse.active?` · <b style="color:#e07050">⚠️ mieszanie substancji (ryzyko ${_AS.mixedUse.riskLevel||0})</b>`:''}</span>
+    </div>`;
   document.getElementById('ov-content').innerHTML=`
     <h2>🏥 Nova Cura</h2><p class="sub">Centrum medyczne i terapeutyczne. Recepcja: Nurse Kai kieruje Cię do właściwej ścieżki.</p>
     <div style="display:flex;flex-wrap:wrap;gap:8px 16px;margin-bottom:14px;background:#0d1620;border:1px solid #1a2a3a;border-radius:8px;padding:10px 12px;font-size:13px">
@@ -40254,6 +40270,7 @@ function renderHospital(){
       <span>💊 Ryzyko uzależnień: <b style="color:${col(addRisk,false)}">${window._novaRiskLabel(addRisk)}</b></span>
       ${mcl>=1?`<span>⚠️ Kryzys psychiczny: <b style="color:#e07050">poziom ${mcl}</b></span>`:''}
     </div>
+    ${_catRiskHTML}
     <div class="shopgrid">
       ${it('💊','Leczenie podstawowe','Szybka pomoc przy drobnych urazach i osłabieniu. +30 zdrowia.',basicCost+' zł','_novaBasicHeal()',G.health>=100||money<basicCost)}
       ${it('🏥','Pełne leczenie','Zdrowie do 100% + odratowanie po przemęczeniu (−20 przemęczenia).',fullCost+' zł','_novaFullHeal()',G.health>=100||money<fullCost)}
@@ -63004,6 +63021,7 @@ const PATCH_NOTES = [
  ver:'v2.3.113',date:'2026-07-05',cats:['feature','fix'],title:'🗺 Mapy dzielnic + poprawki wygody i sterowania pojazdami',
  items:[
   {t:'new',d:'🗺 Nowość: osobne mapy dzielnic! W dużej mapie możesz teraz przełączać widok między Miastem a odblokowanymi dzielnicami (Underground, Marina Coast, Business) — każda ma własną mapę z budynkami i punktami. Zablokowane dzielnice są wyszarzone do czasu ich odblokowania, a mapy aktualizują się same, gdy w dzielnicy pojawiają się nowe miejsca.'},
+  {t:'new',d:'🏥 Nova Cura pokazuje teraz Twój stan uzależnień w rozbiciu na kategorie (alkohol, pobudzające, imprezowe, uspokajające, opioidowe) — każda z własnym poziomem ryzyka. Widać też łączne objawy odstawienia i ostrzeżenie, gdy mieszasz różne rodzaje używek. Różne używki działają inaczej i inaczej się uzależniają, więc łatwiej świadomie zdecydować, czego potrzebujesz.'},
   {t:'fix',d:'🟢 Zielone powiadomienia możesz teraz po prostu kliknąć, żeby zniknęły od razu — nie musisz czekać, aż same wygasną. Przydaje się, gdy zbiera się ich więcej naraz.'},
   {t:'fix',d:'▶️ Naprawione: na samym starcie gry potrafiła wyskoczyć wiadomość, że „Twój film wystrzelił", mimo że nie miałeś jeszcze żadnego nagranego filmu. Teraz taka informacja pojawia się dopiero, gdy masz na koncie co najmniej 3 opublikowane filmy.'},
   {t:'fix',d:'🔒 Wytwórnia, S9 Agency i NOX Route w folderze Kariera odblokowują się po ukończeniu poradnika na start — dzięki temu nowy gracz nie jest od razu zasypany wszystkimi opcjami. Jeśli grasz już od dłuższego czasu, korzystasz z nich bez zmian.'},
