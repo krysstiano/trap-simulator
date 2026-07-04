@@ -61384,20 +61384,53 @@ function _refreshMapNpcs(){
   }
 }
 if(typeof window!=='undefined') window._refreshMapNpcs=_refreshMapNpcs;
+/* v2.3.113 (PDF new/111 pkt 7): generator landmarków dla mapy DZIELNICY z ROOMS[id].objects.
+   Auto-aktualizacja — mapa dzielnicy zawsze odzwierciedla aktualne obiekty/NPC (nowe budynki pojawiają się same). */
+function _buildDistrictLandmarks(roomId){
+  const R=ROOMS[roomId]; if(!R||!Array.isArray(R.objects)) return [];
+  const out=[];
+  for(const obj of R.objects){
+    if(!obj||!obj.id) continue;
+    const isNpc=obj.id.startsWith('npc_');
+    if(!isNpc && ((obj.w||0)<50||(obj.h||0)<50)) continue; /* pomiń drobne dekoracje */
+    if(isNpc && typeof _npcStreetVisible==='function' && !_npcStreetVisible(obj.id)) continue; /* NPC wg harmonogramu (spójnie z miastem) */
+    let name = obj.prompt ? String(obj.prompt).replace(/^\[[^\]]*\]\s*/,'').trim() : (obj.lbl||obj.id);
+    if(!name) name=obj.lbl||obj.id;
+    let cat='shop';
+    if(isNpc) cat='npc';
+    else if(obj.id.startsWith('exit_')||obj.id.startsWith('gate_')) cat='gate';
+    else if(obj.id==='parking'||obj.id.indexOf('park')===0) cat='park';
+    out.push({wx:obj.wx+(obj.w||34)/2, wy:obj.wy+(obj.h||56)/2, name, cat});
+  }
+  return out;
+}
+if(typeof window!=='undefined') window._buildDistrictLandmarks=_buildDistrictLandmarks;
 let _mapZoom=1;
 let _mapDragHandlers=null; // kontener handlerow do cleanup przy zamykaniu mapy
-function openFullMap(){
+function openFullMap(districtId){
   /* v2.3.30 (Vegan, „mapa w budynkach nie działa"): mapa MIASTA otwiera się też we wnętrzach (jako referencja/nawigacja).
      Wcześniej `if(currentRoom!=='ulica') return;` blokował ją wszędzie poza ulicą. Marker „📍 TY" tylko na ulicy — we
      wnętrzu P to współrzędne wnętrza, więc byłby mylący; zamiast tego info „jesteś w budynku". */
-  const _onStreet=(typeof currentRoom!=='undefined' && currentRoom==='ulica');
+  /* v2.3.113 (PDF new/111 pkt 7): osobne mapy dzielnic. `districtId` wybiera którą mapę renderować (ulica/underground/coast/business).
+     Domyślnie: bieżąca lokacja gracza (jeśli to dzielnica z fizyczną mapą), inaczej miasto. Podgląd tylko odblokowanych (patrz _mapDistrictTabs). */
+  const _DISTRICTS=['ulica','underground','coast','business'];
+  const _hasPhysMap=(id)=> !!(ROOMS[id] && Array.isArray(ROOMS[id].map) && ROOMS[id].map.length);
+  const _mdUnlocked=(id)=> id==='ulica' || (Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes(id));
+  let _md = (districtId && _DISTRICTS.includes(districtId) && _hasPhysMap(districtId) && _mdUnlocked(districtId)) ? districtId
+          : (_DISTRICTS.includes(currentRoom) && _hasPhysMap(currentRoom)) ? currentRoom : 'ulica';
+  const MR=ROOMS[_md];
+  const _isCity=(_md==='ulica');
+  window._mapCurDistrict=_md;
+  const _onStreet=(typeof currentRoom!=='undefined' && currentRoom===_md);
   if(!G._tutStat)G._tutStat={};G._tutStat.mapOpened=(G._tutStat.mapOpened||0)+1;
-  // Odśwież pozycje NPC (rzeczywiste z ROOMS.ulica.objects)
-  if(typeof _refreshMapNpcs==='function') _refreshMapNpcs();
+  // Odśwież pozycje NPC (rzeczywiste z ROOMS.ulica.objects — tylko dla mapy miasta)
+  if(_isCity && typeof _refreshMapNpcs==='function') _refreshMapNpcs();
+  /* landmarki: miasto=MAP_LANDMARKS (statyczne+NPC); dzielnica=generowane z ROOMS[id].objects (auto-update — PDF new/111 pkt „aktualizacja map"). */
+  const _landmarks = _isCity ? MAP_LANDMARKS : (typeof _buildDistrictLandmarks==='function' ? _buildDistrictLandmarks(_md) : []);
   document.getElementById('fullmap-overlay')?.remove();
   // Cleanup poprzednie handlery
   if(_mapDragHandlers){_mapDragHandlers.cleanup();_mapDragHandlers=null;}
-  const wW=ROOMS.ulica.wT*T, wH=ROOMS.ulica.hT*T;
+  const wW=MR.wT*T, wH=MR.hT*T;
   const maxW=1140, maxH=560;
   const baseScale=Math.min(maxW/wW, maxH/wH);
   _mapZoom=1;
@@ -61406,12 +61439,23 @@ function openFullMap(){
   const hudEl=document.getElementById('hud');
   const hudBottom=hudEl?Math.round(hudEl.getBoundingClientRect().bottom)+4:66;
   o.style.cssText=`position:fixed;top:${hudBottom}px;left:0;right:0;bottom:0;background:rgba(0,0,0,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:60;padding:14px;font-family:inherit`;
+  /* v2.3.113 (PDF new/111 pkt 7): przełącznik podglądu mapy dzielnic — TYLKO odblokowane klikalne; zablokowane szare + komunikat. */
+  const _DTAB={ulica:'🏙 Miasto', underground:'🌑 Underground', coast:'🌊 Marina Coast', business:'💼 Business'};
+  const _tabsHTML=_DISTRICTS.filter(_hasPhysMap).map(id=>{
+    const active=(id===_md), unlocked=_mdUnlocked(id);
+    const bg=active?'#2a5a8a':(unlocked?'#12202e':'#0c0c10');
+    const col=active?'#fff':(unlocked?'#9fd0f5':'#556');
+    const bd=active?'#5aa0e0':(unlocked?'#2a4a6a':'#222');
+    const oc=unlocked?`onclick=\"openFullMap('${id}')\"` : `onclick=\"if(typeof showMsg==='function')showMsg('🔒 Odblokuj dzielnicę ${_DTAB[id].replace(/^[^ ]+ /,'')}, aby zobaczyć jej mapę.','r',3500)\"`;
+    return `<button ${oc} style=\"background:${bg};border:1px solid ${bd};color:${col};padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit\">${unlocked?'':'🔒 '}${_DTAB[id]}</button>`;
+  }).join('');
   o.innerHTML=`
-    <div style="display:flex;align-items:center;gap:14px;margin-bottom:6px">
-      <span style="color:#7ec8e3;font-size:20px;font-weight:900;letter-spacing:2px">🗺 MAPA MIASTA</span>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;justify-content:center">
+      <span style="color:#7ec8e3;font-size:18px;font-weight:900;letter-spacing:1.5px">🗺 ${_isCity?'MAPA MIASTA':'MAPA: '+_DTAB[_md].replace(/^[^ ]+ /,'').toUpperCase()}</span>
+      ${_tabsHTML}
       <button id="fmap-legend-btn" onclick="window._toggleMapLegend&&window._toggleMapLegend()" style="background:#1a2a3a;border:1px solid #3a5a7a;color:#9fd0f5;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit" title="Pokaż/ukryj legendę">≡ Legenda</button>
     </div>
-    <div id="fmap-controls" style="margin-bottom:6px;color:#aaa;font-size:11px">Scroll/+ -/przyciski = zoom · Drag = przesuwaj · ESC/M = zamknij · Zoom: <span id="fmap-zoom">100%</span>${_onStreet?'':' · <span style="color:#f1c40f">🏠 jesteś w budynku — wyjdź na ulicę, by zobaczyć swoją pozycję</span>'}</div>
+    <div id="fmap-controls" style="margin-bottom:6px;color:#aaa;font-size:11px">Scroll/+ -/przyciski = zoom · Drag = przesuwaj · ESC/M = zamknij · Zoom: <span id="fmap-zoom">100%</span>${_onStreet?'':' · <span style="color:#f1c40f">🏠 nie jesteś teraz w tej lokacji — brak znacznika Twojej pozycji</span>'}</div>
     <div id="fmap-scroll-container" style="overflow:auto;max-width:96vw;max-height:80vh;border:2px solid #2a4a6a;border-radius:8px;background:#0a0a14;box-shadow:0 0 40px rgba(0,0,0,.8);user-select:none"><div id="fmap-canvas-wrap" style="position:relative;transform-origin:top left"></div></div>
   `;
   document.body.appendChild(o);
@@ -61425,7 +61469,7 @@ function openFullMap(){
     const CL={home:'#7ec8e3',shop:'#c8a3e3',gym:'#f39c12',career:'#5dade2',park:'#7ec87e',merch:'#f48fb1',health:'#ec7063',concert:'#bb8fce',job:'#f5b041',lux:'#f1c40f',npc:'#e8e8a0',freestyle:'#e91e8c',gate:'#ff6ec7'};
     const LBL={home:'Dom / mieszkanie',shop:'Sklepy i usługi',gym:'Siłownia',career:'Kariera / studio',park:'Park / parking',merch:'Merch',health:'Zdrowie',concert:'Sala koncertowa',job:'Prace dorywcze',lux:'Drip / luksus',freestyle:'Freestyle',gate:'Bramy dzielnic',npc:'Postacie (NPC)'};
     const byCat={};
-    if(typeof MAP_LANDMARKS!=='undefined') for(const lm of MAP_LANDMARKS){ if(!lm||!lm.name) continue; (byCat[lm.cat]=byCat[lm.cat]||[]).push(lm.name); }
+    if(Array.isArray(_landmarks)) for(const lm of _landmarks){ if(!lm||!lm.name) continue; (byCat[lm.cat]=byCat[lm.cat]||[]).push(lm.name); }
     let html='';
     for(const cat in LBL){
       const items=byCat[cat]||[]; if(!items.length) continue;
@@ -61451,7 +61495,7 @@ function openFullMap(){
     if(_labelLayout) return _labelLayout;
     const scale=baseScale*1.5;
     const dripIds=['LV','Chassé','Hermel','Goccia','Valenca','Vento','Adore','Strada'];
-    const filtered=MAP_LANDMARKS.filter(lm=>!dripIds.some(d=>lm.name.includes(d)));
+    const filtered=_isCity ? _landmarks.filter(lm=>!dripIds.some(d=>lm.name.includes(d))) : _landmarks.slice();
     // Sortuj po wy potem wx
     const sorted=filtered.slice().sort((a,b)=>(a.wy-b.wy)||(a.wx-b.wx));
     /* v1.9.90: per-label szerokość zamiast stałej (dłuższe nazwy = większy promień) */
@@ -61540,9 +61584,9 @@ function openFullMap(){
     cv.style.display='block';
     const cx=cv.getContext('2d');
     // Kafelki
-    for(let r=0;r<ROOMS.ulica.hT;r++){
-      for(let c=0;c<ROOMS.ulica.wT;c++){
-        const t=ROOMS.ulica.map[r][c];
+    for(let r=0;r<MR.hT;r++){
+      for(let c=0;c<MR.wT;c++){
+        const t=MR.map[r][c];
         const colors={road:'#3a3a3a',side:'#9a9a9a',grass:'#2a5e2a',park:'#3a8030',sand:'#c8b070',water:'#3a7a9a',gdark:'#0a1a0a',flowerbed:'#7a3030'};
         cx.fillStyle=colors[t]||'#1a1a1a';
         cx.fillRect(c*T*scale, r*T*scale, T*scale+0.5, T*scale+0.5);
@@ -61550,7 +61594,7 @@ function openFullMap(){
     }
     // Budynki — filtrujemy NPC, park objects i zagospodarowanie mieszkań (apt1_*, apt2_*, apt4_*).
     // W prostokątach 1/2/4 (Mieszkanie/Penthouse/Apartament Premium) widoczne ma być TYLKO główny budynek.
-    ROOMS.ulica.objects.forEach(obj=>{
+    MR.objects.forEach(obj=>{
       if(obj.id.startsWith('npc_')||obj.id.startsWith('park_')) return;
       if(obj.id.startsWith('apt1_')||obj.id.startsWith('apt2_')||obj.id.startsWith('apt4_')) return;
       if(['fountain','pond','skate','bboying','bench','bench2'].includes(obj.id)) return;
@@ -61561,11 +61605,13 @@ function openFullMap(){
     });
     wrap.appendChild(cv);
     const fontSize=12,padding=3;
-    // Drip district label
-    const dripLabel=document.createElement('div');
-    dripLabel.style.cssText=`position:absolute;left:${(2596*scale+3244*scale)/2}px;top:${(2629-30)*scale}px;background:#c8a520;color:#000;padding:4px 8px;border-radius:5px;font-size:14px;font-weight:900;white-space:nowrap;pointer-events:none;transform:translate(-50%,-50%);box-shadow:0 2px 8px rgba(200,165,32,.6);font-family:inherit;letter-spacing:1px`;
-    dripLabel.textContent='DZIELNICA DRIPU';
-    wrap.appendChild(dripLabel);
+    // Drip district label — tylko na mapie MIASTA (współrzędne specyficzne dla ulicy)
+    if(_isCity){
+      const dripLabel=document.createElement('div');
+      dripLabel.style.cssText=`position:absolute;left:${(2596*scale+3244*scale)/2}px;top:${(2629-30)*scale}px;background:#c8a520;color:#000;padding:4px 8px;border-radius:5px;font-size:14px;font-weight:900;white-space:nowrap;pointer-events:none;transform:translate(-50%,-50%);box-shadow:0 2px 8px rgba(200,165,32,.6);font-family:inherit;letter-spacing:1px`;
+      dripLabel.textContent='DZIELNICA DRIPU';
+      wrap.appendChild(dripLabel);
+    }
     /* v2.1.184: User feedback "żółte paski na środku ulicy obok dripu" — quest target piny (np. firstjob multi-target Myjnia/Budowa/Kurier/Pizzeria z wy=2280) NAKŁADAŁY SIĘ na zwykłe MAP_LANDMARKS labels (te same wx, wy=2288 — różnica 8px). Fix: tolerancja ±20px na wx/wy match. */
     const _qTgt=(typeof _storylineTargetLoc==='function')?_storylineTargetLoc():null;
     const _qTgtList=_qTgt?(_qTgt.multi?_qTgt.targets:[_qTgt]):[];
@@ -61597,8 +61643,9 @@ function openFullMap(){
     playerLbl.textContent='📍 TY';
     wrap.appendChild(playerLbl);
     updatePlayerMarker();
-    /* v2.1.65 Amper: ZAPARKOWANE AUTO na pełnej mapie — duży żółty marker z etykietą "TWOJE AUTO". */
-    if(G.car && G._carParkedAt && !G._inCar){
+    /* v2.1.65 Amper: ZAPARKOWANE AUTO na pełnej mapie — duży żółty marker z etykietą "TWOJE AUTO".
+       v2.3.113: tylko na mapie dzielnicy, w której auto naprawdę stoi (inaczej marker w złym miejscu na innej mapie). */
+    if(G.car && G._carParkedAt && !G._inCar && (typeof _carParkRoom!=='function' || _carParkRoom()===_md)){
       const acx=G._carParkedAt.wx*scale, acy=G._carParkedAt.wy*scale;
       const carHalo=document.createElement('div');
       carHalo.style.cssText=`position:absolute;left:${acx}px;top:${acy}px;width:44px;height:44px;border-radius:50%;background:radial-gradient(circle,rgba(241,196,15,.7) 0%,rgba(241,196,15,0) 70%);transform:translate(-50%,-50%);pointer-events:none;animation:fmapHalo 1.4s ease-in-out infinite;z-index:4`;
@@ -61611,8 +61658,8 @@ function openFullMap(){
       carLbl.innerHTML=`🚗 ${carDisplayName(G.car.name)}`;
       wrap.appendChild(carLbl);
     }
-    // Quest target
-    const tgt=_storylineTargetLoc();
+    // Quest target — cele fabularne używają współrzędnych MIASTA (ulica); na mapie dzielnicy pomijamy (v2.3.113)
+    const tgt=_isCity?_storylineTargetLoc():null;
     if(tgt){
       // Multi-target (firstjob): rysuj pin dla KAŻDEGO celu, gracz sam wybiera
       const targets=tgt.multi?tgt.targets:[tgt];
@@ -61643,8 +61690,8 @@ function openFullMap(){
     const dot=document.getElementById('fmap-player-dot');
     const lbl=document.getElementById('fmap-player-lbl');
     if(!dot||!lbl) return;
-    /* v2.3.30: marker „TY" tylko na ulicy — we wnętrzu P = współrzędne wnętrza (mylący na mapie miasta). */
-    if(typeof currentRoom!=='undefined' && currentRoom!=='ulica'){ dot.style.display='none'; lbl.style.display='none'; return; }
+    /* v2.3.30/v2.3.113: marker „TY" tylko gdy oglądasz mapę dzielnicy, w której NAPRAWDĘ jesteś — inaczej P = współrzędne innej lokacji (mylący). */
+    if(typeof currentRoom!=='undefined' && currentRoom!==_md){ dot.style.display='none'; lbl.style.display='none'; return; }
     dot.style.display=''; lbl.style.display='';
     const scale=baseScale*_mapZoom;
     const px=P.wx*scale, py=P.wy*scale;
@@ -61668,7 +61715,7 @@ function openFullMap(){
      (we wnętrzu P = współrzędne wnętrza, marker ukryty). Po renderMap canvas jest już wymiarowany. */
   window._centerMapOnPlayer=function(){
     if(!sc) return false;
-    if(typeof currentRoom!=='undefined' && currentRoom!=='ulica') return false;
+    if(typeof currentRoom!=='undefined' && currentRoom!==_md) return false;
     if(typeof P==='undefined') return false;
     const scale=baseScale*_mapZoom;
     sc.scrollLeft=Math.max(0, P.wx*scale - sc.clientWidth/2);
@@ -61742,7 +61789,7 @@ function openFullMap(){
     ctrls.innerHTML='Scroll/<kbd style="background:#1a2535;padding:1px 5px;border-radius:3px;color:#7ec8e3">+</kbd>/<kbd style="background:#1a2535;padding:1px 5px;border-radius:3px;color:#7ec8e3">-</kbd> = zoom · Drag = przesuwaj · <kbd style="background:#1a2535;padding:1px 5px;border-radius:3px;color:#7ec8e3">ESC</kbd>/<kbd style="background:#1a2535;padding:1px 5px;border-radius:3px;color:#7ec8e3">M</kbd> = zamknij · Zoom: <span id="fmap-zoom">'+Math.round(_mapZoom*100)+'%</span>'+
       ' <button onclick="window._mapZoomOut()" style="'+btnStyle+'" title="Pomniejsz (-)">−</button>'+
       '<button onclick="window._mapZoomIn()" style="'+btnStyle+'" title="Powiększ (+)">+</button>'+
-      (_onStreet?'':' · <span style="color:#f1c40f">🏠 jesteś w budynku — wyjdź na ulicę, by zobaczyć swoją pozycję</span>'); /* v2.3.30: info we wnętrzu (brak markera TY) */
+      (_onStreet?'':' · <span style="color:#f1c40f">🏠 nie jesteś teraz w tej lokacji — brak znacznika Twojej pozycji</span>'); /* v2.3.30/v2.3.113: info gdy oglądasz mapę innej lokacji (brak markera TY) */
   }
   /* M3 (PDF v2.3.45): płynny zoom — subtelna animacja (transform scale canvasu z focal-point w centrum
      widoku), zamiast skokowego przerysowania. Pełny renderMap dopiero na końcu animacji (ostrość). */
@@ -62838,8 +62885,9 @@ window._s9AfterDeal=function(npcId,priceTier){
 };
 const PATCH_NOTES = [
  {
- ver:'v2.3.113',date:'2026-07-05',cats:['fix'],title:'🧹 Poprawki wygody: odklikiwanie powiadomień, mniej chaosu na start',
+ ver:'v2.3.113',date:'2026-07-05',cats:['feature','fix'],title:'🗺 Mapy dzielnic + poprawki wygody i sterowania pojazdami',
  items:[
+  {t:'new',d:'🗺 Nowość: osobne mapy dzielnic! W dużej mapie możesz teraz przełączać widok między Miastem a odblokowanymi dzielnicami (Underground, Marina Coast, Business) — każda ma własną mapę z budynkami i punktami. Zablokowane dzielnice są wyszarzone do czasu ich odblokowania, a mapy aktualizują się same, gdy w dzielnicy pojawiają się nowe miejsca.'},
   {t:'fix',d:'🟢 Zielone powiadomienia możesz teraz po prostu kliknąć, żeby zniknęły od razu — nie musisz czekać, aż same wygasną. Przydaje się, gdy zbiera się ich więcej naraz.'},
   {t:'fix',d:'▶️ Naprawione: na samym starcie gry potrafiła wyskoczyć wiadomość, że „Twój film wystrzelił", mimo że nie miałeś jeszcze żadnego nagranego filmu. Teraz taka informacja pojawia się dopiero, gdy masz na koncie co najmniej 3 opublikowane filmy.'},
   {t:'fix',d:'🔒 Wytwórnia, S9 Agency i NOX Route w folderze Kariera odblokowują się po ukończeniu poradnika na start — dzięki temu nowy gracz nie jest od razu zasypany wszystkimi opcjami. Jeśli grasz już od dłuższego czasu, korzystasz z nich bez zmian.'},
