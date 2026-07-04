@@ -50873,6 +50873,8 @@ window._vehMaybeImpact=function(hitX,hitY,dx,dy){
   window._vehImpactFx(kind,type,dealt);
   /* §17 Tier E: pojazd zbity do 0% w kolizji może zapłonąć. */
   if(window._vehOverall(kind)<=0 && typeof window._vehShouldCatchFire==='function' && window._vehShouldCatchFire(kind,'collision')){ if(typeof window._vehStartFire==='function') window._vehStartFire(kind); }
+  /* §24 Tier F: mandat za zniszczenie mienia publicznego (throttle+szansa wewnątrz). */
+  if(typeof window._vehPropertyDamageFine==='function') window._vehPropertyDamageFine(type, dealt);
 };
 window._vehImpactFx=function(kind,type,amount){
   try{
@@ -51257,6 +51259,69 @@ window._vehDrawFlames=function(sx,sy){
     g.addColorStop(0,'rgba(255,90,20,0.85)'); g.addColorStop(0.5,'rgba(255,160,40,0.7)'); g.addColorStop(1,'rgba(255,230,120,0)');
     X.fillStyle=g; X.beginPath(); X.moveTo(fx-4,sy); X.quadraticCurveTo(fx-2,fy+fh*0.4,fx,fy); X.quadraticCurveTo(fx+2,fy+fh*0.4,fx+4,sy); X.closePath(); X.fill();
   }
+};
+/* ═══ TIER F: POTRĄCENIA NPC + MANDATY ZA MIENIE (§22-24, §30) ═══ */
+/* helper mandatu: odejmij kasę (nigdy <0), zapisz do rejestru, powiadom. */
+window._vehIssueFine=function(reason, amount){
+  window._vehTrafficEnsure();
+  amount=Math.max(0,Math.round(amount||0));
+  const paid=Math.min(G.money||0, amount);
+  G.money=(G.money||0)-paid; if(typeof spent==='function'){ try{ spent(paid); }catch(_){} }
+  G.trafficFines.push({ id:'tf'+(G.day||0)+'_'+G.trafficFines.length, day:(G.day||0), amount, paid, reason, status:(paid>=amount?'paid':'partial'), ts:Date.now() });
+  if(typeof notify==='function') notify('🚔 Mandat: '+reason+' −'+paid.toLocaleString('pl')+' zł','r',7000); else if(typeof showMsg==='function') showMsg('🚔 Mandat −'+paid.toLocaleString('pl')+' zł','r',5000);
+  return paid;
+};
+window._vehObjPl=function(t){ return ({bench:'ławka',road_sign:'znak drogowy',street_lamp:'latarnia',hydrant:'hydrant',trash_bin:'kosz',tree:'drzewo',fence:'płot',metal_barrier:'barierka',building:'budynek',concrete_block:'mur'})[t]||t; };
+/* §24 mandat za zniszczenie mienia publicznego — tylko przy POWAŻNYM uderzeniu (nie za muśnięcie ściany), losowo, throttle. */
+window._vehPropFineClock=0;
+window._vehPropertyDamageFine=function(objType, dealt){
+  if((dealt||0)<18) return; /* tylko realne uderzenie, nie ocieranie */
+  const RANGES={ bench:[500,1200], road_sign:[800,1800], street_lamp:[2500,6000], hydrant:[2000,5000],
+    trash_bin:[300,900], tree:[600,1500], fence:[400,1200], metal_barrier:[800,2000], building:[5000,12000], concrete_block:[3000,8000] };
+  const r=RANGES[objType]; if(!r) return; /* ściana/pojazd — bez mandatu za mienie */
+  if(Math.random()>=0.5) return; /* nie zawsze złapany */
+  const now=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
+  if(now-(window._vehPropFineClock||0)<5000) return; window._vehPropFineClock=now;
+  const amount=r[0]+Math.floor(Math.random()*(r[1]-r[0]+1));
+  window._vehIssueFine('Zniszczenie mienia ('+window._vehObjPl(objType)+')', amount);
+  window._vehAddIncidentScore(Math.min(15, Math.floor(amount/1000)));
+  if(typeof addDefamation==='function') addDefamation(Math.floor(amount/2000));
+};
+/* §22-23 potrącenie pieszego — miękki cel (małe uszkodzenie auta) + DUŻE konsekwencje prawne/wizerunkowe. */
+window._vehPedHitClock=0;
+window._vehHitPedestrian=function(ped){
+  const kind=G._inCar?'car':(G._inCamper?'camper':null); if(!kind) return;
+  const now=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
+  if(now-(window._vehPedHitClock||0)<3500) return; window._vehPedHitClock=now;
+  window._vehApplyDamage(kind,'front',6,'pedestrian');
+  const fatal=Math.random()<0.12;
+  window._vehAddIncidentScore(fatal?30:25);
+  if(typeof window._uwAddStat==='function'){ try{ window._uwAddStat('street_heat', fatal?18:10); }catch(_){} }
+  if(G.violenceHeat!=null||true) G.violenceHeat=(G.violenceHeat||0)+(fatal?12:6);
+  if(typeof addDefamation==='function') addDefamation(fatal?20:8);
+  window._vehIssueFine(fatal?'Potrącenie ze skutkiem śmiertelnym':'Potrącenie pieszego', fatal?(5000+Math.floor(Math.random()*5001)):(2000+Math.floor(Math.random()*2001)));
+  if(typeof addNotif==='function') addNotif(fatal?'🚑🚔 Potrąciłeś przechodnia — na miejsce jadą służby. Bardzo poważne konsekwencje.':'🚑 Potrącenie przechodnia — świadkowie dzwonią po pomoc.');
+  if(typeof showMsg==='function') showMsg(fatal?'⚠️ POTRĄCENIE! Zdarzenie bardzo poważne — służby i media.':'⚠️ Potrącenie pieszego! Świadkowie zauważyli.','r',5500);
+  if(G.signalNine && typeof window._s9Effect==='function'){ try{ window._s9Effect({agencyHeat:fatal?12:5, brandTrust:fatal?-3:-1}); }catch(_){} }
+  if(typeof window._vehMaybeCrashPost==='function') window._vehMaybeCrashPost({severity:fatal?'major':'medium', involvesNpcPedestrian:true, fled:false});
+  if(ped) ped._hitFlashT=Date.now();
+  if(typeof updateHUD==='function') updateHUD();
+};
+/* §30 kolizja z autem NPC — twarde uszkodzenie obu + mandat. */
+window._vehNpcCarHitClock=0;
+window._vehHitNpcCar=function(npcCar){
+  const kind=G._inCar?'car':(G._inCamper?'camper':null); if(!kind) return;
+  const now=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
+  if(now-(window._vehNpcCarHitClock||0)<2500) return; window._vehNpcCarHitClock=now;
+  const zone=window._vehImpactZoneFromDir((P.dir===3?-1:P.dir===1?1:0),(P.dir===0?-1:P.dir===2?1:0));
+  window._vehApplyDamage(kind, zone, 22+Math.floor(Math.random()*14), 'moving_vehicle');
+  window._vehAddIncidentScore(10);
+  window._vehIssueFine('Kolizja z innym pojazdem', 1500+Math.floor(Math.random()*2501));
+  if(npcCar) npcCar.dx=0;
+  if(typeof showMsg==='function') showMsg('💥 Zderzenie z innym autem! Kierowca dzwoni po patrol.','r',4500);
+  if(typeof addNotif==='function') addNotif('🚗💥 Stłuczka z innym pojazdem — mandat i „heat".');
+  if(typeof window._vehImpactFx==='function') window._vehImpactFx(kind,'moving_vehicle',24);
+  if(typeof updateHUD==='function') updateHUD();
 };
 /* prompt zależny od stanu (§20). kind='car'|'camper'. */
 window._getVehiclePrompt=function(kind){
@@ -78701,6 +78766,15 @@ function drawCityLife(){
         }
       }
     }
+    /* §30 KOLIZJE (nowy PDF): gracz JEDZIE i wjeżdża w auto NPC (odwrócenie wzorca powyżej). Auto po _rank-filtrze. */
+    const _drivingKind = G._inCar?'car':(G._inCamper?'camper':null);
+    if(_drivingKind && _carRoom(currentRoom) && (typeof window._vehEngineOn!=='function'||window._vehEngineOn(_drivingKind))){
+      const _cAW = car.shape==='bus'?92:car.shape==='suv'?56:car.shape==='sports'?60:52;
+      const _cAH = car.shape==='bus'?34:28;
+      if(car.wx < P.wx+P.w && car.wx+_cAW > P.wx && car.wy < P.wy+P.h && car.wy+_cAH > P.wy){
+        if(typeof window._vehHitNpcCar==='function') window._vehHitNpcCar(car);
+      }
+    }
     // Draw
     // Math.round zapobiega rozpikselizowaniu (gdy auto powoli hamuje, wx jest float)
     const sx=Math.round(wx2sx(car.wx)),sy=Math.round(wy2sy(car.wy));
@@ -78988,6 +79062,13 @@ function drawCityLife(){
   }
   for(const ped of cityPeds){
     if((ped._rank||0)>=_aP) continue; /* U12/U13: ped poza aktywną gęstością — nie rysuj/nie ruszaj */
+    /* §22 KOLIZJE (nowy PDF): gracz JEDZIE i potrąca przechodnia (bbox pieszego: wx±8, wy→wy+50). */
+    if((G._inCar||G._inCamper) && typeof _carRoom==='function' && _carRoom(currentRoom)){
+      const _dk=G._inCar?'car':'camper';
+      if((typeof window._vehEngineOn!=='function'||window._vehEngineOn(_dk)) && (ped.wx-8)<P.wx+P.w && (ped.wx-8+16)>P.wx && ped.wy<P.wy+P.h && (ped.wy+50)>P.wy){
+        if(typeof window._vehHitPedestrian==='function') window._vehHitPedestrian(ped);
+      }
+    }
     if(typeof ped.idleTimer!=='number') ped.idleTimer=0;
     // v1.8.27: bug fix — baseSpd==0 to "finite number" więc poprzedni guard (isFinite) jej nie wymieniał.
     if(typeof ped.baseSpd!=='number'||!isFinite(ped.baseSpd)||ped.baseSpd<0.3) ped.baseSpd=0.9;
