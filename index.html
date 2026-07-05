@@ -52177,8 +52177,8 @@ window._eclipseNoirEnsure=function(){
       hasMetValeria:false,hasMetSilas:false,hasMetMason:false,hasEnteredBasement:false,atmosphere:null};
   }
   const c=G.eclipseNoir;
-  ['visited','hasMetValeria','hasMetSilas','hasMetMason','hasEnteredBasement'].forEach(k=>{ if(typeof c[k]!=='boolean') c[k]=false; });
-  [['lastVisitDay',0],['concertsPlayed',0],['vipAccessLevel',0],['bannedUntilDay',0],['nightsAttended',0],['reputation',0],['sceneToxicity',0]].forEach(([k,d])=>{ if(typeof c[k]!=='number'||!isFinite(c[k])) c[k]=d; });
+  ['visited','hasMetValeria','hasMetSilas','hasMetMason','hasEnteredBasement','djSupport'].forEach(k=>{ if(typeof c[k]!=='boolean') c[k]=false; });
+  [['lastVisitDay',0],['concertsPlayed',0],['vipAccessLevel',0],['bannedUntilDay',0],['nightsAttended',0],['reputation',0],['sceneToxicity',0],['lastConcertDay',0],['bestConcertScore',0]].forEach(([k,d])=>{ if(typeof c[k]!=='number'||!isFinite(c[k])) c[k]=d; });
   if(!c.atmosphere||typeof c.atmosphere!=='object'){ c.atmosphere={crowdDensity:40,heatLevel:20,musicIntensity:50,vipDensity:20,intoxicationLevel:10,flirtPressure:20,violenceRisk:10,drugPresence:20,policeAttention:10,paparazziRisk:15,opportunityLevel:30,underworldSignal:10}; }
   ECLIPSE_NOIR_ATMO.forEach(k=>{ if(typeof c.atmosphere[k]!=='number'||!isFinite(c.atmosphere[k])) c.atmosphere[k]=20; c.atmosphere[k]=Math.max(0,Math.min(100,c.atmosphere[k])); });
   /* 4J (§17): warstwa shadow-job (osobna od underworldIntro = intro Kantara). */
@@ -52279,8 +52279,151 @@ window._eclipseHub=function(){
       ${bar('📸 Papara.',a.paparazziRisk,'#e67e22')}${bar('🚔 Policja',a.policeAttention,'#3498db')}
       ${bar('🎯 Okazje',a.opportunityLevel,'#27ae60')}${bar('🌑 Cień',a.underworldSignal,'#8e44ad')}
     </div>
-    <div style="font-size:11px;color:#889;text-align:center;padding:8px">Strefy klubu (scena, bar, VIP, DJ, loże, piwnica) i postacie odblokowują się w kolejnych krokach.</div>
-    <button class="cbtn" style="margin-top:12px;width:100%;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">🚪 Wyjdź z klubu</button>
+    <button class="cbtn" style="margin-top:6px;width:100%;color:#e368b8;border-color:#7a2a5a;font-size:13px;padding:10px" onclick="window._eclipseConcertPanel()">🎤 Sprawdź możliwość koncertu</button>
+    <div style="font-size:11px;color:#889;text-align:center;padding:8px">Kolejne strefy klubu (bar, VIP, DJ, loże, piwnica) i postacie odblokowują się w następnych krokach.</div>
+    <button class="cbtn" style="margin-top:4px;width:100%;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">🚪 Wyjdź z klubu</button>
+  </div>`;
+  const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content');
+  if(mgJob&&mgContent){ mgContent.innerHTML=html; mgJob.classList.add('on'); }
+};
+
+/* ═══ 4E (§10/§11): SYSTEM KONCERTÓW Eclipse Noir — 6 slotów + calculateEclipsePerformanceScore ═══ */
+/* Bonusy sceny (§11) — z atmosfery klubu / DJ / hype-mana z ekipy. */
+window.getClubCrowdMoodBonus=function(){ window._eclipseNoirEnsure(); const a=G.eclipseNoir.atmosphere; return Math.round((a.crowdDensity||0)*0.06 + (a.vipDensity||0)*0.04); }; /* 0-10 */
+window.getDjSupportBonus=function(){ window._eclipseNoirEnsure(); const c=G.eclipseNoir; return c.djSupport?8:((c.atmosphere.musicIntensity||0)>60?4:0); }; /* DJ wspiera set */
+window.getHypeManBonus=function(){ return (Array.isArray(G.crew)&&G.crew.some(m=>m&&(m.role==='hype'||m.role==='hypeman')))?6:0; };
+/* §11 kalkulacja występu (adaptacja top-down: G.stress=MOOD high=dobrze; scena/flow=raperST; drip; energia→zmęczenie; addiction+pod-wpływem=kara). */
+window.calculateEclipsePerformanceScore=function(slotKey){
+  window._eclipseNoirEnsure();
+  const live=(typeof getRaperST==='function'?getRaperST('scena'):0);   /* 0-5 skill scena */
+  const flow=(typeof getRaperST==='function'?getRaperST('flow'):0);    /* 0-5 skill flow */
+  const fame=(G.fame||0), drip=(G.drip||0), mood=(G.stress||0), energy=(G.energy||0);
+  const fatigue=Math.max(0,100-energy), addiction=(G.addiction||0);
+  const underInfluence=((G._alcoholAddictionUntil||0)>(G.day||0)) || !!G.activeSubstance || !!G._highUntil || !!G._substanceActiveEffect;
+  let score=0;
+  score += live*6;                    /* 0-30  umiejętność sceniczna */
+  score += flow*2;                    /* 0-10  flow */
+  score += Math.min(28, fame*0.05);   /* 0-28  rozpoznawalność (cap ~fame 560) */
+  score += Math.min(10, drip*0.12);   /* 0-10  drip/styl */
+  score += mood*0.10;                 /* 0-10  nastrój (G.stress=mood) */
+  score -= fatigue*0.10;              /* 0..-10 zmęczenie */
+  score -= addiction*0.10;            /* 0..-10 uzależnienie */
+  if(underInfluence) score -= 12;     /* pod wpływem TERAZ — gorszy set */
+  score += window.getClubCrowdMoodBonus();
+  score += window.getDjSupportBonus();
+  score += window.getHypeManBonus();
+  const slotMod={warmup:8, localheat:2, midnight:-6, guest:0, vipshowcase:-4, afterparty:-8}[slotKey]||0;
+  score += slotMod;
+  return Math.max(0,Math.min(100,Math.round(score)));
+};
+/* Konfiguracja 6 slotów (§10): req + baza nagrody + charakterystyka ryzyka. */
+window._ECLIPSE_SLOTS=[
+  {key:'warmup',    emoji:'🎫', name:'Warm-up slot',        desc:'Mała kasa, mały zasięg, łatwy dostęp.',              baseMoney:220,  fameReq:0,   extraReq:null,                         reach:'mały'},
+  {key:'localheat', emoji:'🔥', name:'Local Heat slot',     desc:'Średnia kasa, lokalny szum w social.',               baseMoney:600,  fameReq:35,  extraReq:null,                         reach:'lokalny'},
+  {key:'guest',     emoji:'🤝', name:'Guest appearance',    desc:'Krótki występ u większego artysty.',                 baseMoney:850,  fameReq:80,  extraReq:'clubAccess',                 reach:'gościnny'},
+  {key:'afterparty',emoji:'🌙', name:'Afterparty set',      desc:'Chaotyczny, późny set — dużo ryzyka i plotek.',      baseMoney:1000, fameReq:60,  extraReq:null,                         reach:'nocny'},
+  {key:'midnight',  emoji:'🌌', name:'Midnight set',        desc:'Duży zasięg, ale duże ryzyko wtopy.',                baseMoney:1500, fameReq:160, extraReq:'scena2',                     reach:'duży'},
+  {key:'vipshowcase',emoji:'💎',name:'VIP showcase',        desc:'Występ dla biznesu i VIP-ów.',                       baseMoney:2400, fameReq:220, extraReq:'vip1',                       reach:'VIP'},
+];
+window._eclipseSlotLocked=function(slot){
+  const fame=(G.fame||0), c=G.eclipseNoir||{}, rel=(G.npcRelations&&G.npcRelations.valeriaCross)||{};
+  if(fame<slot.fameReq) return `wymaga sławy ${slot.fameReq}`;
+  if(slot.extraReq==='scena2' && (typeof getRaperST==='function'?getRaperST('scena'):0)<2) return 'wymaga umiejętności scenicznej 2';
+  if(slot.extraReq==='vip1' && (c.vipAccessLevel||0)<1) return 'wymaga statusu VIP';
+  if(slot.extraReq==='clubAccess' && (rel.clubAccess||0)<1 && fame<120) return 'poznaj managerkę klubu albo zdobądź większą sławę';
+  return null;
+};
+window._eclipseConcertPanel=function(){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir;
+  const gate=window.canEnterEclipseNoir(); if(!gate.ok){ if(typeof showMsg==='function') showMsg(gate.reason,'r',6000); return; }
+  const playedToday=(c.lastConcertDay===(G.day||0));
+  /* warunki ogólne występu (§10): mood/stamina + brak świeżego incydentu z policją / kryzysu wizerunku */
+  const mood=(G.stress||50), energy=(G.energy||0), heat=(G.heat||0), crisis=(G.novacura&&G.novacura.mentalCrisisLevel)||0;
+  const blockers=[];
+  if(mood<20) blockers.push('nastrój za niski na scenę');
+  if(energy<15) blockers.push('za mało energii (min. 15)');
+  if(heat>=70) blockers.push('świeży syf z policją — dziś nie zagrasz');
+  if(crisis>=2) blockers.push('kryzys wizerunku — najpierw ogarnij siebie');
+  const slots=window._ECLIPSE_SLOTS.map(s=>{
+    const lock=window._eclipseSlotLocked(s);
+    const proj=window.calculateEclipsePerformanceScore(s.key);
+    const col=lock?'#555':'#e368b8';
+    return `<div style="border:1px solid ${lock?'#333':'#7a2a5a'};border-radius:8px;padding:9px 11px;margin-bottom:6px;background:${lock?'#120a12':'#170a17'}">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:16px">${s.emoji}</span>
+        <div style="flex:1"><b style="color:${col}">${s.name}</b><div style="font-size:10px;color:#9a8">${s.desc}</div></div>
+        <div style="text-align:right;font-size:10px;color:#889">zasięg: ${s.reach}<br>baza: ${s.baseMoney} zł</div>
+      </div>
+      ${lock
+        ? `<div style="font-size:11px;color:#c0392b;margin-top:5px">🔒 ${lock}</div>`
+        : `<div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+             <div style="flex:1;font-size:10px;color:#7ec87e">prognoza formy: ~${proj}/100</div>
+             <button class="cbtn" style="font-size:11px;padding:5px 10px;color:#e368b8;border-color:#7a2a5a" ${(playedToday||blockers.length)?'disabled':''} onclick="window._eclipsePerform('${s.key}')">🎤 Zagraj</button>
+           </div>`}
+    </div>`;
+  }).join('');
+  const note = playedToday
+    ? '<div style="font-size:11px;color:#e67e22;text-align:center;padding:6px">🌙 Zagrałeś już dziś w Eclipse Noir. Wróć jutrzejszej nocy.</div>'
+    : (blockers.length? `<div style="font-size:11px;color:#c0392b;text-align:center;padding:6px">⚠️ ${blockers.join(' · ')}</div>`:'');
+  const html=`<div style="background:#0a0810;border:2px solid #7a2a5a;border-radius:10px;padding:18px;max-width:600px;margin:0 auto;max-height:82vh;overflow-y:auto;color:#fff">
+    <h2 style="margin-top:0;color:#e368b8">🎤 Eclipse Noir — koncerty</h2>
+    <div style="font-size:11px;color:#9a8;margin-bottom:10px">Noc ×${window.getEclipseNoirNightMultiplier()} · rozegranych występów: ${c.concertsPlayed} · rekord formy: ${c.bestConcertScore}/100</div>
+    ${note}
+    ${slots}
+    <button class="cbtn" style="margin-top:10px;width:100%;color:#fff" onclick="window._eclipseHub()">← Wróć na parkiet</button>
+  </div>`;
+  const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content');
+  if(mgJob&&mgContent){ mgContent.innerHTML=html; mgJob.classList.add('on'); }
+};
+window._eclipsePerform=function(slotKey){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir;
+  const slot=window._ECLIPSE_SLOTS.find(s=>s.key===slotKey); if(!slot) return;
+  if(window._eclipseSlotLocked(slot)){ if(typeof showMsg==='function') showMsg('🔒 Ten slot jest jeszcze zablokowany.','r',3500); return; }
+  if(c.lastConcertDay===(G.day||0)){ if(typeof showMsg==='function') showMsg('🌙 Zagrałeś już dziś. Wróć jutrzejszej nocy.','i',4000); return; }
+  if((G.energy||0)<15){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii na występ (min. 15).','r',3500); return; }
+  const score=window.calculateEclipsePerformanceScore(slotKey);
+  const nightMult=window.getEclipseNoirNightMultiplier();
+  G.energy=Math.max(0,(G.energy||0)-15);
+  c.lastConcertDay=(G.day||0); c.concertsPlayed=(c.concertsPlayed||0)+1;
+  if(score>(c.bestConcertScore||0)) c.bestConcertScore=score;
+  /* nagroda: baza × (0.35 + score/100 ×0.9) × mnożnik nocy */
+  const money=Math.round(slot.baseMoney*(0.35+score/100*0.9)*nightMult/10)*10;
+  /* fani/szum wg tiera formy */
+  let fansGain=0, buzzGain=0, moodDelta=0, tier='', tierColor='', msg='';
+  if(score<=30){ tier='Słaby występ'; tierColor='#c0392b'; fansGain=0; buzzGain=0; moodDelta=-8; c.sceneToxicity=Math.min(100,(c.sceneToxicity||0)+6); msg='Publika buczy, w komentarzach jadą po Tobie. Schodzisz ze sceny z ciężką głową.'; }
+  else if(score<=55){ tier='Poprawny występ'; tierColor='#e67e22'; fansGain=Math.round(6+score*0.3); buzzGain=Math.round(score*0.2); moodDelta=2; msg='Bez fajerwerków, ale ludzie klaskali. Kilka nowych osób Cię zapamiętało.'; }
+  else if(score<=75){ tier='Dobry występ'; tierColor='#f1c40f'; fansGain=Math.round(20+score*0.7); buzzGain=Math.round(score*0.5); moodDelta=6; msg='Parkiet się rozgrzał! Szum w social rośnie, ktoś pisze do Ciebie w DM.'; }
+  else if(score<=90){ tier='Bardzo dobry występ'; tierColor='#7ec87e'; fansGain=Math.round(40+score*1.0); buzzGain=Math.round(score*0.8); moodDelta=10; msg='Klub oszalał. VIP-y z piętra zaczynają pytać, kim jesteś.'; }
+  else { tier='NOC PRZEŁOMOWA'; tierColor='#e368b8'; fansGain=Math.round(70+score*1.4); buzzGain=Math.round(score*1.1); moodDelta=14; c.reputation=Math.min(100,(c.reputation||0)+8); msg='To była TA noc. Cały klub śpiewa z Tobą. Ludzie, którzy się liczą, właśnie Cię zauważyli.'; }
+  /* aplikacja */
+  G.money=(G.money||0)+money;
+  if(fansGain>0 && typeof addFans==='function') addFans(fansGain); else if(fansGain>0) G.fans=(G.fans||0)+fansGain;
+  if(buzzGain>0){ G._socialBuzz=(G._socialBuzz||0)+buzzGain; }
+  G.stress=(typeof clampStat==='function')?clampStat('stress',(G.stress||50)+moodDelta):Math.max(0,Math.min(100,(G.stress||50)+moodDelta));
+  if(typeof addXP==='function') addXP(20+Math.round(score*0.5));
+  c.reputation=Math.min(100,(c.reputation||0)+Math.round(score*0.03));
+  /* 91-100: flaga na reakcje managerów/sponsora/S9 w kolejnych fazach (§11 wynik 91-100) */
+  if(score>=91){ c._breakthroughPending=true; c._breakthroughDay=(G.day||0); }
+  /* afterparty/midnight — większe ryzyko plotki (paparazzi/toxicity) */
+  if((slotKey==='afterparty'||slotKey==='midnight') && score<56){ c.atmosphere.paparazziRisk=Math.min(100,(c.atmosphere.paparazziRisk||0)+10); }
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  /* ekran wyniku */
+  const html=`<div style="background:#0a0810;border:2px solid ${tierColor};border-radius:10px;padding:20px;max-width:560px;margin:0 auto;color:#fff;text-align:center">
+    <div style="font-size:12px;color:#9a8">${slot.emoji} ${slot.name}</div>
+    <h2 style="margin:6px 0;color:${tierColor}">${tier}</h2>
+    <div style="font-size:42px;font-weight:800;color:${tierColor};margin:4px 0">${score}<span style="font-size:16px;color:#889">/100</span></div>
+    <div style="font-size:12px;color:#cdd;margin:10px 0 14px">${msg}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:12px;background:#140a14;border-radius:8px;padding:10px;text-align:left">
+      <div>💰 Zarobek: <b style="color:#7ec87e">+${money} zł</b></div>
+      <div>👥 Fani: <b style="color:${fansGain?'#7ec87e':'#889'}">${fansGain?'+'+fansGain:'—'}</b></div>
+      <div>📣 Szum: <b style="color:${buzzGain?'#7ec87e':'#889'}">${buzzGain?'+'+buzzGain:'—'}</b></div>
+      <div>😊 Nastrój: <b style="color:${moodDelta>=0?'#7ec87e':'#c0392b'}">${moodDelta>=0?'+':''}${moodDelta}</b></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="cbtn" style="flex:1;color:#e368b8;border-color:#7a2a5a" onclick="window._eclipseConcertPanel()">🎤 Panel koncertów</button>
+      <button class="cbtn" style="flex:1;color:#fff" onclick="window._eclipseHub()">🚪 Na parkiet</button>
+    </div>
   </div>`;
   const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content');
   if(mgJob&&mgContent){ mgContent.innerHTML=html; mgJob.classList.add('on'); }
