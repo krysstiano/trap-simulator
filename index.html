@@ -34325,10 +34325,25 @@ function sellBeatPack(){
 }
 
 // ─── GAMER ────────────────────────────────────────────────────────
+/* v2.3.114 (user 2026-07-05: „turnieje gamingowe dają za dużo wcześnie — 6-7k; takie wartości mają być
+   późno; więcej rang i ich faktyczny wpływ na zarobek"). Rangi 6→9 scentralizowane. Nagroda turnieju
+   bramkowana PROGRESJĄ (ranga = główny driver + sława = bramka), nie samym skillem — patrz finishTournament. */
+const GAMER_RANKS=['Brąz','Srebro','Złoto','Platyna','Diament','Mistrz','Arcymistrz','Pretendent','Legenda'];
+const GAMER_RANK_BASE=[600,1000,1700,2800,4500,7000,10500,15000,22000]; /* baza nagrody per ranga (wykładniczo) */
+const GAMER_RANK_WINS_REQ=[1,1,2,2,3,3,4,5]; /* wygranych rankingowych do awansu Z danej rangi (wyżej = trudniej) */
+/* baza nagrody turnieju bramkowana PROGRESJĄ: ranga (główny driver) × sława (bramka) × występ (skill, umiarkowany).
+   Bez skilla drzewka/managementu/capa — te aplikuje finishTournament. Testowalne (dbg/judge). */
+window._gamerTourneyBasePrize=function(ri,fame,score){
+  const RI=Math.max(0,Math.min(GAMER_RANK_BASE.length-1,ri|0));
+  const rankBase=GAMER_RANK_BASE[RI]||600;
+  const fameFactor=0.30+0.70*Math.min(1,Math.max(0,fame||0)/250);
+  const perfMod=0.65+0.35*Math.min(1,Math.max(0,score||0)/700);
+  return Math.floor(rankBase*fameFactor*perfMod);
+};
 function renderGamerOverlay(){
   const car=G.careers.gamer;
   if(!car.unlocked){document.getElementById('ov-content').innerHTML=`<h2>🎮 Gamer</h2><p class="sub">Odblokuj osiągając poziom 2 (jesteś lvl ${G.level}) <strong>lub</strong> kupując punkt w drzewku 🎮 Gamer (Telefon → Drzewko).</p><button class="cbtn" onclick="closeOverlay()">← Wróć</button>`;return;}
-  const ranks=['Brąz','Srebro','Złoto','Platyna','Diament','Mistrz'];
+  const ranks=GAMER_RANKS;
   // Cross-career: szacuj widzów najbliższego streama
   const ytSubs=G.yt.subs||0, ytVideos=G.yt.videos?.length||0;
   const skillGamer=(G.skills&&getSkillLvl('gamer'))||0;
@@ -34364,7 +34379,7 @@ function renderGamerOverlay(){
       <div class="card"><h3>🏆 Turniej</h3><p>Szansa na wygraną zależy od rangi i szczęścia.</p><div class="cost">Energia: -25 · Wpisowe: ${50+ranks.indexOf(car.rank)*50} zł</div><button class="dbtn" ${G.energy<25||G.money<50+ranks.indexOf(car.rank)*50?'disabled':''} onclick="joinTournament()">Dołącz</button></div>
       <div class="card"><h3>📡 Streaming</h3><p>Streamuj rozgrywkę. ${ytSubs>=100?'Twój kanał YT przyciąga widzów.':'Wbij 100 subów YT żeby ściągnąć więcej widzów.'}</p><div class="cost">Energia: -15</div><button class="dbtn" ${G.energy<15?'disabled':''} onclick="startStream()">Stream live</button></div>
       <!-- v2.1.343 Faza P (user 2026-05-27 "Rankingowa działa tak, że nie wiadomo w ogóle o co chodzi, co daje, co się dostaje, po co ją robić"): opis explicit informuje co gracz dostaje + jak grać + po co. -->
-      <div class="card"><h3>📈 Rankingowa <span style="font-size:11px;color:#aac;font-weight:normal">(${car.rank} → ${(['Brąz','Srebro','Złoto','Platyna','Diament','Mistrz'])[Math.min(5,(['Brąz','Srebro','Złoto','Platyna','Diament','Mistrz']).indexOf(car.rank)+1)]||'MAX'})</span></h3><p style="font-size:11.5px;line-height:1.5">Mecz e-sport: 5 rund klawiszy <strong>Q/W/E/R/A/S/D/F</strong> losowo — szybko wcisnąć. <strong>Wygrana (>75% pkt)</strong> = awans rangi <em>Brąz → Srebro → Złoto → Platyna → Diament → Mistrz</em>. <strong>Po co?</strong> Lepsza ranga = wyższe wpisowe i większe nagrody w 🏆 Turniejach.</p><div class="cost">Energia: -10 · Nagroda: +30 XP (wygrana) / +12 XP</div><button class="dbtn" ${G.energy<10?'disabled':''} onclick="playRanked()">Zagraj rankingowy</button></div>
+      <div class="card"><h3>📈 Rankingowa <span style="font-size:11px;color:#aac;font-weight:normal">(${car.rank} → ${GAMER_RANKS[Math.min(GAMER_RANKS.length-1,GAMER_RANKS.indexOf(car.rank)+1)]||'MAX'})</span></h3><p style="font-size:11.5px;line-height:1.5">Mecz e-sport: 5 rund klawiszy <strong>Q/W/E/R/A/S/D/F</strong> losowo — szybko wcisnąć. <strong>Wygrana (>75% pkt)</strong> buduje awans w drabince <em>9 rang: Brąz → Srebro → Złoto → Platyna → Diament → Mistrz → Arcymistrz → Pretendent → Legenda</em>. Im wyższa ranga, tym więcej wygranych trzeba na kolejny awans${GAMER_RANKS.indexOf(car.rank)>=0?` (teraz ${(car.rankWins||0)}/${GAMER_RANK_WINS_REQ[GAMER_RANKS.indexOf(car.rank)]||'—'})`:''}. <strong>Po co?</strong> Ranga to główny mnożnik nagród w 🏆 Turniejach — a dodatkowo im większa Twoja sława, tym więcej płaci turniej. Duże wypłaty są dla znanych graczy z wysoką rangą.</p><div class="cost">Energia: -10 · Nagroda: +30 XP (wygrana) / +12 XP</div><button class="dbtn" ${G.energy<10?'disabled':''} onclick="playRanked()">Zagraj rankingowy</button></div>
     </div>
     <div class="res" id="game-res">Wybierz akcję.</div>
     <button class="cbtn" onclick="closeOverlay()">← Wróć</button>
@@ -34379,7 +34394,7 @@ function joinTournament(){
     showMsg('🎮 Tylko 1 turniej dziennie — publiczność i zawodnicy potrzebują odpoczynku. Wróć jutro.','r',5000);
     return;
   }
-  const ranks=['Brąz','Srebro','Złoto','Platyna','Diament','Mistrz'];
+  const ranks=GAMER_RANKS;
   const ri=ranks.indexOf(G.careers.gamer.rank);
   const fee=50+ri*50;
   if(G.money<fee){showMsg('⚠️ Brak kasy na opłatę startową.','r');return;}
@@ -34399,7 +34414,7 @@ function startTournamentMG(ri,fee){
   let waitingKey='',keyTimeout=null,raf,keyStart=0;
   let particles=[],targetX=0,targetY=0,keyFlash=0,flashCol='#27ae60';
   let stageWins=0; // wymagane: ROUNDS_PER_STAGE*0.6 = 2.4 ≈ 3 punktowe akcje
-  const ranks=['Brąz','Srebro','Złoto','Platyna','Diament','Mistrz'];
+  const ranks=GAMER_RANKS;
 
   document.getElementById('mg-job-content').innerHTML=`
     <div style="display:flex;flex-direction:column;align-items:center;gap:10px;width:100%;max-width:680px">
@@ -34505,14 +34520,16 @@ function startTournamentMG(ri,fee){
     document.removeEventListener('keydown',kh);if(keyTimeout)clearTimeout(keyTimeout);
     G.energy=clampStat('energy', G.energy-25);
     if(won){
-      /* v2.1.86 Amper: BUFF turniej payout — `fee*2*(ri+2)` → `fee*4*(ri+2) + score + (G.fame||0)*10`. Plus rank scaling.
-         v2.1.342 Faza L NERF (user 2026-05-27 "Turniej totalnie złamany, przesadzone pieniądze i sławę"): prize × 0.5 (50% redukcja base + multiplikatory). Hard cap 50k → 25k (analog 50% redukcja). Fame 12 → 8 (33% redukcja). Daily cap 3 → 2 (joinTournament). Worst-case stack: 27.6k → 13.8k per turniej × 2 = max 27.6k/dzień (zamiast 82.8k/dzień). Fame: 12×3=36/dzień → 8×2=16/dzień (-55%). */
-      let prize=fee*4*(ri+2)+score+Math.floor(Math.min(100,G.fame||0)*10);
-      prize=Math.floor(prize*getKarieraBonus('gamer')); // F3-FIX-B
+      /* v2.3.114 (user 2026-07-05): REBALANS — nagroda bramkowana PROGRESJĄ, nie skillem. Wcześniej
+         fee*4*(ri+2)+score+fame*10 ×getKarieraBonus dawało 6-7k już wcześnie (skill w drzewku mnożył słabo
+         bramkowaną bazę). Teraz: RANGA = główny driver (GAMER_RANK_BASE, wykładniczo) × SŁAWA (bramka: niska
+         sława mocno tnie) × modyfikator występu (skill w minigrze, umiarkowany). getKarieraBonus zostaje
+         (nagroda za drzewko), ale mnoży już-bramkowaną-progresją bazę → early Brąz+niska sława = grosze,
+         late Legenda+wysoka sława = pełne 6-25k. */
+      let prize=window._gamerTourneyBasePrize(ri,(G.fame||0),score); // ranga×sława×występ (progresja)
+      prize=Math.floor(prize*getKarieraBonus('gamer'));            // inwestycja w drzewko Gamer (na już-bramkowanej bazie)
       if(G.managementDeal)prize=Math.floor(prize*G.managementBonus);
-      prize=Math.floor(prize*0.6); /* v2.1.342: 50% nerf. v2.1.865 (rebalans Vegan kariery +1.7%): ×0.5→×0.6 (gamer turniej; cap 25k bez zmian, fame bez zmian) */
-      /* v2.1.342: HARD CAP 50k→25k (proportional do 50% nerf). */
-      prize=Math.min(25000,prize);
+      prize=Math.min(25000,prize);                                 // HARD CAP 25k (tylko top ranga + max sława + skill)
       const _paid=earn(prize,false,'gamer');G.careers.gamer.tourneysWon++;addXP(50); /* v2.1.865: _paid = REALNA kwota (mnożniki + limiter kariery) */
       /* v2.1.358 Faza L iter2 (user 2026-05-28 "wciąż daje nieporównywalnie więcej niż inne early-game rzeczy"): fame 8 → 4 (-50% nerf, total nerf z v2.1.342 12→8→4). Powód: turniej fame ratio per akcja dominował IG posts (max 3/post × 2 = 6/dzień) i koncerty (5-10 fame). Po nerf: 4 fame × 1 daily = 4 fame/dzień, comparable do innych source'ów. */
       if(typeof addFame==='function')addFame(4);else G.fame=clamp(G.fame+4,0,500);
@@ -34958,7 +34975,7 @@ function startRankedGameMG(){
   const panel=document.getElementById('mg-job');panel.style.display='';panel.classList.add('on');_jobPanelSession++;
   const ROUNDS=5,KEYS=['Q','W','E','R','A','S','D','F'];
   let round=0,score=0,streak=0,maxStreak=0,over=false,waitingKey='',keyTimeout=null,raf;
-  const ranks=['Brąz','Srebro','Złoto','Platyna','Diament','Mistrz'];
+  const ranks=GAMER_RANKS;
   const ri=ranks.indexOf(G.careers.gamer.rank)||0;
 
   document.getElementById('mg-job-content').innerHTML=`
@@ -35049,12 +35066,21 @@ function startRankedGameMG(){
     document.removeEventListener('keydown',kh);if(keyTimeout)clearTimeout(keyTimeout);
     G.energy=clampStat('energy', G.energy-10);
     const win=score>ROUNDS*15;
-    if(win&&ri<ranks.length-1){G.careers.gamer.rank=ranks[ri+1];addXP(30);notify('⬆️ Awans rangi: '+ranks[ri+1]+'!');}
-    else addXP(12);
+    /* v2.3.114 (user): wyższe rangi wymagają WIĘCEJ wygranych rankingowych (trudniej wbić). */
+    let _advanced=false, _progTxt='';
+    if(win){
+      addXP(30);
+      if(ri<ranks.length-1){
+        const _req=GAMER_RANK_WINS_REQ[ri]||1;
+        G.careers.gamer.rankWins=(G.careers.gamer.rankWins||0)+1;
+        if(G.careers.gamer.rankWins>=_req){ G.careers.gamer.rank=ranks[ri+1]; G.careers.gamer.rankWins=0; _advanced=true; notify('⬆️ Awans rangi: '+ranks[ri+1]+'!'); }
+        else { _progTxt=`${G.careers.gamer.rankWins}/${_req} do awansu`; notify(`🎮 Wygrana rankingowa — ${_progTxt} na ${ranks[ri+1]}.`); }
+      }
+    } else addXP(12);
     progressQuest('ranked');
     ctx.fillStyle='rgba(0,0,0,.85)';ctx.fillRect(0,0,W,H);
     ctx.font='bold 28px "Segoe UI"';ctx.fillStyle=win?'#27ae60':'#e74c3c';ctx.textAlign='center';
-    ctx.fillText(win?`🏆 Wygrana! Nowa ranga: ${ranks[Math.min(ri+1,ranks.length-1)]}`:`📊 Wynik: ${score}pkt (${ROUNDS} rund)`,W/2,H/2-15);
+    ctx.fillText(win?(_advanced?`🏆 AWANS! Nowa ranga: ${G.careers.gamer.rank}`:(_progTxt?`🏆 Wygrana! (${_progTxt})`:`🏆 Wygrana!`)):`📊 Wynik: ${score}pkt (${ROUNDS} rund)`,W/2,H/2-15);
     ctx.fillStyle='#aaa';ctx.font='18px "Segoe UI"';ctx.fillText(`Max seria: ${maxStreak}x`,W/2,H/2+20);ctx.textAlign='left';
     closeJobPanelAfter(2800);
     setTimeout(()=>{if(panel.classList.contains('on'))return;openCareerOverlay('gamer');},2900);
@@ -44916,6 +44942,9 @@ window._startSurfChoice=function(){
 };
 window._surfTick=function(){
   const mg=G._surfMG; if(!mg||mg.over) return;
+  /* robustność (klasa spa/skate): panel zamknięty z zewnątrz (nawigacja/inny MG) → przerwij, nie kończ w tle (crash null innerHTML). */
+  const _sp=document.getElementById('mg-job');
+  if(!_sp || !_sp.classList.contains('on')){ if(G._surfInterval){clearInterval(G._surfInterval);G._surfInterval=null;} if(G._surfKeyH){try{window.removeEventListener('keydown',G._surfKeyH);}catch(_){}G._surfKeyH=null;} G._surfMG=null; return; }
   mg.vel += (Math.random()-0.5)*1.05;  /* v2.3.107: siła fali 1.7→1.05 (mniej chaosu, korekta bardziej odczuwalna) */
   mg.vel *= 0.9;                        /* tłumienie 0.92→0.9 */
   mg.pos += mg.vel;
@@ -44935,7 +44964,7 @@ window._surfAbort=function(){
   if(G._surfInterval){clearInterval(G._surfInterval);G._surfInterval=null;}
   if(G._surfKeyH){try{window.removeEventListener('keydown',G._surfKeyH);}catch(_){}G._surfKeyH=null;} /* v2.3.107 CO2 */
   G._surfMG=null;
-  document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';
+  { const _mg=document.getElementById('mg-job'); if(_mg) _mg.classList.remove('on'); const _mc=document.getElementById('mg-job-content'); if(_mc) _mc.innerHTML=''; }
   if(typeof showMsg==='function') showMsg('🏄 Zszedłeś z fali (wynajem niezwracany).','i',3500);
 };
 window._surfFinish=function(wipeout){
@@ -44957,7 +44986,7 @@ window._surfFinish=function(wipeout){
   if(typeof window._coastVibeTick==='function') window._coastVibeTick();
   if(typeof progressQuest==='function') progressQuest('coast_visit');
   G._surfMG=null;
-  document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';
+  { const _mg=document.getElementById('mg-job'); if(_mg) _mg.classList.remove('on'); const _mc=document.getElementById('mg-job-content'); if(_mc) _mc.innerHTML=''; }
   if(typeof showMilestoneCinematic==='function') showMilestoneCinematic({emoji:wipeout?'💦':'🏄',title:wipeout?'WIPEOUT!':'PRZEJAZD!',subtitle:`Stabilność ${Math.round(score*100)}%`,tagline:`+${_forma} forma · +${_fit} kondycja${_fame?` · +${_fame} sławy · +${_followers} obs`:''}`,accentColor:wipeout?'#e67e22':'#3498db',accent2:'#0a1a20',duration:5000});
   if(typeof addXP==='function') addXP(20+Math.round(score*40));
   if(typeof saveGameSilent==='function') saveGameSilent();
@@ -64832,6 +64861,13 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.114',date:'2026-07-05',cats:['fix'],title:'🎮 Turnieje esportowe przebalansowane + drobne poprawki',
+ items:[
+  {t:'fix',d:'🎮 Turnieje esportowe (Gaming) przebalansowane! Wcześniej potrafiły dać kilka tysięcy złotych już na samym początku gry — teraz nagroda zależy przede wszystkim od Twojej rangi i sławy. Rang jest teraz dziewięć (od Brązu, przez Mistrza, po Legendę) i to one są głównym mnożnikiem wypłaty, a im większa Twoja sława, tym więcej płaci turniej. Na starcie to skromne kwoty; duże wygrane (kilka–kilkanaście tysięcy) są nagrodą dla znanych graczy z wysoką rangą. Dodatkowo im wyższa ranga, tym więcej wygranych rankingowych trzeba na kolejny awans — droga na szczyt naprawdę coś znaczy.'},
+  {t:'fix',d:'🏄 Naprawione: aktywność surfingu na Marina Coast nie zawiesza już ekranu, jeśli w jej trakcie przejdziesz w inne miejsce — sesja po prostu się kończy, zamiast pisać w nieistniejące okno.'},
+ ]
+ },
  {
  ver:'v2.3.113',date:'2026-07-05',cats:['feature','fix'],title:'🗺 Mapy dzielnic + poprawki wygody i sterowania pojazdami',
  items:[
