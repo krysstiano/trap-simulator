@@ -21099,6 +21099,55 @@ window._applyTheftCareerDamage=function(visibility){
   window._theftCollapseRisk();
   return t;
 };
+/* v2.3.113 (PDF new/3 §21-22): viral event „Nagranie z kradzieży" — gdy kradzież gracza nagrana i fame>=10. */
+window._theftSocialReactions=function(){
+  if(!Array.isArray(G._worldPosts)) G._worldPosts=[];
+  const nm=G.name||'Ktoś';
+  const A=window._VEH_CRASH_AUTHORS||[{author:'Miejskie Newsy',handle:'city_newsy',avatar:'📰'},{author:'Trap Tea',handle:'trap_tea',avatar:'🫖'},{author:'Anonim z osiedla',handle:'anon_hood',avatar:'👀'}];
+  const _r=(a,b)=>(typeof rnd==='function')?rnd(a,b):a+Math.floor(Math.random()*(b-a+1));
+  const posts=[
+    {a:A[2], text:'To serio '+nm+' na tym nagraniu? Bo jeśli tak, to cała gadka o muzyce zaczyna wyglądać kiepsko...'},
+    {a:A[1], text:nm+' robi tracki o ambicji, a potem lata po mieście na przypale. Co za zjazd, masakra...'},
+    {a:A[0], text:'Numer dobry, ale po tej akcji ciężko brać gościa serio.'},
+  ];
+  posts.forEach(p=>{ G._worldPosts.push({ author:p.a.author, handle:p.a.handle, avatar:p.a.avatar, text:p.text, day:(G.day||0), isThirdParty:true, likes:_r(8,60) }); });
+  if(G._worldPosts.length>40) G._worldPosts.splice(0,G._worldPosts.length-40);
+};
+window._theftRecordingEvent=function(){
+  if((G.fame||0)<10) return false; /* §21 trigger: fame>=10 */
+  const t=window._theftCareerEnsure();
+  if(typeof _publicRepEnsure==='function')_publicRepEnsure();
+  /* §21 efekty (eskalacja medialna ponad bazowe 'recorded') */
+  G._underworldRespect=Math.min(100,(G._underworldRespect||0)+25);
+  t.publicCrimeExposure+=25; t.mediaRisk=Math.min(100,(t.mediaRisk||0)+3);
+  if(G.publicRep) G.publicRep.fanLoyalty=Math.max(0,(G.publicRep.fanLoyalty||60)-15);
+  window._theftCollapseRisk();
+  window._theftSocialReactions();
+  const _msg='Ktoś wrzucił do sieci film, na którym widać, jak bierzesz udział w kradzieży albo próbujesz uciec z miejsca zdarzenia. Komentarze zaczynają mieszać Twoją muzykę z tym, co wydarzyło się na ulicy.';
+  if(typeof showEventChoice==='function'){
+    showEventChoice('🎥 Nagranie z kradzieży', _msg, [
+      {label:'😶 Przeczekaj burzę', fn:()=>{ if(typeof showMsg==='function')showMsg('😶 Milczysz. Temat żyje własnym życiem — sprawdź wizerunek i S9 Agency.','i',5500); }},
+      {label:'📱 Ogarnij wizerunek w S9 Agency', fn:()=>{ if(typeof showMsg==='function')showMsg('📱 S9 Agency ma narzędzia do opanowania kryzysu wizerunkowego.','i',5000); }},
+    ]);
+  } else if(typeof addNotif==='function') addNotif('🎥 Nagranie z Twojej kradzieży krąży po sieci.');
+  if(typeof window._novaLog!=='function' && typeof addNotif==='function') addNotif('🎥 Nagranie z kradzieży w sieci.');
+  return true;
+};
+/* v2.3.113 (PDF new/3 §20 upadek wizerunku): panel kryzysu kariery przy careerCollapseRisk>60 — 5 ciężkich decyzji. */
+window._theftCrisisPanel=function(){
+  const t=window._theftCareerEnsure(); const risk=window._theftCollapseRisk();
+  if(risk<=60){ if(typeof showMsg==='function')showMsg('✅ Wizerunek pod kontrolą — kryzys kariery jeszcze Ci nie grozi.','i',4000); return false; }
+  if(typeof showEventChoice!=='function') return false;
+  const band=window._theftBand(risk);
+  showEventChoice('🚨 Kryzys wizerunkowy — '+band.label+' ('+risk+'/100)', 'Twoja kariera jest pod silną presją po głośnych akcjach na ulicy. Musisz podjąć trudną decyzję.', [
+    {label:'🤫 Wycisz karierę na kilka dni', fn:()=>{ t.publicCrimeExposure=Math.max(0,t.publicCrimeExposure-15); G._careerSilenceUntil=(G.day||0)+3; window._theftCollapseRisk(); if(typeof showMsg==='function')showMsg('🤫 Znikasz z radaru na kilka dni — ekspozycja spada, ale tempo kariery przygasa.','i',6000); }},
+    {label:'💼 Zapłać za crisis control (S9) — 12000 zł', fn:()=>{ if((G.money||0)<12000){ if(typeof showMsg==='function')showMsg('⚠️ Brak 12000 zł na crisis control.','r'); return; } G.money-=12000; t.publicCrimeExposure=Math.max(0,t.publicCrimeExposure-25); t.mediaRisk=Math.max(0,t.mediaRisk-10); window._theftCollapseRisk(); if(typeof showMsg==='function')showMsg('💼 S9 Agency opanowuje narrację. Ryzyko upadku wyraźnie spada.','g',6000); }},
+    {label:'✂️ Publicznie odetnij się od działań', fn:()=>{ if(typeof _publicRepEnsure==='function')_publicRepEnsure(); if(G.publicRep)G.publicRep.fanLoyalty=Math.min(100,(G.publicRep.fanLoyalty||60)+5); t.publicCrimeExposure=Math.max(0,t.publicCrimeExposure-8); t.hiddenCrimeScore=Math.max(0,(t.hiddenCrimeScore||0)-2); window._theftCollapseRisk(); if(typeof showMsg==='function')showMsg('✂️ Publiczne odcięcie — fani nieco odzyskują zaufanie, ale półświatek to zauważa.','i',6000); }},
+    {label:'🌑 Wejdź głębiej w cień', fn:()=>{ G._underworldRespect=Math.min(100,(G._underworldRespect||0)+8); t.hiddenCrimeScore=(t.hiddenCrimeScore||0)+3; window._theftCollapseRisk(); if(typeof showMsg==='function')showMsg('🌑 Odpuszczasz wizerunek dla ulicy — respekt półświatka rośnie, legalna kariera dalej pod presją.','i',6000); }},
+    {label:'🤷 Zaryzykuj — nic nie rób', fn:()=>{ t.mediaRisk=Math.min(100,(t.mediaRisk||0)+3); window._theftCollapseRisk(); if(typeof showMsg==='function')showMsg('🤷 Ignorujesz temat. Ryzyko utraty legalnych współprac rośnie.','r',6000); }},
+  ]);
+  return true;
+};
 window._publicRepDailyTick=function(){
   _publicRepEnsure();
   const heat=(G.trap&&G.trap.unlocked)?(G.trap.heat||0):0;
@@ -28816,6 +28865,14 @@ window._attemptTheft=function(method){
   applyRobberyConsequences(res);
   if(success){ if(typeof notify==='function') notify('🥷 '+t.emoji+' '+t.name+' — udany skok!'+(loot>0?(' +'+loot+' zł'):'')+itemMsg+(seen?' (ktoś patrzył...)':' Nikt nie zauważył.'), seen?'i':'g', 5500); }
   else { let extra=''; if(res._fine) extra+=' Mandat −'+res._fine+' zł.'; if(recorded) extra+=' Ktoś to NAGRAŁ — trafi do sieci.'; if(method==='shoplift'&&res._banDays) extra+=' Sklep zablokował Ci wejście na '+res._banDays+' dni.'; if(res._jail) extra+=' Areszt '+res._jail+' dni.'; if(typeof notify==='function') notify('🚨 '+t.emoji+' '+t.name+' — wpadka!'+extra, 'r', 8000); }
+  /* v2.3.113 (PDF new/3 §19-21): kradzież gracza uderza w wizerunek wg widoczności; nagranie przy fame>=10 = viral; kryzys → panel. */
+  if(typeof window._applyTheftCareerDamage==='function'){
+    window._theftCareerEnsure(); G.theftCareer.theftCount=(G.theftCareer.theftCount||0)+1;
+    const _vis = recorded ? 'recorded' : (seen ? 'witnessed' : 'unseen');
+    if(_vis==='recorded' && (G.fame||0)>=10 && typeof window._theftRecordingEvent==='function') window._theftRecordingEvent(); /* pełny viral §21 (bez podwójnego liczenia) */
+    else window._applyTheftCareerDamage(_vis);
+    if((G.theftCareer.careerCollapseRisk||0)>60 && G._theftCrisisOfferedDay!==G.day && typeof window._theftCrisisPanel==='function'){ G._theftCrisisOfferedDay=G.day; setTimeout(()=>{ try{ window._theftCrisisPanel(); }catch(_){} }, 1500); }
+  }
   if(typeof updateHUD==='function') updateHUD();
 };
 window._theftOpportunity=function(){
@@ -63164,6 +63221,7 @@ const PATCH_NOTES = [
   {t:'new',d:'💉 W Nova Cura dostępne są teraz pełne programy wychodzenia z nałogu: krótka stabilizacja po kryzysie oraz intensywne programy (7 dni, 14 dni i dyskretny program premium). Im mocniejszy program, tym większy spadek uzależnienia, objawów odstawienia i napięcia. Kosztują sporo, ale to realna droga do odzyskania kontroli.'},
   {t:'new',d:'⚠️ Wychodzenie z nałogu bywa wyboiste — przy dużym uzależnieniu zdarzają się nawroty, które cofają część postępu. A jeśli jesteś rozpoznawalny i mocno przesadzasz, ktoś może nagrać Cię w kiepskim stanie i wrzucić do sieci, co uderza w Twój wizerunek. Warto trzymać rękę na pulsie.'},
   {t:'new',d:'📝 W Nova Cura możesz teraz przejść bezpłatny wywiad w rejestracji — krótka rozmowa, która kieruje Cię do właściwej pomocy. Szczere i spokojne odpowiedzi budują zaufanie personelu i poprawiają trafność diagnozy; agresja albo ukrywanie sytuacji podnoszą ryzyko. Możesz mówić o samych objawach, bez wchodzenia w szczegóły — to wystarcza.'},
+  {t:'new',d:'🕵️ Uliczne skoki odbijają się teraz na Twoim wizerunku. Im więcej świadków (a najgorzej gdy ktoś Cię nagra), tym mocniej cierpi zaufanie fanów i tym bliżej kryzysu kariery. Nagranie z kradzieży potrafi trafić do sieci i rozpętać burzę komentarzy. Gdy presja narośnie, dostajesz trudną decyzję: wyciszyć się, zapłacić za opanowanie sytuacji, publicznie się odciąć albo wejść jeszcze głębiej w półświatek.'},
   {t:'fix',d:'🟢 Zielone powiadomienia możesz teraz po prostu kliknąć, żeby zniknęły od razu — nie musisz czekać, aż same wygasną. Przydaje się, gdy zbiera się ich więcej naraz.'},
   {t:'fix',d:'▶️ Naprawione: na samym starcie gry potrafiła wyskoczyć wiadomość, że „Twój film wystrzelił", mimo że nie miałeś jeszcze żadnego nagranego filmu. Teraz taka informacja pojawia się dopiero, gdy masz na koncie co najmniej 3 opublikowane filmy.'},
   {t:'fix',d:'🔒 Wytwórnia, S9 Agency i NOX Route w folderze Kariera odblokowują się po ukończeniu poradnika na start — dzięki temu nowy gracz nie jest od razu zasypany wszystkimi opcjami. Jeśli grasz już od dłuższego czasu, korzystasz z nich bez zmian.'},
