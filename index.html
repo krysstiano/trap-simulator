@@ -51522,7 +51522,8 @@ window._openFrameUpDM=function(box){
     <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">${_boxBtns}</div>
     <div style="font-size:11px;color:#9ab;margin-bottom:10px">${boxDef.label}: ${boxDef.desc}</div>
     ${_list}
-    <button class="cbtn" style="margin-top:14px;width:100%;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';if(typeof renderPhoneApp==='function')renderPhoneApp('instagram');">← Wróć do FrameUp</button>
+    ${(G.frameUpDM.ghostwriting&&(G.frameUpDM.ghostwriting.activeJobs.length||G.frameUpDM.ghostwriting.completedJobs.length))?`<button class="cbtn" style="margin-top:10px;width:100%;color:#b39dff;border-color:#7a5ad0" onclick="window._openGhostwritingJobs()">🎼 Ghostwriting — zlecenia (${G.frameUpDM.ghostwriting.activeJobs.length} aktywne)</button>`:''}
+    <button class="cbtn" style="margin-top:10px;width:100%;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';if(typeof renderPhoneApp==='function')renderPhoneApp('instagram');">← Wróć do FrameUp</button>
   </div>`;
   const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content');
   if(mgJob&&mgContent){ mgContent.innerHTML=html; mgJob.classList.add('on'); }
@@ -51568,8 +51569,9 @@ window._createGhostwritingDeal=function(client,job){
   const pay=Math.round(rnd(job.payMin,job.payMax)*client.payMult*fameMult/50)*50;
   const days=Math.max(1,Math.ceil(job.hoursMax/8)); /* ~8h gry = 1 dzień */
   const leakRisk=Math.min(0.9,job.leak*client.leakMult*(1+Math.min(0.4,(G.fame||0)/500*0.4)));
+  const qualityReq=Math.min(70,40+Math.round(client.nda*18)+((job.id==='emergency_hit'||job.id==='diss_response')?8:0));
   return {clientId:client.id,jobTypeId:job.id,mode:'ghostwriting',pay,baseP:pay,deadlineDay:G.day+days,leakRisk:Math.round(leakRisk*100)/100,
-    advance:false,negotiated:false,coauthor:false,accepted:false,createdDay:G.day};
+    qualityReq,brief:false,advance:false,negotiated:false,coauthor:false,accepted:false,status:'offer',createdDay:G.day};
 };
 window._generateGhostwritingOffer=function(force){
   window._frameUpDMEnsure();
@@ -51660,6 +51662,182 @@ window._fudmDealReply=function(threadId,action){
     else { push('Zróbmy to jako współautorstwo — chcę kredyt.'); push('Nie, ma być anonimowo. Takie warunki.','them'); if(typeof showMsg==='function') showMsg('🤝 Klient chce jednak anonimowo.','',3500); }
   }
   window._openFrameUpDMThread(threadId);
+};
+
+/* ── 2L (§18): formuła jakości + tryby pracy nad tekstem ── */
+window._ghostwritingModeMod=function(mode){ return {fast:-12,normal:0,polished:15}[mode]||0; };
+window._ghostwritingQuality=function(job,mode){
+  window._frameUpDMEnsure(); const GW=G.frameUpDM.ghostwriting;
+  const mood=(G.stress!=null?G.stress:50); /* G.stress = MOOD */
+  const fatigue=Math.max(0,100-(G.energy||100));
+  let q=35 + (GW.writingSkill||0)*8 + (GW.careerFocus||0)*3 + mood*0.08 - fatigue*0.10;
+  q+=window._ghostwritingModeMod(mode);
+  if(job.brief) q+=10;
+  return Math.round(Math.min(100,Math.max(0,q)));
+};
+/* 2L: poproś o dodatkowy brief (raz, +10 jakości, kosztem cierpliwości klienta) */
+window._fudmRequestBrief=function(threadId){
+  window._frameUpDMEnsure(); const D=G.frameUpDM;
+  const t=D.threads.find(x=>x&&x.id===threadId); if(!t||!t.dealPayload) return;
+  const job=(D.ghostwriting.activeJobs.find(j=>j.threadId===threadId))||t.dealPayload;
+  if(job.brief){ if(typeof showMsg==='function') showMsg('📋 Masz już brief.','r',3000); return; }
+  job.brief=true; t.dealPayload.brief=true;
+  if(typeof showMsg==='function') showMsg('📋 Dostałeś dokładniejszy brief — finalna jakość wzrośnie, ale klient jest mniej cierpliwy.','g',4200);
+  window._openGhostwritingWork(threadId);
+};
+/* 2L: oddaj tekst w wybranym trybie → koszt energii/nastroju → 2M zakończenie */
+window._fudmDeliverJob=function(threadId,mode){
+  window._frameUpDMEnsure(); const D=G.frameUpDM, GW=D.ghostwriting;
+  const job=GW.activeJobs.find(j=>j.threadId===threadId); if(!job){ if(typeof showMsg==='function') showMsg('⚠️ Brak aktywnego zlecenia.','r'); return; }
+  const eCost={fast:8,normal:15,polished:25}[mode]||15;
+  const sCost={fast:3,normal:6,polished:9}[mode]||6;
+  if((G.energy||0)<eCost){ if(typeof showMsg==='function') showMsg(`⚡ Za mało energii (potrzeba ${eCost}).`,'r',3000); return; }
+  G.energy=Math.max(0,(G.energy||100)-eCost);
+  G.stress=(typeof clamp==='function')?clamp((G.stress||50)-sCost,0,100):Math.max(0,(G.stress||50)-sCost); /* deadline obniża nastrój */
+  const quality=window._ghostwritingQuality(job,mode);
+  job._deliverMode=mode;
+  window._finishGhostwritingJob(job,quality);
+};
+/* ── 2M (§19): zakończenie zlecenia + płatność + reklamacja ── */
+window._finishGhostwritingJob=function(job,quality){
+  window._frameUpDMEnsure(); const D=G.frameUpDM, GW=D.ghostwriting;
+  const t=D.threads.find(x=>x&&x.id===job.threadId);
+  const client=window._pdf2Profile(job.clientId), jobType=window._pdf2JobType(job.jobTypeId);
+  const req=job.qualityReq||45;
+  if(quality<req){
+    // reklamacja — częściowa/utrata zapłaty, spadek reputacji
+    job.status='dispute'; job._finalQuality=quality;
+    const kept=job.advance?Math.round(job.pay*0.3):0; /* przy zaliczce zostaje 30%, inaczej nic */
+    window._fudmAddStat('ghostwritingReputation',-2); window._fudmAddStat('professionalism',-1);
+    if(t){ t.messages.push({from:'them',text:`Serio? To nie trzyma poziomu (${quality}/100). Reklamacja. ${kept>0?'Zaliczkę zatrzymujesz, reszty nie ma.':'Nie płacę za to.'}`}); }
+    // usuń z aktywnych, dopisz do ukończonych jako fiasko
+    GW.activeJobs=GW.activeJobs.filter(j=>j.threadId!==job.threadId);
+    GW.completedJobs.push(Object.assign({},job,{status:'dispute',finalQuality:quality,paid:kept}));
+    const _keptTxt=kept>0?'Zostaje tylko zaliczka.':'Bez zapłaty.';
+    if(typeof showMsg==='function') showMsg(`❌ Reklamacja — tekst za słaby (${quality}/${req}). ${_keptTxt} Reputacja writera spadła.`,'r',6000);
+    if(t) window._openFrameUpDMThread(t.id); else window._openGhostwritingJobs();
+    return {dispute:true,quality};
+  }
+  // sukces — płatność (minus zaliczka jeśli była)
+  const already=job.advance?Math.round(job.pay*0.3):0;
+  const due=job.pay-already;
+  const nonPay=(client?client.nonpay:0.15)*(job.advance?0.3:1); /* zaliczka mocno redukuje ryzyko niepłacenia */
+  let paid=0;
+  if(Math.random()<nonPay){
+    // niepłacenie — event
+    if(t) t.messages.push({from:'them',text:'Elo, przelew jutro... (znika)'});
+    window._fudmAddStat('industryDirt',1);
+    if(typeof showMsg==='function') showMsg(`💸 ${client?client.name:'Klient'} nie zapłacił reszty (${due.toLocaleString('pl')} zł)! Zapamiętasz to.`,'r',6000);
+  } else {
+    if(typeof earn==='function') earn(due,false); else G.money=(G.money||0)+due; paid=due;
+    if(t) t.messages.push({from:'them',text:`Mocne! Przelew poszedł. ${due.toLocaleString('pl')} zł. Odezwę się.`});
+    if(typeof showMsg==='function') showMsg(`💰 Otrzymano płatność: ${due.toLocaleString('pl')} zł za ${jobType?jobType.name:'zlecenie'} (jakość ${quality}/100).`,'g',5000);
+  }
+  // efekty ukończenia
+  window._fudmAddStat('ghostwritingReputation',2); window._fudmAddStat('writingSkill', quality>=req+15?1:0);
+  if(job.mode==='credited'){ window._fudmAddStat('songwriterReputation',2); window._fudmAddStat('authenticity',1); if(typeof addFame==='function') addFame(3); }
+  else { window._fudmAddStat('secrecyReputation',1); }
+  job.status='completed'; job._finalQuality=quality; job.paid=(already+paid);
+  GW.activeJobs=GW.activeJobs.filter(j=>j.threadId!==job.threadId);
+  GW.completedJobs.push(Object.assign({},job,{status:'completed',finalQuality:quality}));
+  // 2O: roll wycieku
+  window._rollGhostwritingLeak(job,quality);
+  if(t) window._openFrameUpDMThread(t.id); else window._openGhostwritingJobs();
+  return {dispute:false,quality,paid};
+};
+/* ── 2O (§20): roll wycieku ghostwritingu + event ── */
+window._rollGhostwritingLeak=function(job,quality){
+  window._frameUpDMEnsure(); const GW=G.frameUpDM.ghostwriting;
+  const client=window._pdf2Profile(job.clientId), jobType=window._pdf2JobType(job.jobTypeId);
+  let risk=(job.leakRisk||0.1)*100 + (G.fame||0)*0.05 + (GW.industryDirt||0)*3;
+  if(job.mode==='credited') risk-=25; /* z kredytem nie ma czego ukrywać */
+  if((GW.secrecyReputation||0)>=8) risk-=10;
+  if(jobType&&jobType.id==='diss_response') risk+=15;
+  risk=Math.min(75,Math.max(0,risk));
+  if(Math.random()*100<risk){
+    window._triggerGhostwritingLeak(job);
+    return true;
+  }
+  return false;
+};
+window._triggerGhostwritingLeak=function(job){
+  window._frameUpDMEnsure(); const GW=G.frameUpDM.ghostwriting;
+  const client=window._pdf2Profile(job.clientId);
+  GW.industryDirt=Math.min(100,(GW.industryDirt||0)+2);
+  if(job.mode==='credited'){
+    window._fudmAddStat('professionalism',1); window._fudmAddStat('songwriterReputation',1);
+    if(typeof showMsg==='function') showMsg(`📰 Wyszło, że napisałeś kawałek dla ${client?client.name:'artysty'} — ale masz kredyt, więc to tylko buduje Twoją markę songwritera.`,'g',6000);
+  } else {
+    window._fudmAddStat('authenticity',-1); window._fudmAddStat('fanTrust',-5);
+    if(typeof addFame==='function') addFame(-2);
+    if(typeof showMsg==='function') showMsg(`📰 WYCIEK! Wyszło, że ghostwriteowałeś dla ${client?client.name:'artysty'}. Część fanów czuje się oszukana — zaufanie spadło.`,'r',7000);
+  }
+  if(typeof addNotif==='function') addNotif('📰 Przeciek: Twój ghostwriting wypłynął do sieci.');
+};
+/* ── 2L (§18): panel pracy nad tekstem ── */
+window._openGhostwritingWork=function(threadId){
+  window._frameUpDMEnsure(); const D=G.frameUpDM, GW=D.ghostwriting;
+  const job=GW.activeJobs.find(j=>j.threadId===threadId);
+  if(!job){ if(typeof showMsg==='function') showMsg('⚠️ To zlecenie nie jest aktywne.','r',3000); window._openGhostwritingJobs(); return; }
+  const client=window._pdf2Profile(job.clientId), jobType=window._pdf2JobType(job.jobTypeId);
+  const late=G.day>job.deadlineDay;
+  const preview={fast:window._ghostwritingQuality(job,'fast'),normal:window._ghostwritingQuality(job,'normal'),polished:window._ghostwritingQuality(job,'polished')};
+  const html=`<div style="background:#0a0a16;border:2px solid #7a5ad0;border-radius:10px;padding:18px;max-width:560px;margin:0 auto;color:#fff">
+    <h2 style="margin-top:0;color:#b39dff">🎼 Praca nad tekstem</h2>
+    <div style="font-size:12px;color:#cde;margin-bottom:8px">${jobType?jobType.name:''} dla ${client?client.name:''} · stawka <strong style="color:#f1c40f">${job.pay.toLocaleString('pl')} zł</strong> · termin dzień ${job.deadlineDay}${late?' <span style="color:#e74c3c">(po terminie!)</span>':''}</div>
+    <div style="font-size:11px;color:#9ab;margin-bottom:10px">Wymagana jakość: ${job.qualityReq}/100. Wyższa jakość = brak reklamacji. Nastrój pomaga, zmęczenie szkodzi.${job.brief?' <span style="color:#7ec87e">✔ Masz dokładny brief (+10).</span>':''}</div>
+    <div style="display:grid;grid-template-columns:1fr;gap:6px">
+      <button class="cbtn" style="font-size:12px;padding:8px;color:#f39c12;border-color:#c8720c" onclick="window._fudmDeliverJob('${threadId}','fast')">⚡ Pisz szybko (jakość ~${preview.fast}, mało energii)</button>
+      <button class="cbtn" style="font-size:12px;padding:8px;color:#7ec87e;border-color:#27ae60" onclick="window._fudmDeliverJob('${threadId}','normal')">✍️ Pisz normalnie (jakość ~${preview.normal})</button>
+      <button class="cbtn" style="font-size:12px;padding:8px;color:#8fd0ff;border-color:#5aa0e0" onclick="window._fudmDeliverJob('${threadId}','polished')">💎 Dopracuj tekst (jakość ~${preview.polished}, dużo energii)</button>
+      ${job.brief?'':`<button class="cbtn" style="font-size:12px;padding:8px;color:#c8a520;border-color:#a8850c" onclick="window._fudmRequestBrief('${threadId}')">📋 Poproś o dodatkowy brief (+10 jakości)</button>`}
+    </div>
+    <button class="cbtn" style="margin-top:12px;width:100%;color:#fff" onclick="window._openGhostwritingJobs()">← Zlecenia</button>
+  </div>`;
+  const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content');
+  if(mgJob&&mgContent){ mgContent.innerHTML=html; mgJob.classList.add('on'); }
+};
+/* ── 2Y (§30): panel „Ghostwriting — zlecenia" (Aktywne/Historia) ── */
+window._openGhostwritingJobs=function(tab){
+  window._frameUpDMEnsure(); const D=G.frameUpDM, GW=D.ghostwriting;
+  const _tab=(tab==='historia'||tab==='aktywne')?tab:(window._gwJobsTab||'aktywne'); window._gwJobsTab=_tab;
+  const active=GW.activeJobs, done=GW.completedJobs;
+  const avgLeak=active.length?Math.round(active.reduce((s,j)=>s+(j.leakRisk||0),0)/active.length*100):0;
+  let body='';
+  if(_tab==='aktywne'){
+    body=active.length?active.map(j=>{
+      const c=window._pdf2Profile(j.clientId), jt=window._pdf2JobType(j.jobTypeId); const late=G.day>j.deadlineDay;
+      return `<div style="background:#141026;border-radius:6px;padding:10px;margin-bottom:6px;border-left:3px solid ${late?'#e74c3c':'#5a3aa0'}">
+        <div style="font-weight:700;color:#cde;font-size:13px">${jt?jt.name:''} — ${c?c.name:''}</div>
+        <div style="font-size:11px;color:#9ab;margin:2px 0 6px">${j.pay.toLocaleString('pl')} zł · termin dzień ${j.deadlineDay}${late?' (po terminie!)':''} · ${j.mode==='credited'?'współautorstwo':'ghostwriting'}</div>
+        <button class="cbtn" style="width:100%;font-size:11px;padding:6px;color:#7ec87e;border-color:#27ae60" onclick="window._openGhostwritingWork('${j.threadId}')">✍️ Pracuj / oddaj</button>
+      </div>`;
+    }).join(''):`<div style="color:#889;font-size:12px;text-align:center;padding:16px">Brak aktywnych zleceń.</div>`;
+  } else {
+    body=done.length?done.slice().reverse().map(j=>{
+      const c=window._pdf2Profile(j.clientId), jt=window._pdf2JobType(j.jobTypeId);
+      const okj=j.status==='completed';
+      return `<div style="background:#12101c;border-radius:6px;padding:9px 11px;margin-bottom:5px;font-size:12px;color:#cde;border-left:3px solid ${okj?'#27ae60':'#a44'}">
+        ${okj?'✅':'❌'} ${jt?jt.name:''} — ${c?c.name:''} · jakość ${j.finalQuality||'?'}/100 · ${okj?(j.paid||0).toLocaleString('pl')+' zł':'reklamacja'}</div>`;
+    }).join(''):`<div style="color:#889;font-size:12px;text-align:center;padding:16px">Brak ukończonych zleceń.</div>`;
+  }
+  const html=`<div style="background:#0a0a16;border:2px solid #7a5ad0;border-radius:10px;padding:18px;max-width:560px;margin:0 auto;max-height:82vh;overflow-y:auto;color:#fff">
+    <h2 style="margin-top:0;color:#b39dff">🎼 Ghostwriting — zlecenia</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;font-size:11px;color:#9ab;background:#12101c;border-radius:6px;padding:8px;margin-bottom:10px;text-align:center">
+      <div>Aktywne<br><strong style="color:#fff;font-size:14px">${active.length}</strong></div>
+      <div>Ukończone<br><strong style="color:#fff;font-size:14px">${done.filter(j=>j.status==='completed').length}</strong></div>
+      <div>Ryzyko wycieku<br><strong style="color:${avgLeak>=30?'#e74c3c':'#f1c40f'};font-size:14px">${avgLeak}%</strong></div>
+      <div>Reputacja<br><strong style="color:#7ec87e;font-size:14px">${Math.round(GW.ghostwritingReputation||0)}</strong></div>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <button class="cbtn" style="flex:1;font-size:11px;padding:6px;${_tab==='aktywne'?'background:#3a2470;color:#fff;border-color:#7a5ad0':'color:#c3b0f5'}" onclick="window._openGhostwritingJobs('aktywne')">Aktywne zlecenia</button>
+      <button class="cbtn" style="flex:1;font-size:11px;padding:6px;${_tab==='historia'?'background:#3a2470;color:#fff;border-color:#7a5ad0':'color:#c3b0f5'}" onclick="window._openGhostwritingJobs('historia')">Historia zleceń</button>
+    </div>
+    ${body}
+    <button class="cbtn" style="margin-top:12px;width:100%;color:#fff" onclick="window._openFrameUpDM('${window._fudmBox||'glowne'}')">← FrameUp Direct</button>
+  </div>`;
+  const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content');
+  if(mgJob&&mgContent){ mgContent.innerHTML=html; mgJob.classList.add('on'); }
 };
 
 window._sanitizePlayerLists=function(){
@@ -63980,6 +64158,8 @@ const PATCH_NOTES = [
   {t:'new',d:'💚 Zwierzak to teraz realne wsparcie psychiczne — im większa Wasza więź, tym łagodniej znosisz trudne dni: napięcie odpuszcza, a pokusa sięgnięcia po używki słabnie. W naprawdę ciężkich momentach pupil potrafi Ci przypomnieć, że ktoś w domu na Ciebie czeka.'},
   {t:'fix',d:'🐈 Koty i małe zwierzaki są teraz spójnie pokazywane w całej grze — profil w telefonie ma właściwą ikonę i opisy „pupila" zamiast „psa", okno nadawania imienia dopasowuje się do gatunku, a odznaka „Wybawca" i bonus sławy należą się za każdą adopcję charytatywną (nie tylko bezdomnego psa). W profilu widać teraz też Twoje wartości: charytatywność (łagodzi kryzysy wizerunku), szacunek do siebie, odpowiedzialność i poczucie winy (psuje nastrój, gdy zaniedbujesz pupila).'},
   {t:'fix',d:'🐾 Twój dotychczasowy pupil (sprzed tej aktualizacji) jest zwolniony z nowego tygodniowego kosztu utrzymania i pojawia się na liście „Moje adopcje" — zgodnie z obietnicą, że zostaje bez zmian. Tresura minigrami dotyczy psów; koty i małe zwierzaki rozwijają się przez zabawę, kąpiel i wspólne chwile.'},
+  {t:'new',d:'✉️ FrameUp ma teraz Direct Message! Po pierwszym poście lub utworze odblokujesz skrzynkę wiadomości z podziałem na Główne, Prośby, Współprace, Artyści, Fani, Spam i Archiwum. To także początek nowej, dyskretnej ścieżki zarobku.'},
+  {t:'new',d:'🎼 Nowa kariera: ghostwriting. Gdy masz już fanów i wydany utwór, artyści zaczną pisać do Ciebie z ofertami napisania tekstu za pieniądze — anonimowo. Każdą ofertę możesz zaakceptować, negocjować stawkę, poprosić o zaliczkę, zaproponować współautorstwo (z kredytem), odrzucić albo oznaczyć jako spam. Potem piszesz tekst w wybranym trybie (szybko / normalnie / z dopracowaniem), a jakość decyduje o wypłacie — słaby tekst grozi reklamacją. Uwaga: ghostwriting bywa ryzykowny — jeśli wyciek trafi do sieci, część fanów może poczuć się oszukana. Wszystkie zlecenia śledzisz w panelu „Ghostwriting — zlecenia".'},
   {t:'fix',d:'🟢 Zielone powiadomienia możesz teraz po prostu kliknąć, żeby zniknęły od razu — nie musisz czekać, aż same wygasną. Przydaje się, gdy zbiera się ich więcej naraz.'},
   {t:'fix',d:'▶️ Naprawione: na samym starcie gry potrafiła wyskoczyć wiadomość, że „Twój film wystrzelił", mimo że nie miałeś jeszcze żadnego nagranego filmu. Teraz taka informacja pojawia się dopiero, gdy masz na koncie co najmniej 3 opublikowane filmy.'},
   {t:'fix',d:'🔒 Wytwórnia, S9 Agency i NOX Route w folderze Kariera odblokowują się po ukończeniu poradnika na start — dzięki temu nowy gracz nie jest od razu zasypany wszystkimi opcjami. Jeśli grasz już od dłuższego czasu, korzystasz z nich bez zmian.'},
