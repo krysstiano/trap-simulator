@@ -52141,6 +52141,125 @@ window._ghostwritingDeadlineTick=function(){
   });
 };
 
+/* ═══ PDF new/4 — KLUB ECLIPSE NOIR (§1-§64) ═══ */
+/* 4A (§64.1-2): godziny otwarcia per dzień (0=Pn..6=Nd), [openPeriod, closePeriodNextDay]. timeOfDay 0-3 = okresy doby. */
+const ECLIPSE_NOIR_ATMO=['crowdDensity','heatLevel','musicIntensity','vipDensity','intoxicationLevel','flirtPressure','violenceRisk','drugPresence','policeAttention','paparazziRisk','opportunityLevel','underworldSignal'];
+/* 4A + 4J: struktura + save-safe init. */
+window._eclipseNoirEnsure=function(){
+  if(!G.eclipseNoir||typeof G.eclipseNoir!=='object'){
+    G.eclipseNoir={visited:false,lastVisitDay:0,concertsPlayed:0,vipAccessLevel:0,bannedUntilDay:0,nightsAttended:0,reputation:0,sceneToxicity:0,
+      hasMetValeria:false,hasMetSilas:false,hasMetMason:false,hasEnteredBasement:false,atmosphere:null};
+  }
+  const c=G.eclipseNoir;
+  ['visited','hasMetValeria','hasMetSilas','hasMetMason','hasEnteredBasement'].forEach(k=>{ if(typeof c[k]!=='boolean') c[k]=false; });
+  [['lastVisitDay',0],['concertsPlayed',0],['vipAccessLevel',0],['bannedUntilDay',0],['nightsAttended',0],['reputation',0],['sceneToxicity',0]].forEach(([k,d])=>{ if(typeof c[k]!=='number'||!isFinite(c[k])) c[k]=d; });
+  if(!c.atmosphere||typeof c.atmosphere!=='object'){ c.atmosphere={crowdDensity:40,heatLevel:20,musicIntensity:50,vipDensity:20,intoxicationLevel:10,flirtPressure:20,violenceRisk:10,drugPresence:20,policeAttention:10,paparazziRisk:15,opportunityLevel:30,underworldSignal:10}; }
+  ECLIPSE_NOIR_ATMO.forEach(k=>{ if(typeof c.atmosphere[k]!=='number'||!isFinite(c.atmosphere[k])) c.atmosphere[k]=20; c.atmosphere[k]=Math.max(0,Math.min(100,c.atmosphere[k])); });
+  /* 4J (§17): warstwa shadow-job (osobna od underworldIntro = intro Kantara). */
+  if(!G.underworld||typeof G.underworld!=='object'){
+    G.underworld={introCompleted:false,illegalFrontStage:0,shadowReputation:0,lastKantarContactDay:0,eclipseNoirAccessLevel:0,activeShadowJob:null,failedShadowJobs:0,heatFromShadowJobs:0,completedShadowJobs:[]};
+  }
+  const u=G.underworld;
+  if(!Array.isArray(u.completedShadowJobs)) u.completedShadowJobs=[];
+  ['introCompleted'].forEach(k=>{ if(typeof u[k]!=='boolean') u[k]=false; });
+  [['illegalFrontStage',0],['shadowReputation',0],['lastKantarContactDay',0],['eclipseNoirAccessLevel',0],['failedShadowJobs',0],['heatFromShadowJobs',0]].forEach(([k,d])=>{ if(typeof u[k]!=='number'||!isFinite(u[k])) u[k]=d; });
+  if(u.activeShadowJob!==null && typeof u.activeShadowJob!=='object') u.activeShadowJob=null;
+  /* kantarTrust — synchronizuj z istniejącym G.kantarTrust (nie duplikuj osi). */
+  u.kantarTrust=(typeof G.kantarTrust==='number')?G.kantarTrust:0;
+};
+/* 4C (§7/§8/§64.3): mnożnik weekendowy nocy klubu. 0=Pn..4=Pt,5=So,6=Nd. */
+window.getEclipseNoirNightMultiplier=function(){
+  const d=(typeof _dayOfWeek==='function')?_dayOfWeek():2;
+  if(d===4) return 1.45; /* piątek */
+  if(d===5) return 1.75; /* sobota */
+  if(d===6) return 1.35; /* niedziela (after) */
+  return 1.00;
+};
+/* 4D (§9): warunki wejścia. */
+window.canEnterEclipseNoir=function(){
+  window._eclipseNoirEnsure();
+  if((G.eclipseNoir.bannedUntilDay||0) > (G.day||0)) return {ok:false,reason:`⛔ Masz zakaz wstępu do Eclipse Noir do dnia ${G.eclipseNoir.bannedUntilDay}.`};
+  if((G.heat||0)>=90) return {ok:false,reason:'🚔 Za dużo patroli przy klubie — dziś lepiej się nie pokazywać.'};
+  const mcl=(G.novacura&&G.novacura.mentalCrisisLevel)||0;
+  if((G.stress||50)<=5 || mcl>=2) return {ok:false,reason:'😵 Jesteś w zbyt złym stanie, żeby wchodzić w nocne życie — zadbaj najpierw o siebie.'};
+  return {ok:true,reason:''};
+};
+/* 4B (§6/§64.24): klub żyje własnym rytmem — tick atmosfery (drift ku celom zależnym od weekendu/pory). */
+window.eclipseNoirTick=function(){
+  window._eclipseNoirEnsure(); const a=G.eclipseNoir.atmosphere; const mult=window.getEclipseNoirNightMultiplier();
+  const night=(G.timeOfDay||0)>=2; /* wieczór/noc */
+  const drift=(key,target)=>{ a[key]=Math.max(0,Math.min(100,a[key]+(target-a[key])*0.35)); };
+  drift('crowdDensity',(night?55:25)*mult);
+  drift('musicIntensity',night?70:40);
+  drift('vipDensity',(20+ (mult-1)*60));
+  drift('flirtPressure',(25+ (mult-1)*50));
+  drift('drugPresence',(20+ (mult-1)*40));
+  drift('paparazziRisk',(15+ (mult-1)*45));
+  drift('policeAttention',Math.max((G.heat||0)*0.5, 10+(mult-1)*30));
+  drift('opportunityLevel',(30+ (mult-1)*50));
+  drift('underworldSignal',(10+ (G.underworld?G.underworld.shadowReputation*0.3:0) + (mult-1)*30));
+  drift('violenceRisk',(10+ a.intoxicationLevel*0.15 + (mult-1)*25));
+  drift('heatLevel',(G.heat||0)*0.4);
+};
+/* 4D (§9): selekcjoner — panel wejścia. */
+window._openEclipseNoir=function(mode){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir;
+  const gate=window.canEnterEclipseNoir();
+  if(mode && mode!=='enter'){ /* placeholder dla przyszłych trybów wejścia */ }
+  if(!mode){
+    if(!gate.ok){ if(typeof showMsg==='function') showMsg(gate.reason,'r',6000); return; }
+    const fame=(G.fame||0), rep=(c.reputation||0);
+    const freeFriends=rep>=40, freeArtist=fame>=120;
+    const html=`<div style="background:#0a0810;border:2px solid #7a2a5a;border-radius:10px;padding:20px;max-width:560px;margin:0 auto;color:#fff">
+      <h2 style="margin-top:0;color:#e368b8">🌑 Eclipse Noir</h2>
+      <div style="color:#c9b;font-size:12px;margin-bottom:8px">Selekcjoner mierzy Cię wzrokiem. Jak wchodzisz?</div>
+      <div style="font-size:11px;color:#9a8;background:#140a14;border-radius:6px;padding:8px;margin-bottom:12px">🎧 Tłum: ${Math.round(c.atmosphere.crowdDensity)}% · ✨ VIP-y: ${Math.round(c.atmosphere.vipDensity)}% · 🌙 mnożnik nocy: ×${window.getEclipseNoirNightMultiplier()}</div>
+      <div style="display:grid;grid-template-columns:1fr;gap:6px">
+        <button class="cbtn" style="font-size:12px;padding:8px;color:#e368b8;border-color:#7a2a5a" onclick="window._eclipseEnter('normal')">🎫 Zwykłe wejście (150 zł)</button>
+        ${freeFriends?`<button class="cbtn" style="font-size:12px;padding:8px;color:#7ec87e;border-color:#27ae60" onclick="window._eclipseEnter('friends')">🤝 Po znajomości (za darmo — znają Cię tu)</button>`:''}
+        ${freeArtist?`<button class="cbtn" style="font-size:12px;padding:8px;color:#7ec87e;border-color:#27ae60" onclick="window._eclipseEnter('artist')">🎤 Status artysty (za darmo)</button>`:''}
+        <button class="cbtn" style="font-size:12px;padding:8px;color:#f1c40f;border-color:#c8a520" onclick="window._eclipseEnter('vip')">💎 VIP wejście (1500 zł)</button>
+        <button class="cbtn" style="font-size:12px;padding:8px;color:#ccc" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">🚶 Odejdź</button>
+      </div>
+    </div>`;
+    const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content');
+    if(mgJob&&mgContent){ mgContent.innerHTML=html; mgJob.classList.add('on'); }
+    return;
+  }
+  window._eclipseHub();
+};
+window._eclipseEnter=function(kind){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir;
+  const gate=window.canEnterEclipseNoir(); if(!gate.ok){ if(typeof showMsg==='function') showMsg(gate.reason,'r',6000); return; }
+  const cost=kind==='vip'?1500:kind==='normal'?150:0;
+  if(cost>0 && (G.money||0)<cost){ if(typeof showMsg==='function') showMsg(`💰 Brakuje ${cost-(G.money||0)} zł na wejście.`,'r',4000); return; }
+  if(cost>0) G.money-=cost;
+  if(kind==='vip' && c.vipAccessLevel<1) c.vipAccessLevel=1;
+  c.visited=true; c.lastVisitDay=G.day; c.nightsAttended=(c.nightsAttended||0)+1;
+  window.eclipseNoirTick();
+  if(typeof showMsg==='function') showMsg(`🌑 Wchodzisz do Eclipse Noir${kind==='vip'?' — VIP, ochrona kiwa głową':''}. Bas uderza w klatkę piersiową.`,'g',4500);
+  window._eclipseHub();
+};
+/* 4A: hub klubu (rozbudowywany o strefy/aktywności w kolejnych fazach). */
+window._eclipseHub=function(){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir, a=c.atmosphere;
+  const bar=(lbl,v,col)=>`<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#c9b"><span style="width:92px">${lbl}</span><div style="flex:1;background:#1a0f1a;border-radius:3px;height:6px;overflow:hidden"><div style="width:${Math.round(v)}%;height:100%;background:${col}"></div></div><span style="width:28px;text-align:right">${Math.round(v)}</span></div>`;
+  const html=`<div style="background:#0a0810;border:2px solid #7a2a5a;border-radius:10px;padding:18px;max-width:600px;margin:0 auto;max-height:82vh;overflow-y:auto;color:#fff">
+    <h2 style="margin-top:0;color:#e368b8">🌑 Eclipse Noir — parkiet</h2>
+    <div style="font-size:11px;color:#9a8;margin-bottom:10px">Klub tętni życiem. Noc ×${window.getEclipseNoirNightMultiplier()}. Reputacja w scenie: ${Math.round(c.reputation)}.</div>
+    <div style="background:#140a14;border-radius:8px;padding:10px;margin-bottom:12px;display:grid;grid-template-columns:1fr 1fr;gap:5px 14px">
+      ${bar('🎧 Tłum',a.crowdDensity,'#e368b8')}${bar('✨ VIP-y',a.vipDensity,'#f1c40f')}
+      ${bar('💃 Flirt',a.flirtPressure,'#e368b8')}${bar('💊 Używki',a.drugPresence,'#c0392b')}
+      ${bar('📸 Papara.',a.paparazziRisk,'#e67e22')}${bar('🚔 Policja',a.policeAttention,'#3498db')}
+      ${bar('🎯 Okazje',a.opportunityLevel,'#27ae60')}${bar('🌑 Cień',a.underworldSignal,'#8e44ad')}
+    </div>
+    <div style="font-size:11px;color:#889;text-align:center;padding:8px">Strefy klubu (scena, bar, VIP, DJ, loże, piwnica) i postacie odblokowują się w kolejnych krokach.</div>
+    <button class="cbtn" style="margin-top:12px;width:100%;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">🚪 Wyjdź z klubu</button>
+  </div>`;
+  const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content');
+  if(mgJob&&mgContent){ mgContent.innerHTML=html; mgJob.classList.add('on'); }
+};
+
 window._sanitizePlayerLists=function(){
   try{
     const F=k=>{ if(Array.isArray(G[k])) G[k]=G[k].filter(x=>x&&typeof x==='object'); };
@@ -52159,6 +52278,7 @@ window._sanitizePlayerLists=function(){
     if(typeof window._theftCareerEnsure==='function') window._theftCareerEnsure(); /* v2.3.113 (PDF new/3 kradzieże): warstwa wizerunkowa kradzieży (careerCollapseRisk), save-safe */
     if(typeof window._petStatsEnsure==='function') window._petStatsEnsure(); /* v2.3.113 (PDF new/6 schronisko): staty cnót gracza (charity/responsibility/guilt), save-safe */
     if(typeof window._frameUpDMEnsure==='function') window._frameUpDMEnsure(); /* v2.3.113 (PDF new/2 FrameUp DM): skrzynka DM + ghostwriting, save-safe */
+    if(typeof window._eclipseNoirEnsure==='function') window._eclipseNoirEnsure(); /* v2.3.113 (PDF new/4 Eclipse Noir): klub + atmosfera + shadow-job, save-safe */
     if(typeof window._metalValleyEnsure==='function') window._metalValleyEnsure(); /* v2.3.108 PDF#11: Metal Valley (rozbiórka/wypłaty), save-safe */
   }catch(_e){}
 };
