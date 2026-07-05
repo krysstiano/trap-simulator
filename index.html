@@ -49677,6 +49677,16 @@ function startSkateparkMG(){
   };
   document.addEventListener('keydown',skHandler);
 
+  /* FIX (user 2026-07-05: „po aktywności na skateparku okno się nie zamyka, trzeba ręcznie wychodzić"):
+     skate MG NIE ustawiał własnego window._jobMgCleanup → endSkate wołał CUDZY (stale) cleanup z innego MG,
+     który nie zamykał panelu skate (el=mg-job) → okno wisiało, ruch zablokowany. Teraz własny cleanup jak breakdance. */
+  window._jobMgCleanup=()=>{
+    gameActive=false; _skEnded=true;
+    if(window._skTimer){ clearInterval(window._skTimer); window._skTimer=null; }
+    document.removeEventListener('keydown',skHandler);
+    el.style.display='none'; el.classList.remove('on'); el.innerHTML='';
+  };
+
   window._skTimer=setInterval(()=>{
     if(!gameActive)return;
     timeLeft--;
@@ -58238,9 +58248,9 @@ window._tourReward=function(place,perfect,discKey){
   let ceil=0; if(place===1)ceil=2500; else if(place===2)ceil=1000; else if(place===3)ceil=500; if(place===1&&perfect) ceil=5000;
   if(ceil<=0) return {money:0};
   const fame=(G.fame||0);
-  const fameFactor=0.12 + 0.88*Math.min(1, fame/350);            /* fame 0 → 0.12 ; fame 350+ → 1.0 */
+  const fameFactor=0.30 + 0.70*Math.min(1, fame/300);            /* user 2026-07-05 (próg 120 za niski): fame 0 → 0.30 ; fame 300+ → 1.0 */
   const ri=(discKey&&typeof window._tourRankIndex==='function')?window._tourRankIndex(discKey):0;
-  const rankFactor=0.40 + Math.min(8,ri)*0.075;                  /* ranga 0 → 0.40 ; ranga 8 → 1.0 (wyższa ranga = więcej) */
+  const rankFactor=0.55 + Math.min(8,ri)*0.05625;               /* ranga 0 → 0.55 ; ranga 8 → 1.0 (wyższa ranga = więcej) */
   const m=Math.round(ceil*fameFactor*rankFactor/10)*10;
   return {money:m};
 };
@@ -58307,11 +58317,11 @@ window.startDisciplineTournament=function(discKey){
   ov.style.cssText='position:fixed;inset:0;z-index:9000;background:radial-gradient(circle at 50% 30%,#141026,#06040c);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:inherit;color:#fff';
   const st={score:0,combo:0,maxCombo:0,mistakes:0,perfect:true,total:60,left:60,cur:null,inp:[],alive:true,tk:(window._tourTokenN=(window._tourTokenN||0)+1)};
   const key2sym=(code)=>({ArrowUp:'↑',ArrowDown:'↓',ArrowLeft:'←',ArrowRight:'→',Space:'Space'})[code];
-  const symDisp=(s)=>s==='Space'?'␣':s;
+  const symDisp=(s)=>s==='Space'?'SPACJA':s; /* user 2026-07-05: napis „SPACJA" zamiast symbolu ␣ */
   const randMove=()=>{ const diff=window._tourDifficulty(st.total-st.left); let pool; if(diff==='easy_medium')pool=MV.easy.concat(MV.medium); else if(diff==='medium')pool=MV.medium; else if(diff==='hard')pool=MV.medium.concat(MV.hard); else pool=MV.hard.concat(MV.final); return pool[Math.floor(Math.random()*pool.length)]; };
   const render=()=>{
     if(!st.alive) return;
-    const seq=st.cur?st.cur.s.map((s,i)=>`<span style="display:inline-block;min-width:26px;font-size:26px;color:${i<st.inp.length?'#7ec87e':'#8aa'}">${symDisp(s)}</span>`).join(' '):'';
+    const seq=st.cur?st.cur.s.map((s,i)=>{ const _d=symDisp(s); const _big=_d.length<=2; return `<span style="display:inline-block;min-width:${_big?26:64}px;font-size:${_big?26:15}px;font-weight:${_big?400:800};letter-spacing:${_big?0:1}px;padding:${_big?0:'2px 6px'};border-radius:${_big?0:'6px'};background:${_big?'transparent':(i<st.inp.length?'rgba(126,200,126,.18)':'rgba(138,138,170,.12)')};color:${i<st.inp.length?'#7ec87e':'#8aa'}">${_d}</span>`; }).join(' '):'';
     ov.innerHTML=`<div style="width:100%;max-width:640px;text-align:center">
       <div style="color:#9ab;letter-spacing:2px;font-size:12px;text-transform:uppercase">${cfg.event}</div>
       <div style="height:8px;background:#1a2232;border-radius:5px;margin:12px auto;width:90%"><div style="height:8px;background:linear-gradient(90deg,#2a9ad8,#e84393);border-radius:5px;width:${Math.max(0,st.left/st.total*100)}%"></div></div>
