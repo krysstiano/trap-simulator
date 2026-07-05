@@ -1374,15 +1374,19 @@ window._concertLeadWeight=_concertLeadWeight;
 const PUBLIC_ACTIVITY_MODIFIERS={
   freestyle:{ timeWindowsEnabled:true, offPeakModifier:0.70, optimalWindows:{
     monday:[['10:00','20:00']], tuesday:[['10:00','20:00']], wednesday:[['10:00','20:00']],
-    thursday:[['10:00','20:00']], friday:[['10:00','22:00']],
-    saturday:[['11:00','23:59']], sunday:[['00:00','02:30'],['13:00','20:00']] } },
+    thursday:[['10:00','20:00']], friday:[['11:00','23:59']],
+    /* v2.3.114 (user): piątek = najlepsze pory jak sobota, do 2:30 w nocy. Piątkowa noc po północy to wczesna
+       sobota (doba flipuje o 00:00) → sobota dostaje okno [00:00,02:30] tak jak niedziela pokrywa sobotnią noc. */
+    saturday:[['00:00','02:30'],['11:00','23:59']], sunday:[['00:00','02:30'],['13:00','20:00']] } },
   breakdance:{ timeWindowsEnabled:false },
   skate:{ timeWindowsEnabled:false },
   weekendBonus:{ enabled:true, days:[5,6], activities:['freestyle','breakdance','skate'], modifier:1.15 }
 };
 const _DAY_KEYS_ENG=['monday','tuesday','wednesday','thursday','friday','saturday','sunday']; // 0=Pon
 function _timeToMinutes(hhmm){ const p=String(hhmm).split(':'); return (parseInt(p[0],10)||0)*60+(parseInt(p[1],10)||0); }
-function _nowGameMinutes(){ return (((typeof gameMin!=='undefined'?gameMin:360)%1440)+1440)%1440; }
+/* v2.3.114 (user: zegar pokazywał „21:15.012800000012809"): Math.floor — gameMin bywa ułamkowy (akumulacja
+   dt), a callery robiły `_nowGameMinutes()%60` bez floora → śmieciowa minuta. Floor w źródle = fix dla wszystkich. */
+function _nowGameMinutes(){ return Math.floor((((typeof gameMin!=='undefined'?gameMin:360)%1440)+1440)%1440); }
 function _isActivityInOptimalWindow(activityType,dayIdx,minutes){
   const cfg=PUBLIC_ACTIVITY_MODIFIERS[activityType];
   if(!cfg||cfg.timeWindowsEnabled!==true) return true;
@@ -64887,6 +64891,8 @@ const PATCH_NOTES = [
   {t:'feature',d:'🎰 Kategoria Hazard w linii fabularnej kariery mocno rozbudowana — doszły kroki za skorzystanie z baru kasyna oraz za wjazd na kolejne piętra (VIP Lounge, Diamond Lounge, Royal Salon). Poprawiliśmy też opisy gier: Samolocik nazywa się teraz Samolocik (nie „Aviator"), a jego opis jest zgodny z rozgrywką — to czysta loteria, samolocik leci sam i nie wypłacasz stawki w locie. Crash (z wypłatą w locie) to osobna gra i osobny krok.'},
   {t:'feature',d:'👕 Więcej kroków w linii kariery: w Muzyce doszła sprzedaż merchu (od pierwszego gadżetu po imperium 1000 sztuk), a w Stylu i życiu pielęgnowanie pupila do najwyższej słodkości. Linia kariery liczy teraz ponad 140 kroków w dziewięciu kategoriach.'},
   {t:'fix',d:'🏄 Naprawione: aktywność surfingu na Marina Coast nie zawiesza już ekranu, jeśli w jej trakcie przejdziesz w inne miejsce — sesja po prostu się kończy, zamiast pisać w nieistniejące okno.'},
+  {t:'fix',d:'🕐 Naprawione: zegar pokazywał czasem popsutą godzinę z długim ułamkiem (np. „21:15.012800000012809"). Teraz minuty są zawsze zaokrąglone do pełnej wartości — czysto „21:15".'},
+  {t:'fix',d:'🎤 Freestyle na ulicy: piątek ma teraz najlepsze pory tak jak sobota — zainteresowanie publiczności jest optymalne aż do 2:30 w nocy (piątkowa impreza trwa w najlepsze do wczesnych godzin). Wcześniej piątkowe okno kończyło się o 22:00.'},
  ]
  },
  {
