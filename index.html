@@ -21077,11 +21077,14 @@ window._theftCareerEnsure=function(){
 };
 window._theftCollapseRisk=function(){
   const t=window._theftCareerEnsure();
-  const exposure=t.publicCrimeExposure||0;
+  const exposure=Math.min(100,t.publicCrimeExposure||0);        /* audyt #2: cap 100 (był unbounded → risk przypięte do 100) */
   const infamy=(G._underworldRespect||0);                       /* istniejąca oś infamy */
   const mediaRisk=Math.max((t.mediaRisk||0),(typeof getMediaPressure==='function'?getMediaPressure():0));
   const unpaidFines=(typeof G._unpaidFines==='number'?G._unpaidFines:0);
-  t.careerCollapseRisk=clamp(Math.round(exposure*0.35 + infamy*0.25 + mediaRisk*0.25 + unpaidFines*0.15),0,100);
+  /* v2.3.113 (audyt adversarialny #3/#4/#7): plotki+ukryte przestępstwa podnoszą baseline (asymptota #11, max +8), postanowienie (selfRespect) obniża (max -10). */
+  const rumors=8*(1-1/(1+((t.theftRumors||0)+(t.hiddenCrimeScore||0))*0.12));
+  const respectRelief=Math.min(10,(G._selfRespect||0)*0.2);
+  t.careerCollapseRisk=clamp(Math.round(exposure*0.35 + infamy*0.25 + mediaRisk*0.25 + unpaidFines*0.15 + rumors - respectRelief),0,100);
   return t.careerCollapseRisk;
 };
 window._THEFT_BANDS=[
@@ -21098,8 +21101,8 @@ window._applyTheftCareerDamage=function(visibility){
   if(typeof _publicRepEnsure==='function')_publicRepEnsure();
   t.lastVisibility=visibility;
   if(visibility==='unseen'){ t.theftRumors+=1; t.hiddenCrimeScore+=1; }
-  else if(visibility==='witnessed'){ t.publicCrimeExposure+=8; G._underworldRespect=Math.min(100,(G._underworldRespect||0)+10); if(G.publicRep){ G.publicRep.fanLoyalty=Math.max(0,(G.publicRep.fanLoyalty||60)-4); G.publicRep.brandSafety=Math.max(0,(G.publicRep.brandSafety||60)-1); } }
-  else if(visibility==='recorded'){ t.publicCrimeExposure+=20; t.mediaRisk=Math.min(100,(t.mediaRisk||0)+3); G._underworldRespect=Math.min(100,(G._underworldRespect||0)+25); if(G.publicRep){ G.publicRep.fanLoyalty=Math.max(0,(G.publicRep.fanLoyalty||60)-12); G.publicRep.brandSafety=Math.max(0,(G.publicRep.brandSafety||60)-3); } }
+  else if(visibility==='witnessed'){ t.publicCrimeExposure=Math.min(100,(t.publicCrimeExposure||0)+8); G._underworldRespect=Math.min(100,(G._underworldRespect||0)+10); if(G.publicRep){ G.publicRep.fanLoyalty=Math.max(0,(G.publicRep.fanLoyalty||60)-4); G.publicRep.brandSafety=Math.max(0,(G.publicRep.brandSafety||60)-1); } }
+  else if(visibility==='recorded'){ t.publicCrimeExposure=Math.min(100,(t.publicCrimeExposure||0)+20); t.mediaRisk=Math.min(100,(t.mediaRisk||0)+3); G._underworldRespect=Math.min(100,(G._underworldRespect||0)+25); if(G.publicRep){ G.publicRep.fanLoyalty=Math.max(0,(G.publicRep.fanLoyalty||60)-12); G.publicRep.brandSafety=Math.max(0,(G.publicRep.brandSafety||60)-3); } }
   window._theftCollapseRisk();
   return t;
 };
@@ -21123,7 +21126,7 @@ window._theftRecordingEvent=function(){
   if(typeof _publicRepEnsure==='function')_publicRepEnsure();
   /* §21 efekty (eskalacja medialna ponad bazowe 'recorded') */
   G._underworldRespect=Math.min(100,(G._underworldRespect||0)+25);
-  t.publicCrimeExposure+=25; t.mediaRisk=Math.min(100,(t.mediaRisk||0)+3);
+  t.publicCrimeExposure=Math.min(100,(t.publicCrimeExposure||0)+25); t.mediaRisk=Math.min(100,(t.mediaRisk||0)+3);
   if(G.publicRep) G.publicRep.fanLoyalty=Math.max(0,(G.publicRep.fanLoyalty||60)-15);
   window._theftCollapseRisk();
   window._theftSocialReactions();
@@ -21142,6 +21145,9 @@ window._theftCrisisPanel=function(){
   const t=window._theftCareerEnsure(); const risk=window._theftCollapseRisk();
   if(risk<=60){ if(typeof showMsg==='function')showMsg('✅ Wizerunek pod kontrolą — kryzys kariery jeszcze Ci nie grozi.','i',4000); return false; }
   if(typeof showEventChoice!=='function') return false;
+  /* v2.3.113 (audyt adversarialny #1/#6): 1 akcja kryzysowa/dobę — inaczej darmowe „Wycisz" (-15 exposure) dało się spamować w kółko, podważając płatny crisis control. */
+  if(G._theftCrisisActedDay===G.day){ if(typeof showMsg==='function')showMsg('🕰️ Dziś już zająłeś się kryzysem wizerunkowym — kolejny ruch jutro.','i',5000); return false; }
+  G._theftCrisisActedDay=G.day;
   const band=window._theftBand(risk);
   showEventChoice('🚨 Kryzys wizerunkowy — '+band.label+' ('+risk+'/100)', 'Twoja kariera jest pod silną presją po głośnych akcjach na ulicy. Musisz podjąć trudną decyzję.', [
     {label:'🤫 Wycisz karierę na kilka dni', fn:()=>{ t.publicCrimeExposure=Math.max(0,t.publicCrimeExposure-15); G._careerSilenceUntil=(G.day||0)+3; window._theftCollapseRisk(); if(typeof showMsg==='function')showMsg('🤫 Znikasz z radaru na kilka dni — ekspozycja spada, ale tempo kariery przygasa.','i',6000); }},
@@ -21158,7 +21164,7 @@ window._applyRepeatedTheftCareerPenalty=function(){
   if(typeof _publicRepEnsure==='function')_publicRepEnsure();
   if(n===3){ if(G.publicRep)G.publicRep.brandSafety=Math.max(0,(G.publicRep.brandSafety||60)-1); t.mediaRisk=Math.min(100,(t.mediaRisk||0)+1); if(typeof addNotif==='function')addNotif('👀 Twoje uliczne akcje zaczynają być zauważane — wizerunek pod obserwacją.'); }
   else if(n===5){ if(G.publicRep){ G.publicRep.sponsorTrust=Math.max(0,(G.publicRep.sponsorTrust||60)-2); G.publicRep.fanLoyalty=Math.max(0,(G.publicRep.fanLoyalty||60)-10); } t.mediaRisk=Math.min(100,(t.mediaRisk||0)+2); if(typeof addNotif==='function')addNotif('⚠️ Sponsorzy i fani coraz mniej ufają — seria kradzieży odbija się na karierze.'); }
-  else if(n>=8){ t.mediaRisk=Math.min(100,(t.mediaRisk||0)+3); t.publicCrimeExposure=(t.publicCrimeExposure||0)+5; window._theftCollapseRisk(); if(G._theftCrisisOfferedDay!==G.day && typeof window._theftCrisisPanel==='function'){ G._theftCrisisOfferedDay=G.day; setTimeout(()=>{ try{ window._theftCrisisPanel(); }catch(_){} },1500); } }
+  else if(n>=8){ t.mediaRisk=Math.min(100,(t.mediaRisk||0)+3); t.publicCrimeExposure=Math.min(100,(t.publicCrimeExposure||0)+5); window._theftCollapseRisk(); if(G._theftCrisisOfferedDay!==G.day && typeof window._theftCrisisPanel==='function'){ G._theftCrisisOfferedDay=G.day; setTimeout(()=>{ try{ window._theftCrisisPanel(); }catch(_){} },1500); } }
   window._theftCollapseRisk();
   return n;
 };
@@ -21189,6 +21195,13 @@ window._theftToggleSelfBan=function(){
 };
 window._publicRepDailyTick=function(){
   _publicRepEnsure();
+  /* v2.3.113 (audyt adversarialny #2): dzienny zanik rozgłosu kradzieży (asymptota #11) + cap — analog kolizji (publicCrashExposure). Wizerunek jest odzyskiwalny, mitygacje pozostają skuteczne. */
+  if(typeof window._theftCareerEnsure==='function'){ const _tc=window._theftCareerEnsure();
+    if((_tc.publicCrimeExposure||0)>0) _tc.publicCrimeExposure=Math.max(0,Math.min(100,(_tc.publicCrimeExposure||0)-1));
+    if((_tc.mediaRisk||0)>0) _tc.mediaRisk=Math.max(0,(_tc.mediaRisk||0)-1);
+    if((_tc.theftRumors||0)>0 && (G.day||0)%2===0) _tc.theftRumors=Math.max(0,(_tc.theftRumors||0)-1); /* plotki cichną wolniej */
+    window._theftCollapseRisk();
+  }
   const heat=(G.trap&&G.trap.unlocked)?(G.trap.heat||0):0;
   const mediaPress=getMediaPressure();
   /* presja z nielegalnego życia obniża zaufanie marek/klubów; brak heatu → odbudowa do ~78 (asymptota #11) */
@@ -28949,6 +28962,8 @@ window._theftOpportunity=function(){
 };
 function addFame(n){
   if(!n||n<=0)return 0;
+  /* v2.3.113 (audyt adversarialny #6): „Wycisz karierę" (G._careerSilenceUntil) REALNIE przygasza tempo — sława rośnie wolniej podczas wyciszenia (koszt darmowej opcji panelu kryzysu). */
+  if((G._careerSilenceUntil||0)>(G.day||0)) n=n*0.35;
   const skillMult=(typeof getPrestigeSkillMult==='function')?getPrestigeSkillMult('legend_status'):1;
   const mult=(G.prestigeBonus?.fameMult||1)*skillMult;
   const dimMult=getFameDimMult();
@@ -63186,6 +63201,7 @@ window.renderS9Agency=function(){
       <span style="background:#12243a;border-radius:10px;padding:3px 9px;color:#9ee89e">Autentyczność ${Math.round(s.authenticity||60)}</span>
       <span style="background:#12243a;border-radius:10px;padding:3px 9px;color:#c89eeb">Zaufanie marki ${Math.round(s.brandTrust||60)}</span>
       <span style="background:#2a1518;border-radius:10px;padding:3px 9px;color:${(s.agencyHeat||0)>=30?'#e87':'#c8a'}">Heat ${Math.round(s.agencyHeat||0)}</span>
+      ${(()=>{ const _r=(typeof window._theftCollapseRisk==='function')?window._theftCollapseRisk():0; if(_r<=0) return ''; const _b=window._theftBand?window._theftBand(_r):{label:''}; const _col=_r>=61?'#e87':(_r>=41?'#e0b050':'#9ab'); return `<span style="background:#241a1a;border-radius:10px;padding:3px 9px;color:${_col}" title="Ryzyko upadku kariery po kradzieżach">Wizerunek: ${_b.label} (${_r})</span>`; })()}
     </div>
     <div style="color:#7ec8e3;font-weight:700;font-size:12px;margin-bottom:6px">Kampanie</div>
     ${camps}
