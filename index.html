@@ -18144,10 +18144,10 @@ const ACHIEVEMENTS = [
   {id:'crypto_profit_10k',name:'Krypto Profit',desc:'Zarób łącznie 10 000 zł na crypto trading',icon:'💎',check:()=>(G.trader?.totalProfit||0)>=10000},
   {id:'crypto_profit_100k',name:'Krypto Wieloryb',desc:'Zarób łącznie 100 000 zł na crypto',icon:'🐋',check:()=>(G.trader?.totalProfit||0)>=100000},
   {id:'crypto_diversified',name:'Zdywersyfikowany',desc:'Trzymaj jednocześnie 4+ różnych coinów',icon:'🌈',check:()=>Object.keys(G.crypto?.holdings||{}).filter(k=>(G.crypto.holdings[k]?.qty||0)>0).length>=4},
-  {id:'dog_owner',name:'Właściciel psa',desc:'Adoptuj swojego pierwszego psa w schronisku',icon:'🐕',check:()=>!!(G.dog?.owned)},
-  {id:'dog_savior',name:'Wybawca',desc:'Adoptuj bezdomnego psa (charity)',icon:'🦸',check:()=>!!(G.dog?.owned && G.dog?.breed==='bezdomny')},
-  {id:'dog_trainer',name:'Tresura',desc:'Wytrenuj psa do level 5',icon:'🎯',check:()=>(G.dog?.level||0)>=5},
-  {id:'dog_max_level',name:'Mistrz Tresury',desc:'Wytrenuj psa do max level 20',icon:'👑',check:()=>(G.dog?.level||0)>=20},
+  {id:'dog_owner',name:'Właściciel pupila',desc:'Adoptuj swojego pierwszego zwierzaka w schronisku',icon:'🐾',check:()=>!!(G.dog?.owned)},
+  {id:'dog_savior',name:'Wybawca',desc:'Adoptuj zwierzaka charytatywnego ze schroniska',icon:'🦸',check:()=>{ if(!(G.dog&&G.dog.owned)) return false; const b=(typeof window._findBreed==='function')?window._findBreed(G.dog.breed):null; return !!(b&&b.charity)||G.dog.breed==='bezdomny'; }}, /* v2.3.113 audyt #16: każda adopcja charytatywna, nie tylko bezdomny */
+  {id:'dog_trainer',name:'Tresura',desc:'Rozwiń pupila do poziomu 5',icon:'🎯',check:()=>(G.dog?.level||0)>=5},
+  {id:'dog_max_level',name:'Mistrz Tresury',desc:'Rozwiń pupila do maksymalnego poziomu 20',icon:'👑',check:()=>(G.dog?.level||0)>=20},
   /* v2.1.108: Magazine cover achievementy (Wave 7 K64 — ZAIMPLEMENTOWANE wraz z eventem) */
   {id:'cover_boy',name:'Cover Boy',desc:'Pojawiłeś się na okładce magazynu',icon:'📸',check:()=>(G._magazineCovers||0)>=1},
   {id:'cover_legend',name:'Cover Legend',desc:'5+ okładek magazynów',icon:'🌟',check:()=>(G._magazineCovers||0)>=5},
@@ -21084,7 +21084,9 @@ window._theftCollapseRisk=function(){
   /* v2.3.113 (audyt adversarialny #3/#4/#7): plotki+ukryte przestępstwa podnoszą baseline (asymptota #11, max +8), postanowienie (selfRespect) obniża (max -10). */
   const rumors=8*(1-1/(1+((t.theftRumors||0)+(t.hiddenCrimeScore||0))*0.12));
   const respectRelief=Math.min(10,(G._selfRespect||0)*0.2);
-  t.careerCollapseRisk=clamp(Math.round(exposure*0.35 + infamy*0.25 + mediaRisk*0.25 + unpaidFines*0.15 + rumors - respectRelief),0,100);
+  /* v2.3.113 (audyt schroniska #3): charity gracza = publiczna dobra wola — bufor przy kryzysie wizerunku (asymptota, max -6). Czyni G._charity realnie CZYTANYM. */
+  const charityRelief=Math.min(6,(G._charity||0)*0.1);
+  t.careerCollapseRisk=clamp(Math.round(exposure*0.35 + infamy*0.25 + mediaRisk*0.25 + unpaidFines*0.15 + rumors - respectRelief - charityRelief),0,100);
   return t.careerCollapseRisk;
 };
 window._THEFT_BANDS=[
@@ -25340,6 +25342,7 @@ window._petWeeklyCost=function(){ if(!G.dog||!G.dog.owned) return 0; const b=win
 window._petWeeklyUpkeep=function(){
   if(!G.dog||!G.dog.owned) return;
   if(typeof window._petStatsEnsure==='function') window._petStatsEnsure();
+  if(!G.dog._upkeep) return; /* v2.3.113 (audyt schroniska #12): pupile sprzed v2.3.113 zwolnione z kosztu (grandfather) */
   const cost=window._petWeeklyCost(); if(cost<=0) return;
   const nm=G.dog.name||window._petSpeciesLabel();
   if((G.money||0)>=cost){
@@ -25458,7 +25461,7 @@ window._dogTrainReward=function(type, qualityPct){
 };
 
 /* v2.3.113 (PDF new/6 §9-10 6J/6K): akcje opieki — zabawa/czyszczenie. Koszt energii gracza = naturalny limiter (bez click-reward exploitu). Więź (bond) ma dzienny miękki cap. */
-window._petCareEnsureDay=function(){ if(!G.dog) return; if(G.dog._careDay!==G.day){ G.dog._careDay=G.day; G.dog._bondGainToday=0; G.dog._playsToday=0; } };
+window._petCareEnsureDay=function(){ if(!G.dog) return; if(G.dog._careDay!==G.day){ G.dog._careDay=G.day; G.dog._bondGainToday=0; } };
 window._petBondGain=function(n){ // dzienny cap 6 pkt więzi z interakcji (anti-farm)
   window._petCareEnsureDay(); const cap=6; const used=G.dog._bondGainToday||0; const grant=Math.max(0,Math.min(n,cap-used));
   G.dog.bond=Math.min(100,(G.dog.bond||0)+grant); G.dog._bondGainToday=used+grant; return grant;
@@ -25470,6 +25473,8 @@ window._petDailyNeglectTick=function(){
   G.dog.cleanliness=Math.max(0, G.dog.cleanliness - 4);
   const _neglected=(G.dog.hunger<25)||(G.dog.cleanliness<20)||(G.dog.mood<25);
   const nm=G.dog.name||window._petSpeciesLabel();
+  /* v2.3.113 (audyt schroniska #4): odpowiedzialność (G._responsibility) realnie CZYTANA — łagodzi przyrost winy przy zaniedbaniu, a przy dobrej opiece delikatnie wzmacnia więź. */
+  const _respRelief=Math.floor((G._responsibility||0)/34); /* 0 / 1 / 2 */
   if(_neglected){
     G.dog._neglectStreak=(G.dog._neglectStreak||0)+1;
     const st=G.dog._neglectStreak;
@@ -25479,15 +25484,16 @@ window._petDailyNeglectTick=function(){
       if(typeof showMsg==='function') showMsg(`💔 Schronisko odebrało ${nm} z powodu zaniedbania. Zwierzę zasługuje na lepszą opiekę. (Możesz adoptować ponownie później.)`,'r',9000);
       if(typeof addNotif==='function') addNotif(`💔 ${nm} wrócił do schroniska — zaniedbanie.`);
     } else if(st>=5){
-      G._guilt=Math.min(100,(G._guilt||0)+6);
+      G._guilt=Math.min(100,(G._guilt||0)+Math.max(2,6-_respRelief*2));
       G.dog.bond=Math.max(0,(G.dog.bond||0)-2);
       if(typeof addNotif==='function') addNotif(`⚠️ ${nm} jest poważnie zaniedbany (${st} dni). Zajmij się nim, bo schronisko może go odebrać!`);
     } else if(st>=2){
-      G._guilt=Math.min(100,(G._guilt||0)+3);
+      G._guilt=Math.min(100,(G._guilt||0)+Math.max(1,3-_respRelief));
       if(typeof addNotif==='function') addNotif(`😟 ${nm} czuje się zaniedbany — nakarm, wyczyść i pobaw się z nim.`);
     }
   } else {
     G.dog._neglectStreak=0;
+    if(_respRelief>=1) G.dog.bond=Math.min(100,(G.dog.bond||0)+_respRelief); /* uważny, odpowiedzialny opiekun buduje więź samą obecnością */
   }
 };
 window._petPlay=function(){
@@ -25499,7 +25505,6 @@ window._petPlay=function(){
   G.dog.mood=Math.min(100,(G.dog.mood||80)+12);
   G.dog.cleanliness=Math.max(0,(G.dog.cleanliness!=null?G.dog.cleanliness:100)-6); /* zabawa brudzi */
   const bg=window._petBondGain(2);
-  G.dog._playsToday=(G.dog._playsToday||0)+1;
   if(typeof window._addDogXP==='function') window._addDogXP(2,'play');
   const nm=G.dog.name||window._petSpeciesLabel();
   if(typeof showMsg==='function') showMsg(`🎾 Zabawa z ${nm}! +12 nastrój${bg>0?`, +${bg} więź`:' (więź: dzienny limit)'} · -6 energii.`,'g',3500);
@@ -25532,9 +25537,16 @@ window._petFrameUpPost=function(){
   const _charityBonus=(breed&&breed.charity)?15:0;
   const _bondBonus=Math.floor((G.dog.bond||0)/10);
   const base=Math.floor(_cute + _charityBonus + _bondBonus); /* postPetContent: bonus=cuteness+charity*0.5 (adaptacja) */
-  const reach=1 + Math.max(0, Math.floor((G.followers||0)*0.01));
-  const gainedFollowers=Math.floor(base*0.6*reach*0.1)+base; /* skaluje z zasięgiem, ale zawsze sensowny */
-  const _posts=['Adoptowany. Nie kupiony. 🐾','Najbardziej lojalny członek ekipy 💚','Kto tu jest dobrym psem? 🐶','Dzień z moim najlepszym przyjacielem'];
+  /* v2.3.113 (audyt schroniska #6): zasięg z sufitem (max 30) — post ze zwierzakiem to miły dodatek, nie silnik wzrostu; wcześniej liniowy zasięg dawał ~75k obserwujących/dzień przy milionie followersów. */
+  const reach=1 + Math.min(30, Math.max(0, Math.floor((G.followers||0)*0.01)));
+  const gainedFollowers=Math.floor(base*0.6*reach*0.1)+base; /* skaluje z zasięgiem (do sufitu), zawsze sensowny */
+  /* v2.3.113 (audyt schroniska #15): podpisy dopasowane do gatunku pupila. */
+  const _postsBySpecies={
+    dog:['Adoptowany. Nie kupiony. 🐾','Najbardziej lojalny członek ekipy 💚','Kto tu jest dobrym psem? 🐶','Dzień z moim najlepszym przyjacielem'],
+    cat:['Adoptowany. Nie kupiony. 🐾','Mój futrzasty współlokator rządzi 🐈','Kto tu jest najlepszym kotem? 😺','Dzień z moim najlepszym przyjacielem'],
+    small:['Adoptowany. Nie kupiony. 🐾','Najmniejszy, ale najważniejszy członek ekipy 💚','Kto tu jest prawdziwym słodziakiem? 🥰','Dzień z moim małym przyjacielem'],
+  };
+  const _posts=_postsBySpecies[(typeof window._petSpecies==='function')?window._petSpecies():'dog']||_postsBySpecies.dog;
   const idx=(G._petPostIdx||0)%_posts.length; G._petPostIdx=(G._petPostIdx||0)+1;
   G.followers=(G.followers||0)+gainedFollowers;
   if(typeof addFame==='function') addFame(2);
@@ -25938,7 +25950,18 @@ window._openShelter=function(){
   } else if(_tab==='mine'){
     const hist=Array.isArray(G._petAdoptions)?G._petAdoptions:[];
     const cur=(G.dog&&G.dog.owned)?G.dog:null;
+    const _virt=(k)=>Math.floor(Math.max(0,G[k]||0));
     _body=`<div style="color:#ccd;font-size:12px;margin-bottom:10px">Przegląd Twoich adopcji.</div>
+      <div style="background:#12161f;border-radius:6px;padding:9px 11px;margin-bottom:10px;font-size:12px;color:#cde">
+        <div style="color:#9fd0f5;font-weight:700;margin-bottom:4px">Twoje wartości</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 12px">
+          <div>💛 Charytatywność: <strong style="color:#f1c40f">${_virt('_charity')}</strong></div>
+          <div>🫡 Szacunek do siebie: <strong style="color:#7ec87e">${_virt('_selfRespect')}</strong></div>
+          <div>📋 Odpowiedzialność: <strong style="color:#8fd0ff">${_virt('_responsibility')}</strong></div>
+          <div>😔 Poczucie winy: <strong style="color:${_virt('_guilt')>=50?'#e88':'#9ab'}">${_virt('_guilt')}</strong></div>
+        </div>
+        <div style="font-size:10px;color:#788;margin-top:5px">Dobre uczynki i troska o pupile budują charytatywność (łagodzi kryzysy wizerunku) i szacunek do siebie; zaniedbanie rodzi poczucie winy, które psuje nastrój.</div>
+      </div>
       ${cur?`<div style="background:#0a1a0a;border:2px solid #27ae60;border-radius:6px;padding:10px;margin-bottom:10px"><div style="color:#7ec87e;font-weight:700">${window._findBreed(cur.breed)?(window._findBreed(cur.breed).emoji||'🐾'):'🐾'} ${cur.name||'Pupil'} — obecny pupil</div><div style="font-size:11px;color:#9ab">${window._findBreed(cur.breed)?window._findBreed(cur.breed).name:''} · poziom ${cur.level||1} · więź ${Math.floor(cur.bond||0)}/100</div></div>`:''}
       ${hist.length?`<div style="font-size:11px;color:#9ab;margin-bottom:4px">Historia (${hist.length}):</div><div style="display:grid;grid-template-columns:1fr;gap:5px">${hist.slice().reverse().map(h=>{const b=window._findBreed(h.breed);return `<div style="background:#161a24;border-radius:5px;padding:7px;font-size:12px;color:#cde">${b?(b.emoji||'🐾'):'🐾'} <strong>${h.name}</strong> · ${b?b.name:h.breed} <span style="color:#889">(dzień ${h.day})</span></div>`;}).join('')}</div>`:`<div style="color:#889;font-size:12px;text-align:center;padding:16px">Nie masz jeszcze żadnych adopcji.</div>`}`;
   } else {
@@ -25969,17 +25992,20 @@ window._adoptDogPrompt=function(breedId){
   /* v2.1.497 USER FEEDBACK FIX — native prompt() ZASTĄPIONE in-game modal. */
   const _mg=document.getElementById('mg-job');const _mc=document.getElementById('mg-job-content');
   if(!_mg||!_mc) return;
+  /* v2.3.113 (audyt schroniska #9): modal imienia dopasowany do gatunku (nie zaszyty pies). */
+  const _lab=(typeof window._petSpeciesLabel==='function')?window._petSpeciesLabel(breed.species):'zwierzak';
+  const _em=breed.emoji||'🐾';
   _mc.innerHTML=`<div style="background:#0a1a0a;border:2px solid #27ae60;border-radius:10px;padding:20px;max-width:440px;margin:0 auto;color:#fff">
-    <h2 style="color:#7ec87e;margin-top:0;text-align:center">🐕 Nadaj imię pieskowi</h2>
+    <h2 style="color:#7ec87e;margin-top:0;text-align:center">${_em} Nadaj imię — ${_lab}</h2>
     <div style="text-align:center;margin:10px 0">
-      <div style="font-size:48px">${breed.emoji||'🐕'}</div>
+      <div style="font-size:48px">${_em}</div>
       <div style="color:#aac;font-size:13px;margin-top:4px">${breed.name} · ${breed.price.toLocaleString('pl')} zł</div>
     </div>
-    <div style="color:#ccd;font-size:12px;margin-bottom:6px">Jak nazwiesz swojego pieska?</div>
+    <div style="color:#ccd;font-size:12px;margin-bottom:6px">Jak nazwiesz swojego pupila?</div>
     <input id="dog-name-input" type="text" maxlength="12" placeholder="np. Reksio" style="width:100%;padding:10px;background:#0a2010;border:1px solid #27ae60;border-radius:5px;color:#fff;font-size:14px;margin-bottom:10px;font-family:inherit">
     <button class="bbtn" style="width:100%" onclick="
       const _n=document.getElementById('dog-name-input').value.trim();
-      if(!_n){showMsg('🐕 Wpisz imię pieska.','r',3000);return;}
+      if(!_n){showMsg('🐾 Wpisz imię pupila.','r',3000);return;}
       const ok=window._adoptDog('${breedId}', _n);
       if(ok){document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';}
     ">💚 Adoptuj — ${breed.price.toLocaleString('pl')} zł</button>
@@ -26182,11 +26208,15 @@ window._petStatsEnsure=function(){
   /* v2.3.113 (6B save-compat): stary G.dog bez pola species → 'dog' (weterani mają psy, nie tracą ich). */
   if(G.dog && G.dog.owned && !G.dog.species) G.dog.species='dog';
   /* v2.3.113 (6J/6U save-compat): nowe stany opieki + historia adopcji dla starych save'ów. */
+  if(!Array.isArray(G._petAdoptions)) G._petAdoptions=[];
   if(G.dog && G.dog.owned){
     if(typeof G.dog.bond!=='number'||!isFinite(G.dog.bond)) G.dog.bond=0;
     if(typeof G.dog.cleanliness!=='number'||!isFinite(G.dog.cleanliness)) G.dog.cleanliness=100;
+    /* v2.3.113 (audyt schroniska #12): grandfather — pupile sprzed v2.3.113 (bez znacznika) są zwolnione z nowego kosztu tygodniowego (patch note „Twój obecny pupil zostaje bez zmian"). */
+    if(typeof G.dog._upkeep!=='boolean') G.dog._upkeep=false;
+    /* v2.3.113 (audyt schroniska #13): stary pupil bez historii → dosiej do „Moje adopcje". */
+    if(G._petAdoptions.length===0) G._petAdoptions.push({breed:G.dog.breed,name:G.dog.name||'',species:(G.dog.species||'dog'),day:(G.dog._adoptDay||G.day||0)});
   }
-  if(!Array.isArray(G._petAdoptions)) G._petAdoptions=[];
 };
 window._adoptDog=(breedId,name)=>{
   /* v2.1.409 Round 2 fix: cooldown 7 dni po śmierci TYLKO gdy poprzedni pies kiedyś istniał (G._dogCleared > 0).
@@ -26194,16 +26224,16 @@ window._adoptDog=(breedId,name)=>{
      Runtime test FAIL (dbg_etap2_interaction.mjs test1) wykrył. */
   if(G._dogCleared>0 && G.day - G._dogCleared < 7){
     const _left=7-(G.day-G._dogCleared);
-    if(typeof showMsg==='function') showMsg(`🐕 Po śmierci pieska trzeba poczekać ${_left} dni przed kolejną adopcją.`,'r',5000);
+    if(typeof showMsg==='function') showMsg(`🐾 Po stracie pupila trzeba poczekać ${_left} dni przed kolejną adopcją.`,'r',5000);
     return false;
   }
   /* Wymóg apartament (Basic+) */
   const _hasApt=['basic','premium','luxury','duplex','mansion','mega_villa'].includes(G.apartment)||(G._ownedApts||[]).some(a=>['basic','premium','luxury','duplex','mansion','mega_villa'].includes(a));
   if(!_hasApt){
-    if(typeof showMsg==='function') showMsg('🐕 Pies potrzebuje miejsca — najpierw kup apartament (min. Basic).','r',5000);
+    if(typeof showMsg==='function') showMsg('🏠 Zwierzak potrzebuje miejsca — najpierw kup apartament (min. Basic).','r',5000);
     return false;
   }
-  if(G.dog && G.dog.owned){if(typeof showMsg==='function') showMsg('🐕 Masz już psa.','r');return false;}
+  if(G.dog && G.dog.owned){if(typeof showMsg==='function') showMsg('🐾 Masz już zwierzaka.','r');return false;}
   const breed=window._findBreed(breedId);
   if(!breed){if(typeof showMsg==='function') showMsg('⚠️ Nieznana rasa','r');return false;}
   /* v2.3.113 (§13 6N): dopasowanie do wielkości mieszkania — duże/energiczne psy potrzebują większego lokum */
@@ -26218,17 +26248,17 @@ window._adoptDog=(breedId,name)=>{
     owned:true,breed:breedId,species:(breed.species||'dog'),name:(name||'Reksio').slice(0,12),
     level:1,xp:0,hunger:100,mood:100,health:100,bond:0,cleanliness:100,
     slodkosc:breed.slodkoscBase+2, /* base +2 lvl 1 */
-    sickness:null,toysOwned:[],lastVetCheckup:G.day,lastFeedDay:G.day,_adoptDay:G.day,_deathDay:0
+    sickness:null,toysOwned:[],lastVetCheckup:G.day,lastFeedDay:G.day,_adoptDay:G.day,_deathDay:0,_upkeep:true /* v2.3.113 audyt #12: nowe pupile płacą koszt tyg. (stare grandfather) */
   };
   /* v2.3.113 (§2 6U): historia adopcji (przegląd zaadoptowanych zwierząt gracza) */
   if(!Array.isArray(G._petAdoptions)) G._petAdoptions=[];
   G._petAdoptions.push({breed:breedId,name:G.dog.name,species:G.dog.species,day:G.day});
-  /* Charity bonus dla bezdomny */
-  if(breedId==='bezdomny'){
+  /* v2.3.113 (audyt schroniska #16): Wybawca dla KAŻDEJ adopcji charytatywnej (bezdomny, mieszaniec, koty/psy specjalnej troski), nie tylko 'bezdomny'. */
+  if(breed.charity){
     if(typeof addFame==='function') addFame(10); else G.fame=Math.min(500,(G.fame||0)+10);
-    if(typeof addNotif==='function') addNotif('🦸 Wybawca! +10 sławy za adopcję bezdomnego.');
+    if(typeof addNotif==='function') addNotif('🦸 Wybawca! +10 sławy za uratowanie zwierzaka ze schroniska.');
   }
-  if(typeof addNotif==='function') addNotif(`🐕 Adoptowano ${breed.name}: "${G.dog.name}"! +20 sławy za media social.`);
+  if(typeof addNotif==='function') addNotif(`${breed.emoji||'🐾'} Adoptowano ${breed.name}: "${G.dog.name}"! +20 sławy za media social.`);
   if(typeof addFame==='function') addFame(20); else G.fame=Math.min(500,(G.fame||0)+20);
   /* v2.3.113 (PDF new/6 §... bonus adopcyjny 6I): adopcja buduje cnoty (charity/selfRespect/responsibility) + poprawia nastrój; silniej dla zwierząt „po przejściach"/specjalnej troski. */
   if(typeof window._petStatsEnsure==='function') window._petStatsEnsure();
@@ -26241,7 +26271,7 @@ window._adoptDog=(breedId,name)=>{
   /* v2.1.460 SMS od Marcina przy AQ dog adopt (analog Trap+Trader unlock SMS). */
   if(typeof _smsTriggerOnce==='function'){
     /* U8 (v2.3.44 PDF): info o adopcji od systemu „TrapInfo", nie Marcina — sama treść o korzyściach i o czym pamiętać. */
-    _smsTriggerOnce('dog_adopted','trapinfo',`🐾 Gratulacje adopcji! Zwierzak to nie tylko towarzysz w mieście — zadbany pies podnosi słodkość i daje +50% zasięgu na FrameUp, a adopcja bezdomniaka to +10 sławy (charity). Pamiętaj o regularnym karmieniu, treningu i zabawkach — głodny lub zaniedbany piesek traci nastrój. Powodzenia!`);
+    _smsTriggerOnce('dog_adopted','trapinfo',`🐾 Gratulacje adopcji! Zwierzak to nie tylko towarzysz w mieście — zadbany pupil podnosi słodkość i daje +50% zasięgu na FrameUp, a uratowanie zwierzaka ze schroniska to +10 sławy (charity). Pamiętaj o regularnym karmieniu, opiece i zabawie — głodny lub zaniedbany pupil traci nastrój. Powodzenia!`);
   }
   if(typeof saveGameSilent==='function') saveGameSilent();
   return true;
@@ -26533,8 +26563,8 @@ const QUEST_POOL = [
   {desc:'Zagraj 1 koncert',target:'concert',count:1,reward:500,xp:60,cond:()=>G.fame>=20&&!!G.mic},
   {desc:'Odegraj 2 koncerty',target:'concert',count:2,reward:800,xp:90,cond:()=>G.fame>=35&&!!G.mic},
   /* v2.1.430 Faza Z'+++ Etap 2: 4 questy dla nowych systemów (AQ pies + AR crypto). */
-  {desc:'Nakarm psa (kup karmę w sklepie zoo)',target:'feed_dog',count:1,reward:150,xp:18,cond:()=>G.dog?.owned},
-  {desc:'Wytresuj psa 2× (apka Mój Pies → tresura)',target:'dog_train',count:2,reward:280,xp:35,cond:()=>G.dog?.owned},
+  {desc:'Nakarm pupila (kup karmę w sklepie zoo)',target:'feed_dog',count:1,reward:150,xp:18,cond:()=>G.dog?.owned},
+  {desc:'Wytresuj psa 2× (apka Mój pupil → tresura)',target:'dog_train',count:2,reward:280,xp:35,cond:()=>G.dog?.owned && (G.dog?.species||'dog')==='dog'}, /* v2.3.113 audyt #17: tresura tylko dla psów (koty/małe nie mają minigier) */
   {desc:'Kup dowolny coin (Crypto app)',target:'crypto_buy',count:1,reward:220,xp:25,cond:()=>G.trader?.unlocked},
   {desc:'Sprzedaj 2× coiny (Crypto app)',target:'crypto_sell',count:2,reward:320,xp:35,cond:()=>G.trader?.unlocked},
   /* v2.1.448 quest dla Cypher Club (Underground district). */
@@ -28222,6 +28252,12 @@ function nextPeriod(){
       /* v2.3.113 (PDF new/6 §17 6R): zwierzak jako stabilizator psychiczny (Nova Cura) — codzienne wsparcie + event kryzysowy „Ktoś czeka w domu". */
       if(typeof window._petMentalStabilizerTick==='function') window._petMentalStabilizerTick();
       if(typeof window._petHomeWaitingEvent==='function') window._petHomeWaitingEvent(false);
+    }
+    /* v2.3.113 (audyt schroniska #5): poczucie winy (G._guilt) realnie CZYTANE — wysokie winy lekko obniża nastrój (asymptota #11: 0 gdy <50, -1 gdy 50-99, -2 przy 100), a samo z czasem gaśnie gdy nie dokładasz nowych zaniedbań. */
+    if(typeof G._guilt==='number' && G._guilt>0){
+      const _guiltMoodHit=Math.floor(G._guilt/50);
+      if(_guiltMoodHit>0) G.stress=(typeof clamp==='function')?clamp((G.stress||50)-_guiltMoodHit,0,100):Math.max(0,(G.stress||50)-_guiltMoodHit);
+      G._guilt=Math.max(0,G._guilt-2); /* naturalny zanik winy */
     }
     /* v2.1.421 Faza AN.6 Etap 2: daily heat decay. v2.1.730 (Monte Carlo rebalans): -3→-30 — przy -3 hojna marża mixa (+4325) była bezużyteczna (heat utykał na 70 na dni). v2.1.731 (weryfikacja vs inne zarobki, user „trochę mocniejszy"): -30→-20 — stonowane do ~15k zł/dzień (4× wcześniej, nie dominuje vs koncerty/streaming) z wysoką wariancją (busty). */
     if(G.trap && G.trap.unlocked){
@@ -52581,7 +52617,7 @@ function _getPhoneFolders(){
       /* v2.1.228: Dialog tree NPC — story arc 3 NPCs × 5 stepów */
       _phApp('📖','Historie','#1a0a14','#9b59b6',"renderPhoneStories()"),
       /* v2.1.398 Faza AQ.14 Etap 2: telefon apka "Mój Pies" — status psa + akcje. */
-      _phApp('🐕',`Mój Pies${G.dog&&G.dog.owned?(' · L'+G.dog.level):''}`,'#0a1a0a','#27ae60',"renderPhoneApp('dog')"),
+      _phApp((G.dog&&G.dog.owned&&typeof window._findBreed==='function'&&window._findBreed(G.dog.breed)&&window._findBreed(G.dog.breed).emoji)?window._findBreed(G.dog.breed).emoji:'🐾',`Mój pupil${G.dog&&G.dog.owned?(' · L'+G.dog.level):''}`,'#0a1a0a','#27ae60',"renderPhoneApp('dog')"),
     ]},
     /* v2.1.348 Faza AD: Mechaniki z top-level → Pomoc folder. Sortowanie: Wprowadzenie → Tutorial → Mechaniki → Wskazówki → Sterowanie → Przelot → Patch Notes. */
     help:{em:'❓',label:'Pomoc',preview:['🎬','🎓','📖','💡'],apps:[
@@ -54361,12 +54397,16 @@ function renderPhoneApp(app){
     /* v2.1.398 Faza AQ.14 Etap 2: telefon apka "Mój Pies". Panel statusu psa + akcje (karmienie/zabawa/spacer/wet). */
     if(!G.dog || !G.dog.owned){
       const _cd = G._dogCleared>0 ? Math.max(0, 7-(G.day-G._dogCleared)) : 0;
-      ph.innerHTML=`<div class="ph-screen"><div style="color:#667;font-size:14px;padding:20px;text-align:center">🐕 Nie masz jeszcze pieska.<br><br>${_cd>0?`⏳ Cooldown po śmierci: ${_cd} dni`:'Adoptuj ulubieńca w schronisku!'}</div>
+      ph.innerHTML=`<div class="ph-screen"><div style="color:#667;font-size:14px;padding:20px;text-align:center">🐾 Nie masz jeszcze pupila.<br><br>${_cd>0?`⏳ Odczekaj jeszcze: ${_cd} dni`:'Adoptuj ulubieńca w schronisku!'}</div>
         ${_cd===0?`<div style="padding:10px"><button class="cbtn" style="width:100%" onclick="closePhone();window._openShelter&&window._openShelter()">🏠 Otwórz schronisko</button></div>`:''}
       </div>`;
     } else {
       const breed=window._findBreed(G.dog.breed);
-      const _name=G.dog.name||'Pies';
+      /* v2.3.113 (audyt schroniska #1): panel wielogatunkowy — emoji rasy + etykieta gatunku (nie zaszyty pies). */
+      const _emoji=(breed&&breed.emoji)?breed.emoji:'🐾';
+      const _petWord=(typeof window._petSpeciesLabel==='function')?window._petSpeciesLabel():'pupil';
+      const _isDog=((typeof window._petSpecies==='function')?window._petSpecies():'dog')==='dog';
+      const _name=G.dog.name||(_petWord.charAt(0).toUpperCase()+_petWord.slice(1));
       const _lvl=G.dog.level||1;
       const _xp=G.dog.xp||0;
       const _nextLvlXP=DOG_XP_FOR_LEVEL(_lvl+1);
@@ -54384,8 +54424,8 @@ function renderPhoneApp(app){
       const _cleanCol=_clean<30?'#e74c3c':_clean<60?'#f39c12':'#27ae60';
       ph.innerHTML=`<div class="ph-screen">
         <div style="background:#0a1a0a;border-radius:8px;padding:14px;margin-bottom:12px;border:2px solid #27ae60">
-          <div style="font-size:18px;font-weight:700;color:#7ec87e;margin-bottom:6px">🐕 ${_name}</div>
-          <div style="color:#ccd;font-size:13px;margin-bottom:8px">${breed?breed.name:'Pies'} • Level ${_lvl}/20</div>
+          <div style="font-size:18px;font-weight:700;color:#7ec87e;margin-bottom:6px">${_emoji} ${_name}</div>
+          <div style="color:#ccd;font-size:13px;margin-bottom:8px">${breed?breed.name:(_petWord.charAt(0).toUpperCase()+_petWord.slice(1))} • Level ${_lvl}/20</div>
           <div style="background:#1a2a1a;border-radius:4px;height:6px;overflow:hidden;margin-bottom:4px"><div style="width:${_xpPct}%;height:100%;background:#27ae60"></div></div>
           <div style="font-size:11px;color:#aab">${_lvl>=20?'MAX LEVEL':`${_xp} / ${_nextLvlXP} XP`}</div>
         </div>
@@ -54408,15 +54448,15 @@ function renderPhoneApp(app){
         </div>
         <button class="cbtn" style="width:100%;padding:6px;font-size:11px;color:#8fd0ff;border-color:#5aa0e0;margin-bottom:8px" onclick="closePhone();window._petSitterPanel&&window._petSitterPanel()">🏨 Opieka zastępcza${(G.dog._sitterUntil||0)>=G.day?` (aktywna do dnia ${G.dog._sitterUntil})`:''}</button>
         <div style="font-size:12px;color:#ccd;padding:6px 10px;background:#0a1220;border-radius:6px;margin-bottom:8px">
-          📸 Twoje posty są <strong style="color:#ff69b4">+${Math.floor(_slodkosc/2)}%</strong> bardziej popularne dzięki pieskowi! (Im słodszy piesek, tym więcej polubień na FrameUp.)
+          📸 Twoje posty są <strong style="color:#ff69b4">+${Math.floor(_slodkosc/2)}%</strong> bardziej popularne dzięki Twojemu pupilowi! (Im słodszy pupil, tym więcej polubień na FrameUp.)
         </div>
-        <div style="background:#1a1505;border-left:3px solid #c8a520;padding:8px 10px;margin-bottom:8px;font-size:11px;color:#ccd">🏪 <strong style="color:#f1c40f">Karma + zabawki:</strong> Sklep Zoologiczny (ulica) · <strong style="color:#f1c40f">Leczenie:</strong> Weterynarz (ulica) · <strong style="color:#f1c40f">Adopcja:</strong> Schronisko (ulica). Apka tylko status psa.</div>
-        <div style="color:#7ec87e;font-size:12px;margin-bottom:6px;font-weight:bold">🎓 Tresura (w domu):</div>
+        <div style="background:#1a1505;border-left:3px solid #c8a520;padding:8px 10px;margin-bottom:8px;font-size:11px;color:#ccd">🏪 <strong style="color:#f1c40f">Karma + zabawki:</strong> Sklep Zoologiczny (ulica) · <strong style="color:#f1c40f">Leczenie:</strong> Weterynarz (ulica) · <strong style="color:#f1c40f">Adopcja:</strong> Schronisko (ulica). Apka pokazuje tylko status pupila.</div>
+        ${_isDog?`<div style="color:#7ec87e;font-size:12px;margin-bottom:6px;font-weight:bold">🎓 Tresura (w domu):</div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:6px">
           <button class="cbtn" style="padding:6px;font-size:11px;color:#7ec87e;border-color:#27ae60" onclick="window._dogTrain&&window._dogTrain('aport')">🥏 Aport</button>
           <button class="cbtn" style="padding:6px;font-size:11px;color:#7ec87e;border-color:#27ae60" onclick="window._dogTrain&&window._dogTrain('bieg')">🏃 Spacer</button>
           <button class="cbtn" style="padding:6px;font-size:11px;color:#7ec87e;border-color:#27ae60" onclick="window._dogTrain&&window._dogTrain('poslusze')">🎯 Tresura</button>
-        </div>
+        </div>`:`<div style="font-size:11px;color:#9ab;padding:6px 10px;background:#0a1220;border-radius:6px">🎾 Twój pupil rośnie i buduje więź dzięki zabawie, kąpieli i wspólnym chwilom (sekcja Opieka wyżej).</div>`}
       </div>`;
     }
   }
@@ -61877,7 +61917,7 @@ const SMART_HINTS=[
      Gated na G.level>=2 (po wprowadzeniu, gdy mechaniki/kariery się odblokowują) — NIE auto-modal (anti-overlap z przelotem). */
   {id:'career_paths_intro', cond:()=>(G.level||1)>=2 && !G._hintShown_career_paths_intro, msg:'🎬 Jak budować karierę? Możesz iść drogą LEGALNĄ (prace dorywcze, muzyka, inwestycje), NIELEGALNĄ (Trap, kradzieże) albo łączyć obie — każda inaczej wpływa na sławę, ryzyko i relacje. Szczegóły: 📱 Telefon → Pomoc → 📖 Mechaniki → „Ścieżki kariery".'},
   /* v2.1.403 Faza AQ.16 Round 2 #6 analog audit: smart hint dla nowej feature pies. Analog do casino_intro / apt_premium. */
-  {id:'dog_intro', cond:()=>G.level>=3 && G.apartment && !['traphouse','studio',''].includes(G.apartment) && !G.dog?.owned && !G._hintShown_dog_intro, msg:'🐕 Masz mieszkanie — możesz adoptować psa! Otwórz telefon → folder NPC → Mój Pies → Schronisko. 12 ras (od 50 do 500 zł). Bezdomny daje +10 fame charity. Pies dodaje słodkość = bonus engagement IG (cap +50%).'},
+  {id:'dog_intro', cond:()=>G.level>=3 && G.apartment && !['traphouse','studio',''].includes(G.apartment) && !G.dog?.owned && !G._hintShown_dog_intro, msg:'🐾 Masz mieszkanie — możesz adoptować pupila! Otwórz telefon → folder NPC → Mój pupil → Schronisko. Do wyboru psy, koty i małe zwierzęta (od 40 do 500 zł). Adopcja charytatywna daje +10 fame. Pupil dodaje słodkość = bonus engagement na FrameUp (cap +50%).'},
   /* v2.1.405 Faza AR.10 #6 analog: smart hint dla Trader career — lvl 6+. */
   {id:'trader_intro', cond:()=>G.level>=6 && !!(G.trader?.unlocked) && !(G.trader?.tradesCount>0) && !G._hintShown_trader_intro, msg:'📈 Trader career odblokowany! Otwórz telefon → folder Finanse → Crypto. 6 coinów (stable/volatile/memecoin), staking po 7 dniach holdu (+0.5%/dzień), scalping (5×/dzień), leverage 2x-5x. Trading fee 1%, XP = abs(PnL)/100.'},
   /* v2.1.408 Faza AN.4 #6 analog: smart hint dla Trap career — visible po dealer meeting. */
@@ -63669,6 +63709,8 @@ const PATCH_NOTES = [
   {t:'new',d:'🏠 Schronisko ma teraz sześć zakładek: obok psów, kotów i małych zwierząt znajdziesz osobną kategorię „Specjalna troska" (zwierzęta, które najbardziej potrzebują domu — największy bonus charity), przegląd „Moje adopcje" z historią Twoich pupili oraz „Wolontariat" — pięć sposobów pomocy (karmienie, spacery, sprzątanie boksów, oswajanie lękliwych, dzień adopcyjny). Wolontariat nie daje wielkich pieniędzy, ale realnie buduje charity i szacunek do siebie.'},
   {t:'new',d:'🏨 Nie masz czasu albo wyjeżdżasz? W telefonie w profilu zwierzaka wykupisz opiekę zastępczą w trzech wariantach (jeden dzień, weekend albo pięciodniowa premium). Opiekun utrzymuje głód i nastrój pupila i chroni go przed zaniedbaniem, a opcja premium dodatkowo poprawia mu humor.'},
   {t:'new',d:'💚 Zwierzak to teraz realne wsparcie psychiczne — im większa Wasza więź, tym łagodniej znosisz trudne dni: napięcie odpuszcza, a pokusa sięgnięcia po używki słabnie. W naprawdę ciężkich momentach pupil potrafi Ci przypomnieć, że ktoś w domu na Ciebie czeka.'},
+  {t:'fix',d:'🐈 Koty i małe zwierzaki są teraz spójnie pokazywane w całej grze — profil w telefonie ma właściwą ikonę i opisy „pupila" zamiast „psa", okno nadawania imienia dopasowuje się do gatunku, a odznaka „Wybawca" i bonus sławy należą się za każdą adopcję charytatywną (nie tylko bezdomnego psa). W profilu widać teraz też Twoje wartości: charytatywność (łagodzi kryzysy wizerunku), szacunek do siebie, odpowiedzialność i poczucie winy (psuje nastrój, gdy zaniedbujesz pupila).'},
+  {t:'fix',d:'🐾 Twój dotychczasowy pupil (sprzed tej aktualizacji) jest zwolniony z nowego tygodniowego kosztu utrzymania i pojawia się na liście „Moje adopcje" — zgodnie z obietnicą, że zostaje bez zmian. Tresura minigrami dotyczy psów; koty i małe zwierzaki rozwijają się przez zabawę, kąpiel i wspólne chwile.'},
   {t:'fix',d:'🟢 Zielone powiadomienia możesz teraz po prostu kliknąć, żeby zniknęły od razu — nie musisz czekać, aż same wygasną. Przydaje się, gdy zbiera się ich więcej naraz.'},
   {t:'fix',d:'▶️ Naprawione: na samym starcie gry potrafiła wyskoczyć wiadomość, że „Twój film wystrzelił", mimo że nie miałeś jeszcze żadnego nagranego filmu. Teraz taka informacja pojawia się dopiero, gdy masz na koncie co najmniej 3 opublikowane filmy.'},
   {t:'fix',d:'🔒 Wytwórnia, S9 Agency i NOX Route w folderze Kariera odblokowują się po ukończeniu poradnika na start — dzięki temu nowy gracz nie jest od razu zasypany wszystkimi opcjami. Jeśli grasz już od dłuższego czasu, korzystasz z nich bez zmian.'},
@@ -77001,7 +77043,7 @@ const STORYLINE_QUESTS=[
   {id:'concert',  em:'🎪', name:'Pierwszy koncert',   desc:'Zagraj koncert na Małej Scenie (Sala Koncertowa, centrum miasta). Wymaga 10+ sławy i Scena lvl 1 w drzewku',
     check:()=>(G.events?.performed||0)>=1, reward:{money:1500,fame:10,skillPts:1}},
   /* v2.1.702 (user: dodaj kroki o psie — środek gry, po zdobyciu mieszkania/sławy). */
-  {id:'adoptdog', em:'🐕', name:'Najlepszy przyjaciel', desc:'Adoptuj psa w Schronisku (🐕 na mapie — wymaga mieszkania Basic+). Pies to towarzysz, bonusy i osobna linia rozwoju.',
+  {id:'adoptdog', em:'🐾', name:'Najlepszy przyjaciel', desc:'Adoptuj zwierzaka w Schronisku (🏠 na mapie — wymaga mieszkania Basic+). Pupil to towarzysz, bonusy i osobna linia rozwoju.',
     check:()=>!!(G.dog?.owned), reward:{money:1000,fame:3,xp:40}},
   {id:'tracks3',  em:'🎶', name:'Trzy single',         desc:'Nagraj łącznie 3 tracki — budujesz katalog jako artysta. Każdy track to dodatkowy strumień royalties',
     check:()=>(G.careers?.raper?.tracks||0)>=3, reward:{money:3000,fame:8,xp:80}},
@@ -77026,7 +77068,7 @@ const STORYLINE_QUESTS=[
     check:()=>(G.followers||0)>=100000, reward:{money:80000,fame:30,skillPts:4}},
   {id:'fans1m',   em:'🌍', name:'Milion fanów',         desc:'Milion lojalnych fanów — światowa gwiazda. Twoja muzyka gra na całym globie',
     check:()=>(G.fans||0)>=1000000, reward:{money:200000,fame:60,skillPts:8}},
-  {id:'dogmaster',em:'🦴', name:'Mistrz tresury',        desc:'Wytrenuj psa do maksymalnego poziomu 20 — endgame mistrzostwo opieki nad pupilem.',
+  {id:'dogmaster',em:'🦴', name:'Mistrz tresury',        desc:'Rozwiń pupila do maksymalnego poziomu 20 — endgame mistrzostwo opieki nad pupilem.',
     check:()=>(G.dog?.level||0)>=20, reward:{money:50000,fame:15,skillPts:3}},
   {id:'goatstatus',em:'👑',name:'Status GOAT',          desc:'Osiągnij sławę 400 (Tier 4 GOAT) — Greatest Of All Time, szczyt sceny. Legenda nad legendami',
     check:()=>(G.fame||0)>=400, reward:{money:300000,skillPts:10}},
@@ -77236,11 +77278,11 @@ const SIDE_STORYLINES={
         check:()=>!!(G.dog?.owned), reward:{money:300,xp:25}},
       {id:'dg2', em:'🎯', name:'Trener', desc:'Wytrenuj psa do level 5',
         check:()=>(G.dog?.level||0)>=5, reward:{money:800,fame:5,xp:50}},
-      {id:'dg3', em:'💕', name:'Rasowy ulubieniec', desc:'Osiągnij 80 słodkości u psa (level + zabawki)', /* v2.1.667 (T1.4): prog 100->80 — bezdomny max slodkosc 86 (base40+lvl20*2+4toys*6), mieszaniec 96; prog 100 PERMANENTNIE blokowal sekwencyjny questline psa (dg4/dg5) dla 2 najtanszych ras. 80 osiagalne dla wszystkich z marginesem. Save-safe (slodkosc recalc daily L20826). */
+      {id:'dg3', em:'💕', name:'Rasowy ulubieniec', desc:'Osiągnij 80 słodkości u pupila (poziom + zabawki)', /* v2.1.667 (T1.4): prog 100->80 — bezdomny max slodkosc 86 (base40+lvl20*2+4toys*6), mieszaniec 96; prog 100 PERMANENTNIE blokowal sekwencyjny questline psa (dg4/dg5) dla 2 najtanszych ras. 80 osiagalne dla wszystkich z marginesem. Save-safe (slodkosc recalc daily L20826). */
         check:()=>(G.dog?.slodkosc||0)>=80, reward:{money:2000,fame:10,xp:80,skillPts:1}},
       {id:'dg4', em:'🦴', name:'Wszystkie zabawki', desc:'Kup wszystkie 4 zabawki w sklepie zoologicznym',
         check:()=>(G.dog?.toysOwned||[]).length>=4, reward:{money:3000,fame:5,xp:60,skillPts:1}},
-      {id:'dg5', em:'👑', name:'Mistrz tresury', desc:'Wytrenuj psa do max level 20 — endgame mistrzostwo',
+      {id:'dg5', em:'👑', name:'Mistrz tresury', desc:'Rozwiń pupila do maksymalnego poziomu 20 — endgame mistrzostwo',
         check:()=>(G.dog?.level||0)>=20, reward:{money:15000,fame:25,xp:150,skillPts:3}},
     ]
   },
