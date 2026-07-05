@@ -25457,6 +25457,96 @@ window._dogTrainReward=function(type, qualityPct){
   if(typeof renderPhoneApp==='function') renderPhoneApp('dog');
 };
 
+/* v2.3.113 (PDF new/6 §9-10 6J/6K): akcje opieki — zabawa/czyszczenie. Koszt energii gracza = naturalny limiter (bez click-reward exploitu). Więź (bond) ma dzienny miękki cap. */
+window._petCareEnsureDay=function(){ if(!G.dog) return; if(G.dog._careDay!==G.day){ G.dog._careDay=G.day; G.dog._bondGainToday=0; G.dog._playsToday=0; } };
+window._petBondGain=function(n){ // dzienny cap 6 pkt więzi z interakcji (anti-farm)
+  window._petCareEnsureDay(); const cap=6; const used=G.dog._bondGainToday||0; const grant=Math.max(0,Math.min(n,cap-used));
+  G.dog.bond=Math.min(100,(G.dog.bond||0)+grant); G.dog._bondGainToday=used+grant; return grant;
+};
+/* v2.3.113 (PDF new/6 §11 6L): dzienny spadek czystości + eskalacja zaniedbania (guilt→ostrzeżenia→schronisko odbiera). Wydzielone jako helper dla testowalności (ZASADA #0). */
+window._petDailyNeglectTick=function(){
+  if(!G.dog||!G.dog.owned) return;
+  if(typeof G.dog.cleanliness!=='number') G.dog.cleanliness=100;
+  G.dog.cleanliness=Math.max(0, G.dog.cleanliness - 4);
+  const _neglected=(G.dog.hunger<25)||(G.dog.cleanliness<20)||(G.dog.mood<25);
+  const nm=G.dog.name||window._petSpeciesLabel();
+  if(_neglected){
+    G.dog._neglectStreak=(G.dog._neglectStreak||0)+1;
+    const st=G.dog._neglectStreak;
+    if(st>=8){
+      G._guilt=Math.min(100,(G._guilt||0)+25);
+      G.dog.owned=false; G.dog._deathDay=0; G._dogCleared=G.day; G.dog._neglectStreak=0;
+      if(typeof showMsg==='function') showMsg(`💔 Schronisko odebrało ${nm} z powodu zaniedbania. Zwierzę zasługuje na lepszą opiekę. (Możesz adoptować ponownie później.)`,'r',9000);
+      if(typeof addNotif==='function') addNotif(`💔 ${nm} wrócił do schroniska — zaniedbanie.`);
+    } else if(st>=5){
+      G._guilt=Math.min(100,(G._guilt||0)+6);
+      G.dog.bond=Math.max(0,(G.dog.bond||0)-2);
+      if(typeof addNotif==='function') addNotif(`⚠️ ${nm} jest poważnie zaniedbany (${st} dni). Zajmij się nim, bo schronisko może go odebrać!`);
+    } else if(st>=2){
+      G._guilt=Math.min(100,(G._guilt||0)+3);
+      if(typeof addNotif==='function') addNotif(`😟 ${nm} czuje się zaniedbany — nakarm, wyczyść i pobaw się z nim.`);
+    }
+  } else {
+    G.dog._neglectStreak=0;
+  }
+};
+window._petPlay=function(){
+  if(!G.dog||!G.dog.owned){ if(typeof showMsg==='function') showMsg('🐾 Nie masz zwierzaka!','r',3000); return false; }
+  if(typeof window._petStatsEnsure==='function') window._petStatsEnsure();
+  if((G.energy||0)<6){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii na zabawę (potrzeba 6).','r',3000); return false; }
+  window._petCareEnsureDay();
+  G.energy=Math.max(0,(G.energy||100)-6);
+  G.dog.mood=Math.min(100,(G.dog.mood||80)+12);
+  G.dog.cleanliness=Math.max(0,(G.dog.cleanliness!=null?G.dog.cleanliness:100)-6); /* zabawa brudzi */
+  const bg=window._petBondGain(2);
+  G.dog._playsToday=(G.dog._playsToday||0)+1;
+  if(typeof window._addDogXP==='function') window._addDogXP(2,'play');
+  const nm=G.dog.name||window._petSpeciesLabel();
+  if(typeof showMsg==='function') showMsg(`🎾 Zabawa z ${nm}! +12 nastrój${bg>0?`, +${bg} więź`:' (więź: dzienny limit)'} · -6 energii.`,'g',3500);
+  if(typeof renderPhoneApp==='function') renderPhoneApp('dog');
+  if(typeof updateHUD==='function') updateHUD();
+  return true;
+};
+window._petClean=function(){
+  if(!G.dog||!G.dog.owned){ if(typeof showMsg==='function') showMsg('🐾 Nie masz zwierzaka!','r',3000); return false; }
+  if(typeof window._petStatsEnsure==='function') window._petStatsEnsure();
+  if((G.dog.cleanliness!=null?G.dog.cleanliness:100)>=98){ if(typeof showMsg==='function') showMsg('🧼 Twój zwierzak jest już czysty.','r',3000); return false; }
+  if((G.energy||0)<4){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii na kąpiel (potrzeba 4).','r',3000); return false; }
+  G.energy=Math.max(0,(G.energy||100)-4);
+  G.dog.cleanliness=100;
+  G.dog.mood=Math.min(100,(G.dog.mood||80)+5);
+  const bg=window._petBondGain(1);
+  const nm=G.dog.name||window._petSpeciesLabel();
+  if(typeof showMsg==='function') showMsg(`🧼 ${nm} wykąpany — czystość 100%, +5 nastrój${bg>0?`, +${bg} więź`:''}.`,'g',3500);
+  if(typeof renderPhoneApp==='function') renderPhoneApp('dog');
+  if(typeof updateHUD==='function') updateHUD();
+  return true;
+};
+/* v2.3.113 (PDF new/6 §16 6Q): zwierzak jako content na FrameUp — post daje obserwujących/sławę skalowane słodkością + charity. Limit 1/dzień (anti-farm). */
+window._petFrameUpPost=function(){
+  if(!G.dog||!G.dog.owned){ if(typeof showMsg==='function') showMsg('🐾 Nie masz zwierzaka!','r',3000); return false; }
+  if(typeof window._petStatsEnsure==='function') window._petStatsEnsure();
+  if(G._petPostDay===G.day){ if(typeof showMsg==='function') showMsg('📸 Dziś już wrzuciłeś story ze zwierzakiem. Wróć jutro!','r',3500); return false; }
+  const breed=window._findBreed(G.dog.breed);
+  const _cute=(typeof window._calcDogSlodkosc==='function')?window._calcDogSlodkosc():(G.dog.slodkosc||50);
+  const _charityBonus=(breed&&breed.charity)?15:0;
+  const _bondBonus=Math.floor((G.dog.bond||0)/10);
+  const base=Math.floor(_cute + _charityBonus + _bondBonus); /* postPetContent: bonus=cuteness+charity*0.5 (adaptacja) */
+  const reach=1 + Math.max(0, Math.floor((G.followers||0)*0.01));
+  const gainedFollowers=Math.floor(base*0.6*reach*0.1)+base; /* skaluje z zasięgiem, ale zawsze sensowny */
+  const _posts=['Adoptowany. Nie kupiony. 🐾','Najbardziej lojalny członek ekipy 💚','Kto tu jest dobrym psem? 🐶','Dzień z moim najlepszym przyjacielem'];
+  const idx=(G._petPostIdx||0)%_posts.length; G._petPostIdx=(G._petPostIdx||0)+1;
+  G.followers=(G.followers||0)+gainedFollowers;
+  if(typeof addFame==='function') addFame(2);
+  G._petPostDay=G.day;
+  const nm=G.dog.name||window._petSpeciesLabel();
+  if(typeof showMsg==='function') showMsg(`📸 Story z ${nm}: „${_posts[idx]}" — +${gainedFollowers} obserwujących${_charityBonus?' (charity boost!)':''}!`,'g',4500);
+  if(typeof addNotif==='function') addNotif(`📸 Post ze zwierzakiem: +${gainedFollowers} obserwujących`);
+  if(typeof renderPhoneApp==='function') renderPhoneApp('dog');
+  if(typeof updateHUD==='function') updateHUD();
+  return true;
+};
+
 /* APORT MG — canvas click timing. Cel pojawia się losowo, klik blisko = quality. */
 window._startAportMG=function(){
   const _mg=document.getElementById('mg-job');const _mc=document.getElementById('mg-job-content');
@@ -27972,8 +28062,8 @@ function nextPeriod(){
         G.dog._deathDay=G.day;
         G._dogCleared=G.day;
       }
-      /* Sickness random event — co X dni, scale chance based na lastVetCheckup */
-      else if(G.day % 5 === 0 && !G.dog.sickness){
+      /* Sickness random event — co X dni, scale chance based na lastVetCheckup. v2.3.113: pakiet weterynarza (_diseaseProtectUntil) blokuje zachorowanie. */
+      else if(G.day % 5 === 0 && !G.dog.sickness && (G.dog._diseaseProtectUntil||0) < G.day){
         const _daysSinceVet=G.day - (G.dog.lastVetCheckup||0);
         const _sickChance= _daysSinceVet >= 14 ? 0.20 : 0.05;
         if(Math.random() < _sickChance){
@@ -27993,6 +28083,8 @@ function nextPeriod(){
       }
       /* Recalc slodkosc daily */
       if(typeof window._calcDogSlodkosc==='function') G.dog.slodkosc=window._calcDogSlodkosc();
+      /* v2.3.113 (PDF new/6 §11 6L): czystość spada + zaniedbanie (helper, testowalny). */
+      if(typeof window._petDailyNeglectTick==='function') window._petDailyNeglectTick();
     }
     /* v2.1.421 Faza AN.6 Etap 2: daily heat decay. v2.1.730 (Monte Carlo rebalans): -3→-30 — przy -3 hojna marża mixa (+4325) była bezużyteczna (heat utykał na 70 na dni). v2.1.731 (weryfikacja vs inne zarobki, user „trochę mocniejszy"): -30→-20 — stonowane do ~15k zł/dzień (4× wcześniej, nie dominuje vs koncerty/streaming) z wysoką wariancją (busty). */
     if(G.trap && G.trap.unlocked){
@@ -54146,10 +54238,13 @@ function renderPhoneApp(app){
       const _mood=Math.floor(G.dog.mood||100);
       const _health=Math.floor(G.dog.health||100);
       const _slodkosc=Math.floor(G.dog.slodkosc||0);
+      const _bond=Math.floor(G.dog.bond||0); /* v2.3.113 6J */
+      const _clean=Math.floor(G.dog.cleanliness!=null?G.dog.cleanliness:100); /* v2.3.113 6J */
       const _sick=G.dog.sickness;
       const _hungerCol=_hunger<30?'#e74c3c':_hunger<60?'#f39c12':'#27ae60';
       const _moodCol=_mood<30?'#e74c3c':_mood<60?'#f39c12':'#27ae60';
       const _healthCol=_health<30?'#e74c3c':_health<60?'#f39c12':'#27ae60';
+      const _cleanCol=_clean<30?'#e74c3c':_clean<60?'#f39c12':'#27ae60';
       ph.innerHTML=`<div class="ph-screen">
         <div style="background:#0a1a0a;border-radius:8px;padding:14px;margin-bottom:12px;border:2px solid #27ae60">
           <div style="font-size:18px;font-weight:700;color:#7ec87e;margin-bottom:6px">🐕 ${_name}</div>
@@ -54163,8 +54258,16 @@ function renderPhoneApp(app){
             <div>🍖 Głód:</div><div style="color:${_hungerCol};font-weight:700">${_hunger}%</div>
             <div>😊 Nastrój:</div><div style="color:${_moodCol};font-weight:700">${_mood}%</div>
             <div>❤️ Zdrowie:</div><div style="color:${_healthCol};font-weight:700">${_health}%</div>
+            <div>💚 Więź:</div><div style="color:#2ecc71;font-weight:700">${_bond}/100</div>
+            <div>🧼 Czystość:</div><div style="color:${_cleanCol};font-weight:700">${_clean}%</div>
             <div>🌸 Słodkość:</div><div style="color:#ff69b4;font-weight:700">${_slodkosc}/100</div>
           </div>
+        </div>
+        <div style="color:#7ec87e;font-size:12px;margin-bottom:6px;font-weight:bold">🐾 Opieka:</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px">
+          <button class="cbtn" style="padding:6px;font-size:11px;color:#7ec87e;border-color:#27ae60" onclick="window._petPlay&&window._petPlay()">🎾 Pobaw się</button>
+          <button class="cbtn" style="padding:6px;font-size:11px;color:#7ec87e;border-color:#27ae60" onclick="window._petClean&&window._petClean()">🧼 Wyczyść</button>
+          <button class="cbtn" style="padding:6px;font-size:11px;color:#7ec87e;border-color:#27ae60" onclick="window._petFrameUpPost&&window._petFrameUpPost()">📸 Zrób story</button>
         </div>
         <div style="font-size:12px;color:#ccd;padding:6px 10px;background:#0a1220;border-radius:6px;margin-bottom:8px">
           📸 Twoje posty są <strong style="color:#ff69b4">+${Math.floor(_slodkosc/2)}%</strong> bardziej popularne dzięki pieskowi! (Im słodszy piesek, tym więcej polubień na FrameUp.)
@@ -63424,6 +63527,7 @@ const PATCH_NOTES = [
   {t:'new',d:'🐈 Schronisko dla zwierząt otwiera się na nowe gatunki! Oprócz psów możesz teraz adoptować koty (10 ras — od dachowca po Maine Coona) i małe zwierzęta (królik, chomik, papuga, żółw i inne). Panel ma teraz wygodne zakładki kategorii, a koty i małe zwierzaki są tańsze w utrzymaniu i lepiej pasują do mniejszych mieszkań. Adopcja — zwłaszcza zwierząt oznaczonych CHARITY — poprawia nastrój i buduje coś w rodzaju szacunku do siebie. Twój dotychczasowy pupil działa bez żadnych zmian.'},
   {t:'new',d:'🏥 Weterynarz oferuje teraz pełen zakres usług: szybka kontrola podstawowa (raz dziennie, poprawia zdrowie i buduje poczucie odpowiedzialności), leczenie drobne oraz miesięczny pakiet opieki, który przywraca pełnię zdrowia i chroni pupila przed chorobą przez 30 dni. Wcześniejsze szczepienie i profilaktyka działają jak dotąd.'},
   {t:'new',d:'🐕 Dużo większy wybór psów w schronisku — od jamnika, mopsa i cavaliera po labradora, samoyeda i cane corso, w tym psy specjalnej troski (senior po przejściach, pies po interwencji, pies lękowy, trójnogi), których adopcja daje największy bonus charity. Każdy pupil ma teraz tygodniowy koszt utrzymania (karma i opieka), a duże, energiczne psy potrzebują większego mieszkania — koty i małe zwierzaki zmieszczą się wszędzie. Twój obecny pupil zostaje bez zmian.'},
+  {t:'new',d:'🐾 Rozbudowana opieka nad zwierzakiem w telefonie: widzisz teraz Więź i Czystość obok głodu, nastroju i zdrowia. Możesz pobawić się z pupilem (poprawia nastrój i buduje więź), wykąpać go (przywraca czystość) oraz wrzucić z nim story na FrameUp (zwierzak przyciąga obserwujących — najmocniej ten adoptowany z serca). Pamiętaj o regularnej opiece — długo zaniedbywany zwierzak podupada, a w skrajnym przypadku schronisko może go odebrać.'},
   {t:'fix',d:'🟢 Zielone powiadomienia możesz teraz po prostu kliknąć, żeby zniknęły od razu — nie musisz czekać, aż same wygasną. Przydaje się, gdy zbiera się ich więcej naraz.'},
   {t:'fix',d:'▶️ Naprawione: na samym starcie gry potrafiła wyskoczyć wiadomość, że „Twój film wystrzelił", mimo że nie miałeś jeszcze żadnego nagranego filmu. Teraz taka informacja pojawia się dopiero, gdy masz na koncie co najmniej 3 opublikowane filmy.'},
   {t:'fix',d:'🔒 Wytwórnia, S9 Agency i NOX Route w folderze Kariera odblokowują się po ukończeniu poradnika na start — dzięki temu nowy gracz nie jest od razu zasypany wszystkimi opcjami. Jeśli grasz już od dłuższego czasu, korzystasz z nich bez zmian.'},
