@@ -3400,7 +3400,7 @@ const ROOMS = {
     wT:27, hT:14, map:null,
     objects:[
       {id:'cp_start', wx:520,wy:150, w:260,h:150, act:'tour_start:skate', prompt:'[E] 🏆 Wejdź na contest — porozmawiaj z Jade', lbl:'Spot'},
-      {id:'cp_exit',  wx:90, wy:560, w:62, h:62,  act:'goto:ulica:200:1300', prompt:'[E] Wyjście', lbl:'Wyjście'},
+      {id:'cp_exit',  wx:90, wy:560, w:62, h:62,  act:'goto:ulica:200:1100', prompt:'[E] Wyjście', lbl:'Wyjście'},
     ]
   },
 
@@ -58330,7 +58330,7 @@ window._tourReentryOk=function(discKey){
 /* v2.3.107 (user A4: „po turnieju wyrzucało z mapki od razu"): wyjście z areny na ulicę (park danej dyscypliny). */
 window._tourExitArena=function(discKey){
   const ov=document.getElementById('tour-ov'); if(ov) ov.remove();
-  const _spawn=(discKey==='skate')?[200,1300]:[380,960]; /* FIX (user 2026-07-05): skate spawn był (150,1200) = WEWNĄTRZ obiektu skate-park (50-350,1158-1230) → gracz utknięty; (200,1300) jest poniżej parku, walkable. Zgodne z poprawionym cp_exit. */
+  const _spawn=(discKey==='skate')?[200,1100]:[380,960]; /* FIX (user 2026-07-06): (200,1300) było PONIŻEJ dolnego płotu parku (wy~1248) = POZA parkiem, gracz odcięty. Teraz (200,1100) = W parku, tuż NAD obiektem skate (skate box wy1158-1230), chodzalne (zwalidowane updatePlayer: 4/4 kierunki, box gracza 1100-1144 nie tyka płotu 1241 ani skate 1158). */
   if(typeof startRoomFade==='function') startRoomFade('ulica',_spawn[0],_spawn[1]);
   else if(typeof changeRoom==='function') changeRoom('ulica',_spawn[0],_spawn[1]);
 };
@@ -64904,6 +64904,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'🎤 Freestyle na ulicy: piątek ma teraz najlepsze pory tak jak sobota — zainteresowanie publiczności jest optymalne aż do 2:30 w nocy (piątkowa impreza trwa w najlepsze do wczesnych godzin). Wcześniej piątkowe okno kończyło się o 22:00.'},
   {t:'fix',d:'🎮 Poprawki w Gamingu: po zakończonym turnieju i meczu rankingowym zniknął mylący przycisk „Porzuć (utrata wpisowego)" — na ekranie wyniku nie było już czego porzucać. Karty Turnieju i Rankingowej pokazują teraz wprost „raz dziennie", a po rozegraniu na dziś przycisk jest wyszarzony z informacją „✓ Zagrane dziś — wróć jutro" (zamiast po prostu nie reagować na kliknięcie).'},
   {t:'fix',d:'💻 Nagrywanie muzyki wymaga teraz komputera i bycia przy nim. Home Studio („komputer w Twoim pokoju") wymaga zakupu komputera z DAW w Sklepie Muzycznym — samym mikrofonem nagrasz tylko freestyle na ulicy, ale nie zapiszesz dema. Z aplikacji EchoDrop w telefonie nie zrobisz już beatów ani nagrań „w biegu" — telefon służy do podglądu odtworzeń, słuchaczy i zbierania tantiem, a nagrywasz i wrzucasz tracki przy komputerze: w studiu (biurko) albo w swoim pokoju.'},
+  {t:'fix',d:'🛹 Naprawione: po turnieju na skateparku wracasz teraz w głąb parku, na chodzalne miejsce tuż obok spotu — a nie poza park (za płot), gdzie było się odciętym. Można normalnie chodzić od razu po wyjściu.'},
  ]
  },
  {
