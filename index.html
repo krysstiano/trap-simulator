@@ -51443,7 +51443,7 @@ window._frameUpDMEnsure=function(){
   }
   const GW=D.ghostwriting;
   ['activeJobs','completedJobs'].forEach(k=>{ if(!Array.isArray(GW[k])) GW[k]=[]; });
-  ['ghostwritingReputation','secrecyReputation','leakRisk','industryDirt','writingSkill','professionalism','authenticity','businessFocus','careerFocus','financialDiscipline','qualityControl','songwriterReputation','rejectedOffers'].forEach(k=>{ if(typeof GW[k]!=='number'||!isFinite(GW[k])) GW[k]=0; });
+  ['ghostwritingReputation','secrecyReputation','leakRisk','industryDirt','writingSkill','professionalism','authenticity','businessFocus','careerFocus','financialDiscipline','qualityControl','songwriterReputation','rejectedOffers','socialBuzz','_mediaHeat'].forEach(k=>{ if(typeof GW[k]!=='number'||!isFinite(GW[k])) GW[k]=0; });
   if(typeof GW.unlocked!=='boolean') GW.unlocked=false;
 };
 /* 2AI (§15/§20/§37): warstwa adaptacji statów PDF → namespace G. Część statów żyje w ghostwriting (własny namespace), część mapuje na istniejące osie gry. */
@@ -51766,15 +51766,87 @@ window._triggerGhostwritingLeak=function(job){
   window._frameUpDMEnsure(); const GW=G.frameUpDM.ghostwriting;
   const client=window._pdf2Profile(job.clientId);
   GW.industryDirt=Math.min(100,(GW.industryDirt||0)+2);
+  GW.socialBuzz=Math.min(100,(GW.socialBuzz||0)+ (5+Math.floor(Math.random()*11))); /* §20 socialBuzz += 5-15 */
   if(job.mode==='credited'){
     window._fudmAddStat('professionalism',1); window._fudmAddStat('songwriterReputation',1);
     if(typeof showMsg==='function') showMsg(`📰 Wyszło, że napisałeś kawałek dla ${client?client.name:'artysty'} — ale masz kredyt, więc to tylko buduje Twoją markę songwritera.`,'g',6000);
   } else {
     window._fudmAddStat('authenticity',-1); window._fudmAddStat('fanTrust',-5);
+    GW._mediaHeat=Math.min(100,(GW._mediaHeat||0)+12);
     if(typeof addFame==='function') addFame(-2);
     if(typeof showMsg==='function') showMsg(`📰 WYCIEK! Wyszło, że ghostwriteowałeś dla ${client?client.name:'artysty'}. Część fanów czuje się oszukana — zaufanie spadło.`,'r',7000);
+    /* 2P/2Q/2R — reakcje na wyciek tylko przy ghostwritingu (anonim) */
+    window._ghostwritingLeakFallout(job);
   }
   if(typeof addNotif==='function') addNotif('📰 Przeciek: Twój ghostwriting wypłynął do sieci.');
+};
+/* ── 2P (§21): reakcje social media ── */
+window._ghostwritingLeakSocial=function(client){
+  const cn=client?client.name:'artysty';
+  const reactions=[
+    {platform:'ChirpNet',text:`połowa sceny kupuje wersy i udaje, że sami piszą... a najgłośniej krzyczą o "prawdziwości" 😤`},
+    {platform:'FrameUp',text:`typ nie pisał sam tego numeru dla ${cn}, teraz wszystko jasne`},
+    {platform:'ViewGrid',text:`Szanuję skill ghostwritera, ale niech ${cn} przestanie udawać ulicę`},
+  ];
+  window._frameUpDMEnsure(); G.frameUpDM.ghostwriting._lastLeakReactions=reactions;
+  return reactions;
+};
+/* ── 2Q (§22): reakcje NPC ── */
+window._ghostwritingLeakNpc=function(){
+  if(typeof _smsTriggerOnce!=='function') return;
+  _smsTriggerOnce('gw_leak_kamil','kamil','Piszesz ludziom teksty, żeby udawali ciężkie życie, którego nie znają? Serio? Kiedyś Ci na tym zależało.');
+  _smsTriggerOnce('gw_leak_marcin','marcin','Ghostwriting nie zabija kariery — ale fabryka gotowców tak. Rób to z głową albo wcale.');
+  _smsTriggerOnce('gw_leak_producent','producent','Możesz być świetnym writerem albo gościem od ratowania cudzych karier. Wybierz, kim chcesz być.');
+};
+window._ghostwritingLeakFallout=function(job){
+  window._frameUpDMEnsure();
+  const client=window._pdf2Profile(job.clientId);
+  window._ghostwritingLeakSocial(client);
+  window._ghostwritingLeakNpc();
+  G.frameUpDM.ghostwriting._s9NarrativeAvailable=true; /* 2R: odblokuj panel S9 kontroli narracji */
+  if(typeof addNotif==='function') addNotif('🅢9 S9 Agency może pomóc opanować narrację wycieku (panel Ghostwriting).');
+};
+/* ── 2R (§23): S9 Agency — kontrola narracji po wycieku ── */
+window._s9GhostwritingNarrative=function(action){
+  window._frameUpDMEnsure(); const GW=G.frameUpDM.ghostwriting;
+  if(!action){
+    // panel
+    const react=GW._lastLeakReactions||window._ghostwritingLeakSocial(null);
+    const html=`<div style="background:#0a0a16;border:2px solid #7a5ad0;border-radius:10px;padding:18px;max-width:560px;margin:0 auto;color:#fff">
+      <h2 style="margin-top:0;color:#b39dff">🅢9 S9 Agency — kontrola narracji</h2>
+      <div style="font-size:12px;color:#9ab;margin-bottom:8px">Wyciek ghostwritingu odbił się echem w sieci:</div>
+      <div style="background:#0e0c1a;border-radius:8px;padding:10px;margin-bottom:12px;font-size:11px;color:#cde">${react.map(r=>`<div style="margin-bottom:5px"><strong style="color:#8fd0ff">${r.platform}:</strong> „${r.text}"</div>`).join('')}</div>
+      <div style="font-size:11px;color:#9ab;margin-bottom:8px">Szum: <strong style="color:#f1c40f">${Math.round(GW.socialBuzz||0)}</strong> · Presja mediów: <strong style="color:${(GW._mediaHeat||0)>=20?'#e74c3c':'#f1c40f'}">${Math.round(GW._mediaHeat||0)}</strong></div>
+      <div style="display:grid;grid-template-columns:1fr;gap:6px">
+        <button class="cbtn" style="font-size:12px;padding:8px;color:#7ec87e;border-color:#27ae60" onclick="window._s9GhostwritingNarrative('convert')">🎼 Przekuj w songwriting (8 000 zł)</button>
+        <button class="cbtn" style="font-size:12px;padding:8px;color:#8fd0ff;border-color:#5aa0e0" onclick="window._s9GhostwritingNarrative('silence')">🤫 Wycisz temat (12 000 zł)</button>
+        <button class="cbtn" style="font-size:12px;padding:8px;color:#f39c12;border-color:#c8720c" onclick="window._s9GhostwritingNarrative('cutoff')">✂️ Odetnij się od klienta (5 000 zł)</button>
+        <button class="cbtn" style="font-size:12px;padding:8px;color:#ccc" onclick="window._s9GhostwritingNarrative('ignore')">🚶 Zignoruj</button>
+      </div>
+    </div>`;
+    const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content');
+    if(mgJob&&mgContent){ mgContent.innerHTML=html; mgJob.classList.add('on'); }
+    return;
+  }
+  const cost={convert:8000,silence:12000,cutoff:5000,ignore:0}[action]||0;
+  if(cost>0 && (G.money||0)<cost){ if(typeof showMsg==='function') showMsg(`💰 Brakuje ${cost-(G.money||0)} zł.`,'r',3500); return; }
+  if(cost>0) G.money-=cost;
+  if(action==='convert'){
+    window._fudmAddStat('professionalism',2); window._fudmAddStat('songwriterReputation',1);
+    GW._mediaHeat=Math.max(0,(GW._mediaHeat||0)-10);
+    if(typeof showMsg==='function') showMsg('🎼 S9 przekuło wyciek w narrację „utalentowany songwriter" — presja mediów spada, reputacja rośnie.','g',5500);
+  } else if(action==='silence'){
+    GW.socialBuzz=Math.max(0,(GW.socialBuzz||0)-15); GW._mediaHeat=Math.max(0,(GW._mediaHeat||0)-15);
+    if(typeof showMsg==='function') showMsg('🤫 S9 wyciszyło temat — szum i presja mediów opadają.','g',5000);
+  } else if(action==='cutoff'){
+    window._fudmAddStat('fanTrust',5); GW.industryDirt=Math.max(0,(GW.industryDirt||0)-5);
+    if(typeof showMsg==='function') showMsg('✂️ Publicznie odciąłeś się od klienta — fani odzyskują trochę zaufania, ale relacja w branży ucierpiała.','g',5000);
+  } else {
+    GW.industryDirt=Math.min(100,(GW.industryDirt||0)+5); GW._mediaHeat=Math.min(100,(GW._mediaHeat||0)+5);
+    if(typeof showMsg==='function') showMsg('🚶 Zignorowałeś temat — brud w branży i presja mediów rosną.','r',5000);
+  }
+  GW._s9NarrativeAvailable=false;
+  const mg=document.getElementById('mg-job'); if(mg) mg.classList.remove('on'); const mc=document.getElementById('mg-job-content'); if(mc) mc.innerHTML='';
 };
 /* ── 2L (§18): panel pracy nad tekstem ── */
 window._openGhostwritingWork=function(threadId){
@@ -51835,6 +51907,7 @@ window._openGhostwritingJobs=function(tab){
       <button class="cbtn" style="flex:1;font-size:11px;padding:6px;${_tab==='aktywne'?'background:#3a2470;color:#fff;border-color:#7a5ad0':'color:#c3b0f5'}" onclick="window._openGhostwritingJobs('aktywne')">Aktywne zlecenia</button>
       <button class="cbtn" style="flex:1;font-size:11px;padding:6px;${_tab==='historia'?'background:#3a2470;color:#fff;border-color:#7a5ad0':'color:#c3b0f5'}" onclick="window._openGhostwritingJobs('historia')">Historia zleceń</button>
     </div>
+    ${GW._s9NarrativeAvailable?`<button class="cbtn" style="width:100%;font-size:11px;padding:7px;color:#e88;border-color:#a44;margin-bottom:10px" onclick="window._s9GhostwritingNarrative()">🅢9 Opanuj wyciek z S9 Agency (kontrola narracji)</button>`:''}
     ${body}
     <button class="cbtn" style="margin-top:12px;width:100%;color:#fff" onclick="window._openFrameUpDM('${window._fudmBox||'glowne'}')">← FrameUp Direct</button>
   </div>`;
@@ -51909,6 +51982,33 @@ window._generateSpamDM=function(){
   return window._fudmMakeThread({idp:'spam',name:m.name,handle:m.handle,senderType:'spam',category:'spam',
     isSpam:band==='spam', isRequest:band==='request', requiresReply:false, text:m.text});
 };
+/* ── 2V (§24): DM od słuchaczy (odnosi się do wydanego numeru) ── */
+window._generateListenerDM=function(){
+  const tracks=(G.studioTracks||[]).filter(t=>t&&!t.isDemo);
+  const tr=tracks.length?tracks[rnd(0,tracks.length-1)]:null;
+  const tn=tr?(tr.name||'ostatni numer'):'Twój ostatni numer';
+  const msgs=[
+    {text:`„${tn}" leci u mnie od tygodnia. Ta druga zwrotka mówi dokładnie to, co czuję.`,opts:[{label:'„Dzięki, że wyłapałeś tę zwrotkę."',fx:{fanTrust:2}},{label:'„Cieszę się, że siadło."',fx:{fanTrust:1}}]},
+    {text:`Co dokładnie miałeś na myśli w „${tn}"? Interpretuję to po swojemu, ciekawi mnie Twoja wersja.`,opts:[{label:'„Zostawiam to Twojej interpretacji."',fx:{authenticity:1}},{label:'„Napisałem to z serca, resztę czujesz sam."',fx:{fanTrust:1,authenticity:1}}]},
+  ];
+  const m=msgs[rnd(0,msgs.length-1)]; const nick='sluchacz_'+rnd(100,9999);
+  return window._fudmMakeThread({idp:'lst',name:nick,handle:'@'+nick,senderType:'listener',category:'fan',requiresReply:true,text:m.text,
+    replyOptions:m.opts.map(o=>({label:o.label,fx:o.fx,reply:'💚'}))});
+};
+/* ── 2U (§26): DM od modelek/lifestyle (WYŁĄCZNIE dorośli NPC, fade-to-black, opcjonalne). Ryzyko plotek/screenów. ── */
+window._generateLifestyleDM=function(){
+  const npcs=[{name:'Sasha Mire',handle:'@sasha_mire'},{name:'Vega Rae',handle:'@vega.rae'}];
+  const n=npcs[rnd(0,npcs.length-1)];
+  const text=`Hej, jesteś na bieżąco z moją dyskografią? 😏 Wpadłabym na jakiś materiał... albo bez kamer. Tylko dorośli, tylko na spokojnie.`;
+  const opts=[
+    {label:'„Jesteś na bieżąco z moją dyskografią?" (żart, luźno)',fx:{},reply:'Ha, może i jestem 😉'},
+    {label:'„Wpadnij na materiał — zrobimy content."',fx:{businessFocus:1},reply:'Spoko, dogadamy szczegóły.'},
+    {label:'„Prywatne spotkanie, bez telefonów." (ryzyko)',fx:{},risk:true,reply:'...(rozmowa schodzi na prywatne tory — fade to black)'},
+    {label:'„Trzymajmy to w profesjonalnych ryzach."',fx:{professionalism:1},reply:'Szanuję. Może przy pracy.'},
+  ];
+  return window._fudmMakeThread({idp:'life',name:n.name,handle:n.handle,senderType:'lifestyle',category:'artist',isRequest:true,requiresReply:true,text:text,
+    replyOptions:opts.map(o=>({label:o.label,fx:o.fx,reply:o.reply,risk:o.risk}))});
+};
 /* ── reply-set prosty (fani/marki) ── */
 window._fudmSimpleReply=function(threadId,idx){
   window._frameUpDMEnsure(); const D=G.frameUpDM;
@@ -51917,8 +52017,19 @@ window._fudmSimpleReply=function(threadId,idx){
   if(r.fx){ for(const k in r.fx){ window._fudmAddStat(k,r.fx[k]); } }
   t.messages.push({from:'me',text:r.label.replace(/^„|"$/g,'')});
   if(r.reply) t.messages.push({from:'them',text:r.reply});
+  /* 2U: ryzykowna odpowiedź (prywatne spotkanie) → szansa na plotki/screeny */
+  if(r.risk){
+    const GW=G.frameUpDM.ghostwriting;
+    if(Math.random()<0.4){
+      GW.socialBuzz=Math.min(100,(GW.socialBuzz||0)+8); GW._mediaHeat=Math.min(100,(GW._mediaHeat||0)+6);
+      window._fudmAddStat('fanTrust',-3);
+      if(typeof showMsg==='function') showMsg('📸 Screeny z prywatnej rozmowy wyciekły — trochę plotek i szumu wokół Ciebie.','r',5500);
+    } else {
+      if(typeof showMsg==='function') showMsg('🤐 Tym razem zostało między Wami.','',3500);
+    }
+  }
   t.requiresReply=false; t.isRequest=false; t.replyOptions=null;
-  if(typeof showMsg==='function') showMsg('✅ Odpowiedziano.','g',2500);
+  if(typeof showMsg==='function' && !r.risk) showMsg('✅ Odpowiedziano.','g',2500);
   window._openFrameUpDMThread(threadId);
 };
 window._fudmBlockThread=function(threadId){
@@ -51940,6 +52051,10 @@ window._generateFrameUpDMs=function(){
   if(fans>=50 && Math.random()<(postedRecently?0.6:0.25)) window._generateFanDM();
   // Firmy — przy zasięgach/dripie
   if(fans>=800 && (G.fame||0)>=60 && Math.random()<0.18) window._generateBrandDM();
+  // Słuchacze — jak fani, gdy masz wydany numer
+  if(fans>=100 && (G.studioTracks||[]).some(t=>t&&!t.isDemo) && Math.random()<(postedRecently?0.35:0.15)) window._generateListenerDM();
+  // Lifestyle/modelki — przy większej sławie (dorośli NPC, opcjonalne)
+  if((G.fame||0)>=120 && fans>=3000 && Math.random()<0.10) window._generateLifestyleDM();
   // Spam — rośnie z popularnością
   if(fans>=200 && Math.random()<Math.min(0.4,0.1+fans/50000)) window._generateSpamDM();
   // Ghostwriting — osobny cooldown (2D)
