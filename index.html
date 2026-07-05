@@ -22834,8 +22834,9 @@ window._igFinishLiveView=function(){
 window._igPublishFromComposer=function(){
   const state=G._igComposerState;
   if(!state) return;
-  document.getElementById('mg-job').classList.remove('on');
-  document.getElementById('mg-job-content').innerHTML='';
+  /* null-safe: gdy inny MG (np. skatepark) chwilowo zniszczył #mg-job-content, nie wywalaj publikacji — post ma się zapisać mimo braku panelu */
+  const _mgP=document.getElementById('mg-job'); if(_mgP) _mgP.classList.remove('on');
+  const _mcP=document.getElementById('mg-job-content'); if(_mcP) _mcP.innerHTML='';
   /* Inject bg do post po publikacji — patch igPosts.last */
   const _pre=G.igPosts?.length||0;
   /* v2.1.537 variety bonus: świeże tło (inne niż 3 ostatnie posty) = +25% zasięgu. Liczone na delcie obserwujących z igPost(). */
@@ -45037,6 +45038,9 @@ window._startSpaChoice=function(){
 };
 window._spaTick=function(){
   const mg=G._spaMG; if(!mg) return;
+  /* robustność: panel zamknięty z zewnątrz (nawigacja/inny MG) → stop interwału, nie kończ sesji w tle (crash null innerHTML) */
+  const _panel=document.getElementById('mg-job');
+  if(!_panel || !_panel.classList.contains('on')){ if(G._spaInterval){clearInterval(G._spaInterval);G._spaInterval=null;} G._spaMG=null; return; }
   mg.size+=2.4;
   const c=document.getElementById('spa-circle');
   if(c){ const px=30+mg.size*1.1; c.style.width=px+'px'; c.style.height=px+'px'; }
@@ -45062,7 +45066,7 @@ window._spaAbort=function(){
   if(G._spaInterval){clearInterval(G._spaInterval);G._spaInterval=null;}
   if(G._spaMG && G._spaMG.breaths>0){ window._spaFinish(); return; }
   G._spaMG=null;
-  document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';
+  { const _mg=document.getElementById('mg-job'); if(_mg) _mg.classList.remove('on'); const _mc=document.getElementById('mg-job-content'); if(_mc) _mc.innerHTML=''; }
   if(typeof showMsg==='function') showMsg('💆 Sesja SPA przerwana (koszt niezwracany).','i',3000);
 };
 window._spaFinish=function(){
@@ -45081,7 +45085,7 @@ window._spaFinish=function(){
   if(typeof window._coastVibeTick==='function') window._coastVibeTick();
   if(typeof progressQuest==='function') progressQuest('coast_visit');
   G._spaMG=null;
-  document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';
+  { const _mg=document.getElementById('mg-job'); if(_mg) _mg.classList.remove('on'); const _mc=document.getElementById('mg-job-content'); if(_mc) _mc.innerHTML=''; }
   if(typeof showMilestoneCinematic==='function') showMilestoneCinematic({emoji:'🧘',title:'SESJA SPA',subtitle:`${mg.perfects} idealnych oddechów`,tagline:`+${_stress} nastrój · +${_hp} HP · +${_en} energia · +${_forma} forma`,accentColor:'#bb8fce',accent2:'#252035',duration:4500});
   if(typeof addXP==='function') addXP(15+mg.perfects*2);
   if(typeof saveGameSilent==='function') saveGameSilent();
@@ -49685,11 +49689,15 @@ function startSkateparkMG(){
     gameActive=false; _skEnded=true;
     if(window._skTimer){ clearInterval(window._skTimer); window._skTimer=null; }
     document.removeEventListener('keydown',skHandler);
-    el.style.display='none'; el.classList.remove('on'); el.innerHTML='';
+    /* ROOT-FIX (lekcja closeJs): skate MG hija­kuje cały #mg-job → innerHTML='' NISZCZY dziecko #mg-job-content,
+       przez co ~70 modali (m.in. _igPublishFromComposer) dostaje null → crash. Odtwarzamy content-div. */
+    el.style.display='none'; el.classList.remove('on'); el.innerHTML='<div id="mg-job-content"></div>';
   };
   window._jobMgCleanup=_skCleanup; /* przycisk „✕ Wyjdź" w panelu skate */
 
   window._skTimer=setInterval(()=>{
+    /* robustność: jeśli panel został zamknięty z zewnątrz (nawigacja / inny MG / audit) — stop, nie czyść cudzego mg-job później. */
+    if(!_skEnded && !el.classList.contains('on')){ _skCleanup(); return; }
     if(!gameActive)return;
     timeLeft--;
     const te=document.getElementById('sk-time');if(te)te.textContent=timeLeft;
@@ -58435,9 +58443,13 @@ window.startDisciplineTournament=function(discKey){
     }
   };
   document.addEventListener('keydown',onKey);
-  let _raf=0; const loop=()=>{ if(!st.alive||window._tourTokenN!==st.tk) return; drawScene(); _raf=requestAnimationFrame(loop); }; _raf=requestAnimationFrame(loop);
+  let _raf=0;
+  /* robustność: turniej stopuje się gdy overlay zniknął LUB gracz opuścił arenę (changeRoom) — bez dangling raf/timer/crash. */
+  const _gone=()=>!document.body.contains(ov) || (typeof currentRoom!=='undefined' && currentRoom!==cfg.room);
+  const loop=()=>{ if(!st.alive||window._tourTokenN!==st.tk||_gone()) return; drawScene(); _raf=requestAnimationFrame(loop); }; _raf=requestAnimationFrame(loop);
   const timer=setInterval(()=>{
     if(!st.alive || window._tourTokenN!==st.tk){ clearInterval(timer); return; }
+    if(_gone()){ st.alive=false; clearInterval(timer); cancelAnimationFrame(_raf); document.removeEventListener('keydown',onKey); if(document.body.contains(ov)) ov.remove(); return; }
     st.left-=0.2;
     if(st.left<=0){ st.left=0; st.alive=false; clearInterval(timer); cancelAnimationFrame(_raf); document.removeEventListener('keydown',onKey); window._tourFinish(discKey,st.score,st.perfect,st.maxCombo,st.mistakes); return; }
     renderUI();
