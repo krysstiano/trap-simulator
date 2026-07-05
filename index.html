@@ -29410,6 +29410,12 @@ window._esc=function(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,
 /* v2.1.865 (user „gracz ma widzieć faktyczne kwoty"): GLOBALNY mnożnik zarobków = jedno źródło prawdy.
    Używany przez earn() ORAZ panele/notify pasywnego dochodu, by wyświetlać REALNĄ kwotę (baza × ten mnożnik), nie samą bazę.
    NIE zawiera: career soft-cap (per-źródło, liczony osobno w _careerSoftCap) ani _mgrJrBuffMult (buff Negocjacja — koncert-only, consumed w endConcert). */
+/* 2026-07-05 (user): Prace dorywcze są słabe → rekompensata za grind. Stały bonus do WSZYSTKICH zarobków:
+   500 zmian = +5%, 1000 zmian = +10%. Bezpieczne dla gospodarki: (a) FLAT mnożnik (nie kumuluje w czasie),
+   (b) zastosowany PRZED soft-capem w earn() → capowane kariery (koncert 30k/sponsor 120k) go absorbują,
+   (c) wymaga ogromnego grindu (500-1000 minigier bez cooldownu), (d) monotoniczny, tylko dodaje (reguła #11).
+   Skala: przy wszystkich buffach mnożnik ~2.4× → z bonusem ~2.6×, brak runaway. */
+function _jobsEarnBonus(){ const n=G._jobsCompleted||0; if(n>=1000) return 0.10; if(n>=500) return 0.05; return 0; }
 function _globalEarnMult(){
   const mogul=getRaperST('biznes')>=5?1.3:1;                                  // Biznes 5: +30%
   const streak=typeof streakBonusMult==='function'?streakBonusMult():1;       // login streak
@@ -29419,7 +29425,8 @@ function _globalEarnMult(){
   const _mgrJrMult=(Array.isArray(G.crew)&&G.crew.some(c=>c&&c.role==='manager_jr'))?1.05:1; // Łukasz +5% /* v2.3.33: guard null wpis crew — sciezka earn (hot) */
   const _itemBuffMult=(typeof getBuffMult==='function')?getBuffMult('income'):1; // buff czasowy (Energetyk Pro +20%)
   const _recoveryMult=(typeof getRecoveryMult==='function')?getRecoveryMult('legal'):1; // v2.2.0 TIER 10: tryb odbudowy (clean_rebuild boost muzyki)
-  return mogul*streak*prestigeMult*moodEarnMult*_mgrJrMult*_itemBuffMult*_recoveryMult;
+  const _jobsGrindMult=1+_jobsEarnBonus();                                    // Prace: 500 zmian +5%, 1000 zmian +10% (rekompensata za grind)
+  return mogul*streak*prestigeMult*moodEarnMult*_mgrJrMult*_itemBuffMult*_recoveryMult*_jobsGrindMult;
 }
 function earn(amount,showFloat=true,careerSource){
   if(amount>0){
@@ -64849,7 +64856,8 @@ const PATCH_NOTES = [
   {t:'fix',d:'🛹 Naprawione: po turnieju na skateparku wracasz teraz na chodnik obok spotu, a nie w środek konstrukcji, gdzie nie dało się ruszyć.'},
   {t:'fix',d:'🛹 Naprawione: aktywność na skateparku sama zamyka okno po zakończeniu (nie trzeba już wychodzić ręcznie), a komunikat o postępie do turnieju wyświetla się tak samo jak przy breakdance.'},
   {t:'new',d:'🏆 Turnieje breakdance i skate mają teraz efektowną, animowaną oprawę — parkiet/rampy, reflektory, DJ, kibicujący tłum i tancerza/skatera, który wykonuje tricki z efektami przy trafionych combosach. Wygląda dużo lepiej niż zwykły trening w parku. W sekwencji zamiast dziwnego znaczka widnieje po prostu napis „SPACJA".'},
-  {t:'new',d:'📖 Linia fabularna kariery przebudowana w duży, przejrzysty system kategorii! Zamiast jednej pomieszanej listy masz teraz osiem osobnych ścieżek, między którymi swobodnie się przełączasz, i ponad sto kroków w sumie: Podstawy (wszystko poza karierą — telefon, ekwipunek, pierwsze pieniądze, poziomy, mieszkanie, auto), Prace dorywcze, Muzyka (freestyle, mikrofon, produkcja bitów, nagranie w domu i studiu, single, radio, albumy, koncerty i trasy), Underground (tatuaż, mural, piwnica producenta, klub, a głębiej kamper, uprawa, plantacja, laboratorium, dealerzy i terytorium), Sława i Social, Media cyfrowe (vlogi, transmisje na żywo, esport), Biznes i Hazard oraz Styl i życie. Każda kategoria ma sporo uporządkowanych kroków z nagrodami (kasa, sława, XP, punkty umiejętności) w naturalnej kolejności — łatwiejsze wcześniej, trudniejsze później. Pasek u góry i panel pokazują następny krok śledzonej kategorii, a Twój dotychczasowy postęp zostaje zachowany.'},
+  {t:'new',d:'📖 Linia fabularna kariery przebudowana w duży, przejrzysty system kategorii! Zamiast jednej pomieszanej listy masz teraz dziewięć osobnych ścieżek, między którymi swobodnie się przełączasz, i ponad 130 kroków w sumie: Podstawy (wszystko poza karierą — telefon, ekwipunek, pierwsze pieniądze, poziomy, mieszkanie, auto), Prace dorywcze, Muzyka (freestyle, mikrofon, produkcja bitów, nagranie w domu i studiu, single, radio, albumy, koncerty i trasy), Underground (tatuaż, mural, piwnica producenta, klub, a głębiej kamper, uprawa, plantacja, laboratorium, dealerzy i terytorium), Sława i Social, Media cyfrowe (vlogi, transmisje na żywo, esport), Biznes (krypto, inwestycje, wynajem, wytwórnia), osobna rozbudowana kategoria Hazard oparta na całym kasynie (sloty, ruletka, blackjack, poker, Aviator, Mines, HiLo, Ride the Bus — od pierwszych żetonów po status wieloryba stołów) oraz Styl i życie. Każda kategoria ma sporo uporządkowanych kroków z nagrodami w naturalnej kolejności. Pasek u góry i panel pokazują następny krok śledzonej kategorii, a Twój dotychczasowy postęp zostaje zachowany.'},
+  {t:'new',d:'💼 Prace dorywcze dostają wreszcie prawdziwą nagrodę za wytrwałość: po przepracowaniu 500 zmian zyskujesz STAŁY bonus +5% do WSZYSTKICH zarobków w grze, a po 1000 zmian bonus rośnie do +10% — na zawsze. To gigantyczny grind, ale odtąd każda dorywcza fucha realnie się opłaca i procentuje w całej dalszej karierze.'},
   {t:'new',d:'🏆 Turnieje breakdance i skate przebudowane! Nagrody rosną teraz razem z Twoją rozpoznawalnością i rangą w scenie — na starcie to skromne kwoty, a dawne wysokie stawki (nawet kilka tysięcy za bezbłędne 1. miejsce) są teraz nagrodą dla naprawdę znanych zawodników z wysoką rangą. Dodaliśmy więcej rang (9 na dyscyplinę), a każdą kolejną wbija się coraz trudniej i stawia przeciwko mocniejszym rywalom. W rankingowej startujesz raz dziennie (trening w parku dalej bez limitu).'},
   {t:'new',d:'✉️ FrameUp ma teraz Direct Message! Po pierwszym poście lub utworze odblokujesz skrzynkę wiadomości z podziałem na Główne, Prośby, Współprace, Artyści, Fani, Spam i Archiwum. To także początek nowej, dyskretnej ścieżki zarobku.'},
   {t:'new',d:'🎼 Nowa kariera: ghostwriting. Gdy masz już fanów i wydany utwór, artyści zaczną pisać do Ciebie z ofertami napisania tekstu za pieniądze — anonimowo. Każdą ofertę możesz zaakceptować, negocjować stawkę, poprosić o zaliczkę, zaproponować współautorstwo (z kredytem), odrzucić albo oznaczyć jako spam. Potem piszesz tekst w wybranym trybie (szybko / normalnie / z dopracowaniem), a jakość decyduje o wypłacie — słaby tekst grozi reklamacją. Uwaga: ghostwriting bywa ryzykowny — jeśli wyciek trafi do sieci, część fanów może poczuć się oszukana. Wszystkie zlecenia śledzisz w panelu „Ghostwriting — zlecenia".'},
@@ -78484,7 +78492,7 @@ function _legacyCheckSideStorylines(){
    uruchomieniu cicho zalicza już-spełnione kroki BEZ nagrody (gracz dostał je w starym
    systemie). Idempotentne check() → auto-dosunięcie bez czytania starego mainQuest.
    ═══════════════════════════════════════════════════════════════════ */
-const CAREER_TRACK_VER=2; /* v2: rozbudowa + korekta przypisań (bity→Muzyka, media/gaming osobno) — bump wymusza cichą re-migrację (przenosiny id bez podwójnej nagrody) */
+const CAREER_TRACK_VER=3; /* v3: Hazard osobną kategorią (kasyno) + Prace bonus-grind — bump wymusza cichą re-migrację (przenosiny id bez podwójnej nagrody) */
 const CAREER_TRACKS={
   podstawy:{ name:'Podstawy', emoji:'🎯', color:'#f1c40f', desc:'Fundamenty życia w mieście — zanim wybierzesz swoją ścieżkę. Wszystko, co nie należy do żadnej kariery.', steps:[
     {id:'pod_meal', em:'🍔', name:'Pierwszy posiłek', desc:'Zjedz coś — najtaniej z lodówki w mieszkaniu (po zakupie spożywki) albo w sklepie spożywczym.', check:()=>(G._tutStat?.ate||0)>=1, reward:{money:50,xp:10}},
@@ -78513,6 +78521,11 @@ const CAREER_TRACKS={
     {id:'job_35', em:'🛠', name:'Złota rączka', desc:'35 zmian — nie ma fuchy, której się nie podejmiesz.', check:()=>(G._jobsCompleted||0)>=35, reward:{money:2500,fame:4,xp:80}},
     {id:'job_50', em:'🎖', name:'Weteran pracy', desc:'50 zmian — przeszedłeś przez wszystko. Nikt nie powie, że nie umiesz zapracować.', check:()=>(G._jobsCompleted||0)>=50, reward:{money:4000,fame:5,xp:100,skillPts:1}},
     {id:'job_100', em:'🏅', name:'Legenda dorywczych', desc:'100 zmian — miejska legenda solidnej roboty. Każdy pracodawca Cię zna.', check:()=>(G._jobsCompleted||0)>=100, reward:{money:10000,fame:10,xp:180,skillPts:2}},
+    {id:'job_200', em:'💪', name:'Dwieście zmian', desc:'200 zmian — pracowitość, której nikt Ci nie odbierze. Dalej sypie się kasa i doświadczenie.', check:()=>(G._jobsCompleted||0)>=200, reward:{money:15000,fame:8,xp:250,skillPts:2}},
+    {id:'job_300', em:'🔩', name:'Trzysta zmian', desc:'300 zmian — jesteś maszyną do pracy. Zbliżasz się do prawdziwej gratyfikacji za wytrwałość.', check:()=>(G._jobsCompleted||0)>=300, reward:{money:20000,fame:8,xp:300,skillPts:2}},
+    {id:'job_500', em:'🌟', name:'Etos pracy — +5% do zarobków', desc:'500 zmian! Za tak potężny grind dostajesz STAŁY bonus: +5% do WSZYSTKICH zarobków w grze, na zawsze. Dorywcze fuchy wreszcie się naprawdę opłacają.', check:()=>(G._jobsCompleted||0)>=500, reward:{money:40000,fame:15,xp:500,skillPts:3}},
+    {id:'job_750', em:'⚙️', name:'Siedemset pięćdziesiąt zmian', desc:'750 zmian — połowa drogi do kolejnego bonusu. Nie ma dla Ciebie za ciężkiej roboty.', check:()=>(G._jobsCompleted||0)>=750, reward:{money:60000,fame:15,xp:600,skillPts:3}},
+    {id:'job_1000', em:'👑', name:'Człowiek-instytucja — +10% do zarobków', desc:'1000 zmian! Legendarna wytrwałość nagrodzona: Twój stały bonus rośnie do +10% WSZYSTKICH zarobków w grze, na zawsze. Nikt w mieście nie zapracował na to bardziej niż Ty.', check:()=>(G._jobsCompleted||0)>=1000, reward:{money:120000,fame:30,xp:1000,skillPts:5}},
   ]},
   muzyka:{ name:'Muzyka', emoji:'🎤', color:'#e91e8c', desc:'Twoja główna droga na szczyt — freestyle, mikrofon, produkcja bitów, nagrania w domu i studiu, single, albumy, radio, koncerty i trasy.', steps:[
     {id:'mus_freestyle', em:'🎤', name:'Pierwszy freestyle', desc:'Wypróbuj freestyle na ulicy — różowe kółko 🎤 na centralnej ulicy, naprzeciwko Sali Koncertowej.', check:()=>(G.careers?.raper?.freestyles||0)>=1, reward:{money:200,xp:30}},
@@ -78588,21 +78601,36 @@ const CAREER_TRACKS={
     {id:'dig_subs100k', em:'💎', name:'100 000 subskrybentów', desc:'Sześć cyfr subskrybentów na ViewGrid — jesteś dużym twórcą internetowym.', check:()=>(G.yt?.subs||0)>=100000, reward:{money:40000,fame:30,xp:250,skillPts:3}},
     {id:'dig_esport20', em:'👑', name:'Esports Champion', desc:'Wygraj 20 turniejów esportowych — legenda e-sportu.', check:()=>(G.careers?.gamer?.tourneysWon||0)>=20, reward:{money:50000,fame:30,xp:300,skillPts:4}},
   ]},
-  biznes:{ name:'Biznes i Hazard', emoji:'💰', color:'#27ae60', desc:'Pieniądz robiący pieniądz — kasyno, krypto, inwestycje, wynajem, własne biznesy i wytwórnia. Ścieżka dla tych, którzy myślą kapitałem.', steps:[
-    {id:'biz_chips', em:'🎟', name:'Pierwsze żetony', desc:'Wymień gotówkę na żetony w Kantorze Royal — wejście do świata hazardu.', check:()=>(G.casinoChips||0)>=20, reward:{money:100,xp:15}},
-    {id:'biz_slots', em:'🎰', name:'Pierwszy spin slotów', desc:'Zagraj raz na slotach Royal — spróbuj szczęścia.', check:()=>(G.casinoStats?.slotsSpins||0)>=1, reward:{money:200,xp:20}},
-    {id:'biz_roulette', em:'🎡', name:'Pierwsza ruletka', desc:'Obstaw pierwszy zakład w ruletce — czerwone czy czarne?', check:()=>(G.casinoStats?.rouletteSpins||0)>=1, reward:{money:200,xp:20}},
+  biznes:{ name:'Biznes', emoji:'💼', color:'#27ae60', desc:'Pieniądz robiący pieniądz — krypto, inwestycje, wynajem, własne biznesy i wytwórnia. Ścieżka dla tych, którzy myślą kapitałem.', steps:[
     {id:'biz_crypto', em:'💱', name:'Pierwszy trade krypto', desc:'Wykonaj pierwszy zakup na giełdzie krypto — początek portfela.', check:()=>(G.trader?.tradesCount||0)>=1, reward:{money:400,xp:30}},
     {id:'biz_invest', em:'🏦', name:'Pierwsza inwestycja', desc:'Ulokuj pierwsze pieniądze w banku — pasywny zysk zaczyna pracować.', check:()=>(G.bank?.investHistory?.length||0)>=1||(G.bank?.totalInvestmentProfit||0)>0, reward:{money:1000,xp:40}},
-    {id:'biz_win5k', em:'💎', name:'Wygrana 5 000 w kasynie', desc:'Zgarnij pojedynczą wygraną 5 000 żetonów — pierwszy większy strzał.', check:()=>(G.casinoStats?.biggestWin||0)>=5000, reward:{money:1000,fame:3,xp:40}},
     {id:'biz_kebab', em:'🌮', name:'Pierwszy własny biznes', desc:'Kup budkę kebab Zbyszka — pierwsze własne źródło pasywnego dochodu.', check:()=>G.kebabStand?.owned===true, reward:{money:1500,fame:3,xp:50}},
-    {id:'biz_rental', em:'🏘', name:'Pierwszy najem', desc:'Wynajmij swoje mieszkanie — pasywny dochód z nieruchomości co miesiąc.', check:()=>{const r=G.rentals||{};return Object.keys(r).some(k=>r[k]===true);}, reward:{money:2000,xp:50}},
     {id:'biz_crypto10k', em:'📈', name:'10 000 zł zysku z krypto', desc:'Zarób łącznie 10 000 zł na krypto — trading zaczyna się opłacać.', check:()=>(G.trader?.totalProfit||0)>=10000, reward:{money:5000,fame:5,xp:70,skillPts:1}},
-    {id:'biz_win50k', em:'🤑', name:'Wielki wygrany', desc:'Wygraj łącznie 50 000 żetonów w kasynie — fart czy zimna kalkulacja?', check:()=>(G.casinoStats?.totalWon||0)>=50000, reward:{money:8000,fame:8,xp:80,skillPts:1}},
+    {id:'biz_diversify', em:'🌈', name:'Dywersyfikacja', desc:'Trzymaj jednocześnie 4 różne kryptowaluty — nie trzymasz wszystkich jajek w jednym koszyku.', check:()=>Object.keys(G.crypto?.holdings||{}).filter(k=>(G.crypto.holdings[k]?.qty||0)>0).length>=4, reward:{money:5000,xp:80,skillPts:1}},
+    {id:'biz_rental', em:'🏘', name:'Pierwszy najem', desc:'Wynajmij swoje mieszkanie — pasywny dochód z nieruchomości co miesiąc.', check:()=>{const r=G.rentals||{};return Object.keys(r).some(k=>r[k]===true);}, reward:{money:2000,xp:50}},
     {id:'biz_label', em:'🏢', name:'Własna wytwórnia', desc:'Załóż lub podpisz własną wytwórnię (indie/major/global) — wchodzisz w biznes muzyczny.', check:()=>G.label?.type!=null, reward:{money:5000,fame:15,xp:80,skillPts:1}},
     {id:'biz_labelartist', em:'✍️', name:'Pierwszy artysta w stajni', desc:'Podpisz pierwszego artystę do swojej wytwórni — zarabiasz na cudzej muzyce.', check:()=>(G.label?.artists?.length||0)>=1, reward:{money:6000,fame:10,xp:90,skillPts:1}},
+    {id:'biz_investprofit', em:'💹', name:'Rentier', desc:'Zarób łącznie 50 000 zł z lokat bankowych — kapitał pracuje za Ciebie.', check:()=>(G.bank?.totalInvestmentProfit||0)>=50000, reward:{money:10000,fame:8,xp:120,skillPts:1}},
     {id:'biz_crypto100k', em:'🐋', name:'Krypto wieloryb', desc:'Zarób łącznie 100 000 zł na krypto — legendarny trader.', check:()=>(G.trader?.totalProfit||0)>=100000, reward:{money:25000,fame:20,xp:200,skillPts:3}},
     {id:'biz_magnat', em:'👔', name:'Magnat', desc:'Łączny dochód 500 000 zł — jesteś magnatem, kasa pracuje na Ciebie.', check:()=>(G.totalEarned||0)>=500000, reward:{money:30000,fame:25,xp:200,skillPts:3}},
+  ]},
+  hazard:{ name:'Hazard', emoji:'🎰', color:'#c8a520', desc:'Kasyno Royal — sloty, ruletka, blackjack, poker, Aviator, Mines, HiLo, Ride the Bus i inne. Od pierwszych żetonów po status wieloryba stołów. Graj z głową — dom zawsze czeka.', steps:[
+    {id:'haz_chips', em:'🎟', name:'Pierwsze żetony', desc:'Wymień gotówkę na żetony w Kantorze Royal — wejście do świata hazardu.', check:()=>(G.casinoChips||0)>=20, reward:{money:100,xp:15}},
+    {id:'haz_slots', em:'🎰', name:'Pierwszy spin slotów', desc:'Zakręć bębnami na slotach Royal — klasyka kasyna.', check:()=>(G.casinoStats?.slotsSpins||0)>=1, reward:{money:200,xp:20}},
+    {id:'haz_roulette', em:'🎡', name:'Pierwsza ruletka', desc:'Obstaw pierwszy zakład w ruletce — czerwone czy czarne?', check:()=>(G.casinoStats?.rouletteSpins||0)>=1, reward:{money:200,xp:20}},
+    {id:'haz_win', em:'✨', name:'Pierwsza wygrana', desc:'Zgarnij pierwszą wygraną w kasynie — poczuj smak zwycięstwa.', check:()=>(G.casinoStats?.biggestWin||0)>=1, reward:{money:300,xp:25}},
+    {id:'haz_bus', em:'🚌', name:'Ride the Bus', desc:'Zagraj w Ride the Bus — czterorundowa karciana jazda po bandzie.', check:()=>(G.casinoStats?.busPlayed||0)>=1, reward:{money:400,xp:30}},
+    {id:'haz_crash', em:'✈️', name:'Aviator', desc:'Odpal Aviator/Crash — wypłać, zanim samolot odleci z Twoją stawką.', check:()=>(G.casinoStats?.crashPlays||0)>=1, reward:{money:400,xp:30}},
+    {id:'haz_mines', em:'💣', name:'Mines', desc:'Zagraj w Mines — odkrywaj pola i omijaj bomby, każde bezpieczne pole podbija mnożnik.', check:()=>(G.casinoStats?.minesPlays||0)>=1, reward:{money:400,xp:30}},
+    {id:'haz_hilo', em:'🃏', name:'HiLo', desc:'Zagraj w HiLo — wyżej czy niżej? Prosta gra, ostre mnożniki.', check:()=>(G.casinoStats?.hiloPlays||0)>=1, reward:{money:400,xp:30}},
+    {id:'haz_poker', em:'🂡', name:'Poker', desc:'Rozegraj pierwszą rękę pokera — zimna krew i dobre karty.', check:()=>(G.casinoStats?.pokerPlayed||0)>=1, reward:{money:500,xp:35}},
+    {id:'haz_variety', em:'🎲', name:'Bywalec kasyna', desc:'Zagraj w 6 różnych gier kasynowych — poznaj cały salon Royal.', check:()=>Object.values(G.casinoRecords||{}).filter(r=>r&&(r.games||0)>=1).length>=6, reward:{money:3000,fame:5,xp:80,skillPts:1}},
+    {id:'haz_win5k', em:'💎', name:'Wygrana 5 000', desc:'Zgarnij pojedynczą wygraną 5 000 żetonów — pierwszy większy strzał.', check:()=>(G.casinoStats?.biggestWin||0)>=5000, reward:{money:1500,fame:3,xp:50}},
+    {id:'haz_busfull', em:'🎯', name:'Pełny przejazd', desc:'Przejedź całe Ride the Bus bez wpadki — wszystkie cztery rundy z rzędu.', check:()=>(G.casinoStats?.busFullRide||0)>=1, reward:{money:4000,fame:5,xp:80,skillPts:1}},
+    {id:'haz_win25k', em:'🎰', name:'Jackpot', desc:'Trafienie za 25 000 żetonów w jednym zagraniu — noc, którą zapamiętasz.', check:()=>(G.casinoStats?.biggestWin||0)>=25000, reward:{money:8000,fame:10,xp:120,skillPts:1}},
+    {id:'haz_totalwon50k', em:'🤑', name:'Na fali', desc:'Wygraj łącznie 50 000 żetonów — passa się kręci.', check:()=>(G.casinoStats?.totalWon||0)>=50000, reward:{money:6000,fame:8,xp:100,skillPts:1}},
+    {id:'haz_totalwon250k', em:'🦈', name:'Rekin stołów', desc:'Wygraj łącznie 250 000 żetonów — jesteś stałym, rozpoznawalnym graczem.', check:()=>(G.casinoStats?.totalWon||0)>=250000, reward:{money:20000,fame:15,xp:180,skillPts:2}},
+    {id:'haz_whale', em:'🐳', name:'Wieloryb', desc:'Pojedyncza wygrana 100 000 żetonów — legenda kasyna Royal. Krupierzy znają Cię z imienia.', check:()=>(G.casinoStats?.biggestWin||0)>=100000, reward:{money:60000,fame:30,xp:300,skillPts:4}},
   ]},
   styl:{ name:'Styl i życie', emoji:'💎', color:'#c8a520', desc:'To, kim jesteś poza karierą — pupil, drip, forma, dzielnice miasta i sama legenda. Wisienka na torcie każdego stylu gry.', steps:[
     {id:'life_dog', em:'🐾', name:'Najlepszy przyjaciel', desc:'Adoptuj zwierzaka w Schronisku (wymaga mieszkania Basic+). Pupil to towarzysz i osobna linia rozwoju.', check:()=>!!(G.dog?.owned), reward:{money:1000,fame:3,xp:40}},
@@ -78621,7 +78649,7 @@ const CAREER_TRACKS={
     {id:'life_goat', em:'🐐', name:'Status GOAT', desc:'Osiągnij sławę 400 (Tier GOAT) — Greatest Of All Time, szczyt sceny. Legenda nad legendami.', check:()=>(G.fame||0)>=400, reward:{money:300000,skillPts:10}},
   ]},
 };
-const CAREER_TRACK_ORDER=['podstawy','prace','muzyka','underground','slawa','cyfrowa','biznes','styl'];
+const CAREER_TRACK_ORDER=['podstawy','prace','muzyka','underground','slawa','cyfrowa','biznes','hazard','styl'];
 /* silnik — completion NIEZALEŻNE per-krok + migracja save-safe. */
 function checkCareerTracks(){
   /* podczas Prestige staty są przejściowo wysokie (przed resetem) — NIE nagradzaj (analog ochrony sideQuests L60976).
