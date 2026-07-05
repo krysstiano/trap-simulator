@@ -30042,11 +30042,13 @@ function getHomeStudioReqs(){
   const fs=G.careers?.raper?.freestyles||0;
   const hasMic=!!G.mic;
   const realizacja=getRaperST?.('realizacja')||0;
+  const hasDaw=!!G.hasDaw; /* v2.3.114 (user): Home Studio to „komputer w pokoju" — WYMAGA zakupu komputera z DAW. */
   return {
     freestyles:fs, freestylesNeed:3, freestylesOK:fs>=3,
     hasMic, micName:G.mic?.name||'brak',
     realizacja, realizacjaNeed:1, realizacjaOK:realizacja>=1,
-    allOK:fs>=3 && hasMic && realizacja>=1,
+    hasDaw,
+    allOK:fs>=3 && hasMic && realizacja>=1 && hasDaw,
   };
 }
 function getApartmentDemoMult(){
@@ -30067,6 +30069,7 @@ function renderHomeStudioCard(){
     const reqs=[
       `${r.freestylesOK?'✅':'❌'} 3+ freestyle uliczne wykonane (masz ${r.freestyles}/3)`,
       r.hasMic?`✅ Mikrofon (${(typeof gearDisplayName==='function'?gearDisplayName(r.micName):r.micName)})`:`❌ Mikrofon — kup w Sklepie Muzycznym`,
+      r.hasDaw?`✅ Komputer z DAW`:`❌ Komputer z DAW — kup w Sklepie Muzycznym (od 2 000 zł)`,
       `${r.realizacjaOK?'✅':'❌'} Realizacja ≥1 w drzewku rapera`,
     ].join('<br>');
     /* v2.1.95 Amper: jaśniejsze opisy — "×30% jakości" myli (brzmi jak boost), zmiana na "jakość: 30% pełnego studio". */
@@ -30088,7 +30091,7 @@ function renderHomeStudioCard(){
 }
 window.recordHomeDemo=()=>{
   const r=getHomeStudioReqs();
-  if(!r.allOK){showMsg('🔒 Wymagania niespełnione','r');return;}
+  if(!r.allOK){ showMsg(!r.hasDaw?'🔒 Do nagrywania demo potrzebujesz komputera z DAW — kup w Sklepie Muzycznym (od 2 000 zł). Home Studio to komputer w Twoim pokoju.':'🔒 Wymagania Home Studio niespełnione — sprawdź kartę (mikrofon + 3 freestyle + Realizacja).','r',6500); return; }
   if(G._lastDemoDay===G.day){showMsg('🎙 Demo już dziś nagrane — wróć jutro','r');return;}
   if(G.energy<10){showMsg('⚡ Za mało energii (potrzeba 10)','r');return;}
   /* v2.1.346 Faza M (user 2026-05-27 "Home studio w traphouse działa na zasadzie click=nagroda. NIC W GRZE NIE MA TAK NIE DZIAŁAĆ. Ma być jakaś akcja, minigra, jakieś działanie gracza, a nie tylko click"): zamiast random baseQ = rnd(35,60), wymagamy mini-gry vocal record (re-use `startVocalRecordMG`). Gracz musi rzeczywiście trafiać w zielone strefy. Wynik mini-gry → finalQ tracku (mnożone przez aptMult dla Home Studio penalty vs Studio). Flag G._homeDemoMode triggeruje branch w finishVocal → _completeHomeDemo zamiast soundeng pay/projects flow. */
@@ -53986,7 +53989,7 @@ function renderPhoneApp(app){
       ${G.soundcloud.royalties>0?`<button class="bbtn" style="margin-bottom:10px;background:linear-gradient(135deg,#ff5500,#cc3300);color:#fff" onclick="collectRoyalties('soundcloud')">💰 Zbierz tantiemy (${G.soundcloud.royalties} zł)</button>`:''}
       <!-- v2.1.123: Wave 6 S50 — Upload z telefonu (gracz nie musi wracać do studio dla EchoDrop upload). Link do DAW master tab.
            v2.1.338 Faza R fix (user 2026-05-27 "w soundcloud jak gracz klika 'Wrzuć track na EchoDrop' wyskakuje 'Najpierw kup DAW' a przecież można np. w traphouse też nagrywać i wrzucać na EchoDrop"): komunikat error rozszerzony — gracz dowiaduje się o alternatywie Home Studio (demo SC, wymagania: mikrofon + 3 freestyle + Realizacja lvl 1). Sam upload pełnych singli wciąż wymaga DAW (różne flow: recordHomeDemo→demo SC, publishSCSingle→pełny SC). -->
-      <button class="bbtn" style="margin-bottom:10px;background:linear-gradient(135deg,#ff7733,#ff5500);color:#fff;border:1px solid #ff8855" onclick="closePhone();if(G.hasDaw){renderDAWOverlay('master');openOverlay();}else{showMsg('🟠 Pełne single SC: kup DAW (Sklep Muzyczny). Demo na SC: użyj Home Studio w mieszkaniu (komputer w pokoju — wymaga mikrofonu + 3 freestyle + Realizacja lvl 1).','r',7000);}">🟠 Wrzuć track na EchoDrop →</button>
+      <button class="bbtn" style="margin-bottom:10px;background:linear-gradient(135deg,#ff7733,#ff5500);color:#fff;border:1px solid #ff8855" onclick="closePhone();showMsg('🟠 Tracki nagrywasz i wrzucasz przy KOMPUTERZE — idź do studia (biurko z komputerem) albo do swojego pokoju (Home Studio) i tam nagraj/wrzuć. Z telefonu tylko podglądasz EchoDrop, słuchaczy i tantiemy.','i',7500);">🟠 Jak wrzucić track? →</button>
       ${scTracks.length>0?`
       <div style="background:#0a0502;border-radius:8px;padding:10px;margin-bottom:10px;border:1px solid #2a1408">
         <div style="font-size:10px;color:#ff5500;letter-spacing:1px;margin-bottom:6px">🟠 TWOJE TRACKI NA ECHODROP (${scTracks.length})</div>
@@ -64900,6 +64903,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'🕐 Naprawione: zegar pokazywał czasem popsutą godzinę z długim ułamkiem (np. „21:15.012800000012809"). Teraz minuty są zawsze zaokrąglone do pełnej wartości — czysto „21:15".'},
   {t:'fix',d:'🎤 Freestyle na ulicy: piątek ma teraz najlepsze pory tak jak sobota — zainteresowanie publiczności jest optymalne aż do 2:30 w nocy (piątkowa impreza trwa w najlepsze do wczesnych godzin). Wcześniej piątkowe okno kończyło się o 22:00.'},
   {t:'fix',d:'🎮 Poprawki w Gamingu: po zakończonym turnieju i meczu rankingowym zniknął mylący przycisk „Porzuć (utrata wpisowego)" — na ekranie wyniku nie było już czego porzucać. Karty Turnieju i Rankingowej pokazują teraz wprost „raz dziennie", a po rozegraniu na dziś przycisk jest wyszarzony z informacją „✓ Zagrane dziś — wróć jutro" (zamiast po prostu nie reagować na kliknięcie).'},
+  {t:'fix',d:'💻 Nagrywanie muzyki wymaga teraz komputera i bycia przy nim. Home Studio („komputer w Twoim pokoju") wymaga zakupu komputera z DAW w Sklepie Muzycznym — samym mikrofonem nagrasz tylko freestyle na ulicy, ale nie zapiszesz dema. Z aplikacji EchoDrop w telefonie nie zrobisz już beatów ani nagrań „w biegu" — telefon służy do podglądu odtworzeń, słuchaczy i zbierania tantiem, a nagrywasz i wrzucasz tracki przy komputerze: w studiu (biurko) albo w swoim pokoju.'},
  ]
  },
  {
