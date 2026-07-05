@@ -15359,8 +15359,11 @@ window._registerAlcohol=function(type){
   _alcoholEnsure();
   if(G._alcoholDay!==G.day){ G._alcoholDay=G.day; G._alcoholToday=0; G._alcoholTypesToday=[]; }
   G._alcoholToday++;
-  /* v2.3.113 (Nova Cura §7): alkohol zasila kategorię 'alcohol' w nowym systemie uzależnień (per drink, niski przyrost). */
-  if(typeof window._applySubstanceUse==='function') window._applySubstanceUse('alcohol', { baseRate: 4 });
+  /* v2.3.113 (Nova Cura §7): alkohol zasila kategorię 'alcohol' (per drink, niski przyrost). Audyt #2: kontekst z lokacji (marina/koncert/underground) → wyższe ryzyko. */
+  if(typeof window._applySubstanceUse==='function'){
+    let _actx=null; try{ if(typeof currentRoom!=='undefined'){ if(currentRoom==='coast')_actx='marinaParty'; else if(currentRoom==='underground')_actx='undergroundMeeting'; } if(!_actx && G._lastConcertDay===G.day)_actx='afterConcert'; }catch(e){}
+    window._applySubstanceUse('alcohol', { baseRate: 4, context: _actx });
+  }
   if(type && G._alcoholTypesToday.indexOf(type)<0){
     G._alcoholTypesToday.push(type);
     if(G._alcoholTypesToday.length===3){
@@ -20866,10 +20869,14 @@ window._useSubstance=function(substanceKey){
 window._doUseSubstance=function(substanceKey){
   const sub=SUBSTANCE_EFFECTS[substanceKey];
   if(!sub) return;
+  const _subCat=(window._SUBSTANCE_CATEGORY||{})[substanceKey];
+  /* v2.3.113 (audyt adversarialny #3): TOLERANCJA daje malejącą skuteczność — im wyższa tolerance kategorii, tym słabszy chwilowy boost (mood/energia dodatnie, do −40%). Skutki ujemne (HP) bez zmian. */
+  let _tolMult=1;
+  try{ if(_subCat && G.addictionSystem && G.addictionSystem[_subCat]){ _tolMult=1-Math.min(0.4,(G.addictionSystem[_subCat].tolerance||0)/250); } }catch(e){}
   /* Apply effects */
-  if(sub.mood) G.stress=Math.min(100,(G.stress||50)+sub.mood);
+  if(sub.mood) G.stress=Math.min(100,(G.stress||50)+(sub.mood>0?Math.round(sub.mood*_tolMult):sub.mood));
   if(sub.hunger) G.hunger=Math.min(100,(G.hunger||50)+sub.hunger);
-  if(sub.energy) G.energy=Math.max(0,Math.min(100,(G.energy||100)+sub.energy));
+  if(sub.energy) G.energy=Math.max(0,Math.min(100,(G.energy||100)+(sub.energy>0?Math.round(sub.energy*_tolMult):sub.energy)));
   if(sub.forma) G.forma=Math.max(0,(G.forma||0)+sub.forma);
   if(sub.fame && typeof addFame==='function') addFame(sub.fame);
   if(sub.healthLoss) G.health=Math.max(0,(G.health||100)-sub.healthLoss);
@@ -20886,10 +20893,19 @@ window._doUseSubstance=function(substanceKey){
   /* Addiction (stary płaski system — ZOSTAJE, istniejące mechaniki go czytają) */
   G.addictions=G.addictions||{weed:0,meth:0,mushrooms:0,cocaine:0};
   G.addictions[substanceKey]=Math.min(100,(G.addictions[substanceKey]||0)+sub.addRate);
-  /* v2.3.113 (Nova Cura §7): zasil nowy per-kategoria system uzależnień */
-  if(typeof window._applySubstanceUse==='function'){
-    const _cat=(window._SUBSTANCE_CATEGORY||{})[substanceKey];
-    if(_cat) window._applySubstanceUse(_cat, { baseRate: sub.addRate });
+  /* v2.3.113 (Nova Cura §7): zasil nowy per-kategoria system uzależnień. Audyt adversarialny #2: wykryj KONTEKST ze stanu gry (był martwy, ctxMult zawsze 1). */
+  if(typeof window._applySubstanceUse==='function' && _subCat){
+    let _ctx=null;
+    try{
+      if(typeof currentRoom!=='undefined'){
+        if(currentRoom==='underground') _ctx='undergroundMeeting';
+        else if(currentRoom==='coast') _ctx='marinaParty';
+        else if(currentRoom==='studio') _ctx='studioMarathon';
+      }
+      if(!_ctx && G._lastConcertDay===G.day) _ctx='afterConcert';
+      if(!_ctx && ((G.novacura&&(G.novacura.tension||0)>=60) || (G.stress||50)<=30)) _ctx='stressEvent';
+    }catch(e){}
+    window._applySubstanceUse(_subCat, { baseRate: sub.addRate, context: _ctx });
   }
   if(typeof window._addLifestyleDebt==='function') window._addLifestyleDebt(2); /* v2.1.990 TIER 5: zażycie podbija dług stylu życia */
   G._lastSubstanceUseDay=G._lastSubstanceUseDay||{};
@@ -40246,7 +40262,7 @@ function renderHospital(){
   const psychReq=(mood<=15||tension>=85||mcl>=2||wd>=40); // PDF §4.5 kiedy zalecana
   const stabGate=(mcl>=1||tension>=50||wd>0);             // PDF §11 warunek dostępności
   const consultCd=(n._lastConsultDay===G.day), therapyCd=(G._lastTherapyDay===G.day), psychCd=(n._lastPsychDay===G.day), testsCd=(n._lastTestsDay===G.day), stabCd=(n._lastStabDay===G.day);
-  const prog7Cd=(n._lastProg7Day===G.day), prog14Cd=(n._lastProg14Day===G.day), progPremCd=(n._lastProgPremDay===G.day), progGate=(addRisk>=21); /* v2.3.113 §programy: dostępne przy realnym uzależnieniu */
+  const prog7Cd=(n._lastProg7Day===G.day), prog14Cd=(n._lastProg14Day===G.day), progPremCd=(n._lastProgPremDay===G.day), progGate=(addRisk>=41); /* v2.3.113 §programy: dostępne od ryzyka „średnie" (useLevel>=41) — zgodne z tekstem przycisku (audyt adversarialny #6) */
   const triageCd=(n._lastTriageDay===G.day); /* v2.3.113 §triage: 1×/dobę (anti-farm medicalTrust) */
   const it=(icon,title,desc,price,handler,disabled,extra)=>`<div class="sitem"><h3>${icon} ${title}</h3><p style="font-size:11.5px;color:#8aa">${desc}</p>${extra||''}<div class="pr">${price}</div><button class="bbtn" onclick="${handler}" ${disabled?'disabled':''}>Wybierz</button></div>`;
   /* v2.3.113 (PDF new/Nova Cura §11): panel ryzyka uzależnień per-kategoria. */
@@ -40307,9 +40323,14 @@ window._novaTherapy=function(){ if((G.money||0)<750){const e=document.getElement
   let red=0; if(G.addictions){ for(const s in G.addictions){ const b=G.addictions[s]||0; if(b>0){ G.addictions[s]=Math.max(0,b-12); red+=b-G.addictions[s]; } } }
   /* v2.3.113 (PDF new/Nova Cura — terapia Mira Hale): terapia adresuje PSYCHICZNĄ stronę — obniża craving/dependence/relapseRisk (komplementarnie do programów 5M tnących useLevel/withdrawal fizyczne). */
   if(typeof window._addictionSysEnsure==='function') window._addictionSysEnsure();
-  if(G.addictionSystem){ ['alcohol','stimulants','partySubstances','downers','opioids'].forEach(c=>{ const a=G.addictionSystem[c]; if(!a)return; a.craving=Math.max(0,(a.craving||0)-15); a.dependence=Math.max(0,(a.dependence||0)-8); a.relapseRisk=Math.min(100,Math.round((a.dependence||0)*0.6+(a.craving||0)*0.4)); }); }
-  window._novaLog('Terapia psychologiczna','poprawa nastroju'+(red>0?', −'+red+' uzależnienia':'')); if(typeof updateHUD==='function')updateHUD();
-  const e=document.getElementById('shop-res'); if(e)e.textContent='🧘 Mira Hale: +35 nastrój, −10 napięcia'+(red>0?`, uzależnienia −${red}`:'')+'. Wróć, jak będziesz potrzebował.'; renderHospital(); };
+  /* v2.3.113 (audyt adversarialny #7): akumuluj redukcję psychiczną (głód+zależność), by obiecany „spadek uzależnień" był widoczny w komunikacie także przy nowym systemie. */
+  let psychRed=0;
+  if(G.addictionSystem){ ['alcohol','stimulants','partySubstances','downers','opioids'].forEach(c=>{ const a=G.addictionSystem[c]; if(!a)return; const bc=a.craving||0, bd=a.dependence||0; a.craving=Math.max(0,bc-15); a.dependence=Math.max(0,bd-8); psychRed+=(bc-a.craving)+(bd-a.dependence); a.relapseRisk=Math.min(100,Math.round((a.dependence||0)*0.6+(a.craving||0)*0.4)); }); }
+  const _addTxt = (red>0||psychRed>0) ? `, mniejszy głód i zależność${red>0?` (−${red})`:''}` : '';
+  window._novaLog('Terapia psychologiczna','poprawa nastroju'+((red>0||psychRed>0)?', spadek uzależnień':'')); if(typeof updateHUD==='function')updateHUD();
+  /* v2.3.113 (audyt adversarialny #7): komunikat przez showMsg (toast) — renderHospital nadpisuje #shop-res, więc info o spadku uzależnień było niewidoczne. */
+  if(typeof showMsg==='function') showMsg('🧘 Mira Hale: +35 nastrój, −10 napięcia'+_addTxt+'. Wróć, jak będziesz potrzebował.','g',6000);
+  renderHospital(); };
 window._novaConsult=function(){ if((G.money||0)<600){const e=document.getElementById('shop-res');if(e)e.textContent='Za mało pieniędzy!';return;} if(typeof _5pdfEnsure==='function')_5pdfEnsure(); const n=G.novacura; if(n._lastConsultDay===G.day){if(typeof showMsg==='function')showMsg('🩺 Dziś już byłeś na konsultacji.','r');return;}
   G.money-=600; n._lastConsultDay=G.day; window._novaLegalWarn('consult'); window._novaCuraInterview(false); };
 window._novaDiscreet=function(){ if((G.money||0)<1800){const e=document.getElementById('shop-res');if(e)e.textContent='Za mało pieniędzy!';return;} if(typeof _5pdfEnsure==='function')_5pdfEnsure(); const n=G.novacura;
@@ -40327,6 +40348,9 @@ window._novaCuraInterview=function(discreet){ if(typeof _5pdfEnsure==='function'
 window._novaTriage=function(){
   if(typeof _5pdfEnsure==='function')_5pdfEnsure(); if(typeof window._addictionSysEnsure==='function')window._addictionSysEnsure();
   const n=G.novacura;
+  /* v2.3.113 (audyt adversarialny #1): cooldown NA WEJŚCIU (jak _novaConsult/_novaTherapy) — inaczej „Chcę wyjść" omijał bramkę 1×/dobę i pozwalał farmić medicalTrust. Otwarcie konsumuje dzienny wywiad. */
+  if(n._lastTriageDay===G.day){ if(typeof showMsg==='function')showMsg('🩺 Wywiad masz dziś za sobą — wróć jutro.','r',4500); return; }
+  n._lastTriageDay=G.day;
   if(typeof showEventChoice!=='function'){ window._novaShowDiagnosis(); return; }
   const q4=()=>showEventChoice('🩺 Wywiad — gotowość','Nurse Kai: „Czego Pan oczekuje?"',[
     {label:'🛏️ Szybkiej stabilizacji', fn:()=>{ n._triageGoal='stabilize'; done(); }},
@@ -40392,6 +40416,9 @@ window._novaStabilize=function(){ if(typeof _5pdfEnsure==='function')_5pdfEnsure
   if((G.money||0)<2200){const e=document.getElementById('shop-res');if(e)e.textContent='Za mało pieniędzy!';return;} if(n._lastStabDay===G.day){if(typeof showMsg==='function')showMsg('🛏️ Pobyt stabilizacyjny masz dziś za sobą.','r');return;}
   G.money-=2200; n._lastStabDay=G.day; n.tension=Math.max(0,(n.tension||0)-40); G.stress=clamp((G.stress||0)+20,0,100); if((n.mentalCrisisLevel||0)>0) n.mentalCrisisLevel=Math.max(0,n.mentalCrisisLevel-1);
   let red=0; if(G.addictions){ for(const s in G.addictions){ const b=G.addictions[s]||0; if(b>0){ G.addictions[s]=Math.max(0,b-15); red+=b-G.addictions[s]; } } }
+  /* v2.3.113 (audyt adversarialny #5): stabilizacja realnie łagodzi ODSTAWIENIE z nowego systemu (AS[c].withdrawal) — to je gatuje/wyświetla; wcześniej ruszała tylko stary flat. */
+  if(typeof window._addictionSysEnsure==='function') window._addictionSysEnsure();
+  if(G.addictionSystem){ ['alcohol','stimulants','partySubstances','downers','opioids'].forEach(c=>{ const a=G.addictionSystem[c]; if(!a)return; const bw=a.withdrawal||0; a.withdrawal=Math.max(0,bw-20); red+=bw-a.withdrawal; a.craving=Math.max(0,(a.craving||0)-8); a.relapseRisk=Math.min(100,Math.round((a.dependence||0)*0.6+(a.craving||0)*0.4)); }); }
   window._novaLog('Stabilizacja po kryzysie','wyciszenie organizmu'+(red>0?', −'+red+' odstawienie':'')); if(typeof updateHUD==='function')updateHUD();
   if(typeof showMsg==='function')showMsg('🛏️ Krótki pobyt stabilizacyjny pod opieką specjalisty. −40 napięcia, +20 nastrój'+(red>0?`, złagodzone odstawienie (−${red})`:'')+'. Odzyskujesz podstawową kontrolę.','g',7000); renderHospital(); };
 /* v2.3.113 (PDF new/Nova Cura §... programy leczenia): stabilizacja(2200 wyżej) / 7 dni / 14 dni / premium dyskretny.
