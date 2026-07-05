@@ -5290,7 +5290,7 @@ function drawPlayerDog(){
   if(sx<-50||sx>1530||sy<-50||sy>820) return;
   /* Walking animation */
   const bounce=P.moving?Math.abs(Math.sin(anim*0.18))*2:Math.sin(anim*0.06)*1.2;
-  const breed=DOG_BREEDS.find(b=>b.id===G.dog.breed);
+  const breed=window._findBreed(G.dog.breed);
   const emoji=breed?(breed.emoji||'🐕'):'🐕';
   /* Cień */
   X.fillStyle='rgba(0,0,0,.35)';
@@ -5320,7 +5320,7 @@ function drawApartmentDog(){
   if(sx<-50||sx>1530||sy<-50||sy>820) return;
   /* Idle bounce */
   const bounce=Math.sin(anim*0.08)*2;
-  const breed=DOG_BREEDS.find(b=>b.id===G.dog.breed);
+  const breed=window._findBreed(G.dog.breed);
   const emoji=breed?(breed.emoji||'🐕'):'🐕';
   /* Cień */
   X.fillStyle='rgba(0,0,0,.35)';
@@ -22634,7 +22634,7 @@ window._igRenderPreviewCanvas=function(){
   window._drawPlayerSnapshot(ctx, playerX, playerY, 2);
   /* Dog (right) */
   if(hasDog){
-    const breed=(typeof DOG_BREEDS!=='undefined')?DOG_BREEDS.find(b=>b.id===G.dog.breed):null;
+    const breed=(typeof DOG_BREEDS!=='undefined')?window._findBreed(G.dog.breed):null;
     const dogEmoji=breed?breed.emoji||'🐕':'🐕';
     ctx.font='44px "Segoe UI Emoji",Arial';
     ctx.fillText(dogEmoji, W*0.62, H*0.65);
@@ -25285,6 +25285,33 @@ const DOG_BREEDS=[
   /* v2.1.454 nowa rasa — Shiba Inu (meme culture nawiązanie do Dogecoin). */
   {id:'shiba',name:'Shiba Inu',emoji:'🐕',slodkoscBase:88,price:400,desc:'Japoński pies — duch wojownika. Meme culture (do meme much wow).'},
 ];
+/* v2.3.113 (PDF new/6 schronisko §5-8): KOTY (10) — tańsze w utrzymaniu, lepsze do małych mieszkań, mniejszy social bonus niż psy. */
+const CAT_BREEDS=[
+  {id:'dachowiec',name:'Dachowiec',emoji:'🐈',species:'cat',slodkoscBase:75,price:80,charity:true,moodBonus:6,weeklyCost:40,desc:'Klasyczny kot ze schroniska. Niski koszt, dobry bonus do nastroju.'},
+  {id:'czarny_kot',name:'Czarny kot',emoji:'🐈‍⬛',species:'cat',slodkoscBase:82,price:70,charity:true,moodBonus:6,weeklyCost:40,desc:'Trochę tajemniczy, trochę memiczny. Dobry do klimatycznych postów.'},
+  {id:'rudy_kot',name:'Rudy kot',emoji:'🐈',species:'cat',slodkoscBase:85,price:90,moodBonus:7,weeklyCost:45,desc:'Chaos w futrze. Więcej zabawnych eventów w mieszkaniu.'},
+  {id:'kot_senior',name:'Kot senior',emoji:'🐈',species:'cat',slodkoscBase:70,price:50,charity:true,moodBonus:8,weeklyCost:40,desc:'Spokojny, dobry dla gracza z wysokim stresem.'},
+  {id:'maine_coon',name:'Maine Coon mix',emoji:'🐈',species:'cat',slodkoscBase:90,price:280,moodBonus:7,weeklyCost:70,desc:'Duży, dostojny kot. Świetny do lifestyle contentu.'},
+  {id:'syjamski',name:'Kot Syjamski mix',emoji:'🐈',species:'cat',slodkoscBase:84,price:260,moodBonus:6,weeklyCost:60,desc:'Głośny i charakterystyczny. Częściej generuje eventy domowe.'},
+  {id:'brytyjski',name:'Brytyjski krótkowłosy mix',emoji:'🐈',species:'cat',slodkoscBase:88,price:300,moodBonus:6,weeklyCost:65,desc:'Spokojny, elegancki kot. Pasuje do lifestyle contentu.'},
+  {id:'norweski',name:'Norweski leśny mix',emoji:'🐈',species:'cat',slodkoscBase:86,price:280,moodBonus:7,weeklyCost:65,desc:'Puszysty, majestatyczny. Dobry do klimatycznych zdjęć.'},
+  {id:'kot_leczony',name:'Kot po leczeniu',emoji:'🐈',species:'cat',slodkoscBase:76,price:60,charity:true,moodBonus:7,weeklyCost:50,desc:'Wymaga wizyt kontrolnych. Daje większy bonus charity.'},
+  {id:'kot_niewidomy',name:'Kot niewidomy',emoji:'🐈',species:'cat',slodkoscBase:74,price:40,charity:true,specialNeeds:true,moodBonus:8,weeklyCost:50,desc:'Zwierzak specjalnej troski. Bardzo emocjonalny wybór, duży charity.'},
+];
+/* v2.3.113 (PDF new/6 §6): MAŁE ZWIERZĘTA (6) — najtańsze i najprostsze, ale mniejszy efekt socialowy. */
+const SMALL_BREEDS=[
+  {id:'krolik',name:'Królik',emoji:'🐇',species:'small',slodkoscBase:88,price:120,moodBonus:5,weeklyCost:35,desc:'Spokojny zwierzak do mieszkania. Wymaga klatki i regularnej opieki.'},
+  {id:'chomik',name:'Chomik',emoji:'🐹',species:'small',slodkoscBase:80,price:40,moodBonus:4,weeklyCost:20,desc:'Tani i prosty w utrzymaniu. Mały bonus do nastroju.'},
+  {id:'szczur',name:'Szczur domowy',emoji:'🐀',species:'small',slodkoscBase:72,price:60,moodBonus:4,weeklyCost:25,desc:'Inteligentny i niedoceniany. Daje nietypowe reakcje NPC.'},
+  {id:'myszki',name:'Myszki',emoji:'🐁',species:'small',slodkoscBase:68,price:50,moodBonus:3,weeklyCost:20,desc:'Niski koszt, mały wpływ na social media, dobre do małego lokalu.'},
+  {id:'papuga',name:'Papuga falista',emoji:'🦜',species:'small',slodkoscBase:78,price:130,moodBonus:5,weeklyCost:35,desc:'Może generować zabawne eventy dźwiękowe w mieszkaniu.'},
+  {id:'zolw',name:'Żółw',emoji:'🐢',species:'small',slodkoscBase:70,price:110,moodBonus:5,weeklyCost:30,desc:'Spokojny, długowieczny towarzysz. Minimalne obowiązki.'},
+];
+/* v2.3.113 (6B): jednolite wyszukiwanie rasy PO WSZYSTKICH gatunkach (pies domyślnie 'dog' — save-safe dla starych ras bez pola species). */
+window._ALL_PET_BREEDS=function(){ return DOG_BREEDS.concat(CAT_BREEDS, SMALL_BREEDS); };
+window._findBreed=function(id){ let b=DOG_BREEDS.find(x=>x.id===id); if(b) return Object.assign({species:'dog'},b); b=CAT_BREEDS.find(x=>x.id===id)||SMALL_BREEDS.find(x=>x.id===id); return b||null; };
+window._petSpecies=function(){ return (G.dog&&G.dog.species)||'dog'; };
+window._petSpeciesLabel=function(sp){ return {dog:'pies',cat:'kot',small:'mały zwierzak'}[sp||window._petSpecies()]||'zwierzak'; };
 
 /* v2.1.397 Faza AQ XP curve dla psa (level 1-20) */
 const DOG_XP_FOR_LEVEL=(lvl)=>{
@@ -25409,7 +25436,7 @@ window._aportMGNextRound=function(){
   ctx.fillStyle='#1a2a18';ctx.fillRect(0,0,380,200);
   /* Draw player + dog on left */
   ctx.font='32px Arial';ctx.fillText('🧍', 10, 50);
-  const breed=(typeof DOG_BREEDS!=='undefined')?DOG_BREEDS.find(b=>b.id===G.dog?.breed):null;
+  const breed=(typeof DOG_BREEDS!=='undefined')?window._findBreed(G.dog?.breed):null;
   ctx.fillText(breed?.emoji||'🐕', 50, 50);
   /* Target — losowy spot */
   const tx=80+Math.random()*280, ty=80+Math.random()*100;
@@ -25510,7 +25537,7 @@ window._biegMGTick=function(){
   /* Ground */
   ctx.fillStyle='#3a5520';ctx.fillRect(0,100,400,20);
   /* Dog */
-  const breed=(typeof DOG_BREEDS!=='undefined')?DOG_BREEDS.find(b=>b.id===G.dog?.breed):null;
+  const breed=(typeof DOG_BREEDS!=='undefined')?window._findBreed(G.dog?.breed):null;
   ctx.font='28px Arial';ctx.fillText(breed?.emoji||'🐕', 10, mg.playerY+25);
   /* Player */
   ctx.fillText('🧍', 45, mg.playerY+25);
@@ -25643,14 +25670,20 @@ window._openShelter=function(){
   const _ownsBetter=(G._ownedApts||[]).some(a => a && a!=='traphouse' && a!=='studio');
   const _aptOK = _ownsBetter || (_apt && _apt!=='traphouse' && _apt!=='studio');
   if(!_aptOK){if(typeof showMsg==='function') showMsg('🏠 Najpierw kup lub wynajmij prawdziwe mieszkanie (Basic+) — pies nie zmieści się w traphouse/studio.','r',5000);return;}
+  /* v2.3.113 (PDF new/6 §3 6D): zakładki kategorii (Psy/Koty/Małe zwierzęta). */
+  const _tab=(arguments[0]&&['dog','cat','small'].includes(arguments[0]))?arguments[0]:(window._shelterTab||'dog'); window._shelterTab=_tab;
+  const _CATS=[['dog','🐕 Psy',DOG_BREEDS],['cat','🐈 Koty',CAT_BREEDS],['small','🐹 Małe zwierzęta',SMALL_BREEDS]];
+  const _tabBtns=_CATS.map(c=>`<button class="cbtn" style="font-size:11px;padding:5px 11px;${c[0]===_tab?'background:#2a4a6a;color:#fff;border-color:#5aa0e0':'color:#9fd0f5'}" onclick="window._openShelter('${c[0]}')">${c[1]}</button>`).join('');
+  const _breeds=(_CATS.find(c=>c[0]===_tab)||_CATS[0])[2];
   const html=`<div style="background:#0a1220;border:2px solid #f1c40f;border-radius:10px;padding:20px;max-width:640px;margin:0 auto;max-height:80vh;overflow-y:auto;color:#fff">
     <h2 style="color:#f4d35e;margin-top:0">🏠 Schronisko dla zwierząt</h2>
-    <div style="color:#ccd;font-size:13px;margin-bottom:14px">Wybierz pieska. Cena uwzględnia wpłatę dla schroniska. Adoptując bezdomnego dostajesz bonus charity +10 fame.</div>
+    <div style="color:#ccd;font-size:13px;margin-bottom:10px">Wybierz zwierzaka. Cena uwzględnia wpłatę dla schroniska. Adopcja buduje charity i poprawia nastrój — najbardziej przy zwierzętach oznaczonych CHARITY.</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${_tabBtns}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      ${DOG_BREEDS.map(b=>`<div style="background:#1a2030;border-radius:6px;padding:10px;${b.charity?'border:2px solid #e67e22':''}">
-        <div style="font-size:24px">${b.emoji||'🐕'}</div>
-        <div style="font-weight:700;font-size:13px;margin:3px 0;color:#fff">${b.name}${b.charity?' <span style="color:#f39c12;font-size:10px">CHARITY</span>':''}</div>
-        <div style="font-size:11px;color:#ccd;margin-bottom:6px">Słodkość: ${b.slodkoscBase} · <strong style="color:#f1c40f">${b.price.toLocaleString('pl')} zł</strong></div>
+      ${_breeds.map(b=>`<div style="background:#1a2030;border-radius:6px;padding:10px;${b.charity?'border:2px solid #e67e22':''}">
+        <div style="font-size:24px">${b.emoji||'🐾'}</div>
+        <div style="font-weight:700;font-size:13px;margin:3px 0;color:#fff">${b.name}${b.charity?' <span style="color:#f39c12;font-size:10px">CHARITY</span>':''}${b.specialNeeds?' <span style="color:#e88;font-size:10px">TROSKA</span>':''}</div>
+        <div style="font-size:11px;color:#ccd;margin-bottom:6px">Słodkość: ${b.slodkoscBase} · <strong style="color:#f1c40f">${b.price.toLocaleString('pl')} zł</strong>${b.weeklyCost?` · ${b.weeklyCost} zł/tydz`:''}</div>
         <button class="cbtn" style="width:100%;font-size:11px;padding:6px;color:#7ec87e;border-color:#27ae60" onclick="window._adoptDogPrompt('${b.id}')">Adoptuj</button>
       </div>`).join('')}
     </div>
@@ -25665,7 +25698,7 @@ window._openShelter=function(){
 };
 
 window._adoptDogPrompt=function(breedId){
-  const breed=DOG_BREEDS.find(b=>b.id===breedId);
+  const breed=window._findBreed(breedId);
   if(!breed) return;
   if((G.money||0)<breed.price){if(typeof showMsg==='function') showMsg(`💰 Brakuje ${breed.price-G.money} zł na adopcję!`,'r',4000);return;}
   /* v2.1.497 USER FEEDBACK FIX — native prompt() ZASTĄPIONE in-game modal. */
@@ -25849,7 +25882,7 @@ window._addDogXP=(amount, source)=>{
 /* v2.1.397 Faza AQ.5 Słodkość mechanic (analog drip): breed_base + level×2 + toys×1.5. Max 100. */
 window._calcDogSlodkosc=()=>{
   if(!G.dog||!G.dog.owned) return 0;
-  const breed=DOG_BREEDS.find(b=>b.id===G.dog.breed);
+  const breed=window._findBreed(G.dog.breed);
   const _base=breed?breed.slodkoscBase:50;
   const _level=(G.dog.level||1)*2;
   const _toys=(G.dog.toysOwned||[]).length*1.5;
@@ -25860,6 +25893,8 @@ window._calcDogSlodkosc=()=>{
 /* v2.3.113 (PDF new/6 schronisko §... 6A): staty cnót gracza z adopcji/opieki — save-safe, additive. selfRespect wspoldzielony z blokiem kradziezy. */
 window._petStatsEnsure=function(){
   ['_charity','_selfRespect','_responsibility','_guilt'].forEach(k=>{ if(typeof G[k]!=='number'||!isFinite(G[k])) G[k]=0; });
+  /* v2.3.113 (6B save-compat): stary G.dog bez pola species → 'dog' (weterani mają psy, nie tracą ich). */
+  if(G.dog && G.dog.owned && !G.dog.species) G.dog.species='dog';
 };
 window._adoptDog=(breedId,name)=>{
   /* v2.1.409 Round 2 fix: cooldown 7 dni po śmierci TYLKO gdy poprzedni pies kiedyś istniał (G._dogCleared > 0).
@@ -25877,12 +25912,12 @@ window._adoptDog=(breedId,name)=>{
     return false;
   }
   if(G.dog && G.dog.owned){if(typeof showMsg==='function') showMsg('🐕 Masz już psa.','r');return false;}
-  const breed=DOG_BREEDS.find(b=>b.id===breedId);
+  const breed=window._findBreed(breedId);
   if(!breed){if(typeof showMsg==='function') showMsg('⚠️ Nieznana rasa','r');return false;}
   if((G.money||0)<breed.price){if(typeof showMsg==='function') showMsg(`💸 Brak ${breed.price} zł na adopcję.`,'r');return false;}
   G.money-=breed.price;
   G.dog={
-    owned:true,breed:breedId,name:(name||'Reksio').slice(0,12),
+    owned:true,breed:breedId,species:(breed.species||'dog'),name:(name||'Reksio').slice(0,12),
     level:1,xp:0,hunger:100,mood:100,health:100,
     slodkosc:breed.slodkoscBase+2, /* base +2 lvl 1 */
     sickness:null,toysOwned:[],lastVetCheckup:G.day,lastFeedDay:G.day,_adoptDay:G.day,_deathDay:0
@@ -54020,7 +54055,7 @@ function renderPhoneApp(app){
         ${_cd===0?`<div style="padding:10px"><button class="cbtn" style="width:100%" onclick="closePhone();window._openShelter&&window._openShelter()">🏠 Otwórz schronisko</button></div>`:''}
       </div>`;
     } else {
-      const breed=DOG_BREEDS.find(b=>b.id===G.dog.breed);
+      const breed=window._findBreed(G.dog.breed);
       const _name=G.dog.name||'Pies';
       const _lvl=G.dog.level||1;
       const _xp=G.dog.xp||0;
@@ -63305,6 +63340,7 @@ const PATCH_NOTES = [
   {t:'new',d:'📝 W Nova Cura możesz teraz przejść bezpłatny wywiad w rejestracji — krótka rozmowa, która kieruje Cię do właściwej pomocy. Szczere i spokojne odpowiedzi budują zaufanie personelu i poprawiają trafność diagnozy; agresja albo ukrywanie sytuacji podnoszą ryzyko. Możesz mówić o samych objawach, bez wchodzenia w szczegóły — to wystarcza.'},
   {t:'new',d:'🕵️ Uliczne skoki odbijają się teraz na Twoim wizerunku. Im więcej świadków (a najgorzej gdy ktoś Cię nagra), tym mocniej cierpi zaufanie fanów i tym bliżej kryzysu kariery. Nagranie z kradzieży potrafi trafić do sieci i rozpętać burzę komentarzy. Gdy presja narośnie, dostajesz trudną decyzję: wyciszyć się, zapłacić za opanowanie sytuacji, publicznie się odciąć albo wejść jeszcze głębiej w półświatek.'},
   {t:'new',d:'👀 Na ulicy możesz teraz trafić na kradzież w toku — i sam zdecydować, jak zareagować: odejść, obserwować, wezwać służby, ostrzec ofiarę, dogonić złodzieja albo to nagrać. Każdy wybór ma inne skutki dla Twojej reputacji na ulicy i wśród fanów. Możesz też w każdej chwili postanowić, że kończysz z kradzieżami — to buduje szacunek do siebie i chroni wizerunek (a gdybyś zmienił zdanie, da się to cofnąć).'},
+  {t:'new',d:'🐈 Schronisko dla zwierząt otwiera się na nowe gatunki! Oprócz psów możesz teraz adoptować koty (10 ras — od dachowca po Maine Coona) i małe zwierzęta (królik, chomik, papuga, żółw i inne). Panel ma teraz wygodne zakładki kategorii, a koty i małe zwierzaki są tańsze w utrzymaniu i lepiej pasują do mniejszych mieszkań. Adopcja — zwłaszcza zwierząt oznaczonych CHARITY — poprawia nastrój i buduje coś w rodzaju szacunku do siebie. Twój dotychczasowy pupil działa bez żadnych zmian.'},
   {t:'fix',d:'🟢 Zielone powiadomienia możesz teraz po prostu kliknąć, żeby zniknęły od razu — nie musisz czekać, aż same wygasną. Przydaje się, gdy zbiera się ich więcej naraz.'},
   {t:'fix',d:'▶️ Naprawione: na samym starcie gry potrafiła wyskoczyć wiadomość, że „Twój film wystrzelił", mimo że nie miałeś jeszcze żadnego nagranego filmu. Teraz taka informacja pojawia się dopiero, gdy masz na koncie co najmniej 3 opublikowane filmy.'},
   {t:'fix',d:'🔒 Wytwórnia, S9 Agency i NOX Route w folderze Kariera odblokowują się po ukończeniu poradnika na start — dzięki temu nowy gracz nie jest od razu zasypany wszystkimi opcjami. Jeśli grasz już od dłuższego czasu, korzystasz z nich bez zmian.'},
