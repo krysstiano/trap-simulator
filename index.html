@@ -34899,6 +34899,7 @@ function startStreamMG(){
     addFans(Math.floor(viewers*0.005)+Math.floor(maxCombo)); /* v2.1.141: streaming fans */
     addXP(20+maxCombo);
     progressQuest('stream');
+    G._streamsCompleted=(G._streamsCompleted||0)+1; /* v2.3.113 (user 2026-07-05): licznik streamów do storyline kariery */
     // v1.8.72: HTML end screen zamiast canvas — wyraźny tekst + breakdown wypłaty (brutto → mnożnik sławy → netto).
     // Gracz widzi PRZED-discount payout, zastosowany mnożnik (×40% przy fame 0, ×100% przy fame 60+) i finalną kwotę.
     const fameVal=Math.round(G.fame||0);
@@ -49678,14 +49679,15 @@ function startSkateparkMG(){
   document.addEventListener('keydown',skHandler);
 
   /* FIX (user 2026-07-05: „po aktywności na skateparku okno się nie zamyka, trzeba ręcznie wychodzić"):
-     skate MG NIE ustawiał własnego window._jobMgCleanup → endSkate wołał CUDZY (stale) cleanup z innego MG,
-     który nie zamykał panelu skate (el=mg-job) → okno wisiało, ruch zablokowany. Teraz własny cleanup jak breakdance. */
-  window._jobMgCleanup=()=>{
+     skate MG NIE ustawiał własnego cleanup → endSkate wołał CUDZY (globalny window._jobMgCleanup, mógł być nadpisany
+     przez inne MG → null innerHTML crash). Teraz LOKALNY _skCleanup wołany bezpośrednio (nie przez zmienny global). */
+  const _skCleanup=()=>{
     gameActive=false; _skEnded=true;
     if(window._skTimer){ clearInterval(window._skTimer); window._skTimer=null; }
     document.removeEventListener('keydown',skHandler);
     el.style.display='none'; el.classList.remove('on'); el.innerHTML='';
   };
+  window._jobMgCleanup=_skCleanup; /* przycisk „✕ Wyjdź" w panelu skate */
 
   window._skTimer=setInterval(()=>{
     if(!gameActive)return;
@@ -49742,7 +49744,7 @@ function startSkateparkMG(){
     /* v2.3.113 (PDF new/111 pkt 3) FIX HANGU: closeJobPanelAfter usuwał tylko klasę .on, ale inline display:flex
        zostawał → panel wisiał z zamrożoną klatką. Użyj dedykowanego _jobMgCleanup (chowa panel display:none,
        czyści timer/handler) — dokładnie jak breakdance wraca do gry po kilku sekundach. */
-    const _cl=window._jobMgCleanup; setTimeout(()=>{ if(typeof _cl==='function') _cl(); },3000);
+    setTimeout(()=>{ _skCleanup(); },3000); /* woła LOKALNY cleanup skate (nie globalny window._jobMgCleanup, który mógł zostać nadpisany przez inne MG) */
   }
 
   // Ramp layout
@@ -64693,6 +64695,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'🛹 Naprawione: po turnieju na skateparku wracasz teraz na chodnik obok spotu, a nie w środek konstrukcji, gdzie nie dało się ruszyć.'},
   {t:'fix',d:'🛹 Naprawione: aktywność na skateparku sama zamyka okno po zakończeniu (nie trzeba już wychodzić ręcznie), a komunikat o postępie do turnieju wyświetla się tak samo jak przy breakdance.'},
   {t:'new',d:'🏆 Turnieje breakdance i skate mają teraz efektowną, animowaną oprawę — parkiet/rampy, reflektory, DJ, kibicujący tłum i tancerza/skatera, który wykonuje tricki z efektami przy trafionych combosach. Wygląda dużo lepiej niż zwykły trening w parku. W sekwencji zamiast dziwnego znaczka widnieje po prostu napis „SPACJA".'},
+  {t:'new',d:'📖 Rozbudowana linia fabularna kariery — doszły kroki dla ulicznych i medialnych ścieżek: pierwszy trick na skateparku, pierwszy występ breakdance, pierwszy stream na żywo, pierwsza współpraca z marką i wygrany turniej esportowy. Kroki wpasowaliśmy w naturalną kolejność progresji (łatwiejsze wcześniej, trudniejsze później), a Twój dotychczasowy postęp w fabule zostaje bez zmian.'},
   {t:'new',d:'🏆 Turnieje breakdance i skate przebudowane! Nagrody rosną teraz razem z Twoją rozpoznawalnością i rangą w scenie — na starcie to skromne kwoty, a dawne wysokie stawki (nawet kilka tysięcy za bezbłędne 1. miejsce) są teraz nagrodą dla naprawdę znanych zawodników z wysoką rangą. Dodaliśmy więcej rang (9 na dyscyplinę), a każdą kolejną wbija się coraz trudniej i stawia przeciwko mocniejszym rywalom. W rankingowej startujesz raz dziennie (trening w parku dalej bez limitu).'},
   {t:'new',d:'✉️ FrameUp ma teraz Direct Message! Po pierwszym poście lub utworze odblokujesz skrzynkę wiadomości z podziałem na Główne, Prośby, Współprace, Artyści, Fani, Spam i Archiwum. To także początek nowej, dyskretnej ścieżki zarobku.'},
   {t:'new',d:'🎼 Nowa kariera: ghostwriting. Gdy masz już fanów i wydany utwór, artyści zaczną pisać do Ciebie z ofertami napisania tekstu za pieniądze — anonimowo. Każdą ofertę możesz zaakceptować, negocjować stawkę, poprosić o zaliczkę, zaproponować współautorstwo (z kredytem), odrzucić albo oznaczyć jako spam. Potem piszesz tekst w wybranym trybie (szybko / normalnie / z dopracowaniem), a jakość decyduje o wypłacie — słaby tekst grozi reklamacją. Uwaga: ghostwriting bywa ryzykowny — jeśli wyciek trafi do sieci, część fanów może poczuć się oszukana. Wszystkie zlecenia śledzisz w panelu „Ghostwriting — zlecenia".'},
@@ -78005,6 +78008,11 @@ const STORYLINE_QUESTS=[
   // ── BUDOWANIE BAZY (Day 2-5) ──
   {id:'freestyle',em:'🎤', name:'Pierwszy freestyle', desc:'Wypróbuj freestyle na ulicy — różowe kółko 🎤 na centralnej ulicy miasta, naprzeciwko Sali Koncertowej',
     check:()=>(G.careers?.raper?.freestyles||0)>=1, reward:{money:200,xp:30}},
+  /* v2.3.113 (user 2026-07-05: „w linii fabularnej brakuje skatepark/breakdance"): wczesne aktywności uliczne (od startu, park). */
+  {id:'skate1', em:'🛹', name:'Pierwszy trick na skateparku', desc:'Wskocz na skatepark w parku i wykręć pierwszy przejazd — uliczna rozgrzewka, która buduje reputację i kondycję',
+    check:()=>(G.skate?.parkRunsCompleted||0)>=1, reward:{money:250,fame:1,xp:30}},
+  {id:'bboy1', em:'🕺', name:'Pierwszy występ breakdance', desc:'Zatańcz breakdance w parku — pokaż flow ulicy. Kolejna street-aktywność budująca fanów i formę',
+    check:()=>(G.breakdance?.parkRunsCompleted||0)>=1, reward:{money:300,fame:1,xp:35}},
   /* v2.1.332 Faza I fix (user 2026-05-27 "Mam 51 fanów, a storyline Pierwsze 50 fanów mi się nie zaliczyło"): cond używał G.followers (obserwujący social), ale user mówi o "fanach" — G.fans = lojalni main metric. Memory project_fans_vs_followers: fani = main, followers = additional. Storyline główny powinien używać G.fans. */
   {id:'fans50',   em:'👥', name:'Pierwsze 50 fanów',  desc:'Zdobądź 50 fanów lojalnych (freestyle, koncerty, dialogi z fanami)',
     check:()=>(G.fans||0)>=50, reward:{money:300,fame:3,xp:30}},
@@ -78024,6 +78032,9 @@ const STORYLINE_QUESTS=[
     check:()=>G.studioOwned===true, reward:{money:2000,fame:5,xp:50}},
   {id:'spotify500',em:'🎧', name:'500 słuchaczy/m-c', desc:'Twój pierwszy singiel zdobywa publiczność — osiągnij 500 słuchaczy miesięcznie na Loopify',
     check:()=>(G.spotify?.listeners||0)>=500, reward:{money:1500,fame:5,xp:40}},
+  /* v2.3.113 (user 2026-07-05: „brakuje stream/gaming w linii kariery"): dywersyfikacja do live-streamingu (wymaga kariery streamera + kamery). */
+  {id:'firststream',em:'🔴', name:'Pierwszy stream na żywo', desc:'Odpal pierwszy stream na żywo (Telefon → Kariera, wymaga odblokowanej kariery streamera i kamery). Live to nowy strumień fanów i kasy obok muzyki',
+    check:()=>(G._streamsCompleted||0)>=1, reward:{money:1600,fame:5,xp:50}},
   // ── DUŻA SCENA (Day 10-20) ──
   {id:'concert',  em:'🎪', name:'Pierwszy koncert',   desc:'Zagraj koncert na Małej Scenie (Sala Koncertowa, centrum miasta). Wymaga 10+ sławy i Scena lvl 1 w drzewku',
     check:()=>(G.events?.performed||0)>=1, reward:{money:1500,fame:10,skillPts:1}},
@@ -78035,6 +78046,11 @@ const STORYLINE_QUESTS=[
   /* v2.1.332 Faza I Round 2 audit fix: name "1 000 fanów" + cond G.followers → niespójność (fani vs obserwujący). Memory project_fans_vs_followers: fani = main metric storyline, followers = additional social. Fix na G.fans + desc unify. */
   {id:'fans1k',   em:'🌟', name:'1 000 fanów',         desc:'Pierwszy duży milestone — 1 000 fanów lojalnych. Promuj się na FrameUp, koncertuj, nagrywaj',
     check:()=>(G.fans||0)>=1000, reward:{money:5000,fame:15,skillPts:1}},
+  /* v2.3.113 (user 2026-07-05: „brakuje sociale/gaming w linii kariery"): milestone współpracy marki (zasięg) + gaming (esport). */
+  {id:'firstsponsor',em:'🤝', name:'Pierwsza współpraca z marką', desc:'Zbij zasięg na tyle, by dostać ofertę sponsorską i wrzuć pierwszy sponsorowany post (FrameUp → oferty sponsorów). Marki płacą za Twój zasięg',
+    check:()=>(G._igSponsoredCount||0)>=1, reward:{money:5000,fame:8,xp:70}},
+  {id:'esportwin',em:'🎮', name:'Wygrany turniej esportowy', desc:'Rozwiń karierę gamingową i wygraj pierwszy turniej esportowy (Telefon → Kariera → Gamer). Gaming to poważny, dobrze płatny filar dochodu',
+    check:()=>(G.careers?.gamer?.tourneysWon||0)>=1, reward:{money:6000,fame:10,xp:90,skillPts:1}},
   // ── PÓŹNA GRA (Day 20+) ──
   {id:'tracks5',  em:'📀', name:'Pięć singli',         desc:'Nagraj 5 tracków — gotowy materiał na album. Profesjonalna realizacja wymaga rozwoju drzewka',
     check:()=>(G.careers?.raper?.tracks||0)>=5, reward:{money:6000,fame:10,xp:100}},
@@ -78065,12 +78081,13 @@ function checkStoryline(){
     /* Pierwsze 5 questów wymaga 2 dni przerwy po Prestige — anti soft-lock */
     checkSideStorylines();return;
   }
+  /* v2.1.702 / v2.3.113 save-compat: po wstawieniu nowych kroków indeksy się przesuwają — REALIGN currentStep do
+     pierwszego NIEukończonego kroku (pełny walk-forward po id, nie 1-na-tick). Odporne na dowolne insercje. */
+  if(!Array.isArray(G.mainQuest.completed)) G.mainQuest.completed=[];
+  while(G.mainQuest.currentStep < STORYLINE_QUESTS.length && G.mainQuest.completed.includes(STORYLINE_QUESTS[G.mainQuest.currentStep].id)){ G.mainQuest.currentStep++; }
   const step=G.mainQuest.currentStep;
   if(step>=STORYLINE_QUESTS.length){checkSideStorylines();return;}
   const q=STORYLINE_QUESTS[step];
-  /* v2.1.702 save-compat: po wstawieniu nowych kroków indeksy się przesuwają — jeśli krok na tym
-     indeksie jest JUŻ ukończony (jest w completed), pomiń go bez ponownej nagrody (walk-forward). */
-  if(Array.isArray(G.mainQuest.completed) && G.mainQuest.completed.includes(q.id)){ G.mainQuest.currentStep++; checkSideStorylines(); return; }
   if(q.check()){
     G.mainQuest.completed.push(q.id);
     G.mainQuest.currentStep++;
@@ -79377,6 +79394,7 @@ function loadGame(){
   if(!G._cooksMade) G._cooksMade=0;
   if(!G._cooksPerfect) G._cooksPerfect=0;
   if(!G._streamCountDay) G._streamCountDay=0;
+  if(typeof G._streamsCompleted!=='number'||!isFinite(G._streamsCompleted)) G._streamsCompleted=0; /* v2.3.113: storyline stream */
   if(!G._streamsToday) G._streamsToday=0;
   // v1.9.11: Migracja brakujących pól (audyt edge-cases — pola używane gdzieś bez guard)
   if(!Array.isArray(G.crew)) G.crew=[];
