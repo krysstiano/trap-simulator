@@ -25857,6 +25857,10 @@ window._calcDogSlodkosc=()=>{
 };
 
 /* v2.1.397 Faza AQ.4 Adopcja: wymaga apartament Basic+, deduct money, set G.dog */
+/* v2.3.113 (PDF new/6 schronisko §... 6A): staty cnót gracza z adopcji/opieki — save-safe, additive. selfRespect wspoldzielony z blokiem kradziezy. */
+window._petStatsEnsure=function(){
+  ['_charity','_selfRespect','_responsibility','_guilt'].forEach(k=>{ if(typeof G[k]!=='number'||!isFinite(G[k])) G[k]=0; });
+};
 window._adoptDog=(breedId,name)=>{
   /* v2.1.409 Round 2 fix: cooldown 7 dni po śmierci TYLKO gdy poprzedni pies kiedyś istniał (G._dogCleared > 0).
      Wcześniej nowy gracz (G._dogCleared=0, G.day=1) → 1<7 → false → adopcja blokowana mimo braku poprzedniego psa.
@@ -25890,6 +25894,13 @@ window._adoptDog=(breedId,name)=>{
   }
   if(typeof addNotif==='function') addNotif(`🐕 Adoptowano ${breed.name}: "${G.dog.name}"! +20 sławy za media social.`);
   if(typeof addFame==='function') addFame(20); else G.fame=Math.min(500,(G.fame||0)+20);
+  /* v2.3.113 (PDF new/6 §... bonus adopcyjny 6I): adopcja buduje cnoty (charity/selfRespect/responsibility) + poprawia nastrój; silniej dla zwierząt „po przejściach"/specjalnej troski. */
+  if(typeof window._petStatsEnsure==='function') window._petStatsEnsure();
+  const _charityTier=(typeof breed.charity==='number')?breed.charity:(breedId==='bezdomny'?2:(/senior|trojnog|interwencj|lek|troska|lekow/i.test(breedId)?2:1));
+  G._charity=Math.min(100,(G._charity||0)+5*_charityTier);
+  G._selfRespect=Math.min(100,(G._selfRespect||0)+_charityTier);
+  G._responsibility=Math.min(100,(G._responsibility||0)+2);
+  G.stress=(typeof clamp==='function')?clamp((G.stress||50)+6,0,100):Math.min(100,(G.stress||50)+6); /* nastrój w górę (G.stress=MOOD) */
   if(typeof checkAchievements==='function') checkAchievements();
   /* v2.1.460 SMS od Marcina przy AQ dog adopt (analog Trap+Trader unlock SMS). */
   if(typeof _smsTriggerOnce==='function'){
@@ -51024,6 +51035,7 @@ window._sanitizePlayerLists=function(){
     if(typeof window._vehStateEnsure==='function') window._vehStateEnsure(); /* v2.3.108 PDF#9: stan interakcji pojazdu (silnik/światła/zamek/pasy), save-safe */
     if(typeof window._addictionSysEnsure==='function') window._addictionSysEnsure(); /* v2.3.113 (PDF new/5 Nova Cura): model uzależnień per-kategoria (6), save-safe + migracja płaskich G.addictions */
     if(typeof window._theftCareerEnsure==='function') window._theftCareerEnsure(); /* v2.3.113 (PDF new/3 kradzieże): warstwa wizerunkowa kradzieży (careerCollapseRisk), save-safe */
+    if(typeof window._petStatsEnsure==='function') window._petStatsEnsure(); /* v2.3.113 (PDF new/6 schronisko): staty cnót gracza (charity/responsibility/guilt), save-safe */
     if(typeof window._metalValleyEnsure==='function') window._metalValleyEnsure(); /* v2.3.108 PDF#11: Metal Valley (rozbiórka/wypłaty), save-safe */
   }catch(_e){}
 };
