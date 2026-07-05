@@ -18904,6 +18904,10 @@ const RANDOM_EVENTS = [
   {name:'Okazja do kradzieży', chance:0.012, maxPerDay:4, cond:()=>currentRoom==='ulica'&&(G.timeOfDay===2||G.timeOfDay===3)&&((G._theftDay===G.day?(G._theftsToday||0):0)<4), fn:()=>{
     if(typeof window._theftOpportunity==='function') window._theftOpportunity();
   }},
+  /* v2.3.113 (PDF new/3 §... świadek): gracz świadkiem kradzieży NPC↔NPC — nocny/dzielnicowy event, 6 opcji reakcji. */
+  {name:'Świadek kradzieży', chance:0.013, maxPerDay:2, cond:()=>(currentRoom==='ulica'||currentRoom==='underground'||currentRoom==='coast'||currentRoom==='business'), fn:()=>{
+    if(typeof window._theftWitnessEvent==='function') window._theftWitnessEvent();
+  }},
   {name:'Pochwała od fana',chance:0.014,cond:()=>currentRoom==='ulica'&&(G.fans||0)>=200&&G.fame>=10,fn:()=>{
     G.stress=clamp(G.stress+10,0,100);
     /* v2.1.99: Prestige fameMult przez addFame() (random event Pochwała bypass fix) */
@@ -21157,6 +21161,31 @@ window._applyRepeatedTheftCareerPenalty=function(){
   else if(n>=8){ t.mediaRisk=Math.min(100,(t.mediaRisk||0)+3); t.publicCrimeExposure=(t.publicCrimeExposure||0)+5; window._theftCollapseRisk(); if(G._theftCrisisOfferedDay!==G.day && typeof window._theftCrisisPanel==='function'){ G._theftCrisisOfferedDay=G.day; setTimeout(()=>{ try{ window._theftCrisisPanel(); }catch(_){} },1500); } }
   window._theftCollapseRisk();
   return n;
+};
+/* v2.3.113 (PDF new/3 §... świadek): gracz jako świadek kradzieży NPC↔NPC — 6 opcji reakcji. */
+window._theftWitnessEvent=function(){
+  if(typeof showEventChoice!=='function') return false;
+  const _r=(a,b)=>(typeof rnd==='function')?rnd(a,b):a+Math.floor(Math.random()*(b-a+1));
+  const _cl=(v)=>Math.max(0,Math.min(100,v));
+  const victims=['starszą panią','kuriera','turystę','sprzedawcę','przechodnia z torbami'];
+  const v=victims[Math.floor(Math.random()*victims.length)];
+  const streetSide=((G.trap&&G.trap.unlocked)||(G._underworldRespect||0)>=30);
+  showEventChoice('👀 Jesteś świadkiem kradzieży', 'Na ulicy ktoś właśnie okrada '+v+'. Złodziej działa szybko — masz kilka sekund. Co robisz?', [
+    {label:'🚶 Odejdź — to nie Twoja sprawa', fn:()=>{ G.stress=_cl((G.stress||50)-2); if(typeof showMsg==='function')showMsg('🚶 Odchodzisz. Nie mieszasz się — ale coś zostaje z tyłu głowy.','i',5000); }},
+    {label:'👁️ Obserwuj z boku', fn:()=>{ G.streetRep=Math.min(100,(G.streetRep||0)+1); if(typeof showMsg==='function')showMsg('👁️ Patrzysz z boku. Widzisz dokładnie, jak to się rozgrywa — ulica uczy.','i',5000); }},
+    {label:'📞 Zadzwoń po służby', fn:()=>{ if(typeof _publicRepEnsure==='function')_publicRepEnsure(); if(G.publicRep)G.publicRep.fanLoyalty=Math.min(100,(G.publicRep.fanLoyalty||60)+2); if(streetSide){ G.streetRep=Math.max(0,(G.streetRep||0)-3); if(typeof showMsg==='function')showMsg('📞 Dzwonisz po służby. Ofierze lżej, ale ulica zapamiętuje „kapusia".','i',6000);} else if(typeof showMsg==='function')showMsg('📞 Dzwonisz po służby. Zachowałeś się przyzwoicie.','g',5500); }},
+    {label:'⚠️ Ostrzeż ofiarę', fn:()=>{ G.stress=_cl((G.stress||50)+3); if(typeof _publicRepEnsure==='function')_publicRepEnsure(); if(G.publicRep)G.publicRep.fanLoyalty=Math.min(100,(G.publicRep.fanLoyalty||60)+1); if(typeof showMsg==='function')showMsg('⚠️ Krzyczysz ostrzeżenie! Złodziej się spłoszył — ofiara Ci dziękuje.','g',5500); }},
+    {label:'🏃 Dogoń złodzieja', fn:()=>{ G.violenceHeat=(G.violenceHeat||0)+_r(3,8); if(Math.random()<0.4){ G.streetRep=Math.min(100,(G.streetRep||0)+5); if(typeof showMsg==='function')showMsg('🏃 Dogoniłeś go i odbiłeś łup! Respekt ulicy rośnie (ale narobiłeś hałasu).','g',6000);} else { G.health=Math.max(0,(G.health||100)-_r(3,10)); if(typeof showMsg==='function')showMsg('🏃 Uciekł, a Ty oberwałeś w szarpaninie. Bez efektu.','r',5500);} }},
+    {label:'🎥 Nagrywaj zdarzenie', fn:()=>{ G.followers=(G.followers||0)+_r(20,80); if(typeof _publicRepEnsure==='function')_publicRepEnsure(); if(G.publicRep)G.publicRep.fanLoyalty=Math.max(0,(G.publicRep.fanLoyalty||60)-1); if(typeof showMsg==='function')showMsg('🎥 Nagrywasz i wrzucasz do sieci — zasięgi rosną, ale to trochę żerowanie na cudzym nieszczęściu.','i',6000); }},
+  ]);
+  return true;
+};
+/* v2.3.113 (PDF new/3 §... dobrowolna blokada): postanowienie gracza o zaprzestaniu kradzieży (+szacunek do siebie). */
+window._theftToggleSelfBan=function(){
+  G._theftSelfBan=!G._theftSelfBan;
+  if(G._theftSelfBan){ G._selfRespect=Math.min(100,(G._selfRespect||0)+5); if(typeof showMsg==='function')showMsg('🤝 Postanowienie: koniec z kradzieżami. Odcinasz się od tej ścieżki — to buduje szacunek do siebie.','g',6500); }
+  else if(typeof showMsg==='function')showMsg('⚠️ Cofnąłeś postanowienie — kradzieże znów dostępne.','i',5000);
+  return G._theftSelfBan;
 };
 window._publicRepDailyTick=function(){
   _publicRepEnsure();
@@ -28843,6 +28872,8 @@ window._npcRobberyReact=function(r){
 window._attemptTheft=function(method){
   method=method||'pickpocket';
   const _mg=document.getElementById('mg-job'); if(_mg){_mg.classList.remove('on'); const _c=document.getElementById('mg-job-content'); if(_c)_c.innerHTML='';}
+  /* v2.3.113 (PDF new/3 §... dobrowolna blokada 3S): jeśli gracz postanowił zerwać z kradzieżami — blokuj. */
+  if(G._theftSelfBan){ if(typeof showMsg==='function') showMsg('🤝 Postanowiłeś skończyć z kradzieżami — trzymasz się tego. (Możesz to cofnąć w opcjach kradzieży.)','i',5500); return; }
   const _can=(typeof canPlayerRobNpc==='function')?canPlayerRobNpc():{ok:true};
   if(!_can.ok){ if(typeof showMsg==='function') showMsg('🌞 '+(_can.msg||'Nie teraz.'),'i',5500); return; }
   _theftStateEnsure();
@@ -28890,6 +28921,16 @@ window._theftOpportunity=function(){
   const _mg=document.getElementById('mg-job'); const _mc=document.getElementById('mg-job-content'); if(!_mg||!_mc) return;
   _theftStateEnsure();
   const loc=(typeof currentRoom!=='undefined'?currentRoom:'ulica');
+  /* v2.3.113 (PDF new/3 3S): jeśli gracz postanowił zerwać z kradzieżami — pokaż postanowienie zamiast celów (priorytet nad porą dnia; można cofnąć). */
+  if(G._theftSelfBan){
+    _mc.innerHTML=`<div style="background:#0a0a0a;border:2px solid #2a6a3a;border-radius:10px;padding:18px;max-width:470px;margin:0 auto;color:#ddd">
+      <h2 style="color:#7ec87e;margin-top:0;text-align:center">🤝 Postanowienie</h2>
+      <div style="font-size:12px;color:#9aa;margin-bottom:14px;line-height:1.5">Postanowiłeś skończyć z kradzieżami i trzymasz się tego. To buduje szacunek do siebie i chroni Twój wizerunek. Jeśli naprawdę chcesz — możesz cofnąć postanowienie, ale ulica nie zapomina.</div>
+      <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._theftToggleSelfBan&&window._theftToggleSelfBan();document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">↩️ Cofnij postanowienie (wróć do kradzieży)</button>
+      <button class="cbtn" style="width:100%;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">✅ Trzymam się tego</button>
+    </div>`;
+    _mg.classList.add('on'); return;
+  }
   const _can=(typeof canPlayerRobNpc==='function')?canPlayerRobNpc():{ok:true};
   if(!_can.ok){ if(typeof showMsg==='function')showMsg('🌞 '+(_can.msg||'Nie teraz.'),'i',5000); return; }
   /* K-2 (PDF2): wybór typu kradzieży zależnie od kontekstu (wymuszenie gated streetRep/Underground). */
@@ -28902,6 +28943,7 @@ window._theftOpportunity=function(){
     <div style="font-size:12px;color:#9aa;margin-bottom:12px;line-height:1.5">Nieuważny przechodzień z odstającym portfelem, otwarta torba na ławce... albo ktoś, kogo można przycisnąć. Wybierz sposób. <b>Ryzyko wykrycia</b> — wpadka = mandat, zniesławienie, hejterzy, czasem areszt. (Dziś: ${_theftCountToday()}/4 skoki)</div>
     ${btns}
     <button class="cbtn" style="width:100%;color:#fff;margin-top:4px" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">Odpuść — nie ryzykuję</button>
+    <button class="cbtn" style="width:100%;color:#7ec87e;border-color:#2a6a3a;font-size:11px;margin-top:6px" onclick="window._theftToggleSelfBan&&window._theftToggleSelfBan();document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">🤝 Postanów: koniec z kradzieżami</button>
   </div>`;
   _mg.classList.add('on');
 };
@@ -63234,6 +63276,7 @@ const PATCH_NOTES = [
   {t:'new',d:'⚠️ Wychodzenie z nałogu bywa wyboiste — przy dużym uzależnieniu zdarzają się nawroty, które cofają część postępu. A jeśli jesteś rozpoznawalny i mocno przesadzasz, ktoś może nagrać Cię w kiepskim stanie i wrzucić do sieci, co uderza w Twój wizerunek. Warto trzymać rękę na pulsie.'},
   {t:'new',d:'📝 W Nova Cura możesz teraz przejść bezpłatny wywiad w rejestracji — krótka rozmowa, która kieruje Cię do właściwej pomocy. Szczere i spokojne odpowiedzi budują zaufanie personelu i poprawiają trafność diagnozy; agresja albo ukrywanie sytuacji podnoszą ryzyko. Możesz mówić o samych objawach, bez wchodzenia w szczegóły — to wystarcza.'},
   {t:'new',d:'🕵️ Uliczne skoki odbijają się teraz na Twoim wizerunku. Im więcej świadków (a najgorzej gdy ktoś Cię nagra), tym mocniej cierpi zaufanie fanów i tym bliżej kryzysu kariery. Nagranie z kradzieży potrafi trafić do sieci i rozpętać burzę komentarzy. Gdy presja narośnie, dostajesz trudną decyzję: wyciszyć się, zapłacić za opanowanie sytuacji, publicznie się odciąć albo wejść jeszcze głębiej w półświatek.'},
+  {t:'new',d:'👀 Na ulicy możesz teraz trafić na kradzież w toku — i sam zdecydować, jak zareagować: odejść, obserwować, wezwać służby, ostrzec ofiarę, dogonić złodzieja albo to nagrać. Każdy wybór ma inne skutki dla Twojej reputacji na ulicy i wśród fanów. Możesz też w każdej chwili postanowić, że kończysz z kradzieżami — to buduje szacunek do siebie i chroni wizerunek (a gdybyś zmienił zdanie, da się to cofnąć).'},
   {t:'fix',d:'🟢 Zielone powiadomienia możesz teraz po prostu kliknąć, żeby zniknęły od razu — nie musisz czekać, aż same wygasną. Przydaje się, gdy zbiera się ich więcej naraz.'},
   {t:'fix',d:'▶️ Naprawione: na samym starcie gry potrafiła wyskoczyć wiadomość, że „Twój film wystrzelił", mimo że nie miałeś jeszcze żadnego nagranego filmu. Teraz taka informacja pojawia się dopiero, gdy masz na koncie co najmniej 3 opublikowane filmy.'},
   {t:'fix',d:'🔒 Wytwórnia, S9 Agency i NOX Route w folderze Kariera odblokowują się po ukończeniu poradnika na start — dzięki temu nowy gracz nie jest od razu zasypany wszystkimi opcjami. Jeśli grasz już od dłuższego czasu, korzystasz z nich bez zmian.'},
