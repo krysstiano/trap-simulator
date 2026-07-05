@@ -25791,36 +25791,82 @@ window._poslMGAbort=function(){
 
 /* v2.1.400 Faza AQ.2 Etap 2 (Round 2 fix ghost feature reguła #7): Schronisko modal UI.
    Gracz wybiera rasę + wpisuje imię + adopcja. Niefizyczne (apka telefon → modal) — fizyczny budynek defer. */
+/* v2.3.113 (PDF new/6 §19 6T): aktywności wolontariatu w schronisku — mało kasy, budują charity/selfRespect. Każda 1×/dzień, koszt energii. */
+const SHELTER_VOLUNTEER=[
+  {id:'karmienie',emoji:'🍲',name:'Karmienie zwierząt',energy:8,charity:2,respect:1,tip:20,desc:'Rozdaj miski karmy podopiecznym.'},
+  {id:'spacery',emoji:'🚶',name:'Spacery z psami',energy:10,charity:2,respect:1,tip:25,mood:3,desc:'Wyprowadź psy, które czekają na dom.'},
+  {id:'sprzatanie',emoji:'🧹',name:'Sprzątanie boksów',energy:12,charity:3,respect:2,tip:30,desc:'Najcięższa, ale najbardziej potrzebna praca.'},
+  {id:'socjalizacja',emoji:'🤝',name:'Socjalizacja lękliwych',energy:10,charity:2,respect:2,tip:15,desc:'Oswajaj wystraszone zwierzęta z ludźmi.'},
+  {id:'event',emoji:'📣',name:'Dzień adopcyjny',energy:15,charity:4,respect:2,tip:0,fame:2,desc:'Pomóż znaleźć domy na evencie adopcyjnym.'},
+];
+window._shelterVolunteer=function(type){
+  const act=SHELTER_VOLUNTEER.find(a=>a.id===type); if(!act){ if(typeof showMsg==='function') showMsg('⚠️ Nieznana aktywność.','r'); return false; }
+  if(typeof window._petStatsEnsure==='function') window._petStatsEnsure();
+  if(G._volunteerDay!==G.day){ G._volunteerDay=G.day; G._volunteerDone=[]; }
+  if(!Array.isArray(G._volunteerDone)) G._volunteerDone=[];
+  if(G._volunteerDone.includes(type)){ if(typeof showMsg==='function') showMsg('🙌 Tę aktywność zrobiłeś już dziś. Wróć jutro!','r',3500); return false; }
+  if((G.energy||0)<act.energy){ if(typeof showMsg==='function') showMsg(`⚡ Za mało energii (potrzeba ${act.energy}).`,'r',3000); return false; }
+  G.energy=Math.max(0,(G.energy||100)-act.energy);
+  G._charity=Math.min(100,(G._charity||0)+act.charity);
+  G._selfRespect=Math.min(100,(G._selfRespect||0)+act.respect);
+  if(act.mood) G.stress=(typeof clamp==='function')?clamp((G.stress||50)+act.mood,0,100):Math.min(100,(G.stress||50)+act.mood);
+  if(act.fame){ if(typeof addFame==='function') addFame(act.fame); else G.fame=Math.min(500,(G.fame||0)+act.fame); }
+  if(act.tip){ if(typeof earn==='function') earn(act.tip,false); else { G.money=(G.money||0)+act.tip; } }
+  G._volunteerDone.push(type);
+  if(typeof checkAchievements==='function') checkAchievements();
+  if(typeof showMsg==='function') showMsg(`${act.emoji} ${act.name} — dobra robota! +${act.charity} charity, +${act.respect} szacunku do siebie${act.tip?`, +${act.tip} zł zwrotu`:''}${act.mood?`, +${act.mood} nastroju`:''}.`,'g',4200);
+  if(typeof window._openShelter==='function') window._openShelter('volunteer');
+  return true;
+};
+
 window._openShelter=function(){
-  if(G.dog&&G.dog.owned){if(typeof showMsg==='function') showMsg(`🐕 Masz już psa (${G.dog.name||''})! Nie możesz adoptować kolejnego.`,'r',4000);return;}
-  if(G._dogCleared>0 && G.day - G._dogCleared < 7){
-    const _left=7-(G.day-G._dogCleared);
-    if(typeof showMsg==='function') showMsg(`💔 Po śmierci pieska trzeba poczekać ${_left} dni przed kolejną adopcją.`,'r',5000);
-    return;
-  }
-  /* v2.1.493 USER FEEDBACK FIX — gracz miał wiele mieszkań ale check używał tylko G.apartment (CURRENT). Bug: gracz w traphouse ale owns basic/premium/etc. → false negative.
-     Fix: OR check across G.apartment + G._ownedApts (jeśli OWNS jakikolwiek niż traphouse/studio = OK). */
+  /* v2.3.113 (§2+3 6D/6H/6U/6T): 6 zakładek — Psy/Koty/Małe/Specjalna troska/Moje adopcje/Wolontariat. Adopcja gated (mieszkanie/pupil/cooldown), reszta zawsze dostępna. */
+  const _TABS=['dog','cat','small','special','mine','volunteer'];
+  const _tab=(arguments[0]&&_TABS.includes(arguments[0]))?arguments[0]:(_TABS.includes(window._shelterTab)?window._shelterTab:'dog'); window._shelterTab=_tab;
+  if(typeof window._petStatsEnsure==='function') window._petStatsEnsure();
+  // stan zdolności do adopcji
   const _apt=G.apartment||'';
   const _ownsBetter=(G._ownedApts||[]).some(a => a && a!=='traphouse' && a!=='studio');
   const _aptOK = _ownsBetter || (_apt && _apt!=='traphouse' && _apt!=='studio');
-  if(!_aptOK){if(typeof showMsg==='function') showMsg('🏠 Najpierw kup lub wynajmij prawdziwe mieszkanie (Basic+) — pies nie zmieści się w traphouse/studio.','r',5000);return;}
-  /* v2.3.113 (PDF new/6 §3 6D): zakładki kategorii (Psy/Koty/Małe zwierzęta). */
-  const _tab=(arguments[0]&&['dog','cat','small'].includes(arguments[0]))?arguments[0]:(window._shelterTab||'dog'); window._shelterTab=_tab;
-  const _CATS=[['dog','🐕 Psy',DOG_BREEDS],['cat','🐈 Koty',CAT_BREEDS],['small','🐹 Małe zwierzęta',SMALL_BREEDS]];
-  const _tabBtns=_CATS.map(c=>`<button class="cbtn" style="font-size:11px;padding:5px 11px;${c[0]===_tab?'background:#2a4a6a;color:#fff;border-color:#5aa0e0':'color:#9fd0f5'}" onclick="window._openShelter('${c[0]}')">${c[1]}</button>`).join('');
-  const _breeds=(_CATS.find(c=>c[0]===_tab)||_CATS[0])[2];
+  const _hasPet=!!(G.dog&&G.dog.owned);
+  const _cooldown=(G._dogCleared>0 && G.day - G._dogCleared < 7)?(7-(G.day-G._dogCleared)):0;
+  const _canAdopt=_aptOK && !_hasPet && _cooldown<=0;
+  const _adoptBlockMsg=_hasPet?`🐾 Masz już zwierzaka (${(G.dog&&G.dog.name)||''}). Nie możesz adoptować kolejnego.`:_cooldown>0?`💔 Po stracie pupila poczekaj jeszcze ${_cooldown} dni przed kolejną adopcją.`:!_aptOK?'🏠 Najpierw kup lub wynajmij prawdziwe mieszkanie (Basic+) — zwierzak nie zmieści się w traphouse/studio.':'';
+  const _TABDEF=[['dog','🐕 Psy'],['cat','🐈 Koty'],['small','🐹 Małe zwierzęta'],['special','💛 Specjalna troska'],['mine','📋 Moje adopcje'],['volunteer','🙌 Wolontariat']];
+  const _tabBtns=_TABDEF.map(c=>`<button class="cbtn" style="font-size:11px;padding:5px 11px;${c[0]===_tab?'background:#2a4a6a;color:#fff;border-color:#5aa0e0':'color:#9fd0f5'}" onclick="window._openShelter('${c[0]}')">${c[1]}</button>`).join('');
+  const _card=(b)=>`<div style="background:#1a2030;border-radius:6px;padding:10px;${b.specialNeeds?'border:2px solid #e88':b.charity?'border:2px solid #e67e22':''}">
+    <div style="font-size:24px">${b.emoji||'🐾'}</div>
+    <div style="font-weight:700;font-size:13px;margin:3px 0;color:#fff">${b.name}${b.charity?' <span style="color:#f39c12;font-size:10px">CHARITY</span>':''}${b.specialNeeds?' <span style="color:#e88;font-size:10px">TROSKA</span>':''}</div>
+    <div style="font-size:11px;color:#ccd;margin-bottom:6px">Słodkość: ${b.slodkoscBase} · <strong style="color:#f1c40f">${b.price.toLocaleString('pl')} zł</strong>${b.weeklyCost?` · ${b.weeklyCost} zł/tydz`:''}</div>
+    ${_canAdopt?`<button class="cbtn" style="width:100%;font-size:11px;padding:6px;color:#7ec87e;border-color:#27ae60" onclick="window._adoptDogPrompt('${b.id}')">Adoptuj</button>`:`<div style="font-size:10px;color:#889;text-align:center;padding:4px">niedostępne</div>`}
+  </div>`;
+  let _body='';
+  if(_tab==='volunteer'){
+    if(G._volunteerDay!==G.day){ G._volunteerDay=G.day; G._volunteerDone=[]; }
+    const done=Array.isArray(G._volunteerDone)?G._volunteerDone:[];
+    _body=`<div style="color:#ccd;font-size:12px;margin-bottom:10px">Pomagaj w schronisku. Nie zarobisz tu fortuny, ale budujesz charity i szacunek do siebie — i realnie pomagasz zwierzętom.</div>
+      <div style="display:grid;grid-template-columns:1fr;gap:8px">${SHELTER_VOLUNTEER.map(a=>{const d=done.includes(a.id);return `<div style="background:#141c14;border-radius:6px;padding:10px;border-left:3px solid ${d?'#3a5a3a':'#27ae60'}">
+        <div style="font-weight:700;font-size:13px;color:#cfe">${a.emoji} ${a.name}</div>
+        <div style="font-size:11px;color:#9ab;margin:2px 0 6px">${a.desc} · ⚡${a.energy} · +${a.charity} charity, +${a.respect} szacunku${a.tip?`, +${a.tip} zł`:''}${a.fame?`, +${a.fame} sławy`:''}</div>
+        <button class="cbtn" style="width:100%;font-size:11px;padding:6px;color:${d?'#889':'#7ec87e'};border-color:${d?'#3a5a3a':'#27ae60'}" ${d?'disabled':''} onclick="window._shelterVolunteer('${a.id}')">${d?'✓ zrobione dziś':'Pomóż'}</button>
+      </div>`;}).join('')}</div>`;
+  } else if(_tab==='mine'){
+    const hist=Array.isArray(G._petAdoptions)?G._petAdoptions:[];
+    const cur=(G.dog&&G.dog.owned)?G.dog:null;
+    _body=`<div style="color:#ccd;font-size:12px;margin-bottom:10px">Przegląd Twoich adopcji.</div>
+      ${cur?`<div style="background:#0a1a0a;border:2px solid #27ae60;border-radius:6px;padding:10px;margin-bottom:10px"><div style="color:#7ec87e;font-weight:700">${window._findBreed(cur.breed)?(window._findBreed(cur.breed).emoji||'🐾'):'🐾'} ${cur.name||'Pupil'} — obecny pupil</div><div style="font-size:11px;color:#9ab">${window._findBreed(cur.breed)?window._findBreed(cur.breed).name:''} · poziom ${cur.level||1} · więź ${Math.floor(cur.bond||0)}/100</div></div>`:''}
+      ${hist.length?`<div style="font-size:11px;color:#9ab;margin-bottom:4px">Historia (${hist.length}):</div><div style="display:grid;grid-template-columns:1fr;gap:5px">${hist.slice().reverse().map(h=>{const b=window._findBreed(h.breed);return `<div style="background:#161a24;border-radius:5px;padding:7px;font-size:12px;color:#cde">${b?(b.emoji||'🐾'):'🐾'} <strong>${h.name}</strong> · ${b?b.name:h.breed} <span style="color:#889">(dzień ${h.day})</span></div>`;}).join('')}</div>`:`<div style="color:#889;font-size:12px;text-align:center;padding:16px">Nie masz jeszcze żadnych adopcji.</div>`}`;
+  } else {
+    const _src=_tab==='cat'?CAT_BREEDS:_tab==='small'?SMALL_BREEDS:_tab==='special'?[...DOG_BREEDS,...CAT_BREEDS,...SMALL_BREEDS].filter(b=>b.specialNeeds):DOG_BREEDS;
+    _body=`${!_canAdopt&&_adoptBlockMsg?`<div style="background:#2a1010;border:1px solid #a44;border-radius:6px;padding:8px 10px;color:#f0b0b0;font-size:12px;margin-bottom:10px">${_adoptBlockMsg}</div>`:''}
+      ${_tab==='special'?`<div style="color:#e8c;font-size:12px;margin-bottom:8px">Zwierzęta specjalnej troski — wymagają więcej uwagi, ale ich adopcja daje największy bonus charity i szacunku do siebie.</div>`:''}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${_src.length?_src.map(_card).join(''):'<div style="color:#889;padding:12px">Brak pozycji.</div>'}</div>`;
+  }
   const html=`<div style="background:#0a1220;border:2px solid #f1c40f;border-radius:10px;padding:20px;max-width:640px;margin:0 auto;max-height:80vh;overflow-y:auto;color:#fff">
     <h2 style="color:#f4d35e;margin-top:0">🏠 Schronisko dla zwierząt</h2>
-    <div style="color:#ccd;font-size:13px;margin-bottom:10px">Wybierz zwierzaka. Cena uwzględnia wpłatę dla schroniska. Adopcja buduje charity i poprawia nastrój — najbardziej przy zwierzętach oznaczonych CHARITY.</div>
+    <div style="color:#ccd;font-size:13px;margin-bottom:10px">Adoptuj zwierzaka, pomóż jako wolontariusz albo sprawdź swoje adopcje. Adopcja buduje charity i poprawia nastrój — najbardziej przy zwierzętach oznaczonych CHARITY.</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${_tabBtns}</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      ${_breeds.map(b=>`<div style="background:#1a2030;border-radius:6px;padding:10px;${b.charity?'border:2px solid #e67e22':''}">
-        <div style="font-size:24px">${b.emoji||'🐾'}</div>
-        <div style="font-weight:700;font-size:13px;margin:3px 0;color:#fff">${b.name}${b.charity?' <span style="color:#f39c12;font-size:10px">CHARITY</span>':''}${b.specialNeeds?' <span style="color:#e88;font-size:10px">TROSKA</span>':''}</div>
-        <div style="font-size:11px;color:#ccd;margin-bottom:6px">Słodkość: ${b.slodkoscBase} · <strong style="color:#f1c40f">${b.price.toLocaleString('pl')} zł</strong>${b.weeklyCost?` · ${b.weeklyCost} zł/tydz`:''}</div>
-        <button class="cbtn" style="width:100%;font-size:11px;padding:6px;color:#7ec87e;border-color:#27ae60" onclick="window._adoptDogPrompt('${b.id}')">Adoptuj</button>
-      </div>`).join('')}
-    </div>
+    ${_body}
     <button class="cbtn" style="margin-top:16px;width:100%;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Zamknij</button>
   </div>`;
   const mgJob=document.getElementById('mg-job');
@@ -63528,6 +63574,7 @@ const PATCH_NOTES = [
   {t:'new',d:'🏥 Weterynarz oferuje teraz pełen zakres usług: szybka kontrola podstawowa (raz dziennie, poprawia zdrowie i buduje poczucie odpowiedzialności), leczenie drobne oraz miesięczny pakiet opieki, który przywraca pełnię zdrowia i chroni pupila przed chorobą przez 30 dni. Wcześniejsze szczepienie i profilaktyka działają jak dotąd.'},
   {t:'new',d:'🐕 Dużo większy wybór psów w schronisku — od jamnika, mopsa i cavaliera po labradora, samoyeda i cane corso, w tym psy specjalnej troski (senior po przejściach, pies po interwencji, pies lękowy, trójnogi), których adopcja daje największy bonus charity. Każdy pupil ma teraz tygodniowy koszt utrzymania (karma i opieka), a duże, energiczne psy potrzebują większego mieszkania — koty i małe zwierzaki zmieszczą się wszędzie. Twój obecny pupil zostaje bez zmian.'},
   {t:'new',d:'🐾 Rozbudowana opieka nad zwierzakiem w telefonie: widzisz teraz Więź i Czystość obok głodu, nastroju i zdrowia. Możesz pobawić się z pupilem (poprawia nastrój i buduje więź), wykąpać go (przywraca czystość) oraz wrzucić z nim story na FrameUp (zwierzak przyciąga obserwujących — najmocniej ten adoptowany z serca). Pamiętaj o regularnej opiece — długo zaniedbywany zwierzak podupada, a w skrajnym przypadku schronisko może go odebrać.'},
+  {t:'new',d:'🏠 Schronisko ma teraz sześć zakładek: obok psów, kotów i małych zwierząt znajdziesz osobną kategorię „Specjalna troska" (zwierzęta, które najbardziej potrzebują domu — największy bonus charity), przegląd „Moje adopcje" z historią Twoich pupili oraz „Wolontariat" — pięć sposobów pomocy (karmienie, spacery, sprzątanie boksów, oswajanie lękliwych, dzień adopcyjny). Wolontariat nie daje wielkich pieniędzy, ale realnie buduje charity i szacunek do siebie.'},
   {t:'fix',d:'🟢 Zielone powiadomienia możesz teraz po prostu kliknąć, żeby zniknęły od razu — nie musisz czekać, aż same wygasną. Przydaje się, gdy zbiera się ich więcej naraz.'},
   {t:'fix',d:'▶️ Naprawione: na samym starcie gry potrafiła wyskoczyć wiadomość, że „Twój film wystrzelił", mimo że nie miałeś jeszcze żadnego nagranego filmu. Teraz taka informacja pojawia się dopiero, gdy masz na koncie co najmniej 3 opublikowane filmy.'},
   {t:'fix',d:'🔒 Wytwórnia, S9 Agency i NOX Route w folderze Kariera odblokowują się po ukończeniu poradnika na start — dzięki temu nowy gracz nie jest od razu zasypany wszystkimi opcjami. Jeśli grasz już od dłuższego czasu, korzystasz z nich bez zmian.'},
