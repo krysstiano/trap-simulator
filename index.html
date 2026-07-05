@@ -25584,6 +25584,54 @@ window._petSitterPanel=function(){
   if(mgJob&&mgContent){ mgContent.innerHTML=html; mgJob.classList.add('on'); }
 };
 
+/* v2.3.113 (PDF new/6 §17 6R): zwierzak jako stabilizator psychiczny — codziennie delikatnie obniża głód substancji i napięcie, tym mocniej im większa więź. Sprzężenie z Nova Cura (system uzależnień). */
+window._petMentalStabilizerTick=function(){
+  if(!G.dog||!G.dog.owned) return;
+  const bond=G.dog.bond||0;
+  if(bond<10) return; /* dopiero zbudowana więź daje wsparcie */
+  const relief=1+Math.floor(bond/40); /* 1 przy bond 10-39, 2 przy 40-79, 3 przy 80+ */
+  /* +nastrój (G.stress=MOOD), skromnie */
+  G.stress=(typeof clamp==='function')?clamp((G.stress||50)+relief,0,100):Math.min(100,(G.stress||50)+relief);
+  /* obniż craving/relapseRisk we wszystkich kategoriach uzależnień, jeśli system istnieje */
+  const AS=G.addictionSystem;
+  if(AS){
+    ['alcohol','stimulants','partySubstances','downers','opioids'].forEach(c=>{
+      if(AS[c]){ AS[c].craving=Math.max(0,(AS[c].craving||0)-relief); AS[c].relapseRisk=Math.max(0,(AS[c].relapseRisk||0)-relief); }
+    });
+  }
+};
+/* v2.3.113 (PDF new/6 §17 6R): event „Ktoś czeka w domu" — gdy jesteś w kryzysie (wysokie ryzyko nawrotu lub bardzo niski nastrój) i masz zwierzaka, dostajesz przypomnienie że ktoś na Ciebie liczy. Cooldown, szansa. */
+window._petHomeWaitingEvent=function(force){
+  if(!G.dog||!G.dog.owned) return false;
+  if(typeof window._petStatsEnsure==='function') window._petStatsEnsure();
+  const worst=(typeof window._worstAddiction==='function')?window._worstAddiction():{useLevel:0,band:{key:'control'}};
+  const risk=(G.addictionSystem&&worst.category&&G.addictionSystem[worst.category])?(G.addictionSystem[worst.category].relapseRisk||0):0;
+  const lowMood=(G.stress||50)<25;
+  const inCrisis=risk>=45||lowMood;
+  if(!force){
+    if(!inCrisis) return false;
+    if(G._petHomeEventDay===G.day) return false;
+    if(Math.random()>0.5) return false;
+  }
+  G._petHomeEventDay=G.day;
+  const nm=G.dog.name||window._petSpeciesLabel();
+  if(typeof showEventChoice!=='function'){ if(typeof addNotif==='function') addNotif(`🏠 ${nm} czeka na Ciebie w domu.`); return true; }
+  showEventChoice('🏠 Ktoś czeka w domu', `Ciężki dzień. Masz ochotę zrobić coś głupiego — ale w domu czeka ${nm}. Ktoś, kto na Ciebie liczy i cieszy się na sam Twój widok. Co robisz?`, [
+    {label:`🐾 Wracam do ${nm}`, fn:()=>{
+      G.stress=(typeof clamp==='function')?clamp((G.stress||50)+14,0,100):Math.min(100,(G.stress||50)+14);
+      G.dog.bond=Math.min(100,(G.dog.bond||0)+3);
+      G._selfRespect=Math.min(100,(G._selfRespect||0)+2);
+      const AS=G.addictionSystem;
+      if(AS){ ['alcohol','stimulants','partySubstances','downers','opioids'].forEach(c=>{ if(AS[c]){ AS[c].craving=Math.max(0,(AS[c].craving||0)-8); AS[c].relapseRisk=Math.max(0,(AS[c].relapseRisk||0)-8); } }); }
+      if(typeof showMsg==='function') showMsg(`💚 Wróciłeś do domu. ${nm} wita Cię jakbyś był całym jego światem. Napięcie odpuszcza.`,'g',5000);
+    }},
+    {label:'🚶 Jeszcze nie teraz', fn:()=>{
+      if(typeof showMsg==='function') showMsg('Zostajesz na mieście. Zawsze możesz wrócić — pupil poczeka.','',4000);
+    }},
+  ]);
+  return true;
+};
+
 /* APORT MG — canvas click timing. Cel pojawia się losowo, klik blisko = quality. */
 window._startAportMG=function(){
   const _mg=document.getElementById('mg-job');const _mc=document.getElementById('mg-job-content');
@@ -28171,6 +28219,9 @@ function nextPeriod(){
       if(typeof window._calcDogSlodkosc==='function') G.dog.slodkosc=window._calcDogSlodkosc();
       /* v2.3.113 (PDF new/6 §11 6L): czystość spada + zaniedbanie (helper, testowalny). Opiekun (6P) chroni przed zaniedbaniem. */
       if(!_sitterActive && typeof window._petDailyNeglectTick==='function') window._petDailyNeglectTick();
+      /* v2.3.113 (PDF new/6 §17 6R): zwierzak jako stabilizator psychiczny (Nova Cura) — codzienne wsparcie + event kryzysowy „Ktoś czeka w domu". */
+      if(typeof window._petMentalStabilizerTick==='function') window._petMentalStabilizerTick();
+      if(typeof window._petHomeWaitingEvent==='function') window._petHomeWaitingEvent(false);
     }
     /* v2.1.421 Faza AN.6 Etap 2: daily heat decay. v2.1.730 (Monte Carlo rebalans): -3→-30 — przy -3 hojna marża mixa (+4325) była bezużyteczna (heat utykał na 70 na dni). v2.1.731 (weryfikacja vs inne zarobki, user „trochę mocniejszy"): -30→-20 — stonowane do ~15k zł/dzień (4× wcześniej, nie dominuje vs koncerty/streaming) z wysoką wariancją (busty). */
     if(G.trap && G.trap.unlocked){
@@ -63617,6 +63668,7 @@ const PATCH_NOTES = [
   {t:'new',d:'🐾 Rozbudowana opieka nad zwierzakiem w telefonie: widzisz teraz Więź i Czystość obok głodu, nastroju i zdrowia. Możesz pobawić się z pupilem (poprawia nastrój i buduje więź), wykąpać go (przywraca czystość) oraz wrzucić z nim story na FrameUp (zwierzak przyciąga obserwujących — najmocniej ten adoptowany z serca). Pamiętaj o regularnej opiece — długo zaniedbywany zwierzak podupada, a w skrajnym przypadku schronisko może go odebrać.'},
   {t:'new',d:'🏠 Schronisko ma teraz sześć zakładek: obok psów, kotów i małych zwierząt znajdziesz osobną kategorię „Specjalna troska" (zwierzęta, które najbardziej potrzebują domu — największy bonus charity), przegląd „Moje adopcje" z historią Twoich pupili oraz „Wolontariat" — pięć sposobów pomocy (karmienie, spacery, sprzątanie boksów, oswajanie lękliwych, dzień adopcyjny). Wolontariat nie daje wielkich pieniędzy, ale realnie buduje charity i szacunek do siebie.'},
   {t:'new',d:'🏨 Nie masz czasu albo wyjeżdżasz? W telefonie w profilu zwierzaka wykupisz opiekę zastępczą w trzech wariantach (jeden dzień, weekend albo pięciodniowa premium). Opiekun utrzymuje głód i nastrój pupila i chroni go przed zaniedbaniem, a opcja premium dodatkowo poprawia mu humor.'},
+  {t:'new',d:'💚 Zwierzak to teraz realne wsparcie psychiczne — im większa Wasza więź, tym łagodniej znosisz trudne dni: napięcie odpuszcza, a pokusa sięgnięcia po używki słabnie. W naprawdę ciężkich momentach pupil potrafi Ci przypomnieć, że ktoś w domu na Ciebie czeka.'},
   {t:'fix',d:'🟢 Zielone powiadomienia możesz teraz po prostu kliknąć, żeby zniknęły od razu — nie musisz czekać, aż same wygasną. Przydaje się, gdy zbiera się ich więcej naraz.'},
   {t:'fix',d:'▶️ Naprawione: na samym starcie gry potrafiła wyskoczyć wiadomość, że „Twój film wystrzelił", mimo że nie miałeś jeszcze żadnego nagranego filmu. Teraz taka informacja pojawia się dopiero, gdy masz na koncie co najmniej 3 opublikowane filmy.'},
   {t:'fix',d:'🔒 Wytwórnia, S9 Agency i NOX Route w folderze Kariera odblokowują się po ukończeniu poradnika na start — dzięki temu nowy gracz nie jest od razu zasypany wszystkimi opcjami. Jeśli grasz już od dłuższego czasu, korzystasz z nich bez zmian.'},
