@@ -25756,19 +25756,40 @@ window._openDogVet=function(){
   const _daysSinceCheck=G.day-(G.dog.lastVetCheckup||0);
   const html=`<div style="background:#0a1220;border:2px solid #3498db;border-radius:10px;padding:20px;max-width:520px;margin:0 auto">
     <h2 style="color:#3498db;margin-top:0">💉 Weterynarz</h2>
-    <div style="color:#888;font-size:13px;margin-bottom:12px">${G.dog.name||'Pies'} — Zdrowie ${Math.floor(G.dog.health||0)}%</div>
+    <div style="color:#888;font-size:13px;margin-bottom:12px">${G.dog.name||(typeof window._petSpeciesLabel==='function'?window._petSpeciesLabel():'Zwierzak')} — Zdrowie ${Math.floor(G.dog.health||0)}%</div>
     ${_sick?`<div style="background:#2a0a0a;border-left:3px solid #e74c3c;padding:10px;margin-bottom:10px;border-radius:5px"><strong style="color:#e74c3c">🤒 Diagnoza: ${_sick.name}</strong><div style="font-size:12px;color:#aaa;margin-top:4px">Severity: ${_sick.severity} · Koszt leczenia: ${_sick.healCost} zł</div></div>
     <button class="cbtn" style="width:100%;background:#e74c3c;margin-bottom:8px" onclick="window._dogVetVisit('heal')">🔍 Diagnozuj i lecz (od ${_sick.healCost} zł)</button>`:'<div style="background:#0a2a0a;border-left:3px solid #27ae60;padding:10px;margin-bottom:10px;border-radius:5px;color:#27ae60">✓ Twój pies jest zdrowy</div>'}
     <div style="background:#0a1f25;border-left:3px solid #00bcd4;padding:10px;margin-bottom:10px;border-radius:5px">
       <strong style="color:#00bcd4">📋 Profilaktyczna wizyta</strong>
       <div style="font-size:12px;color:#aaa;margin-top:4px">+10 HP, niska szansa choroby przez 14 dni. Ostatnia: ${_daysSinceCheck} dni temu.</div>
     </div>
-    <button class="cbtn" style="width:100%;background:#00bcd4;margin-bottom:14px" onclick="window._dogVetVisit('checkup')">💉 Profilaktyka (150 zł)</button>
+    <button class="cbtn" style="width:100%;background:#00bcd4;margin-bottom:8px" onclick="window._dogVetVisit('checkup')">💉 Szczepienie / profilaktyka (150 zł)</button>
+    <div style="color:#7ec8e3;font-weight:700;font-size:12px;margin:6px 0 6px">Pozostałe usługi</div>
+    <button class="cbtn" style="width:100%;margin-bottom:6px" onclick="window._dogVetService('kontrola')">📋 Kontrola podstawowa (120 zł) — +zdrowie, +odpowiedzialność</button>
+    <button class="cbtn" style="width:100%;margin-bottom:6px" onclick="window._dogVetService('leczenie_drobne')">🩹 Leczenie drobne (300 zł) — +25 zdrowia</button>
+    <button class="cbtn" style="width:100%;margin-bottom:14px" onclick="window._dogVetService('pakiet')">🏥 Pakiet opieki miesięcznej (900 zł) — pełne zdrowie + 30 dni ochrony</button>
     <button class="cbtn" style="width:100%" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Zamknij</button>
   </div>`;
   const mgJob=document.getElementById('mg-job');
   const mgContent=document.getElementById('mg-job-content');
   if(mgJob&&mgContent){mgContent.innerHTML=html;mgJob.classList.add('on');}
+};
+/* v2.3.113 (PDF new/6 §12 6M): weterynarz 5-poziomowy — dodane kontrola podstawowa/leczenie drobne/pakiet miesięczny (obok istniejącej diagnozy+profilaktyki). */
+window._dogVetService=function(tier){
+  if(!G.dog||!G.dog.owned) return false;
+  if(typeof window._petStatsEnsure==='function') window._petStatsEnsure();
+  const SV={ kontrola:{cost:120,label:'Kontrola podstawowa'}, leczenie_drobne:{cost:300,label:'Leczenie drobne'}, pakiet:{cost:900,label:'Pakiet opieki miesięcznej'} }[tier];
+  if(!SV) return false;
+  if((G.money||0)<SV.cost){ if(typeof showMsg==='function')showMsg('💸 Brak '+SV.cost+' zł na „'+SV.label+'".','r',4000); return false; }
+  if(tier==='kontrola' && G.dog._lastKontrolaDay===G.day){ if(typeof showMsg==='function')showMsg('📋 Kontrolę masz dziś za sobą — wróć jutro.','r',4000); return false; }
+  G.money-=SV.cost;
+  const nm=G.dog.name||(typeof window._petSpeciesLabel==='function'?window._petSpeciesLabel():'zwierzak');
+  if(tier==='kontrola'){ G.dog._lastKontrolaDay=G.day; G.dog.health=Math.min(100,(G.dog.health||100)+15); G.dog.lastVetCheckup=G.day; G._responsibility=Math.min(100,(G._responsibility||0)+2); if(typeof showMsg==='function')showMsg('📋 '+nm+': kontrola podstawowa OK. +15 zdrowia i +odpowiedzialność.','g',5000); }
+  else if(tier==='leczenie_drobne'){ G.dog.health=Math.min(100,(G.dog.health||100)+25); if(G.dog.sickness&&(G.dog.sickness.severity==='low'||G.dog.sickness.severity==='mild'||G.dog.sickness.severity==='łagodna')) G.dog.sickness=null; if(typeof showMsg==='function')showMsg('🩹 '+nm+': leczenie drobne. +25 zdrowia, drobne dolegliwości ustąpiły.','g',5000); }
+  else if(tier==='pakiet'){ G.dog.health=100; G.dog._diseaseProtectUntil=(G.day||0)+30; G.dog.lastVetCheckup=G.day; G.stress=(typeof clamp==='function')?clamp((G.stress||50)+4,0,100):Math.min(100,(G.stress||50)+4); if(typeof showMsg==='function')showMsg('🏥 '+nm+': pakiet miesięczny wykupiony. Pełne zdrowie + ochrona przed chorobami na 30 dni.','g',6000); }
+  if(typeof updateHUD==='function') updateHUD();
+  window._openDogVet();
+  return true;
 };
 
 /* v2.1.536 — puzzle diagnozy: objaw → właściwe leczenie. Gracz musi trafić. */
@@ -63341,6 +63362,7 @@ const PATCH_NOTES = [
   {t:'new',d:'🕵️ Uliczne skoki odbijają się teraz na Twoim wizerunku. Im więcej świadków (a najgorzej gdy ktoś Cię nagra), tym mocniej cierpi zaufanie fanów i tym bliżej kryzysu kariery. Nagranie z kradzieży potrafi trafić do sieci i rozpętać burzę komentarzy. Gdy presja narośnie, dostajesz trudną decyzję: wyciszyć się, zapłacić za opanowanie sytuacji, publicznie się odciąć albo wejść jeszcze głębiej w półświatek.'},
   {t:'new',d:'👀 Na ulicy możesz teraz trafić na kradzież w toku — i sam zdecydować, jak zareagować: odejść, obserwować, wezwać służby, ostrzec ofiarę, dogonić złodzieja albo to nagrać. Każdy wybór ma inne skutki dla Twojej reputacji na ulicy i wśród fanów. Możesz też w każdej chwili postanowić, że kończysz z kradzieżami — to buduje szacunek do siebie i chroni wizerunek (a gdybyś zmienił zdanie, da się to cofnąć).'},
   {t:'new',d:'🐈 Schronisko dla zwierząt otwiera się na nowe gatunki! Oprócz psów możesz teraz adoptować koty (10 ras — od dachowca po Maine Coona) i małe zwierzęta (królik, chomik, papuga, żółw i inne). Panel ma teraz wygodne zakładki kategorii, a koty i małe zwierzaki są tańsze w utrzymaniu i lepiej pasują do mniejszych mieszkań. Adopcja — zwłaszcza zwierząt oznaczonych CHARITY — poprawia nastrój i buduje coś w rodzaju szacunku do siebie. Twój dotychczasowy pupil działa bez żadnych zmian.'},
+  {t:'new',d:'🏥 Weterynarz oferuje teraz pełen zakres usług: szybka kontrola podstawowa (raz dziennie, poprawia zdrowie i buduje poczucie odpowiedzialności), leczenie drobne oraz miesięczny pakiet opieki, który przywraca pełnię zdrowia i chroni pupila przed chorobą przez 30 dni. Wcześniejsze szczepienie i profilaktyka działają jak dotąd.'},
   {t:'fix',d:'🟢 Zielone powiadomienia możesz teraz po prostu kliknąć, żeby zniknęły od razu — nie musisz czekać, aż same wygasną. Przydaje się, gdy zbiera się ich więcej naraz.'},
   {t:'fix',d:'▶️ Naprawione: na samym starcie gry potrafiła wyskoczyć wiadomość, że „Twój film wystrzelił", mimo że nie miałeś jeszcze żadnego nagranego filmu. Teraz taka informacja pojawia się dopiero, gdy masz na koncie co najmniej 3 opublikowane filmy.'},
   {t:'fix',d:'🔒 Wytwórnia, S9 Agency i NOX Route w folderze Kariera odblokowują się po ukończeniu poradnika na start — dzięki temu nowy gracz nie jest od razu zasypany wszystkimi opcjami. Jeśli grasz już od dłuższego czasu, korzystasz z nich bez zmian.'},
