@@ -14917,6 +14917,7 @@ function handleAct(act,objId){
       }
     }
     if(typeof showMsg==='function') showMsg('🛗 2 piętro — VIP Lounge','f',2500);
+    G._casinoFloorMax=Math.max(G._casinoFloorMax||1,2); /* 2026-07-05: najwyższe odwiedzone piętro (krok Hazardu) */
     startRoomFade('casino_vip', 1100, 520);
   } else if(act==='elevator:lux'){
     /* v2.1.577/605: 3. piętro DIAMOND LOUNGE — unlock 150k łącznych wygranych (user: 100k+150sł → 150k zł). */
@@ -14931,6 +14932,7 @@ function handleAct(act,objId){
       return;
     }
     if(typeof showMsg==='function') showMsg('💎 3 piętro — DIAMOND LOUNGE','f',2500);
+    G._casinoFloorMax=Math.max(G._casinoFloorMax||1,3);
     startRoomFade('casino_lux', 1100, 460);
   } else if(act==='elevator:royal'){
     /* v2.1.589: 4. piętro ROYAL PENTHOUSE — unlock 500k łącznych wygranych w kasynie (ultra-ultra VIP, user). */
@@ -14945,6 +14947,7 @@ function handleAct(act,objId){
       return;
     }
     if(typeof showMsg==='function') showMsg('👑 4 piętro — ROYAL SALON','f',2500);
+    G._casinoFloorMax=Math.max(G._casinoFloorMax||1,4);
     startRoomFade('casino_royal', 1100, 460);
   } else if(act==='casino:hilo'){
     if(typeof openHiLo==='function'){ openHiLo(); if(typeof openOverlay==='function') openOverlay(); }
@@ -15318,6 +15321,7 @@ window.casinoBuyDrink=(type,cost,moodGain,energyGain)=>{
   }
   G.money-=cost;
   if(typeof spent==='function')spent(cost);
+  G._casinoBarDrinks=(G._casinoBarDrinks||0)+1; /* 2026-07-05: licznik drinków w barze kasyna (krok Hazardu) */
   G.stress=Math.min(100,(G.stress||50)+moodGain);
   G.energy=Math.min(100,(G.energy||50)+energyGain);
   const names={beer:'piwo',cocktail:'koktajl',whiskey:'whiskey',champagne:'szampan'};
@@ -34534,6 +34538,11 @@ function startTournamentMG(ri,fee){
       /* v2.1.358 Faza L iter2 (user 2026-05-28 "wciąż daje nieporównywalnie więcej niż inne early-game rzeczy"): fame 8 → 4 (-50% nerf, total nerf z v2.1.342 12→8→4). Powód: turniej fame ratio per akcja dominował IG posts (max 3/post × 2 = 6/dzień) i koncerty (5-10 fame). Po nerf: 4 fame × 1 daily = 4 fame/dzień, comparable do innych source'ów. */
       if(typeof addFame==='function')addFame(4);else G.fame=clamp(G.fame+4,0,500);
       progressQuest('tourney');
+      /* v2.3.114 (user): early gracz (niska ranga) dostaje informację, że wyższa ranga = większe wypłaty z turniejów. */
+      if(ri<=2 && typeof showMsg==='function'){
+        window._gamerRankHintShown=(window._gamerRankHintShown||0)+1;
+        if(window._gamerRankHintShown<=3) setTimeout(()=>showMsg(`💡 Twoja ranga (${G.careers.gamer.rank}) to główny mnożnik nagród z turniejów. Wbijaj rangę w meczach rankingowych (📈 raz dziennie) — im wyżej, tym więcej kasy za turniej.`,'i',7000),1200);
+      }
       ctx.fillStyle='rgba(0,0,0,.85)';ctx.fillRect(0,0,W,H);
       ctx.font='bold 28px "Segoe UI"';ctx.fillStyle='#f1c40f';ctx.textAlign='center';ctx.shadowBlur=12;ctx.shadowColor='#f1c40f';
       ctx.fillText(`🏆 MISTRZ TURNIEJU!`,W/2,H/2-25);ctx.shadowBlur=0;
@@ -34968,6 +34977,13 @@ function startStreamMG(){
   };
 }
 function playRanked(){
+  /* v2.3.114 (user): rankingowa RAZ DZIENNIE — próba awansu to wydarzenie, nie spam. */
+  if(G._rankedToday && G._rankedToday.day===G.day){
+    if(typeof showMsg==='function') showMsg('📈 Rankingową grasz raz dziennie — próba awansu wymaga świeżej głowy. Wróć jutro.','r',5000);
+    return;
+  }
+  if((G.energy||0)<10){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii (potrzeba 10) na mecz rankingowy.','r',3500); return; }
+  G._rankedToday={day:G.day};
   closeOverlay();startRankedGameMG();
 }
 
@@ -34982,7 +34998,7 @@ function startRankedGameMG(){
     <div style="display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;max-width:640px">
       <h2 style="color:#2ecc71;margin:0">🎮 Mecz Rankingowy</h2>
       <!-- v2.1.343 Faza P: dodano info co daje wygrana -->
-      <p style="color:#888;font-size:13px;line-height:1.5">Wciskaj pokazane klawisze jak najszybciej! Runda ${round+1}/${ROUNDS}<br><span style="color:#7ec87e">Wygrana (>75% pkt) = awans rangi (${G.careers.gamer.rank} → następna). Lepsza ranga = lepsze turniejowe nagrody.</span></p>
+      <p style="color:#888;font-size:13px;line-height:1.5">Wciskaj pokazane klawisze jak najszybciej! Runda ${round+1}/${ROUNDS}<br><span style="color:#7ec87e">Zdobądź wysoki wynik, by wygrać mecz. Im wyższa ranga (${G.careers.gamer.rank}), tym trudniej — awans nie jest pewny i wymaga kilku wygranych. Lepsza ranga = lepsze turniejowe nagrody.</span></p>
       <div style="display:flex;gap:24px;font-size:15px;color:#aaa">
         <span>🏆 <b id="rg-score" style="color:#f1c40f">0</b> pkt</span>
         <span>🔥 Seria: <b id="rg-streak" style="color:#e67e22">0</b></span>
@@ -35065,8 +35081,10 @@ function startRankedGameMG(){
   function finishRanked(){
     document.removeEventListener('keydown',kh);if(keyTimeout)clearTimeout(keyTimeout);
     G.energy=clampStat('energy', G.energy-10);
-    const win=score>ROUNDS*15;
-    /* v2.3.114 (user): wyższe rangi wymagają WIĘCEJ wygranych rankingowych (trudniej wbić). */
+    /* v2.3.114 (user): próg wygranej ROŚNIE z rangą → awans NIE jest 100% pewny, a im wyżej tym trudniej.
+       Brąz: >75 pkt (solidna gra). Legenda: >~170 pkt (blisko perfekcji). Plus tempo klawiszy szybsze wyżej. */
+    const _winThr=Math.round(ROUNDS*15*(1+ri*0.135));
+    const win=score>_winThr;
     let _advanced=false, _progTxt='';
     if(win){
       addXP(30);
@@ -64862,9 +64880,12 @@ window._s9AfterDeal=function(npcId,priceTier){
 };
 const PATCH_NOTES = [
  {
- ver:'v2.3.114',date:'2026-07-05',cats:['fix'],title:'🎮 Turnieje esportowe przebalansowane + drobne poprawki',
+ ver:'v2.3.114',date:'2026-07-05',cats:['feature','fix'],title:'🎮 Turnieje esportowe + rozbudowa linii kariery (Hazard, Muzyka)',
  items:[
-  {t:'fix',d:'🎮 Turnieje esportowe (Gaming) przebalansowane! Wcześniej potrafiły dać kilka tysięcy złotych już na samym początku gry — teraz nagroda zależy przede wszystkim od Twojej rangi i sławy. Rang jest teraz dziewięć (od Brązu, przez Mistrza, po Legendę) i to one są głównym mnożnikiem wypłaty, a im większa Twoja sława, tym więcej płaci turniej. Na starcie to skromne kwoty; duże wygrane (kilka–kilkanaście tysięcy) są nagrodą dla znanych graczy z wysoką rangą. Dodatkowo im wyższa ranga, tym więcej wygranych rankingowych trzeba na kolejny awans — droga na szczyt naprawdę coś znaczy.'},
+  {t:'fix',d:'🎮 Turnieje esportowe (Gaming) przebalansowane! Wcześniej potrafiły dać kilka tysięcy złotych już na samym początku gry — teraz nagroda zależy przede wszystkim od Twojej rangi i sławy. Rang jest teraz dziewięć (od Brązu, przez Mistrza, po Legendę) i to one są głównym mnożnikiem wypłaty, a im większa Twoja sława, tym więcej płaci turniej. Na starcie to skromne kwoty; duże wygrane (kilka–kilkanaście tysięcy) są nagrodą dla znanych graczy z wysoką rangą.'},
+  {t:'feature',d:'📈 Mecze rankingowe (Gaming) przebudowane: grasz je teraz raz dziennie, a awans rangi nie jest już pewniakiem — trzeba zdobyć wysoki wynik, i to coraz trudniej im wyższa ranga. Dodatkowo każda kolejna ranga wymaga większej liczby wygranych. Jeśli grasz turnieje na wczesnym etapie i wypłaty są niskie, gra podpowie Ci, żeby wbijać rangę — to ona daje większe pieniądze z turniejów.'},
+  {t:'feature',d:'🎰 Kategoria Hazard w linii fabularnej kariery mocno rozbudowana — doszły kroki za skorzystanie z baru kasyna oraz za wjazd na kolejne piętra (VIP Lounge, Diamond Lounge, Royal Salon). Poprawiliśmy też opisy gier: Samolocik nazywa się teraz Samolocik (nie „Aviator"), a jego opis jest zgodny z rozgrywką — to czysta loteria, samolocik leci sam i nie wypłacasz stawki w locie. Crash (z wypłatą w locie) to osobna gra i osobny krok.'},
+  {t:'feature',d:'👕 Więcej kroków w linii kariery: w Muzyce doszła sprzedaż merchu (od pierwszego gadżetu po imperium 1000 sztuk), a w Stylu i życiu pielęgnowanie pupila do najwyższej słodkości. Linia kariery liczy teraz ponad 140 kroków w dziewięciu kategoriach.'},
   {t:'fix',d:'🏄 Naprawione: aktywność surfingu na Marina Coast nie zawiesza już ekranu, jeśli w jej trakcie przejdziesz w inne miejsce — sesja po prostu się kończy, zamiast pisać w nieistniejące okno.'},
  ]
  },
@@ -78581,11 +78602,13 @@ const CAREER_TRACKS={
     {id:'mus_radio', em:'📻', name:'Twój numer w radiu', desc:'Wypuść bit do radia i doczekaj się pierwszych odtworzeń na antenie.', check:()=>(G.radio?.plays||0)>=1, reward:{money:3000,fame:8,xp:70}},
     {id:'mus_verified', em:'✅', name:'Zweryfikowany artysta', desc:'Zdobądź weryfikację na Loopify (1000 słuchaczy miesięcznie + wydany utwór) — oficjalnie jesteś artystą.', check:()=>G.spotify?.verified===true, reward:{money:5000,fame:15,xp:80,skillPts:1}},
     {id:'mus_album', em:'💿', name:'Pierwszy album', desc:'Wydaj album (5+ tracków + dobry mikrofon). Premiera daje duży boost streamów i prestiżu.', check:()=>(G.albumsReleased||0)>=1, reward:{money:10000,fame:20,xp:120,skillPts:2}},
+    {id:'mus_merch', em:'👕', name:'Pierwszy merch', desc:'Sprzedaj pierwszy gadżet ze swoją marką (Merch Studio) — koszulki i akcesoria to dodatkowy strumień dochodu artysty.', check:()=>(G.merchStore?.totalLifetimeSold||0)>=1, reward:{money:1500,fame:5,xp:60}},
     {id:'mus_concerts3', em:'🎫', name:'Trzy koncerty', desc:'Zagraj 3 koncerty (Mała Scena, Klub, Arena) — reputacja na żywo rośnie.', check:()=>(G.events?.performed||0)>=3, reward:{money:8000,fame:15,xp:100,skillPts:1}},
     {id:'mus_beat50', em:'🎛', name:'Producent roku', desc:'Sprzedaj łącznie 50 bitów — jesteś czołowym producentem w mieście.', check:()=>(G.careers?.beatmaker?.beatsSold||0)>=50, reward:{money:15000,fame:20,xp:150,skillPts:2}},
     {id:'mus_concerts5', em:'🎸', name:'Pięć koncertów', desc:'Zagraj 5 koncertów — jesteś sprawdzonym artystą na żywo, gotowym na większe sceny.', check:()=>(G.events?.performed||0)>=5, reward:{money:12000,fame:20,xp:150,skillPts:1}},
     {id:'mus_tour', em:'🚌', name:'Pierwsza trasa koncertowa', desc:'Rusz w pierwszą trasę — seria koncertów po mieście i kraju. Kariera na pełnej.', check:()=>G._firstTourStarted===true, reward:{money:15000,fame:25,xp:180,skillPts:2}},
     {id:'mus_tracks10', em:'🏆', name:'Dziesięć singli', desc:'Nagraj 10 tracków — pokaźna dyskografia i stały strumień tantiem.', check:()=>(G.careers?.raper?.tracks||0)>=10, reward:{money:20000,fame:20,xp:200,skillPts:2}},
+    {id:'mus_merch1k', em:'🛍', name:'Imperium merchu', desc:'Sprzedaj łącznie 1000 gadżetów ze swoją marką — Twoje logo nosi całe miasto.', check:()=>(G.merchStore?.totalLifetimeSold||0)>=1000, reward:{money:30000,fame:25,xp:250,skillPts:3}},
     {id:'mus_listeners500k', em:'🌍', name:'Pół miliona słuchaczy', desc:'500 000 słuchaczy miesięcznie — gwiazda ze świata streamingu.', check:()=>(G.spotify?.listeners||0)>=500000, reward:{money:100000,fame:50,xp:400,skillPts:5}},
   ]},
   underground:{ name:'Underground', emoji:'🌑', color:'#8e44ad', desc:'Mroczna strona miasta — tatuaże, murale, piwnica producenta, klub Eclipse Noir, a głębiej: kamper, uprawa, plantacja, laboratorium, dealerzy i terytorium.', steps:[
@@ -78651,22 +78674,27 @@ const CAREER_TRACKS={
     {id:'biz_crypto100k', em:'🐋', name:'Krypto wieloryb', desc:'Zarób łącznie 100 000 zł na krypto — legendarny trader.', check:()=>(G.trader?.totalProfit||0)>=100000, reward:{money:25000,fame:20,xp:200,skillPts:3}},
     {id:'biz_magnat', em:'👔', name:'Magnat', desc:'Łączny dochód 500 000 zł — jesteś magnatem, kasa pracuje na Ciebie.', check:()=>(G.totalEarned||0)>=500000, reward:{money:30000,fame:25,xp:200,skillPts:3}},
   ]},
-  hazard:{ name:'Hazard', emoji:'🎰', color:'#c8a520', desc:'Kasyno Royal — sloty, ruletka, blackjack, poker, Aviator, Mines, HiLo, Ride the Bus i inne. Od pierwszych żetonów po status wieloryba stołów. Graj z głową — dom zawsze czeka.', steps:[
+  hazard:{ name:'Hazard', emoji:'🎰', color:'#c8a520', desc:'Kasyno Royal na cztery piętra — sloty, ruletka, poker, Crash, Samolocik, Mines, HiLo, Ride the Bus i bar. Od pierwszych żetonów, przez VIP Lounge i Diamond Lounge, po Royal Salon i status wieloryba stołów. Graj z głową — dom zawsze czeka.', steps:[
     {id:'haz_chips', em:'🎟', name:'Pierwsze żetony', desc:'Wymień gotówkę na żetony w Kantorze Royal — wejście do świata hazardu.', check:()=>(G.casinoChips||0)>=20, reward:{money:100,xp:15}},
     {id:'haz_slots', em:'🎰', name:'Pierwszy spin slotów', desc:'Zakręć bębnami na slotach Royal — klasyka kasyna.', check:()=>(G.casinoStats?.slotsSpins||0)>=1, reward:{money:200,xp:20}},
     {id:'haz_roulette', em:'🎡', name:'Pierwsza ruletka', desc:'Obstaw pierwszy zakład w ruletce — czerwone czy czarne?', check:()=>(G.casinoStats?.rouletteSpins||0)>=1, reward:{money:200,xp:20}},
+    {id:'haz_bar', em:'🍸', name:'Drink w barze', desc:'Zamów drinka w barze kasyna (podejdź do baru, klawisz E) — nastrój w górę, a przy okazji trochę luzu przy stołach.', check:()=>(G._casinoBarDrinks||0)>=1, reward:{money:200,xp:20}},
     {id:'haz_win', em:'✨', name:'Pierwsza wygrana', desc:'Zgarnij pierwszą wygraną w kasynie — poczuj smak zwycięstwa.', check:()=>(G.casinoStats?.biggestWin||0)>=1, reward:{money:300,xp:25}},
     {id:'haz_bus', em:'🚌', name:'Ride the Bus', desc:'Zagraj w Ride the Bus — czterorundowa karciana jazda po bandzie.', check:()=>(G.casinoStats?.busPlayed||0)>=1, reward:{money:400,xp:30}},
-    {id:'haz_crash', em:'✈️', name:'Aviator', desc:'Odpal Aviator/Crash — wypłać, zanim samolot odleci z Twoją stawką.', check:()=>(G.casinoStats?.crashPlays||0)>=1, reward:{money:400,xp:30}},
+    {id:'haz_crash', em:'📈', name:'Crash', desc:'Zagraj w Crash — mnożnik rośnie, ale wykres może się załamać w każdej chwili. Sztuka to wypłacić stawkę, zanim to nastąpi.', check:()=>(G.casinoStats?.crashPlays||0)>=1, reward:{money:400,xp:30}},
+    {id:'haz_samolocik', em:'✈️', name:'Samolocik', desc:'Zagraj w Samolocik — postaw stawkę i patrz, jak samolocik leci. Im dalej doleci, tym wyższy mnożnik. Czysta loteria: samolocik leci sam, nie wypłacasz w locie.', check:()=>(G.casinoStats?.planePlays||0)>=1, reward:{money:400,xp:30}},
     {id:'haz_mines', em:'💣', name:'Mines', desc:'Zagraj w Mines — odkrywaj pola i omijaj bomby, każde bezpieczne pole podbija mnożnik.', check:()=>(G.casinoStats?.minesPlays||0)>=1, reward:{money:400,xp:30}},
     {id:'haz_hilo', em:'🃏', name:'HiLo', desc:'Zagraj w HiLo — wyżej czy niżej? Prosta gra, ostre mnożniki.', check:()=>(G.casinoStats?.hiloPlays||0)>=1, reward:{money:400,xp:30}},
     {id:'haz_poker', em:'🂡', name:'Poker', desc:'Rozegraj pierwszą rękę pokera — zimna krew i dobre karty.', check:()=>(G.casinoStats?.pokerPlayed||0)>=1, reward:{money:500,xp:35}},
     {id:'haz_variety', em:'🎲', name:'Bywalec kasyna', desc:'Zagraj w 6 różnych gier kasynowych — poznaj cały salon Royal.', check:()=>Object.values(G.casinoRecords||{}).filter(r=>r&&(r.games||0)>=1).length>=6, reward:{money:3000,fame:5,xp:80,skillPts:1}},
     {id:'haz_win5k', em:'💎', name:'Wygrana 5 000', desc:'Zgarnij pojedynczą wygraną 5 000 żetonów — pierwszy większy strzał.', check:()=>(G.casinoStats?.biggestWin||0)>=5000, reward:{money:1500,fame:3,xp:50}},
+    {id:'haz_floor_vip', em:'🛗', name:'VIP Lounge', desc:'Wjedź windą na 2. piętro — VIP Lounge z lepszymi stołami i wyższymi stawkami.', check:()=>(G._casinoFloorMax||1)>=2, reward:{money:2000,fame:5,xp:60,skillPts:1}},
     {id:'haz_busfull', em:'🎯', name:'Pełny przejazd', desc:'Przejedź całe Ride the Bus bez wpadki — wszystkie cztery rundy z rzędu.', check:()=>(G.casinoStats?.busFullRide||0)>=1, reward:{money:4000,fame:5,xp:80,skillPts:1}},
     {id:'haz_win25k', em:'🎰', name:'Jackpot', desc:'Trafienie za 25 000 żetonów w jednym zagraniu — noc, którą zapamiętasz.', check:()=>(G.casinoStats?.biggestWin||0)>=25000, reward:{money:8000,fame:10,xp:120,skillPts:1}},
     {id:'haz_totalwon50k', em:'🤑', name:'Na fali', desc:'Wygraj łącznie 50 000 żetonów — passa się kręci.', check:()=>(G.casinoStats?.totalWon||0)>=50000, reward:{money:6000,fame:8,xp:100,skillPts:1}},
+    {id:'haz_floor_diamond', em:'💎', name:'Diamond Lounge', desc:'Wjedź na 3. piętro — Diamond Lounge, ekskluzywny salon tylko dla totalnych VIP-ów (odblokowany po 150 000 zł łącznych wygranych).', check:()=>(G._casinoFloorMax||1)>=3, reward:{money:12000,fame:12,xp:150,skillPts:2}},
     {id:'haz_totalwon250k', em:'🦈', name:'Rekin stołów', desc:'Wygraj łącznie 250 000 żetonów — jesteś stałym, rozpoznawalnym graczem.', check:()=>(G.casinoStats?.totalWon||0)>=250000, reward:{money:20000,fame:15,xp:180,skillPts:2}},
+    {id:'haz_floor_royal', em:'👑', name:'Royal Salon', desc:'Wjedź na 4. piętro — Royal Salon, prywatny klub dla królów (500 000 zł łącznych wygranych + 300 sławy). Wyżej się nie da.', check:()=>(G._casinoFloorMax||1)>=4, reward:{money:40000,fame:25,xp:250,skillPts:3}},
     {id:'haz_whale', em:'🐳', name:'Wieloryb', desc:'Pojedyncza wygrana 100 000 żetonów — legenda kasyna Royal. Krupierzy znają Cię z imienia.', check:()=>(G.casinoStats?.biggestWin||0)>=100000, reward:{money:60000,fame:30,xp:300,skillPts:4}},
   ]},
   styl:{ name:'Styl i życie', emoji:'💎', color:'#c8a520', desc:'To, kim jesteś poza karierą — pupil, drip, forma, dzielnice miasta i sama legenda. Wisienka na torcie każdego stylu gry.', steps:[
@@ -78675,6 +78703,7 @@ const CAREER_TRACKS={
     {id:'life_drip25', em:'👟', name:'Drip 25', desc:'Osiągnij 25 punktów dripu — Twój styl zaczyna się wyróżniać na ulicy.', check:()=>(G.drip||0)>=25, reward:{money:800,fame:3,xp:30}},
     {id:'life_forma50', em:'💪', name:'Forma 50', desc:'Osiągnij 50 punktów formy — solidna kondycja i lepsze statystyki.', check:()=>(G.forma||0)>=50, reward:{money:1200,fame:5,xp:40,skillPts:1}},
     {id:'life_dogtoys', em:'🦴', name:'Rozpieszczony pupil', desc:'Kup wszystkie 4 zabawki w sklepie zoologicznym — Twój zwierzak ma wszystko, czego trzeba.', check:()=>(G.dog?.toysOwned||[]).length>=4, reward:{money:3000,fame:5,xp:60,skillPts:1}},
+    {id:'life_dogcute', em:'💕', name:'Rasowy ulubieniec', desc:'Osiągnij 80 słodkości u pupila (poziom + zabawki + opieka) — najsłodszy zwierzak w mieście.', check:()=>(G.dog?.slodkosc||0)>=80, reward:{money:4000,fame:8,xp:70,skillPts:1}},
     {id:'life_drip50', em:'💎', name:'Drip 50', desc:'Osiągnij 50 punktów dripu — Twój styl robi wrażenie w całym mieście.', check:()=>(G.drip||0)>=50, reward:{money:2500,fame:10,xp:50,skillPts:1}},
     {id:'life_district_ug', em:'🌑', name:'Brama Underground', desc:'Odblokuj Underground District (sława + freestyle\'e) — pierwsza nowa dzielnica.', check:()=>Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes('underground'), reward:{money:1500,fame:8,xp:60,skillPts:1}},
     {id:'life_district_coast', em:'🌊', name:'Brama Coast', desc:'Odblokuj Marina Coast — luksusowe wybrzeże dla topowych artystów.', check:()=>Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes('coast'), reward:{money:3000,fame:15,xp:80,skillPts:2}},
