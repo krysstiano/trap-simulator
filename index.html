@@ -40247,6 +40247,7 @@ function renderHospital(){
   const stabGate=(mcl>=1||tension>=50||wd>0);             // PDF §11 warunek dostępności
   const consultCd=(n._lastConsultDay===G.day), therapyCd=(G._lastTherapyDay===G.day), psychCd=(n._lastPsychDay===G.day), testsCd=(n._lastTestsDay===G.day), stabCd=(n._lastStabDay===G.day);
   const prog7Cd=(n._lastProg7Day===G.day), prog14Cd=(n._lastProg14Day===G.day), progPremCd=(n._lastProgPremDay===G.day), progGate=(addRisk>=21); /* v2.3.113 §programy: dostępne przy realnym uzależnieniu */
+  const triageCd=(n._lastTriageDay===G.day); /* v2.3.113 §triage: 1×/dobę (anti-farm medicalTrust) */
   const it=(icon,title,desc,price,handler,disabled,extra)=>`<div class="sitem"><h3>${icon} ${title}</h3><p style="font-size:11.5px;color:#8aa">${desc}</p>${extra||''}<div class="pr">${price}</div><button class="bbtn" onclick="${handler}" ${disabled?'disabled':''}>Wybierz</button></div>`;
   /* v2.3.113 (PDF new/Nova Cura §11): panel ryzyka uzależnień per-kategoria. */
   if(typeof window._addictionSysEnsure==='function') window._addictionSysEnsure();
@@ -40275,6 +40276,7 @@ function renderHospital(){
     <div class="shopgrid">
       ${it('💊','Leczenie podstawowe','Szybka pomoc przy drobnych urazach i osłabieniu. +30 zdrowia.',basicCost+' zł','_novaBasicHeal()',G.health>=100||money<basicCost)}
       ${it('🏥','Pełne leczenie','Zdrowie do 100% + odratowanie po przemęczeniu (−20 przemęczenia).',fullCost+' zł','_novaFullHeal()',G.health>=100||money<fullCost)}
+      ${it('📝','Wywiad medyczny','Rejestracja u Nurse Kai: krótki wywiad (4 pytania) — kieruje Cię do właściwej ścieżki. Szczerość i współpraca budują zaufanie i dokładność diagnozy.','bezpłatnie','_novaTriage()',triageCd,triageCd?'<p style="color:#e0b050;font-size:11px">Wywiad masz dziś za sobą — wróć jutro.</p>':'')}
       ${it('🩺','Konsultacja lekarska','Wywiad lekarski u dr Eleny Voss + diagnoza stanu. Twoje odpowiedzi wpływają na dokładność.','600 zł','_novaConsult()',money<600||consultCd,consultCd?'<p style="color:#e0b050;font-size:11px">Dziś już byłeś na konsultacji.</p>':'')}
       ${it('🧘','Terapia psychologiczna','U Miry Hale: +35 nastrój, −10 napięcia, spadek uzależnień, postęp terapii.','750 zł','_novaTherapy()',money<750||therapyCd,therapyCd?'<p style="color:#e0b050;font-size:11px">Terapię masz dziś za sobą — wróć jutro.</p>':'')}
       ${it('🧠','Konsultacja psychiatryczna','U dr Ilyi Renn: diagnoza kryzysu, stabilizacja nastroju, redukcja poziomu kryzysu.','1500 zł','_novaPsychiatric()',money<1500||psychCd,psychReq?'<p style="color:#e07050;font-size:11px">Zalecana przy Twoim obecnym stanie.</p>':'')}
@@ -40315,6 +40317,41 @@ window._novaCuraInterview=function(discreet){ if(typeof _5pdfEnsure==='function'
     {label:'💬 Szczerze — przesadziłem ostatnio i zaczyna mi się to udzielać', fn:()=>{ n.medicalTrust=(n.medicalTrust||0)+2; n.therapyProgress=(n.therapyProgress||0)+1; n.diagnosisAccuracy=100; window._novaLog('Konsultacja lekarska','wywiad — szczery'); if(typeof notify==='function')notify('🩺 Dr Ilya Renn: „Dziękuję za szczerość — pozwala precyzyjniej dobrać postępowanie. Skupimy się na stabilizacji Pana stanu."'); window._novaShowDiagnosis(); }},
     {label:'🙊 Unikam szczegółów — chcę tylko wrócić do siebie', fn:()=>{ n.medicalTrust=Math.max(0,(n.medicalTrust||0)-1); n.diagnosisAccuracy=Math.max(40,(n.diagnosisAccuracy||100)-15); window._novaLog('Konsultacja lekarska','wywiad — zdawkowy'); if(typeof notify==='function')notify('🩺 Dr Elena Voss: „Rozumiem, ale ograniczony zakres informacji obniża dokładność diagnozy i skuteczność leczenia."'); window._novaShowDiagnosis(); }},
     {label:'😤 Ogarnijcie mnie i nie zadawajcie zbędnych pytań', fn:()=>{ n.medicalTrust=Math.max(0,(n.medicalTrust||0)-2); n.tension=Math.min(100,(n.tension||0)+5); if(!discreet) n.hospitalRiskFlag=(n.hospitalRiskFlag||0)+1; window._novaLog('Konsultacja lekarska','wywiad — odmowa współpracy'); if(typeof notify==='function')notify('🩺 Dr Elena Voss: „Bez podstawowej współpracy zakres leczenia będzie ograniczony do minimum medycznego."'); window._novaShowDiagnosis(); }},
+  ]);
+};
+/* v2.3.113 (PDF new/Nova Cura §12): triage Nurse Kai — 4 pytania na wejściu. Odpowiedzi wpływają na medicalTrust/hospitalRiskFlag/diagnosisAccuracy.
+   Szczere/współpracujące → +zaufanie +dokładność; agresja/ukrywanie → +ryzyko prawne. Bezpieczna ścieżka (§13): objawy bez źródeł = OK. */
+window._novaTriage=function(){
+  if(typeof _5pdfEnsure==='function')_5pdfEnsure(); if(typeof window._addictionSysEnsure==='function')window._addictionSysEnsure();
+  const n=G.novacura;
+  if(typeof showEventChoice!=='function'){ window._novaShowDiagnosis(); return; }
+  const q4=()=>showEventChoice('🩺 Wywiad — gotowość','Nurse Kai: „Czego Pan oczekuje?"',[
+    {label:'🛏️ Szybkiej stabilizacji', fn:()=>{ n._triageGoal='stabilize'; done(); }},
+    {label:'🔬 Pełnej diagnozy', fn:()=>{ n._triageGoal='diagnosis'; n.medicalTrust=(n.medicalTrust||0)+1; done(); }},
+    {label:'💉 Programu wyjścia z nałogu', fn:()=>{ n._triageGoal='program'; n.medicalTrust=(n.medicalTrust||0)+1; n.therapyProgress=(n.therapyProgress||0)+1; done(); }},
+    {label:'📄 Tylko dokumentu / minimum', fn:()=>{ n._triageGoal='minimum'; done(); }},
+    {label:'🚪 Chcę wyjść', fn:()=>{ renderHospital(); }},
+  ]);
+  const q3=()=>showEventChoice('🩺 Wywiad — szczerość kliniczna','Nurse Kai: „Czy jest Pan w stanie opisać, co Pan przyjmował — bez źródeł i osób?"',[
+    {label:'✅ Tak, opiszę objawy i kategorię', fn:()=>{ n.medicalTrust=(n.medicalTrust||0)+1; n.diagnosisAccuracy=100; q4(); }},
+    {label:'💬 Mogę powiedzieć ogólnie', fn:()=>{ n.diagnosisAccuracy=Math.max(60,(n.diagnosisAccuracy||100)-5); q4(); }},
+    {label:'🙊 Nie chcę mówić', fn:()=>{ n.diagnosisAccuracy=Math.max(40,(n.diagnosisAccuracy||100)-15); n.medicalTrust=Math.max(0,(n.medicalTrust||0)-1); q4(); }},
+    {label:'🤔 Nie pamiętam dokładnie', fn:()=>{ n.diagnosisAccuracy=Math.max(50,(n.diagnosisAccuracy||100)-10); q4(); }},
+  ]);
+  const q2=()=>showEventChoice('🩺 Wywiad — bezpieczeństwo','Nurse Kai: „Czy ma Pan przy sobie coś, co może być nielegalne albo niebezpieczne? Proszę to rozwiązać, zanim przejdziemy dalej."',[
+    {label:'✅ Nie', fn:()=>{ n.medicalTrust=(n.medicalTrust||0)+1; q3(); }},
+    {label:'🤐 Wolę nie odpowiadać', fn:()=>{ n.hospitalRiskFlag=(n.hospitalRiskFlag||0)+1; q3(); }},
+    {label:'🚪 Chcę oddać to poza placówką i wrócić', fn:()=>{ n.medicalTrust=(n.medicalTrust||0)+1; n.hospitalRiskFlag=Math.max(0,(n.hospitalRiskFlag||0)-1); q3(); }},
+    {label:'😤 To nie ma znaczenia', fn:()=>{ n.hospitalRiskFlag=(n.hospitalRiskFlag||0)+2; n.tension=Math.min(100,(n.tension||0)+5); q3(); }},
+  ]);
+  const done=()=>{ n._lastTriageDay=G.day; window._novaLog('Wywiad medyczny (triage)','Nurse Kai — 4 pytania'); if(typeof showMsg==='function')showMsg('🩺 Nurse Kai: „Dziękuję. Kieruję Pana do właściwej ścieżki." Wywiad wpłynął na zaufanie i dokładność diagnozy.','g',6000); window._novaShowDiagnosis(); };
+  showEventChoice('🩺 Nova Cura — wywiad (Nurse Kai)','Nurse Kai: „Odpowiedzi pomagają dobrać właściwą pomoc — nie oceniamy. Co jest głównym powodem wizyty?"',[
+    {label:'🍷 Objawy po alkoholu', fn:()=>{ n._triageReason='alcohol'; q2(); }},
+    {label:'💊 Objawy po substancjach', fn:()=>{ n._triageReason='substances'; q2(); }},
+    {label:'🌡 Objawy odstawienia', fn:()=>{ n._triageReason='withdrawal'; q2(); }},
+    {label:'😔 Spadek nastroju i napięcie', fn:()=>{ n._triageReason='mood'; q2(); }},
+    {label:'⚠️ Nie kontroluję używania', fn:()=>{ n._triageReason='control'; n.medicalTrust=(n.medicalTrust||0)+1; q2(); }},
+    {label:'🙊 Nie chcę mówić szczegółów', fn:()=>{ n._triageReason='none'; n.diagnosisAccuracy=Math.max(40,(n.diagnosisAccuracy||100)-10); q2(); }},
   ]);
 };
 window._novaShowDiagnosis=function(){ if(typeof _5pdfEnsure==='function')_5pdfEnsure(); const n=G.novacura;
@@ -63059,6 +63096,7 @@ const PATCH_NOTES = [
   {t:'new',d:'🏥 Nova Cura pokazuje teraz Twój stan uzależnień w rozbiciu na kategorie (alkohol, pobudzające, imprezowe, uspokajające, opioidowe) — każda z własnym poziomem ryzyka. Widać też łączne objawy odstawienia i ostrzeżenie, gdy mieszasz różne rodzaje używek. Różne używki działają inaczej i inaczej się uzależniają, więc łatwiej świadomie zdecydować, czego potrzebujesz.'},
   {t:'new',d:'💉 W Nova Cura dostępne są teraz pełne programy wychodzenia z nałogu: krótka stabilizacja po kryzysie oraz intensywne programy (7 dni, 14 dni i dyskretny program premium). Im mocniejszy program, tym większy spadek uzależnienia, objawów odstawienia i napięcia. Kosztują sporo, ale to realna droga do odzyskania kontroli.'},
   {t:'new',d:'⚠️ Wychodzenie z nałogu bywa wyboiste — przy dużym uzależnieniu zdarzają się nawroty, które cofają część postępu. A jeśli jesteś rozpoznawalny i mocno przesadzasz, ktoś może nagrać Cię w kiepskim stanie i wrzucić do sieci, co uderza w Twój wizerunek. Warto trzymać rękę na pulsie.'},
+  {t:'new',d:'📝 W Nova Cura możesz teraz przejść bezpłatny wywiad w rejestracji — krótka rozmowa, która kieruje Cię do właściwej pomocy. Szczere i spokojne odpowiedzi budują zaufanie personelu i poprawiają trafność diagnozy; agresja albo ukrywanie sytuacji podnoszą ryzyko. Możesz mówić o samych objawach, bez wchodzenia w szczegóły — to wystarcza.'},
   {t:'fix',d:'🟢 Zielone powiadomienia możesz teraz po prostu kliknąć, żeby zniknęły od razu — nie musisz czekać, aż same wygasną. Przydaje się, gdy zbiera się ich więcej naraz.'},
   {t:'fix',d:'▶️ Naprawione: na samym starcie gry potrafiła wyskoczyć wiadomość, że „Twój film wystrzelił", mimo że nie miałeś jeszcze żadnego nagranego filmu. Teraz taka informacja pojawia się dopiero, gdy masz na koncie co najmniej 3 opublikowane filmy.'},
   {t:'fix',d:'🔒 Wytwórnia, S9 Agency i NOX Route w folderze Kariera odblokowują się po ukończeniu poradnika na start — dzięki temu nowy gracz nie jest od razu zasypany wszystkimi opcjami. Jeśli grasz już od dłuższego czasu, korzystasz z nich bez zmian.'},
