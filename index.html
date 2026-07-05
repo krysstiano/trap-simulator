@@ -21148,6 +21148,16 @@ window._theftCrisisPanel=function(){
   ]);
   return true;
 };
+/* v2.3.113 (PDF new/3 §... powtarzalność): kary za recydywę kradzieży wg lifetime theftCount (odpala się raz na próg). */
+window._applyRepeatedTheftCareerPenalty=function(){
+  const t=window._theftCareerEnsure(); const n=t.theftCount||0;
+  if(typeof _publicRepEnsure==='function')_publicRepEnsure();
+  if(n===3){ if(G.publicRep)G.publicRep.brandSafety=Math.max(0,(G.publicRep.brandSafety||60)-1); t.mediaRisk=Math.min(100,(t.mediaRisk||0)+1); if(typeof addNotif==='function')addNotif('👀 Twoje uliczne akcje zaczynają być zauważane — wizerunek pod obserwacją.'); }
+  else if(n===5){ if(G.publicRep){ G.publicRep.sponsorTrust=Math.max(0,(G.publicRep.sponsorTrust||60)-2); G.publicRep.fanLoyalty=Math.max(0,(G.publicRep.fanLoyalty||60)-10); } t.mediaRisk=Math.min(100,(t.mediaRisk||0)+2); if(typeof addNotif==='function')addNotif('⚠️ Sponsorzy i fani coraz mniej ufają — seria kradzieży odbija się na karierze.'); }
+  else if(n>=8){ t.mediaRisk=Math.min(100,(t.mediaRisk||0)+3); t.publicCrimeExposure=(t.publicCrimeExposure||0)+5; window._theftCollapseRisk(); if(G._theftCrisisOfferedDay!==G.day && typeof window._theftCrisisPanel==='function'){ G._theftCrisisOfferedDay=G.day; setTimeout(()=>{ try{ window._theftCrisisPanel(); }catch(_){} },1500); } }
+  window._theftCollapseRisk();
+  return n;
+};
 window._publicRepDailyTick=function(){
   _publicRepEnsure();
   const heat=(G.trap&&G.trap.unlocked)?(G.trap.heat||0):0;
@@ -28868,6 +28878,7 @@ window._attemptTheft=function(method){
   /* v2.3.113 (PDF new/3 §19-21): kradzież gracza uderza w wizerunek wg widoczności; nagranie przy fame>=10 = viral; kryzys → panel. */
   if(typeof window._applyTheftCareerDamage==='function'){
     window._theftCareerEnsure(); G.theftCareer.theftCount=(G.theftCareer.theftCount||0)+1;
+    if(typeof window._applyRepeatedTheftCareerPenalty==='function') window._applyRepeatedTheftCareerPenalty(); /* 3Q kary powtarzalności wg lifetime theftCount */
     const _vis = recorded ? 'recorded' : (seen ? 'witnessed' : 'unseen');
     if(_vis==='recorded' && (G.fame||0)>=10 && typeof window._theftRecordingEvent==='function') window._theftRecordingEvent(); /* pełny viral §21 (bez podwójnego liczenia) */
     else window._applyTheftCareerDamage(_vis);
@@ -63141,6 +63152,7 @@ window.renderS9Agency=function(){
       <button class="cbtn" style="font-size:12px;padding:7px" onclick="window._s9Short()">🎬 Stwórz short / vertical (+buzz, +hype)</button>
       <button class="cbtn" style="font-size:12px;padding:7px" onclick="window._s9Live()">🔴 Zrób live z fanami (+lojalność, +relacja)</button>
       <button class="cbtn" style="font-size:12px;padding:7px" onclick="window._s9CrisisControl()">🧯 Crisis control (gasi aferę, −heat)</button>
+      ${((typeof window._theftCollapseRisk==='function'?window._theftCollapseRisk():0)>60)?`<button class="cbtn" style="font-size:12px;padding:7px;border-color:#8a3a3a;color:#e8a0a0" onclick="window._theftCrisisPanel&&window._theftCrisisPanel()">🚨 Kryzys wizerunkowy po kradzieżach — decyzje</button>`:''}
       <button class="cbtn" style="font-size:12px;padding:7px" onclick="if(typeof showMsg==='function')showMsg(window._s9NikaLine(),'f',7000)">💬 Porozmawiaj z Niką</button>
       <button class="cbtn" style="font-size:12px;padding:7px;${_afterAvail?'border-color:#6a3a8a;color:#c89eeb':'opacity:.6'}" onclick="${_afterAvail?'window._s9AfterRoom()':"if(typeof showMsg==='function')showMsg('🔒 „To nie jest część oficjalnej oferty Signal Nine.”','i',4000)"}">🚪 Zamknięta strefa ${_afterAvail?'':'🔒'}</button>
     </div>
