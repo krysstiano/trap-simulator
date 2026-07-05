@@ -51435,6 +51435,16 @@ window._frameUpDMEnsure=function(){
   if(!Array.isArray(D.threads)) D.threads=[];
   if(!Array.isArray(D.blockedProfiles)) D.blockedProfiles=[];
   if(!Array.isArray(D.archivedThreads)) D.archivedThreads=[];
+  /* audyt #16: null-filtr (uszkodzony save z null-wpisami nie crashuje panelu/routingu). */
+  D.threads=D.threads.filter(t=>t&&typeof t==='object');
+  D.archivedThreads=D.archivedThreads.filter(t=>t&&typeof t==='object');
+  /* audyt #19: limit skrzynki — zachowaj nieprzeczytane + wymagające odpowiedzi + aktywne zlecenia, przytnij starą przeczytaną resztę do 50. */
+  if(D.threads.length>80){
+    const activeIds=(D.ghostwriting&&Array.isArray(D.ghostwriting.activeJobs))?D.ghostwriting.activeJobs.map(j=>j.threadId):[];
+    const keep=D.threads.filter(t=>t.unread||t.requiresReply||activeIds.includes(t.id));
+    const rest=D.threads.filter(t=>!(t.unread||t.requiresReply||activeIds.includes(t.id))).slice(0,50);
+    D.threads=keep.concat(rest);
+  }
   if(typeof D.unreadCount!=='number'||!isFinite(D.unreadCount)) D.unreadCount=0;
   if(typeof D.spamUnreadCount!=='number'||!isFinite(D.spamUnreadCount)) D.spamUnreadCount=0;
   if(typeof D.unlocked!=='boolean') D.unlocked=false;
@@ -51522,7 +51532,7 @@ window._openFrameUpDM=function(box){
   const html=`<div style="background:#0a0a16;border:2px solid #7a5ad0;border-radius:10px;padding:18px;max-width:600px;margin:0 auto;max-height:82vh;overflow-y:auto;color:#fff">
     <h2 style="margin-top:0;color:#b39dff">✉️ FrameUp Direct</h2>
     <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">${_boxBtns}</div>
-    <div style="font-size:11px;color:#9ab;margin-bottom:10px">${boxDef.label}: ${boxDef.desc}</div>
+    <div style="font-size:11px;color:#9ab;margin-bottom:10px">${boxDef.label}: ${boxDef.desc}${_box==='spam'&&(G.frameUpDM.spamUnreadCount||0)>0?` <span style="color:#e88">(${G.frameUpDM.spamUnreadCount} nieprzeczytanych)</span>`:''}</div>
     ${_list}
     ${(G.frameUpDM.ghostwriting&&(G.frameUpDM.ghostwriting.activeJobs.length||G.frameUpDM.ghostwriting.completedJobs.length))?`<button class="cbtn" style="margin-top:10px;width:100%;color:#b39dff;border-color:#7a5ad0" onclick="window._openGhostwritingJobs()">🎼 Ghostwriting — zlecenia (${G.frameUpDM.ghostwriting.activeJobs.length} aktywne)</button>`:''}
     <button class="cbtn" style="margin-top:10px;width:100%;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';if(typeof renderPhoneApp==='function')renderPhoneApp('instagram');">← Wróć do FrameUp</button>
@@ -51547,6 +51557,7 @@ window._openFrameUpDMThread=function(threadId){
     ${t.dealPayload&&typeof window._fudmRenderDeal==='function'?window._fudmRenderDeal(t):''}
     ${(t.replyOptions&&t.requiresReply)?`<div style="display:grid;grid-template-columns:1fr;gap:5px;margin-bottom:10px">${t.replyOptions.map((r,i)=>`<button class="cbtn" style="font-size:11px;padding:7px;color:#cfe;text-align:left" onclick="window._fudmSimpleReply('${t.id}',${i})">${r.label}</button>`).join('')}</div>`:''}
     ${(!t.dealPayload&&!t.replyOptions&&t.isSpam)?`<button class="cbtn" style="width:100%;color:#e88;border-color:#a44;margin-bottom:8px" onclick="window._fudmBlockThread('${t.id}')">🚫 Zablokuj i usuń</button>`:''}
+    ${(!t._archived && !t.requiresReply && !(t.dealPayload && t.dealPayload.status==='offer' && !t.dealPayload.accepted))?`<button class="cbtn" style="width:100%;color:#c8a520;border-color:#a8850c;margin-bottom:8px" onclick="window._fudmArchiveThread('${t.id}')">🗂 Archiwizuj</button>`:''}
     <button class="cbtn" style="width:100%;color:#fff" onclick="window._openFrameUpDM('${window._fudmBox||'glowne'}')">← Skrzynka</button>
   </div>`;
   const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content');
@@ -51606,6 +51617,11 @@ window._fudmRenderDeal=function(t){
     return `<div style="background:#0e1a12;border:1px solid #2a6a3a;border-radius:8px;padding:11px;margin-bottom:10px;font-size:12px;color:#cfe">
       ✅ Zlecenie przyjęte — ${job?job.name:''} za ${d.pay.toLocaleString('pl')} zł. Termin: dzień ${d.deadlineDay}. Znajdziesz je w „Aktywne zlecenia".</div>`;
   }
+  /* audyt #1/#8: odrzucona/zamknięta oferta NIE pokazuje już przycisków akcji (koniec farmienia). */
+  if(d.status && d.status!=='offer'){
+    return `<div style="background:#161018;border:1px solid #3a2a3a;border-radius:8px;padding:11px;margin-bottom:10px;font-size:12px;color:#9ab">
+      ✖️ Oferta zamknięta (${d.status==='rejected'?'odrzucona':d.status}). ${job?job.name:''} od ${client?client.name:''}.</div>`;
+  }
   return `<div style="background:#141026;border:1px solid #5a3aa0;border-radius:8px;padding:12px;margin-bottom:10px;color:#eee">
     <div style="font-weight:700;color:#b39dff;margin-bottom:6px">🎼 Oferta ghostwritingowa</div>
     <div style="font-size:12px;color:#cde;display:grid;grid-template-columns:auto 1fr;gap:2px 8px">
@@ -51640,30 +51656,43 @@ window._fudmDealReply=function(threadId,action){
     push('Spoko, czekam na tekst.','them');
     if(typeof showMsg==='function') showMsg(`✅ Przyjęto zlecenie: ${(window._pdf2JobType(d.jobTypeId)||{}).name} za ${d.pay.toLocaleString('pl')} zł. Zobacz „Aktywne zlecenia".`,'g',4500);
   } else if(action==='reject'){
-    GW.rejectedOffers=(GW.rejectedOffers||0)+1; t.requiresReply=false; t.isRequest=false;
+    GW.rejectedOffers=(GW.rejectedOffers||0)+1; t.requiresReply=false; t.isRequest=false; d.status='rejected';
     push('Dzięki, ale nie tym razem.'); push('Szkoda, trzymaj się.','them');
     if(typeof showMsg==='function') showMsg('Odrzucono ofertę.','',3000);
   } else if(action==='spam'){
-    t.isSpam=true; t.requiresReply=false; t.isRequest=false; D.spamUnreadCount=(D.spamUnreadCount||0)+ (t.unread?1:0);
+    t.isSpam=true; t.requiresReply=false; t.isRequest=false; d.status='spam'; D.spamUnreadCount=(D.spamUnreadCount||0)+ (t.unread?1:0);
     if(!D.blockedProfiles.includes(d.clientId)) D.blockedProfiles.push(d.clientId);
     if(typeof showMsg==='function') showMsg('🚫 Oznaczono jako spam.','',3000);
     window._openFrameUpDM('spam'); return;
   } else if(action==='negotiate'){
-    // 'bez śmiesznych stawek' → businessFocus+1, ghostwritingReputation+1, szansa na wyższą stawkę
-    window._fudmAddStat('businessFocus',1); window._fudmAddStat('ghostwritingReputation',1);
-    const success=Math.random()<(0.4+(G.frameUpDM.ghostwriting.businessFocus||0)*0.03);
-    if(success && !d.negotiated){ d.negotiated=true; const bump=Math.round(d.pay*(0.1+Math.random()*0.2)/50)*50; d.pay+=bump; push('Bez śmiesznych stawek — za tyle nie siadam.'); push(`No dobra, dorzucę. ${d.pay.toLocaleString('pl')} zł.`,'them'); if(typeof showMsg==='function') showMsg(`💬 Wynegocjowano wyższą stawkę: +${bump.toLocaleString('pl')} zł.`,'g',4000); }
-    else { push('Bez śmiesznych stawek — za tyle nie siadam.'); push('Tyle mam w budżecie, bierz albo nie.','them'); if(typeof showMsg==='function') showMsg('💬 Klient nie ustąpił.','',3500); }
+    /* audyt PDF2 #1/#8: staty tylko RAZ na ofertę (flaga _negTried), nie co klik. */
+    if(!d._negTried){ d._negTried=true; window._fudmAddStat('businessFocus',1); window._fudmAddStat('ghostwritingReputation',1); }
+    if(d.negotiated){ push('Bez śmiesznych stawek…'); push('Już Ci dorzuciłem, więcej nie ma.','them'); if(typeof showMsg==='function') showMsg('💬 Stawka już wynegocjowana.','',3000); }
+    else {
+      const success=Math.random()<(0.4+(GW.businessFocus||0)*0.03);
+      if(success){ d.negotiated=true; const bump=Math.round(d.pay*(0.1+Math.random()*0.2)/50)*50; d.pay+=bump; push('Bez śmiesznych stawek — za tyle nie siadam.'); push(`No dobra, dorzucę. ${d.pay.toLocaleString('pl')} zł.`,'them'); if(typeof showMsg==='function') showMsg(`💬 Wynegocjowano wyższą stawkę: +${bump.toLocaleString('pl')} zł.`,'g',4000); }
+      else { d.negotiated=true; push('Bez śmiesznych stawek — za tyle nie siadam.'); push('Tyle mam w budżecie, bierz albo nie.','them'); if(typeof showMsg==='function') showMsg('💬 Klient nie ustąpił — to ostatnie słowo.','',3500); }
+    }
   } else if(action==='advance'){
-    // 'Zaliczka z góry' → professionalism+1, financialDiscipline+1, mniejsze ryzyko niepłacenia
-    window._fudmAddStat('professionalism',1); window._fudmAddStat('financialDiscipline',1);
-    if(!d.advance){ d.advance=true; const adv=Math.round(d.pay*0.3/50)*50; if(typeof earn==='function') earn(adv,false); else G.money=(G.money||0)+adv; push('Zaliczka z góry, 30%. Wtedy siadam.'); push(`Ok, wysyłam ${adv.toLocaleString('pl')} zł zaliczki.`,'them'); if(typeof showMsg==='function') showMsg(`💰 Zaliczka: +${adv.toLocaleString('pl')} zł. Ryzyko niepłacenia spadło.`,'g',4200); }
+    /* audyt PDF2 #6/#7/#15/#17: zaliczka = ZOBOWIĄZANIE (auto-akceptacja, nie da się porzucić z kasą) + zapis advanceAmount + staty raz. */
+    if(d.advance){ if(typeof showMsg==='function') showMsg('💰 Zaliczkę już wziąłeś — teraz oddaj tekst.','r',3000); }
+    else {
+      d.advance=true; const adv=Math.round(d.pay*0.3/50)*50; d.advanceAmount=adv;
+      window._fudmAddStat('professionalism',1); window._fudmAddStat('financialDiscipline',1);
+      if(typeof earn==='function') earn(adv,false); else G.money=(G.money||0)+adv;
+      d.accepted=true; t.requiresReply=false; t.isRequest=false; GW.activeJobs.push(Object.assign({threadId:t.id},d));
+      push('Zaliczka z góry, 30%. Wtedy siadam.'); push(`Ok, wysyłam ${adv.toLocaleString('pl')} zł zaliczki. Czekam na tekst.`,'them');
+      if(typeof showMsg==='function') showMsg(`💰 Zaliczka: +${adv.toLocaleString('pl')} zł. Bierzesz zlecenie — teraz trzeba oddać tekst (Aktywne zlecenia).`,'g',4800);
+    }
   } else if(action==='coauthor'){
-    // 'jako współautor' → authenticity+1, professionalism+1, konwersja na credited songwriting
-    window._fudmAddStat('authenticity',1); window._fudmAddStat('professionalism',1);
-    const accept=Math.random()<(0.35+ (client&&client.id==='real_artist_with_block'?0.4:0));
-    if(accept){ d.coauthor=true; d.mode='credited'; push('Zróbmy to jako współautorstwo — chcę kredyt.'); push('Wiesz co, spoko. Lecimy oficjalnie.','them'); if(typeof showMsg==='function') showMsg('🤝 Zlecenie zmienione na współautorstwo (z kredytem).','g',4200); }
-    else { push('Zróbmy to jako współautorstwo — chcę kredyt.'); push('Nie, ma być anonimowo. Takie warunki.','them'); if(typeof showMsg==='function') showMsg('🤝 Klient chce jednak anonimowo.','',3500); }
+    /* audyt PDF2 #1/#8: staty raz (flaga _coauthorTried). */
+    if(!d._coauthorTried){ d._coauthorTried=true; window._fudmAddStat('authenticity',1); window._fudmAddStat('professionalism',1); }
+    if(d.coauthor){ push('Zostajemy przy współautorstwie.'); push('Jasne.','them'); }
+    else {
+      const accept=Math.random()<(0.35+ (client&&client.id==='real_artist_with_block'?0.4:0));
+      if(accept){ d.coauthor=true; d.mode='credited'; push('Zróbmy to jako współautorstwo — chcę kredyt.'); push('Wiesz co, spoko. Lecimy oficjalnie.','them'); if(typeof showMsg==='function') showMsg('🤝 Zlecenie zmienione na współautorstwo (z kredytem).','g',4200); }
+      else { push('Zróbmy to jako współautorstwo — chcę kredyt.'); push('Nie, ma być anonimowo. Takie warunki.','them'); if(typeof showMsg==='function') showMsg('🤝 Klient chce jednak anonimowo.','',3500); }
+    }
   }
   window._openFrameUpDMThread(threadId);
 };
@@ -51674,7 +51703,7 @@ window._ghostwritingQuality=function(job,mode){
   window._frameUpDMEnsure(); const GW=G.frameUpDM.ghostwriting;
   const mood=(G.stress!=null?G.stress:50); /* G.stress = MOOD */
   const fatigue=Math.max(0,100-(G.energy||100));
-  let q=35 + (GW.writingSkill||0)*8 + (GW.careerFocus||0)*3 + mood*0.08 - fatigue*0.10;
+  let q=35 + (GW.writingSkill||0)*8 + (GW.careerFocus||0)*3 + (GW.qualityControl||0)*2 + mood*0.08 - fatigue*0.10; /* audyt #13: qualityControl realnie w formule */
   q+=window._ghostwritingModeMod(mode);
   if(job.brief) q+=10;
   /* 2Z (§31): dobre studio poprawia fokus i jakość tekstu (prestiż pokoju * współczynnik, max +10). */
@@ -51714,7 +51743,7 @@ window._finishGhostwritingJob=function(job,quality){
   if(quality<req){
     // reklamacja — częściowa/utrata zapłaty, spadek reputacji
     job.status='dispute'; job._finalQuality=quality;
-    const kept=job.advance?Math.round(job.pay*0.3):0; /* przy zaliczce zostaje 30%, inaczej nic */
+    const kept=job.advanceAmount||0; /* audyt #15/#17: faktycznie wypłacona zaliczka (nie rekalkulacja z pay) */
     window._fudmAddStat('ghostwritingReputation',-2); window._fudmAddStat('professionalism',-1);
     if(t){ t.messages.push({from:'them',text:`Serio? To nie trzyma poziomu (${quality}/100). Reklamacja. ${kept>0?'Zaliczkę zatrzymujesz, reszty nie ma.':'Nie płacę za to.'}`}); }
     // usuń z aktywnych, dopisz do ukończonych jako fiasko
@@ -51726,9 +51755,11 @@ window._finishGhostwritingJob=function(job,quality){
     return {dispute:true,quality};
   }
   // sukces — płatność (minus zaliczka jeśli była)
-  const already=job.advance?Math.round(job.pay*0.3):0;
+  const already=job.advanceAmount||0; /* audyt #15/#17: zapisana zaliczka */
   const due=job.pay-already;
-  const nonPay=(client?client.nonpay:0.15)*(job.advance?0.3:1); /* zaliczka mocno redukuje ryzyko niepłacenia */
+  /* audyt #3/#5: professionalism + financialDiscipline realnie CZYTANE — obniżają ryzyko niepłacenia (asymptota, max -50%). */
+  const discipline=1-Math.min(0.5,((GW.professionalism||0)+(GW.financialDiscipline||0))*0.02);
+  const nonPay=(client?client.nonpay:0.15)*(job.advance?0.3:1)*discipline; /* zaliczka + profesjonalizm redukują ryzyko */
   let paid=0;
   if(Math.random()<nonPay){
     // niepłacenie — event
@@ -51741,7 +51772,8 @@ window._finishGhostwritingJob=function(job,quality){
     if(typeof showMsg==='function') showMsg(`💰 Otrzymano płatność: ${due.toLocaleString('pl')} zł za ${jobType?jobType.name:'zlecenie'} (jakość ${quality}/100).`,'g',5000);
   }
   // efekty ukończenia
-  window._fudmAddStat('ghostwritingReputation',2); window._fudmAddStat('writingSkill', quality>=req+15?1:0);
+  window._fudmAddStat('ghostwritingReputation',2);
+  if(quality>=req+15){ window._fudmAddStat('writingSkill',1); window._fudmAddStat('qualityControl',1); } /* audyt #13: solidna robota buduje kontrolę jakości */
   if(job.mode==='credited'){ window._fudmAddStat('songwriterReputation',2); window._fudmAddStat('authenticity',1); if(typeof addFame==='function') addFame(3); }
   else { window._fudmAddStat('secrecyReputation',1); }
   job.status='completed'; job._finalQuality=quality; job.paid=(already+paid);
@@ -51756,7 +51788,7 @@ window._finishGhostwritingJob=function(job,quality){
 window._rollGhostwritingLeak=function(job,quality){
   window._frameUpDMEnsure(); const GW=G.frameUpDM.ghostwriting;
   const client=window._pdf2Profile(job.clientId), jobType=window._pdf2JobType(job.jobTypeId);
-  let risk=(job.leakRisk||0.1)*100 + (G.fame||0)*0.05 + (GW.industryDirt||0)*3;
+  let risk=(job.leakRisk||0.1)*100 + (G.fame||0)*0.05 + (GW.industryDirt||0)*3 + (GW.leakRisk||0); /* audyt #14: bazowy leakRisk gracza (rośnie z historią wycieków) */
   if(job.mode==='credited') risk-=25; /* z kredytem nie ma czego ukrywać */
   if((GW.secrecyReputation||0)>=8) risk-=10;
   if(jobType&&jobType.id==='diss_response') risk+=15;
@@ -51771,12 +51803,14 @@ window._triggerGhostwritingLeak=function(job){
   window._frameUpDMEnsure(); const GW=G.frameUpDM.ghostwriting;
   const client=window._pdf2Profile(job.clientId);
   GW.industryDirt=Math.min(100,(GW.industryDirt||0)+2);
+  GW.leakRisk=Math.min(40,(GW.leakRisk||0)+ (job.mode==='credited'?1:3)); /* audyt #14: reputacja "przeciekacza" — każdy wyciek podnosi bazowe ryzyko przyszłych */
   GW.socialBuzz=Math.min(100,(GW.socialBuzz||0)+ (5+Math.floor(Math.random()*11))); /* §20 socialBuzz += 5-15 */
   if(job.mode==='credited'){
     window._fudmAddStat('professionalism',1); window._fudmAddStat('songwriterReputation',1);
     if(typeof showMsg==='function') showMsg(`📰 Wyszło, że napisałeś kawałek dla ${client?client.name:'artysty'} — ale masz kredyt, więc to tylko buduje Twoją markę songwritera.`,'g',6000);
   } else {
-    window._fudmAddStat('authenticity',-1); window._fudmAddStat('fanTrust',-5);
+    const _authCushion=Math.min(3,Math.floor((GW.authenticity||0)*0.1)); /* audyt #4: autentyczność łagodzi utratę zaufania fanów przy wycieku */
+    window._fudmAddStat('fanTrust',-(5-_authCushion)); window._fudmAddStat('authenticity',-1);
     GW._mediaHeat=Math.min(100,(GW._mediaHeat||0)+12);
     if(typeof addFame==='function') addFame(-2);
     if(typeof showMsg==='function') showMsg(`📰 WYCIEK! Wyszło, że ghostwriteowałeś dla ${client?client.name:'artysty'}. Część fanów czuje się oszukana — zaufanie spadło.`,'r',7000);
@@ -51908,6 +51942,14 @@ window._openGhostwritingJobs=function(tab){
       <div>Ryzyko wycieku<br><strong style="color:${avgLeak>=30?'#e74c3c':'#f1c40f'};font-size:14px">${avgLeak}%</strong></div>
       <div>Reputacja<br><strong style="color:#7ec87e;font-size:14px">${Math.round(GW.ghostwritingReputation||0)}</strong></div>
     </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px 10px;font-size:10px;color:#9ab;background:#100e18;border-radius:6px;padding:8px;margin-bottom:10px">
+      <div>📋 Profesjonalizm: <strong style="color:#cfe">${Math.round(GW.professionalism||0)}</strong></div>
+      <div>💚 Autentyczność: <strong style="color:#cfe">${Math.round(GW.authenticity||0)}</strong></div>
+      <div>🎼 Rep. songwritera: <strong style="color:#cfe">${Math.round(GW.songwriterReputation||0)}</strong></div>
+      <div>✔️ Kontrola jakości: <strong style="color:#cfe">${Math.round(GW.qualityControl||0)}</strong></div>
+      <div>💰 Dyscyplina fin.: <strong style="color:#cfe">${Math.round(GW.financialDiscipline||0)}</strong></div>
+      <div>✖️ Odrzucone: <strong style="color:#cfe">${Math.round(GW.rejectedOffers||0)}</strong></div>
+    </div>
     <div style="display:flex;gap:6px;margin-bottom:10px">
       <button class="cbtn" style="flex:1;font-size:11px;padding:6px;${_tab==='aktywne'?'background:#3a2470;color:#fff;border-color:#7a5ad0':'color:#c3b0f5'}" onclick="window._openGhostwritingJobs('aktywne')">Aktywne zlecenia</button>
       <button class="cbtn" style="flex:1;font-size:11px;padding:6px;${_tab==='historia'?'background:#3a2470;color:#fff;border-color:#7a5ad0':'color:#c3b0f5'}" onclick="window._openGhostwritingJobs('historia')">Historia zleceń</button>
@@ -51922,7 +51964,10 @@ window._openGhostwritingJobs=function(tab){
 
 /* ── generator wątków DM (wspólny) ── */
 window._fudmMakeThread=function(o){
-  window._frameUpDMEnsure(); const D=G.frameUpDM; D._idSeq=(D._idSeq||0)+1;
+  window._frameUpDMEnsure(); const D=G.frameUpDM;
+  /* audyt #9: nie generuj wiadomości od zablokowanych profili (blokada realnie działa). */
+  if(o.senderProfileId && D.blockedProfiles.includes(o.senderProfileId)) return null;
+  D._idSeq=(D._idSeq||0)+1;
   const t=Object.assign({id:(o.idp||'dm')+'_'+G.day+'_'+D._idSeq, senderProfileId:o.senderProfileId||null, senderDisplayName:o.name||'Nieznany', senderHandle:o.handle||'',
     senderType:o.senderType||'fan', category:o.category||'fan', isRequest:!!o.isRequest, requiresReply:!!o.requiresReply, isSpam:!!o.isSpam,
     unread:true, messageType:o.messageType||'dm', createdDay:G.day, createdTime:(G.timeOfDay||0),
@@ -51971,7 +52016,7 @@ window._FUDM_BRAND_MSGS=[
 ];
 window._generateBrandDM=function(){
   const m=window._FUDM_BRAND_MSGS[rnd(0,window._FUDM_BRAND_MSGS.length-1)];
-  return window._fudmMakeThread({idp:'brand',name:m.name,handle:m.handle,senderType:'brand',category:'brand',isRequest:true,requiresReply:true,text:m.text,
+  return window._fudmMakeThread({idp:'brand',senderProfileId:'brand_'+m.handle,name:m.name,handle:m.handle,senderType:'brand',category:'brand',isRequest:true,requiresReply:true,text:m.text,
     replyOptions:m.opts.map(o=>({label:o.label,fx:o.fx,reply:'Ok, odezwiemy się z konkretami.'}))});
 };
 /* ── 2W (§24): DM spam ── */
@@ -51984,7 +52029,7 @@ window._generateSpamDM=function(){
   const m=window._FUDM_SPAM_MSGS[rnd(0,window._FUDM_SPAM_MSGS.length-1)];
   const score=window._calculateDmSpamScore(m.sig);
   const band=window._fudmSpamBand(score);
-  return window._fudmMakeThread({idp:'spam',name:m.name,handle:m.handle,senderType:'spam',category:'spam',
+  return window._fudmMakeThread({idp:'spam',senderProfileId:'spam_'+m.handle,name:m.name,handle:m.handle,senderType:'spam',category:'spam',
     isSpam:band==='spam', isRequest:band==='request', requiresReply:false, text:m.text});
 };
 /* ── 2V (§24): DM od słuchaczy (odnosi się do wydanego numeru) ── */
@@ -52011,7 +52056,7 @@ window._generateLifestyleDM=function(){
     {label:'„Prywatne spotkanie, bez telefonów." (ryzyko)',fx:{},risk:true,reply:'...(rozmowa schodzi na prywatne tory — fade to black)'},
     {label:'„Trzymajmy to w profesjonalnych ryzach."',fx:{professionalism:1},reply:'Szanuję. Może przy pracy.'},
   ];
-  return window._fudmMakeThread({idp:'life',name:n.name,handle:n.handle,senderType:'lifestyle',category:'artist',isRequest:true,requiresReply:true,text:text,
+  return window._fudmMakeThread({idp:'life',senderProfileId:'life_'+n.handle,name:n.name,handle:n.handle,senderType:'lifestyle',category:'artist',isRequest:true,requiresReply:true,text:text,
     replyOptions:opts.map(o=>({label:o.label,fx:o.fx,reply:o.reply,risk:o.risk}))});
 };
 /* ── reply-set prosty (fani/marki) ── */
@@ -52046,6 +52091,17 @@ window._fudmBlockThread=function(threadId){
   D.threads.splice(i,1);
   if(typeof showMsg==='function') showMsg('🚫 Zablokowano i usunięto.','',2500);
   window._openFrameUpDM('spam');
+};
+/* audyt #10: realna archiwizacja — skrzynka Archiwum nie jest już martwa. */
+window._fudmArchiveThread=function(threadId){
+  window._frameUpDMEnsure(); const D=G.frameUpDM;
+  const i=D.threads.findIndex(x=>x&&x.id===threadId); if(i<0) return;
+  const t=D.threads[i];
+  if(t.requiresReply || (t.dealPayload && !t.dealPayload.accepted && t.dealPayload.status==='offer')){ if(typeof showMsg==='function') showMsg('📌 Najpierw odpowiedz na tę wiadomość.','r',3000); return; }
+  if(t.unread){ D.unreadCount=Math.max(0,(D.unreadCount||0)-1); if(t.isSpam) D.spamUnreadCount=Math.max(0,(D.spamUnreadCount||0)-1); t.unread=false; }
+  t._archived=true; D.threads.splice(i,1); D.archivedThreads.unshift(t);
+  if(typeof showMsg==='function') showMsg('🗂 Zarchiwizowano.','',2500);
+  window._openFrameUpDM(window._fudmBox||'glowne');
 };
 /* ── 2X (§29): orkiestrator generatora DM (tick dnia) ── */
 window._generateFrameUpDMs=function(){
