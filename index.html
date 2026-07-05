@@ -21063,6 +21063,42 @@ function _publicRepEnsure(){
   }
 }
 function getMediaPressure(){ return Math.max(0,Math.min(100,(G.haters||0)*0.05 + (G.trap?.heat||0)*0.5)); }
+/* ═══ WARSTWA WIZERUNKOWA KRADZIEŻY (PDF new/3 §19-20) — adaptacja wzorca kolizji (publicCrashExposure↔publicCrimeExposure). ═══ */
+window._theftCareerEnsure=function(){
+  if(!G.theftCareer||typeof G.theftCareer!=='object') G.theftCareer={};
+  const t=G.theftCareer;
+  [['theftRumors',0],['publicCrimeExposure',0],['careerCollapseRisk',0],['theftCount',0],['hiddenCrimeScore',0],['mediaRisk',0]].forEach(kv=>{ if(typeof t[kv[0]]!=='number'||!isFinite(t[kv[0]])) t[kv[0]]=kv[1]; });
+  if(t.lastVisibility===undefined) t.lastVisibility=null;
+  return t;
+};
+window._theftCollapseRisk=function(){
+  const t=window._theftCareerEnsure();
+  const exposure=t.publicCrimeExposure||0;
+  const infamy=(G._underworldRespect||0);                       /* istniejąca oś infamy */
+  const mediaRisk=Math.max((t.mediaRisk||0),(typeof getMediaPressure==='function'?getMediaPressure():0));
+  const unpaidFines=(typeof G._unpaidFines==='number'?G._unpaidFines:0);
+  t.careerCollapseRisk=clamp(Math.round(exposure*0.35 + infamy*0.25 + mediaRisk*0.25 + unpaidFines*0.15),0,100);
+  return t.careerCollapseRisk;
+};
+window._THEFT_BANDS=[
+  {min:0,  max:20, key:'minor',    label:'drobne ryzyko'},
+  {min:21, max:40, key:'local',    label:'lokalne podejrzenia'},
+  {min:41, max:60, key:'cracking', label:'wizerunek pęka'},
+  {min:61, max:80, key:'crisis',   label:'kryzys kariery'},
+  {min:81, max:100,key:'collapse', label:'upadek wizerunku'},
+];
+window._theftBand=function(risk){ const v=clamp(Math.round(risk!=null?risk:(window._theftCareerEnsure().careerCollapseRisk||0)),0,100); return window._THEFT_BANDS.find(b=>v>=b.min&&v<=b.max)||window._THEFT_BANDS[0]; };
+/* applyTheftCareerDamage(visibility): unseen=plotka; witnessed=świadkowie; recorded=nagranie (najcięższe). */
+window._applyTheftCareerDamage=function(visibility){
+  const t=window._theftCareerEnsure();
+  if(typeof _publicRepEnsure==='function')_publicRepEnsure();
+  t.lastVisibility=visibility;
+  if(visibility==='unseen'){ t.theftRumors+=1; t.hiddenCrimeScore+=1; }
+  else if(visibility==='witnessed'){ t.publicCrimeExposure+=8; G._underworldRespect=Math.min(100,(G._underworldRespect||0)+10); if(G.publicRep){ G.publicRep.fanLoyalty=Math.max(0,(G.publicRep.fanLoyalty||60)-4); G.publicRep.brandSafety=Math.max(0,(G.publicRep.brandSafety||60)-1); } }
+  else if(visibility==='recorded'){ t.publicCrimeExposure+=20; t.mediaRisk=Math.min(100,(t.mediaRisk||0)+3); G._underworldRespect=Math.min(100,(G._underworldRespect||0)+25); if(G.publicRep){ G.publicRep.fanLoyalty=Math.max(0,(G.publicRep.fanLoyalty||60)-12); G.publicRep.brandSafety=Math.max(0,(G.publicRep.brandSafety||60)-3); } }
+  window._theftCollapseRisk();
+  return t;
+};
 window._publicRepDailyTick=function(){
   _publicRepEnsure();
   const heat=(G.trap&&G.trap.unlocked)?(G.trap.heat||0):0;
@@ -50862,6 +50898,7 @@ window._sanitizePlayerLists=function(){
     if(typeof window._camperEnsure==='function') window._camperEnsure(); /* v2.3.54 moduł kampera: defaulty + grandfather (save-safe D0) */
     if(typeof window._vehStateEnsure==='function') window._vehStateEnsure(); /* v2.3.108 PDF#9: stan interakcji pojazdu (silnik/światła/zamek/pasy), save-safe */
     if(typeof window._addictionSysEnsure==='function') window._addictionSysEnsure(); /* v2.3.113 (PDF new/5 Nova Cura): model uzależnień per-kategoria (6), save-safe + migracja płaskich G.addictions */
+    if(typeof window._theftCareerEnsure==='function') window._theftCareerEnsure(); /* v2.3.113 (PDF new/3 kradzieże): warstwa wizerunkowa kradzieży (careerCollapseRisk), save-safe */
     if(typeof window._metalValleyEnsure==='function') window._metalValleyEnsure(); /* v2.3.108 PDF#11: Metal Valley (rozbiórka/wypłaty), save-safe */
   }catch(_e){}
 };
