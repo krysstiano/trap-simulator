@@ -40246,6 +40246,7 @@ function renderHospital(){
   const psychReq=(mood<=15||tension>=85||mcl>=2||wd>=40); // PDF §4.5 kiedy zalecana
   const stabGate=(mcl>=1||tension>=50||wd>0);             // PDF §11 warunek dostępności
   const consultCd=(n._lastConsultDay===G.day), therapyCd=(G._lastTherapyDay===G.day), psychCd=(n._lastPsychDay===G.day), testsCd=(n._lastTestsDay===G.day), stabCd=(n._lastStabDay===G.day);
+  const prog7Cd=(n._lastProg7Day===G.day), prog14Cd=(n._lastProg14Day===G.day), progPremCd=(n._lastProgPremDay===G.day), progGate=(addRisk>=21); /* v2.3.113 §programy: dostępne przy realnym uzależnieniu */
   const it=(icon,title,desc,price,handler,disabled,extra)=>`<div class="sitem"><h3>${icon} ${title}</h3><p style="font-size:11.5px;color:#8aa">${desc}</p>${extra||''}<div class="pr">${price}</div><button class="bbtn" onclick="${handler}" ${disabled?'disabled':''}>Wybierz</button></div>`;
   /* v2.3.113 (PDF new/Nova Cura §11): panel ryzyka uzależnień per-kategoria. */
   if(typeof window._addictionSysEnsure==='function') window._addictionSysEnsure();
@@ -40279,6 +40280,9 @@ function renderHospital(){
       ${it('🧠','Konsultacja psychiatryczna','U dr Ilyi Renn: diagnoza kryzysu, stabilizacja nastroju, redukcja poziomu kryzysu.','1500 zł','_novaPsychiatric()',money<1500||psychCd,psychReq?'<p style="color:#e07050;font-size:11px">Zalecana przy Twoim obecnym stanie.</p>':'')}
       ${it('🔬','Badania rozszerzone','Pełna diagnostyka organizmu + ocena gotowości do aktywności. Cena rośnie z przemęczeniem.',testsCost+' zł','_novaTests()',money<testsCost||testsCd)}
       ${it('🛏️','Stabilizacja po kryzysie',(stabGate?'Krótki pobyt: −40 napięcia, +20 nastrój, −1 kryzys, złagodzenie odstawienia.':'Dostępna dopiero przy kryzysie psychicznym, wysokim napięciu lub odstawieniu.'),'2200 zł','_novaStabilize()',money<2200||!stabGate||stabCd)}
+      ${it('🏥','Program leczenia — 7 dni',(progGate?'Intensywny program: spadek uzależnienia, objawów odstawienia i napięcia we wszystkich kategoriach.':'Dostępny przy realnym uzależnieniu (ryzyko średnie i wyżej).'),'9500 zł','_novaTreatmentProgram(\'p7\')',money<9500||!progGate||prog7Cd)}
+      ${it('🏥','Program leczenia — 14 dni',(progGate?'Dłuższy, mocniejszy program — duży spadek uzależnienia i objawów w każdej kategorii.':'Dostępny przy realnym uzależnieniu.'),'18500 zł','_novaTreatmentProgram(\'p14\')',money<18500||!progGate||prog14Cd)}
+      ${it('💎','Program premium (dyskretny)',(progGate?'Najskuteczniejszy, prywatny program: najmocniejszy spadek uzależnienia i objawów + niższe ryzyko wizerunkowe.':'Dostępny przy realnym uzależnieniu.'),'32000 zł','_novaTreatmentProgram(\'prem\')',money<32000||!progGate||progPremCd)}
       ${it('🕶️','Konsultacja dyskretna','Prywatna rozmowa bez rozgłosu: −ryzyko prawne, +zaufanie. Mniejsza dokładność diagnozy.','1800 zł','_novaDiscreet()',money<1800)}
       ${it('📋','Historia leczenia','Zapis Twoich wizyt, diagnoz i zaleceń.','—','_novaHistory()',false)}
     </div>
@@ -40350,6 +40354,32 @@ window._novaStabilize=function(){ if(typeof _5pdfEnsure==='function')_5pdfEnsure
   let red=0; if(G.addictions){ for(const s in G.addictions){ const b=G.addictions[s]||0; if(b>0){ G.addictions[s]=Math.max(0,b-15); red+=b-G.addictions[s]; } } }
   window._novaLog('Stabilizacja po kryzysie','wyciszenie organizmu'+(red>0?', −'+red+' odstawienie':'')); if(typeof updateHUD==='function')updateHUD();
   if(typeof showMsg==='function')showMsg('🛏️ Krótki pobyt stabilizacyjny pod opieką specjalisty. −40 napięcia, +20 nastrój'+(red>0?`, złagodzone odstawienie (−${red})`:'')+'. Odzyskujesz podstawową kontrolę.','g',7000); renderHospital(); };
+/* v2.3.113 (PDF new/Nova Cura §... programy leczenia): stabilizacja(2200 wyżej) / 7 dni / 14 dni / premium dyskretny.
+   Obniżają useLevel/dependence/withdrawal/craving WSZYSTKICH kategorii (intensywniejszy = większa redukcja). Adaptacja: natychmiastowe intensywne programy (nazwa = intensywność, bez literalnego przewijania dni gry). */
+window._novaTreatmentProgram=function(tier){
+  if(typeof _5pdfEnsure==='function')_5pdfEnsure(); if(typeof window._addictionSysEnsure==='function') window._addictionSysEnsure();
+  const n=G.novacura, AS=G.addictionSystem;
+  const CFG={
+    'p7':{cost:9500, use:20, dep:15, wd:25, name:'Program leczenia — 7 dni', tension:20, mood:20, cdk:'_lastProg7Day'},
+    'p14':{cost:18500, use:40, dep:30, wd:50, name:'Program leczenia — 14 dni', tension:35, mood:30, cdk:'_lastProg14Day'},
+    'prem':{cost:32000, use:60, dep:45, wd:70, name:'Program premium (dyskretny)', tension:50, mood:40, cdk:'_lastProgPremDay', discreet:true},
+  }[tier];
+  if(!CFG) return;
+  const e=document.getElementById('shop-res');
+  if((G.money||0)<CFG.cost){ if(typeof sfxDenied==='function')sfxDenied(); if(e)e.textContent='Za mało pieniędzy na ten program!'; return; }
+  if(n[CFG.cdk]===G.day){ if(typeof showMsg==='function')showMsg('🏥 Ten program masz dziś rozpoczęty — wróć jutro.','r',4500); return; }
+  G.money-=CFG.cost; n[CFG.cdk]=G.day;
+  const CATS=['alcohol','stimulants','partySubstances','downers','opioids']; let redU=0;
+  CATS.forEach(c=>{ const a=AS&&AS[c]; if(!a)return; const bu=a.useLevel||0; a.useLevel=Math.max(0,bu-CFG.use); redU+=bu-a.useLevel; a.dependence=Math.max(0,(a.dependence||0)-CFG.dep); a.withdrawal=Math.max(0,(a.withdrawal||0)-CFG.wd); a.craving=Math.max(0,(a.craving||0)-Math.round(CFG.dep/2)); a.relapseRisk=Math.min(100,Math.round((a.dependence||0)*0.6+(a.craving||0)*0.4)); });
+  if(G.addictions){ for(const s in G.addictions){ G.addictions[s]=Math.max(0,(G.addictions[s]||0)-CFG.use); } } /* stary flat spójnie */
+  n.tension=Math.max(0,(n.tension||0)-CFG.tension); G.stress=clamp((G.stress||0)+CFG.mood,0,100);
+  n.therapyProgress=(n.therapyProgress||0)+2; n.medicalTrust=(n.medicalTrust||0)+1;
+  if((n.mentalCrisisLevel||0)>0) n.mentalCrisisLevel=Math.max(0,n.mentalCrisisLevel-1);
+  if(CFG.discreet) n.hospitalRiskFlag=Math.max(0,(n.hospitalRiskFlag||0)-3);
+  window._novaLog(CFG.name,'program leczenia (−'+redU+' używanie)'); if(typeof updateHUD==='function')updateHUD();
+  if(typeof showMsg==='function')showMsg('🏥 '+CFG.name+' ukończony. Wyraźny spadek uzależnienia, objawów odstawienia i napięcia — realny krok do odzyskania kontroli.','g',7000);
+  renderHospital();
+};
 window._novaHistory=function(){ if(typeof _5pdfEnsure==='function')_5pdfEnsure(); const n=G.novacura; const h=Array.isArray(n.history)?n.history:[];
   const rows=h.length?h.map(x=>`<div style="border-bottom:1px solid #16202c;padding:7px 0;font-size:13px"><b style="color:#7ec8e3">Dz. ${x.day}</b> — ${x.action}${x.detail?` <span style="color:#8aa">(${x.detail})</span>`:''}</div>`).join(''):'<p style="color:#8aa">Brak wizyt. Twoja historia leczenia pojawi się tutaj.</p>';
   const el=document.getElementById('ov-content'); if(!el) return;
@@ -63022,6 +63052,7 @@ const PATCH_NOTES = [
  items:[
   {t:'new',d:'🗺 Nowość: osobne mapy dzielnic! W dużej mapie możesz teraz przełączać widok między Miastem a odblokowanymi dzielnicami (Underground, Marina Coast, Business) — każda ma własną mapę z budynkami i punktami. Zablokowane dzielnice są wyszarzone do czasu ich odblokowania, a mapy aktualizują się same, gdy w dzielnicy pojawiają się nowe miejsca.'},
   {t:'new',d:'🏥 Nova Cura pokazuje teraz Twój stan uzależnień w rozbiciu na kategorie (alkohol, pobudzające, imprezowe, uspokajające, opioidowe) — każda z własnym poziomem ryzyka. Widać też łączne objawy odstawienia i ostrzeżenie, gdy mieszasz różne rodzaje używek. Różne używki działają inaczej i inaczej się uzależniają, więc łatwiej świadomie zdecydować, czego potrzebujesz.'},
+  {t:'new',d:'💉 W Nova Cura dostępne są teraz pełne programy wychodzenia z nałogu: krótka stabilizacja po kryzysie oraz intensywne programy (7 dni, 14 dni i dyskretny program premium). Im mocniejszy program, tym większy spadek uzależnienia, objawów odstawienia i napięcia. Kosztują sporo, ale to realna droga do odzyskania kontroli.'},
   {t:'fix',d:'🟢 Zielone powiadomienia możesz teraz po prostu kliknąć, żeby zniknęły od razu — nie musisz czekać, aż same wygasną. Przydaje się, gdy zbiera się ich więcej naraz.'},
   {t:'fix',d:'▶️ Naprawione: na samym starcie gry potrafiła wyskoczyć wiadomość, że „Twój film wystrzelił", mimo że nie miałeś jeszcze żadnego nagranego filmu. Teraz taka informacja pojawia się dopiero, gdy masz na koncie co najmniej 3 opublikowane filmy.'},
   {t:'fix',d:'🔒 Wytwórnia, S9 Agency i NOX Route w folderze Kariera odblokowują się po ukończeniu poradnika na start — dzięki temu nowy gracz nie jest od razu zasypany wszystkimi opcjami. Jeśli grasz już od dłuższego czasu, korzystasz z nich bez zmian.'},
