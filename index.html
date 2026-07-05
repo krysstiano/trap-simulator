@@ -51474,6 +51474,77 @@ window._unlockFrameUpDM=function(){
   if(typeof addNotif==='function') addNotif('✉️ Odblokowano FrameUp Direct Message.');
   return true;
 };
+/* 2B (§3/§41): panel skrzynek Direct Message. Kategorie: Główne/Prośby/Współprace/Artyści/Fani/Spam/Archiwum. */
+window._FUDM_BOXES=[
+  {id:'glowne',    label:'📥 Główne',    desc:'Rozmowy z osobami, które znasz lub z którymi już piszesz.'},
+  {id:'prosby',    label:'✋ Prośby',     desc:'Wiadomości od osób spoza Twoich kontaktów — czekają na przyjęcie.'},
+  {id:'wspolprace',label:'💼 Współprace', desc:'Oferty od firm, marek i managementu.'},
+  {id:'artysci',   label:'🎤 Artyści',    desc:'Zlecenia od artystów — m.in. ghostwriting.'},
+  {id:'fani',      label:'💚 Fani',       desc:'Wiadomości od fanów i słuchaczy.'},
+  {id:'spam',      label:'🚫 Spam',       desc:'Podejrzane i śmieciowe wiadomości.'},
+  {id:'archiwum',  label:'🗂 Archiwum',   desc:'Zarchiwizowane rozmowy.'},
+];
+window._fudmThreadsInBox=function(box){
+  window._frameUpDMEnsure(); const D=G.frameUpDM;
+  if(box==='archiwum') return D.archivedThreads.slice();
+  const active=D.threads.filter(t=>t&&!t._archived);
+  switch(box){
+    case 'spam': return active.filter(t=>t.isSpam);
+    case 'prosby': return active.filter(t=>!t.isSpam&&t.isRequest);
+    case 'wspolprace': return active.filter(t=>!t.isSpam&&!t.isRequest&&(t.category==='brand'||t.senderType==='brand'));
+    case 'artysci': return active.filter(t=>!t.isSpam&&!t.isRequest&&(t.category==='artist'||t.senderType==='artist'));
+    case 'fani': return active.filter(t=>!t.isSpam&&!t.isRequest&&(t.category==='fan'||t.senderType==='fan'||t.senderType==='listener'));
+    case 'glowne': default: return active.filter(t=>!t.isSpam&&!t.isRequest&&!['brand','artist','fan'].includes(t.category));
+  }
+};
+window._openFrameUpDM=function(box){
+  window._frameUpDMEnsure();
+  if(!G.frameUpDM.unlocked){ if(typeof showMsg==='function') showMsg('✉️ Direct odblokujesz po pierwszym poście lub utworze.','r',4000); return; }
+  const _box=(box&&window._FUDM_BOXES.some(b=>b.id===box))?box:(window._fudmBox||'glowne'); window._fudmBox=_box;
+  const boxDef=window._FUDM_BOXES.find(b=>b.id===_box)||window._FUDM_BOXES[0];
+  const threads=window._fudmThreadsInBox(_box);
+  const _boxBtns=window._FUDM_BOXES.map(b=>{
+    const n=window._fudmThreadsInBox(b.id).filter(t=>t.unread).length;
+    return `<button class="cbtn" style="font-size:11px;padding:5px 9px;${b.id===_box?'background:#3a2470;color:#fff;border-color:#7a5ad0':'color:#c3b0f5'}" onclick="window._openFrameUpDM('${b.id}')">${b.label}${n>0?` <span style="background:#e74c3c;border-radius:7px;padding:0 4px;font-size:9px">${n}</span>`:''}</button>`;
+  }).join('');
+  const _list=threads.length?threads.map(t=>{
+    const last=(t.messages&&t.messages.length)?t.messages[t.messages.length-1]:null;
+    const prev=last?(last.text||'').slice(0,52):'';
+    return `<div style="background:${t.unread?'#1a1430':'#12101c'};border-radius:6px;padding:9px 11px;margin-bottom:6px;cursor:pointer;border-left:3px solid ${t.unread?'#7a5ad0':'#2a2440'}" onclick="window._openFrameUpDMThread('${t.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-weight:700;color:#cfe;font-size:13px">${t.unread?'🔵 ':''}${t.senderDisplayName||'Nieznany'}</span><span style="font-size:10px;color:#889">dzień ${t.createdDay||''}</span></div>
+      <div style="font-size:11px;color:#9ab;margin-top:2px">${prev}${prev.length>=52?'…':''}</div>
+    </div>`;
+  }).join(''):`<div style="color:#889;font-size:12px;text-align:center;padding:20px">Brak wiadomości w tej skrzynce.</div>`;
+  const html=`<div style="background:#0a0a16;border:2px solid #7a5ad0;border-radius:10px;padding:18px;max-width:600px;margin:0 auto;max-height:82vh;overflow-y:auto;color:#fff">
+    <h2 style="margin-top:0;color:#b39dff">✉️ FrameUp Direct</h2>
+    <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">${_boxBtns}</div>
+    <div style="font-size:11px;color:#9ab;margin-bottom:10px">${boxDef.label}: ${boxDef.desc}</div>
+    ${_list}
+    <button class="cbtn" style="margin-top:14px;width:100%;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';if(typeof renderPhoneApp==='function')renderPhoneApp('instagram');">← Wróć do FrameUp</button>
+  </div>`;
+  const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content');
+  if(mgJob&&mgContent){ mgContent.innerHTML=html; mgJob.classList.add('on'); }
+};
+window._openFrameUpDMThread=function(threadId){
+  window._frameUpDMEnsure(); const D=G.frameUpDM;
+  const t=D.threads.find(x=>x&&x.id===threadId)||D.archivedThreads.find(x=>x&&x.id===threadId);
+  if(!t){ window._openFrameUpDM(); return; }
+  if(t.unread){ t.unread=false; D.unreadCount=Math.max(0,(D.unreadCount||0)-1); if(t.isSpam) D.spamUnreadCount=Math.max(0,(D.spamUnreadCount||0)-1); }
+  const _msgs=(t.messages||[]).map(m=>{
+    const mine=m.from==='me';
+    return `<div style="display:flex;justify-content:${mine?'flex-end':'flex-start'};margin-bottom:6px"><div style="max-width:78%;background:${mine?'#2a4a6a':'#221a3a'};border-radius:10px;padding:8px 11px;font-size:12px;color:#eee">${m.text||''}</div></div>`;
+  }).join('')||`<div style="color:#889;font-size:12px;text-align:center;padding:14px">Brak wiadomości.</div>`;
+  const html=`<div style="background:#0a0a16;border:2px solid #7a5ad0;border-radius:10px;padding:18px;max-width:600px;margin:0 auto;max-height:82vh;overflow-y:auto;color:#fff">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div><div style="font-weight:700;color:#cfe">${t.senderDisplayName||'Nieznany'}</div><div style="font-size:10px;color:#889">${t.senderHandle||''}</div></div>
+    </div>
+    <div style="background:#0e0c1a;border-radius:8px;padding:10px;margin-bottom:10px">${_msgs}</div>
+    ${t.dealPayload&&typeof window._fudmRenderDeal==='function'?window._fudmRenderDeal(t):''}
+    <button class="cbtn" style="width:100%;color:#fff" onclick="window._openFrameUpDM('${window._fudmBox||'glowne'}')">← Skrzynka</button>
+  </div>`;
+  const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content');
+  if(mgJob&&mgContent){ mgContent.innerHTML=html; mgJob.classList.add('on'); }
+};
 
 window._sanitizePlayerLists=function(){
   try{
@@ -53070,9 +53141,15 @@ function renderPhoneApp(app){
     const autoST=getRaperST('autopromocja');
     /* v2.1.500 AO.3 — Tab switcher Twoje Posty / Społeczność */
     if(!G._igTab) G._igTab='twoje_posty';
-    const _tabSwitch=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:10px">
+    /* v2.3.113 (PDF new/2 §2 2B): wejście Direct Message w FrameUp (gdy odblokowane). */
+    if(typeof window._frameUpDMEnsure==='function') window._frameUpDMEnsure();
+    const _dmOn=!!(G.frameUpDM&&G.frameUpDM.unlocked);
+    const _dmUnread=(G.frameUpDM&&G.frameUpDM.unreadCount)||0;
+    const _dmBtn=_dmOn?`<button class="cbtn" style="padding:6px;font-size:12px;color:#fff;background:linear-gradient(135deg,#5a3aa0,#3a2470);border-color:#7a5ad0" onclick="window._openFrameUpDM&&window._openFrameUpDM()">✉️ Direct${_dmUnread>0?` <span style="background:#e74c3c;border-radius:8px;padding:0 5px;font-size:10px">${_dmUnread}</span>`:''}</button>`:'';
+    const _tabSwitch=`<div style="display:grid;grid-template-columns:${_dmOn?'1fr 1fr 1fr':'1fr 1fr'};gap:4px;margin-bottom:10px">
       <button class="cbtn" style="padding:6px;font-size:12px;color:${G._igTab==='twoje_posty'?'#fff':'#aab'};background:${G._igTab==='twoje_posty'?'linear-gradient(135deg,#c13584,#7a1e54)':'transparent'};border-color:#c13584" onclick="G._igTab='twoje_posty';renderPhoneApp('instagram')">📷 Twoje Posty</button>
       <button class="cbtn" style="padding:6px;font-size:12px;color:${G._igTab==='spolecznosc'?'#fff':'#aab'};background:${G._igTab==='spolecznosc'?'linear-gradient(135deg,#c13584,#7a1e54)':'transparent'};border-color:#c13584" onclick="G._igTab='spolecznosc';window._igLoadCommunity();renderPhoneApp('instagram')">🌐 Społeczność</button>
+      ${_dmBtn}
     </div>`;
     /* Community tab → render via dedicated function */
     if(G._igTab==='spolecznosc'){
