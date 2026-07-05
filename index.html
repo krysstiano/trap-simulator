@@ -28261,8 +28261,8 @@ function nextPeriod(){
     }
     /* v2.3.113 (PDF new/2 §5 2C): odblokuj FrameUp DM po pierwszym poście/utworze (fallback dzienny — łapie wszystkie ścieżki publikacji). */
     if(typeof window._unlockFrameUpDM==='function') window._unlockFrameUpDM();
-    /* v2.3.113 (PDF new/2 §6/§11 2D/2G/2X): generuj ofertę ghostwritingową co 4-5 dni gdy warunki spełnione. */
-    if(typeof window._generateGhostwritingOffer==='function') window._generateGhostwritingOffer(false);
+    /* v2.3.113 (PDF new/2 §29 2X): orkiestrator DM (fani/marki/spam/ghostwriting) w ticku dnia. */
+    if(typeof window._generateFrameUpDMs==='function') window._generateFrameUpDMs();
     /* v2.1.421 Faza AN.6 Etap 2: daily heat decay. v2.1.730 (Monte Carlo rebalans): -3→-30 — przy -3 hojna marża mixa (+4325) była bezużyteczna (heat utykał na 70 na dni). v2.1.731 (weryfikacja vs inne zarobki, user „trochę mocniejszy"): -30→-20 — stonowane do ~15k zł/dzień (4× wcześniej, nie dominuje vs koncerty/streaming) z wysoką wariancją (busty). */
     if(G.trap && G.trap.unlocked){
       /* v2.1.793 — filtry uprawy/labu + informator przyspieszają stygnięcie heat. */
@@ -51543,6 +51543,8 @@ window._openFrameUpDMThread=function(threadId){
     </div>
     <div style="background:#0e0c1a;border-radius:8px;padding:10px;margin-bottom:10px">${_msgs}</div>
     ${t.dealPayload&&typeof window._fudmRenderDeal==='function'?window._fudmRenderDeal(t):''}
+    ${(t.replyOptions&&t.requiresReply)?`<div style="display:grid;grid-template-columns:1fr;gap:5px;margin-bottom:10px">${t.replyOptions.map((r,i)=>`<button class="cbtn" style="font-size:11px;padding:7px;color:#cfe;text-align:left" onclick="window._fudmSimpleReply('${t.id}',${i})">${r.label}</button>`).join('')}</div>`:''}
+    ${(!t.dealPayload&&!t.replyOptions&&t.isSpam)?`<button class="cbtn" style="width:100%;color:#e88;border-color:#a44;margin-bottom:8px" onclick="window._fudmBlockThread('${t.id}')">🚫 Zablokuj i usuń</button>`:''}
     <button class="cbtn" style="width:100%;color:#fff" onclick="window._openFrameUpDM('${window._fudmBox||'glowne'}')">← Skrzynka</button>
   </div>`;
   const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content');
@@ -51838,6 +51840,110 @@ window._openGhostwritingJobs=function(tab){
   </div>`;
   const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content');
   if(mgJob&&mgContent){ mgContent.innerHTML=html; mgJob.classList.add('on'); }
+};
+
+/* ── generator wątków DM (wspólny) ── */
+window._fudmMakeThread=function(o){
+  window._frameUpDMEnsure(); const D=G.frameUpDM; D._idSeq=(D._idSeq||0)+1;
+  const t=Object.assign({id:(o.idp||'dm')+'_'+G.day+'_'+D._idSeq, senderProfileId:o.senderProfileId||null, senderDisplayName:o.name||'Nieznany', senderHandle:o.handle||'',
+    senderType:o.senderType||'fan', category:o.category||'fan', isRequest:!!o.isRequest, requiresReply:!!o.requiresReply, isSpam:!!o.isSpam,
+    unread:true, messageType:o.messageType||'dm', createdDay:G.day, createdTime:(G.timeOfDay||0),
+    messages:[{from:'them',text:o.text||''}], replyOptions:o.replyOptions||null, dealPayload:o.dealPayload||null}, {});
+  D.threads.unshift(t); D.unreadCount=(D.unreadCount||0)+1; if(t.isSpam) D.spamUnreadCount=(D.spamUnreadCount||0)+1;
+  return t;
+};
+/* ── 2W (§25): spam score ── */
+window._calculateDmSpamScore=function(sig){
+  let s=0; sig=sig||{};
+  if(sig.suspiciousLink) s+=40;
+  if(sig.guaranteedGrowth) s+=25;
+  if(sig.accountAgeDays!=null&&sig.accountAgeDays<3) s+=20;
+  if(sig.followers!=null&&sig.followers<10) s+=10;
+  if(sig.upfrontPayment) s+=15;
+  if(sig.fakeBrandName) s+=25;
+  return Math.min(100,Math.max(0,s));
+};
+window._fudmSpamBand=function(score){ return score>=61?'spam':score>=31?'request':'normal'; };
+/* ── 2S (§28): DM od fanów ── */
+window._FUDM_FAN_MSGS=[
+  {text:'Ten ostatni numer serio mi siadł, słucham w kółko. Trzymaj tak!',opts:[
+    {label:'„Dzięki, dobrze że wybrzmiało."',fx:{fanTrust:2}},{label:'„Nie wszystko musi być flexem."',fx:{authenticity:1}},
+    {label:'„Doceniam, że słuchasz tekstu."',fx:{fanTrust:1,authenticity:1}},{label:'„Będzie więcej, stay tuned."',fx:{fanTrust:1}}]},
+  {text:'Będzie jakiś koncert w moim mieście? Czekam od roku!',opts:[
+    {label:'„Pracujemy nad trasą, cierpliwości."',fx:{fanTrust:2}},{label:'„Śledź profil, ogłoszę pierwszy."',fx:{fanTrust:1}},
+    {label:'„Zależy ile Was będzie chętnych."',fx:{fanTrust:1}},{label:'„Może, zobaczymy."',fx:{}}]},
+  {text:'Kiedyś byłeś prawdziwy, teraz same komercyjne granie... szkoda.',opts:[
+    {label:'„Rozumiem, ale idę do przodu."',fx:{authenticity:1}},{label:'„Dzięki za szczerość, wezmę pod uwagę."',fx:{fanTrust:1}},
+    {label:'„Nie każdemu muszę się podobać."',fx:{authenticity:1,fanTrust:-1}},{label:'(zignoruj)',fx:{}}]},
+];
+window._generateFanDM=function(){
+  const m=window._FUDM_FAN_MSGS[rnd(0,window._FUDM_FAN_MSGS.length-1)];
+  const nick='fan_'+rnd(100,9999);
+  return window._fudmMakeThread({idp:'fan',name:nick,handle:'@'+nick,senderType:'fan',category:'fan',requiresReply:true,text:m.text,
+    replyOptions:m.opts.map(o=>({label:o.label,fx:o.fx,reply:'Spoko, dzięki!'}))});
+};
+/* ── 2T (§27): DM od firm/marek ── */
+window._FUDM_BRAND_MSGS=[
+  {name:'UrbanSip',handle:'@urbansip',text:'Hej! Wyślemy Ci paczkę autorskich napojów — soft test na story, bez zobowiązań. Wchodzisz?',opts:[
+    {label:'„Podeślijcie warunki na piśmie."',fx:{professionalism:2}},{label:'„Soft test na story — czemu nie."',fx:{}},
+    {label:'„Płatna współpraca, nie barter."',fx:{businessFocus:2}},{label:'„Jeśli marka pasuje — pogadamy."',fx:{authenticity:1}}]},
+  {name:'NoxWear',handle:'@noxwear',text:'Szukamy twarzy do małej kampanii odzieżowej. Budżet jest. Interesuje Cię?',opts:[
+    {label:'„Wysyłajcie brief i stawkę."',fx:{professionalism:1,businessFocus:1}},{label:'„Muszę zobaczyć produkt najpierw."',fx:{professionalism:1}},
+    {label:'„Tylko jak pasuje do wizerunku."',fx:{authenticity:1}},{label:'„Na razie nie, dzięki."',fx:{}}]},
+];
+window._generateBrandDM=function(){
+  const m=window._FUDM_BRAND_MSGS[rnd(0,window._FUDM_BRAND_MSGS.length-1)];
+  return window._fudmMakeThread({idp:'brand',name:m.name,handle:m.handle,senderType:'brand',category:'brand',isRequest:true,requiresReply:true,text:m.text,
+    replyOptions:m.opts.map(o=>({label:o.label,fx:o.fx,reply:'Ok, odezwiemy się z konkretami.'}))});
+};
+/* ── 2W (§24): DM spam ── */
+window._FUDM_SPAM_MSGS=[
+  {name:'GROWTH BOOST',handle:'@growth_boost_pro',text:'GWARANTOWANE 10 000 obserwujących w 24h! Kliknij link i podaj hasło do konta 👉 bit.scam/xyz',sig:{suspiciousLink:true,guaranteedGrowth:true,accountAgeDays:1,followers:2}},
+  {name:'Official Artist Mgmt',handle:'@artist_mgmt_official',text:'Jesteśmy oficjalnym managementem. Wyślij pełny tekst tutaj, płatność po akceptacji.',sig:{fakeBrandName:true,accountAgeDays:2,followers:5,upfrontPayment:false}},
+  {name:'FreeMoneyNow',handle:'@free_money_now',text:'Wygrałeś nagrodę! Odbierz 5000 zł — wystarczy opłata manipulacyjna 99 zł 💸',sig:{suspiciousLink:true,upfrontPayment:true,accountAgeDays:1,followers:0}},
+];
+window._generateSpamDM=function(){
+  const m=window._FUDM_SPAM_MSGS[rnd(0,window._FUDM_SPAM_MSGS.length-1)];
+  const score=window._calculateDmSpamScore(m.sig);
+  const band=window._fudmSpamBand(score);
+  return window._fudmMakeThread({idp:'spam',name:m.name,handle:m.handle,senderType:'spam',category:'spam',
+    isSpam:band==='spam', isRequest:band==='request', requiresReply:false, text:m.text});
+};
+/* ── reply-set prosty (fani/marki) ── */
+window._fudmSimpleReply=function(threadId,idx){
+  window._frameUpDMEnsure(); const D=G.frameUpDM;
+  const t=D.threads.find(x=>x&&x.id===threadId); if(!t||!t.replyOptions||!t.replyOptions[idx]) return;
+  const r=t.replyOptions[idx];
+  if(r.fx){ for(const k in r.fx){ window._fudmAddStat(k,r.fx[k]); } }
+  t.messages.push({from:'me',text:r.label.replace(/^„|"$/g,'')});
+  if(r.reply) t.messages.push({from:'them',text:r.reply});
+  t.requiresReply=false; t.isRequest=false; t.replyOptions=null;
+  if(typeof showMsg==='function') showMsg('✅ Odpowiedziano.','g',2500);
+  window._openFrameUpDMThread(threadId);
+};
+window._fudmBlockThread=function(threadId){
+  window._frameUpDMEnsure(); const D=G.frameUpDM;
+  const i=D.threads.findIndex(x=>x&&x.id===threadId); if(i<0) return;
+  const t=D.threads[i];
+  if(t.senderProfileId&&!D.blockedProfiles.includes(t.senderProfileId)) D.blockedProfiles.push(t.senderProfileId);
+  if(t.unread){ D.unreadCount=Math.max(0,(D.unreadCount||0)-1); if(t.isSpam) D.spamUnreadCount=Math.max(0,(D.spamUnreadCount||0)-1); }
+  D.threads.splice(i,1);
+  if(typeof showMsg==='function') showMsg('🚫 Zablokowano i usunięto.','',2500);
+  window._openFrameUpDM('spam');
+};
+/* ── 2X (§29): orkiestrator generatora DM (tick dnia) ── */
+window._generateFrameUpDMs=function(){
+  window._frameUpDMEnsure(); if(!G.frameUpDM.unlocked) return;
+  const postedRecently=Array.isArray(G.igPosts)&&G.igPosts.some(p=>p&&(G.day-(p.day||p.createdDay||0))<=2);
+  const fans=(G.fans||0);
+  // Fani — częściej po publikacji i przy większej bazie
+  if(fans>=50 && Math.random()<(postedRecently?0.6:0.25)) window._generateFanDM();
+  // Firmy — przy zasięgach/dripie
+  if(fans>=800 && (G.fame||0)>=60 && Math.random()<0.18) window._generateBrandDM();
+  // Spam — rośnie z popularnością
+  if(fans>=200 && Math.random()<Math.min(0.4,0.1+fans/50000)) window._generateSpamDM();
+  // Ghostwriting — osobny cooldown (2D)
+  if(typeof window._shouldGenerateGhostwritingOffer==='function' && window._shouldGenerateGhostwritingOffer()) window._generateGhostwritingOffer(true);
 };
 
 window._sanitizePlayerLists=function(){
