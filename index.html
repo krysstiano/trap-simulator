@@ -28261,6 +28261,8 @@ function nextPeriod(){
     }
     /* v2.3.113 (PDF new/2 §5 2C): odblokuj FrameUp DM po pierwszym poście/utworze (fallback dzienny — łapie wszystkie ścieżki publikacji). */
     if(typeof window._unlockFrameUpDM==='function') window._unlockFrameUpDM();
+    /* v2.3.113 (PDF new/2 §6/§11 2D/2G/2X): generuj ofertę ghostwritingową co 4-5 dni gdy warunki spełnione. */
+    if(typeof window._generateGhostwritingOffer==='function') window._generateGhostwritingOffer(false);
     /* v2.1.421 Faza AN.6 Etap 2: daily heat decay. v2.1.730 (Monte Carlo rebalans): -3→-30 — przy -3 hojna marża mixa (+4325) była bezużyteczna (heat utykał na 70 na dni). v2.1.731 (weryfikacja vs inne zarobki, user „trochę mocniejszy"): -30→-20 — stonowane do ~15k zł/dzień (4× wcześniej, nie dominuje vs koncerty/streaming) z wysoką wariancją (busty). */
     if(G.trap && G.trap.unlocked){
       /* v2.1.793 — filtry uprawy/labu + informator przyspieszają stygnięcie heat. */
@@ -51544,6 +51546,120 @@ window._openFrameUpDMThread=function(threadId){
   </div>`;
   const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content');
   if(mgJob&&mgContent){ mgContent.innerHTML=html; mgJob.classList.add('on'); }
+};
+
+/* ── 2D (§6): warunki i cooldown ofert ghostwritingowych ── */
+window._canReceiveGhostwritingOffers=function(){
+  window._frameUpDMEnsure();
+  const fans=(G.fans||0)>=500;
+  const track=Array.isArray(G.studioTracks)&&G.studioTracks.some(t=>t&&!t.isDemo);
+  return fans&&track&&G.frameUpDM.unlocked;
+};
+window._shouldGenerateGhostwritingOffer=function(){
+  if(!window._canReceiveGhostwritingOffers()) return false;
+  const GW=G.frameUpDM.ghostwriting;
+  if(GW.lastOfferDay==null) return true;
+  const gap=rnd(4,5); /* co 4-5 dni gry */
+  return (G.day-GW.lastOfferDay)>=gap;
+};
+/* ── 2G (§11-12): generowanie oferty + wątek DM ── */
+window._createGhostwritingDeal=function(client,job){
+  const fameMult=1+Math.min(0.6,(G.fame||0)/500*0.6); /* wyższa sława = wyższe stawki (i ryzyko) */
+  const pay=Math.round(rnd(job.payMin,job.payMax)*client.payMult*fameMult/50)*50;
+  const days=Math.max(1,Math.ceil(job.hoursMax/8)); /* ~8h gry = 1 dzień */
+  const leakRisk=Math.min(0.9,job.leak*client.leakMult*(1+Math.min(0.4,(G.fame||0)/500*0.4)));
+  return {clientId:client.id,jobTypeId:job.id,mode:'ghostwriting',pay,baseP:pay,deadlineDay:G.day+days,leakRisk:Math.round(leakRisk*100)/100,
+    advance:false,negotiated:false,coauthor:false,accepted:false,createdDay:G.day};
+};
+window._generateGhostwritingOffer=function(force){
+  window._frameUpDMEnsure();
+  if(!force&&!window._shouldGenerateGhostwritingOffer()) return null;
+  const D=G.frameUpDM, GW=D.ghostwriting;
+  GW.unlocked=true;
+  const client=PDF2_ARTIST_PROFILES[rnd(0,PDF2_ARTIST_PROFILES.length-1)];
+  const job=PDF2_JOB_TYPES[rnd(0,PDF2_JOB_TYPES.length-1)];
+  const deal=window._createGhostwritingDeal(client,job);
+  D._idSeq=(D._idSeq||0)+1;
+  const firstMsg=`Siema, mam dla Ciebie robotę: ${job.name.toLowerCase()}. Anonimowo (ghostwriting). Stawka ${deal.pay.toLocaleString('pl')} zł, termin do dnia ${deal.deadlineDay}. Wchodzisz?`;
+  const thread={id:'gw_'+G.day+'_'+D._idSeq, senderProfileId:client.id, senderDisplayName:client.name, senderHandle:client.handle,
+    senderType:'artist', category:'artist', isRequest:true, requiresReply:true, isSpam:false, unread:true, messageType:'ghostwriting_offer',
+    createdDay:G.day, createdTime:(G.timeOfDay||0), messages:[{from:'them',text:firstMsg}], dealPayload:deal};
+  D.threads.unshift(thread);
+  D.unreadCount=(D.unreadCount||0)+1;
+  GW.lastOfferDay=G.day;
+  if(typeof addNotif==='function') addNotif(`✉️ Nowa wiadomość na FrameUp Direct od ${client.name} (${client.handle}).`);
+  return thread;
+};
+/* ── 2H (§13): panel oferty w wątku ── */
+window._fudmRenderDeal=function(t){
+  const d=t.dealPayload; if(!d) return '';
+  const client=window._pdf2Profile(d.clientId), job=window._pdf2JobType(d.jobTypeId);
+  const riskLbl=d.leakRisk>=0.3?'wysokie':d.leakRisk>=0.18?'średnie':'niskie';
+  const modeLbl=d.coauthor?'współautorstwo (z kredytem)':'ghostwriting (anonimowo)';
+  if(d.accepted){
+    return `<div style="background:#0e1a12;border:1px solid #2a6a3a;border-radius:8px;padding:11px;margin-bottom:10px;font-size:12px;color:#cfe">
+      ✅ Zlecenie przyjęte — ${job?job.name:''} za ${d.pay.toLocaleString('pl')} zł. Termin: dzień ${d.deadlineDay}. Znajdziesz je w „Aktywne zlecenia".</div>`;
+  }
+  return `<div style="background:#141026;border:1px solid #5a3aa0;border-radius:8px;padding:12px;margin-bottom:10px;color:#eee">
+    <div style="font-weight:700;color:#b39dff;margin-bottom:6px">🎼 Oferta ghostwritingowa</div>
+    <div style="font-size:12px;color:#cde;display:grid;grid-template-columns:auto 1fr;gap:2px 8px">
+      <span style="color:#9ab">Od:</span><span>${client?client.name:''} ${client?client.handle:''}</span>
+      <span style="color:#9ab">Typ:</span><span>${job?job.name:''}</span>
+      <span style="color:#9ab">Tryb:</span><span>${modeLbl}</span>
+      <span style="color:#9ab">Stawka:</span><span style="color:#f1c40f;font-weight:700">${d.pay.toLocaleString('pl')} zł${d.advance?' (z zaliczką)':''}</span>
+      <span style="color:#9ab">Termin:</span><span>dzień ${d.deadlineDay}</span>
+      <span style="color:#9ab">Ryzyko wycieku:</span><span style="color:${d.leakRisk>=0.3?'#e74c3c':d.leakRisk>=0.18?'#f39c12':'#27ae60'}">${riskLbl}</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:10px">
+      <button class="cbtn" style="font-size:11px;padding:6px;color:#7ec87e;border-color:#27ae60" onclick="window._fudmDealReply('${t.id}','accept')">✅ Zaakceptuj</button>
+      <button class="cbtn" style="font-size:11px;padding:6px;color:#f1c40f;border-color:#c8a520" onclick="window._fudmDealReply('${t.id}','negotiate')">💬 Negocjuj stawkę</button>
+      <button class="cbtn" style="font-size:11px;padding:6px;color:#8fd0ff;border-color:#5aa0e0" onclick="window._fudmDealReply('${t.id}','coauthor')">🤝 Zaproponuj współautorstwo</button>
+      <button class="cbtn" style="font-size:11px;padding:6px;color:#8fd0ff;border-color:#5aa0e0" onclick="window._fudmDealReply('${t.id}','advance')">💰 Poproś o zaliczkę</button>
+      <button class="cbtn" style="font-size:11px;padding:6px;color:#ccc" onclick="window._fudmDealReply('${t.id}','reject')">✖️ Odrzuć</button>
+      <button class="cbtn" style="font-size:11px;padding:6px;color:#e88;border-color:#a44" onclick="window._fudmDealReply('${t.id}','spam')">🚫 Oznacz jako spam</button>
+    </div>
+  </div>`;
+};
+/* ── 2I (§14-15): reply-set gracza + efekty ── */
+window._fudmDealReply=function(threadId,action){
+  window._frameUpDMEnsure(); const D=G.frameUpDM, GW=D.ghostwriting;
+  const t=D.threads.find(x=>x&&x.id===threadId); if(!t||!t.dealPayload){ return; }
+  const d=t.dealPayload; const client=window._pdf2Profile(d.clientId);
+  const push=(txt,from)=>t.messages.push({from:from||'me',text:txt});
+  if(action==='accept'){
+    d.accepted=true; t.requiresReply=false; t.isRequest=false;
+    GW.activeJobs.push(Object.assign({threadId:t.id},d));
+    window._fudmAddStat('careerFocus',1);
+    push('Wchodzę w to. Robię.');
+    push('Spoko, czekam na tekst.','them');
+    if(typeof showMsg==='function') showMsg(`✅ Przyjęto zlecenie: ${(window._pdf2JobType(d.jobTypeId)||{}).name} za ${d.pay.toLocaleString('pl')} zł. Zobacz „Aktywne zlecenia".`,'g',4500);
+  } else if(action==='reject'){
+    GW.rejectedOffers=(GW.rejectedOffers||0)+1; t.requiresReply=false; t.isRequest=false;
+    push('Dzięki, ale nie tym razem.'); push('Szkoda, trzymaj się.','them');
+    if(typeof showMsg==='function') showMsg('Odrzucono ofertę.','',3000);
+  } else if(action==='spam'){
+    t.isSpam=true; t.requiresReply=false; t.isRequest=false; D.spamUnreadCount=(D.spamUnreadCount||0)+ (t.unread?1:0);
+    if(!D.blockedProfiles.includes(d.clientId)) D.blockedProfiles.push(d.clientId);
+    if(typeof showMsg==='function') showMsg('🚫 Oznaczono jako spam.','',3000);
+    window._openFrameUpDM('spam'); return;
+  } else if(action==='negotiate'){
+    // 'bez śmiesznych stawek' → businessFocus+1, ghostwritingReputation+1, szansa na wyższą stawkę
+    window._fudmAddStat('businessFocus',1); window._fudmAddStat('ghostwritingReputation',1);
+    const success=Math.random()<(0.4+(G.frameUpDM.ghostwriting.businessFocus||0)*0.03);
+    if(success && !d.negotiated){ d.negotiated=true; const bump=Math.round(d.pay*(0.1+Math.random()*0.2)/50)*50; d.pay+=bump; push('Bez śmiesznych stawek — za tyle nie siadam.'); push(`No dobra, dorzucę. ${d.pay.toLocaleString('pl')} zł.`,'them'); if(typeof showMsg==='function') showMsg(`💬 Wynegocjowano wyższą stawkę: +${bump.toLocaleString('pl')} zł.`,'g',4000); }
+    else { push('Bez śmiesznych stawek — za tyle nie siadam.'); push('Tyle mam w budżecie, bierz albo nie.','them'); if(typeof showMsg==='function') showMsg('💬 Klient nie ustąpił.','',3500); }
+  } else if(action==='advance'){
+    // 'Zaliczka z góry' → professionalism+1, financialDiscipline+1, mniejsze ryzyko niepłacenia
+    window._fudmAddStat('professionalism',1); window._fudmAddStat('financialDiscipline',1);
+    if(!d.advance){ d.advance=true; const adv=Math.round(d.pay*0.3/50)*50; if(typeof earn==='function') earn(adv,false); else G.money=(G.money||0)+adv; push('Zaliczka z góry, 30%. Wtedy siadam.'); push(`Ok, wysyłam ${adv.toLocaleString('pl')} zł zaliczki.`,'them'); if(typeof showMsg==='function') showMsg(`💰 Zaliczka: +${adv.toLocaleString('pl')} zł. Ryzyko niepłacenia spadło.`,'g',4200); }
+  } else if(action==='coauthor'){
+    // 'jako współautor' → authenticity+1, professionalism+1, konwersja na credited songwriting
+    window._fudmAddStat('authenticity',1); window._fudmAddStat('professionalism',1);
+    const accept=Math.random()<(0.35+ (client&&client.id==='real_artist_with_block'?0.4:0));
+    if(accept){ d.coauthor=true; d.mode='credited'; push('Zróbmy to jako współautorstwo — chcę kredyt.'); push('Wiesz co, spoko. Lecimy oficjalnie.','them'); if(typeof showMsg==='function') showMsg('🤝 Zlecenie zmienione na współautorstwo (z kredytem).','g',4200); }
+    else { push('Zróbmy to jako współautorstwo — chcę kredyt.'); push('Nie, ma być anonimowo. Takie warunki.','them'); if(typeof showMsg==='function') showMsg('🤝 Klient chce jednak anonimowo.','',3500); }
+  }
+  window._openFrameUpDMThread(threadId);
 };
 
 window._sanitizePlayerLists=function(){
