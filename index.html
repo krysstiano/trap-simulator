@@ -34384,10 +34384,10 @@ function renderGamerOverlay(){
       🎬 Avg jakość filmów: +${ytVideos>0?Math.round(G.yt.videos.reduce((s,v)=>s+(v.quality||0),0)/ytVideos*0.5):0}% donacji
     </div>
     <div class="cards">
-      <div class="card"><h3>🏆 Turniej</h3><p>Szansa na wygraną zależy od rangi i szczęścia.</p><div class="cost">Energia: -25 · Wpisowe: ${50+ranks.indexOf(car.rank)*50} zł</div><button class="dbtn" ${G.energy<25||G.money<50+ranks.indexOf(car.rank)*50?'disabled':''} onclick="joinTournament()">Dołącz</button></div>
+      <div class="card"><h3>🏆 Turniej</h3><p>Szansa na wygraną zależy od rangi i szczęścia.</p><div class="cost">Energia: -25 · Wpisowe: ${50+ranks.indexOf(car.rank)*50} zł · <span style="color:#aac">raz dziennie</span></div>${(G._tourneysToday&&G._tourneysToday.day===G.day&&(G._tourneysToday.count||0)>=1)?'<div style="color:#e8a020;font-size:11px;margin:2px 0 6px;font-weight:700">✓ Zagrane dziś — wróć jutro po kolejny turniej.</div>':''}<button class="dbtn" ${(G._tourneysToday&&G._tourneysToday.day===G.day&&(G._tourneysToday.count||0)>=1)||G.energy<25||G.money<50+ranks.indexOf(car.rank)*50?'disabled':''} onclick="joinTournament()">Dołącz</button></div>
       <div class="card"><h3>📡 Streaming</h3><p>Streamuj rozgrywkę. ${ytSubs>=100?'Twój kanał YT przyciąga widzów.':'Wbij 100 subów YT żeby ściągnąć więcej widzów.'}</p><div class="cost">Energia: -15</div><button class="dbtn" ${G.energy<15?'disabled':''} onclick="startStream()">Stream live</button></div>
       <!-- v2.1.343 Faza P (user 2026-05-27 "Rankingowa działa tak, że nie wiadomo w ogóle o co chodzi, co daje, co się dostaje, po co ją robić"): opis explicit informuje co gracz dostaje + jak grać + po co. -->
-      <div class="card"><h3>📈 Rankingowa <span style="font-size:11px;color:#aac;font-weight:normal">(${car.rank} → ${GAMER_RANKS[Math.min(GAMER_RANKS.length-1,GAMER_RANKS.indexOf(car.rank)+1)]||'MAX'})</span></h3><p style="font-size:11.5px;line-height:1.5">Mecz e-sport: 5 rund klawiszy <strong>Q/W/E/R/A/S/D/F</strong> losowo — szybko wcisnąć. <strong>Wygrana (>75% pkt)</strong> buduje awans w drabince <em>9 rang: Brąz → Srebro → Złoto → Platyna → Diament → Mistrz → Arcymistrz → Pretendent → Legenda</em>. Im wyższa ranga, tym więcej wygranych trzeba na kolejny awans${GAMER_RANKS.indexOf(car.rank)>=0?` (teraz ${(car.rankWins||0)}/${GAMER_RANK_WINS_REQ[GAMER_RANKS.indexOf(car.rank)]||'—'})`:''}. <strong>Po co?</strong> Ranga to główny mnożnik nagród w 🏆 Turniejach — a dodatkowo im większa Twoja sława, tym więcej płaci turniej. Duże wypłaty są dla znanych graczy z wysoką rangą.</p><div class="cost">Energia: -10 · Nagroda: +30 XP (wygrana) / +12 XP</div><button class="dbtn" ${G.energy<10?'disabled':''} onclick="playRanked()">Zagraj rankingowy</button></div>
+      <div class="card"><h3>📈 Rankingowa <span style="font-size:11px;color:#aac;font-weight:normal">(${car.rank} → ${GAMER_RANKS[Math.min(GAMER_RANKS.length-1,GAMER_RANKS.indexOf(car.rank)+1)]||'MAX'})</span></h3><p style="font-size:11.5px;line-height:1.5">Mecz e-sport: 5 rund klawiszy <strong>Q/W/E/R/A/S/D/F</strong> losowo — szybko wcisnąć. <strong>Wygrana (>75% pkt)</strong> buduje awans w drabince <em>9 rang: Brąz → Srebro → Złoto → Platyna → Diament → Mistrz → Arcymistrz → Pretendent → Legenda</em>. Im wyższa ranga, tym więcej wygranych trzeba na kolejny awans${GAMER_RANKS.indexOf(car.rank)>=0?` (teraz ${(car.rankWins||0)}/${GAMER_RANK_WINS_REQ[GAMER_RANKS.indexOf(car.rank)]||'—'})`:''}. <strong>Po co?</strong> Ranga to główny mnożnik nagród w 🏆 Turniejach — a dodatkowo im większa Twoja sława, tym więcej płaci turniej. Duże wypłaty są dla znanych graczy z wysoką rangą.</p><div class="cost">Energia: -10 · Nagroda: +30 XP (wygrana) / +12 XP · <span style="color:#aac">raz dziennie</span></div>${(G._rankedToday&&G._rankedToday.day===G.day)?'<div style="color:#e8a020;font-size:11px;margin:2px 0 6px;font-weight:700">✓ Zagrane dziś — wróć jutro po kolejny mecz rankingowy.</div>':''}<button class="dbtn" ${(G._rankedToday&&G._rankedToday.day===G.day)||G.energy<10?'disabled':''} onclick="playRanked()">Zagraj rankingowy</button></div>
     </div>
     <div class="res" id="game-res">Wybierz akcję.</div>
     <button class="cbtn" onclick="closeOverlay()">← Wróć</button>
@@ -34560,6 +34560,9 @@ function startTournamentMG(ri,fee){
       ctx.fillText(`Odpadasz w ${STAGES[stage]}`,W/2,H/2-15);
       ctx.fillStyle='#aaa';ctx.font='16px "Segoe UI"';ctx.fillText(`Wynik: ${score}pkt · Trenuj dalej!`,W/2,H/2+15);ctx.textAlign='left';
     }
+    /* v2.3.114 (user): po zakończeniu ukryj przycisk „Porzuć (utrata wpisowego)" (bez sensu na ekranie wyniku) + info o limicie. */
+    try{ document.querySelectorAll('#mg-job-content button').forEach(b=>{ b.style.display='none'; }); }catch(_){}
+    ctx.fillStyle='#8aacc8';ctx.font='14px "Segoe UI"';ctx.textAlign='center';ctx.fillText('🏆 Turniej raz dziennie — wróć jutro po kolejny.',W/2,H/2+55);ctx.textAlign='left';
     closeJobPanelAfter(3200);
   }
   window._jobMgCleanup=()=>{over=true;cancelAnimationFrame(raf);document.removeEventListener('keydown',kh);if(keyTimeout)clearTimeout(keyTimeout);panel.classList.remove('on');panel.style.display='none';document.getElementById('mg-job-content').innerHTML='';};
@@ -35104,6 +35107,9 @@ function startRankedGameMG(){
     ctx.font='bold 28px "Segoe UI"';ctx.fillStyle=win?'#27ae60':'#e74c3c';ctx.textAlign='center';
     ctx.fillText(win?(_advanced?`🏆 AWANS! Nowa ranga: ${G.careers.gamer.rank}`:(_progTxt?`🏆 Wygrana! (${_progTxt})`:`🏆 Wygrana!`)):`📊 Wynik: ${score}pkt (${ROUNDS} rund)`,W/2,H/2-15);
     ctx.fillStyle='#aaa';ctx.font='18px "Segoe UI"';ctx.fillText(`Max seria: ${maxStreak}x`,W/2,H/2+20);ctx.textAlign='left';
+    /* v2.3.114 (user): ukryj „Porzuć" na ekranie wyniku + info o limicie raz dziennie. */
+    try{ document.querySelectorAll('#mg-job-content button').forEach(b=>{ b.style.display='none'; }); }catch(_){}
+    ctx.fillStyle='#8aacc8';ctx.font='14px "Segoe UI"';ctx.textAlign='center';ctx.fillText('📈 Rankingową grasz raz dziennie — wróć jutro.',W/2,H/2+52);ctx.textAlign='left';
     closeJobPanelAfter(2800);
     setTimeout(()=>{if(panel.classList.contains('on'))return;openCareerOverlay('gamer');},2900);
   }
@@ -64893,6 +64899,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'🏄 Naprawione: aktywność surfingu na Marina Coast nie zawiesza już ekranu, jeśli w jej trakcie przejdziesz w inne miejsce — sesja po prostu się kończy, zamiast pisać w nieistniejące okno.'},
   {t:'fix',d:'🕐 Naprawione: zegar pokazywał czasem popsutą godzinę z długim ułamkiem (np. „21:15.012800000012809"). Teraz minuty są zawsze zaokrąglone do pełnej wartości — czysto „21:15".'},
   {t:'fix',d:'🎤 Freestyle na ulicy: piątek ma teraz najlepsze pory tak jak sobota — zainteresowanie publiczności jest optymalne aż do 2:30 w nocy (piątkowa impreza trwa w najlepsze do wczesnych godzin). Wcześniej piątkowe okno kończyło się o 22:00.'},
+  {t:'fix',d:'🎮 Poprawki w Gamingu: po zakończonym turnieju i meczu rankingowym zniknął mylący przycisk „Porzuć (utrata wpisowego)" — na ekranie wyniku nie było już czego porzucać. Karty Turnieju i Rankingowej pokazują teraz wprost „raz dziennie", a po rozegraniu na dziś przycisk jest wyszarzony z informacją „✓ Zagrane dziś — wróć jutro" (zamiast po prostu nie reagować na kliknięcie).'},
  ]
  },
  {
