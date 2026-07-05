@@ -21283,10 +21283,10 @@ window._newpdfEnsure=function(){
   if(!G._fanRel||typeof G._fanRel!=='object') G._fanRel={};
   { const r=G._fanRel; [['hype',0],['streak',0],['ignored',0]].forEach(([k,d])=>{ if(typeof r[k]!=='number'||!isFinite(r[k])) r[k]=d; }); r.hype=Math.max(0,r.hype); }
   /* Ścieżki turniejowe. tournamentState: none|invited|accepted|postponed|declined|ignored|completed */
-  const _mkDisc=(rankDef)=>({unlocked:false,parkRunsCompleted:0,goodParkRuns:0,tournamentInviteReceived:false,tournamentState:'none',tournamentReminderAvailable:false,firstTournamentCompleted:false,lastTournamentDay:null,inviteDay:0,rank:rankDef,rankPoints:0,organizerRelation:0,lastBaseScore:0,lastFinalScore:0});
+  const _mkDisc=(rankDef)=>({unlocked:false,parkRunsCompleted:0,goodParkRuns:0,tournamentInviteReceived:false,tournamentState:'none',tournamentReminderAvailable:false,firstTournamentCompleted:false,lastTournamentDay:null,inviteDay:0,rank:rankDef,rankPoints:0,organizerRelation:0,lastBaseScore:0,lastFinalScore:0,lastRankedDay:-1,goodRunsAtLastTour:0});
   const _fixDisc=(d,rankDef)=>{
     if(!d||typeof d!=='object') return _mkDisc(rankDef);
-    [['parkRunsCompleted',0],['goodParkRuns',0],['rankPoints',0],['organizerRelation',0],['inviteDay',0],['lastBaseScore',0],['lastFinalScore',0]].forEach(([k,v])=>{ if(typeof d[k]!=='number'||!isFinite(d[k])) d[k]=v; }); /* v2.3.108 PDF#12 §12: telemetria wyniku */
+    [['parkRunsCompleted',0],['goodParkRuns',0],['rankPoints',0],['organizerRelation',0],['inviteDay',0],['lastBaseScore',0],['lastFinalScore',0],['lastRankedDay',-1],['goodRunsAtLastTour',0]].forEach(([k,v])=>{ if(typeof d[k]!=='number'||!isFinite(d[k])) d[k]=v; }); /* v2.3.108 PDF#12 §12: telemetria wyniku; v2.3.113: lastRankedDay (daily ranked) */
     ['unlocked','tournamentInviteReceived','tournamentReminderAvailable','firstTournamentCompleted'].forEach(k=>{ if(typeof d[k]!=='boolean') d[k]=false; });
     if(typeof d.tournamentState!=='string') d.tournamentState='none';
     if(typeof d.rank!=='string') d.rank=rankDef;
@@ -58049,11 +58049,11 @@ window._DISC_CFG={
   breakdance:{ key:'breakdance', label:'Breakdance', unit:'występ', unitG:'występów', unitAdj:'dobry występ',
     orgId:'maya_voss', orgName:'Maya Voss', orgLabel:'Urban Flow Academy', event:'Underground Floor Battle',
     room:'urban_flow_academy_hall', rankStart:'Park Rookie',
-    ranks:['Park Rookie','Floor Rookie','Local Spinner','Battle Regular','Underground Dancer'],
+    ranks:['Park Rookie','Floor Rookie','Local Spinner','Battle Regular','Underground Dancer','City Breaker','Circuit Contender','Regional Headliner','Floor Legend'],
     txt:{
       invite:'Cześć! Widziałam kilka Twoich wejść w parku. Masz jeszcze sporo chaosu w ruchu, ale masz też timing, którego nie da się udawać. Organizujemy mały turniej Underground Floor Battle — początkujący poziom, lokalna sala, proste zasady i nagrody za podium. Jeśli chcesz sprawdzić, czy to był tylko parkowy fart, odpisz.',
       accept:'Dobrze. Sala Urban Flow Academy, wejście od tyłu budynku. Turniej trwa jedną rundę kwalifikacyjną i finałową ocenę punktową. Przyjdź wyspany i przygotowany — na sali sesje będą znacznie dłuższe niż w parku.',
-      rules:'Jedna minuta na parkiecie. Dłuższe sekwencje niż w parku, mniej czasu na reakcję i punkty za combosy. Podium: 3. miejsce 500 zł, 2. miejsce 1000 zł, 1. miejsce 2500 zł. Bezbłędne wejście podbija nagrodę do 5000 zł.',
+      rules:'Jedna minuta na parkiecie. Dłuższe sekwencje niż w parku, mniej czasu na reakcję i punkty za combosy. Nagrody za podium rosną wraz z Twoją rozpoznawalnością i rangą w scenie — na początku to drobne kwoty, ale gdy staniesz się znany i wbijesz wyższe rangi, stawki mocno rosną (bezbłędne 1. miejsce na szczycie to nawet kilka tysięcy). Rankingowa raz dziennie.',
       postpone:'Rozsądnie. Nie każdy musi wskakiwać na parkiet od razu. Napisz, kiedy będziesz gotowy — tylko pamiętaj, że turnieje nie czekają wiecznie.',
       decline:'Jasne. Parkiet nie znika. Jeśli zmienisz zdanie, wróć do treningów w parku. Numer masz.',
       reminder:'Hej. Wciąż masz otwarte miejsce na Underground Floor Battle. Nie będę Cię ciągnąć za rękę, ale jeśli chcesz wejść na salę, to teraz jest dobry moment.',
@@ -58062,11 +58062,11 @@ window._DISC_CFG={
   skate:{ key:'skate', label:'Skateboarding', unit:'przejazd', unitG:'przejazdów', unitAdj:'dobry przejazd',
     orgId:'jade_mercer', orgName:'Jade Mercer', orgLabel:'Concrete Pulse Skate Club', event:'Concrete Line Jam',
     room:'concrete_pulse_indoor_spot', rankStart:'Park Pusher',
-    ranks:['Park Pusher','Line Rookie','Rail Finder','Concrete Regular','Spot Killer'],
+    ranks:['Park Pusher','Line Rookie','Rail Finder','Concrete Regular','Spot Killer','Street Veteran','Circuit Rider','Regional Pro','Concrete Legend'],
     txt:{
       invite:'Cześć. Widziałam kilka Twoich przejazdów w parku. Masz jeszcze trochę do poprawy przy lądowaniach, ale za to masz timing i odwagę wejścia. Robimy lokalny contest Concrete Line Jam — początkujący poziom, zamknięty spot, proste zasady i nagrody za podium. Jeśli chcesz się przekonać, czy parkowe tricki działają pod presją, odezwij się.',
       accept:'Dobrze. Concrete Pulse Indoor Spot, wejście od bocznej rampy. Contest trwa jedną rundę punktowaną. Masz minutę na line, tricki i combosy. Przyjdź wyspany i skupiony — jeden źle wbity input potrafi zniweczyć cały przejazd.',
-      rules:'Jedna minuta na spocie. Dłuższa sesja i kombinacje niż w parku, mniej czasu na reakcję i mocne punkty za combosy. Podium: 3. miejsce 500 zł, 2. miejsce 1000 zł, 1. miejsce 2500 zł. Bezbłędny przejazd podbija nagrodę do 5000 zł.',
+      rules:'Jedna minuta na spocie. Dłuższa sesja i kombinacje niż w parku, mniej czasu na reakcję i mocne punkty za combosy. Nagrody za podium rosną wraz z Twoją rozpoznawalnością i rangą — na starcie skromne, ale przy dużej sławie i wysokiej randze stawki są dużo większe (bezbłędne 1. miejsce na szczycie to nawet kilka tysięcy). Rankingowa raz dziennie.',
       postpone:'Rozsądnie. Na desce ego kończy się szybciej niż cały przejazd. Napisz, kiedy będziesz gotowy — miejsce nie będzie czekać wiecznie.',
       decline:'Jasne. Spot nie znika. Jeśli zmienisz zdanie, wróć do przejazdów w parku. Pozdrawiam.',
       reminder:'Wciąż masz otwarte miejsce na Concrete Line Jam. Nie będę Cię ściągać z ławki, ale jeśli chcesz wejść na spot, to teraz jest na to idealny moment.',
@@ -58079,7 +58079,8 @@ window._disciplineTournamentAvailable=function(discKey){
   if(typeof _newpdfEnsure==='function') _newpdfEnsure();
   const d=G[discKey]; if(!d) return false;
   if(d.tournamentState==='accepted') return true;
-  if(d.firstTournamentCompleted && ((G.day||0)-(d.lastTournamentDay||0))>=7) return true;
+  /* v2.3.113 (user 2026-07-05: „raz dziennie rankingowa"): po 1. turnieju rankingowa dostępna RAZ NA DOBĘ. */
+  if(d.firstTournamentCompleted && d.lastRankedDay!==(G.day||0)) return true;
   return false;
 };
 /* Wejście do walkable-areny (changeRoom). */
@@ -58092,9 +58093,9 @@ window._enterTournamentArena=function(discKey){
 window._tourReentryOk=function(discKey){
   const d=G[discKey], cfg=window._DISC_CFG[discKey]; if(!d||!cfg) return true;
   if(!d.firstTournamentCompleted) return true;
-  const _need=3, _since=(d.goodParkRuns||0)-(d.goodRunsAtLastTour||0);
-  if(_since<_need){
-    if(typeof showMsg==='function') showMsg(`🏆 Aby ponownie wystartować w ${cfg.event}, zalicz jeszcze ${_need-_since} ${cfg.unitG} z wynikiem 450+ w parku (masz ${Math.max(0,_since)}/${_need} od ostatniego turnieju).`,'r',6000);
+  /* v2.3.113 (user 2026-07-05): rankingowa raz na dobę (zamiast 3 dobrych występów w parku). */
+  if(d.lastRankedDay===(G.day||0)){
+    if(typeof showMsg==='function') showMsg(`🏆 W rankingowej ${cfg.event} startujesz raz dziennie. Wróć jutro — trening w parku działa bez limitu.`,'r',6000);
     return false;
   }
   return true;
@@ -58222,20 +58223,39 @@ window._DISC_MOVES={
 };
 window._tourComboMult=function(c){ return c>=15?1.6:c>=10?1.4:c>=6?1.25:c>=3?1.1:1.0; };
 window._tourDifficulty=function(elapsed){ if(elapsed<15) return 'easy_medium'; if(elapsed<35) return 'medium'; if(elapsed<50) return 'hard'; return 'final'; };
-window._tourTier=function(discKey){ const d=G[discKey]; const rp=(d&&d.rankPoints)||0; return rp>=24?3:rp>=8?2:1; };
-window._tourNpcScore=function(tier){ const R=(a,b)=>a+Math.floor(Math.random()*(b-a+1)); if(tier>=3) return R(2500,4500); if(tier===2) return R(1600,3200); return R(900,2200); };
+/* v2.3.113 (user 2026-07-05): progresywne progi rang — im wyżej, tym trudniej wbić (rosnące luki). 9 rang (indeks 0-8). */
+window._TOUR_RANK_THRESHOLDS=[0,8,20,36,58,86,122,168,226];
+window._tourRankIndex=function(discKey){ const d=G[discKey]; const rp=(d&&d.rankPoints)||0; let idx=0; for(let i=0;i<window._TOUR_RANK_THRESHOLDS.length;i++){ if(rp>=window._TOUR_RANK_THRESHOLDS[i]) idx=i; } return idx; };
+window._tourPointsToNextRank=function(discKey){ const d=G[discKey]; const rp=(d&&d.rankPoints)||0; const T=window._TOUR_RANK_THRESHOLDS; for(let i=0;i<T.length;i++){ if(rp<T[i]) return T[i]-rp; } return 0; };
+/* tier trudności NPC skaluje z RANGĄ (user: „ranga faktycznie wpływa na turniej; im wyżej, tym trudniej"). */
+window._tourTier=function(discKey){ const ri=window._tourRankIndex(discKey); return ri>=6?4:ri>=4?3:ri>=2?2:1; };
+window._tourNpcScore=function(tier){ const R=(a,b)=>a+Math.floor(Math.random()*(b-a+1)); if(tier>=4) return R(3400,6000); if(tier>=3) return R(2500,4500); if(tier===2) return R(1600,3200); return R(900,2200); };
 window._tourNpcNames=function(discKey){ return discKey==='skate'?['Mila „Grip” Carter','Oskar „Rail” Nowak','Eli „Kick” Rhodes','Nadia „Deck” Grey']:['Lena „Switch” Morel','Igor „Kicks” Vane','Tomek „Slide” Rogal','Nadia „Spin” Grey']; };
 window._tourPlacement=function(playerScore,npcScores){ const all=npcScores.slice().concat([{name:'__player__',score:playerScore}]).sort((a,b)=>b.score-a.score); const place=all.findIndex(x=>x.name==='__player__')+1; return {place, table:all}; };
-window._tourReward=function(place,perfect){ let m=0; if(place===1)m=2500; else if(place===2)m=1000; else if(place===3)m=500; if(place===1&&perfect) m=5000; return {money:m}; };
+/* v2.3.113 (user 2026-07-05): nagroda SKALUJE z popularnością (fame) ORAZ rangą. Obecne 2500/5000 = SUFIT przy bardzo dużej
+   rozpoznawalności + wysokiej randze; na starcie (mała sława, niska ranga) turniej daje ułamek tego. Gładko, monotonicznie (reguła #11). */
+window._tourReward=function(place,perfect,discKey){
+  let ceil=0; if(place===1)ceil=2500; else if(place===2)ceil=1000; else if(place===3)ceil=500; if(place===1&&perfect) ceil=5000;
+  if(ceil<=0) return {money:0};
+  const fame=(G.fame||0);
+  const fameFactor=0.12 + 0.88*Math.min(1, fame/350);            /* fame 0 → 0.12 ; fame 350+ → 1.0 */
+  const ri=(discKey&&typeof window._tourRankIndex==='function')?window._tourRankIndex(discKey):0;
+  const rankFactor=0.40 + Math.min(8,ri)*0.075;                  /* ranga 0 → 0.40 ; ranga 8 → 1.0 (wyższa ranga = więcej) */
+  const m=Math.round(ceil*fameFactor*rankFactor/10)*10;
+  return {money:m};
+};
 window._tourApplyResult=function(discKey,res){
   if(typeof _newpdfEnsure==='function') _newpdfEnsure();
   const d=G[discKey], cfg=window._DISC_CFG[discKey]; if(!d||!cfg) return;
   if(res.money>0){ if(typeof earn==='function') earn(res.money,false); else { G.money=(G.money||0)+res.money; G.totalEarned=(G.totalEarned||0)+res.money; } }
   d.firstTournamentCompleted=true; d.lastTournamentDay=G.day||0; d.tournamentState='completed';
-  d.goodRunsAtLastTour=d.goodParkRuns||0; /* v2.3.107 A4: baza bramki re-entry (3 kolejne dobre występy przed ponownym startem) */
-  d.rankPoints=(d.rankPoints||0)+Math.max(1,Math.floor((res.playerScore||0)/300));
-  const ri=Math.min(cfg.ranks.length-1, Math.floor((d.rankPoints||0)/8));
-  d.rank=cfg.ranks[ri];
+  d.lastRankedDay=G.day||0; /* v2.3.113: rankingowa raz na dobę */
+  d.goodRunsAtLastTour=d.goodParkRuns||0;
+  /* rankPoints — awans progresywny (wyższe rangi wymagają coraz więcej). Punkty z wyniku, +bonus za podium. */
+  d.rankPoints=(d.rankPoints||0)+Math.max(1,Math.floor((res.playerScore||0)/300)) + (res.place===1?3:res.place<=3?1:0);
+  const ri=Math.min(cfg.ranks.length-1, window._tourRankIndex(discKey));
+  const prevRank=d.rank; d.rank=cfg.ranks[ri];
+  if(d.rank!==prevRank && typeof showMsg==='function') showMsg(`🏆 Nowa ranga: ${d.rank}! Wyższa ranga = silniejsza stawka rywali, ale i większe nagrody.`,'g',6000);
   let fameG=0, repG=0, fansG=0;
   if(res.place===1){ fameG=3; repG=5; fansG=3+Math.floor(Math.random()*4); }
   else if(res.place<=3){ fameG=1; repG=3; fansG=1+Math.floor(Math.random()*2); }
@@ -58252,7 +58272,7 @@ window._tourFinish=function(discKey,playerScore,perfect,maxCombo,mistakes){
   const names=window._tourNpcNames(discKey);
   const npc=names.map(n=>({name:n,score:window._tourNpcScore(tier)}));
   const pl=window._tourPlacement(playerScore,npc);
-  const rw=window._tourReward(pl.place,perfect);
+  const rw=window._tourReward(pl.place,perfect,discKey);
   const res={playerScore:playerScore,place:pl.place,money:rw.money,perfect:!!perfect,maxCombo:maxCombo||0,mistakes:mistakes||0};
   window._tourApplyResult(discKey,res);
   if(typeof window._tourShowResults==='function') window._tourShowResults(discKey,res,pl);
@@ -64580,6 +64600,8 @@ const PATCH_NOTES = [
   {t:'fix',d:'🐈 Koty i małe zwierzaki są teraz spójnie pokazywane w całej grze — profil w telefonie ma właściwą ikonę i opisy „pupila" zamiast „psa", okno nadawania imienia dopasowuje się do gatunku, a odznaka „Wybawca" i bonus sławy należą się za każdą adopcję charytatywną (nie tylko bezdomnego psa). W profilu widać teraz też Twoje wartości: charytatywność (łagodzi kryzysy wizerunku), szacunek do siebie, odpowiedzialność i poczucie winy (psuje nastrój, gdy zaniedbujesz pupila).'},
   {t:'fix',d:'🐾 Twój dotychczasowy pupil (sprzed tej aktualizacji) jest zwolniony z nowego tygodniowego kosztu utrzymania i pojawia się na liście „Moje adopcje" — zgodnie z obietnicą, że zostaje bez zmian. Tresura minigrami dotyczy psów; koty i małe zwierzaki rozwijają się przez zabawę, kąpiel i wspólne chwile.'},
   {t:'fix',d:'💬 Poprawiliśmy kilka opisów w grze na bardziej zrozumiałe: porady menadżera i podpowiedzi mówią teraz wprost o „sławie" i o tym, że pupil zwiększa popularność Twoich postów (zamiast skrótowych, technicznych określeń).'},
+  {t:'fix',d:'🎬 Naprawione: w nowej grze przelot kamerą po mieście znów odpala się przy pierwszym wyjściu na ulicę — także jeśli pominąłeś poradnik.'},
+  {t:'new',d:'🏆 Turnieje breakdance i skate przebudowane! Nagrody rosną teraz razem z Twoją rozpoznawalnością i rangą w scenie — na starcie to skromne kwoty, a dawne wysokie stawki (nawet kilka tysięcy za bezbłędne 1. miejsce) są teraz nagrodą dla naprawdę znanych zawodników z wysoką rangą. Dodaliśmy więcej rang (9 na dyscyplinę), a każdą kolejną wbija się coraz trudniej i stawia przeciwko mocniejszym rywalom. W rankingowej startujesz raz dziennie (trening w parku dalej bez limitu).'},
   {t:'new',d:'✉️ FrameUp ma teraz Direct Message! Po pierwszym poście lub utworze odblokujesz skrzynkę wiadomości z podziałem na Główne, Prośby, Współprace, Artyści, Fani, Spam i Archiwum. To także początek nowej, dyskretnej ścieżki zarobku.'},
   {t:'new',d:'🎼 Nowa kariera: ghostwriting. Gdy masz już fanów i wydany utwór, artyści zaczną pisać do Ciebie z ofertami napisania tekstu za pieniądze — anonimowo. Każdą ofertę możesz zaakceptować, negocjować stawkę, poprosić o zaliczkę, zaproponować współautorstwo (z kredytem), odrzucić albo oznaczyć jako spam. Potem piszesz tekst w wybranym trybie (szybko / normalnie / z dopracowaniem), a jakość decyduje o wypłacie — słaby tekst grozi reklamacją. Uwaga: ghostwriting bywa ryzykowny — jeśli wyciek trafi do sieci, część fanów może poczuć się oszukana. Wszystkie zlecenia śledzisz w panelu „Ghostwriting — zlecenia".'},
   {t:'fix',d:'🟢 Zielone powiadomienia możesz teraz po prostu kliknąć, żeby zniknęły od razu — nie musisz czekać, aż same wygasną. Przydaje się, gdy zbiera się ich więcej naraz.'},
