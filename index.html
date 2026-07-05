@@ -79865,6 +79865,10 @@ function startGame(){
   G.fridgeItems=[];
   [['water',2],['energy_drink',1],['fruit',1],['meal',1]].forEach(([_fid,_q])=>{ const _f=FOOD_CATALOG.find(x=>x.id===_fid); if(_f) G.fridgeItems.push(_foodStampFresh({..._f,qty:_q})); }); /* N2: świeże od startu */
   G._fridgeTutorialGlow=true; G._fridgeIntroDone=false;
+  /* FIX (user 2026-07-05: „w nowej grze nie odpala mi się przelot kamerą po mieście"): przelot był ustawiany TYLKO na końcu poradnika,
+     więc pominięcie/inna ścieżka tutorialu = osierocony przelot. Teraz ustawiamy flagę na starcie nowej gry — odpali się przy PIERWSZYM
+     wyjściu na ulicę (changeRoom('ulica'), trigger L16809), niezależnie od poradnika. Guard _cinematicCompleted chroni przed powtórką. */
+  G._cinematicCompleted=false; G._pendingIntroFlythrough=true;
   // F+ v1.8.11: zawsze ukryj menu+creator + reset _paused
   document.getElementById('menu').style.display='none';
   document.getElementById('creator').style.display='none';
