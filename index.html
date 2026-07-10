@@ -3487,7 +3487,8 @@ const ROOMS = {
       {id:'zone_old_parking',       wx:1000,wy:1700,w:110,h:110, act:'ug_zone:old_parking',    prompt:'[E] 🅿️ Strefa: Stary Postój',  lbl:'Stary Postój'},
       {id:'zone_silent_channel',    wx:150, wy:1700,w:110,h:110, act:'ug_zone:silent_channel', prompt:'[E] 🌀 Strefa: Cichy Kanał',    lbl:'Cichy Kanał'},
       {id:'zone_rear_yard',         wx:1285,wy:1300,w:110,h:110, act:'ug_zone:rear_yard',       prompt:'[E] 🏭 Strefa: Tylny Plac',     lbl:'Tylny Plac'},
-      {id:'lab_underground',        wx:380, wy:950, w:120,h:120, act:'underground_lab',       prompt:'[E] 🧪 Laboratorium (lvl 10+)', lbl:'Lab'},
+      {id:'lab_underground',        wx:380, wy:950, w:170,h:150, act:'underground_lab',       prompt:'[E] 🏢 Powierzchnie produkcyjno-biurowe', lbl:'Powierzchnie'}, /* v2.3.115 (PDF Uspr): przemianowane z „Laboratorium (lvl 10+)", większy obiekt. Wnętrze = hala produkcyjna (ROOMS.lab), id/act bez zmian = save-safe. */
+      {id:'underground_office_info', wx:585, wy:1000, w:44, h:66, act:'underground_office_info', actRadius:72, prompt:'[E] ℹ️ Słupek informacyjny', lbl:''}, /* v2.3.115 (PDF Uspr): słupek info przy Powierzchniach — kieruje do Kariera→Trap→Załóż legalny front (bez wyjawiania nielegalności) */
       {id:'plantation_underground', wx:60,  wy:1470,w:120,h:120, act:'underground_plantation',prompt:'[E] 🌿 Plantacja (lvl 5+)',   lbl:'Plantacja'},/* v2.3.105 (user): → lewa dolna (droga szutrowa ma biec w x630) */
       /* v2.1.920 (PDF l.57 — nocna aktywność 18+): Nocny zaułek (prostytutki) — dyskretne miejsce w underground, gated za unlock dzielnicy + godziny 21-05 (PLACE_HOURS). Bottom-right, overlap-free vs venue. */
       {id:'prostytutki_underground',wx:1240,wy:810, w:140,h:130, act:'underground_prostytutki',prompt:'[E] 💋 Nocny zaułek (noc)',  lbl:'Zaułek'},/* v2.3.87 G1 (user „zaułek nic nie robi"): był wy:720 — zaciśnięty między plantacją(580) i dealerem(1080), getNear łapał sąsiada. Przesunięty w dół do 810 (gap 110px od plantacji, gracz wchodzi w lukę i łapie zaułek). x1240-1380,y810-940 wolne (map 960). */
@@ -4101,6 +4102,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'zone_silent_channel':     drawBackroomZoneMarker(sx,sy,w,h,'silent_channel');break;
     case 'zone_rear_yard':          drawBackroomZoneMarker(sx,sy,w,h,'rear_yard');break;
     case 'lab_underground':         drawLab(sx,sy,w,h);break;
+    case 'underground_office_info':  drawInfoPillar(sx,sy,w,h);break;/* v2.3.115 (PDF Uspr): słupek informacyjny */
     case 'plantation_underground':  drawPlantation(sx,sy,w,h);break;
     case 'gravellot_underground':   drawGravelLotHall(sx,sy,w,h);break; /* v2.3.102 (PDF #8-24): hala serwisowa/warsztatowa zamiast zwykłej fasady */
     /* v2.1.385 Faza C' Coast new map: tropical buildings */
@@ -10616,6 +10618,37 @@ function _drawUndergroundOutskirts(){
     else { /* weeds */ X.strokeStyle='#4a6a3a'; X.lineWidth=1.4; for(let k=-3;k<=3;k++){ X.beginPath(); X.moveTo(sx+k*3,sy); X.quadraticCurveTo(sx+k*3+k,sy-10,sx+k*4,sy-14); X.stroke(); } }
   }
 }
+/* v2.3.115 (PDF Uspr): słupek informacyjny przy „Powierzchniach produkcyjno-biurowych" (Underground). Rysowany jako słup + tabliczka ℹ️. */
+function drawInfoPillar(sx,sy,w,h){
+  const cx=sx+w/2;
+  /* cień */
+  X.fillStyle='rgba(0,0,0,.30)';X.beginPath();X.ellipse(cx,sy+h-2,w*0.5,5,0,0,Math.PI*2);X.fill();
+  /* słup */
+  X.fillStyle='#556170';X.fillRect(cx-4,sy+h*0.35,8,h*0.65);
+  X.fillStyle='#3d4652';X.fillRect(cx-4,sy+h*0.35,3,h*0.65);
+  /* tabliczka */
+  const bw=w, bh=h*0.42, bx=cx-bw/2, by=sy;
+  X.fillStyle='#12324a';if(X.roundRect){X.beginPath();X.roundRect(bx,by,bw,bh,5);X.fill();}else X.fillRect(bx,by,bw,bh);
+  X.strokeStyle='#5dade2';X.lineWidth=1.6;if(X.roundRect){X.beginPath();X.roundRect(bx+1,by+1,bw-2,bh-2,4);X.stroke();}else X.strokeRect(bx+1,by+1,bw-2,bh-2);
+  /* ℹ️ */
+  X.fillStyle='#cfe8ff';X.font=`bold ${Math.round(bh*0.6)}px "Segoe UI",Arial`;X.textAlign='center';X.textBaseline='middle';
+  X.fillText('ℹ',cx,by+bh/2+1);X.textAlign='left';X.textBaseline='alphabetic';
+}
+/* v2.3.115 (PDF Uspr): panel słupka informacyjnego — kieruje do rejestracji firmy, NIE wyjawia nielegalności. */
+window._renderOfficeInfoPillar=function(){
+  const panel=document.getElementById('mg-job'); if(!panel) return;
+  panel.classList.add('on'); panel.style.display='';
+  panel.innerHTML=`<div id="mg-job-content" style="max-width:470px;margin:0 auto">
+    <div style="text-align:center;font-size:18px;color:#5dade2;font-weight:800;margin-bottom:8px">ℹ️ Powierzchnie produkcyjno-biurowe</div>
+    <div style="background:#0e1622;border:1px solid #24405a;border-radius:8px;padding:14px;font-size:13px;color:#cdd;line-height:1.7">
+      <div>Ten obiekt oferuje przestrzeń produkcyjną i biurową na wynajem oraz zakup — z halą i zapleczem magazynowym.</div>
+      <div style="margin-top:8px">Prowadzisz działalność? Możesz tu <b style="color:#7ec8e3">zarejestrować własną firmę</b> i uporządkować papiery — legalny szyld dodaje wiarygodności i spokoju.</div>
+      <div style="margin-top:10px;color:#9ab">Warunki, formalności i zakup przestrzeni ogarniesz w telefonie:</div>
+      <div style="margin-top:4px;color:#f1c40f;font-weight:700;font-size:14px">📱 Kariera → Trap → Załóż legalny front</div>
+    </div>
+    <button class="cbtn" style="width:100%;margin-top:10px;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Wróć</button>
+  </div>`;
+};
 /* v2.3.108 PDF#10: znak strefy zaplecza (miejsce parkowania kampera) — dispatch z draw-switch obiektów mapy. */
 function drawBackroomZoneMarker(sx,sy,w,h,zoneId){
   const z=(typeof window._backroomZoneById==='function')?window._backroomZoneById(zoneId):null;
@@ -20508,9 +20541,11 @@ window._trapDealersDailyTick=function(){
   for(let i=G.trap.dealers.length-1;i>=0;i--){
     const d=G.trap.dealers[i];
     _dealerMemEnsure(d); /* v2.2.2 D5 — lazy init matrycy pamięci */
-    /* Wage payment */
-    if((G.money||0)<d.wage){
-      /* Can't pay → loyalty drops + risk leave */
+    /* v2.3.115 (PDF Uspr): tryb rozliczania — 'auto' (domyślny, kasa/wypłaty codziennie) lub 'manual' (akumuluj do przycisku „Rozlicz"). */
+    const _manual=(G.trap._dealerSettleMode==='manual');
+    /* Wage payment — auto: z kasy od razu (brak kasy = loyalty spada); manual: akumuluj do rozliczenia. */
+    if(!_manual && (G.money||0)<d.wage){
+      /* Can't pay (tryb auto) → loyalty drops + risk leave */
       d.loyalty=Math.max(0,d.loyalty-15);
       d.resentment=Math.min(100,(d.resentment||0)+10); d.trust=Math.max(0,(d.trust||0)-6); _dealerAddTag(d,'late_payment'); /* v2.2.2 D5: zaległa płatność = uraza */
       if(d.loyalty<=10){
@@ -20521,7 +20556,7 @@ window._trapDealersDailyTick=function(){
       if(typeof addNotif==='function') addNotif(`⚠ ${d.name}: brak wypłaty (-15 loyalty, teraz ${d.loyalty}).`);
       continue;
     }
-    G.money-=d.wage;
+    if(_manual){ d._pendingWage=(d._pendingWage||0)+d.wage; } else { G.money-=d.wage; }
     _totalWage+=d.wage;
     /* v2.1.941: relacja pogłębia się z konsekwentną wypłatą — +1 loyalty/cykl (czasem +2). Monotonicznie ku braterstwu. */
     d.loyalty=Math.min(100, d.loyalty + 1 + (Math.random()<0.25?1:0));
@@ -20577,8 +20612,8 @@ window._trapDealersDailyTick=function(){
       }
     }
     if(_sold>0){
-      G.money+=_earned;
-      if(typeof window._addDirty==='function') window._addDirty(_earned); /* v2.1.995 D1: utarg dealerów = brudna gotówka */
+      if(_manual){ d._pendingSales=(d._pendingSales||0)+_earned; /* v2.3.115: manual — kasa czeka na „Rozlicz" (brudna gotówka księgowana przy rozliczeniu) */ }
+      else { G.money+=_earned; if(typeof window._addDirty==='function') window._addDirty(_earned); } /* v2.1.995 D1: utarg dealerów = brudna gotówka */
       G.trap.sold=(G.trap.sold||0)+_sold;
       G.trap.heat=Math.min(100,(G.trap.heat||0)+_sold*2); /* +2 heat per sale */
       d.salesCount+=_sold;
@@ -20590,7 +20625,11 @@ window._trapDealersDailyTick=function(){
   }
   if(_totalSold>0||_totalWage>0){
     const _net=_totalEarned-_totalWage;
-    if(typeof addNotif==='function') addNotif(`💼 Dealerzy: ${_totalSold} sprzedaży · zarobek brutto ${_totalEarned} zł · wypłaty ${_totalWage} zł · NET ${_net>=0?'+':''}${_net} zł${_busts>0?` · ${_busts} bustów!`:''}`);
+    if(G.trap._dealerSettleMode==='manual'){
+      if(typeof addNotif==='function') addNotif(`💼 Dealerzy (manualnie): ${_totalSold} sprzedaży · naliczono sprzedaż ${_totalEarned} zł, wypłaty ${_totalWage} zł — odbierz kasę przyciskiem „Rozlicz" w panelu Trap${_busts>0?` · ${_busts} bustów!`:''}`);
+    } else {
+      if(typeof addNotif==='function') addNotif(`💼 Dealerzy: ${_totalSold} sprzedaży · zarobek brutto ${_totalEarned} zł · wypłaty ${_totalWage} zł · NET ${_net>=0?'+':''}${_net} zł${_busts>0?` · ${_busts} bustów!`:''}`);
+    }
   }
 };
 
@@ -20780,6 +20819,27 @@ window._workersDailyTick=function(){
 };
 
 /* Fire dealer manually */
+/* v2.3.115 (PDF Uspr): przełącz tryb rozliczania dealerów (auto ↔ manual). */
+window._trapToggleSettleMode=function(){
+  if(!G.trap) return;
+  G.trap._dealerSettleMode=(G.trap._dealerSettleMode==='manual')?'auto':'manual';
+  if(typeof showMsg==='function') showMsg(G.trap._dealerSettleMode==='manual'?'💼 Rozliczanie dealerów: MANUALNE — kasę ze sprzedaży odbierasz sam przyciskiem „Rozlicz", wypłaty naliczają się do rozliczenia.':'💼 Rozliczanie dealerów: AUTOMATYCZNE — kasa ze sprzedaży i wypłaty księgują się codziennie same.','i',6000);
+  if(typeof window._renderTrapStashInline==='function') window._renderTrapStashInline();
+};
+/* v2.3.115 (PDF Uspr): ręczne rozliczenie z dealerem — wypłać net (naliczona sprzedaż − naliczone wypłaty). */
+window._trapSettleDealer=function(idx){
+  if(!G.trap||!Array.isArray(G.trap.dealers)||!G.trap.dealers[idx]) return;
+  const d=G.trap.dealers[idx];
+  const _ps=Math.round(d._pendingSales||0), _pw=Math.round(d._pendingWage||0);
+  if(_ps<=0 && _pw<=0){ if(typeof showMsg==='function') showMsg(`💼 ${d.name}: nic do rozliczenia (brak naliczonej sprzedaży ani wypłat).`,'i',4500); return; }
+  const _net=_ps-_pw;
+  G.money=Math.max(0,(G.money||0)+_net);
+  if(_ps>0 && typeof window._addDirty==='function') window._addDirty(_ps); /* utarg = brudna gotówka (księgowana przy rozliczeniu) */
+  d._pendingSales=0; d._pendingWage=0;
+  if(typeof showMsg==='function') showMsg(`💼 Rozliczono ${d.name}: sprzedaż ${_ps.toLocaleString('pl')} zł − wypłaty ${_pw.toLocaleString('pl')} zł = ${_net>=0?'+':''}${_net.toLocaleString('pl')} zł.`,_net>=0?'g':'r',6500);
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof window._renderTrapStashInline==='function') window._renderTrapStashInline();
+};
 window._trapFireDealer=function(idx){
   if(!Array.isArray(G.trap.dealers)||!G.trap.dealers[idx]) return;
   const d=G.trap.dealers[idx];
@@ -45957,9 +46017,13 @@ window._enterDistrictPlace=(districtId,placeId)=>{
       return;
     case 'underground_lab':
       if(typeof closeOverlay==='function') closeOverlay();
-      if(!G.trap?.unlocked){showMsg('🧪 Laboratorium wymaga unlock Trap (Dealer Underground).','r',4500);return;}
-      if((G.trap?.level||1)<10){showMsg(`🧪 Laboratorium wymaga Trap Lvl 10+ (masz ${G.trap.level}).`,'r',5000);return;}
+      if(!G.trap?.unlocked){showMsg('🏢 Hala produkcyjna w Powierzchniach jest jeszcze zamknięta — najpierw rozwiń działalność (zacznij od Dealera w Underground). Więcej: słupek informacyjny obok.','r',5500);return;}
+      if((G.trap?.level||1)<10){showMsg(`🏢 Hala produkcyjna (Powierzchnie produkcyjno-biurowe) wymaga Trap Lvl 10+ (masz ${G.trap.level}).`,'r',5000);return;}
       if(typeof changeRoom==='function'){changeRoom('lab',480,400);return;}
+      return;
+    case 'underground_office_info':
+      if(typeof closeOverlay==='function') closeOverlay();
+      if(typeof window._renderOfficeInfoPillar==='function') window._renderOfficeInfoPillar();
       return;
     /* v2.1.482 Kamper/Lab station handlers — interakcje w środku. */
     case 'kamper_stash_view':
@@ -55203,12 +55267,17 @@ function renderPhoneApp(app){
         </div>
         <div style="background:#1a0a25;border-radius:6px;padding:10px;margin-bottom:10px">
           <div style="color:#bb8fce;font-weight:700;font-size:13px;margin-bottom:6px">👥 Dealerzy ${G.trap.dealers?.length||0}/${window._trapMaxDealers?window._trapMaxDealers():1}</div>
+          ${(G.trap.dealers||[]).length>0?`<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:10px;color:#aab">Rozliczanie: <button class="cbtn" style="padding:2px 8px;font-size:10px;color:${G.trap._dealerSettleMode==='manual'?'#f1c40f':'#27ae60'};border-color:#5a4a7a" onclick="window._trapToggleSettleMode()">${G.trap._dealerSettleMode==='manual'?'✋ Manualne':'⚙️ Automatyczne'}</button> <span style="color:#778">${G.trap._dealerSettleMode==='manual'?'(kasę odbierasz „Rozlicz")':'(codziennie samo)'}</span></div>`:''}
           ${(G.trap.dealers||[]).length>0?(G.trap.dealers||[]).map((d,i)=>`<div style="background:#0a0a14;padding:6px;border-radius:4px;margin-bottom:4px;font-size:11px">
             <div style="display:flex;justify-content:space-between;align-items:center">
               <strong>${d.emoji} ${d.name}</strong>
-              <button class="cbtn" style="padding:2px 6px;font-size:10px;color:#e74c3c;border-color:#7e2a2a" onclick="window._trapFireDealer(${i})">🚪 Zwolnij</button>
+              <span style="display:flex;gap:4px">
+                ${G.trap._dealerSettleMode==='manual'?`<button class="cbtn" style="padding:2px 6px;font-size:10px;color:#27ae60;border-color:#2a7e4a" onclick="window._trapSettleDealer(${i})">💰 Rozlicz</button>`:''}
+                <button class="cbtn" style="padding:2px 6px;font-size:10px;color:#e74c3c;border-color:#7e2a2a" onclick="window._trapFireDealer(${i})">🚪 Zwolnij</button>
+              </span>
             </div>
             <div style="color:#aab;font-size:10px;margin-top:2px">Wage ${d.wage}zł · Loyalty <strong style="color:${d.loyalty>=50?'#27ae60':d.loyalty>=20?'#f1c40f':'#e74c3c'}">${d.loyalty}</strong> · Sales ${d.salesCount} · Zarobił ${d.totalEarned}zł</div>
+            ${G.trap._dealerSettleMode==='manual'?`<div style="color:#f1c40f;font-size:10px;margin-top:2px">💼 Do rozliczenia: sprzedaż ${Math.round(d._pendingSales||0).toLocaleString('pl')} zł − wypłaty ${Math.round(d._pendingWage||0).toLocaleString('pl')} zł = <b style="color:${((d._pendingSales||0)-(d._pendingWage||0))>=0?'#27ae60':'#e74c3c'}">${(((d._pendingSales||0)-(d._pendingWage||0))>=0?'+':'')}${Math.round((d._pendingSales||0)-(d._pendingWage||0)).toLocaleString('pl')} zł</b></div>`:''}
             ${(()=>{const _t=window._dealerRelTier?window._dealerRelTier(d.loyalty):null;if(!_t)return '';const _next=_t.key==='neutral'?'do Dobrego znajomego przy 50 loyalty':_t.key==='friend'?'do Braterskiego sprzymierzeńca przy 80 loyalty':'maks. relacja — sprzedaż ×1.3, brak zdrad, +rep uliczna';return `<div style="font-size:10px;margin-top:1px"><span style="color:${_t.color};font-weight:700">${_t.emoji} ${_t.label}</span> <span style="color:#778">· ${_t.key==='brother'?_next:'awans '+_next}</span></div>`;})()}
             ${(()=>{ if(typeof _dealerMemEnsure!=='function')return ''; _dealerMemEnsure(d); const _res=Math.round(d.resentment||0); const _lev=Math.round(d.leverage||0); const _resC=_res>=55?'#e74c3c':_res>=30?'#f1c40f':'#27ae60'; const _tagMap={paid_on_time:'💸 płacisz na czas',late_payment:'⏰ zaległe wypłaty',high_heat_job:'🔥 robota w ogniu',ignored_warning:'🙉 ignorowane ostrzeżenia'}; const _lastTag=(d.memoryTags&&d.memoryTags.length)?d.memoryTags[d.memoryTags.length-1]:null; return `<div style="font-size:9px;color:#9ab;margin-top:1px">🤝 Zaufanie ${Math.round(d.trust||0)} · 🫡 Szacunek ${Math.round(d.respect||0)} · 😤 Uraza <b style="color:${_resC}">${_res}</b>${_lev>0?` · 🃏 Haki ${_lev}`:''}${_res>=55?' <span style="color:#e74c3c">⚠️ na granicy zdrady</span>':''}${_lastTag&&_tagMap[_lastTag]?` · „${_tagMap[_lastTag]}"`:''}</div>`;})()}
           </div>`).join(''):'<div style="font-size:11px;color:#aab;margin-bottom:4px">Brak. Najmij kogoś żeby auto-sprzedawał stash.</div>'}
@@ -65044,6 +65113,9 @@ const PATCH_NOTES = [
   {t:'balance',d:'🌬 Suszarnia działa teraz sensownie: powiesisz na sznurze do 15 mokrych topów na raz, a kolejną partię zawiesisz dopiero, gdy poprzednia wyschnie. Świeżo zebrane topy czekają osobno i nie mieszają się ze schnącą partią.'},
   {t:'fix',d:'🌬 Naprawiony błąd suszenia: jeśli zebrałeś nowe topy, zanim zdjąłeś wyschnięte, gra potrafiła policzyć suchy plon podwójnie. Teraz każda partia liczona jest osobno i uczciwie.'},
   {t:'feature',d:'📩 Dostaniesz teraz powiadomienie, gdy odblokujesz możliwość zatrudnienia kolejnego członka ekipy u Rydera — realizatora dźwięku, grafika, DJ-a czy junior managera.'},
+  {t:'feature',d:'🚦 System potrąceń działa teraz także w dzielnicach Underground i Business — jak w głównym mieście, przejeżdżające auto może Cię potrącić (tracisz kilka punktów zdrowia, dostajesz odrzut i przez chwilę chodzisz wolniej). Uważaj na jezdnię.'},
+  {t:'change',d:'🏢 W Underground dawne „Laboratorium" zastąpił większy obiekt „Powierzchnie produkcyjno-biurowe", a obok stanął słupek informacyjny — przy nim przeczytasz, gdzie w telefonie ogarniesz rejestrację działalności.'},
+  {t:'feature',d:'💼 Rozliczanie wynajętych dealerów: możesz teraz wybrać tryb automatyczny (kasa ze sprzedaży i wypłaty księgują się codziennie same, jak dotąd) albo manualny — wtedy sprzedaż i wypłaty naliczają się, a zysk odbierasz sam przyciskiem „Rozlicz" obok „Zwolnij". Na bieżąco widzisz, ile masz do odebrania.'},
  ]
  },
  {
@@ -81007,6 +81079,25 @@ function drawDistrictLife(){
   const roomW=((ROOMS[room]&&ROOMS[room].wT)||30)*T;
   for(const c of districtCars){
     c.x+=c.dx; if(c.x<-80) c.x=roomW+60; else if(c.x>roomW+80) c.x=-60;
+    /* v2.3.115 (PDF Uspr): system kolizyjny pojazdów TAKŻE w dzielnicach (Underground/Business) — auto potrąca GRACZA (utrata HP/odrzut/stun) analogicznie do głównego miasta; a gdy gracz JEDZIE, wjazd w auto niszczy jego pojazd. */
+    if(Math.abs(c.dx)>0.5){
+      const _caw=(c.body==='sports'?60:c.body==='suv'?56:c.body==='luxury'?58:52), _cah=28;
+      const _hit=(c.x < P.wx+P.w && c.x+_caw > P.wx && c.y < P.wy+P.h && c.y+_cah > P.wy);
+      if(_hit && !G._inCar && !G._inCamper){
+        const _now=Date.now();
+        if(_now-(G._lastCarHitT||0) >= 3000){
+          G._lastCarHitT=_now; G._stunUntilT=_now+3000; G._redFlashUntilT=_now+200;
+          const _dmg=3+Math.floor(Math.random()*6);
+          if(typeof clampStat==='function') G.health=clampStat('health',(G.health||100)-_dmg); else G.health=Math.max(0,(G.health||100)-_dmg);
+          const _push=(c.dx>0?75:-75); G._knockbackVel={x:_push,t:_now,duration:200};
+          P.wx=Math.max(0,Math.min((ROOMS[currentRoom]?.wT||100)*T-P.w, P.wx+_push*0.3));
+          if(typeof showMsg==='function') showMsg(`⚠️ Potrącenie! −${_dmg} HP, chodzisz wolniej przez 3s`,'r',3500);
+          if(typeof addNotif==='function') addNotif(`🚗 Auto Cię potrąciło! −${_dmg} HP`);
+        }
+      } else if(_hit && (G._inCar||G._inCamper) && typeof _carRoom==='function' && _carRoom(currentRoom) && (typeof window._vehEngineOn!=='function'||window._vehEngineOn(G._inCar?'car':'camper'))){
+        if(typeof window._vehHitNpcCar==='function') window._vehHitNpcCar(c);
+      }
+    }
     const sx=wx2sx(c.x), sy=wy2sy(c.y);
     if(sx<-90||sx>1370||sy<-60||sy>860) continue;
     X.save(); X.translate(sx,sy); if(c.dx<0) X.scale(-1,1);
