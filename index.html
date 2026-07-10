@@ -251,7 +251,7 @@ canvas{display:block;}
 .start-btn:hover{background:linear-gradient(145deg,#a8e8f8,#7ec8e3);transform:translateY(-2px);box-shadow:0 12px 32px rgba(126,200,227,.55),inset 0 1px 0 rgba(255,255,255,.35);}
 
 /* ── NPC DIALOGUE ── */
-#npc-dlg{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);min-width:500px;max-width:720px;background:linear-gradient(135deg,rgba(8,14,28,.97),rgba(12,18,34,.97));border:1.5px solid #3a5a7a;border-radius:12px;padding:18px 24px 16px 80px;z-index:40;display:none;box-shadow:0 8px 32px rgba(0,0,0,.55),0 0 24px rgba(126,200,227,.12);animation:npcDlgIn .25s ease-out;}
+#npc-dlg{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);min-width:500px;max-width:720px;background:linear-gradient(135deg,rgba(8,14,28,.97),rgba(12,18,34,.97));border:1.5px solid #3a5a7a;border-radius:12px;padding:18px 24px 16px 80px;z-index:60;display:none;box-shadow:0 8px 32px rgba(0,0,0,.55),0 0 24px rgba(126,200,227,.12);animation:npcDlgIn .25s ease-out;}/* v2.3.115 (PDF Uspr): z40→60 > #mg-job(56) — dialog NPC (m.in. Rysiek w Metal Valley + negocjacje) zawsze NAD panelem obiektu, nie pod nim */
 #npc-dlg.on{display:block;}
 #npc-dlg::before{content:'';position:absolute;top:14px;left:14px;width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,#1a2a3a,#0a1525);border:2px solid #7ec8e3;box-shadow:0 0 12px rgba(126,200,227,.35),inset 0 -2px 6px rgba(0,0,0,.4);}
 #npc-dlg::after{content:attr(data-emoji);position:absolute;top:18px;left:18px;width:46px;height:46px;display:flex;align-items:center;justify-content:center;font-size:30px;line-height:1;}
@@ -20043,14 +20043,19 @@ function _pcmgTool(x,T,tx,ty,held,st){
   x.restore();
 }
 
+/* v2.3.115 (PDF Uspr): nasiona max 20 szt./dzień — wspólny licznik dla „Szafki zaopatrzenia pracowników" i przycisku 🌱 Nasiono w uprawie (inaczej limit byłby do obejścia). */
+window._seedDailyRemaining=function(){ if(!G.grow) return 20; if(G.grow._seedDay!==G.day){ G.grow._seedDay=G.day; G.grow._seedBought=0; } return Math.max(0, 20-(G.grow._seedBought||0)); };
+window._seedDailyAdd=function(n){ if(!G.grow) return; if(G.grow._seedDay!==G.day){ G.grow._seedDay=G.day; G.grow._seedBought=0; } G.grow._seedBought=(G.grow._seedBought||0)+(n|0); };
 window._growBuy=function(item){
   /* item: 'seeds' | 'soil' | 'fert' (matches G.grow.inv field names). */
   const _priceMap={seeds:GROW_PRICES.seed, soil:GROW_PRICES.soil, fert:GROW_PRICES.fert};
   const _need=_priceMap[item];
   if(!_need){return;}
+  if(item==='seeds' && window._seedDailyRemaining()<=0){ showMsg('🚫 Dzienny limit zakupu nasion: 20 szt./dobę. Wróć jutro.','r',4500); return; }
   if((G.money||0)<_need){showMsg(`💸 Brak ${_need} zł.`,'r',3000);return;}
   G.money-=_need;
   G.grow.inv[item]=(G.grow.inv[item]||0)+1;
+  if(item==='seeds') window._seedDailyAdd(1);
   showMsg(`🛒 Kupiono +1 ${item==='seeds'?'nasionko':item==='soil'?'worek ziemi':'nawóz'} (${_need} zł).`,'g',2500);
   _growReopenUI();
 };
@@ -20641,6 +20646,12 @@ window._renderHireWorker=function(){
 /* v2.1.804 (user „pracownicy mają mieć magazyn/szafkę ze składnikami") — szafka zaopatrzenia: widoczne zapasy + zużycie + restock. Pracownicy ciągną ze wspólnego stashu (zachowuje łańcuch ogrodnik→chemik). */
 window._buyWorkerSupply=function(id, qty){
   qty=Math.max(1, qty|0); _growEnsure();
+  /* v2.3.115 (PDF Uspr): nasiona limit 20 szt./dzień (wspólny licznik z grow UI). */
+  if(id==='seeds'){
+    const _seedRem=window._seedDailyRemaining();
+    if(_seedRem<=0){ if(typeof showMsg==='function')showMsg('🚫 Dzienny limit zakupu nasion: 20 szt./dobę. Wróć jutro.','r',4800); return; }
+    if(qty>_seedRem){ qty=_seedRem; if(typeof showMsg==='function')showMsg(`⚠️ Dzienny limit nasion — bierzesz ${qty} (max 20/dobę).`,'i',3800); }
+  }
   /* U1 (v2.3.28, audyt E): szafka pracowników WSPÓŁDZIELI dzienny limit dealera (10/10/10/5) — inaczej omijała cap.
      Nasiona (grow) nie są składnikiem dealera → bez limitu. */
   if(id!=='seeds' && typeof _dealerRemaining==='function' && _DEALER_DAILY_LIMIT[id]){
@@ -20657,7 +20668,7 @@ window._buyWorkerSupply=function(id, qty){
   if((G.money||0)<cost){ if(typeof showMsg==='function')showMsg(`💸 Brak ${cost.toLocaleString('pl')} zł.`,'r',3000); return; }
   G.money-=cost;
   let _hg=0;
-  if(id==='seeds'){ G.grow.inv.seeds=(G.grow.inv.seeds||0)+qty; }
+  if(id==='seeds'){ G.grow.inv.seeds=(G.grow.inv.seeds||0)+qty; window._seedDailyAdd(qty); }
   else { G.trapInv=G.trapInv||{traw:0,krysztal:0,prosz:0,products:{}}; G.trapInv[id]=(G.trapInv[id]||0)+qty; _hg=window._precursorBuyHeat(id,qty); /* v2.1.981: heat od prekursorów */ if(typeof _dealerLimEnsure==='function'&&_DEALER_DAILY_LIMIT[id]){ _dealerLimEnsure(); G.trap._dealerBought[id]=(G.trap._dealerBought[id]||0)+qty; } } /* U1 audyt E: dolicz do wspólnego limitu */
   if(typeof showMsg==='function')showMsg(`🗄 Dokupiono ${qty}× zaopatrzenia dla pracowników (-${cost.toLocaleString('pl')} zł).${_hg>0?` ⚠️ +${_hg} heat.`:''}`,'g',3000);
   if(typeof saveGameSilent==='function')saveGameSilent();
@@ -22759,15 +22770,33 @@ const IG_LIVE_FILLER=['🔥🔥🔥','+1','wow','😍','dosadnie','to ja','need'
 window._igStartLiveView=function(){
   const _post=G.igPosts?.[G.igPosts.length-1];
   if(!_post){if(typeof renderPhoneApp==='function') renderPhoneApp('instagram');return;}
+  /* v2.3.115 (PDF Uspr): FrameUp LIVE — max 3 transmisje/dzień + cooldown 4h między nimi; 1. sesja najatrakcyjniejsza (najwięcej polubień/komentarzy), kolejne słabsze. */
+  if(G._igLiveDay!==G.day){G._igLiveDay=G.day;G._igLiveToday=0;}
+  if((G._igLiveToday||0)>=3){
+    if(typeof showMsg==='function') showMsg('🔴 Dziś zrobiłeś już 3 transmisje LIVE — kolejna nie doda zasięgu. Wróć jutro.','r',5000);
+    if(typeof renderPhoneApp==='function') renderPhoneApp('instagram'); return;
+  }
+  if((G._igLiveToday||0)>=1){
+    const _nowMin=(G.day*1440)+(typeof gameMin!=='undefined'?gameMin:0);
+    const _sinceLive=_nowMin-(G._lastIgLiveStamp||0);
+    if(_sinceLive<240){
+      const _leftH=Math.max(1,Math.ceil((240-_sinceLive)/60));
+      if(typeof showMsg==='function') showMsg(`🔴 Kolejną transmisję LIVE zrobisz po przerwie — poczekaj jeszcze ~${_leftH} h.`,'i',5500);
+      if(typeof renderPhoneApp==='function') renderPhoneApp('instagram'); return;
+    }
+  }
+  G._igLiveToday=(G._igLiveToday||0)+1;
+  G._lastIgLiveStamp=(G.day*1440)+(typeof gameMin!=='undefined'?gameMin:0);
+  const _sessMult=G._igLiveToday<=1?1:(G._igLiveToday===2?0.6:0.35); /* 1. sesja pełna, 2. -40%, 3. -65% zasięgu */
   const bg=IG_BACKGROUNDS[_post.bgKey]||IG_BACKGROUNDS.traphouse;
   const _bgComments=IG_LIVE_COMMENTS_BY_BG[_post.bgKey]||IG_LIVE_COMMENTS_BY_BG.traphouse;
   /* Combined pool */
   const _allComments=[..._bgComments, ...IG_LIVE_FILLER];
   /* Calculate session params based on post potential */
-  const _targetLikes=_post.maxLikes||100;
+  const _targetLikes=Math.max(5,Math.round((_post.maxLikes||100)*_sessMult));
   const _sessionMs=15000; /* 15s */
   const _tickMs=300;
-  G._igLiveState={post:_post, likes:0, targetLikes:_targetLikes, comments:[], startTime:Date.now(), endTime:Date.now()+_sessionMs};
+  G._igLiveState={post:_post, likes:0, targetLikes:_targetLikes, comments:[], commentMult:_sessMult, startTime:Date.now(), endTime:Date.now()+_sessionMs};
 
   const _mg=document.getElementById('mg-job');const _mc=document.getElementById('mg-job-content');
   if(!_mg||!_mc) return;
@@ -22808,8 +22837,8 @@ window._igStartLiveView=function(){
     st.likes=_curLikes;
     const _likesEl=document.getElementById('ig-live-likes');
     if(_likesEl) _likesEl.textContent=`❤ ${_curLikes.toLocaleString('pl')}`;
-    /* Spawn comment every 2 ticks (~600ms) */
-    if(Math.random()<0.5){
+    /* Spawn comment every 2 ticks (~600ms) — v2.3.115 (PDF Uspr): późniejsze sesje dnia = mniej komentarzy (commentMult). */
+    if(Math.random()<0.5*(st.commentMult||1)){
       const _npc=IG_LIVE_NPCS[Math.floor(Math.random()*IG_LIVE_NPCS.length)];
       const _txt=_allComments[Math.floor(Math.random()*_allComments.length)];
       const _container=document.getElementById('ig-live-comments');
@@ -34535,6 +34564,8 @@ function startTournamentMG(ri,fee){
   function finishTournament(won){
     document.removeEventListener('keydown',kh);if(keyTimeout)clearTimeout(keyTimeout);
     G.energy=clampStat('energy', G.energy-25);
+    /* v2.3.115 (PDF Uspr): system streaks turniejowych (zastępuje usunięte jednorazowe +6000 za 1. turniej). Liczy się rozegrane turnieje (win LUB lose). */
+    if(typeof window._gamerTourStreakAward==='function') window._gamerTourStreakAward();
     if(won){
       /* v2.3.114 (user 2026-07-05): REBALANS — nagroda bramkowana PROGRESJĄ, nie skillem. Wcześniej
          fee*4*(ri+2)+score+fame*10 ×getKarieraBonus dawało 6-7k już wcześnie (skill w drzewku mnożył słabo
@@ -34576,8 +34607,35 @@ function startTournamentMG(ri,fee){
   window._jobMgCleanup=()=>{over=true;cancelAnimationFrame(raf);document.removeEventListener('keydown',kh);if(keyTimeout)clearTimeout(keyTimeout);panel.classList.remove('on');panel.style.display='none';document.getElementById('mg-job-content').innerHTML='';};
   nextRound();
 }
+/* v2.3.115 (PDF Uspr): system streaks turniejowych — +5 tyś. co 10 rozegranych turniejów (licznik nie zeruje, liczy modulo), +10 tyś. za 50 ogółem, +20 tyś. za 100 ogółem. Zastępuje usunięte jednorazowe +6000 za pierwszy turniej. Zwraca wypłacony bonus (testowalne). */
+window._gamerTourStreakAward=function(){
+  try{
+    if(!G.careers||!G.careers.gamer) return 0;
+    G.careers.gamer.tourPlayed=(G.careers.gamer.tourPlayed||0)+1;
+    const _tp=G.careers.gamer.tourPlayed; let _sb=0, _sm='';
+    if(_tp%10===0){ _sb+=5000; _sm=`🔥 Seria ${_tp} rozegranych turniejów — bonus za regularność`; }
+    if(_tp===50){ _sb+=10000; _sm=`🏅 50 rozegranych turniejów — bonus lojalnościowy`; }
+    if(_tp===100){ _sb+=20000; _sm=`👑 100 rozegranych turniejów — legendarny bonus`; }
+    if(_sb>0){ const _sp=(typeof earn==='function')?earn(_sb,false,'gamer'):((G.money=(G.money||0)+_sb),_sb); if(typeof notify==='function') notify(`${_sm}: +${(_sp||_sb).toLocaleString('pl')} zł`); return _sp||_sb; }
+    return 0;
+  }catch(_){ return 0; }
+};
 function startStream(){
   if(G.energy<15){showMsg('⚠️ Za mało energii (potrzeba 15).','r');return;}
+  /* v2.3.115 (PDF Uspr): streaming PC — max 2 sesje/dzień, druga dopiero po cooldownie 4h. */
+  if(G._streamCountDay===G.day && (G._streamsToday||0)>=2){
+    showMsg('📡 Dziś odbyłeś już 2 streamy — publiczność potrzebuje przerwy. Wróć jutro po kolejny.','r',5000);
+    return;
+  }
+  if(G._streamCountDay===G.day && (G._streamsToday||0)>=1){
+    const _now=(G.day*1440)+(typeof gameMin!=='undefined'?gameMin:0);
+    const _since=_now-(G._lastStreamStamp||0);
+    if(_since<240){
+      const _left=Math.max(1,Math.ceil((240-_since)/60));
+      showMsg(`📡 Drugi stream tego dnia dopiero po przerwie — poczekaj jeszcze ~${_left} h (widzowie muszą odpocząć). Druga sesja ma też o 30% słabszy zasięg.`,'i',6000);
+      return;
+    }
+  }
   closeOverlay();
   startStreamMG();
 }
@@ -34911,7 +34969,8 @@ function startStreamMG(){
     // v1.9.10: dzienny cap streamów — 2. stream tego samego dnia daje 50% wypłaty (anti-spam exploit)
     if(G._streamCountDay!==G.day){G._streamCountDay=G.day;G._streamsToday=0;}
     G._streamsToday=(G._streamsToday||0)+1;
-    const _dailyMult=G._streamsToday>=2?0.5:1;
+    G._lastStreamStamp=(G.day*1440)+(typeof gameMin!=='undefined'?gameMin:0); /* v2.3.115 (PDF Uspr): znacznik dla cooldownu 4h przed 2. streamem */
+    const _dailyMult=G._streamsToday>=2?0.7:1; /* v2.3.115 (PDF Uspr): 2. stream tego dnia -30% (było -50%) */
     // Final earnings
     /* v2.1.117: Wave 7 W72 — używaj getKarieraBonus zamiast hardcoded skill (PU/Evo aplikują się symmetrycznie z turniejem). */
     const skillMult=typeof getKarieraBonus==='function'?getKarieraBonus('gamer'):1+skillGamer*0.15;
@@ -40975,6 +41034,7 @@ window._novaCuraInterview=function(discreet){ if(typeof _5pdfEnsure==='function'
     {label:'💬 Szczerze — przesadziłem ostatnio i zaczyna mi się to udzielać', fn:()=>{ n.medicalTrust=(n.medicalTrust||0)+2; n.therapyProgress=(n.therapyProgress||0)+1; n.diagnosisAccuracy=100; window._novaLog('Konsultacja lekarska','wywiad — szczery'); if(typeof notify==='function')notify('🩺 Dr Ilya Renn: „Dziękuję za szczerość — pozwala precyzyjniej dobrać postępowanie. Skupimy się na stabilizacji Pana stanu."'); window._novaShowDiagnosis(); }},
     {label:'🙊 Unikam szczegółów — chcę tylko wrócić do siebie', fn:()=>{ n.medicalTrust=Math.max(0,(n.medicalTrust||0)-1); n.diagnosisAccuracy=Math.max(40,(n.diagnosisAccuracy||100)-15); window._novaLog('Konsultacja lekarska','wywiad — zdawkowy'); if(typeof notify==='function')notify('🩺 Dr Elena Voss: „Rozumiem, ale ograniczony zakres informacji obniża dokładność diagnozy i skuteczność leczenia."'); window._novaShowDiagnosis(); }},
     {label:'😤 Ogarnijcie mnie i nie zadawajcie zbędnych pytań', fn:()=>{ n.medicalTrust=Math.max(0,(n.medicalTrust||0)-2); n.tension=Math.min(100,(n.tension||0)+5); if(!discreet) n.hospitalRiskFlag=(n.hospitalRiskFlag||0)+1; window._novaLog('Konsultacja lekarska','wywiad — odmowa współpracy'); if(typeof notify==='function')notify('🩺 Dr Elena Voss: „Bez podstawowej współpracy zakres leczenia będzie ograniczony do minimum medycznego."'); window._novaShowDiagnosis(); }},
+    {label:'🚪 Wyjdź', fn:()=>{ renderHospital(); }},/* v2.3.115 (PDF Uspr): opcja opuszczenia okna wywiadu lekarskiego */
   ]);
 };
 /* v2.3.113 (PDF new/Nova Cura §12): triage Nurse Kai — 4 pytania na wejściu. Odpowiedzi wpływają na medicalTrust/hospitalRiskFlag/diagnosisAccuracy.
@@ -40998,12 +41058,14 @@ window._novaTriage=function(){
     {label:'💬 Mogę powiedzieć ogólnie', fn:()=>{ n.diagnosisAccuracy=Math.max(60,(n.diagnosisAccuracy||100)-5); q4(); }},
     {label:'🙊 Nie chcę mówić', fn:()=>{ n.diagnosisAccuracy=Math.max(40,(n.diagnosisAccuracy||100)-15); n.medicalTrust=Math.max(0,(n.medicalTrust||0)-1); q4(); }},
     {label:'🤔 Nie pamiętam dokładnie', fn:()=>{ n.diagnosisAccuracy=Math.max(50,(n.diagnosisAccuracy||100)-10); q4(); }},
+    {label:'🚪 Wyjdź', fn:()=>{ renderHospital(); }},/* v2.3.115 (PDF Uspr): opcja opuszczenia okna wywiadu */
   ]);
   const q2=()=>showEventChoice('🩺 Wywiad — bezpieczeństwo','Nurse Kai: „Czy ma Pan przy sobie coś, co może być nielegalne albo niebezpieczne? Proszę to rozwiązać, zanim przejdziemy dalej."',[
     {label:'✅ Nie', fn:()=>{ n.medicalTrust=(n.medicalTrust||0)+1; q3(); }},
     {label:'🤐 Wolę nie odpowiadać', fn:()=>{ n.hospitalRiskFlag=(n.hospitalRiskFlag||0)+1; q3(); }},
     {label:'🚪 Chcę oddać to poza placówką i wrócić', fn:()=>{ n.medicalTrust=(n.medicalTrust||0)+1; n.hospitalRiskFlag=Math.max(0,(n.hospitalRiskFlag||0)-1); q3(); }},
     {label:'😤 To nie ma znaczenia', fn:()=>{ n.hospitalRiskFlag=(n.hospitalRiskFlag||0)+2; n.tension=Math.min(100,(n.tension||0)+5); q3(); }},
+    {label:'🚪 Wyjdź', fn:()=>{ renderHospital(); }},/* v2.3.115 (PDF Uspr): opcja opuszczenia okna wywiadu */
   ]);
   const done=()=>{ n._lastTriageDay=G.day; window._novaLog('Wywiad medyczny (triage)','Nurse Kai — 4 pytania'); if(typeof showMsg==='function')showMsg('🩺 Nurse Kai: „Dziękuję. Kieruję Pana do właściwej ścieżki." Wywiad wpłynął na zaufanie i dokładność diagnozy.','g',6000); window._novaShowDiagnosis(); };
   showEventChoice('🩺 Nova Cura — wywiad (Nurse Kai)','Nurse Kai: „Odpowiedzi pomagają dobrać właściwą pomoc — nie oceniamy. Co jest głównym powodem wizyty?"',[
@@ -41013,6 +41075,7 @@ window._novaTriage=function(){
     {label:'😔 Spadek nastroju i napięcie', fn:()=>{ n._triageReason='mood'; q2(); }},
     {label:'⚠️ Nie kontroluję używania', fn:()=>{ n._triageReason='control'; n.medicalTrust=(n.medicalTrust||0)+1; q2(); }},
     {label:'🙊 Nie chcę mówić szczegółów', fn:()=>{ n._triageReason='none'; n.diagnosisAccuracy=Math.max(40,(n.diagnosisAccuracy||100)-10); q2(); }},
+    {label:'🚪 Wyjdź', fn:()=>{ renderHospital(); }},/* v2.3.115 (PDF Uspr): opcja opuszczenia okna wywiadu */
   ]);
 };
 window._novaShowDiagnosis=function(){ if(typeof _5pdfEnsure==='function')_5pdfEnsure(); const n=G.novacura;
@@ -45804,7 +45867,19 @@ window._enterDistrictPlace=(districtId,placeId)=>{
          Fix: zainicjuj G.trap tu (idempotentne, backward-safe) — dealer zawsze działa. */
       if(!G.trap || typeof G.trap!=='object'){ G.trap={unlocked:false,level:1,xp:0,reputation:0,cooked:0,sold:0,busted:0,_lastCookDay:0,_lastSellDay:0,_jailUntilDay:0,heat:0,_maxHeatEver:0}; }
       if(G.trap.unlocked){
-        if(typeof window._renderKamperBuy==='function'){window._renderKamperBuy();return;}
+        /* v2.3.115 (PDF Uspr): dostęp do panelu dealera max 2 razy/dzień + cooldown 5h (300 gm) między wizytami. Wskazówki z PDF. */
+        if(G._dealerVisitDay!==G.day){ G._dealerVisitDay=G.day; G._dealerVisits=0; }
+        const _nowMinD=(G.day*1440)+(typeof gameMin!=='undefined'?gameMin:0);
+        if((G._dealerVisits||0)>=2){
+          if(typeof showMsg==='function') showMsg('🤝 Wskazówka: Rozsądni dostawcy unikają częstych spotkań z tym samym klientem. Planuj zakupy z wyprzedzeniem — wróć jutro.','i',6500);
+          return;
+        }
+        if((G._dealerVisits||0)>=1 && (_nowMinD-(G._lastDealerVisitStamp||0))<300){
+          const _leftHD=Math.max(1,Math.ceil((300-(_nowMinD-(G._lastDealerVisitStamp||0)))/60));
+          if(typeof showMsg==='function') showMsg(`🤝 Dealer nie chce zwracać na siebie uwagi. Zbyt częste wizyty zwiększają ryzyko obserwacji. Wróć za jakiś czas (~${_leftHD} h).`,'i',6500);
+          return;
+        }
+        if(typeof window._renderKamperBuy==='function'){ G._dealerVisits=(G._dealerVisits||0)+1; G._lastDealerVisitStamp=_nowMinD; window._renderKamperBuy();return;}
       }
       if(typeof window._trapUnlockDialog==='function') window._trapUnlockDialog();
       return;
@@ -63878,7 +63953,8 @@ function togglePause(){
     const p=document.createElement('div');
     p.id='pause-overlay';
     /* v2.1.175: top 62→0 — pause overlay pokrywa CAŁY ekran wraz z HUD. Wcześniej top:62 powodował dziwne odcięcie (HUD jasny + reszta ciemna na granicy). */
-    p.style.cssText='position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:50;color:#fff;font-family:inherit;backdrop-filter:blur(4px)';
+    /* v2.3.115 (PDF Uspr): menu pauzy MA priorytet nad wszystkimi oknami/dialogami/powiadomieniami — z-index ponad #msg(9999)/modale(9000+)/npc-dlg/mg-job. Gdy gra spauzowana, wszystko dzieje się POD warstwą pauzy. */
+    p.style.cssText='position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:100000;color:#fff;font-family:inherit;backdrop-filter:blur(4px)';
     // Statystyki sesji
     const sessMs=Date.now()-(_sessionStats.startReal||Date.now());
     const sessMin=Math.floor(sessMs/60000);
@@ -64924,6 +65000,15 @@ const PATCH_NOTES = [
   {t:'fix',d:'🔧 Stan pojazdu pokazuje się teraz jako równy procent (np. 96%) zamiast długiego ułamka — i w Garage 77, i w komunikacie po stuknięciu w przeszkodę.'},
   {t:'fix',d:'🌱 Doniczki w kamperze i na plantacji mają teraz czyste nazwy (Doniczka 1, Doniczka 2...) — zniknął znaczek, który u części graczy wyświetlał się jako pusty kwadracik.'},
   {t:'fix',d:'🛋 Drobiazg: przy odpoczynku na sofie ikonka kanapy nie dubluje się już w opisie.'},
+  {t:'balance',d:'📡 Stream na komputerze ma teraz limit: maksymalnie 2 sesje dziennie, a drugą zaczniesz dopiero po ok. 4 godzinach przerwy — do tego druga transmisja tego dnia ma o 30% słabszy zasięg. Widzowie potrzebują odpoczynku.'},
+  {t:'balance',d:'🔴 Transmisje LIVE w telefonie (FrameUp) też mają limit: maksymalnie 3 dziennie, z przerwą ok. 4 godzin między nimi. Pierwsza transmisja danego dnia jest najbardziej atrakcyjna (najwięcej polubień i komentarzy), a kolejne słabsze.'},
+  {t:'feature',d:'🏆 Turnieje esportowe: zamiast jednorazowej premii za pierwszy turniej masz teraz nagrody za regularność. Za co dziesiąty rozegrany turniej (niezależnie od wyniku) dostajesz +5 tys. zł, za łącznie 50 rozegranych +10 tys. zł, a za 100 rozegranych +20 tys. zł.'},
+  {t:'fix',d:'🚦 Potrącenie pieszego liczy się teraz tylko wtedy, gdy naprawdę jedziesz. Koniec z mandatem, gdy stoisz zaparkowany na chodniku z włączonym silnikiem, a przechodzień sam wchodzi na Twoje auto.'},
+  {t:'balance',d:'🌱 Zakup nasion ma teraz dzienny limit 20 sztuk — licząc razem szafkę zaopatrzenia i przycisk w uprawie.'},
+  {t:'balance',d:'🤝 Dealer w Underground: odwiedzisz go najwyżej 2 razy dziennie, z przerwą ok. 5 godzin między wizytami. Zbyt częste spotkania zwracają uwagę — planuj zakupy z wyprzedzeniem.'},
+  {t:'fix',d:'💬 Rozmowa i negocjacje z Ryśkiem w Metal Valley pokazują się teraz na wierzchu, nad panelem obiektu, a nie chowają się pod nim.'},
+  {t:'fix',d:'🏥 W Nova Cura każde okno wywiadu ma teraz przycisk „Wyjdź" — w każdej chwili zamkniesz rozmowę.'},
+  {t:'fix',d:'⏸ Menu pauzy ma teraz pierwszeństwo nad wszystkimi oknami i powiadomieniami — po wciśnięciu pauzy nic już nie zasłania menu.'},
  ]
  },
  {
@@ -81803,7 +81888,8 @@ function drawCityLife(){
     /* §22 KOLIZJE (nowy PDF): gracz JEDZIE i potrąca przechodnia (bbox pieszego: wx±8, wy→wy+50). */
     if((G._inCar||G._inCamper) && typeof _carRoom==='function' && _carRoom(currentRoom)){
       const _dk=G._inCar?'car':'camper';
-      if((typeof window._vehEngineOn!=='function'||window._vehEngineOn(_dk)) && (ped.wx-8)<P.wx+P.w && (ped.wx-8+16)>P.wx && ped.wy<P.wy+P.h && (ped.wy+50)>P.wy){
+      /* v2.3.115 (PDF Uspr): potrącenie pieszego TYLKO gdy gracz FAKTYCZNIE jedzie (P.moving) — nie gdy stoi zaparkowany na chodniku z uruchomionym silnikiem, a NPC sam nachodzi na auto. */
+      if(P.moving && (typeof window._vehEngineOn!=='function'||window._vehEngineOn(_dk)) && (ped.wx-8)<P.wx+P.w && (ped.wx-8+16)>P.wx && ped.wy<P.wy+P.h && (ped.wy+50)>P.wy){
         if(typeof window._vehHitPedestrian==='function') window._vehHitPedestrian(ped);
       }
     }
