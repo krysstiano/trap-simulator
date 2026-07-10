@@ -3509,8 +3509,8 @@ const ROOMS = {
       {id:'kamper_cook',  wx:410, wy:140, w:160,h:110, act:'kamper_cook_basic',          prompt:'[E] 🚬 Roluj jointa',    lbl:'Rolowanie'},
       {id:'kamper_pack',  wx:600, wy:140, w:140,h:110, act:'kamper_pack_view',           prompt:'[E] 📦 Pakuj produkty',  lbl:'Pakowanie'},
       {id:'kamper_bed',   wx:30,  wy:300, w:200,h:90,  act:'rest',                       prompt:'[E] 🛏 Zdrzemnij się',   lbl:'Łóżko'},
-      {id:'kamper_pot_0', wx:380, wy:305, w:56, h:80,  act:'grow_pot:kamper:0', actRadius:64, prompt:'[E] 🪴 Doniczka 1',     lbl:''}, /* v2.1.782 starter grow Tier 0 */
-      {id:'kamper_pot_1', wx:560, wy:305, w:56, h:80,  act:'grow_pot:kamper:1', actRadius:64, prompt:'[E] 🪴 Doniczka 2',     lbl:''},
+      {id:'kamper_pot_0', wx:380, wy:305, w:56, h:80,  act:'grow_pot:kamper:0', actRadius:64, prompt:'[E] Doniczka 1',     lbl:''}, /* v2.1.782 starter grow Tier 0 */
+      {id:'kamper_pot_1', wx:560, wy:305, w:56, h:80,  act:'grow_pot:kamper:1', actRadius:64, prompt:'[E] Doniczka 2',     lbl:''},
     ]
   },
   /* v2.1.482 USER FEEDBACK — Laboratorium jako enterable interior (Trap Lvl 5+).
@@ -3538,12 +3538,12 @@ const ROOMS = {
     wT:24, hT:13, map:null,
     objects:[
       {id:'exit_plantacja',   wx:500, wy:560, w:62, h:62,  act:'goto:underground:1240:660', prompt:'[E] ⬅ Wyjdź z plantacji', lbl:'Wyjście'},
-      {id:'plantation_pot_0', wx:90,  wy:250, w:56, h:80,  act:'grow_pot:plantation:0', actRadius:64, prompt:'[E] 🪴 Doniczka 1', lbl:''},
-      {id:'plantation_pot_1', wx:330, wy:250, w:56, h:80,  act:'grow_pot:plantation:1', actRadius:64, prompt:'[E] 🪴 Doniczka 2', lbl:''},
-      {id:'plantation_pot_2', wx:570, wy:250, w:56, h:80,  act:'grow_pot:plantation:2', actRadius:64, prompt:'[E] 🪴 Doniczka 3', lbl:''},
-      {id:'plantation_pot_3', wx:90,  wy:440, w:56, h:80,  act:'grow_pot:plantation:3', actRadius:64, prompt:'[E] 🪴 Doniczka 4', lbl:''},
-      {id:'plantation_pot_4', wx:330, wy:440, w:56, h:80,  act:'grow_pot:plantation:4', actRadius:64, prompt:'[E] 🪴 Doniczka 5', lbl:''},
-      {id:'plantation_pot_5', wx:570, wy:440, w:56, h:80,  act:'grow_pot:plantation:5', actRadius:64, prompt:'[E] 🪴 Doniczka 6', lbl:''},
+      {id:'plantation_pot_0', wx:90,  wy:250, w:56, h:80,  act:'grow_pot:plantation:0', actRadius:64, prompt:'[E] Doniczka 1', lbl:''},
+      {id:'plantation_pot_1', wx:330, wy:250, w:56, h:80,  act:'grow_pot:plantation:1', actRadius:64, prompt:'[E] Doniczka 2', lbl:''},
+      {id:'plantation_pot_2', wx:570, wy:250, w:56, h:80,  act:'grow_pot:plantation:2', actRadius:64, prompt:'[E] Doniczka 3', lbl:''},
+      {id:'plantation_pot_3', wx:90,  wy:440, w:56, h:80,  act:'grow_pot:plantation:3', actRadius:64, prompt:'[E] Doniczka 4', lbl:''},
+      {id:'plantation_pot_4', wx:330, wy:440, w:56, h:80,  act:'grow_pot:plantation:4', actRadius:64, prompt:'[E] Doniczka 5', lbl:''},
+      {id:'plantation_pot_5', wx:570, wy:440, w:56, h:80,  act:'grow_pot:plantation:5', actRadius:64, prompt:'[E] Doniczka 6', lbl:''},
       {id:'plant_drying',     wx:820, wy:250, w:160,h:110, act:'kamper_drying_view',     prompt:'[E] 🌬 Suszarnia',  lbl:'Suszarnia'},
       {id:'plant_pack',       wx:820, wy:430, w:160,h:110, act:'kamper_pack_view',       prompt:'[E] 📦 Pakowanie', lbl:'Pakowanie'},
     ]
@@ -14382,7 +14382,8 @@ function handleAct(act,objId){
     // #77 BUG FIX: Sofa Lux daje +10 nastrój (z 30 → 40) + lepszy komunikat #76
     const hasSofaLux=G.aptPurchases?.furniture?.includes('sofa_luxury');
     const stressGain=hasSofaLux?40:30;
-    const msg=hasSofaLux?'🛋 Odpoczywasz na sofie LUX — większa regeneracja...':'🛋 Odpoczywasz na sofie...';
+    /* v2.3.115 (PDF Uspr): usunięto 🛋 z tekstu — startRestMG dokłada już icons.sofa (🛋) w nagłówku, było zdublowane. */
+    const msg=hasSofaLux?'Odpoczywasz na sofie LUX — większa regeneracja...':'Odpoczywasz na sofie...';
     startRestMG('sofa',20,stressGain,20,msg);
     return;
   } else if(act==='relax'){
@@ -20102,7 +20103,7 @@ function _growApplyPlant(site,idx,q){ const pot=_growSitePots(site)[idx]; if(!po
 
 window._growPlant=function(a,b){
   const {site,idx}=_growArgs(a,b); const pot=_growSitePots(site)[idx];
-  if(!pot||pot.planted){showMsg('🪴 Doniczka zajęta.','r',2500);return;}
+  if(!pot||pot.planted){showMsg('Doniczka zajęta.','r',2500);return;}
   if((G.grow.inv.seeds||0)<1){showMsg('🌱 Brak nasionka. Kup zaopatrzenie ogrodnicze.','r',3000);return;}
   if((G.grow.inv.soil||0)<1){showMsg('🪨 Brak ziemi.','r',2500);return;}
   /* 2 minigry canvas: chwyć worek ziemi i trzęś nad doniczką → przeciągnij nasiono do doniczki */
@@ -20256,7 +20257,7 @@ window._renderPotPanel=function(site,idx){
       <div style="font-size:11px;color:#8a9;text-align:center;margin-bottom:10px">Posadź nasionko → rośnie <b>~${_growDays} ${_growDays===1?'dzień':'dni'}</b> (codziennie podlewaj 💧 + nawóź 🧪) → ścinaj mokre topy.</div>
       <button class="cbtn" style="width:100%;font-size:12px;padding:9px" onclick="window._growPlant('${site}',${idx})" ${(G.grow.inv.seeds<1||G.grow.inv.soil<1)?'disabled':''}>🌱 Posadź (−1 nasionko, −1 ziemia)</button>`;
   _mc.innerHTML=`<div style="background:#051508;border:2px solid ${_accent};border-radius:12px;padding:16px;max-width:380px;margin:0 auto;color:#fff;max-height:90vh;overflow-y:auto">
-    <h2 style="color:#7ec87e;margin-top:0;text-align:center;font-size:18px">🪴 Doniczka ${idx+1}</h2>
+    <h2 style="color:#7ec87e;margin-top:0;text-align:center;font-size:18px">Doniczka ${idx+1}</h2>
     <div style="text-align:center;color:${_accent};font-size:12px;margin-bottom:8px">${_siteName}${_tier==='low'?' — niższy plon (starter)':''}</div>
     ${_tier==='low'?'<div style="background:#241a08;border:1px solid #5a4a1a;border-radius:6px;padding:6px;font-size:10px;color:#caa86a;margin-bottom:10px;text-align:center">⚠️ Tier 0: zbiory mniejsze. Profesjonalna Plantacja (Trap lvl 5) = większy plon i jakość.</div>':''}
     ${_body}
@@ -25228,10 +25229,10 @@ window._safeWithdrawInput=function(rk){
   window._safeWithdraw(rk,Math.floor(v));
 };
 
-/* ═══ OLX — SERWIS OGŁOSZEŃ (v2.1.888, PDF linia 49) ═══
+/* ═══ Swaply — SERWIS OGŁOSZEŃ (v2.1.888, PDF linia 49) ═══
    Sprzedaż przedmiotów z ekwipunku (valuables/sprzęt/materiały, w tym KRADZIONE) z PREMIĄ +30% nad wartość,
    ale z OPÓŹNIENIEM (kupiec zjawia się po 1-3 dniach). Alternatywa do Lombardu (instant, pełna wartość, anonimowo).
-   KRADZIONE na OLX = ryzyko wykrycia (~20% → kupiec to tajniak/zgłoszenie → konfiskata + zniesławienie + hejterzy).
+   KRADZIONE na Swaply = ryzyko wykrycia (~20% → kupiec to tajniak/zgłoszenie → konfiskata + zniesławienie + hejterzy).
    Trade-off: Lombard = szybko/bezpiecznie/pełna wartość; OLX = drożej/wolniej/ryzyko dla kradzionego. Kredyt bezpośredni (jak Lombard — sprzedaż mienia nie przez earn()). */
 const OLX_PREMIUM=1.3, OLX_STOLEN_DETECT=0.20;
 function _olxSellable(){ invInit(); return (G.inventory||[]).filter(i=>i.type==='item'&&(i.value||0)>0&&i.kind!=='quest'&&i.kind!=='consumable'); }
@@ -25245,7 +25246,7 @@ window._olxList=function(invId){
   invRemoveOne(invId,'item');
   G._olxLid=(G._olxLid||0)+1;
   G.olx.listings.push({lid:G._olxLid, id:it.id, name:it.name, emoji:it.emoji||'📦', kind:it.kind, value:it.value||0, ask, sellsDay:(G.day||0)+days, stolen:!!it.stolen});
-  if(typeof showMsg==='function')showMsg(`📋 Wystawiono ${it.emoji||''} ${it.name} na OLX za ${ask.toLocaleString('pl')} zł (kupiec w ${days} ${days===1?'dzień':'dni'}).${it.stolen?' ⚠️ Kradzione — ryzyko wykrycia przy sprzedaży.':''}`,'g',5500);
+  if(typeof showMsg==='function')showMsg(`📋 Wystawiono ${it.emoji||''} ${it.name} na Swaply za ${ask.toLocaleString('pl')} zł (kupiec w ${days} ${days===1?'dzień':'dni'}).${it.stolen?' ⚠️ Kradzione — ryzyko wykrycia przy sprzedaży.':''}`,'g',5500);
   if(typeof saveGameSilent==='function')saveGameSilent();
   if(typeof renderPhoneApp==='function')renderPhoneApp('olx');
   return true;
@@ -25271,10 +25272,10 @@ window._olxTick=function(){
     if(l.stolen && Math.random()<OLX_STOLEN_DETECT){
       if(typeof addDefamation==='function') addDefamation(10);
       G.haters=(G.haters||0)+Math.floor(Math.random()*15+5);
-      if(typeof addNotif==='function') addNotif(`🚨 OLX: kupiec na ${l.emoji} ${l.name} okazał się tajniakiem! Towar przepadł, zniesławienie + hejterzy w górę. (Lombard byłby bezpieczny.)`);
+      if(typeof addNotif==='function') addNotif(`🚨 Swaply: kupiec na ${l.emoji} ${l.name} okazał się tajniakiem! Towar przepadł, zniesławienie + hejterzy w górę. (Lombard byłby bezpieczny.)`);
     } else {
       G.money=(G.money||0)+l.ask;
-      if(typeof addNotif==='function') addNotif(`📋 OLX: sprzedano ${l.emoji} ${l.name} za ${l.ask.toLocaleString('pl')} zł!`);
+      if(typeof addNotif==='function') addNotif(`📋 Swaply: sprzedano ${l.emoji} ${l.name} za ${l.ask.toLocaleString('pl')} zł!`);
     }
   }
   if(typeof updateHUD==='function') updateHUD();
@@ -27298,18 +27299,20 @@ const NPC_DATA = {
     ],
     opts:[
       // Po rekrutacji okno NIE zamyka się — gracz może rekrutować dalej. Tylko "Sprawdź ekipę"/"Wyjdź" zamyka.
-      {text:`Rekrutuj grafika (900 zł) — +10% jakość YT`, fn:()=>{
-        if(G.money<900){showMsg('Za mało pieniędzy!','r');return;}
-        if(G.crew.some(c=>c.role==='grafik')){showMsg('Masz już grafika w ekipie!','r');return;}
-        G.money-=900;G.crew.push({role:'grafik',name:'Bartek',bonus:'yt_quality'});
+      {text:()=>(G.crew&&G.crew.some(c=>c&&c.role==='grafik'))?`✅ Grafik (Bartek) w ekipie`:(((G.yt&&G.yt.videos?G.yt.videos.length:0)<1)?`🔒 Grafik (1500 zł) — wymóg: 1 wideo na ViewGrid`:`Rekrutuj grafika (1500 zł) — +10% jakość YT`), fn:()=>{
+        /* v2.3.115 (PDF Uspr): grafik 900→1500 zł + gate min. 1 wideo ViewGrid. Odmowa = cytat PDF. Crew-check pierwsze = save-safe dla starych ekip bez wideo. */
+        if(G.crew.some(c=>c&&c.role==='grafik')){showMsg('Masz już grafika w ekipie!','r');return;}
+        if((G.yt&&G.yt.videos?G.yt.videos.length:0)<1){showMsg('🎨 „Wrzuć najpierw chociaż jeden materiał na ViewGrid. Muszę zobaczyć Twój klimat, zanim zaczniemy robić Ci oprawę. Nie projektujemy nic w ciemno."','i',7000);return;}
+        if(G.money<1500){showMsg('Za mało pieniędzy!','r');return;}
+        G.money-=1500;G.crew.push({role:'grafik',name:'Bartek',bonus:'yt_quality'});
         notify('👥 Bartek (Grafik) dołączył do ekipy! +10% jakość filmów YT.');updateHUD();openNPCDialogue('crew');
       }},
-      {text:()=>((G.fans||0)<2000)?`🔒 DJ (1200 zł) — wymóg: 2 000 fanów`:`Rekrutuj DJ-a (1200 zł) — +15% zarobek z bitów`, fn:()=>{
-        /* U14 (v2.3.44 PDF): DJ ogólny wymaga 2 tyś. fanów (+wydane utwory implikowane przez fanów). Odmowa = cytat PDF. */
+      {text:()=>((G.fans||0)<2000)?`🔒 DJ (1500 zł) — wymóg: 2 000 fanów`:`Rekrutuj DJ-a (1500 zł) — +15% zarobek z bitów`, fn:()=>{
+        /* U14 (v2.3.44 PDF): DJ ogólny wymaga 2 tyś. fanów (+wydane utwory implikowane przez fanów). Odmowa = cytat PDF. v2.3.115: cena 1200→1500. */
         if((G.fans||0)<2000){showMsg('🎧 „Z wielką chęcią, ale mam za dużo takich propozycji. Przebieram, ale nie bez powodu. Popracuj jeszcze i odezwij się za jakiś czas." (wymóg: 2 000 fanów)','i',6500);return;}
-        if(G.money<1200){showMsg('Za mało pieniędzy!','r');return;}
+        if(G.money<1500){showMsg('Za mało pieniędzy!','r');return;}
         if(G.crew.some(c=>c.role==='dj')){showMsg('Masz już DJ-a w ekipie!','r');return;}
-        G.money-=1200;G.crew.push({role:'dj',name:'Olek',bonus:'beat_income'});
+        G.money-=1500;G.crew.push({role:'dj',name:'Olek',bonus:'beat_income'});
         notify('🎧 Olek (DJ) dołączył do ekipy! +15% zarobek ze sprzedaży bitów.');updateHUD();openNPCDialogue('crew');
       }},
       {text:()=>((G.fans||0)<50000)?`🔒 Hype man (750 zł) — wymóg: 50 000 fanów`:`Rekrutuj hype mana (750 zł) — +20% wzrost obserwujących`, fn:()=>{
@@ -27321,19 +27324,21 @@ const NPC_DATA = {
         notify('📢 Seba (Hype Man) dołączył do ekipy! +20% wzrost obserwujących.');updateHUD();openNPCDialogue('crew');
       }},
       /* v2.1.314 polish: 2 nowe role — junior manager + sound engineer (user feedback "F3 może dostać 2 nowe role") */
-      {text:()=>(((G.events&&G.events.performed)||0)<5)?`🔒 Junior manager (4000 zł) — wymóg: 5 koncertów`:`Rekrutuj junior managera (4000 zł) — +5% wszystkie zarobki`, fn:()=>{
-        /* U14 (v2.3.44 PDF): junior manager po 5. koncercie (dowolnego typu). Odmowa = cytat PDF. */
+      {text:()=>(((G.events&&G.events.performed)||0)<5)?`🔒 Junior manager (5000 zł) — wymóg: 5 koncertów`:`Rekrutuj junior managera (5000 zł) — +5% wszystkie zarobki`, fn:()=>{
+        /* U14 (v2.3.44 PDF): junior manager po 5. koncercie (dowolnego typu). Odmowa = cytat PDF. v2.3.115: cena 4000→5000. */
         if(((G.events&&G.events.performed)||0)<5){showMsg('🤵 „Ten człowiek będzie dostępny w chwili, gdy odbębnisz co najmniej pięć komercyjnych występów. Teraz nie masz na co liczyć." (wymóg: 5 koncertów)','i',6500);return;}
-        if(G.money<4000){showMsg('Za mało pieniędzy!','r');return;}
+        if(G.money<5000){showMsg('Za mało pieniędzy!','r');return;}
         if(G.crew.some(c=>c.role==='manager_jr')){showMsg('Masz już junior managera!','r');return;}
         if(G.managementDeal){showMsg('Masz już głównego menadżera (Kamil) — junior nie potrzebny.','r');return;}
-        G.money-=4000;G.crew.push({role:'manager_jr',name:'Łukasz',bonus:'earn_5'});
+        G.money-=5000;G.crew.push({role:'manager_jr',name:'Łukasz',bonus:'earn_5'});
         notify('🤵 Łukasz (Junior Manager) dołączył do ekipy! +5% wszystkie zarobki.');updateHUD();openNPCDialogue('crew');
       }},
-      {text:`Rekrutuj sound engineera (1050 zł) — akcja: remaster (przychód) + 10 jakości utworu`, fn:()=>{
-        if(G.money<1050){showMsg('Za mało pieniędzy!','r');return;}
-        if(G.crew.some(c=>c.role==='sound_eng')){showMsg('Masz już sound engineera!','r');return;}
-        G.money-=1050;G.crew.push({role:'sound_eng',name:'Mariusz',bonus:'mix_quality'});
+      {text:()=>(G.crew&&G.crew.some(c=>c&&c.role==='sound_eng'))?`✅ Sound engineer (Mariusz) w ekipie`:((!(G.hasDaw&&G.dawTier>=1))?`🔒 Sound engineer (2500 zł) — wymóg: PC Starter + DAW Basic`:`Rekrutuj sound engineera (2500 zł) — akcja: remaster (przychód) + 10 jakości utworu`), fn:()=>{
+        /* v2.3.115 (PDF Uspr): sound eng 1050→2500 zł + gate PC Starter+DAW Basic (VoltHouse). Odmowa = cytat PDF. Crew-check pierwsze = save-safe dla starych ekip bez DAW. */
+        if(G.crew.some(c=>c&&c.role==='sound_eng')){showMsg('Masz już sound engineera!','r');return;}
+        if(!(G.hasDaw&&G.dawTier>=1)){showMsg('🎛️ „Zwolnij, kowboju... Masz chociaż podstawowy sprzęt do nagrywek? Minimum z minimum to podstawowa, cyfrowa stacja robocza (DAW Basic), a gdy będziesz mieć materiał, to wtedy przyjdź. Aktualnie nie istnieje opcja współpracy."','i',7500);return;}
+        if(G.money<2500){showMsg('Za mało pieniędzy!','r');return;}
+        G.money-=2500;G.crew.push({role:'sound_eng',name:'Mariusz',bonus:'mix_quality'});
         /* v2.1.360 Strumień A audit fix (UI vs kod): sound_eng nie ma passive bonus, ma per-day akcję Mastering w crew panel (1×/dzień) dającą next release finalQ +10 (CREW_ACTIONS.sound_eng L30175). UI rekrutacji + notify zaktualizowane na faktyczną mechanikę. */
         notify('🎛️ Mariusz (Sound Engineer) dołączył do ekipy! Akcja: remaster katalogu (przychód rosnący z zasięgiem) + 10 do jakości następnego wydania, cooldown 5 dni — w crew panel.');updateHUD();openNPCDialogue('crew');
       }},
@@ -28323,7 +28328,7 @@ function nextPeriod(){
     /* v2.1.405 Faza AR.2+AR.4 Etap 2: daily crypto price update + staking rewards (hold 7+ dni = +0.5% daily compound). */
     if(typeof window._updateCryptoPrices==='function') window._updateCryptoPrices();
     if(typeof window._updateMetalsPrices==='function') window._updateMetalsPrices(); /* v2.1.872: kruszec — dzienny tick cen */
-    if(typeof window._olxTick==='function') window._olxTick(); /* v2.1.888: OLX — kupiec zjawia się po 1-3 dniach (resolve ogłoszeń) */
+    if(typeof window._olxTick==='function') window._olxTick(); /* v2.1.888: Swaply — kupiec zjawia się po 1-3 dniach (resolve ogłoszeń) */
     if(G.crypto && G.crypto.holdings){
       for(const coinId of Object.keys(G.crypto.holdings)){
         const h=G.crypto.holdings[coinId];
@@ -29316,7 +29321,7 @@ window._attemptTheft=function(method){
   if(success){
     if(t.item){
       const it=STOLEN_ITEMS[Math.floor(Math.random()*STOLEN_ITEMS.length)];
-      const added=(typeof invAdd==='function') && invAdd({id:it.id,type:'item',kind:'valuable',name:it.name,emoji:it.emoji,value:it.value,stolen:true,desc:'Łup z kradzieży — spieniężysz w Lombardzie lub na OLX.'},1);
+      const added=(typeof invAdd==='function') && invAdd({id:it.id,type:'item',kind:'valuable',name:it.name,emoji:it.emoji,value:it.value,stolen:true,desc:'Łup z kradzieży — spieniężysz w Lombardzie lub na Swaply.'},1);
       if(added) itemMsg=' + '+it.emoji+' '+it.name+' (sprzedasz w Lombardzie)'; else loot=it.value;
     } else {
       loot=Math.round(rnd(t.lootMin,t.lootMax)*((risk.lootMult||1))*((typeof _theftDistrictAlerted==='function'&&_theftDistrictAlerted(loc))?0.5:1)); /* K-4: malejące łupy w czujnej okolicy */
@@ -38733,16 +38738,20 @@ function _carInvCount(){ _carInvEnsure(); return G.carInv.items.reduce((s,i)=>s+
 function _carInvSpace(){ return CAR_INV_CAP - _carInvCount(); }
 function _carInvAdd(stack,n){ n=n||1; _carInvEnsure(); if(_carInvSpace()<n) return false; const ex=G.carInv.items.find(i=>i.id===stack.id&&i.type===stack.type); if(ex) ex.qty+=n; else G.carInv.items.push(Object.assign({},stack,{qty:n})); return true; }
 function _carInvRemoveOne(id,type){ _carInvEnsure(); const ex=G.carInv.items.find(i=>i.id===id&&i.type===type); if(!ex) return false; ex.qty--; if(ex.qty<=0) G.carInv.items=G.carInv.items.filter(i=>!(i.id===id&&i.type===type)); return true; }
-window._carCashDeposit=function(amount){ _carInvEnsure(); amount=Math.floor(amount); if(!amount||amount<=0||(G.money||0)<amount){ if(typeof showMsg==='function')showMsg('🚗 Za mało gotówki przy sobie!','r',3000); return; } G.money-=amount; G.carInv.cash+=amount; if(typeof showMsg==='function')showMsg(`🚗 Schowano ${amount.toLocaleString('pl')} zł w aucie. W aucie: ${G.carInv.cash.toLocaleString('pl')} zł.`,'g',3500); if(typeof updateHUD==='function')updateHUD(); openCarInv(); };
-window._carCashWithdraw=function(amount){ _carInvEnsure(); amount=Math.floor(amount); if(!amount||amount<=0||(G.carInv.cash||0)<amount){ if(typeof showMsg==='function')showMsg('🚗 Nie masz tyle w aucie!','r',3000); return; } G.carInv.cash-=amount; G.money=(G.money||0)+amount; if(typeof showMsg==='function')showMsg(`🚗 Wyjęto ${amount.toLocaleString('pl')} zł z auta. W aucie: ${G.carInv.cash.toLocaleString('pl')} zł.`,'g',3500); if(typeof updateHUD==='function')updateHUD(); openCarInv(); };
+window._carCashDeposit=function(amount){ if(!window._carStashGate())return; _carInvEnsure(); amount=Math.floor(amount); if(!amount||amount<=0||(G.money||0)<amount){ if(typeof showMsg==='function')showMsg('🚗 Za mało gotówki przy sobie!','r',3000); return; } G.money-=amount; G.carInv.cash+=amount; if(typeof showMsg==='function')showMsg(`🚗 Schowano ${amount.toLocaleString('pl')} zł w aucie. W aucie: ${G.carInv.cash.toLocaleString('pl')} zł.`,'g',3500); if(typeof updateHUD==='function')updateHUD(); openCarInv(); };
+window._carCashWithdraw=function(amount){ if(!window._carStashGate())return; _carInvEnsure(); amount=Math.floor(amount); if(!amount||amount<=0||(G.carInv.cash||0)<amount){ if(typeof showMsg==='function')showMsg('🚗 Nie masz tyle w aucie!','r',3000); return; } G.carInv.cash-=amount; G.money=(G.money||0)+amount; if(typeof showMsg==='function')showMsg(`🚗 Wyjęto ${amount.toLocaleString('pl')} zł z auta. W aucie: ${G.carInv.cash.toLocaleString('pl')} zł.`,'g',3500); if(typeof updateHUD==='function')updateHUD(); openCarInv(); };
 window._carCashDepositInput=function(){ const el=document.getElementById('carinv-cash'); const v=el?parseInt(el.value):0; if(v>0) window._carCashDeposit(v); };
 window._carCashWithdrawInput=function(){ const el=document.getElementById('carinv-cash'); const v=el?parseInt(el.value):0; if(v>0) window._carCashWithdraw(v); };
 function _carCloneStack(it){ return {id:it.id,type:it.type,name:it.name,emoji:it.emoji,hunger:it.hunger,energy:it.energy,health:it.health,stress:it.stress,kind:it.kind,value:it.value,desc:it.desc,bonus:it.bonus,slot:it.slot}; }
-window.invToCar=function(id,type){ invInit(); _carInvEnsure(); const it=G.inventory.find(i=>i.id===id&&i.type===type); if(!it||it.qty<=0) return; if(it.kind==='quest'){ if(typeof showMsg==='function')showMsg('🔒 Przedmiotu zadaniowego nie schowasz w aucie.','i',3000); return; } if(_carInvSpace()<1){ if(typeof showMsg==='function')showMsg(`🚗 Bagażnik pełny (limit ${CAR_INV_CAP}).`,'r',3000); return; } const st=_carCloneStack(it); if(it.type==='food'){ _foodFreshEnsure(it); const _cl={id:it.id,decayPerDay:it.decayPerDay,freshDay:it.freshDay,loc:it.loc}; _foodSetLoc(_cl,'car'); st.freshDay=_cl.freshDay; st.decayPerDay=it.decayPerDay; st.loc='car'; } _carInvAdd(st,1); invRemoveOne(id,type); if(typeof saveGameSilent==='function')saveGameSilent(); openCarInv(); };
-window.carToInv=function(id,type){ invInit(); _carInvEnsure(); const it=G.carInv.items.find(i=>i.id===id&&i.type===type); if(!it||it.qty<=0) return; if(invSpace()<1){ if(typeof showMsg==='function')showMsg(`🎒 Ekwipunek pełny (limit ${invCap()}).`,'r',3000); return; } const st=_carCloneStack(it); if(it.type==='food'){ _foodFreshEnsure(it); const _cl={id:it.id,decayPerDay:it.decayPerDay,freshDay:it.freshDay,loc:it.loc}; _foodSetLoc(_cl,'inv'); st.freshDay=_cl.freshDay; st.decayPerDay=it.decayPerDay; st.loc='inv'; } invAdd(st,1); _carInvRemoveOne(id,type); if(typeof saveGameSilent==='function')saveGameSilent(); openCarInv(); };
+/* v2.3.115 (PDF Uspr): bagażnik/schowek auta dostępny TYLKO gdy gracz jest w aucie lub tuż przy zaparkowanym pojeździe (~4m). Blokuje absurd dostępu z dowolnego miejsca mapy. Fail-open gdy pozycja auta nieznana (save-safe). */
+window._carStashReach=function(){ if(G._inCar) return true; if(!G._carParkedAt) return true; if(typeof _carParkRoom==='function' && _carParkRoom() && _carParkRoom()!==currentRoom) return false; const px=P.wx+P.w/2, py=P.wy+P.h/2; const carX=G._carParkedAt.wx+P.w/2, carY=G._carParkedAt.wy+P.h/2; return Math.hypot(px-carX, py-carY) < 130; };
+window._carStashGate=function(){ if(window._carStashReach()) return true; if(typeof showMsg==='function') showMsg('🚗 Podejdź do swojego auta (albo wsiądź), żeby skorzystać z bagażnika — jesteś za daleko.','i',4200); return false; };
+window.invToCar=function(id,type){ if(!window._carStashGate())return; invInit(); _carInvEnsure(); const it=G.inventory.find(i=>i.id===id&&i.type===type); if(!it||it.qty<=0) return; if(it.kind==='quest'){ if(typeof showMsg==='function')showMsg('🔒 Przedmiotu zadaniowego nie schowasz w aucie.','i',3000); return; } if(_carInvSpace()<1){ if(typeof showMsg==='function')showMsg(`🚗 Bagażnik pełny (limit ${CAR_INV_CAP}).`,'r',3000); return; } const st=_carCloneStack(it); if(it.type==='food'){ _foodFreshEnsure(it); const _cl={id:it.id,decayPerDay:it.decayPerDay,freshDay:it.freshDay,loc:it.loc}; _foodSetLoc(_cl,'car'); st.freshDay=_cl.freshDay; st.decayPerDay=it.decayPerDay; st.loc='car'; } _carInvAdd(st,1); invRemoveOne(id,type); if(typeof saveGameSilent==='function')saveGameSilent(); openCarInv(); };
+window.carToInv=function(id,type){ if(!window._carStashGate())return; invInit(); _carInvEnsure(); const it=G.carInv.items.find(i=>i.id===id&&i.type===type); if(!it||it.qty<=0) return; if(invSpace()<1){ if(typeof showMsg==='function')showMsg(`🎒 Ekwipunek pełny (limit ${invCap()}).`,'r',3000); return; } const st=_carCloneStack(it); if(it.type==='food'){ _foodFreshEnsure(it); const _cl={id:it.id,decayPerDay:it.decayPerDay,freshDay:it.freshDay,loc:it.loc}; _foodSetLoc(_cl,'inv'); st.freshDay=_cl.freshDay; st.decayPerDay=it.decayPerDay; st.loc='inv'; } invAdd(st,1); _carInvRemoveOne(id,type); if(typeof saveGameSilent==='function')saveGameSilent(); openCarInv(); };
 window.openCarInv=function(){
   _carInvEnsure(); invInit();
   if(!G.car && _carInvCount()===0 && (G.carInv.cash||0)<=0){ if(typeof showMsg==='function')showMsg('🚗 Kup auto w Salonie — wtedy zyskasz schowek/bagażnik na rzeczy i gotówkę.','i',4200); return; }
+  if(!window._carStashGate())return;
   const items=G.carInv.items; const cnt=_carInvCount();
   document.getElementById('ov-content').innerHTML=`
     <h2>🚗 Bagażnik / schowek auta</h2>
@@ -38761,7 +38770,7 @@ window.openCarInv=function(){
       return `<div class="invslot" style="background:#0c1a26;border:1px solid #1f4a66;border-radius:10px;padding:10px;text-align:center"><div style="font-size:28px">${it.emoji||'📦'}</div><div style="font-size:11px;color:#bcd;font-weight:700">${it.name}</div><div style="font-size:10px;color:#667">× ${it.qty}</div>${fresh}<button class="bbtn" style="margin-top:6px;padding:5px 8px;font-size:11px;width:100%" onclick="window.carToInv('${it.id}','${it.type}')">🎒 → Ekwipunek</button></div>`;
     }).join('')}</div>`}
     <div class="res" id="carinv-res" style="min-height:18px"></div>
-    <button class="cbtn" onclick="closeOverlay()">← Wróć</button>
+    <button class="cbtn" onclick="window.openInventory()">← Wróć do ekwipunku</button>
   `;
   if(typeof openOverlay==='function') openOverlay();
 };
@@ -41627,6 +41636,19 @@ window._camperBackroomBlockReason=function(){
 };
 /* Wejście do wnętrza kampera (ROOMS.kamper) — TYLKO gdy zaplecze aktywne (§6/§27.10). Zastępuje stary statyczny punkt. */
 window._enterCamperInterior=function(){
+  /* v2.3.115 (PDF Uspr): blokada wejścia do wnętrza kampera z dowolnego miejsca mapy — gracz musi stać ~4m od kampera (albo w nim jechać). Wcześniej sprawdzano tylko strefę parkowania kampera, nie pozycję gracza. */
+  if(!G._inCamper && G._camperParkedAt && typeof P!=='undefined'){
+    const _cr=G._camperParkedAt.room;
+    if(_cr && typeof currentRoom!=='undefined' && _cr!==currentRoom){
+      if(typeof showMsg==='function') showMsg('🚐 Twój kamper stoi w innej lokacji — podejdź do niego, żeby wejść do środka.','r',4500);
+      return false;
+    }
+    const px=P.wx+P.w/2, py=P.wy+P.h/2, cx=G._camperParkedAt.wx+P.w/2, cy=G._camperParkedAt.wy+P.h/2;
+    if(Math.hypot(px-cx,py-cy) >= 130){
+      if(typeof showMsg==='function') showMsg('🚐 Podejdź bliżej kampera (max ~4 m), żeby wejść do środka.','r',4200);
+      return false;
+    }
+  }
   if(!window._camperBackroomActive()){
     const r=window._camperBackroomBlockReason();
     const msg = r==='no_camper' ? '🚐 Potrzebujesz własnego kampera. Kup go w Gravel Lot Motors albo CityDrive Motors.' :
@@ -44441,7 +44463,7 @@ window._renderGrowUI=function(){
         <div style="color:#888;font-size:11px;text-align:center;margin-bottom:8px">Pusta doniczka</div>
         <button class="cbtn" style="width:100%;font-size:11px;padding:6px" onclick="window._growPlant(${i})" ${(G.grow.inv.seeds<1||G.grow.inv.soil<1)?'disabled':''}>🌱 Posadź (-1 nasionko, -1 ziemia)</button>`;
     return `<div style="background:#0a2010;border:2px solid #27ae60;border-radius:8px;padding:10px;flex:1;min-width:170px">
-      <div style="color:#52be80;font-weight:bold;font-size:13px;margin-bottom:4px">🪴 Doniczka ${i+1}</div>
+      <div style="color:#52be80;font-weight:bold;font-size:13px;margin-bottom:4px">Doniczka ${i+1}</div>
       ${_potBody}
     </div>`;
   }).join('');
@@ -53009,7 +53031,7 @@ window._vehInsuranceInfo=function(){
 window._vehStatusPanel=function(kind){
   kind=kind||(typeof window._vehNeediestKind==='function'&&window._vehNeediestKind())||'car';
   window._vehStateEnsure(); const d=window._vehDmg(kind); if(!d) return;
-  const panel=document.getElementById('mg-job'); if(!panel){ if(typeof showMsg==='function') showMsg('🚗 Stan pojazdu: '+window._vehOverall(kind)+'%.','i',3500); return; }
+  const panel=document.getElementById('mg-job'); if(!panel){ if(typeof showMsg==='function') showMsg('🚗 Stan pojazdu: '+Math.round(window._vehOverall(kind))+'%.','i',3500); return; }
   panel.classList.add('on'); panel.style.display='';
   const em=kind==='camper'?'🚐':'🚗'; const oh=window._vehOverall(kind);
   const nm=kind==='camper'?'Kamper':((G.car&&G.car.name)||'Auto');
@@ -53019,7 +53041,7 @@ window._vehStatusPanel=function(kind){
   const ohCol=oh>=66?'#2ecc71':oh>=33?'#f39c12':'#e74c3c';
   panel.innerHTML=`<div id="mg-job-content" style="max-width:440px;margin:0 auto">
     <div style="text-align:center;font-size:18px;font-weight:800;color:#95a5a6;margin-bottom:6px">${em} Stan pojazdu — ${nm}</div>
-    <div style="text-align:center;font-size:24px;font-weight:900;color:${ohCol}">${oh}%</div>
+    <div style="text-align:center;font-size:24px;font-weight:900;color:${ohCol}">${Math.round(oh)}%</div>
     <div style="text-align:center;font-size:11.5px;color:#8a939a;margin-bottom:10px">Status: ${statusTxt}</div>
     <div style="background:#0e1216;border:1px solid #2a3238;border-radius:8px;padding:10px;margin-bottom:8px">
       ${bar('Silnik',d.engine)}${bar('Zawieszenie',d.suspension)}${bar('Hamulce',d.brakes)}${bar('Koła',d.wheels)}${bar('Układ paliwowy',d.fuelSystem)}${bar('Szyby',d.windows)}${bar('Światła',d.lights)}
@@ -53078,8 +53100,8 @@ window._vehImpactFx=function(kind,type,amount){
     const overall=window._vehOverall(kind);
     let msg;
     if(overall<=0) msg=`${em}💥 Pojazd unieruchomiony! Wymaga holowania.`;
-    else if(amount>=25) msg=`${em}💥 Mocne uderzenie — pojazd poważnie oberwał (stan ${overall}%)`;
-    else msg=`${em}💥 Stuknięcie — pojazd oberwał (stan ${overall}%)`;
+    else if(amount>=25) msg=`${em}💥 Mocne uderzenie — pojazd poważnie oberwał (stan ${Math.round(overall)}%)`;/* v2.3.115 (PDF Uspr): zaokrąglenie % — był długi ułamek 79.585…% */
+    else msg=`${em}💥 Stuknięcie — pojazd oberwał (stan ${Math.round(overall)}%)`;
     if(typeof window._subtleMsg==='function') window._subtleMsg(msg); else if(typeof showMsg==='function') showMsg(msg,'r',2000);
     if(typeof _sfxNoise==='function'){ try{ _sfxNoise(amount>=25?0.22:0.12,'lowpass',amount>=25?260:420,amount>=25?0.5:0.32); }catch(_){} }
   }catch(_){}
@@ -53290,7 +53312,7 @@ window._knoxService=function(id){
   if(id==='tow'){ mine('Podeślij lawetę — auto stoi.'); if(!has){ push('Nie widzę u Ciebie żadnej fury. Nie ma czego holować.'); return; } const ok=window._vehCallTow(kind,'workshop'); push(ok?'Laweta jedzie. Zostawiam pod Garage 77 — reszta u mechanika.':'Brakło Ci na lawetę. Zbierz kasę, odezwij się.'); }
   else if(id==='transport'){ mine('Zabierz to na Metal Valley.'); if(!has){ push('Nie ma czego wozić.'); return; } const ok=window._vehCallTow(kind,'metal_valley'); push(ok?'Załadowane. Rysiek Cię rozliczy jak zejdzie na części.':'Bez kasy nie ruszę wraka.'); }
   else if(id==='wreck'){ mine('Zostań po tym wraku porządek.'); const wc=(Array.isArray(G.wreckCases)?G.wreckCases.find(w=>w.status==='unpaid'):null); if(!wc){ push('Nie widzę żadnego wraka do sprzątnięcia. Na razie czysto.'); return; } if((G.money||0)<wc.amount){ push('Sprzątnięcie kosztuje '+wc.amount.toLocaleString('pl')+' zł. Nie stać Cię teraz.'); return; } G.money-=wc.amount; if(typeof spent==='function') spent(wc.amount); wc.status='paid'; push('Ekipa zebrała szczątki i wywiozła. −'+wc.amount.toLocaleString('pl')+' zł, temat zamknięty.'); if(typeof updateHUD==='function') updateHUD(); }
-  else if(id==='quote'){ mine('Ile to realnie kosztuje?'); if(!has){ push('Nie ma czego wyceniać.'); return; } const rep=window._vehEvaluateRepairability(kind); const oh=window._vehOverall(kind); push(oh>=90?'Ledwie rysa. Szkoda mojego czasu — jedź dalej.':rep.repairable?('Da się to poskładać. Stan '+oh+'%. Holowanie do warsztatu '+window._vehTowCost(kind,'workshop').toLocaleString('pl')+' zł, potem mechanik.'):'To nie jest rysa na zderzaku. To pojazd, który właśnie przestał mieć przyszłość. Mogę zabrać na Metal Valley — nie będzie pięknie, ale zniknie z ulicy.'); }
+  else if(id==='quote'){ mine('Ile to realnie kosztuje?'); if(!has){ push('Nie ma czego wyceniać.'); return; } const rep=window._vehEvaluateRepairability(kind); const oh=window._vehOverall(kind); push(oh>=90?'Ledwie rysa. Szkoda mojego czasu — jedź dalej.':rep.repairable?('Da się to poskładać. Stan '+Math.round(oh)+'%. Holowanie do warsztatu '+window._vehTowCost(kind,'workshop').toLocaleString('pl')+' zł, potem mechanik.'):'To nie jest rysa na zderzaku. To pojazd, który właśnie przestał mieć przyszłość. Mogę zabrać na Metal Valley — nie będzie pięknie, ale zniknie z ulicy.'); }
   else if(id==='contacts'){ mine('Znasz kogoś od... innych spraw?'); const trust=(k.trust||0); if(trust<4){ push('Spokojnie. Najpierw popracujmy razem parę razy, potem pogadamy o znajomościach.'); } else { k.contactsAsked=true; push('Znam ludzi od różnych rzeczy — nocne życie, zamknięte stoły, tacy co pomagają „wejść wyżej". Każdy taki kontakt to koszt i ryzyko. Odezwę się, jak będzie temat.'); if(typeof window._uwAddStat==='function'){ try{ window._uwAddStat('street_heat',1); }catch(e){} } } }
   if(typeof saveGameSilent==='function') saveGameSilent();
   if(typeof renderSMSConversation==='function' && typeof phoneOpen==='function' && phoneOpen()){ try{ renderSMSConversation('knox'); }catch(e){} }
@@ -53312,7 +53334,7 @@ window._vehRepairCard=function(kind){
     if(!rep.repairable){ body=`<div style="color:#e74c3c;font-size:11.5px;margin:4px 0">✗ Zbyt zniszczony — naprawa nieopłacalna.</div><button class="bbtn" style="font-size:11.5px;padding:6px 8px;border-color:#7a2a2a;color:#e6a0a0" onclick="closeOverlay();window._vehTowPanel&&window._vehTowPanel('${kind}')">♻️ Kasacja / holowanie</button>`; }
     else { body=`<div style="display:flex;flex-direction:column;gap:2px;margin-top:4px">${cb('basic','Naprawa podstawowa (blacharka)')}${cb('mech','Naprawa mechaniczna')}${cb('full','Naprawa pełna')}</div>`; }
   }
-  return `<div class="sitem"><h3>${em} ${title}</h3><p>${nm} (stan: ${oh}%)</p>${body}</div>`;
+  return `<div class="sitem"><h3>${em} ${title}</h3><p>${nm} (stan: ${Math.round(oh)}%)</p>${body}</div>`;/* v2.3.115 (PDF Uspr): zaokrąglenie stanu % w Garage 77 */
 };
 /* wykonaj naprawę wybranego poziomu + re-render warsztatu. */
 window.repairVehicleLevel=function(kind,level){ if(window._vehRepairVehicle(kind,level)){ if(typeof renderWarsztat==='function') renderWarsztat(); } };
@@ -53683,8 +53705,8 @@ function _getPhoneFolders(){
       _phApp('🪙','Kruszec','#15120a','#d4af37',"renderPhoneApp('metals')", !((G.level||1)>=8 || (G.metals&&Object.keys(G.metals.holdings||{}).length>0)), '🪙 Kantor Kruszcu zablokowany — odblokujesz na poziomie 8.'),
       /* v2.1.900 (user: „sejf w Finansach, widoczny na szaro gdy go nie ma, brak dostępu dopóki nie kupi"): Sejf ZAWSZE w folderze Finanse. Nieposiadany → kafelek SZARY/zablokowany (klik = podpowiedź „kup w IKEA"), bez dostępu do wpłat/wypłat. Zakup w sklepie IKEA; po kupnie kafelek aktywny. */
       _phApp('🔒','Sejf','#0a140a','#2ecc71',"renderPhoneApp('safe')", !(typeof _hasAnySafe==='function'&&_hasAnySafe()), '🔒 Sejf zablokowany — kup go najpierw w sklepie NorthRoom (sekcja Bezpieczeństwo), wtedy odblokujesz wpłaty i wypłaty.'),
-      /* v2.1.888 OLX — serwis ogłoszeń. v2.1.911 (user): ZAWSZE widoczne — szare/zablokowane do poziomu 2 (zamiast ukryte). */
-      _phApp('📋',`OLX${(G.olx&&G.olx.listings&&G.olx.listings.length>0)?' ('+G.olx.listings.length+')':''}`,'#0a1525','#5dade2',"renderPhoneApp('olx')", !(((G.olx&&G.olx.listings&&G.olx.listings.length>0) || (G.level||1)>=2)), '📋 OLX (ogłoszenia) odblokujesz na poziomie 2.'),
+      /* v2.1.888 Swaply — serwis ogłoszeń. v2.1.911 (user): ZAWSZE widoczne — szare/zablokowane do poziomu 2 (zamiast ukryte). */
+      _phApp('📋',`Swaply${(G.olx&&G.olx.listings&&G.olx.listings.length>0)?' ('+G.olx.listings.length+')':''}`,'#0a1525','#5dade2',"renderPhoneApp('olx')", !(((G.olx&&G.olx.listings&&G.olx.listings.length>0) || (G.level||1)>=2)), '📋 Swaply (ogłoszenia) odblokujesz na poziomie 2.'),
       /* v2.1.699 Luksusowe aktywa (endgame status sink, fame≥150). v2.1.902: ZAWSZE widoczne — wyszarzone do odblokowania (analog sejf). */
       _phApp('💎',`Luksusy${(G.luxuryAssets||[]).length>0?' ('+(G.luxuryAssets||[]).length+')':''}`,'#15120a','#c8a520',"renderPhoneApp('luxury')", !((G.fame||0)>=150 || (G.luxuryAssets||[]).length>0), '💎 Luksusy zablokowane — odblokujesz przy 150 sławy.'),
     ]},
@@ -55417,14 +55439,14 @@ function renderPhoneApp(app){
         </div>`;
     }
   } else if(app==='olx'){
-    /* v2.1.888 (PDF linia 49): OLX — serwis ogłoszeń. Wystaw przedmioty z ekwipunku (premia +30%, kupiec po 1-3 dniach). */
+    /* v2.1.888 (PDF linia 49): Swaply — serwis ogłoszeń. Wystaw przedmioty z ekwipunku (premia +30%, kupiec po 1-3 dniach). */
     if(!G.olx||typeof G.olx!=='object') G.olx={listings:[]}; if(!Array.isArray(G.olx.listings)) G.olx.listings=[];
     const _lst=G.olx.listings;
     const _sell=(typeof _olxSellable==='function')?_olxSellable():[];
     ph.innerHTML=`<div class="ph-screen">
       <div style="background:#0a1525;border:2px solid #3498db;border-radius:8px;padding:12px;margin-bottom:10px">
-        <div style="font-size:18px;font-weight:700;color:#5dade2">📋 OLX — Ogłoszenia</div>
-        <div style="font-size:11px;color:#9ab;margin-top:4px;line-height:1.5">Sprzedaj sprzęt, kosztowności i kradzione z premią <strong style="color:#2ecc71">+30%</strong> ponad wartość — ale kupiec zjawia się po <strong>1-3 dniach</strong>. (Lombard płaci od ręki pełną wartość, anonimowo.) ⚠️ Kradzione na OLX = ryzyko, że kupiec to tajniak (konfiskata + zniesławienie).</div>
+        <div style="font-size:18px;font-weight:700;color:#5dade2">📋 Swaply — Ogłoszenia</div>
+        <div style="font-size:11px;color:#9ab;margin-top:4px;line-height:1.5">Sprzedaj sprzęt, kosztowności i kradzione z premią <strong style="color:#2ecc71">+30%</strong> ponad wartość — ale kupiec zjawia się po <strong>1-3 dniach</strong>. (Lombard płaci od ręki pełną wartość, anonimowo.) ⚠️ Kradzione na Swaply = ryzyko, że kupiec to tajniak (konfiskata + zniesławienie).</div>
       </div>
       <div style="font-size:12px;color:#888;margin-bottom:6px">🟢 Aktywne ogłoszenia (${_lst.length}):</div>
       ${_lst.length?_lst.map(l=>{
@@ -55722,7 +55744,7 @@ const GAME_MECHANICS=[
         '✅ LEGALNIE — muzyka: nagrywaj single/albumy w Studiu, graj koncerty w Sali Koncertowej, zarabiaj na streamingu, merchu i radiu',
         '✅ LEGALNIE — inwestycje: Bank (lokaty) i krypto (telefon → Finanse) pomnażają kasę pasywnie',
         '🚫 NIELEGALNIE — Trap: produkcja w Kamperze/Labie i sprzedaż towaru; dealerzy auto-sprzedają Twój stash (telefon → Kariera → Trap)',
-        '🚫 NIELEGALNIE — kradzież: wieczorami trafisz na uliczne okazje (kieszonkówka) — gotówka i fanty do spieniężenia w Lombardzie/na OLX',
+        '🚫 NIELEGALNIE — kradzież: wieczorami trafisz na uliczne okazje (kieszonkówka) — gotówka i fanty do spieniężenia w Lombardzie/na Swaply',
         '🔀 MIKS — nic nie stoi na przeszkodzie, by łączyć drogi (np. legalna muzyka + trap w tle)'],
    unlocks:['• LEGALNA droga: wolniejszy start, ale spokój — bez heatu, policji i aresztu; czysty wizerunek dla sponsorów i marek',
             '• NIELEGALNA droga: szybszy zarobek, lecz rośnie heat (policja), grozi bust (utrata kasy + areszt), konfiskata towaru i zniesławienie',
@@ -60921,7 +60943,7 @@ window.doPrestige=()=>{
   /* v2.1.887 (PDF): sejf — gotówka w sejfie resetuje się przy Prestige (anti-exploit: nie przenoś kasy przez reset; analog crypto/metals/money). v2.1.929: per-mieszkanie. */
   if(G.safe){ G.safe.owned=false; G.safe.cash=0; }
   G.safes={}; if(typeof _syncHomeSafe==='function') _syncHomeSafe();
-  /* v2.1.888: OLX — wyczyść aktywne ogłoszenia przy Prestige (analog inventory reset; itemy i tak znikają) */
+  /* v2.1.888: Swaply — wyczyść aktywne ogłoszenia przy Prestige (analog inventory reset; itemy i tak znikają) */
   if(G.olx){ G.olx.listings=[]; }
   addNotif('📈 Trader career + crypto holdings zresetowane przy Prestige.');
   /* v2.1.408 Faza AN Round 2 reguła #18: Prestige resetuje Trap career + inventory. Analog Trader. */
@@ -64893,6 +64915,18 @@ window._s9AfterDeal=function(npcId,priceTier){
 };
 const PATCH_NOTES = [
  {
+ ver:'v2.3.115',date:'2026-07-10',cats:['beta-tester','Vegan','fix','feature'],reporter:'Vegan',title:'🔧 Usprawnienia: ekipa, pojazdy, kamper, Swaply i porządki',
+ items:[
+  {t:'feature',d:'👥 Rekrutacja ekipy u Rydera bardziej wymagająca i urealniona. Realizator dźwięku dołączy dopiero, gdy masz podstawowy sprzęt do nagrywania (komputer z programem do produkcji muzyki), a grafik — gdy wrzucisz przynajmniej jeden materiał wideo na ViewGrid. Zaktualizowane stawki za ekipę: grafik 1500 zł, realizator dźwięku 2500 zł, DJ 1500 zł, junior manager 5000 zł.'},
+  {t:'fix',d:'🚗 Bagażnik auta ma teraz sens: do schowka na rzeczy i gotówki dostaniesz się tylko wtedy, gdy siedzisz w aucie albo stoisz tuż przy nim — a nie z drugiego końca miasta. Dodatkowo przycisk powrotu z bagażnika wraca teraz do ekwipunku, zamiast wyrzucać Cię na mapę.'},
+  {t:'fix',d:'🚐 Do wnętrza kampera wejdziesz tylko stojąc blisko niego. Koniec z przenoszeniem się do środka kampera z dowolnego miejsca na mapie.'},
+  {t:'change',d:'📋 Aplikacja ogłoszeń w telefonie zmieniła nazwę na „Swaply" (wcześniej „OLX"). Działa dokładnie tak samo — Twoje wystawione przedmioty i cała historia zostają bez zmian.'},
+  {t:'fix',d:'🔧 Stan pojazdu pokazuje się teraz jako równy procent (np. 96%) zamiast długiego ułamka — i w Garage 77, i w komunikacie po stuknięciu w przeszkodę.'},
+  {t:'fix',d:'🌱 Doniczki w kamperze i na plantacji mają teraz czyste nazwy (Doniczka 1, Doniczka 2...) — zniknął znaczek, który u części graczy wyświetlał się jako pusty kwadracik.'},
+  {t:'fix',d:'🛋 Drobiazg: przy odpoczynku na sofie ikonka kanapy nie dubluje się już w opisie.'},
+ ]
+ },
+ {
  ver:'v2.3.114',date:'2026-07-05',cats:['feature','fix'],title:'🎮 Turnieje esportowe + rozbudowa linii kariery (Hazard, Muzyka)',
  items:[
   {t:'fix',d:'🎮 Turnieje esportowe (Gaming) przebalansowane! Wcześniej potrafiły dać kilka tysięcy złotych już na samym początku gry — teraz nagroda zależy przede wszystkim od Twojej rangi i sławy. Rang jest teraz dziewięć (od Brązu, przez Mistrza, po Legendę) i to one są głównym mnożnikiem wypłaty, a im większa Twoja sława, tym więcej płaci turniej. Na starcie to skromne kwoty; duże wygrane (kilka–kilkanaście tysięcy) są nagrodą dla znanych graczy z wysoką rangą.'},
@@ -66557,7 +66591,7 @@ const PATCH_NOTES = [
  ver:'v2.1.921',date:'2026-06-15',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'🏧 Parabank — chwilówki (szybka kasa, brutalne warunki)',
  items:[
  {t:'feature',d:'🏧 Nowa apka w telefonie (folder Finanse): Parabank — chwilówki. Szybka gotówka bez pytań, ale drogo: każda pożyczka to +50% prowizji od ręki (np. pożyczasz 3000 → 4500 do spłaty) i brutalne 3% dziennie odsetek (Bank ma tylko 1%). Trzy progi: 3000 / 8000 / 20 000 zł, limit długu 40 000 zł.'},
- {t:'feature',d:'⚠️ Dług rośnie szybko i spłaca się sam, gdy uzbierasz całość (jak kredyt w Banku). Opcja dla naprawdę zdesperowanych — w spokojnej grze taniej wziąć kredyt w Banku albo sprzedać coś na OLX. Dług umarza się przy Prestiżu (świeży start).'},
+ {t:'feature',d:'⚠️ Dług rośnie szybko i spłaca się sam, gdy uzbierasz całość (jak kredyt w Banku). Opcja dla naprawdę zdesperowanych — w spokojnej grze taniej wziąć kredyt w Banku albo sprzedać coś na Swaply. Dług umarza się przy Prestiżu (świeży start).'},
  ],
  },
  {
@@ -66629,7 +66663,7 @@ const PATCH_NOTES = [
  ver:'v2.1.911',date:'2026-06-15',cats:['beta-tester','Vegan','fix'],reporter:'Vegan',title:'🔍 Ostrzejsze minigry „Gigi" + wszystkie apki telefonu szare zamiast niewidzialnych',
  items:[
  {t:'fix',d:'🔍 Minigry prac dorywczych („Gigi") nie są już rozmyte/rozpikselowane na ekranach o wysokiej rozdzielczości (HiDPI/Retina). Płótno renderuje się teraz w pełnej rozdzielczości ekranu — czcionki, paski i grafika są ostre. Dotyczy wszystkich 7 gigów (ulotki, magazyn, mechanik, pchli targ, złom, statysta, fotograf).'},
- {t:'change',d:'📱 Koniec „wyskakujących" ikon w telefonie. Apki wymagające odblokowania (Studio Setup, Beef, Merch, Kontrakty, Atelier, Trap, OLX, Prestige) są teraz ZAWSZE widoczne — wyszarzone z kłódką 🔒, dopóki nie spełnisz wymogu (klik pokazuje czego potrzeba). Gdy odblokujesz, kafelek aktywuje się z powiadomieniem „🔓 Odblokowano". Spójne z Crypto/Kruszcem/Luksusami/Sejfem.'},
+ {t:'change',d:'📱 Koniec „wyskakujących" ikon w telefonie. Apki wymagające odblokowania (Studio Setup, Beef, Merch, Kontrakty, Atelier, Trap, Swaply, Prestige) są teraz ZAWSZE widoczne — wyszarzone z kłódką 🔒, dopóki nie spełnisz wymogu (klik pokazuje czego potrzeba). Gdy odblokujesz, kafelek aktywuje się z powiadomieniem „🔓 Odblokowano". Spójne z Crypto/Kruszcem/Luksusami/Sejfem.'},
  ],
  },
  {
@@ -66795,10 +66829,10 @@ const PATCH_NOTES = [
  ],
  },
  {
- ver:'v2.1.888',date:'2026-06-14',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'📋 OLX — serwis ogłoszeń (sprzedaż sprzętu, kosztowności i kradzionego)',
+ ver:'v2.1.888',date:'2026-06-14',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'📋 Swaply — serwis ogłoszeń (sprzedaż sprzętu, kosztowności i kradzionego)',
  items:[
- {t:'feature',d:'📋 Nowość: OLX (telefon → folder Finanse → 📋 OLX). Wystawiasz przedmioty z ekwipunku (sprzęt, kosztowności, łup z kradzieży) z premią +30% ponad wartość — ale kupiec zjawia się dopiero po 1-3 dniach. To alternatywa dla Lombardu, który płaci od ręki pełną wartość (anonimowo). Ogłoszenie możesz w każdej chwili ściągnąć — przedmiot wróci do ekwipunku.'},
- {t:'feature',d:'⚠️ Kradzione na OLX kusi wyższą ceną, ale jest ryzyko (~20%), że kupiec okaże się tajniakiem — wtedy towar przepada, a zniesławienie i hejterzy idą w górę. Chcesz bezpiecznie? Sprzedaj łup w Lombardzie (Underground). Chcesz drożej? Zaryzykuj OLX.'},
+ {t:'feature',d:'📋 Nowość: Swaply (telefon → folder Finanse → 📋 Swaply). Wystawiasz przedmioty z ekwipunku (sprzęt, kosztowności, łup z kradzieży) z premią +30% ponad wartość — ale kupiec zjawia się dopiero po 1-3 dniach. To alternatywa dla Lombardu, który płaci od ręki pełną wartość (anonimowo). Ogłoszenie możesz w każdej chwili ściągnąć — przedmiot wróci do ekwipunku.'},
+ {t:'feature',d:'⚠️ Kradzione na Swaply kusi wyższą ceną, ale jest ryzyko (~20%), że kupiec okaże się tajniakiem — wtedy towar przepada, a zniesławienie i hejterzy idą w górę. Chcesz bezpiecznie? Sprzedaj łup w Lombardzie (Underground). Chcesz drożej? Zaryzykuj Swaply.'},
  ],
  },
  {
@@ -78288,7 +78322,8 @@ const STORYLINE_QUESTS=[
   {id:'firstsponsor',em:'🤝', name:'Pierwsza współpraca z marką', desc:'Zbij zasięg na tyle, by dostać ofertę sponsorską i wrzuć pierwszy sponsorowany post (FrameUp → oferty sponsorów). Marki płacą za Twój zasięg',
     check:()=>(G._igSponsoredCount||0)>=1, reward:{money:5000,fame:8,xp:70}},
   {id:'esportwin',em:'🎮', name:'Wygrany turniej esportowy', desc:'Rozwiń karierę gamingową i wygraj pierwszy turniej esportowy (Telefon → Kariera → Gamer). Gaming to poważny, dobrze płatny filar dochodu',
-    check:()=>(G.careers?.gamer?.tourneysWon||0)>=1, reward:{money:6000,fame:10,xp:90,skillPts:1}},
+    /* v2.3.115 (PDF Uspr): usunięto jednorazowe +6000 zł za pierwszy turniej — zastąpione systemem streaks (bonus co 10/50/100 rozegranych turniejów). Osiągnięcie zostaje (sława/XP/pkt). */
+    check:()=>(G.careers?.gamer?.tourneysWon||0)>=1, reward:{fame:10,xp:90,skillPts:1}},
   // ── PÓŹNA GRA (Day 20+) ──
   {id:'tracks5',  em:'📀', name:'Pięć singli',         desc:'Nagraj 5 tracków — gotowy materiał na album. Profesjonalna realizacja wymaga rozwoju drzewka',
     check:()=>(G.careers?.raper?.tracks||0)>=5, reward:{money:6000,fame:10,xp:100}},
@@ -78672,7 +78707,7 @@ const CAREER_TRACKS={
     {id:'dig_subs1k', em:'👥', name:'1 000 subskrybentów', desc:'Pierwszy milestone na ViewGrid — 1 000 subskrybentów.', check:()=>(G.yt?.subs||0)>=1000, reward:{money:2000,fame:8,xp:60,skillPts:1}},
     {id:'dig_gamer', em:'🖥', name:'Pierwsza sesja gamingowa', desc:'Odblokuj Gaming na komputerze (od poziomu 2) i zagraj pierwszą sesję.', check:()=>G.careers?.gamer?.unlocked===true, reward:{money:200,xp:25}},
     {id:'dig_videos10', em:'📹', name:'Dziesięć filmów', desc:'Opublikuj 10 filmów na ViewGrid — regularność buduje kanał.', check:()=>(G.yt?.videos?.length||0)>=10, reward:{money:3000,fame:8,xp:80,skillPts:1}},
-    {id:'dig_esport', em:'🎮', name:'Wygrany turniej esportowy', desc:'Wygraj pierwszy turniej esportowy — gaming to poważny filar dochodu.', check:()=>(G.careers?.gamer?.tourneysWon||0)>=1, reward:{money:6000,fame:10,xp:90,skillPts:1}},
+    {id:'dig_esport', em:'🎮', name:'Wygrany turniej esportowy', desc:'Wygraj pierwszy turniej esportowy — gaming to poważny filar dochodu.', check:()=>(G.careers?.gamer?.tourneysWon||0)>=1, reward:{fame:10,xp:90,skillPts:1}},/* v2.3.115 (PDF Uspr): usunięto +6000 zł, patrz esportwin. Streaks zastępują. */
     {id:'dig_streams10', em:'📡', name:'Dziesięć transmisji', desc:'Odpal 10 streamów na żywo — budujesz stałą widownię i społeczność.', check:()=>(G._streamsCompleted||0)>=10, reward:{money:5000,fame:12,xp:100,skillPts:1}},
     {id:'dig_subs10k', em:'🌟', name:'10 000 subskrybentów', desc:'Złoty próg na ViewGrid — 10 000 subskrybentów.', check:()=>(G.yt?.subs||0)>=10000, reward:{money:8000,fame:20,xp:100,skillPts:2}},
     {id:'dig_esport5', em:'🏅', name:'Pro Gamer', desc:'Wygraj 5 turniejów esportowych — liczysz się w scenie e-sportu.', check:()=>(G.careers?.gamer?.tourneysWon||0)>=5, reward:{money:15000,fame:20,xp:150,skillPts:2}},
