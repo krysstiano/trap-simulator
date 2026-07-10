@@ -77150,6 +77150,9 @@ function openAdminPanel(){
   document.getElementById('adm-sleepdebt').value=G.sleepDebt||0;
   document.getElementById('adm-xp').value=G.xp||0;
   document.getElementById('adm-prestige').value=G.prestige||0;
+  /* v2.3.115 (PDF Uspr): Trap Career w adminie — do testów funkcji gated za progresją. */
+  if(document.getElementById('adm-trap-level')) document.getElementById('adm-trap-level').value=(G.trap&&G.trap.level)||1;
+  if(document.getElementById('adm-trap-xp')) document.getElementById('adm-trap-xp').value=(G.trap&&G.trap.xp)||0;
   document.getElementById('adm-loan').value=(G.bank&&G.bank.loan)||0;
   document.getElementById('adm-ytviews').value=(G.yt&&G.yt.views)||0;
   document.getElementById('adm-spfllisteners').value=(G.spotify&&G.spotify.listeners)||0;
@@ -77201,6 +77204,8 @@ function applyAdmin(){
   G.sleepDebt=Math.max(0,Math.min(5,v('adm-sleepdebt')));
   G.xp=Math.max(0,Math.min(99999999,v('adm-xp'))); /* v2.1.116: S44 upper bound */
   G.prestige=Math.max(0,Math.min(10,v('adm-prestige')));
+  /* v2.3.115 (PDF Uspr): ustaw poziom Trap (1-15) + XP — do testów funkcji gated za progresją Trap. Ustawienie odblokowuje Trap. */
+  { const _tl=v('adm-trap-level'); if(_tl>0){ if(!G.trap||typeof G.trap!=='object') G.trap={unlocked:false,level:1,xp:0,reputation:0,cooked:0,sold:0,busted:0,heat:0,_maxHeatEver:0}; G.trap.unlocked=true; G.trap.level=Math.max(1,Math.min(15,_tl)); G.trap.xp=Math.max(0,Math.min(99999999,v('adm-trap-xp'))); } }
   if(!G.bank) G.bank={loan:0,investments:[]};
   if(!G.parabank) G.parabank={loan:0}; /* v2.1.921: save-compat defensywny init parabanku */
   G.bank.loan=Math.max(0,v('adm-loan'));
@@ -86873,6 +86878,11 @@ loop();
     <div><label style="font-size:11px;color:#aaa">Views YT</label><input id="adm-ytviews" type="number" min="0" style="width:100%;background:#111;border:1px solid #333;color:#fff;padding:4px;border-radius:4px;font-size:13px"></div>
     <div><label style="font-size:11px;color:#aaa">Loopify słuchacze</label><input id="adm-spfllisteners" type="number" min="0" style="width:100%;background:#111;border:1px solid #333;color:#fff;padding:4px;border-radius:4px;font-size:13px"></div>
     <div><label style="font-size:11px;color:#aaa">AurumWave słuchacze</label><input id="adm-tidalisteners" type="number" min="0" style="width:100%;background:#111;border:1px solid #333;color:#fff;padding:4px;border-radius:4px;font-size:13px"></div>
+  </div>
+  <div style="font-size:10px;color:#666;letter-spacing:1px;margin:6px 0 4px 0">💊 TRAP CAREER (testy)</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+    <div><label style="font-size:11px;color:#aaa">Trap poziom (1-15)</label><input id="adm-trap-level" type="number" min="1" max="15" style="width:100%;background:#111;border:1px solid #333;color:#fff;padding:4px;border-radius:4px;font-size:13px"></div>
+    <div><label style="font-size:11px;color:#aaa">Trap XP</label><input id="adm-trap-xp" type="number" min="0" style="width:100%;background:#111;border:1px solid #333;color:#fff;padding:4px;border-radius:4px;font-size:13px"></div>
   </div>
   <div style="font-size:10px;color:#666;letter-spacing:1px;margin:6px 0 4px 0">👥 FANI (podziały)</div>
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
