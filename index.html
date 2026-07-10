@@ -1849,6 +1849,12 @@ document.addEventListener('keydown', e => {
   if(e.key==='v'||e.key==='V'){
     if(!_busyMG && G.car && _carRoom(currentRoom)){
       if(typeof window._vehStateEnsure==='function') window._vehStateEnsure();
+      /* v2.3.115 (PDF Uspr): pojazd w naprawie w Garage 77 — nie da się go przywołać/wsiąść, jazda zablokowana; info o czasie odbioru. */
+      if(typeof window._vehInRepair==='function' && window._vehInRepair('car')){
+        const _rp=(G.traffic&&G.traffic._repair)||{}; const _rleft=Math.max(0,(_rp.readyDay||0)-(G.day||0));
+        if(typeof showMsg==='function') showMsg(`🔧 Twój samochód jest w naprawie w Garage 77 — gotowy do odbioru za ${_rleft} ${_rleft===1?'dzień':'dni'} gry. Wtedy znów go poprowadzisz.`,'i',5500);
+        return;
+      }
       const _vst=(G._vehState&&G._vehState.car)||{};
       if(G._inCamper && !G._inCar){
         /* v2.3.113 (PDF new/111 pkt 10): symetria — [V]=auto działa też gdy siedzisz w kamperze (nie blokują się).
@@ -12853,7 +12859,7 @@ function _drawVehicleFx(kind, sx, sy, d){
 function drawPlayerCar(){
   /* v2.1.60 Amper: rysuj również ZAPARKOWANE auto na pozycji G._carParkedAt — gracz musi wiedzieć gdzie wysiadł.
      Wcześniej auto znikało po wysiadce (G._inCar=false) i gracz nie miał wskazówki gdzie wrócić. */
-  if(G.car && _carRoom(currentRoom) && G._carParkedAt && !G._inCar && _carParkRoom()===currentRoom){
+  if(G.car && _carRoom(currentRoom) && G._carParkedAt && !G._inCar && _carParkRoom()===currentRoom && !(typeof window._vehInRepair==='function' && window._vehInRepair('car'))){/* v2.3.115 (PDF Uspr): ukryj marker/hint pojazdu na czas naprawy w Garage 77 */
     const _psx=wx2sx(G._carParkedAt.wx)+P.w/2;
     const _psy=wy2sy(G._carParkedAt.wy)+P.h/2;
     const carC={'Maluch':'#c0392b','Seat Ibiza':'#2471a3','BMW E46':'#1c2833'};
@@ -44109,47 +44115,66 @@ window._forbesAnswer=function(idx,btn){
 /* v2.1.496 USER FEEDBACK — multi-step marihuana process: harvest produces WET BUDS,
    drying rack converts wet→dried (1 day), packing station bags dried→TRAW (real usable).
    First iteration: scaffolding. Full mechanika rozbudowana w kolejnych iteracjach. */
-window._renderDryingRack=function(){
-  /* Defensive init */
-  if(!G.grow) G.grow={pots:[],inv:{seeds:0,soil:0,fert:0},potsOwned:1,totalHarvested:0,perfectHarvests:0};
+/* v2.3.115 (PDF Uspr): model suszenia rozdzielony na 3 liczniki — wetBuds=zebrane, NIE powieszone; dryingWet=partia na sznurze (max 15, 1 naraz); driedBuds=suche.
+   Naprawia BUG podwójnego liczenia (nowy zbiór NIE dolewa się do schnącej partii) oraz limit 15/raz. Migruje stare save'y (stary model trzymał schnące topy w wetBuds+dryingStartDay). */
+window._growDryEnsure=function(){
+  if(!G.grow) return;
   if(typeof G.grow.wetBuds!=='number') G.grow.wetBuds=0;
   if(typeof G.grow.driedBuds!=='number') G.grow.driedBuds=0;
   if(typeof G.grow.dryingStartDay!=='number') G.grow.dryingStartDay=0;
+  if(typeof G.grow.dryingWet!=='number') G.grow.dryingWet=0;
+  /* migracja starego save: schnące topy były w wetBuds + dryingStartDay>0 → przenieś na sznur (dryingWet) */
+  if(G.grow.dryingStartDay>0 && G.grow.dryingWet===0 && G.grow.wetBuds>0){ G.grow.dryingWet=G.grow.wetBuds; G.grow.wetBuds=0; }
+};
+window._renderDryingRack=function(){
+  if(!G.grow) G.grow={pots:[],inv:{seeds:0,soil:0,fert:0},potsOwned:1,totalHarvested:0,perfectHarvests:0};
+  window._growDryEnsure();
   const _mg=document.getElementById('mg-job');const _mc=document.getElementById('mg-job-content');
   if(!_mg||!_mc) return;
-  const _wet=G.grow.wetBuds||0;
+  const _wet=G.grow.wetBuds||0;        // zebrane, nie powieszone
+  const _rack=G.grow.dryingWet||0;      // na sznurze (schnie)
   const _dried=G.grow.driedBuds||0;
-  const _dryingDays=G.grow.dryingStartDay?Math.max(0,G.day-G.grow.dryingStartDay):0;
-  const _readyToDry=_dryingDays>=1 && _wet>0;
-  _mc.innerHTML=`<div style="background:#0a1a14;border:2px solid #3a8a4a;border-radius:10px;padding:18px;max-width:560px;margin:0 auto;color:#fff">
+  const _dryingDays=(_rack>0&&G.grow.dryingStartDay)?Math.max(0,G.day-G.grow.dryingStartDay):0;
+  const _readyToDry=_rack>0 && _dryingDays>=1;
+  const _BATCH=15;
+  _mc.innerHTML=`<div style="background:#0a1a14;border:2px solid #3a8a4a;border-radius:10px;padding:18px;max-width:580px;margin:0 auto;color:#fff">
     <h2 style="color:#7ec87e;margin-top:0;text-align:center">🌬 Suszarnia</h2>
-    <div style="color:#aab;font-size:12px;text-align:center;margin-bottom:14px">Po zebraniu z plantacji rośliny są MOKRE. Muszą wisieć 1 dzień żeby wyschnąć. Suche topy potem pakuj na ulicy.</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-      <div style="background:#1a2510;padding:12px;border-radius:8px;text-align:center;border:1px solid #3a5520">
-        <div style="font-size:14px;color:#52be80">💧 MOKRE</div>
-        <div style="font-size:28px;color:#7ec87e;font-weight:700">${_wet}</div>
-        <div style="font-size:10px;color:#aab;margin-top:4px">${_wet>0?(G.grow.dryingStartDay>0?`Suszą się od dnia ${G.grow.dryingStartDay} (${_dryingDays}/1 dni)`:'Powieś na sznurach (1 dzień)'):'Brak. Zbierz z Plantacji.'}</div>
+    <div style="color:#aab;font-size:12px;text-align:center;margin-bottom:14px">Po zbiorze rośliny są MOKRE. Powieś je na sznurze (max ${_BATCH} na raz) — po 1 dniu wyschną. Nowy zbiór czeka osobno i NIE miesza się ze schnącą partią.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+      <div style="background:#1a2510;padding:11px;border-radius:8px;text-align:center;border:1px solid #3a5520">
+        <div style="font-size:13px;color:#52be80">💧 MOKRE</div>
+        <div style="font-size:26px;color:#7ec87e;font-weight:700">${_wet}</div>
+        <div style="font-size:10px;color:#aab;margin-top:4px">${_wet>0?(_rack>0?'Czekają — najpierw wyschnie partia':'Powieś na sznurach'):'Brak. Zbierz z uprawy.'}</div>
       </div>
-      <div style="background:#2a1808;padding:12px;border-radius:8px;text-align:center;border:1px solid #5a3818">
-        <div style="font-size:14px;color:#c8a520">🍂 SUCHE</div>
-        <div style="font-size:28px;color:#f1c40f;font-weight:700">${_dried}</div>
-        <div style="font-size:10px;color:#aab;margin-top:4px">${_dried>0?'Gotowe do pakowania (Kamper → Pakowanie)':'Brak. Powieś mokre na sznurach.'}</div>
+      <div style="background:#10251a;padding:11px;border-radius:8px;text-align:center;border:1px solid #3a5540">
+        <div style="font-size:13px;color:#5ad080">🌿 NA SZNURZE</div>
+        <div style="font-size:26px;color:#7ee8a0;font-weight:700">${_rack}</div>
+        <div style="font-size:10px;color:#aab;margin-top:4px">${_rack>0?`Schnie od dnia ${G.grow.dryingStartDay} (${_dryingDays}/1 dni)`:'Pusto'}</div>
+      </div>
+      <div style="background:#2a1808;padding:11px;border-radius:8px;text-align:center;border:1px solid #5a3818">
+        <div style="font-size:13px;color:#c8a520">🍂 SUCHE</div>
+        <div style="font-size:26px;color:#f1c40f;font-weight:700">${_dried}</div>
+        <div style="font-size:10px;color:#aab;margin-top:4px">${_dried>0?'Gotowe do pakowania':'Brak'}</div>
       </div>
     </div>
-    ${_wet>0 && !G.grow.dryingStartDay?`<button class="bbtn" style="width:100%;margin-bottom:8px" onclick="window._growHangDrying()">🌬 Powieś na sznurach (minigra · 1 dzień)</button>`:''}
-    ${_readyToDry?`<button class="bbtn" style="width:100%;margin-bottom:8px;background:linear-gradient(145deg,#1a5a2a,#0a3a1a)" onclick="G.grow.driedBuds=(G.grow.driedBuds||0)+G.grow.wetBuds;G.grow.wetBuds=0;G.grow.dryingStartDay=0;showMsg('🍂 Wysuszono! Teraz spakuj susz przy stacji 📦 Pakowanie → dostaniesz trawę.','g',4500);window._renderDryingRack();">🍂 Zdejmij wysuszone</button>`:''}
+    ${(_wet>0 && _rack===0)?`<button class="bbtn" style="width:100%;margin-bottom:8px" onclick="window._growHangDrying()">🌬 Powieś na sznurach (max ${_BATCH} · minigra · 1 dzień)</button>`:''}
+    ${_readyToDry?`<button class="bbtn" style="width:100%;margin-bottom:8px;background:linear-gradient(145deg,#1a5a2a,#0a3a1a)" onclick="G.grow.driedBuds=(G.grow.driedBuds||0)+(G.grow.dryingWet||0);G.grow.dryingWet=0;G.grow.dryingStartDay=0;showMsg('🍂 Wysuszono! Teraz spakuj susz przy stacji 📦 Pakowanie → dostaniesz trawę.','g',4500);window._renderDryingRack();">🍂 Zdejmij wysuszone</button>`:''}
     <button class="cbtn" style="width:100%;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Wyjdź</button>
   </div>`;
   _mg.classList.add('on');
 };
-/* v2.1.787 — minigra suszenia (przeciągnij mokre topy na sznur). */
+/* v2.1.787 — minigra suszenia (przeciągnij mokre topy na sznur). v2.3.115: max 15/partię, 1 partia naraz, osobno od nowego zbioru. */
 window._growHangDrying=function(){
+  window._growDryEnsure();
   if(!G.grow||(G.grow.wetBuds||0)<=0){showMsg('🌬 Brak mokrych topów do powieszenia.','r',2500);return;}
-  if(G.grow.dryingStartDay>0){showMsg('🌬 Pączki już się suszą.','i',2500);return;}
-  window._prodCanvasMG({type:'hang',title:'Suszenie',emoji:'🌬',hint:'Chwyć mokre topy (na dole) i przeciągnij je na sznur u góry, by powiesić do wyschnięcia.',accent:'#3a8a4a',accent2:'#7ec87e'}, function(q){
+  if((G.grow.dryingWet||0)>0){showMsg('🌬 Na sznurze schnie już partia — poczekaj aż wyschnie i zdejmij ją, zanim powiesisz kolejną.','i',3800);return;}
+  const _BATCH=15;
+  window._prodCanvasMG({type:'hang',title:'Suszenie',emoji:'🌬',hint:'Chwyć mokre topy (na dole) i przeciągnij je na sznur u góry, by powiesić do wyschnięcia (max 15 na raz).',accent:'#3a8a4a',accent2:'#7ec87e'}, function(q){
+    window._growDryEnsure();
     if((G.grow.wetBuds||0)<=0){ if(typeof window._renderDryingRack==='function') window._renderDryingRack(); return; }
-    const n=G.grow.wetBuds; G.grow.dryingStartDay=G.day;
-    showMsg(`🌬 Powieszono ${n} mokrych topów na sznurze. Wróć jutro po suche.`,'g',4500);
+    const _n=Math.min(_BATCH, G.grow.wetBuds||0);
+    G.grow.dryingWet=_n; G.grow.wetBuds=(G.grow.wetBuds||0)-_n; G.grow.dryingStartDay=G.day;
+    showMsg(`🌬 Powieszono ${_n} mokrych topów na sznurze (max ${_BATCH}/raz).${(G.grow.wetBuds||0)>0?` Zostało ${G.grow.wetBuds} — powiesisz je po wyschnięciu tej partii.`:''} Wróć jutro po suche.`,'g',5500);
     if(typeof window._renderDryingRack==='function') window._renderDryingRack();
   });
 };
@@ -48404,7 +48429,7 @@ window._metalValleyScrapMenu=function(){
   }
   const rows=vehs.map(v=>{
     const chk=window._canScrapVehicle(v);
-    const nm=(v.kind==='camper'?'🚐 ':'🚗 ')+v.name;
+    const nm=(v.kind==='camper'?'🚐 ':'🚗 ')+((v.kind==='car'&&typeof carDisplayName==='function')?carDisplayName(v.name):v.name);/* v2.3.115 (PDF Uspr): fikcyjna nazwa auta w wycenie rozbiórki */
     const reason=chk.reason==='backroom'?'zaplecze/proces aktywny':chk.reason==='driving'?'wysiądź najpierw':chk.reason==='already'?'już w rozbiórce':chk.reason==='limit'?'limit 2 rozbiórek':chk.reason==='pending'?'w trakcie sprzedaży':chk.reason==='quest'?'wątek fabularny':'';
     /* v2.3.110 FIX (user „klikam i nic się nie dzieje"): id pojazdu w SINGLE-quotes + escape.
        Było ${JSON.stringify(v.id)} → wstrzykiwało PODWÓJNE cudzysłowy do atrybutu onclick="..."
@@ -48433,7 +48458,7 @@ window._metalValleyRenderValuation=function(){
   panel.innerHTML=`<div id="mg-job-content" style="max-width:440px;margin:0 auto">
     <div style="text-align:center;font-size:17px;color:#95a5a6;font-weight:800;margin-bottom:8px">🔧 Wycena rozbiórki pojazdu</div>
     <div style="background:#0e1216;border:1px solid #2a3238;border-radius:8px;padding:12px;font-size:13px;color:#cdd;line-height:1.9">
-      <div>Pojazd: <b>${em} ${v.name}</b> · ${v.kind==='camper'?'Kamper':'Auto'} · Stan: <b>${Math.round(v.condition)}%</b></div>
+      <div>Pojazd: <b>${em} ${(v.kind==='car'&&typeof carDisplayName==='function')?carDisplayName(v.name):v.name}</b> · ${v.kind==='camper'?'Kamper':'Auto'} · Stan: <b>${Math.round(v.condition)}%</b></div>
       <div>Szacunkowa wartość pojazdu: <b>${s.market.toLocaleString('pl')} zł</b></div>
       <div style="border-top:1px solid #2a3238;margin:6px 0"></div>
       <div>Wartość części po rozbiórce: <b style="color:#7ec8e3">${s.gross.toLocaleString('pl')} zł</b></div>
@@ -53109,7 +53134,7 @@ window._vehStatusPanel=function(kind){
   const panel=document.getElementById('mg-job'); if(!panel){ if(typeof showMsg==='function') showMsg('🚗 Stan pojazdu: '+Math.round(window._vehOverall(kind))+'%.','i',3500); return; }
   panel.classList.add('on'); panel.style.display='';
   const em=kind==='camper'?'🚐':'🚗'; const oh=window._vehOverall(kind);
-  const nm=kind==='camper'?'Kamper':((G.car&&G.car.name)||'Auto');
+  const nm=kind==='camper'?'Kamper':((G.car&&G.car.name)?(typeof carDisplayName==='function'?carDisplayName(G.car.name):G.car.name):'Auto');/* v2.3.115 (PDF Uspr): fikcyjna nazwa w panelu stanu pojazdu */
   const bar=(lbl,v)=>{ v=(v==null?100:v); const col=v>=66?'#2ecc71':v>=33?'#f39c12':'#e74c3c'; return `<div style="display:flex;justify-content:space-between;font-size:12px;color:#cdd;margin-bottom:3px"><span>${lbl}</span><span style="color:${col};font-weight:700">${Math.round(v)}%</span></div>`; };
   const closeJs="var _e=document.getElementById('mg-job');_e.classList.remove('on');_e.style.display='none';_e.innerHTML='<div id=mg-job-content></div>';";/* fix audytu #2: odtwórz #mg-job-content (inaczej ~70 modali guard-return no-op) */
   const statusTxt=oh<=0?'unieruchomiony':oh<10?'ledwo działa':oh<35?'poważnie uszkodzony':oh<60?'uszkodzony':oh<80?'lekkie zużycie':'dobry';
@@ -53397,7 +53422,7 @@ window._vehRepairCard=function(kind){
   const em=kind==='camper'?'🚐':'🚗'; const title=kind==='camper'?'Kamper':'Samochód';
   const owned=kind==='camper'?!!(G.camper&&G.camper.owned):!!(G.car&&G.car.name);
   if(!owned) return '';
-  const nm=kind==='camper'?((typeof window._camperModelById==='function'&&window._camperModelById(G.camper.model)||{}).name||'Kamper'):G.car.name;
+  const nm=kind==='camper'?((typeof window._camperModelById==='function'&&window._camperModelById(G.camper.model)||{}).name||'Kamper'):(typeof carDisplayName==='function'?carDisplayName(G.car.name):G.car.name);/* v2.3.115 (PDF Uspr): Garage 77 pokazuje fikcyjną nazwę (jak CityDrive), nie realną markę */
   const oh=window._vehOverall(kind);
   window._vehTrafficEnsure();
   let body;
@@ -57122,6 +57147,11 @@ window._smsCheckTriggers=function(){
   if(G.apartment==='mega_villa') _smsTriggerOnce('mega_villa_bought','marcin','🏖 Mega Villa na południowo-wschodnich obrzeżach?! Bracie wszedłeś w legendę. Mam dla Ciebie zaproszenie na zamknięty event Polish Hip-Hop Awards. Helipad u Ciebie? 🚁');
   // — Storyline ważne kroki
   if(Object.values(G.careerTracks||{}).reduce((n,p)=>n+((p&&Array.isArray(p.completed)&&p.completed.length)||0),0)>=5) _smsTriggerOnce('story_5','kamil','widze ze idzie ci, juz piaty krok kariery. szanuje 💪'); /* 2026-07-05: liczy łączne ukończone kroki CAREER_TRACKS (mainQuest.currentStep zdeprecjonowany) */
+  /* v2.3.115 (PDF Uspr): TrapInfo informuje o odblokowanych pułapach rekrutacyjnych u Rydera (na bieżąco, raz na próg). Guard: nie powiadamiaj o roli, którą już masz w ekipie. */
+  if(G.hasDaw && G.dawTier>=1 && !(G.crew||[]).some(c=>c&&c.role==='sound_eng')) _smsTriggerOnce('crew_sound_unlock','trapinfo','🎛️ Masz już podstawowy sprzęt do nagrywania — u Rydera („Rekrutacja ekipy") możesz teraz zatrudnić realizatora dźwięku. Podbije jakość Twoich wydań.');
+  if((G.yt&&G.yt.videos?G.yt.videos.length:0)>=1 && !(G.crew||[]).some(c=>c&&c.role==='grafik')) _smsTriggerOnce('crew_grafik_unlock','trapinfo','🎨 Wrzuciłeś pierwszy materiał wideo na ViewGrid — u Rydera możesz teraz zatrudnić grafika. Zadba o oprawę Twoich filmów.');
+  if((G.fans||0)>=2000 && !(G.crew||[]).some(c=>c&&c.role==='dj')) _smsTriggerOnce('crew_dj_unlock','trapinfo','🎧 Masz już 2000 fanów — u Rydera odblokowałeś rekrutację DJ-a do sprzedaży bitów (+15% zarobku z bitów).');
+  if(((G.events&&G.events.performed)||0)>=5 && !G.managementDeal && !(G.crew||[]).some(c=>c&&c.role==='manager_jr')) _smsTriggerOnce('crew_manager_unlock','trapinfo','🤵 Zagrałeś 5 koncertów — u Rydera możesz teraz zatrudnić junior managera (+5% do wszystkich zarobków).');
   // — Kontrakt label
   if(G.label?.type==='major') _smsTriggerOnce('major_signed','label','Witamy w rodzinie! Twój kontrakt aktywny. Promujemy każdy Twój track. Marketing rusza 🏢');
   if(G.label?.type==='global') _smsTriggerOnce('global_signed','label','GLOBAL DEAL aktywny. Twoja muzyka leci na całym świecie. Czekamy na nowe single 🌍');
@@ -65009,6 +65039,11 @@ const PATCH_NOTES = [
   {t:'fix',d:'💬 Rozmowa i negocjacje z Ryśkiem w Metal Valley pokazują się teraz na wierzchu, nad panelem obiektu, a nie chowają się pod nim.'},
   {t:'fix',d:'🏥 W Nova Cura każde okno wywiadu ma teraz przycisk „Wyjdź" — w każdej chwili zamkniesz rozmowę.'},
   {t:'fix',d:'⏸ Menu pauzy ma teraz pierwszeństwo nad wszystkimi oknami i powiadomieniami — po wciśnięciu pauzy nic już nie zasłania menu.'},
+  {t:'fix',d:'🔧 Garage 77 pokazuje teraz Twoje pojazdy pod tymi samymi (wymyślonymi) nazwami co salon CityDrive — koniec z mieszaniem nazw w różnych miejscach gry.'},
+  {t:'fix',d:'🔧 Gdy oddasz samochód do naprawy w Garage 77, na czas naprawy zniknie on z mapy i nie przywołasz go klawiszem — dopóki nie będzie gotowy. Gra podpowie, za ile dni odbierzesz auto.'},
+  {t:'balance',d:'🌬 Suszarnia działa teraz sensownie: powiesisz na sznurze do 15 mokrych topów na raz, a kolejną partię zawiesisz dopiero, gdy poprzednia wyschnie. Świeżo zebrane topy czekają osobno i nie mieszają się ze schnącą partią.'},
+  {t:'fix',d:'🌬 Naprawiony błąd suszenia: jeśli zebrałeś nowe topy, zanim zdjąłeś wyschnięte, gra potrafiła policzyć suchy plon podwójnie. Teraz każda partia liczona jest osobno i uczciwie.'},
+  {t:'feature',d:'📩 Dostaniesz teraz powiadomienie, gdy odblokujesz możliwość zatrudnienia kolejnego członka ekipy u Rydera — realizatora dźwięku, grafika, DJ-a czy junior managera.'},
  ]
  },
  {
@@ -79840,6 +79875,7 @@ function loadGame(){
   if(typeof G.grow.wetBuds!=='number') G.grow.wetBuds=0;
   if(typeof G.grow.driedBuds!=='number') G.grow.driedBuds=0;
   if(typeof G.grow.dryingStartDay!=='number') G.grow.dryingStartDay=0;
+  if(typeof window._growDryEnsure==='function') window._growDryEnsure(); /* v2.3.115 (PDF Uspr): migruj stary model suszenia (dryingWet) na starcie/load, zanim gracz dosypie nowy zbiór */
   /* Ensure pots array has potsOwned entries */
   while(G.grow.pots.length<G.grow.potsOwned){G.grow.pots.push({stage:0,water:0,fert:0,planted:false,sickness:false,daysNoCare:0,peakWater:0,peakFert:0});}
   if(typeof G._undergroundVibesActive!=='boolean') G._undergroundVibesActive=false;
