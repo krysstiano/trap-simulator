@@ -3641,6 +3641,8 @@ const ROOMS = {
       {id:'npc_mason',      wx:1120,wy:560, w:34,  h:56,  act:'eclipse:mason',   prompt:'[E] 🕶️ Mason „Lock" Graves — ochrona', lbl:'Mason'},
       /* BLOK 3 (§24-25): strefa VIP na piętrze — schody, gated (VIP wejscie / slawa / relacja z managerka) */
       {id:'eclipse_vip',    wx:1200,wy:300, w:80,  h:110, act:'eclipse:vip',     prompt:'[E] 💎 Strefa VIP (schody na piętro)', lbl:'VIP'},
+      /* BLOK 5 (§41): zamknięta piwnica — widoczny sygnał, treść TYLKO po wątku Kantara (inaczej ochrona zawraca) */
+      {id:'eclipse_basement',wx:100, wy:540, w:70,  h:110, act:'eclipse:basement', prompt:'[E] 🚪 Zejście do piwnicy', lbl:'Piwnica'},
       {id:'npc_ec_guest1',  wx:380, wy:430, w:34,  h:56,  act:null, prompt:'', lbl:''},
       {id:'npc_ec_guest2',  wx:920, wy:440, w:34,  h:56,  act:null, prompt:'', lbl:''},
       {id:'npc_ec_guest3',  wx:660, wy:250, w:34,  h:56,  act:null, prompt:'', lbl:''},
@@ -4211,6 +4213,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'npc_valeria':    drawNPC(sx,sy,w,h,'#e8c090','#5a1442','💼');break;   /* BLOK 2: managerka Valeria */
     case 'npc_mason':      drawNPC(sx,sy,w,h,'#c08858','#14141a','🕶️');break;  /* BLOK 2: ochrona Mason */
     case 'eclipse_vip':    drawEclipseVipStairs(sx,sy,w,h);break;               /* BLOK 3: schody na strefę VIP */
+    case 'eclipse_basement':drawEclipseBasementDoor(sx,sy,w,h);break;           /* BLOK 5: zejście do piwnicy */
     case 'npc_ec_guest1': case 'npc_ec_guest2': case 'npc_ec_guest3': drawCasinoGuest(sx,sy,w,h,id);break;
     case 'exit_eclipse':   drawInteriorExit(sx,sy,w,h);break;
     case 'merch_studio': drawBuilding(sx,sy,w,h,'#3a1a2a','Studio Merch','#e91e63','🧢',true,{commercial:true});break;
@@ -9625,6 +9628,24 @@ function drawEclipseVipStairs(sx,sy,w,h){
   X.textAlign='center';X.textBaseline='middle';X.shadowColor='#f1c40f';X.shadowBlur=8*glow;X.fillStyle='#ffe08a';X.font='bold 12px "Segoe UI",sans-serif';X.fillText('💎 VIP',sx+w/2,sy+h*0.15);X.shadowBlur=0;
   X.textAlign='left';X.textBaseline='alphabetic';
 }
+/* Interior: zejście do piwnicy (BLOK 5) — ciemne stalowe drzwi + schody w dół + zimne światło. */
+function drawEclipseBasementDoor(sx,sy,w,h){
+  X.fillStyle='rgba(0,0,0,.5)';X.fillRect(sx+3,sy+4,w,h);
+  X.fillStyle='#0c0a14';X.fillRect(sx,sy,w,h);
+  /* framuga */
+  X.strokeStyle='#2a2436';X.lineWidth=3;X.strokeRect(sx+3,sy+3,w-6,h-6);
+  /* stalowe drzwi uchylone — czarny prześwit ze schodami */
+  X.fillStyle='#05040a';X.fillRect(sx+w*0.24,sy+h*0.14,w*0.52,h*0.78);
+  for(let i=0;i<4;i++){ X.fillStyle=i%2?'#0a0812':'#100c1a'; X.fillRect(sx+w*0.28,sy+h*0.5+i*(h*0.10),w*0.44,h*0.08); }
+  /* zimne światło z dołu */
+  const t=Date.now()/1400, fl=0.5+0.25*Math.sin(t);
+  X.fillStyle=`rgba(90,120,150,${0.18*fl})`;X.fillRect(sx+w*0.24,sy+h*0.5,w*0.52,h*0.42);
+  /* skrzydło drzwi + klamka */
+  X.fillStyle='#161320';X.fillRect(sx+w*0.10,sy+h*0.12,w*0.16,h*0.80);
+  X.fillStyle='#6a6a7a';X.beginPath();X.arc(sx+w*0.23,sy+h*0.52,2.5,0,Math.PI*2);X.fill();
+  X.textAlign='center';X.textBaseline='middle';X.fillStyle='#6a7a8a';X.font='11px "Segoe UI",sans-serif';X.fillText('🚪',sx+w/2,sy+h*0.08);
+  X.textAlign='left';X.textBaseline='alphabetic';
+}
 
 /* v2.1.664: cache obrazka dzieła gracza (G._muralArt = JPEG data URL miniatury). */
 let _muralArtImg=null,_muralArtSrc=null;
@@ -14742,6 +14763,10 @@ function handleAct(act,objId){
     /* PDF new/4 (§38): wyjście z klubu — roll paparazzi, potem powrót na Underground */
     if(typeof window._eclipseExit==='function') window._eclipseExit();
     else startRoomFade('underground',210,1140);
+    return;
+  } else if(act==='eclipse:basement'){
+    /* PDF new/4 (§41,§16-23): piwnica — warstwa półświatka (gated wątkiem Kantara) */
+    if(typeof window._eclipseBasement==='function') window._eclipseBasement();
     return;
   } else if(act.startsWith('gym:')){
     const parts=act.split(':');
@@ -53124,6 +53149,120 @@ window._eclipseMaybeFight=function(){
   chance=Math.max(0,Math.min(25,chance));
   if((Math.floor((gameMin||0)*3+(c._vipMet||0)*11)%100) < chance){ window._eclipseFightEvent(); return true; }
   return false;
+};
+
+/* ═══ PDF new/4 BLOK 5: WARSTWA PÓŁŚWIATKA (§16-23,§41) — piwnica, shadow jobs, Nico, Elias. TAJNE, gated wątkiem Kantara.
+   §18-19: zadania ABSTRAKCYJNE (ryzyko/konsekwencja/wynik fabularny), BEZ instruktażowych szczegółów przestępstw. ═══ */
+window._eclipseUnderworldAccess=function(){ return (G.kantarTrust||0)>=1 || !!(G.underworld&&G.underworld.introCompleted); };
+/* §19: 7 abstrakcyjnych kategorii — sama etykieta + fabuła, ZERO metody. */
+window._ECLIPSE_SHADOW_JOBS=[
+  {key:'sealed_delivery',  em:'✉️', label:'Zapieczętowana przesyłka', desc:'Przekazać komuś kopertę. Nie pytać, co w środku. Upewnić się, że weźmie.', base:1200, risk:20},
+  {key:'quiet_introduction',em:'🤝',label:'Ciche poznanie',           desc:'Poznać ze sobą dwie osoby, które nie chcą być widziane publicznie.', base:900,  risk:12},
+  {key:'vip_compromise',   em:'🎭', label:'Haczyk na VIP-a',           desc:'Zdobyć informację, której ktoś z góry wolałby nie zobaczyć w sieci.', base:1800, risk:30},
+  {key:'pressure_visit',   em:'🚪', label:'Wizyta z naciskiem',        desc:'Złożyć komuś wizytę i przekazać, że pewne słowo dotarło. Bez sceny.', base:1500, risk:28},
+  {key:'property_job',     em:'📦', label:'Sprawa z mieniem',          desc:'Ryzykowna akcja wokół cudzej własności. System rozlicza wynik.', base:2200, risk:38},
+  {key:'dirty_favor',      em:'🌫️', label:'Przysługa bez pytań',       desc:'Krótka przysługa. Bez pytań, bez śladu, bez rozmów.', base:800, risk:15},
+];
+window._eclipseBasement=function(){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir, u=G.underworld;
+  const panel=document.getElementById('mg-job'); if(!panel) return;
+  panel.classList.add('on'); panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  if(!window._eclipseUnderworldAccess()){
+    document.getElementById('mg-job-content').innerHTML=`
+      <div style="background:#0a0810;border:2px solid #2a2a3a;border-radius:10px;padding:16px;max-width:440px;margin:0 auto;color:#fff;width:100%">
+        <h3 style="margin-top:0;color:#c8c8d0">🚪 Zejście do piwnicy</h3>
+        <div style="font-size:12px;color:#e6ddff;background:#141420;border-radius:8px;padding:10px;margin-bottom:10px">Mason zastępuje Ci drogę: „Nie ta noc i nie ten poziom. Przede wszystkim: nie te pytania." <span style="color:#9a90b0">(drzwi są zamknięte)</span></div>
+        <button class="cbtn" style="width:100%;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Cofnij się</button>
+      </div>`;
+    return;
+  }
+  c.hasEnteredBasement=true; u.underworldWhispers=Math.min(100,(u.underworldWhispers||0)+0);
+  const jobReady=!u._noJobsUntil || (G.day||0)>=u._noJobsUntil;
+  const done=Array.isArray(u.completedShadowJobs)?u.completedShadowJobs.length:0;
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="background:#07060c;border:2px solid #4a2a6a;border-radius:10px;padding:16px;max-width:470px;margin:0 auto;color:#fff;width:100%;max-height:84vh;overflow-y:auto">
+      <h3 style="margin-top:0;color:#8e5ad0">🌑 Piwnica</h3>
+      <div style="font-size:12px;color:#b8a8d0;background:#120c1e;border-radius:8px;padding:10px;margin-bottom:10px">Bas znika. Zostaje wentylacja, zimne światło i ludzie, którzy nie przyszli tu tańczyć. <span style="color:#889">(zaufanie Kantara: ${G.kantarTrust||0} · zleceń w cieniu: ${done})</span></div>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:9px;margin-top:4px;color:#c0a0e0;border-color:#5a2a7a" onclick="window._eclipseShadowOffer()">${jobReady?'📨 Sprawdź, czy Kantar ma temat':'📭 Kantar dziś milczy (wróć później)'}</button>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:9px;margin-top:5px;color:#c0a0e0;border-color:#5a2a7a" onclick="window._eclipseNico()">🐀 Pogadaj z Nico „Splinter" Vale</button>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:9px;margin-top:5px;color:#c0a0e0;border-color:#5a2a7a" onclick="window._eclipseElias()">👑 Podejdź do Eliasa „Crown" Rooka</button>
+      <button class="cbtn" style="width:100%;margin-top:8px;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Wyjdź z piwnicy</button>
+    </div>`;
+};
+window._eclipseShadowOffer=function(){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir, u=G.underworld;
+  if(u._noJobsUntil && (G.day||0)<u._noJobsUntil){ if(typeof showMsg==='function') showMsg('📭 Kantar dziś nie ma dla Ciebie tematu. Wróć za kilka dni.','i',4500); return; }
+  const J=window._ECLIPSE_SHADOW_JOBS; const j=J[(Math.floor((gameMin||0)+(u.shadowReputation||0)*3)%J.length)];
+  const payout=Math.round(j.base*(1+(u.shadowReputation||0)*0.01));
+  c._curShadow={key:j.key,em:j.em,label:j.label,desc:j.desc,risk:j.risk,payout};
+  const panel=document.getElementById('mg-job'); panel.classList.add('on'); panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="background:#07060c;border:2px solid #5a2a7a;border-radius:10px;padding:16px;max-width:470px;margin:0 auto;color:#fff;width:100%">
+      <h3 style="margin-top:0;color:#8e5ad0">${j.em} ${j.label}</h3>
+      <div style="font-size:12px;color:#e6ddff;background:#120c1e;border-radius:8px;padding:10px;margin-bottom:8px">Kantar mówi cicho: „${j.desc}"<br><span style="font-size:11px;color:#9a90b0">Stawka: ~${payout} zł · Ryzyko: ${j.risk}%</span></div>
+      <button class="cbtn" style="width:100%;font-size:12px;padding:8px;margin-top:4px;color:#7ec87e;border-color:#27ae60" onclick="window._eclipseShadowPick('take')">✅ Weź kopertę</button>
+      <button class="cbtn" style="width:100%;font-size:12px;padding:8px;margin-top:5px;color:#cdb8ff;border-color:#3a2a5a" onclick="window._eclipseShadowPick('ask')">❓ Zapytaj, co jest w środku</button>
+      <button class="cbtn" style="width:100%;font-size:12px;padding:8px;margin-top:5px;color:#f1c40f;border-color:#c8a520" onclick="window._eclipseShadowPick('negotiate')">💬 Poproś o wyższą stawkę</button>
+      <button class="cbtn" style="width:100%;font-size:12px;padding:8px;margin-top:5px;color:#ccc" onclick="window._eclipseShadowPick('decline')">✋ Odmów</button>
+    </div>`;
+};
+window._eclipseShadowPick=function(choice){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir, u=G.underworld, job=c._curShadow; if(!job) return;
+  const addTrust=(n)=>{ if(typeof window._uwAddStat==='function') window._uwAddStat('kantar_trust',n); else G.kantarTrust=Math.max(-50,Math.min(100,(G.kantarTrust||0)+n)); };
+  let msg='',type='i';
+  if(choice==='ask'){ addTrust(-1); msg='Kantar patrzy chłodno: „Mniej pytań, dłuższe życie." Temat nadal wisi.'; window._eclipseShadowOffer(); return; }
+  if(choice==='decline'){ addTrust(-1); u._noJobsUntil=(G.day||0)+(3+Math.floor(((gameMin||0)%5))); msg='„Szkoda. Może następnym razem." Kantar znika w cieniu.'; }
+  else { let payout=job.payout; if(choice==='negotiate'){ if((Math.floor((gameMin||0))%2)===0){ payout=Math.round(payout*1.25); msg='„Twardy jesteś. Niech będzie." '; } else { addTrust(-3); msg='„Nie lubię targów." (relacja spada) '; } }
+    /* rozliczenie ryzyka (abstrakcyjne): sukces zależny od heat i reputacji w cieniu */
+    const success=((Math.floor((gameMin||0)*2+(u.shadowReputation||0))%100) >= (job.risk + Math.max(0,(G.heat||0)-40)*0.3));
+    if(success){ G.money=(G.money||0)+payout; u.shadowReputation=Math.min(100,(u.shadowReputation||0)+6); if(Array.isArray(u.completedShadowJobs)) u.completedShadowJobs.push(job.key); u.underworldWhispers=Math.min(100,(u.underworldWhispers||0)+3); addTrust(4); G.heat=Math.min(100,(G.heat||0)+4); u.introCompleted=true;
+      msg+=`Robota czysta. „Wróciłeś — to się liczy." <b style="color:#7ec87e">(+${payout} zł, +szacunek w cieniu, +heat)</b>`; type='g'; }
+    else { u.failedShadowJobs=(u.failedShadowJobs||0)+1; u.heatFromShadowJobs=(u.heatFromShadowJobs||0)+10; G.heat=Math.min(100,(G.heat||0)+12); addTrust(-4);
+      msg+='Coś poszło nie tak — robi się gorąco. „Następnym razem nie spierdol." <span style="color:#c0392b">(+duży heat, −zaufanie)</span>'; type='r'; }
+    u.activeShadowJob=null;
+  }
+  if(typeof updateHUD==='function') updateHUD();
+  const mc=document.getElementById('mg-job-content'); if(mc){ mc.innerHTML=`
+    <div style="background:#07060c;border:2px solid #4a2a6a;border-radius:10px;padding:16px;max-width:470px;margin:0 auto;color:#fff;width:100%;text-align:center">
+      <div style="font-size:13px;color:#e6ddff;margin-bottom:12px">${msg}</div>
+      <button class="cbtn" style="width:100%;color:#fff" onclick="window._eclipseBasement()">← Wróć do piwnicy</button>
+    </div>`; }
+};
+window._eclipseNico=function(){
+  window._eclipseNoirEnsure(); const u=G.underworld;
+  const reachable=(G.kantarTrust||0)>=1 || (u.shadowReputation||0)>=4;
+  const panel=document.getElementById('mg-job'); panel.classList.add('on'); panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  const body=reachable
+    ? '„Nico Splinter, do usług. Drobne tematy, szybkie ręce, żadnych wielkich słów. Jak masz temat na obrzeżach — wiesz, gdzie mnie szukać." <span style="color:#9a90b0">(niski poziom półświatka — drobne kontakty i informacje)</span>'
+    : '„Nie znamy się. Wróć, jak ktoś za Ciebie ręczy." <span style="color:#9a90b0">(spławia Cię)</span>';
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="background:#07060c;border:2px solid #4a2a6a;border-radius:10px;padding:16px;max-width:460px;margin:0 auto;color:#fff;width:100%">
+      <h3 style="margin-top:0;color:#a888e0">🐀 Nico „Splinter" Vale</h3>
+      <div style="font-size:12px;color:#e6ddff;background:#120c1e;border-radius:8px;padding:10px;margin-bottom:10px">${body}</div>
+      <button class="cbtn" style="width:100%;color:#fff" onclick="window._eclipseBasement()">← Wróć</button>
+    </div>`;
+};
+window._eclipseElias=function(){
+  window._eclipseNoirEnsure(); const u=G.underworld;
+  const crew=Array.isArray(G.crew)?G.crew.filter(Boolean).length:0;
+  const hasCamper=!!(G.camper&&G.camper.owned)|| !!G._camperOwned || !!(G.trap&&G.trap.hasCamper);
+  const hasCompany=!!(G.trap&&(G.trap.legalFront||G.trap.fakeCompany))|| !!G._fakeCompany;
+  const done=Array.isArray(u.completedShadowJobs)?u.completedShadowJobs.length:0;
+  const ok=(G.kantarTrust||0)>=6 && done>=4 && hasCamper && hasCompany && crew>=2 && (G.heat||0)<80;
+  const panel=document.getElementById('mg-job'); panel.classList.add('on'); panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  const body=ok
+    ? '„Widzę, że masz zaplecze, nie tylko twarz. Dobrze. O większych rzeczach rozmawia się, kiedy jest o czym. Odezwę się, gdy będę miał coś Twojego formatu." <span style="color:#7ec87e">(dostęp do wyższego poziomu — rozwijany dalej)</span>'
+    : '„Nie wiem, kto Ci powiedział, że jesteś gotowy, ale ktoś Ci nakłamał. Zapraszam, kiedy będziesz miał zaplecze. Nie twarz. Zaplecze." <span style="color:#9a90b0">(wymaga: zaufania Kantara, kilku zleceń, kampera, fikcyjnej firmy i ekipy)</span>';
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="background:#07060c;border:2px solid #4a3a1a;border-radius:10px;padding:16px;max-width:470px;margin:0 auto;color:#fff;width:100%">
+      <h3 style="margin-top:0;color:#c8a55a">👑 Elias „Crown" Rook</h3>
+      <div style="font-size:12px;color:#e6ddff;background:#161206;border-radius:8px;padding:10px;margin-bottom:10px">${body}</div>
+      <button class="cbtn" style="width:100%;color:#fff" onclick="window._eclipseBasement()">← Wróć</button>
+    </div>`;
 };
 
 /* ═══ 4E (§10/§11): SYSTEM KONCERTÓW Eclipse Noir — 6 slotów + calculateEclipsePerformanceScore ═══ */
