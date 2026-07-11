@@ -43690,22 +43690,24 @@ window.buyCar=(name,speed,price)=>{
     const _cc=(typeof CAR_CATALOG!=='undefined')?CAR_CATALOG.find(x=>x.name===name):null;
     const fameBonus=_cc&&typeof _cc.fame==='number'?_cc.fame:({'BMW E46':5,'Audi RS6':10,'Tesla Model S Plaid':12,'Porsche 911':15,'Lamborghini':25,'Ferrari':30,'Rolls-Royce Phantom':40,'Bugatti Chiron':50}[name]||0);
     /* v2.1.99: Prestige fameMult przez addFame() (Wave 1 K6 cars first-buy bypass fix) */
-    if(fameBonus){if(typeof addFame==='function')addFame(fameBonus);else G.fame=clamp(G.fame+fameBonus,0,500);notify(`🚗 ${name} kupiony! +${fameBonus} sławy`);}
-    notify(`🚗 Wsiadasz do ${name}. Po wyjściu na ulicę użyj auta — boost prędkości. Wyjdź na parkingu by zaparkować.`);
+    /* v2.3.119 (user: „powiadomienie z inną nazwą niż kupione auto"): powiadomienia/cinematic używają fikcyjnej nazwy wyświetlanej (carDisplayName) — TEJ SAMEJ, którą gracz widzi w sklepie/Garage 77/mapie. Wcześniej brały realną markę (name) → rozjazd. */
+    const _dispName=(typeof carDisplayName==='function')?carDisplayName(name):name;
+    if(fameBonus){if(typeof addFame==='function')addFame(fameBonus);else G.fame=clamp(G.fame+fameBonus,0,500);notify(`🚗 ${_dispName} kupiony! +${fameBonus} sławy`);}
+    notify(`🚗 Wsiadasz do ${_dispName}. Po wyjściu na ulicę użyj auta — boost prędkości. Wyjdź na parkingu by zaparkować.`);
     // CINEMATIC dla zakupu auta — luxury auta dramatycznie, podstawowe lakonicznie
     const carEmoji=(_cc&&_cc.emoji)||'🚗';
     const isLux=fameBonus>=10; /* data-driven: prestiżowe (≥+10 sławy) dostają dramatyczny cinematic */
     showMilestoneCinematic({
       emoji:carEmoji,
       title:'NOWE AUTO',
-      subtitle:name,
+      subtitle:_dispName,
       tagline:isLux?`Prędkość ×${speed} · +${fameBonus} sławy · Naciśnij V aby wsiąść`:`Prędkość ×${speed} · Naciśnij V aby wsiąść`,
       accentColor:isLux?'#c8a520':'#7ec8e3',
       accent2:isLux?'#e91e8c':'#3498db',
       duration:isLux?4500:3500,
     });
   } else {
-    notify(`🚗 ${name} — przesiadasz się`);
+    notify(`🚗 ${(typeof carDisplayName==='function')?carDisplayName(name):name} — przesiadasz się`);
   }
   /* v2.1.330 Faza H iter1: immediate achievement check (got_car, expensive_car milestones) — NIE czekaj na nextPeriod tick. */
   if(typeof checkAchievements==='function') checkAchievements();
@@ -67081,6 +67083,13 @@ window._s9AfterDeal=function(npcId,priceTier){
 };
 const PATCH_NOTES = [
  {
+ ver:'v2.3.119',date:'2026-07-11',cats:['bugfix','fix'],title:'🚗🏆 Poprawka nazw pojazdów przy zakupie + błędnie przyznawanych osiągnięć',
+ items:[
+  {t:'fix',d:'🚗 Naprawiliśmy nazwy pojazdów przy zakupie. Po kupnie auta powiadomienie i animacja pokazują teraz TĘ SAMĄ nazwę, którą widzisz w salonie, warsztacie i na mapie. Wcześniej po zakupie potrafiła wyskoczyć inna nazwa niż ta, którą wybrałeś.'},
+  {t:'fix',d:'🏆 Naprawiliśmy błędnie przyznawane osiągnięcia. Zdarzało się, że po wczytaniu gry wyskakiwało powiadomienie o osiągnięciu, którego przed chwilą nie zdobyłeś — na przykład o poznaniu dealera, mimo że nie byłeś nawet w tej dzielnicy. Przyczyną była stara kolejka powiadomień zapisywana razem ze stanem gry. Teraz jest ona czyszczona przy każdym wczytaniu, więc osiągnięcia pojawiają się dokładnie wtedy, gdy naprawdę je zdobędziesz — i nie pominą Cię, gdy na nie zasłużysz.'},
+ ],
+ },
+ {
  ver:'v2.3.118',date:'2026-07-11',cats:['critical','bugfix','fix'],title:'🖤 Krytyczna poprawka: śmierć działa wszędzie + zapis po akcjach',
  items:[
   {t:'fix',d:'🖤 KRYTYCZNA POPRAWKA: śmierć działa teraz w KAŻDYM miejscu gry. Wcześniej w dzielnicach (Underground, Business, Marina Coast) zdrowie potrafiło spaść do zera i natychmiast wrócić do pełni, przez co gracz nie trafiał do szpitala Nova Cura. Teraz spadek zdrowia do zera zawsze uruchamia pełną sekwencję — wygaszenie ekranu, przebudzenie na sali Nova Cura i rachunek za leczenie — niezależnie od tego, w której części miasta jesteś. Przyczyną był błąd, przez który każde kolejne obrażenie odbudowywało zdrowie z zera zamiast utrzymać je na zerze.'},
@@ -81734,6 +81743,12 @@ function loadGame(){
      - Flag _fansMergedV21_38 zapobiega ponownemu scalaniu przy każdym load. */
   const _oldFansObj=(s.G && typeof s.G.fans==='object' && s.G.fans!==null)?s.G.fans:null;
   Object.assign(G,s.G);
+  /* v2.3.119 (user: „gracze dostają osiągnięcia za rzeczy których nie zrobili — np. Pierwszy biznes na lvl 2 po prestige/wczytaniu"):
+     ROOT — G._pendingAchToasts (kolejka toastów osiągnięć) była ZAPISYWANA w save (leży na G). Jeśli zapis trafił w 400ms
+     okno przed flushem, stary wpis utrwalał się i po wczytaniu (np. po prestige = level 2 + trap zablokowany) pokazywał
+     osiągnięcie, którego gracz NIE zdobył teraz. To transient UI-state — czyścimy przy każdym wczytaniu. */
+  G._pendingAchToasts=[];
+  try{ if(typeof _achFlushTimer!=='undefined' && _achFlushTimer){ clearTimeout(_achFlushTimer); _achFlushTimer=null; } }catch(_){}
   /* v2.3.33 BUGFIX (Vegan: „FrameUp nie dziala"): ROOT sanitacja igPosts po wczytaniu
      save — uszkodzone/stare zapisy mialy null/string/undefined w igPosts -> render IG,
      tick wzrostu (forEach) i publikacja (map p.bgKey) rzucaly. Czyscimy raz przy load. */
