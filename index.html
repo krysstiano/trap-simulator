@@ -3450,6 +3450,9 @@ const ROOMS = {
       {id:'pragency_business', wx:820, wy:176, w:160,h:160, act:'business_pragency', prompt:'[E] 📰 PR Agency',          lbl:'PR'},/* v2.3.107: 780→820 (lewa krawędź 820>816=poza chodnikiem wsch.) */
       {id:'forbes_business',   wx:1080,wy:176, w:160,h:160, act:'business_forbes',   prompt:'[E] 📊 Fortuno Studio',      lbl:'Fortuno'},
       {id:'steakhouse_business',wx:456,wy:624, w:160,h:160, act:'business_steakhouse',prompt:'[E] 🥩 Steakhouse',        lbl:'Steakhouse'},/* v2.3.107: 480→456 (prawa krawędź 616<624) */
+      /* v2.3.116 (user): Eclipse Noir PRZENIESIONY z Underground do Business District. Pozycja @970,620
+         zweryfikowana bezkolizyjnie (90px margines od wszystkich obiektów Business, poza jezdniami). Godziny 20-06. */
+      {id:'eclipse_business',  wx:970, wy:620, w:160,h:150, act:'business_eclipse',   prompt:'[E] 🌑 Eclipse Noir (noc)',   lbl:'Eclipse Noir'},
     ]
   },
 
@@ -3492,10 +3495,7 @@ const ROOMS = {
       {id:'plantation_underground', wx:60,  wy:1470,w:120,h:120, act:'underground_plantation',prompt:'[E] 🌿 Plantacja (lvl 5+)',   lbl:'Plantacja'},/* v2.3.105 (user): → lewa dolna (droga szutrowa ma biec w x630) */
       /* v2.1.920 (PDF l.57 — nocna aktywność 18+): Nocny zaułek (prostytutki) — dyskretne miejsce w underground, gated za unlock dzielnicy + godziny 21-05 (PLACE_HOURS). Bottom-right, overlap-free vs venue. */
       {id:'prostytutki_underground',wx:1240,wy:810, w:140,h:130, act:'underground_prostytutki',prompt:'[E] 💋 Nocny zaułek (noc)',  lbl:'Zaułek'},/* v2.3.87 G1 (user „zaułek nic nie robi"): był wy:720 — zaciśnięty między plantacją(580) i dealerem(1080), getNear łapał sąsiada. Przesunięty w dół do 810 (gap 110px od plantacji, gracz wchodzi w lukę i łapie zaułek). x1240-1380,y810-940 wolne (map 960). */
-      /* PDF new/4 (Eclipse Noir): FIZYCZNY budynek klubu nocnego na mapie Underground. Wcześniej klub był dodany
-         tylko do martwej listy _renderDistrictOverlay (Underground = walkable, overlay nigdy niepokazywana) → nieosiągalny.
-         Pozycja @130,940 zweryfikowana bezkolizyjnie (90px margines od wszystkich obiektów, poza jezdniami). Godziny 20-06 (PLACE_HOURS). */
-      {id:'eclipse_underground',    wx:130, wy:940, w:160,h:150, act:'underground_eclipse',   prompt:'[E] 🌑 Eclipse Noir (noc)',   lbl:'Eclipse Noir'},
+      /* v2.3.116 (user): Eclipse Noir PRZENIESIONY do Business District (był tu @130,940). Patrz ROOMS.business. */
       /* v2.3.102 (PDF #8-24 „docelowo"): DOLNA CZĘŚĆ (nowa, y1100+) — baraki/slumsy + zajazd kempingowy. Osobne interakcje + NPC. */
       {id:'baraki_underground',     wx:200, wy:1200, w:170,h:150, act:'underground_baraki',    prompt:'[E] 🏚 Baraki',                lbl:'Baraki'},
       {id:'slumsy_underground',     wx:470, wy:1220, w:190,h:140, act:'underground_slumsy',    prompt:'[E] 🛖 Slumsy',                lbl:'Slumsy'},
@@ -3626,7 +3626,7 @@ const ROOMS = {
     ]
   },
   /* PDF new/4 (Eclipse Noir §5/§64.1-2): pełnoprawny INTERIOR klubu nocnego jako walkable room (jak striptiz_club/kasyno).
-     Wejście: budynek eclipse_underground → selekcjoner (_openEclipseNoir) → _eclipseEnter → changeRoom('eclipse_noir').
+     Wejście: budynek eclipse_business (Business District) → selekcjoner (_openEclipseNoir) → _eclipseEnter → changeRoom('eclipse_noir').
      Strefy odblokowywane etapami (BLOK 1: Scena/Bar/Parkiet/Wyjście — ZERO ghost-buttonów; VIP/DJ/piwnica/NPC dochodzą z treścią). */
   eclipse_noir: {
     wT:27, hT:14, map:null,
@@ -3646,7 +3646,7 @@ const ROOMS = {
       {id:'npc_ec_guest1',  wx:380, wy:430, w:34,  h:56,  act:null, prompt:'', lbl:''},
       {id:'npc_ec_guest2',  wx:920, wy:440, w:34,  h:56,  act:null, prompt:'', lbl:''},
       {id:'npc_ec_guest3',  wx:660, wy:250, w:34,  h:56,  act:null, prompt:'', lbl:''},
-      {id:'exit_eclipse',   wx:600, wy:600, w:64,  h:62,  act:'eclipse:exit', prompt:'[E] Wyjście', lbl:'Wyjście'},
+      {id:'exit_eclipse',   wx:600, wy:600, w:64,  h:62,  act:'eclipse:exit', prompt:'[E] Wyjście', lbl:'Wyjście'}, /* v2.3.116: powrót do Business District (eclipse:exit → _eclipseExit) */
     ]
   },
   /* v1.9.98: WINDA — PEŁNY EKRAN (27×14 jak kasyno) z przyciskami w centrum + dekoracjami */
@@ -4204,7 +4204,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'npc_brokat':     drawBrokat(sx,sy,w,h);break;
     case 'exit_striptiz':  drawInteriorExit(sx,sy,w,h);break;
     /* PDF new/4 (Eclipse Noir): fasada budynku na mapie Underground + strefy interioru */
-    case 'eclipse_underground': drawEclipseClub(sx,sy,w,h);break;
+    case 'eclipse_business': drawEclipseClub(sx,sy,w,h);break;
     case 'eclipse_stage':  drawEclipseStage(sx,sy,w,h);break;
     case 'eclipse_bar':    drawCasinoBar(sx,sy,w,h,'eclipse');break;
     case 'eclipse_dance':  drawEclipseDancefloor(sx,sy,w,h);break;
@@ -14229,7 +14229,7 @@ function updatePlayer(){
     updateCamera();
     return;
   }
-  if(_paused) return;
+  if(_paused || G._dying) return; /* v2.3.116: śmierć zamraża ruch gracza (sekwencja fade-to-black) */
   if(overlayOpen()||phoneOpen()||mgOpen()||document.getElementById('tour-ov')) return;/* v2.3.107 A4 (user): podczas turnieju (tour-ov) gracz NIE rusza się po mapie — steruje tylko w trybie turnieju */
   if(npcDlgOpen()) return;
   if(G._resting) return;
@@ -14519,7 +14519,7 @@ function tryInteract(){
 // ═══════════════════════════════════════════════════════════════════
 const PLACE_HOURS={
   'striptiz':        {o:20, c:4,  name:'Velvet Room'}, /* v2.1.919 PDF: nocny klub 20:00-04:00 (overnight); U7 v2.3.44 nazwa własna Velvet Room */
-  'underground_eclipse': {o:20, c:6, name:'Eclipse Noir'}, /* PDF new/4 §59 openHours: klub nocny 20:00-06:00 (overnight, najmocniej Pt/So) */
+  'business_eclipse': {o:20, c:6, name:'Eclipse Noir'}, /* PDF new/4 §59 openHours: klub nocny 20:00-06:00; v2.3.116 przeniesiony do Business District */
   'underground_prostytutki': {o:21, c:5, name:'Nocny zaułek'}, /* v2.1.920 PDF l.57: 21:00-05:00 (overnight; user 2026-07-02: było do 03:00) */
   // Drip district / butiki
   'shop:lv':         {o:10, c:20, name:'Luvio'},
@@ -14760,9 +14760,9 @@ function handleAct(act,objId){
     if(typeof window._eclipseVip==='function') window._eclipseVip();
     return;
   } else if(act==='eclipse:exit'){
-    /* PDF new/4 (§38): wyjście z klubu — roll paparazzi, potem powrót na Underground */
+    /* PDF new/4 (§38): wyjście z klubu — roll paparazzi, potem powrót do Business District (v2.3.116) */
     if(typeof window._eclipseExit==='function') window._eclipseExit();
-    else startRoomFade('underground',210,1140);
+    else startRoomFade('business',1050,800);
     return;
   } else if(act==='eclipse:basement'){
     /* PDF new/4 (§41,§16-23): piwnica — warstwa półświatka (gated wątkiem Kantara) */
@@ -28427,7 +28427,7 @@ function tickDecay(){
     });
   }
   G.decayTick++;
-  if(G.health<=0) gameOver();
+  if(G.health<=0 && !G._dying) gameOver();
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -30272,52 +30272,74 @@ window.payBill=(billId)=>{
   updateHUD();
 };
 
-function gameOver(){
-  // Soft reset — wybudzenie w szpitalu z karą
+/* v2.3.116 PRZEBUDOWA (user: „śmierć = instant 100 HP bez efektów; chcę fade-to-black + odrodzenie Nova Cura + ładny rachunek"):
+   śmierć to teraz SEKWENCJA — gaśnięcie (fade-to-black + blur świata) → wybudzenie w Nova Cura → okno rachunku szpitalnego. */
+function gameOver(){ _startDeathSequence(); }
+function _startDeathSequence(){
+  if(G._dying) return; G._dying=true;
+  for(const k in K) delete K[k]; P.moving=false;
+  try{ if(typeof sfxLose==='function') sfxLose(); }catch(e){}
+  document.getElementById('death-overlay')?.remove();
+  const ov=document.createElement('div'); ov.id='death-overlay';
+  ov.style.cssText='position:fixed;inset:0;z-index:99998;background:#000;opacity:0;transition:opacity 1.5s ease;display:flex;align-items:center;justify-content:center;pointer-events:all';
+  ov.innerHTML='<div id="death-msg" style="opacity:0;transition:opacity 1.1s .5s;text-align:center;font-family:inherit"><div style="font-size:48px;margin-bottom:12px;filter:grayscale(1)">🖤</div><div style="font-size:22px;letter-spacing:5px;color:#7a7a7a;font-weight:800">GAŚNIESZ…</div><div style="font-size:12px;color:#555;margin-top:10px">świat rozmywa się i ciemnieje</div></div>';
+  document.body.appendChild(ov);
+  /* rozmyj + wygaś świat gry pod spodem (blur „fade to black") */
+  try{ const wrap=document.getElementById('wrap'); if(wrap){ wrap.style.transition='filter 1.4s ease'; wrap.style.filter='blur(7px) grayscale(0.85) brightness(0.45)'; } }catch(e){}
+  requestAnimationFrame(()=>{ ov.style.opacity='1'; const m=document.getElementById('death-msg'); if(m)m.style.opacity='1'; });
+  setTimeout(()=>{ _novaCuraRevive(); }, 2100);
+}
+function _novaCuraRevive(){
+  // Soft reset — wybudzenie w Nova Cura z karą (logika jak dawny gameOver: opłata, regeneracja, doba++ przez nextPeriod)
   const fee=Math.min(500,Math.max(0,G.money));
   G.money=Math.max(0,G.money-500);
-  /* v2.1.104: bankruptcy penalty (Wave 6 K57) — gracz bez 500 zł na szpital dostaje "wyrzut z chodnika" jako kara:
-     -3 sławy + -5 rep uliczna (publiczność widzi że ktoś jest na dnie). NIE blokuje gameplay, ale daje feel "konsekwencji". */
-  if(fee < 500){
-    G.fame=Math.max(0,(G.fame||0)-3);
-    G.streetRep=Math.max(0,(G.streetRep||0)-5);
-    if(typeof addNotif==='function') addNotif('⚠️ Bez kasy na szpital — wyrzut z chodnika. −3 sławy, −5 rep uliczna.');
-  }
-  G.health=getMaxStat('health');
-  G.hunger=getMaxStat('hunger');
-  G.energy=getMaxStat('energy');
-  G.stress=100; /* v1.9.25: BUG FIX — relaxed/wypoczęty (stress jest jak mood: 100=zen, 0=burnout). Wcześniej kod ustawiał 0=burnout chociaż UI mówiło "Wypoczęty (stres zresetowany)". */
-  G.sleepDebt=0;
-  /* v1.9.23: BUG FIX EXPLOIT — gameOver() day++ przez nextPeriod() (poprzednio dying skip'ował bills/rent = exploit 500zł vs full czynsz) */
-  G.timeOfDay=3;
-  if(typeof nextPeriod==='function') nextPeriod();
+  const bankrupt=(fee<500);
+  if(bankrupt){ G.fame=Math.max(0,(G.fame||0)-3); G.streetRep=Math.max(0,(G.streetRep||0)-5); if(typeof addNotif==='function') addNotif('⚠️ Bez kasy na pełne leczenie — Nova Cura odpisała resztę, ale ulica widzi, że jesteś na dnie. −3 sławy, −5 rep uliczna.'); }
+  const dayBefore=G.day;
+  G.health=getMaxStat('health'); G.hunger=getMaxStat('hunger'); G.energy=getMaxStat('energy');
+  G.stress=100; G.sleepDebt=0; G.timeOfDay=3;
+  if(typeof nextPeriod==='function') nextPeriod(); /* doba++ (anti-exploit: bills/rent naliczone) */
   G._deaths=(G._deaths||0)+1;
-  /* v1.9.72: respi pod szpitalem zamiast w mieszkaniu (zgłoszone przez gracza — hospital scene powinien skończyć się przy szpitalu) */
-  changeRoom('ulica',1980,820);
-  // Zapisz natychmiast (żeby auto-save nie utknął na health=0 na chwilę)
+  changeRoom('ulica',1980,820); /* wybudzenie PRZY Nova Cura */
   saveGameSilent();
-  document.getElementById('ov-content').innerHTML=`
-    <h2 style="color:#3498db">🏥 Szpital</h2>
-    <p class="sub">Wybudziłeś się w szpitalu po krytycznym spadku zdrowia.</p>
-    <div style="background:#0a1525;border:1px solid #1a3050;border-radius:10px;padding:16px;margin-bottom:16px;font-size:14px;line-height:1.7">
-      <div style="color:#7ec87e;font-weight:700;margin-bottom:8px">✅ Pełna regeneracja:</div>
-      <div style="color:#aaa;margin-left:14px">• Zdrowie 100% · Energia 100% · Głód 100%</div>
-      <div style="color:#aaa;margin-left:14px;margin-bottom:10px">• Wypoczęty (stres zresetowany)</div>
-      <div style="color:#e07070;font-weight:700;margin-bottom:8px">💊 Opłata za leczenie:</div>
-      <div style="color:#aaa;margin-left:14px">• Rachunek szpitalny: <strong style="color:#e74c3c">-${fee} zł</strong></div>
-      <div style="color:#aaa;margin-left:14px">• Stracony dzień (jesteś w dniu ${G.day})</div>
-    </div>
-    <div style="background:#0a1f0a;border:1px solid #2a5a2a;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#aae0aa">
-      💡 <strong>Wskazówka:</strong> Jedz regularnie (lodówka/restauracja/sklep), śpij w łóżku gdy energia spada poniżej 30%. Skille „Apetyt" i „Odporność" spowalniają decay.
-    </div>
-    <details style="margin-bottom:14px">
-      <summary style="cursor:pointer;color:#7ec8e3;font-size:13px;text-align:center;padding:8px;background:#0a1525;border-radius:6px;border:1px solid #1a3050">📊 Podgląd statystyk życia</summary>
-      <div style="margin-top:10px;background:#0a0f1a;border:1px solid #1a2535;border-radius:6px;padding:14px">${buildStatsSummary()}</div>
-    </details>
-    <button class="dbtn" style="width:auto;padding:13px 32px;display:block;margin:0 auto" onclick="closeOverlay()">🚶 Wstaję, idę dalej</button>
-  `;
-  openOverlay();
+  _showNovaCuraBill(fee,bankrupt);
 }
+function _showNovaCuraBill(fee,bankrupt){
+  const covered=500-fee; /* część nieopłacona (odpisana przy bankructwie) */
+  document.getElementById('death-overlay')?.remove();
+  const ov=document.createElement('div'); ov.id='death-overlay';
+  ov.style.cssText='position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;pointer-events:all;font-family:inherit;padding:16px;overflow:auto';
+  const row=(l,v,c)=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed #2a3550;font-size:13px"><span style="color:#9ab">${l}</span><span style="color:${c||'#cdd'};font-weight:700">${v}</span></div>`;
+  ov.innerHTML=`
+    <div style="opacity:0;transform:translateY(14px);transition:opacity .6s,transform .6s;background:#f4f6fa;color:#1a2330;border-radius:14px;max-width:440px;width:100%;box-shadow:0 20px 70px rgba(0,0,0,.7);overflow:hidden" id="nc-bill">
+      <div style="background:linear-gradient(135deg,#2d6cdf,#1a4bb0);color:#fff;padding:18px 22px">
+        <div style="display:flex;align-items:center;gap:10px"><span style="font-size:30px">🏥</span><div><div style="font-size:20px;font-weight:900;letter-spacing:.5px">NOVA CURA</div><div style="font-size:11px;opacity:.85">Centrum Medyczne · Ostry Dyżur</div></div></div>
+      </div>
+      <div style="padding:20px 22px">
+        <div style="font-size:13px;color:#3a4658;margin-bottom:6px">Wybudziłeś się na sali Nova Cura po krytycznym spadku zdrowia. Zespół postawił Cię na nogi.</div>
+        <div style="font-size:12px;font-weight:800;color:#1a4bb0;letter-spacing:1px;margin:14px 0 6px">🧾 RACHUNEK ZA LECZENIE</div>
+        ${row('Przyjęcie na ostry dyżur','120 zł')}
+        ${row('Stabilizacja i regeneracja (Zdrowie/Energia/Głód 100%)','260 zł')}
+        ${row('Doba obserwacji i odpoczynku','120 zł')}
+        <div style="display:flex;justify-content:space-between;padding:10px 0 2px;font-size:15px;font-weight:900"><span>Razem</span><span style="color:#1a4bb0">500 zł</span></div>
+        ${bankrupt?`<div style="font-size:12px;color:#c0392b;background:#fdecea;border:1px solid #f5c6cb;border-radius:8px;padding:8px 10px;margin-top:10px">⚠️ Nie miałeś pełnej kwoty. Pobrano <b>${fee} zł</b>, resztę (${covered} zł) placówka odpisała — ale ulica zauważyła, że jesteś na dnie (−3 sławy, −5 rep uliczna).</div>`:`<div style="font-size:12px;color:#1a7a3a;background:#eafbe7;border:1px solid #b6e6b6;border-radius:8px;padding:8px 10px;margin-top:10px">✅ Rachunek opłacony: <b>−${fee} zł</b>. Straciłeś dobę na regenerację (jesteś w dniu ${G.day}).</div>`}
+        <div style="display:flex;justify-content:space-between;margin-top:14px;font-size:12px;color:#3a4658">
+          <span>❤️ Zdrowie 100%</span><span>⚡ Energia 100%</span><span>🍔 Głód 100%</span>
+        </div>
+        <button onclick="_endDeathSequence()" style="width:100%;margin-top:18px;background:linear-gradient(135deg,#27ae60,#1e8e4e);border:0;color:#fff;padding:14px;border-radius:10px;cursor:pointer;font-family:inherit;font-size:15px;font-weight:800;box-shadow:0 6px 18px rgba(39,174,96,.4)">🚶 Zapłać i wstań</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  requestAnimationFrame(()=>{ const b=document.getElementById('nc-bill'); if(b){ b.style.opacity='1'; b.style.transform='translateY(0)'; } });
+}
+function _endDeathSequence(){
+  const ov=document.getElementById('death-overlay');
+  if(ov){ ov.style.transition='opacity .6s'; ov.style.opacity='0'; setTimeout(()=>{ try{ov.remove();}catch(e){} },650); }
+  try{ const wrap=document.getElementById('wrap'); if(wrap){ wrap.style.transition='filter .8s ease'; wrap.style.filter=''; } }catch(e){}
+  G._dying=false;
+  if(typeof updateHUD==='function') try{updateHUD();}catch(e){}
+}
+window._endDeathSequence=_endDeathSequence;
 
 // ═══════════════════════════════════════════════════════════════════
 //  KARIERY
@@ -44303,7 +44325,6 @@ window._renderDistrictOverlay=(districtId)=>{
         {id:'pawnshop',emoji:'💰',name:'Pawnshop',desc:'Sprzedaj luxury za 50% wartości',ready:true},
         /* v2.1.408 Faza AN.2 Etap 2 (user 2026-05-28 explicit "NIE auto-unlock"): Dealer Underground — manual aktywacja. Default OFF aż user kliknie. */
         {id:'dealer',emoji:'🤝',name:'Dealer',desc:'Trap career unlock — opcjonalny system',ready:true},
-        {id:'eclipse',emoji:'🌑',name:'Eclipse Noir',desc:'Ekskluzywny klub nocny — występy, VIP loże, after-party (najmocniej nocą w weekend)',ready:true},
       ],
       meta:`Underworld Respect: ${G._underworldRespect||0}/100${G._undergroundVibesActive?' · 🎚️ Vibe TOGGLE aktywny':''}`,
     },
@@ -44330,6 +44351,7 @@ window._renderDistrictOverlay=(districtId)=>{
         {id:'pragency',emoji:'📰',name:'PR Agency',desc:'3 tier campaigns: Local/Regional/National (followers + fame)',ready:true},
         {id:'forbes',emoji:'📊',name:'Fortuno Studio',desc:'Quiz biznesowy 3 pytania — 3/3=trofeum, koszt vs reward',ready:true},
         {id:'steakhouse',emoji:'🥩',name:'Steakhouse',desc:'Business meeting',ready:true},
+        {id:'eclipse',emoji:'🌑',name:'Eclipse Noir',desc:'Ekskluzywny klub nocny — występy, VIP loże, after-party (najmocniej nocą w weekend)',ready:true},
       ],
       meta:`Sponsor Burden: ${G._activeSponsorBurden||0}/3`,
     },
@@ -46163,8 +46185,8 @@ window._enterDistrictPlace=(districtId,placeId)=>{
   const key=`${districtId}_${placeId}`;
   switch(key){
     /* ── UNDERGROUND ── */
-    /* PDF new/4 Eclipse Noir (4D): wejście na mapę — klub nocny w Underground. Bramka (canEnter) + selekcjoner w _openEclipseNoir. */
-    case 'underground_eclipse':
+    /* PDF new/4 Eclipse Noir: wejście do klubu (bramka canEnter + selekcjoner w _openEclipseNoir). v2.3.116: Business District. */
+    case 'business_eclipse':
       if(typeof closeOverlay==='function') closeOverlay();
       if(typeof window._openEclipseNoir==='function') window._openEclipseNoir();
       return;
@@ -53117,8 +53139,8 @@ window._eclipseExit=function(){
   window._eclipseRollPaparazzi('leaving');
   if(typeof window._eclipseNightAftermath==='function') window._eclipseNightAftermath(); /* §47-48: rachunek zdrowotny po ciężkiej nocy */
   if(typeof window._eclipsePostClubActivity==='function') window._eclipsePostClubActivity(); /* §36/§49/§54: DM po klubie + after Marina + reakcje managerów */
-  if(typeof startRoomFade==='function') startRoomFade('underground',210,1140);
-  else if(typeof changeRoom==='function') changeRoom('underground',210,1140);
+  if(typeof startRoomFade==='function') startRoomFade('business',1050,800); /* v2.3.116: klub w Business District */
+  else if(typeof changeRoom==='function') changeRoom('business',1050,800);
 };
 /* §61: ban z klubu. */
 window._eclipseBan=function(days,reason){
@@ -66169,7 +66191,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.113',date:'2026-07-05',cats:['feature','fix'],title:'🗺 Mapy dzielnic + poprawki wygody i sterowania pojazdami',
  items:[
-  {t:'new',d:'🌑 Klub nocny Eclipse Noir stoi teraz na mapie dzielnicy Underground — podejdź do niego wieczorem lub nocą i wejdź do środka! Wchodzisz do prawdziwego wnętrza klubu, po którym chodzisz jak po każdym innym budynku: scena koncertowa (sześć rodzajów występów od rozgrzewki po pokaz VIP — Twoja forma zależy od umiejętności, sławy, nastroju i tego, jak rozgrzana jest sala), bar z drinkami na poprawę nastroju i parkiet, na którym łapiesz rytm. Do klubu wejdziesz na kilka sposobów: zwykłe wejście, po znajomości, jako artysta albo za wejściówkę VIP. Klub żyje własnym rytmem i jest najgorętszy w piątkowe oraz sobotnie noce. To dopiero początek — Eclipse Noir będzie się rozrastał o nowe atrakcje i barwne postacie.'},
+  {t:'new',d:'🌑 Klub nocny Eclipse Noir stoi teraz na mapie Business District — podejdź do niego wieczorem lub nocą i wejdź do środka! Wchodzisz do prawdziwego wnętrza klubu, po którym chodzisz jak po każdym innym budynku: scena koncertowa (sześć rodzajów występów od rozgrzewki po pokaz VIP — Twoja forma zależy od umiejętności, sławy, nastroju i tego, jak rozgrzana jest sala), bar z drinkami na poprawę nastroju i parkiet, na którym łapiesz rytm. Do klubu wejdziesz na kilka sposobów: zwykłe wejście, po znajomości, jako artysta albo za wejściówkę VIP. Klub żyje własnym rytmem i jest najgorętszy w piątkowe oraz sobotnie noce. To dopiero początek — Eclipse Noir będzie się rozrastał o nowe atrakcje i barwne postacie.'},
   {t:'new',d:'🌑 W Eclipse Noir poznasz teraz obsługę klubu i pogadasz z nią na miejscu. Managerka klubu prowadzi Cię przez występy — im lepsza relacja i im częściej rozmawiacie o scenie, tym łatwiej o lepsze sceny i dostęp do klubu. Barman naleje drinka, podzieli się plotką z sali i przyjmie napiwek, a ochrona pilnuje, kto gdzie może wejść. Każda z tych rozmów ma swój klimat i drobne konsekwencje.'},
   {t:'new',d:'🌑 W Eclipse Noir otwiera się strefa VIP na piętrze. Wejdziesz tam za wejściówkę VIP, dzięki wysokiej sławie albo dobrej relacji z managerką klubu. Na górze poznasz gości z różnych światów — biznesu, mediów, filmu, sportu i gamingu — i porozmawiasz o współpracy, zaprosisz kogoś na swój koncert, zapytasz o inwestycje albo pozwolisz sobie na flirt. Uważaj: część kontaktów to złote okazje i zastrzyk gotówki, a inne kończą się plotką w sieci albo naciąganiem na fałszywą inwestycję. Najlepsze kontakty łapiesz z umiarem — na jedną noc jest ich ograniczona liczba.'},
   {t:'new',d:'🌑 Eclipse Noir ma teraz ciemniejszą stronę nocy. Im więcej pijesz przy barze, tym bardziej rośnie upojenie i spada Twoja kontrola nad decyzjami — a wtedy łatwiej o wpadkę (widzisz oba wskaźniki przy barze). Przy barze może wybuchnąć awantura: możesz odejść, zawołać ochronę, spróbować uspokoić sytuację (trudniej, gdy jesteś wstawiony), wejść w konflikt (heat, afera i zakaz wstępu) albo to nagrywać. Przy wyjściu z klubu czasem dopadną Cię paparazzi — zdjęcia w sieci nakręcają szum, ale odbijają się na reputacji. Gorące, skandaliczne noce zostawiają po sobie ślad, a poważne przewinienia kończą się czasowym zakazem wstępu do klubu. Między nocami trzeźwiejesz.'},
@@ -66178,6 +66200,8 @@ const PATCH_NOTES = [
   {t:'change',d:'🎤 Koncerty w Eclipse Noir to teraz PRAWDZIWY występ na żywo, a nie jedno kliknięcie! Gdy wchodzisz na scenę, grasz minigrę „Trzymaj tłum": energia widowni cały czas opada, a Ty utrzymujesz salę, trafiając bity w rytm (klik lub SPACJA) i łapiąc złote momenty HYPE 🔥 (dają najwięcej). Im dłużej utrzymasz wysoką energię do końca setu i im dłuższe złapiesz combo, tym lepszy występ. Twój talent — umiejętności sceniczne, sława, styl i nastrój — ustawia teraz tylko sufit i ułatwia grę (wolniejsze tempo, szersze okno trafienia), ale o wyniku decyduje sam występ. Słaby set = słaby wieczór nawet dla gwiazdy. Po występie widzisz swój wynik, ile bitów trafiłeś, najdłuższe combo i nagrody (kasa, fani, szum).'},
   {t:'fix',d:'🎤 Po zagraniu koncertu w Eclipse Noir kliknięcie występu daje teraz jasny komunikat (np. że zagrałeś już dziś albo dlaczego nie możesz wejść na scenę), zamiast milczeć bez żadnej reakcji.'},
   {t:'fix',d:'💾 Naprawiliśmy utrwalanie miejsca w zapisie: gdy wchodzisz do nowej lokacji (na przykład do klubu), gra zapamiętuje Twój pokój i pozycję od razu, a nie dopiero przy najbliższym auto-zapisie. Wcześniej dało się wejść gdzieś, zamknąć grę i po wczytaniu tego samego zapisu wylądować w poprzednim miejscu — teraz to naprawione.'},
+  {t:'fix',d:'⏸ Naprawiliśmy pauzę w dzielnicach! Gdy zatrzymasz grę (Esc) w Underground albo Business District, ruch aut i przechodniów naprawdę zamiera. Wcześniej auta w dzielnicach jeździły dalej mimo pauzy i potrafiły Cię potrącić, mimo że gra „stała" — teraz na pauzie świat jest w pełni zatrzymany.'},
+  {t:'change',d:'🖤 Śmierć (spadek zdrowia do zera) ma teraz prawdziwą oprawę. Zamiast błyskawicznego powrotu do pełni sił świat najpierw rozmywa się i ciemnieje (fade to black), a Ty budzisz się na sali Nova Cura. Zobaczysz eleganckie, wystawione okno rachunku szpitalnego z rozpisanymi kosztami leczenia (przyjęcie, stabilizacja i regeneracja, doba obserwacji), a przycisk „Zapłać i wstań" wraca Cię do gry tuż przy szpitalu — z pełnym zdrowiem, energią i sytością. Podczas gaśnięcia świat jest zamrożony, więc nic Cię już nie potrąci ani nie dobije.'},
   {t:'new',d:'🗺 Nowość: osobne mapy dzielnic! W dużej mapie możesz teraz przełączać widok między Miastem a odblokowanymi dzielnicami (Underground, Marina Coast, Business) — każda ma własną mapę z budynkami i punktami. Zablokowane dzielnice są wyszarzone do czasu ich odblokowania, a mapy aktualizują się same, gdy w dzielnicy pojawiają się nowe miejsca.'},
   {t:'new',d:'🏥 Nova Cura pokazuje teraz Twój stan uzależnień w rozbiciu na kategorie (alkohol, pobudzające, imprezowe, uspokajające, opioidowe) — każda z własnym poziomem ryzyka. Widać też łączne objawy odstawienia i ostrzeżenie, gdy mieszasz różne rodzaje używek. Różne używki działają inaczej i inaczej się uzależniają, więc łatwiej świadomie zdecydować, czego potrzebujesz.'},
   {t:'new',d:'💉 W Nova Cura dostępne są teraz pełne programy wychodzenia z nałogu: krótka stabilizacja po kryzysie oraz intensywne programy (7 dni, 14 dni i dyskretny program premium). Im mocniejszy program, tym większy spadek uzależnienia, objawów odstawienia i napięcia. Kosztują sporo, ale to realna droga do odzyskania kontroli.'},
@@ -80728,6 +80752,8 @@ function loadGame(){
      (stary buggy build: cinematic/intro/poradnik/pauza/mg-job stuck przerwane crashem lub zapisem), Object.assign(G,s.G) przywróciłby je
      → gra zablokowana (HUD ukryty, brak pauzy, niewidoczne modale, „poradnik miga"). Czyścimy ZAWSZE przy load (analog cleanup w returnToMenu). */
   G._cinematicActive=false; G._introductionActive=false; G._itut=null; G._resting=false;
+  /* v2.3.116: reset stanu śmierci (gdyby save zrobiono mid-death — nie zostaw zamrożonego świata / czarnego overlaya). */
+  G._dying=false; try{ document.getElementById('death-overlay')?.remove(); const _w=document.getElementById('wrap'); if(_w) _w.style.filter=''; }catch(e){}
   if(typeof _paused!=='undefined') _paused=false;
   try{ document.body.classList.remove('cinematic-active'); }catch(e){}
   ['itut-box','tutorial-popup','tutorial-pill','pause-overlay'].forEach(id=>{ try{ document.getElementById(id)?.remove(); }catch(e){} });
@@ -82121,7 +82147,12 @@ function _drawDistrictPed(p){
 function drawDistrictLife(){
   const room=currentRoom;
   if(!DISTRICT_LIFE_CFG[room]) return;
+  /* v2.3.116 FIX (user: „pauza kompletnie nie działa, pojazdy potrącają na pauzie"): ROOT — drawCityLife (miasto)
+     miał guard `_paused`, ale drawDistrictLife (dzielnice: Underground/Business) NIE → auta ruszały i potrącały
+     gracza podczas pauzy. Teraz pauza zatrzymuje CAŁE życie dzielnicy (ruch + kolizje), analogicznie do miasta.
+     Dodatkowo: brak ruchu/kolizji podczas śmierci (_dying) i blokujących modali. */
   if(_districtLifeRoom!==room) initDistrictLife(room);
+  if(_paused || G._dying) return;
   const roomW=((ROOMS[room]&&ROOMS[room].wT)||30)*T;
   for(const c of districtCars){
     c.x+=c.dx; if(c.x<-80) c.x=roomW+60; else if(c.x>roomW+80) c.x=-60;
@@ -82175,7 +82206,7 @@ function drawDistrictLife(){
 // ═══ drawCityLife — ruch NPC i samochodów (~7098) ═══
 function drawCityLife(){
   if(currentRoom!=='ulica') return;
-  if(_paused) return; // pauza zatrzymuje cały ruch w mieście
+  if(_paused || G._dying) return; // pauza (+ śmierć) zatrzymuje cały ruch w mieście
   // Reset any canvas state that might have leaked from previous drawing calls
   X.globalAlpha=1;X.shadowBlur=0;X.shadowColor='transparent';X.setLineDash([]);
 
@@ -86291,7 +86322,7 @@ function loop(){
   const _isSleeping = (typeof sleepInterval !== 'undefined') && sleepInterval;
   /* v2.1.854 (beta-tester Vegan): CLAMP delty real-time. Gdy karta jest w tle, rAF jest zamrożony → lastClockReal nieświeży; po wznowieniu (powrót do karty / wczytanie save / wylogowanie+zalogowanie) pierwsza klatka liczyłaby OGROMNĄ deltę (np. 30 min) → gameMin przeskakuje o kilka dni → for-loop nextPeriod() = pasywny dochód „za nic" (Vegan: +20k po 30 min wylogowania). Max 1 sek real/klatka (62× normalnej klatki 16ms — stuttery OK, ale luka z tła NIE dolicza czasu gry, więc nextPeriod nie odpala fałszywie). */
   const _realDeltaSec=Math.min(1.0, Math.max(0,(nowT-lastClockReal)/1000));
-  if(!_paused && _tMul>0 && !_isSleeping) gameMin+=_realDeltaSec*_BASE_TIME_SCALE*_tMul;
+  if(!_paused && !G._dying && _tMul>0 && !_isSleeping) gameMin+=_realDeltaSec*_BASE_TIME_SCALE*_tMul;
   lastClockReal=nowT;
   // ── Sync gameMin → G.timeOfDay (pora dnia zmienia się sama bez spania) ──
   // Mapowanie: 06–11=Rano(0) · 12–17=Południe(1) · 18–22=Wieczór(2) · 23–05=Noc(3)
