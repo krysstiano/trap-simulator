@@ -53831,7 +53831,8 @@ window._aureumHub=function(){
       <div style="font-size:11px;color:#9ab;background:#0c1a12;border-radius:8px;padding:8px 10px;margin-bottom:10px">Tu rozmowy o pieniądzach brzmią jak żarty, a żarty często są ofertą. ${window._aureumMember()?'<b style="color:#c8a55a">(członek)</b>':''}<br>${stat('⛳ Golf',g.skill*10)} · ${stat('🤝 Zaufanie inwestorów',bn.investorTrust)} · ${stat('💼 Wiarygodność',bn.businessCredibility)} · ${stat('🦈 Potencjał rekina',bn.sharkPotential)}</div>
       <button class="cbtn" style="width:100%;text-align:left;font-size:13px;padding:10px;margin-top:4px;color:#7ec87e;border-color:#2f6a26" onclick="window._aureumGolfMenu()">🏌️ Zagraj rundę golfa</button>
       <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:9px;margin-top:5px;color:#cdb;border-color:#3a5a2a" onclick="window._aureumDrivingRange()">🎯 Trening na driving range (+focus)</button>
-      <div style="font-size:11px;color:#889;text-align:center;padding:8px">Turnieje, Business Lounge, rozmowy z inwestorami i „rekinami" otwierają się w kolejnych krokach.</div>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:13px;padding:10px;margin-top:5px;color:#7ec87e;border-color:#2f6a26" onclick="window._aureumNpcList()">🤝 Poznaj inwestorów i „rekiny" miasta</button>
+      <div style="font-size:11px;color:#889;text-align:center;padding:8px">Turnieje golfowe i Business Lounge otwierają się w kolejnych krokach.</div>
       <button class="cbtn" style="width:100%;margin-top:4px;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">🚪 Wyjdź z klubu</button>
     </div>`;
 };
@@ -53956,6 +53957,99 @@ window._aureumDrivingRange=function(){
   if(typeof updateHUD==='function') updateHUD();
   if(typeof showMsg==='function') showMsg('🎯 Godzina na driving range — swing bardziej powtarzalny (+focus, +konsystencja). Talent rośnie z każdą koszyczkiem piłek.','g',5000);
   window._aureumHub();
+};
+
+/* ═══ G3: NPC AUREUM GREEN (§11-16) — inwestorzy, cynicy, „rekiny". Mechanika patienceWithEgo (§10). ═══ */
+window._AUREUM_NPCS=[
+  {id:'victor', em:'🏦', name:'Victor Hale', role:'zarządzający funduszem inwestycyjnym',
+   intro:'„Muzyk na polu golfowym. Ciekawe. Większość artystów przychodzi tu, gdy ma już pieniądze. Bez urazy, ale wyglądasz, jakbyś przyszedł sprawdzić, skąd one płyną."',
+   opts:[
+     {label:'„Muzyka dała mi wejście. Teraz chcę zrozumieć układ."',fx:{businessCredibility:2},reply:'„Rzadko kto tak mówi wprost. Może pogadamy o czymś konkretnym."'},
+     {label:'„Pieniądze są tylko innym rodzajem publiczności."',fx:{dealSense:2},reply:'„Ładne. I niebezpiecznie prawdziwe."'},
+     {label:'„A Pan wygląda, jakby oceniał ludzi po cenie biletu."',fx:{selfRespect:2,investorTrust:-1},reply:'„Bezczelny. Zobaczymy, czy stać Cię na tę bezczelność."'},
+     {label:'„Ja nie udaję, że jestem inwestorem. Na razie słucham."',fx:{patienceWithEgo:2},reply:'„Słuchanie to rzadka umiejętność. Zapamiętam to."'},
+   ]},
+  {id:'sterling', em:'📈', name:'Sterling Voss', role:'crypto trader, influencer inwestycyjny',
+   intro:'„Nie obchodzi mnie, czy ktoś rozumie rynek. Obchodzi mnie, czy potrafi wejść, kiedy inni się boją. Golf jest taki sam — jak za długo liczysz wiatr, ktoś już podbiera pulę."',
+   opts:[
+     {label:'„Ryzyko bez kontroli to nie odwaga, tylko hazard."',fx:{riskReading:2},reply:'„Nudne, ale zdrowe. Może dłużej pożyjesz niż większość."'},
+     {label:'„Trzymanie pozycji wymaga więcej mentalu niż wejście."',fx:{riskReading:1,businessCredibility:1},reply:'„O, ktoś czytał więcej niż jeden wątek na forum."'},
+     {label:'„Brzmisz jak wykres, który zaraz spadnie na glebę."',fx:{buzz:2,investorTrust:-1},reply:'„Ha! Cięty jesteś. Lubię to, dopóki nie robisz tego przy moich pieniądzach."'},
+     {label:'„Lubię wysokie ryzyko, jeśli nagroda jest sensowna."',fx:{sharkPotential:1},reply:'„No proszę. Mam coś, co albo zrobi szum, albo pogrzeb."'},
+   ]},
+  {id:'celeste', em:'🏙️', name:'Celeste Ward', role:'agentka nieruchomości premium',
+   intro:'„Wszyscy chcą własnej przestrzeni, ale mało kto rozumie, że lokal to nie tylko miejsce. To narzędzie — albo przykrywka. Dla mnie to deklaracja gry na większej planszy."',
+   opts:[
+     {label:'„Szukam przestrzeni, która pracuje na mój wizerunek."',fx:{businessCredibility:1},reply:'„Wizerunek. Dobre. Mam kilka adresów, które budują historię."'},
+     {label:'„Myślę o studiu albo miejscu pod ekipę."',fx:{dealSense:1,businessCredibility:1},reply:'„To już konkret. Zadzwonię, jak coś się zwolni poza listą."'},
+     {label:'„Przykrywką? Ciekawe określenie jak na agentkę."',fx:{riskReading:2},reply:'„Nazywam rzeczy po imieniu. Reszta to poezja dla naiwnych."'},
+     {label:'„Chcę legalnego frontu biznesu, nie teatrzyku."',fx:{patienceWithEgo:1},reply:'„Rozsądnie. Papiery i ludzie — cała różnica."'},
+   ]},
+  {id:'malik', em:'💹', name:'Malik Cross', role:'forex trader, były bankowiec',
+   intro:'„W muzyce ludzie klaszczą, kiedy trafisz w emocje. Na rynku klaszczą tylko ci, którzy zarobili na Twojej pomyłce. Dlatego wolę rynek."',
+   opts:[
+     {label:'„Brzmi jak scena, tylko z gorszym refrenem."',fx:{businessCredibility:1},reply:'(kącik ust drga) „...może i tak."'},
+     {label:'„Czyli informacja jest walutą."',fx:{riskReading:2},reply:'„Zaczyna kosztować dopiero, kiedy jest prawdziwa."'},
+     {label:'„Ile kosztuje dobra pomyłka kogoś innego?"',fx:{sharkPotential:1,whiteCollarShadow:1},reply:'„...ciekawe pytanie. Zapamiętam, kto je zadał."'},
+     {label:'(Milcz i pozwól mu mówić dalej.)',fx:{patienceWithEgo:2},reply:'„Widzę, że rozumiesz ciszę. To rzadsze niż talent."'},
+   ]},
+  {id:'bee', em:'🥂', name:'Beatrice „Bee" Calder', role:'sieć eventowa, kluby nocne premium',
+   intro:'„W klubach ludzie pokazują, jacy są naprawdę. Poza nimi pokazują, czego się boją. Ty jeszcze próbujesz wyglądać, jakbyś nie bał się niczego. To najbardziej kosztowna poza."',
+   opts:[
+     {label:'„Bywasz w Eclipse Noir?"',fx:{businessCredibility:1},reply:'„Znam ludzi, którzy tam rządzą. Świat jest mniejszy, niż myślisz."'},
+     {label:'„A czego boją się ludzie z pieniędzmi?"',fx:{dealSense:1,riskReading:1},reply:'„Że ktoś zobaczy, ile z tego to teatr."'},
+     {label:'„Potrzebuję wejść na większe eventy."',fx:{investorTrust:1},reply:'„Może. Bez świeżej afery i z lepszym dripem — pogadamy."'},
+     {label:'„Ja tylko chcę grać swoje i zarabiać więcej."',fx:{patienceWithEgo:1},reply:'„Uczciwie. Rzadkie w tym towarzystwie."'},
+   ]},
+  {id:'adrian', em:'🎩', name:'Adrian Knoxwell', role:'doradca rodzinnych fortun', gate:{sharkPotential:4},
+   intro:'„Pieniądze zdobyte za szybko są zbyt głośne. Te, które zostają na pokolenia, milczą. U Ciebie regulator jest wykręcony na full."',
+   opts:[
+     {label:'„Głośni ludzie czasem otwierają drzwi cichym."',fx:{businessCredibility:1},reply:'„Być może. Albo ich wypraszają."'},
+     {label:'„Nie chcę tylko zarobić. Chcę zbudować strukturę."',fx:{sharkPotential:2},reply:'„...struktura. Pierwsze mądre słowo dziś."'},
+     {label:'„Brzmi jak ktoś, kto nigdy nie zaczynał od zera."',fx:{selfRespect:2,investorTrust:-1},reply:'„Zuchwałość. Zobaczymy, czy przetrwa kontakt z prawdziwymi pieniędzmi."'},
+     {label:'(Przyjmij uwagę bez reakcji.)',fx:{patienceWithEgo:2,whiteCollarShadow:1},reply:'„Spokój. Dobrze. Ludzie, którzy się nie szarpią, dłużej siedzą przy stole."'},
+   ]},
+];
+window._aureumNpcAvail=function(npc){ window._aureumEnsure(); if(!npc.gate) return true; const bn=G.businessNetwork; return Object.entries(npc.gate).every(([k,v])=>(bn[k]||0)>=v); };
+window._aureumNpcList=function(){
+  window._aureumEnsure(); const bn=G.businessNetwork;
+  const panel=document.getElementById('mg-job'); if(!panel) return; panel.classList.add('on'); panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  const rows=window._AUREUM_NPCS.map(n=>{ const av=window._aureumNpcAvail(n);
+    return `<button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:9px;margin-top:5px;color:${av?'#7ec87e':'#667'};border-color:#2f6a26" ${av?`onclick="window._aureumNpcTalk('${n.id}')"`:''}>${n.em} <b>${n.name}</b>${av?'':' 🔒'}<br><span style="color:#9ab;font-size:11px">${av?n.role:'jeszcze Cię nie zauważa — zbuduj pozycję (potencjał rekina)'}</span></button>`; }).join('');
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="background:#0a1410;border:2px solid #2f6a26;border-radius:10px;padding:16px;max-width:540px;margin:0 auto;color:#fff;max-height:84vh;overflow-y:auto">
+      <h3 style="margin-top:0;color:#7ec87e">🤝 Ludzie Aureum Green</h3>
+      <div style="font-size:11px;color:#889;margin-bottom:6px">Inwestorzy, cynicy i „rekiny" miasta. Wygrywasz nie ciętą ripostą, tylko cierpliwością do ich ego (cierpliwość: <b style="color:#7ec87e">${Math.round(bn.patienceWithEgo)}</b>).</div>
+      ${rows}
+      <button class="cbtn" style="width:100%;margin-top:8px;color:#ccc" onclick="window._aureumHub()">← Wróć</button>
+    </div>`;
+};
+window._aureumNpcTalk=function(id,resp){
+  window._aureumEnsure(); const npc=window._AUREUM_NPCS.find(n=>n.id===id); if(!npc||!window._aureumNpcAvail(npc)) return;
+  if(!G._aureumMet) G._aureumMet={}; const first=!G._aureumMet[id]; G._aureumMet[id]=true;
+  const panel=document.getElementById('mg-job'); if(!panel) return; panel.classList.add('on'); panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  const opts=npc.opts.map((o,i)=>`<button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;color:#cdb;border-color:#3a5a2a" onclick="window._aureumNpcReply('${id}',${i})">${o.label}</button>`).join('');
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="background:#0a1410;border:2px solid #2f6a26;border-radius:10px;padding:16px;max-width:520px;margin:0 auto;color:#fff;max-height:84vh;overflow-y:auto">
+      <h3 style="margin-top:0;color:#7ec87e">${npc.em} ${npc.name} <span style="font-size:11px;color:#9ab">— ${npc.role}</span></h3>
+      ${first?`<div style="font-size:12px;color:#e6ead6;line-height:1.5;background:#0c1a12;border-radius:8px;padding:10px;margin-bottom:8px">${npc.intro}</div>`:''}
+      ${resp||''}
+      <div style="font-size:11px;color:#889;margin-bottom:2px">Jak odpowiadasz?</div>
+      ${opts}
+      <button class="cbtn" style="width:100%;margin-top:8px;color:#ccc" onclick="window._aureumNpcList()">← Zakończ rozmowę</button>
+    </div>`;
+};
+window._aureumNpcReply=function(id,i){
+  window._aureumEnsure(); const npc=window._AUREUM_NPCS.find(n=>n.id===id); if(!npc) return; const o=npc.opts[i]; if(!o) return; const bn=G.businessNetwork;
+  for(const [k,v] of Object.entries(o.fx||{})){
+    if(k==='selfRespect'){ G.streetRep=Math.max(0,Math.min(100,(G.streetRep||0)+v)); }
+    else if(k==='buzz'){ G._socialBuzz=(G._socialBuzz||0)+v; }
+    else if(typeof bn[k]==='number'){ bn[k]=Math.max(0,Math.min(100,bn[k]+v)); }
+  }
+  if(typeof updateHUD==='function') updateHUD();
+  window._aureumNpcTalk(id,`<div style="font-size:12px;color:#cdb8ff;font-style:italic;background:#160f26;border-radius:6px;padding:8px;margin-bottom:8px">${npc.name.split(' ')[0]}: ${o.reply}</div>`);
 };
 
 window._sanitizePlayerLists=function(){
@@ -66431,6 +66525,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'⏸ Naprawiliśmy pauzę w dzielnicach! Gdy zatrzymasz grę (Esc) w Underground albo Business District, ruch aut i przechodniów naprawdę zamiera. Wcześniej auta w dzielnicach jeździły dalej mimo pauzy i potrafiły Cię potrącić, mimo że gra „stała" — teraz na pauzie świat jest w pełni zatrzymany.'},
   {t:'change',d:'🖤 Śmierć (spadek zdrowia do zera) ma teraz prawdziwą oprawę. Zamiast błyskawicznego powrotu do pełni sił świat najpierw rozmywa się i ciemnieje (fade to black), a Ty budzisz się na sali Nova Cura. Zobaczysz eleganckie, wystawione okno rachunku szpitalnego z rozpisanymi kosztami leczenia (przyjęcie, stabilizacja i regeneracja, doba obserwacji), a przycisk „Zapłać i wstań" wraca Cię do gry tuż przy szpitalu — z pełnym zdrowiem, energią i sytością. Podczas gaśnięcia świat jest zamrożony, więc nic Cię już nie potrąci ani nie dobije.'},
   {t:'new',d:'⛳ Nowe miejsce w Business District: prywatne pole golfowe Aureum Green Club! Wejdź (jednorazowo, na cały dzień, przez kontakt VIP albo wykup miesięczne członkostwo) i zagraj rundę golfa — to nie zwykły sport, lecz chodząca rozmowa biznesowa. Na każdym dołku wybierasz styl uderzenia (bezpieczny, agresywny, techniczny, zachowawczy albo pokazowy), a wynik zależy od Twojego talentu golfowego, opanowania i nastroju. Dobre rundy budują Twoją wiarygodność biznesową i zaufanie inwestorów, a trening na driving range podszlifuje swing. To dopiero początek — kolejne atrakcje pola golfowego dojdą w następnych aktualizacjach.'},
+  {t:'new',d:'⛳ Aureum Green Club żyje teraz ludźmi. Poznasz jego bywalców — zarządzającego funduszem inwestycyjnym, crypto-tradera, agentkę nieruchomości premium, forex-tradera, właścicielkę sieci eventowej i cichego doradcę wielkich fortun. To cynicy z ego, którzy testują, czy masz cierpliwość i klasę. W rozmowach nie zawsze wygrywa najostrzejsza riposta — czasem najwięcej daje spokój i umiejętność słuchania. Twoje odpowiedzi budują wiarygodność biznesową, zaufanie inwestorów i wyczucie ryzyka, a najwięksi gracze zauważą Cię dopiero, gdy zbudujesz pozycję.'},
   {t:'new',d:'🗺 Nowość: osobne mapy dzielnic! W dużej mapie możesz teraz przełączać widok między Miastem a odblokowanymi dzielnicami (Underground, Marina Coast, Business) — każda ma własną mapę z budynkami i punktami. Zablokowane dzielnice są wyszarzone do czasu ich odblokowania, a mapy aktualizują się same, gdy w dzielnicy pojawiają się nowe miejsca.'},
   {t:'new',d:'🏥 Nova Cura pokazuje teraz Twój stan uzależnień w rozbiciu na kategorie (alkohol, pobudzające, imprezowe, uspokajające, opioidowe) — każda z własnym poziomem ryzyka. Widać też łączne objawy odstawienia i ostrzeżenie, gdy mieszasz różne rodzaje używek. Różne używki działają inaczej i inaczej się uzależniają, więc łatwiej świadomie zdecydować, czego potrzebujesz.'},
   {t:'new',d:'💉 W Nova Cura dostępne są teraz pełne programy wychodzenia z nałogu: krótka stabilizacja po kryzysie oraz intensywne programy (7 dni, 14 dni i dyskretny program premium). Im mocniejszy program, tym większy spadek uzależnienia, objawów odstawienia i napięcia. Kosztują sporo, ale to realna droga do odzyskania kontroli.'},
