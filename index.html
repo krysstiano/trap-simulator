@@ -3632,10 +3632,13 @@ const ROOMS = {
     wT:27, hT:14, map:null,
     objects:[
       {id:'eclipse_stage',  wx:460, wy:90,  w:380, h:120, act:'eclipse:stage', prompt:'[E] 🎤 Scena — koncerty (6 slotów)', lbl:'Scena'},
-      {id:'eclipse_bar',    wx:70,  wy:150, w:190, h:100, act:'eclipse:bar',   prompt:'[E] 🍸 Bar', lbl:'Bar'},
+      {id:'eclipse_bar',    wx:70,  wy:150, w:190, h:100, act:'eclipse:bar',   prompt:'[E] 🍸 Bar — Silas', lbl:'Bar'},
       {id:'eclipse_dance',  wx:500, wy:320, w:300, h:170, act:'eclipse:dance', prompt:'[E] 💃 Parkiet — tańcz', lbl:'Parkiet'},
       {id:'eclipse_dj',     wx:1040,wy:150, w:160, h:110, act:null, prompt:'', lbl:'DJ'},               /* dekoracja (act:null) — DJ booth; pełny DJ system w BLOKU 3 */
-      {id:'npc_ec_barman',  wx:150, wy:120, w:34,  h:56,  act:null, prompt:'', lbl:''},
+      {id:'npc_ec_barman',  wx:150, wy:120, w:34,  h:56,  act:null, prompt:'', lbl:''},                 /* Silas „Grin" Mercer — obsługa przez strefę Bar */
+      /* BLOK 2 (§12-15): managerka + ochrona jako interaktywni NPC */
+      {id:'npc_valeria',    wx:1010,wy:430, w:34,  h:56,  act:'eclipse:valeria', prompt:'[E] 💼 Valeria „Vee" Cross — managerka', lbl:'Valeria'},
+      {id:'npc_mason',      wx:1120,wy:560, w:34,  h:56,  act:'eclipse:mason',   prompt:'[E] 🕶️ Mason „Lock" Graves — ochrona', lbl:'Mason'},
       {id:'npc_ec_guest1',  wx:380, wy:430, w:34,  h:56,  act:null, prompt:'', lbl:''},
       {id:'npc_ec_guest2',  wx:920, wy:440, w:34,  h:56,  act:null, prompt:'', lbl:''},
       {id:'npc_ec_guest3',  wx:660, wy:250, w:34,  h:56,  act:null, prompt:'', lbl:''},
@@ -4203,6 +4206,8 @@ function drawSprite(id,sx,sy,w,h){
     case 'eclipse_dance':  drawEclipseDancefloor(sx,sy,w,h);break;
     case 'eclipse_dj':     drawEclipseDjBooth(sx,sy,w,h);break;
     case 'npc_ec_barman':  drawBarman(sx,sy,w,h);break;
+    case 'npc_valeria':    drawNPC(sx,sy,w,h,'#e8c090','#5a1442','💼');break;   /* BLOK 2: managerka Valeria */
+    case 'npc_mason':      drawNPC(sx,sy,w,h,'#c08858','#14141a','🕶️');break;  /* BLOK 2: ochrona Mason */
     case 'npc_ec_guest1': case 'npc_ec_guest2': case 'npc_ec_guest3': drawCasinoGuest(sx,sy,w,h,id);break;
     case 'exit_eclipse':   drawInteriorExit(sx,sy,w,h);break;
     case 'merch_studio': drawBuilding(sx,sy,w,h,'#3a1a2a','Studio Merch','#e91e63','🧢',true,{commercial:true});break;
@@ -14702,6 +14707,14 @@ function handleAct(act,objId){
   } else if(act==='eclipse:dance'){
     /* PDF new/4 (§26): parkiet Eclipse Noir → taniec (nastrój + luz społeczny, koszt energii) */
     if(typeof window._eclipseDanceMG==='function') window._eclipseDanceMG();
+    return;
+  } else if(act==='eclipse:valeria'){
+    /* PDF new/4 (§12-13): managerka Valeria „Vee" Cross — dialog + relacja */
+    if(typeof window._eclipseValeria==='function') window._eclipseValeria();
+    return;
+  } else if(act==='eclipse:mason'){
+    /* PDF new/4 (§15): ochrona Mason „Lock" Graves — dialog + gating stref */
+    if(typeof window._eclipseMason==='function') window._eclipseMason();
     return;
   } else if(act.startsWith('gym:')){
     const parts=act.split(':');
@@ -52598,6 +52611,12 @@ window._eclipseNoirEnsure=function(){
   if(u.activeShadowJob!==null && typeof u.activeShadowJob!=='object') u.activeShadowJob=null;
   /* kantarTrust — synchronizuj z istniejącym G.kantarTrust (nie duplikuj osi). */
   u.kantarTrust=(typeof G.kantarTrust==='number')?G.kantarTrust:0;
+  /* BLOK 2 (§12-15): relacja z managerką Valerią (save-safe, wszystkie osie z PDF). */
+  if(!G.npcRelations||typeof G.npcRelations!=='object') G.npcRelations={};
+  const vr=G.npcRelations.valeriaCross;
+  const VR_DEF=[['relationship',0],['trust',0],['attraction',0],['professionalism',0],['clubAccess',0],['favorDebt',0],['privacyTrust',0],['scandalRisk',0],['lastTalkDay',-1],['metDay',-1]];
+  if(!vr||typeof vr!=='object'){ const o={}; VR_DEF.forEach(([k,d])=>o[k]=d); G.npcRelations.valeriaCross=o; }
+  else { VR_DEF.forEach(([k,d])=>{ if(typeof vr[k]!=='number'||!isFinite(vr[k])) vr[k]=d; }); }
 };
 /* 4C (§7/§8/§64.3): mnożnik weekendowy nocy klubu. 0=Pn..4=Pt,5=So,6=Nd. */
 window.getEclipseNoirNightMultiplier=function(){
@@ -52716,9 +52735,10 @@ window._eclipseBarMG=function(){
   document.getElementById('mg-job-content').innerHTML=`
     <div style="background:#0a0810;border:2px solid #3a2a5a;border-radius:10px;padding:16px;max-width:460px;margin:0 auto;color:#fff;width:100%">
       <h3 style="margin-top:0;color:#b98cff">🍸 Bar Eclipse Noir</h3>
-      <div style="font-size:11px;color:#9a90b0;margin-bottom:6px">Barman miksuje w rytm basu. Co podać?</div>
+      <div style="font-size:11px;color:#9a90b0;margin-bottom:6px">Barman Silas miksuje w rytm basu. Co podać?</div>
       ${rows}
-      <button class="cbtn" style="width:100%;margin-top:8px;color:#ccc" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Wyjdź</button>
+      <button class="cbtn" style="width:100%;margin-top:8px;font-size:12px;padding:8px;color:#cdb8ff;border-color:#3a2a5a" onclick="window._eclipseSilas()">👂 Pogadaj z Silasem (plotki, VIP, napiwek)</button>
+      <button class="cbtn" style="width:100%;margin-top:6px;color:#ccc" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Wyjdź</button>
     </div>`;
 };
 window._eclipseBarBuy=function(id){
@@ -52800,6 +52820,98 @@ window._eclipseDanceMG=function(){
   }
   raf=requestAnimationFrame(draw);
   window._jobMgCleanup=()=>{over=true;cancelAnimationFrame(raf);cv.removeEventListener('click',onClick);cv.removeEventListener('touchstart',onTouch);panel.classList.remove('on');panel.style.display='none';const _mc=document.getElementById('mg-job-content');if(_mc)_mc.innerHTML='';};
+};
+
+/* ═══ PDF new/4 BLOK 2: NPC klubu — Valeria (managerka §12-13), Silas (barman §14), Mason (ochrona §15) ═══ */
+window._eclipseRelResp=function(txt){ return `<div style="font-size:12px;color:#cdb8ff;font-style:italic;background:#160f26;border-radius:6px;padding:8px;margin:8px 0">${txt}</div>`; };
+window._eclipseValeria=function(resp){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir, v=G.npcRelations.valeriaCross;
+  const panel=document.getElementById('mg-job'); if(!panel) return;
+  panel.classList.add('on'); panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  let intro='';
+  if(v.metDay<0){ v.metDay=(G.day||0); c.hasMetValeria=true; v.relationship=Math.max(v.relationship,2); v.professionalism=Math.max(v.professionalism,1);
+    intro=`<div style="font-size:12px;color:#e6ddff;line-height:1.5;background:#160f26;border-radius:8px;padding:10px;margin-bottom:8px">„Heeej! Widziałam Twoje nazwisko kilka razy. Jeszcze nie wiem, czy ludzie mówią o Tobie, bo masz talent, czy dlatego, że miasto lubi nowe zabawki. Klub lubi energię, a Ty wyglądasz, jakbyś miał jej za dużo. Albo za mało kontroli!" <span style="color:#9a90b0">(śmieje się)</span></div>`; }
+  const talkedToday=(v.lastTalkDay===(G.day||0));
+  const bar=(lbl,val)=>`<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#c9b"><span style="width:110px">${lbl}</span><div style="flex:1;background:#1a0f22;border-radius:3px;height:6px;overflow:hidden"><div style="width:${Math.round(val)}%;height:100%;background:#b98cff"></div></div><span style="width:26px;text-align:right">${Math.round(val)}</span></div>`;
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="background:#0a0810;border:2px solid #5a1442;border-radius:10px;padding:16px;max-width:480px;margin:0 auto;color:#fff;width:100%;max-height:84vh;overflow-y:auto">
+      <h3 style="margin-top:0;color:#e368b8">💼 Valeria „Vee" Cross <span style="font-size:11px;color:#9a90b0">— managerka Eclipse Noir</span></h3>
+      ${intro}${resp||''}
+      <div style="background:#140a14;border-radius:8px;padding:9px;margin-bottom:10px;display:grid;grid-template-columns:1fr 1fr;gap:4px 14px">
+        ${bar('🤝 Relacja',v.relationship)}${bar('🔐 Zaufanie',v.trust)}
+        ${bar('🎫 Dostęp do klubu',v.clubAccess)}${bar('💫 Sympatia',v.attraction)}
+      </div>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:4px;color:#cdb8ff;border-color:#3a2a5a" onclick="window._eclipseValeriaAct('slot')" ${talkedToday?'disabled':''}>🎤 Porozmawiaj o występie ${talkedToday?'(dziś już rozmawialiście)':'(otwiera lepsze sloty)'}</button>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;color:#cdb8ff;border-color:#3a2a5a" onclick="window._eclipseValeriaAct('vip')">✨ Zapytaj o ludzi w VIP</button>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;color:#cdb8ff;border-color:#3a2a5a" onclick="window._eclipseValeriaAct('help')" ${talkedToday?'disabled':''}>🤝 Pomóż rozwiązać problem z gościem ${talkedToday?'':'(+ zaufanie)'}</button>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;color:#e368b8;border-color:#7a2a5a" onclick="window._eclipseValeriaAct('flirt')">💫 Flirtuj <span style="color:#9a90b0">(ryzyko plotki)</span></button>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;color:#7ec87e;border-color:#27ae60" onclick="window._eclipseValeriaAct('pro')">🤵 Zachowaj profesjonalnie</button>
+      <button class="cbtn" style="width:100%;margin-top:8px;color:#ccc" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Zakończ rozmowę</button>
+    </div>`;
+};
+window._eclipseValeriaAct=function(type){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir, v=G.npcRelations.valeriaCross;
+  const clampA=k=>{ v[k]=Math.max(0,Math.min(100,v[k])); };
+  let resp='';
+  if(type==='slot'){
+    if(v.lastTalkDay===(G.day||0)){ resp='„Spokojnie, jeden temat na noc. Wróć jutro."'; }
+    else { v.lastTalkDay=(G.day||0); v.clubAccess+=8; v.professionalism+=4; v.relationship+=3; ['clubAccess','professionalism','relationship'].forEach(clampA);
+      resp='„Podoba mi się, że myślisz o scenie, a nie tylko o barze. Załatwię Ci lepsze wejście na sloty." <b style="color:#7ec87e">(+dostęp do klubu)</b>'; }
+  } else if(type==='vip'){ v.relationship+=1; clampA('relationship');
+    resp='„Na górze? Kilka twarzy z biznesu, jeden reżyser i ktoś, kto udaje, że nie jest, kim jest. Nie pytam ludzi, skąd mają pieniądze — pytam tylko, czy zrobią problem w moim klubie."';
+  } else if(type==='help'){
+    if(v.lastTalkDay===(G.day||0)){ resp='„Już mi dziś pomogłeś. Idź się bawić."'; }
+    else { v.lastTalkDay=(G.day||0); v.trust+=7; v.clubAccess+=3; v.relationship+=2; ['trust','clubAccess','relationship'].forEach(clampA); if(typeof clampStat==='function') G.energy=clampStat('energy',(G.energy||0)-5);
+      resp='„Wyprowadziłeś temat bez sceny. Zapamiętam to. Tu lojalność znaczy więcej niż talent." <b style="color:#7ec87e">(+zaufanie)</b>'; }
+  } else if(type==='flirt'){ v.attraction+=6; v.scandalRisk+=4; c.atmosphere.paparazziRisk=Math.min(100,(c.atmosphere.paparazziRisk||0)+3); ['attraction','scandalRisk'].forEach(clampA);
+    resp=(v.attraction>40)?'„Ostrożnie. Mieszanie mnie z interesami klubu to najszybszy sposób, żeby stracić i jedno, i drugie." <span style="color:#e67e22">(+plotka)</span>':'„Uroczo. Ale ja tu rządzę, więc pauzuj z tym tempem." <span style="color:#9a90b0">(mruga)</span>';
+  } else if(type==='pro'){ v.professionalism+=5; v.trust+=3; ['professionalism','trust'].forEach(clampA);
+    resp='„Widzisz? Różnica między wiedzieć a pytać. Lubię ludzi, którzy ją rozumieją."'; }
+  if(typeof updateHUD==='function') updateHUD();
+  window._eclipseValeria(window._eclipseRelResp(resp));
+};
+window._eclipseMason=function(){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir; c.hasMetMason=true;
+  const panel=document.getElementById('mg-job'); if(!panel) return;
+  panel.classList.add('on'); panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="background:#0a0810;border:2px solid #2a2a3a;border-radius:10px;padding:16px;max-width:460px;margin:0 auto;color:#fff;width:100%">
+      <h3 style="margin-top:0;color:#c8c8d0">🕶️ Mason „Lock" Graves <span style="font-size:11px;color:#9a90b0">— szef ochrony</span></h3>
+      <div style="font-size:12px;color:#e6ddff;line-height:1.5;background:#141420;border-radius:8px;padding:10px;margin-bottom:10px">„W środku możesz być kim chcesz, dopóki nie robisz problemu, który muszę wynieść na zewnątrz. Każdemu życzę miłej zabawy." <span style="color:#9a90b0">(uśmiecha się sztucznie)</span></div>
+      <div style="font-size:11px;color:#889;background:#141420;border-radius:6px;padding:8px;margin-bottom:10px">🚪 Strefy Staff Only i piwnica są dziś zamknięte na Twój poziom. „Nie ta noc i nie ten poziom. Przede wszystkim: nie te pytania."</div>
+      <button class="cbtn" style="width:100%;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Odejdź</button>
+    </div>`;
+};
+window._eclipseSilas=function(resp){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir;
+  const panel=document.getElementById('mg-job'); if(!panel) return;
+  panel.classList.add('on'); panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  let intro='';
+  if(!c.hasMetSilas){ c.hasMetSilas=true;
+    intro=`<div style="font-size:12px;color:#e6ddff;line-height:1.5;background:#160f26;border-radius:8px;padding:10px;margin-bottom:8px">„W ECLIPSE każdy czegoś szuka. Jedni tańca, inni pieniędzy, jeszcze inni człowieka, który nie zada żadnych pytań. Ty wyglądasz, jakbyś jeszcze nie zdecydował, do której grupy należysz."</div>`; }
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="background:#0a0810;border:2px solid #3a2a5a;border-radius:10px;padding:16px;max-width:460px;margin:0 auto;color:#fff;width:100%;max-height:84vh;overflow-y:auto">
+      <h3 style="margin-top:0;color:#b98cff">🍸 Silas „Grin" Mercer <span style="font-size:11px;color:#9a90b0">— barman</span></h3>
+      ${intro}${resp||''}
+      <button class="cbtn" style="width:100%;font-size:12px;padding:8px;margin-top:4px;color:#cdb8ff;border-color:#3a2a5a" onclick="window._eclipseBarMG()">🍸 Zamów drinka</button>
+      <button class="cbtn" style="width:100%;font-size:12px;padding:8px;margin-top:5px;color:#cdb8ff;border-color:#3a2a5a" onclick="window._eclipseSilasAct('gossip')">👂 Zapytaj o plotki</button>
+      <button class="cbtn" style="width:100%;font-size:12px;padding:8px;margin-top:5px;color:#cdb8ff;border-color:#3a2a5a" onclick="window._eclipseSilasAct('vip')">✨ Kto dziś w VIP?</button>
+      <button class="cbtn" style="width:100%;font-size:12px;padding:8px;margin-top:5px;color:#f1c40f;border-color:#c8a520" onclick="window._eclipseSilasAct('tip')">💵 Zostaw napiwek (50 zł)</button>
+      <button class="cbtn" style="width:100%;font-size:12px;padding:8px;margin-top:5px;color:#8e44ad;border-color:#5a2a7a" onclick="window._eclipseSilasAct('kantar')">🌑 Zapytaj o Kantara</button>
+      <button class="cbtn" style="width:100%;margin-top:8px;color:#ccc" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Zakończ</button>
+    </div>`;
+};
+window._eclipseSilasAct=function(type){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir; let resp='';
+  if(type==='gossip'){ const g=['„Widziałem dziś twarz z telewizji, która udawała, że nikt jej nie poznaje.','„Ktoś na górze wydał więcej niż zarabiasz w miesiąc — i wcale nie był szczęśliwszy.','„Dwie modelki, jeden DJ i awantura o taksówkę. Klasyczny wieczór."']; resp=g[(c._silasGossip||0)%g.length]; c._silasGossip=(c._silasGossip||0)+1; if(c._silasGossip%2===0){ G._socialBuzz=(G._socialBuzz||0)+2; resp+=' <span style="color:#7ec87e">(+szum)</span>'; } }
+  else if(type==='vip'){ const vd=Math.round(c.atmosphere.vipDensity||0); resp=(vd>50)?'„Dziś góra pełna — biznes, jeden reżyser, ludzie z kasą. Dobra noc, żeby ktoś Cię zauważył."':'„Spokojna noc na górze. Kilku bywalców, żadnych rekinów."'; }
+  else if(type==='tip'){ if((G.money||0)<50){ resp='„Bez urazy, ale napiwek to napiwek."'; } else { G.money-=50; if(typeof spent==='function')spent(50); c._silasFavor=(c._silasFavor||0)+1; resp='„Dobry człowiek. Zapamiętam." <span style="color:#7ec87e">(Silas Cię polubił)</span>'; if(typeof updateHUD==='function')updateHUD(); } }
+  else if(type==='kantar'){ const introDone=!!(G.underworld&&G.underworld.introCompleted)||(typeof G.kantarTrust==='number'&&G.kantarTrust>0);
+    resp=introDone?'„Skoro pytasz tak wprost, to chyba już wiesz. Jak będzie chciał, znajdzie Cię sam. Nie na odwrót."':'„Kantar? Nie znam takiego." <span style="color:#9a90b0">(uśmiech ani drgnie, ale zerka w bok)</span>'; }
+  window._eclipseSilas(window._eclipseRelResp(resp));
 };
 
 /* ═══ 4E (§10/§11): SYSTEM KONCERTÓW Eclipse Noir — 6 slotów + calculateEclipsePerformanceScore ═══ */
@@ -65399,6 +65511,7 @@ const PATCH_NOTES = [
  ver:'v2.3.113',date:'2026-07-05',cats:['feature','fix'],title:'🗺 Mapy dzielnic + poprawki wygody i sterowania pojazdami',
  items:[
   {t:'new',d:'🌑 Klub nocny Eclipse Noir stoi teraz na mapie dzielnicy Underground — podejdź do niego wieczorem lub nocą i wejdź do środka! Wchodzisz do prawdziwego wnętrza klubu, po którym chodzisz jak po każdym innym budynku: scena koncertowa (sześć rodzajów występów od rozgrzewki po pokaz VIP — Twoja forma zależy od umiejętności, sławy, nastroju i tego, jak rozgrzana jest sala), bar z drinkami na poprawę nastroju i parkiet, na którym łapiesz rytm. Do klubu wejdziesz na kilka sposobów: zwykłe wejście, po znajomości, jako artysta albo za wejściówkę VIP. Klub żyje własnym rytmem i jest najgorętszy w piątkowe oraz sobotnie noce. To dopiero początek — Eclipse Noir będzie się rozrastał o nowe atrakcje i barwne postacie.'},
+  {t:'new',d:'🌑 W Eclipse Noir poznasz teraz obsługę klubu i pogadasz z nią na miejscu. Managerka klubu prowadzi Cię przez występy — im lepsza relacja i im częściej rozmawiacie o scenie, tym łatwiej o lepsze sceny i dostęp do klubu. Barman naleje drinka, podzieli się plotką z sali i przyjmie napiwek, a ochrona pilnuje, kto gdzie może wejść. Każda z tych rozmów ma swój klimat i drobne konsekwencje.'},
   {t:'new',d:'🗺 Nowość: osobne mapy dzielnic! W dużej mapie możesz teraz przełączać widok między Miastem a odblokowanymi dzielnicami (Underground, Marina Coast, Business) — każda ma własną mapę z budynkami i punktami. Zablokowane dzielnice są wyszarzone do czasu ich odblokowania, a mapy aktualizują się same, gdy w dzielnicy pojawiają się nowe miejsca.'},
   {t:'new',d:'🏥 Nova Cura pokazuje teraz Twój stan uzależnień w rozbiciu na kategorie (alkohol, pobudzające, imprezowe, uspokajające, opioidowe) — każda z własnym poziomem ryzyka. Widać też łączne objawy odstawienia i ostrzeżenie, gdy mieszasz różne rodzaje używek. Różne używki działają inaczej i inaczej się uzależniają, więc łatwiej świadomie zdecydować, czego potrzebujesz.'},
   {t:'new',d:'💉 W Nova Cura dostępne są teraz pełne programy wychodzenia z nałogu: krótka stabilizacja po kryzysie oraz intensywne programy (7 dni, 14 dni i dyskretny program premium). Im mocniejszy program, tym większy spadek uzależnienia, objawów odstawienia i napięcia. Kosztują sporo, ale to realna droga do odzyskania kontroli.'},
