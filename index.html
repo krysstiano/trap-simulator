@@ -52752,6 +52752,11 @@ window._eclipseEnter=function(kind){
   if(typeof changeRoom==='function') changeRoom('eclipse_noir',600,520);
   else if(typeof startRoomFade==='function') startRoomFade('eclipse_noir',600,520);
   else window._eclipseHub();
+  /* BLOK 6: po wejściu — S9 crisis (ślad skandalu wysoki) lub Noc przełomowa (raz/dzień, gdy gotowa). */
+  setTimeout(()=>{ if(currentRoom!=='eclipse_noir') return; const cc=G.eclipseNoir;
+    if((cc.scandalTrail||0)>=40 && cc._lastCrisisDay!==(G.day||0)){ if(typeof window._eclipseCrisisControl==='function') window._eclipseCrisisControl(); return; }
+    if(cc._lastBreakthroughDay!==(G.day||0) && typeof window._eclipseBreakthroughReady==='function' && window._eclipseBreakthroughReady()){ if(typeof window._eclipseBreakthroughNight==='function') window._eclipseBreakthroughNight(); }
+  }, 900);
 };
 /* 4A: hub klubu (rozbudowywany o strefy/aktywności w kolejnych fazach). */
 window._eclipseHub=function(){
@@ -53098,6 +53103,7 @@ window._eclipseRollPaparazzi=function(context,force){
 window._eclipseExit=function(){
   window._eclipseNoirEnsure();
   window._eclipseRollPaparazzi('leaving');
+  if(typeof window._eclipseNightAftermath==='function') window._eclipseNightAftermath(); /* §47-48: rachunek zdrowotny po ciężkiej nocy */
   if(typeof startRoomFade==='function') startRoomFade('underground',210,1140);
   else if(typeof changeRoom==='function') changeRoom('underground',210,1140);
 };
@@ -53263,6 +53269,83 @@ window._eclipseElias=function(){
       <div style="font-size:12px;color:#e6ddff;background:#161206;border-radius:8px;padding:10px;margin-bottom:10px">${body}</div>
       <button class="cbtn" style="width:100%;color:#fff" onclick="window._eclipseBasement()">← Wróć</button>
     </div>`;
+};
+
+/* ═══ PDF new/4 BLOK 6: EVENTY SZCZYTOWE + INTEGRACJE (§47-48,§54-55,§62-63) ═══ */
+/* §62-63: „Noc przełomowa". */
+window._eclipseBreakthroughReady=function(){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir;
+  return !!c._breakthroughPending || ((G.fame||0)>=20 && (c.concertsPlayed||0)>=2 && (c.reputation||0)>=5 && (G.stress||50)>=40 && (G.heat||0)<70);
+};
+window._eclipseBreakthroughNight=function(){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir; const hasKantar=window._eclipseUnderworldAccess();
+  const panel=document.getElementById('mg-job'); if(!panel) return;
+  panel.classList.add('on'); panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="background:#0a0810;border:2px solid #e368b8;border-radius:10px;padding:18px;max-width:500px;margin:0 auto;color:#fff;width:100%;max-height:84vh;overflow-y:auto">
+      <h2 style="margin-top:0;color:#e368b8;text-align:center">✨ Noc przełomowa</h2>
+      <div style="font-size:12px;color:#e6ddff;line-height:1.5;background:#160f26;border-radius:8px;padding:10px;margin-bottom:10px">Eclipse Noir jest pełne. Na górze siedzą ludzie, których zwykle ogląda się tylko w cudzych historiach. Dziś możesz wyjść z klubu jako ktoś znacznie większy — albo jako kolejny człowiek, którego noc połknęła i wypluła.</div>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:9px;margin-top:4px;color:#7ec87e;border-color:#27ae60" onclick="window._eclipseBreakthroughPick('set')">🎤 Zagraj najmocniejszy set</button>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:9px;margin-top:5px;color:#f1c40f;border-color:#c8a520" onclick="window._eclipseBreakthroughPick('vip')">💎 Skup się na VIP networkingu</button>
+      ${hasKantar?`<button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:9px;margin-top:5px;color:#8e5ad0;border-color:#5a2a7a" onclick="window._eclipseBreakthroughPick('kantar')">🌑 Idź za sygnałem z cienia</button>`:''}
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:9px;margin-top:5px;color:#cdb8ff;border-color:#3a2a5a" onclick="window._eclipseBreakthroughPick('content')">📸 Zrób z tego content</button>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:9px;margin-top:5px;color:#ccc" onclick="window._eclipseBreakthroughPick('safe')">🛟 Trzymaj się ekipy i nie ryzykuj</button>
+    </div>`;
+};
+window._eclipseBreakthroughPick=function(choice){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir; let msg='',type='g';
+  if(choice==='set'){ const f=Math.round(120+(G.fame||0)*0.3); if(typeof addFans==='function')addFans(f); else G.fans=(G.fans||0)+f; G.fame=(G.fame||0)+12; c.reputation=Math.min(100,(c.reputation||0)+10); G._socialBuzz=(G._socialBuzz||0)+40; G.energy=Math.max(0,(G.energy||0)-20); msg=`Dajesz set życia. Sala śpiewa z Tobą. <b style="color:#7ec87e">(+${f} fanów, +sława, +szum)</b>`; }
+  else if(choice==='vip'){ const m=Math.round(3000+(G.fame||0)*3); G.money=(G.money||0)+m; G._eclipseSponsorLead=(G._eclipseSponsorLead||0)+1; c.reputation=Math.min(100,(c.reputation||0)+6); msg=`Robisz kontakty, które robią różnicę. Ktoś z biznesu wręcza Ci wizytówkę i zaliczkę. <b style="color:#7ec87e">(+${m} zł, lead sponsorski)</b>`; }
+  else if(choice==='kantar'){ if(typeof window._uwAddStat==='function') window._uwAddStat('kantar_trust',6); else G.kantarTrust=(G.kantarTrust||0)+6; if(G.underworld){G.underworld.shadowReputation=Math.min(100,(G.underworld.shadowReputation||0)+8);} G.heat=Math.min(100,(G.heat||0)+10); c.sceneToxicity=Math.min(100,(c.sceneToxicity||0)+6); type='i'; msg='Idziesz za spojrzeniem, które nie było przypadkowe. Wchodzisz głębiej w cień. <span style="color:#e67e22">(+pozycja w półświatku, +heat)</span>'; }
+  else if(choice==='content'){ G._socialBuzz=(G._socialBuzz||0)+50; c.atmosphere.paparazziRisk=Math.min(100,(c.atmosphere.paparazziRisk||0)+12); c.scandalTrail=Math.min(100,(c.scandalTrail||0)+6); type='i'; msg='Wrzucasz wszystko na story. Viral gwarantowany — jak i uwaga, której nie zamawiałeś. <span style="color:#e67e22">(+duży szum, +ryzyko afery)</span>'; }
+  else { c.reputation=Math.min(100,(c.reputation||0)+3); G.stress=(typeof clamp==='function')?clamp((G.stress||0)+6,0,100):Math.min(100,(G.stress||0)+6); msg='Zostajesz przy swoich. Mniejsze fajerwerki, ale rano budzisz się bez kaca sumienia. <span style="color:#7ec87e">(+stabilność)</span>'; }
+  c._breakthroughPending=false; c._lastBreakthroughDay=(G.day||0);
+  if(typeof updateHUD==='function') updateHUD(); if(typeof saveGameSilent==='function') saveGameSilent();
+  const mc=document.getElementById('mg-job-content'); if(mc){ mc.innerHTML=`
+    <div style="background:#0a0810;border:2px solid #3a2a5a;border-radius:10px;padding:18px;max-width:500px;margin:0 auto;color:#fff;width:100%;text-align:center">
+      <div style="font-size:14px;color:#e6ddff;margin-bottom:14px">${msg}</div>
+      <button class="cbtn" style="width:100%;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Wróć do klubu</button>
+    </div>`; }
+};
+/* §47-48: rachunek po ciężkiej nocy — health/craving + sugestia Nova Cura (integracja). */
+window._eclipseNightAftermath=function(){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir, n=c.nightlife;
+  if((n.intoxication||0)<50 && (n.clubFatigue||0)<40) return false;
+  G.stress=(typeof clamp==='function')?clamp((G.stress||50)-12,0,100):Math.max(0,(G.stress||50)-12); /* gorszy nastrój (stress=MOOD) */
+  G.energy=Math.max(0,(G.energy||0)-15);
+  G.addiction=Math.min(100,(G.addiction||0)+3);
+  if(G.novacura){ G.novacura._eclipseAftercareSuggested=(G.day||0); }
+  if(typeof showMsg==='function') showMsg('🌫️ Noc, która nie chce się skończyć. Ciało wystawia rachunek — stres i przemęczenie rosną. Zalecenie: Nova Cura, konsultacja albo porządny odpoczynek.','i',6500);
+  return true;
+};
+/* §54-55: S9 Agency — Nightlife Crisis Control (gdy ślad skandalu wysoki). */
+window._eclipseCrisisControl=function(){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir;
+  const panel=document.getElementById('mg-job'); if(!panel) return;
+  panel.classList.add('on'); panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  const opt=(lbl,cost,fn)=>`<button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;color:${(G.money||0)>=cost?'#cdb8ff':'#775'};border-color:#3a2a5a" onclick="${fn}">${lbl}</button>`;
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="background:#0a0810;border:2px solid #c0392b;border-radius:10px;padding:16px;max-width:480px;margin:0 auto;color:#fff;width:100%;max-height:84vh;overflow-y:auto">
+      <h3 style="margin-top:0;color:#e74c3c">📞 S9 Agency — kontrola kryzysowa</h3>
+      <div style="font-size:12px;color:#e6ddff;background:#1a0e0e;border-radius:8px;padding:10px;margin-bottom:8px">„Twoje nazwisko zaczyna być łączone z aferami z Eclipse Noir. To już nie impreza, tylko materiał dla internetu. Możemy to wyciszyć — ale najpierw przestań dokładać do pieca." <span style="color:#9a90b0">(ślad skandalu: ${Math.round(c.scandalTrail||0)})</span></div>
+      ${opt('🔇 Wycisz nagrania — 12 000 zł','12000','window._eclipseCrisisPick(12000,25)',12000)}
+      ${opt('🌆 Przekuj w lifestyle narrative — 18 000 zł','18000','window._eclipseCrisisPick(18000,40)',18000)}
+      ${opt('🎯 Publiczny fokus na muzykę — 22 000 zł','22000','window._eclipseCrisisPick(22000,55)',22000)}
+      ${opt('✂️ Odetnij się od afer — 30 000 zł','30000','window._eclipseCrisisPick(30000,80)',30000)}
+      <button class="cbtn" style="width:100%;margin-top:6px;color:#ccc" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">🙈 Zignoruj (ryzyko)</button>
+    </div>`;
+};
+window._eclipseCrisisPick=function(cost,reduce){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir;
+  if((G.money||0)<cost){ if(typeof showMsg==='function') showMsg(`💰 Brakuje ${cost-(G.money||0)} zł na to działanie.`,'r',4000); return; }
+  G.money-=cost; c.scandalTrail=Math.max(0,(c.scandalTrail||0)-reduce); c.paparazziHeat=Math.max(0,(c.paparazziHeat||0)-reduce*0.5);
+  if(typeof G.mediaRisk==='number') G.mediaRisk=Math.max(0,G.mediaRisk-2);
+  c._lastCrisisDay=(G.day||0);
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof showMsg==='function') showMsg('📞 S9 bierze temat na siebie. Szum wokół afer opada.','g',5000);
+  const _mc=document.getElementById('mg-job-content'); if(_mc)_mc.innerHTML=''; const _mj=document.getElementById('mg-job'); if(_mj)_mj.classList.remove('on');
 };
 
 /* ═══ 4E (§10/§11): SYSTEM KONCERTÓW Eclipse Noir — 6 slotów + calculateEclipsePerformanceScore ═══ */
@@ -65865,6 +65948,7 @@ const PATCH_NOTES = [
   {t:'new',d:'🌑 W Eclipse Noir poznasz teraz obsługę klubu i pogadasz z nią na miejscu. Managerka klubu prowadzi Cię przez występy — im lepsza relacja i im częściej rozmawiacie o scenie, tym łatwiej o lepsze sceny i dostęp do klubu. Barman naleje drinka, podzieli się plotką z sali i przyjmie napiwek, a ochrona pilnuje, kto gdzie może wejść. Każda z tych rozmów ma swój klimat i drobne konsekwencje.'},
   {t:'new',d:'🌑 W Eclipse Noir otwiera się strefa VIP na piętrze. Wejdziesz tam za wejściówkę VIP, dzięki wysokiej sławie albo dobrej relacji z managerką klubu. Na górze poznasz gości z różnych światów — biznesu, mediów, filmu, sportu i gamingu — i porozmawiasz o współpracy, zaprosisz kogoś na swój koncert, zapytasz o inwestycje albo pozwolisz sobie na flirt. Uważaj: część kontaktów to złote okazje i zastrzyk gotówki, a inne kończą się plotką w sieci albo naciąganiem na fałszywą inwestycję. Najlepsze kontakty łapiesz z umiarem — na jedną noc jest ich ograniczona liczba.'},
   {t:'new',d:'🌑 Eclipse Noir ma teraz ciemniejszą stronę nocy. Im więcej pijesz przy barze, tym bardziej rośnie upojenie i spada Twoja kontrola nad decyzjami — a wtedy łatwiej o wpadkę (widzisz oba wskaźniki przy barze). Przy barze może wybuchnąć awantura: możesz odejść, zawołać ochronę, spróbować uspokoić sytuację (trudniej, gdy jesteś wstawiony), wejść w konflikt (heat, afera i zakaz wstępu) albo to nagrywać. Przy wyjściu z klubu czasem dopadną Cię paparazzi — zdjęcia w sieci nakręcają szum, ale odbijają się na reputacji. Gorące, skandaliczne noce zostawiają po sobie ślad, a poważne przewinienia kończą się czasowym zakazem wstępu do klubu. Między nocami trzeźwiejesz.'},
+  {t:'new',d:'🌑 Noce w Eclipse Noir mają teraz swoje kulminacje i skutki. Po naprawdę mocnym występie może trafić Ci się „Noc przełomowa" — jedna decyzja, która potrafi pchnąć karierę mocno do przodu (albo w ryzyko): zagraj set życia, zrób networking z VIP-ami albo zamień to w viralowy content. Po zbyt ostrej nocy ciało wystawia rachunek — spada nastrój i energia, a gra podpowie odpoczynek lub wizytę w Nova Cura. A gdy Twoje nazwisko zbyt mocno zrośnie się z aferami, odezwie się agencja S9 z kontrolą kryzysową: za odpowiednią kwotę wyciszą szum wokół skandali i pomogą odbudować wizerunek.'},
   {t:'new',d:'🗺 Nowość: osobne mapy dzielnic! W dużej mapie możesz teraz przełączać widok między Miastem a odblokowanymi dzielnicami (Underground, Marina Coast, Business) — każda ma własną mapę z budynkami i punktami. Zablokowane dzielnice są wyszarzone do czasu ich odblokowania, a mapy aktualizują się same, gdy w dzielnicy pojawiają się nowe miejsca.'},
   {t:'new',d:'🏥 Nova Cura pokazuje teraz Twój stan uzależnień w rozbiciu na kategorie (alkohol, pobudzające, imprezowe, uspokajające, opioidowe) — każda z własnym poziomem ryzyka. Widać też łączne objawy odstawienia i ostrzeżenie, gdy mieszasz różne rodzaje używek. Różne używki działają inaczej i inaczej się uzależniają, więc łatwiej świadomie zdecydować, czego potrzebujesz.'},
   {t:'new',d:'💉 W Nova Cura dostępne są teraz pełne programy wychodzenia z nałogu: krótka stabilizacja po kryzysie oraz intensywne programy (7 dni, 14 dni i dyskretny program premium). Im mocniejszy program, tym większy spadek uzależnienia, objawów odstawienia i napięcia. Kosztują sporo, ale to realna droga do odzyskania kontroli.'},
