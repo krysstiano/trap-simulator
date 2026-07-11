@@ -7297,7 +7297,7 @@ function drawLuxuryBuilding(sx,sy,w,h,brand,accentColor,darkFacade=false){
   }
   // F+ Punkt #16: Kwiaty w doniczkach przy wejściu — luxury vibe
   /* v2.1.241: sezonowość — zimą kwiaty schowane (białe kropki śniegu zamiast różnokolorowych kwiatków + ciemniejsze liście). PLAN_NOC Faza 9. */
-  const _isWinter=(typeof getSeason==='function' && getSeason()?.id==='winter');
+  const _isWinter=(typeof getSeasonKey==='function' && getSeasonKey()==='winter');
   const _flowerPot=(px,py)=>{
     // Doniczka — brązowa terakota z paskiem
     X.fillStyle='#7a4a2a';X.fillRect(px-5,py-2,10,8);
@@ -12748,7 +12748,7 @@ function drawWeatherFX(){
   /* v1.9.20: BUG FIX — mgła tylko na ulicy (poprzednio leak do mieszkania/studio/siłowni) */
   if(w===4 && outdoor){X.fillStyle='rgba(180,190,200,.18)';X.fillRect(0,62,1280,658);}
   // F+ Punkt #21: płatki kwiatów spadające wiosną (cherry blossom / bzy)
-  if(outdoor && typeof getSeason==='function' && (getSeason()?.id==='spring')){
+  if(outdoor && typeof getSeasonKey==='function' && (getSeasonKey()==='spring')){
     const petalCols=['#ffc0cb','#ff80b0','#ffd0e0','#ff70a0'];
     for(let i=0;i<22;i++){
       const seed=i*9.3;
@@ -12773,7 +12773,7 @@ function drawWeatherFX(){
   }
 
   // F+ Punkt #34: liście spadające jesienią (particle) — niezależne od pogody
-  if(outdoor && typeof getSeason==='function' && (getSeason()?.id==='autumn')){
+  if(outdoor && typeof getSeasonKey==='function' && (getSeasonKey()==='autumn')){
     const leafCols=['#a04020','#c46818','#e09020','#f0b840','#8a3a18'];
     for(let i=0;i<28;i++){
       const seed=i*11.7;
@@ -46604,6 +46604,9 @@ window.buyApartment=(id,cost)=>{
   if(id==='traphouse'){notify('🏚️ Traphouse jest twoim startowym mieszkaniem — nie wymaga zakupu.');return;}
   /* v2.1.172: Posiadane mieszkania nie wymagają "Przeprowadź się" — system auto-aktywuje najlepsze (_setActiveAptToBest). */
   if(G._ownedApts.includes(id)){notify(`🏠 Już posiadasz ${CFG.APT_NAMES[id]||id} — bonus aktywny gdy to twoje najlepsze mieszkanie.`);return;}
+  /* v2.3.117 (PDF Uspr115): blokada zakupu nieruchomości przy aktywnym długu chwilówki > 35 tys. zł — niezależnie od posiadanych środków. */
+  const _paraDebt=(G.parabank&&typeof G.parabank.loan==='number')?G.parabank.loan:0;
+  if(_paraDebt>35000){showMsg(`🚫 Masz aktywny dług w Parabanku: ${_paraDebt.toLocaleString('pl')} zł. Nie kupisz nieruchomości, dopóki dług przekracza 35 000 zł — najpierw spłać go poniżej tego progu.`,'r',6500);return;}
   // Wymagania sprawdzamy zawsze (poziom/fanów/sławy)
   const req=APT_REQS[id]||{};
   if(req.level && G.level<req.level){showMsg(`🔒 Wymagany poziom ${req.level} (masz ${G.level}).`,'r');return;}
@@ -51980,6 +51983,7 @@ window._frameUpDMEnsure=function(){
     G.frameUpDM={unlocked:false,unreadCount:0,spamUnreadCount:0,lastGeneratedDmDay:null,threads:[],blockedProfiles:[],archivedThreads:[],ghostwriting:null};
   }
   const D=G.frameUpDM;
+  if(typeof D.nextFanDmDay!=='number') D.nextFanDmDay=0; /* v2.3.117 (PDF Uspr115 W1): odstęp 3-5 dni gry między wiadomościami fanów */
   if(!Array.isArray(D.threads)) D.threads=[];
   if(!Array.isArray(D.blockedProfiles)) D.blockedProfiles=[];
   if(!Array.isArray(D.archivedThreads)) D.archivedThreads=[];
@@ -52656,12 +52660,20 @@ window._generateFrameUpDMs=function(){
   window._frameUpDMEnsure(); if(!G.frameUpDM.unlocked) return;
   const postedRecently=Array.isArray(G.igPosts)&&G.igPosts.some(p=>p&&(G.day-(p.day||p.createdDay||0))<=2);
   const fans=(G.fans||0);
-  // Fani — częściej po publikacji i przy większej bazie
-  if(fans>=50 && Math.random()<(postedRecently?0.6:0.25)) window._generateFanDM();
-  // Firmy — przy zasięgach/dripie
+  const D=G.frameUpDM;
+  /* v2.3.117 (PDF Uspr115 W1): wiadomości FANÓW/SŁUCHACZY DOPIERO po nagraniu i opublikowaniu ≥1 singla (nie samego posta),
+     bo fani odnoszą się do wydanego numeru. Kolejne wiadomości fanów w odstępie 3-5 dni gry (D.nextFanDmDay). */
+  const hasPublishedSingle=(G.studioTracks||[]).some(t=>t&&!t.isDemo);
+  if(hasPublishedSingle && fans>=50 && (G.day||0)>=(D.nextFanDmDay||0)){
+    let sent=false;
+    // Fani — częściej po publikacji i przy większej bazie
+    if(Math.random()<(postedRecently?0.6:0.25)){ window._generateFanDM(); sent=true; }
+    // Słuchacze — jak fani, gdy masz wydany numer (druga szansa gdy fan nie trafił)
+    else if(fans>=100 && Math.random()<(postedRecently?0.35:0.15)){ window._generateListenerDM(); sent=true; }
+    if(sent) D.nextFanDmDay=(G.day||0)+rnd(3,5);
+  }
+  // Firmy — przy zasięgach/dripie (nie objęte gate'em fanów)
   if(fans>=800 && (G.fame||0)>=60 && Math.random()<0.18) window._generateBrandDM();
-  // Słuchacze — jak fani, gdy masz wydany numer
-  if(fans>=100 && (G.studioTracks||[]).some(t=>t&&!t.isDemo) && Math.random()<(postedRecently?0.35:0.15)) window._generateListenerDM();
   // Lifestyle/modelki — przy większej sławie (dorośli NPC, opcjonalne)
   if((G.fame||0)>=120 && fans>=3000 && Math.random()<0.10) window._generateLifestyleDM();
   // Spam — rośnie z popularnością
@@ -54949,7 +54961,10 @@ window._vehStatusPanel=function(kind){
   panel.innerHTML=`<div id="mg-job-content" style="max-width:440px;margin:0 auto">
     <div style="text-align:center;font-size:18px;font-weight:800;color:#95a5a6;margin-bottom:6px">${em} Stan pojazdu — ${nm}</div>
     <div style="text-align:center;font-size:24px;font-weight:900;color:${ohCol}">${Math.round(oh)}%</div>
-    <div style="text-align:center;font-size:11.5px;color:#8a939a;margin-bottom:10px">Status: ${statusTxt}</div>
+    <div style="text-align:center;font-size:11.5px;color:#8a939a;margin-bottom:8px">Status: ${statusTxt}</div>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      ${(function(){var mp=window._vehMechPct(kind),vp=window._vehVisualPct(kind);var mc=mp>=66?'#2ecc71':mp>=33?'#f39c12':'#e74c3c';var vc=vp>=66?'#2ecc71':vp>=33?'#f39c12':'#e74c3c';return `<div style="flex:1;text-align:center;background:#0e1216;border:1px solid #2a3238;border-radius:8px;padding:8px"><div style="font-size:10px;color:#8a939a">🔧 Mechanika (sprawność)</div><div style="font-size:18px;font-weight:800;color:${mc}">${mp}%</div></div><div style="flex:1;text-align:center;background:#0e1216;border:1px solid #2a3238;border-radius:8px;padding:8px"><div style="font-size:10px;color:#8a939a">🎨 Wygląd (blacharka)</div><div style="font-size:18px;font-weight:800;color:${vc}">${vp}%</div></div>`;})()}
+    </div>
     <div style="background:#0e1216;border:1px solid #2a3238;border-radius:8px;padding:10px;margin-bottom:8px">
       ${bar('Silnik',d.engine)}${bar('Zawieszenie',d.suspension)}${bar('Hamulce',d.brakes)}${bar('Koła',d.wheels)}${bar('Układ paliwowy',d.fuelSystem)}${bar('Szyby',d.windows)}${bar('Światła',d.lights)}
     </div>
@@ -55058,8 +55073,10 @@ window._vehImmobilizedHint=function(kind){
 window._vehTowClock=0;
 
 /* ═══ TIER D: HOLOWANIE + NAPRAWA + KASACJA + NPC Knox „Towline" Mercer (§11-15, §39) ═══ */
+/* v2.3.117 (PDF Uspr115 W3): rozdział WIZUALNY (blacharsko-lakierniczy) vs MECHANICZNY — pełne, rozłączne pokrycie 15 stref.
+   Naprawa blacharki poprawia TYLKO wygląd, naprawa mechaniczna TYLKO sprawność (nie wygląd). fuelSystem+electronics dołączone do MECH (były pomijane → mech nigdy nie sięgał 100%). */
 window._VEH_BODY_ZONES=['front','rear','leftSide','rightSide','roof','windows','lights'];
-window._VEH_MECH_ZONES=['engine','transmission','suspension','wheels','brakes','radiator'];
+window._VEH_MECH_ZONES=['engine','transmission','suspension','fuelSystem','wheels','brakes','radiator','electronics'];
 /* §12 ocena naprawialności: totalLoss gdy structuralne+mechaniczne+pożar zbyt duże (lub eksplodowany). */
 window._vehEvaluateRepairability=function(kind){
   const d=window._vehDmg(kind); if(!d) return {repairable:true,totalLossScore:0};
@@ -55078,7 +55095,7 @@ window._vehRepairZones=function(kind,level){
   if(typeof window._vehReconcileZones==='function') window._vehReconcileZones(kind); /* fix #1: najpierw zsync strefy w dół do condition (nie „lecz" zużycia mechanicznego blacharką), potem podnieś naprawiane */
   let zones;
   if(level==='basic') zones=window._VEH_BODY_ZONES.slice();
-  else if(level==='mech') zones=window._VEH_BODY_ZONES.concat(window._VEH_MECH_ZONES);
+  else if(level==='mech') zones=window._VEH_MECH_ZONES.slice(); /* W3: naprawa mechaniczna NIE dotyka wyglądu (wcześniej concat body → poprawiała blacharkę) */
   else zones=window._VEH_DMG_ZONES.slice();
   for(const z of zones) if(window._VEH_DMG_ZONES.indexOf(z)>=0) d[z]=100;
   if(level==='full'){ for(const z of window._VEH_DMG_ZONES) d[z]=100; d.fireState={status:'none',startedAt:null,explosionAt:null}; d.failedStartAttempts=0; if(d.visual){ d.visual.fireDamage=false; d.visual.exploded=false; } }
@@ -55094,16 +55111,29 @@ window._vehRepairZones=function(kind,level){
   if(window._vehTowOfferedKind===kind && overall>0) window._vehTowOfferedKind=null; /* naprawiony → panel holowania może się znów pojawić przy kolejnym unieruchomieniu */
   return overall;
 };
+/* v2.3.117 (PDF Uspr115 W3): osobna kondycja MECHANICZNA (sprawność) i WIZUALNA (wygląd) — średnia z rozłącznych stref. */
+window._vehMechPct=function(kind){ const d=window._vehDmg(kind); if(!d) return 100; if(typeof window._vehReconcileZones==='function') window._vehReconcileZones(kind); const g=(v)=>(typeof v==='number'&&!isNaN(v))?v:100; const zs=window._VEH_MECH_ZONES; let s=0; for(const z of zs) s+=g(d[z]); return Math.round(s/zs.length); };
+window._vehVisualPct=function(kind){ const d=window._vehDmg(kind); if(!d) return 100; if(typeof window._vehReconcileZones==='function') window._vehReconcileZones(kind); const g=(v)=>(typeof v==='number'&&!isNaN(v))?v:100; const zs=window._VEH_BODY_ZONES; let s=0; for(const z of zs) s+=g(d[z]); return Math.round(s/zs.length); };
 window._vehRepairCost=function(kind,level){
   let val;
   if(kind==='camper'){ const m=(typeof window._camperModelById==='function')?(window._camperModelById(G.camper&&G.camper.model)||{}):{}; val=(G.camper&&G.camper.purchasePrice>0)?G.camper.purchasePrice:(m.price>0?m.price:25000); }
   else { val=(G.car&&typeof G.car.price==='number'&&G.car.price>0)?G.car.price:25000; }
-  const cond=window._vehOverall(kind); const dmgFrac=Math.max(0,(100-cond)/100);
+  /* W3: koszt zależny od uszkodzenia W DANEJ kategorii (blacharka=wygląd, mech=sprawność, pełna=całość) — po naprawie kategorii jej koszt spada. */
+  const cond=level==='basic'?window._vehVisualPct(kind):(level==='mech'?window._vehMechPct(kind):window._vehOverall(kind));
+  const dmgFrac=Math.max(0,(100-cond)/100);
   const mult=level==='basic'?0.015:(level==='mech'?0.03:0.05);
   return Math.max(500, Math.floor(dmgFrac*val*mult));
 };
 window._vehRepairDays=function(level){ return level==='basic'?0:(level==='mech'?1:2); };
 window._vehInRepair=function(kind){ const t=G.traffic; return !!(t&&t._repair&&t._repair.kind===kind); };
+/* v2.3.117 (PDF Uspr115 W2): po odbiorze z Garage 77 pojazd STAWIANY fizycznie przed obiektem (nie w miejscu ostatniego parkowania).
+   Garage 77 = warsztat @ wx3200/wy2208 (miasto/ulica); punkt „przed bramą" = wy2360 (tuż pod budynkiem, jak przy holowaniu Knoxa). */
+window._VEH_GARAGE77_FRONT={wx:3200,wy:2360,room:'ulica'};
+window._vehParkAtGarage77=function(kind){
+  const p={wx:window._VEH_GARAGE77_FRONT.wx,wy:window._VEH_GARAGE77_FRONT.wy,room:'ulica'};
+  if(kind==='camper'){ G._camperParkedAt={wx:p.wx,wy:p.wy,room:p.room}; G._inCamper=false; }
+  else { G._carParkedAt={wx:p.wx,wy:p.wy,room:p.room}; G._inCar=false; }
+};
 /* wykonaj/zaplanuj naprawę pojazdu (poziom basic/mech/full). */
 window._vehRepairVehicle=function(kind,level){
   window._vehTrafficEnsure();
@@ -55115,7 +55145,7 @@ window._vehRepairVehicle=function(kind,level){
   G.money-=cost; if(typeof spent==='function') spent(cost);
   if(cov>0 && typeof showMsg==='function') showMsg('🛡️ Ubezpieczenie pokryło '+Math.round(cov*100)+'% kosztu naprawy.','i',3500);
   const days=window._vehRepairDays(level);
-  if(days<=0){ window._vehRepairZones(kind,level); if(typeof showMsg==='function') showMsg('🔧 Naprawa wykonana — stan '+window._vehOverall(kind)+'% (−'+cost.toLocaleString('pl')+' zł).','g',5000); }
+  if(days<=0){ window._vehRepairZones(kind,level); window._vehParkAtGarage77(kind); /* W2: postaw przed Garage 77 */ if(typeof showMsg==='function') showMsg('🔧 Naprawa wykonana — stan '+window._vehOverall(kind)+'%. Pojazd stoi przed Garage 77 (−'+cost.toLocaleString('pl')+' zł).','g',5000); }
   else { G.traffic._repair={kind,level,readyDay:(G.day||0)+days,cost}; if(typeof showMsg==='function') showMsg('🔧 Pojazd w naprawie — gotowy za '+days+' dni gry (−'+cost.toLocaleString('pl')+' zł).','g',5500); }
   if(typeof updateHUD==='function') updateHUD(); if(typeof saveGameSilent==='function') saveGameSilent();
   return true;
@@ -55123,8 +55153,8 @@ window._vehRepairVehicle=function(kind,level){
 /* dojrzewanie napraw (nextPeriod, idempotentne per dzień). */
 window._vehRepairTick=function(){
   window._vehTrafficEnsure(); const t=G.traffic; if(!t._repair) return;
-  if((G.day||0)>=(t._repair.readyDay||0)){ const rp=t._repair; t._repair=null; window._vehRepairZones(rp.kind,rp.level);
-    const nm=rp.kind==='camper'?'Kamper':'Auto'; if(typeof notify==='function') notify('🔧 '+nm+' odebrany z warsztatu — stan '+window._vehOverall(rp.kind)+'%.','g',6000);
+  if((G.day||0)>=(t._repair.readyDay||0)){ const rp=t._repair; t._repair=null; window._vehRepairZones(rp.kind,rp.level); window._vehParkAtGarage77(rp.kind); /* W2: postaw przed Garage 77 */
+    const nm=rp.kind==='camper'?'Kamper':'Auto'; if(typeof notify==='function') notify('🔧 '+nm+' odebrany z warsztatu — stoi przed Garage 77, stan '+window._vehOverall(rp.kind)+'%.','g',6000);
   }
 };
 /* §11 koszt holowania (adaptacja: brak realnego dystansu → stała + modyfikatory + zniżka relacji Knoxa). */
@@ -55232,16 +55262,25 @@ window._vehRepairCard=function(kind){
   const nm=kind==='camper'?((typeof window._camperModelById==='function'&&window._camperModelById(G.camper.model)||{}).name||'Kamper'):(typeof carDisplayName==='function'?carDisplayName(G.car.name):G.car.name);/* v2.3.115 (PDF Uspr): Garage 77 pokazuje fikcyjną nazwę (jak CityDrive), nie realną markę */
   const oh=window._vehOverall(kind);
   window._vehTrafficEnsure();
+  const mechP=window._vehMechPct(kind), visP=window._vehVisualPct(kind);
   let body;
   if(window._vehInRepair(kind)){ const rp=G.traffic._repair; const left=Math.max(0,(rp.readyDay||0)-(G.day||0)); body=`<div style="color:#f39c12;font-size:12px;margin-top:4px">🔧 W naprawie — gotowy za ${left} dni gry</div>`; }
-  else if(oh>=100){ body=`<div style="color:#27ae60;font-size:12px;margin-top:4px">✓ Idealny stan</div>`; }
+  else if(mechP>=100 && visP>=100){ body=`<div style="color:#27ae60;font-size:12px;margin-top:4px">✓ Idealny stan — mechanika i wygląd 100%</div>`; }
   else {
     const rep=window._vehEvaluateRepairability(kind);
     const cb=(lvl,lbl)=>{ const c=window._vehRepairCost(kind,lvl); const dd=window._vehRepairDays(lvl); return `<button class="bbtn" style="font-size:11.5px;padding:6px 8px;margin:2px 0" ${(G.money||0)<c?'disabled':''} onclick="window.repairVehicleLevel('${kind}','${lvl}')">${lbl} · ${c.toLocaleString('pl')} zł${dd>0?' · '+dd+'d':''}</button>`; };
     if(!rep.repairable){ body=`<div style="color:#e74c3c;font-size:11.5px;margin:4px 0">✗ Zbyt zniszczony — naprawa nieopłacalna.</div><button class="bbtn" style="font-size:11.5px;padding:6px 8px;border-color:#7a2a2a;color:#e6a0a0" onclick="closeOverlay();window._vehTowPanel&&window._vehTowPanel('${kind}')">♻️ Kasacja / holowanie</button>`; }
-    else { body=`<div style="display:flex;flex-direction:column;gap:2px;margin-top:4px">${cb('basic','Naprawa podstawowa (blacharka)')}${cb('mech','Naprawa mechaniczna')}${cb('full','Naprawa pełna')}</div>`; }
+    else {
+      /* W3: oferuj tylko naprawę faktycznie potrzebnej kategorii; naprawiona kategoria → ✓ zamiast przycisku w tych samych stawkach. */
+      const rows=[];
+      if(visP<100) rows.push(cb('basic','Blacharsko-lakiernicza (wygląd)')); else rows.push(`<div style="color:#27ae60;font-size:11px">✓ Wygląd: 100% — blacharka niepotrzebna</div>`);
+      if(mechP<100) rows.push(cb('mech','Mechaniczna (sprawność)')); else rows.push(`<div style="color:#27ae60;font-size:11px">✓ Mechanika: 100% — naprawa niepotrzebna</div>`);
+      if(mechP<100||visP<100) rows.push(cb('full','Pełna (wszystko)'));
+      body=`<div style="display:flex;flex-direction:column;gap:3px;margin-top:4px">${rows.join('')}</div>`;
+    }
   }
-  return `<div class="sitem"><h3>${em} ${title}</h3><p>${nm} (stan: ${Math.round(oh)}%)</p>${body}</div>`;/* v2.3.115 (PDF Uspr): zaokrąglenie stanu % w Garage 77 */
+  const mCol=mechP>=66?'#2ecc71':mechP>=33?'#f39c12':'#e74c3c'; const vCol=visP>=66?'#2ecc71':visP>=33?'#f39c12':'#e74c3c';
+  return `<div class="sitem"><h3>${em} ${title}</h3><p>${nm} — 🔧 mechanika: <b style="color:${mCol}">${mechP}%</b> · 🎨 wygląd: <b style="color:${vCol}">${visP}%</b></p>${body}</div>`;/* v2.3.117 (PDF Uspr115 W3): osobno mechanika i wygląd */
 };
 /* wykonaj naprawę wybranego poziomu + re-render warsztatu. */
 window.repairVehicleLevel=function(kind,level){ if(window._vehRepairVehicle(kind,level)){ if(typeof renderWarsztat==='function') renderWarsztat(); } };
@@ -65829,7 +65868,7 @@ function togglePause(){
         <div style="font-size:11px;color:#667;margin-bottom:14px;font-style:italic">Czas, głód, energia i postęp stoją w miejscu.</div>
         <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
           <button onclick="togglePause()" style="background:#0a3a1a;border:1px solid #27ae60;color:#7ec87e;padding:11px 28px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:700">Wznów · Esc</button>
-          <button onclick="if(window._openGameSettings)window._openGameSettings()" style="background:#0a1f3a;border:1px solid #3498db;color:#9fd0f5;padding:11px 28px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:700">Ustawienia</button>
+          <button onclick="window._settingsFromPause=true;document.getElementById('pause-overlay')?.remove();if(window._openGameSettings)window._openGameSettings()" style="background:#0a1f3a;border:1px solid #3498db;color:#9fd0f5;padding:11px 28px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:700">Ustawienia</button>
           <button onclick="returnToMenu()" style="background:#3a0a1a;border:1px solid #c01020;color:#f4a097;padding:11px 28px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:700">Powrót do menu</button>
         </div>
         <div style="font-size:10px;color:#667;margin-top:10px">Powrót do menu zapisuje grę automatycznie.</div>
@@ -79350,15 +79389,19 @@ function festivalEffect(key){
 }
 // ─── SEZONY ──
 const SEASONS=[
-  {id:0, name:'Wiosna', emoji:'🌸', tint:'rgba(180,255,180,0.05)', merchBoost:{tshirt:1.2,cap:1.15,poster:1.1}, concertBoost:1.0, eventBoost:1.2}, /* v2.1.116: Wave 5 S47 — Wiosna dostała sezonowe boosty (wcześniej pusta) */
-  {id:1, name:'Lato',   emoji:'☀️',  tint:'rgba(255,220,140,0.06)', merchBoost:{tshirt:1.3,cap:1.4,cup:1.1}, concertBoost:1.3, eventBoost:1.0},
-  {id:2, name:'Jesień', emoji:'🍂', tint:'rgba(220,150,90,0.07)', merchBoost:{hoodie:1.2,vinyl:1.15}, concertBoost:0.95, eventBoost:1.1},
-  {id:3, name:'Zima',   emoji:'❄️',  tint:'rgba(180,210,255,0.08)', merchBoost:{hoodie:1.5,luxhood:1.5,cap:1.2}, concertBoost:0.85, eventBoost:1.0}
+  /* v2.3.117 (PDF Uspr115 W12): dodane string 'key' — istniejące porównania getSeason()?.id==='winter'/'spring'/'autumn' były MARTWE (id to liczba 0-3), więc zimowe/jesienne wizuale (bałwany, drzewa, kwiaty) NIGDY się nie pokazywały. Numeryczne id===3 (koszenie/gigi/pogoda) zostają bez zmian. */
+  {id:0, key:'spring', name:'Wiosna', emoji:'🌸', tint:'rgba(180,255,180,0.05)', merchBoost:{tshirt:1.2,cap:1.15,poster:1.1}, concertBoost:1.0, eventBoost:1.2}, /* v2.1.116: Wave 5 S47 — Wiosna dostała sezonowe boosty (wcześniej pusta) */
+  {id:1, key:'summer', name:'Lato',   emoji:'☀️',  tint:'rgba(255,220,140,0.06)', merchBoost:{tshirt:1.3,cap:1.4,cup:1.1}, concertBoost:1.3, eventBoost:1.0},
+  {id:2, key:'autumn', name:'Jesień', emoji:'🍂', tint:'rgba(220,150,90,0.07)', merchBoost:{hoodie:1.2,vinyl:1.15}, concertBoost:0.95, eventBoost:1.1},
+  {id:3, key:'winter', name:'Zima',   emoji:'❄️',  tint:'rgba(180,210,255,0.08)', merchBoost:{hoodie:1.5,luxhood:1.5,cap:1.2}, concertBoost:0.85, eventBoost:1.0}
 ];
 function getSeason(){
   // 14 dni gry = 1 sezon. Cykl 56 dni.
   return SEASONS[Math.floor(((G.day||1)-1)/14)%4];
 }
+/* v2.3.117 (PDF Uspr115): jednoznaczny string klucza pory roku — 'spring'|'summer'|'autumn'|'winter'. */
+function getSeasonKey(){ const s=(typeof getSeason==='function')?getSeason():null; return (s&&s.key)?s.key:'summer'; }
+function _isWinterSeason(){ return getSeasonKey()==='winter'; }
 function seasonMerchMult(typeId){
   const s=getSeason();
   return s.merchBoost[typeId]||1.0;
@@ -83237,7 +83280,7 @@ function drawCityLife(){
   }
 
   // F+ Punkt #33: Bałwany w parku zimą (3 sztuki, dekoracja sezonowa)
-  if(typeof getSeason==='function' && getSeason()?.id==='winter'){
+  if(typeof getSeasonKey==='function' && getSeasonKey()==='winter'){
     const snowmen=[
       {wx:160, wy:980},  // lewa-środek (między pond i fountain)
       {wx:440, wy:1110}, // środek-dół (przy fountain south)
@@ -85655,8 +85698,7 @@ function drawCityDecorations(){
   ];
   const windSway=Math.sin(t*.0004)*1.5+Math.sin(t*.0007)*0.8;
   // Sezon kolorystyczny dla drzew: wiosna jasno-zielone, lato żywe, jesień rdzawe, zima czarno-białe
-  const season=getSeason?getSeason():{id:'summer'};
-  const seasonId=season?.id||'summer';
+  const seasonId=(typeof getSeasonKey==='function')?getSeasonKey():'summer'; /* v2.3.117: string key (było season.id=liczba → drzewa zawsze letnie) */
   const treeCols={
     spring:{trunk:'#5a3818',c1:'#347036',c2:'#469838',c3:'#5cb540',c4:'#88d878'},
     summer:{trunk:'#4a3010',c1:'#0a3a0a',c2:'#1a5a1a',c3:'#2a7a2a',c4:'#4aa84a'},
@@ -88981,7 +89023,10 @@ loop();
     ov.querySelector('#gfx-close').onclick=window._closeGameSettings;
     ov.querySelector('#gfx-reset').onclick=function(){ var d={}; for(var k in DEF) d[k]=DEF[k]; window._applyGfxSettings(d); window._openGameSettings(tab); };
   };
-  window._closeGameSettings=function(){ document.getElementById('gfx-settings')?.remove(); };
+  window._closeGameSettings=function(){ document.getElementById('gfx-settings')?.remove();
+    /* v2.3.117 (PDF Uspr115 W6): gdy ustawienia otwarto z menu pauzy — zamknięcie („Zamknij (Esc)") WZNAWIA grę (menu pauzy było ukryte, gra pozostawała spauzowana). */
+    if(window._settingsFromPause){ window._settingsFromPause=false; try{ if(typeof _paused!=='undefined' && _paused && typeof togglePause==='function') togglePause(); }catch(e){} }
+  };
   window._gameSettingsOpen=function(){ return !!document.getElementById('gfx-settings'); };
   /* ESC zamyka okno ustawień (capture, zanim kaskada ESC zrobi cokolwiek innego) */
   document.addEventListener('keydown',function(e){ if(e.key==='Escape' && window._gameSettingsOpen()){ e.stopImmediatePropagation(); window._closeGameSettings(); } }, true);
