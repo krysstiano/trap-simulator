@@ -1792,6 +1792,7 @@ document.addEventListener('keydown', e => {
     if(typeof G!=='undefined' && G._itut){ if(typeof window._endInteractiveTutorial==='function') window._endInteractiveTutorial(); return; }
     if(sleepInterval){wakeUp();return;}
     if(_restTimer){stopRest();return;}
+    if(typeof window._activityLogOpen==='function' && window._activityLogOpen()){ window._closeActivityLog(); return; } /* W5: Esc zamyka Dziennik aktywności */
     if(_paused){togglePause();return;}
     /* v2.1.349 Faza Z (user 2026-05-27 "esc nie zamykał telefonu tylko cofał stronę, na menu głównym dopiero zamyka telefon"): ESC w deeper phone view → renderPhoneHome (cofnij). Tylko na home → standard close cascade. */
     if(typeof phoneOpen==='function' && phoneOpen() && G._phView && G._phView!=='home'){
@@ -2009,6 +2010,10 @@ document.addEventListener('keydown', e => {
       if(document.getElementById('fullmap-overlay')) document.getElementById('fullmap-overlay').remove();
       else openFullMap();
     }
+  }
+  /* v2.3.117 (PDF Uspr115 W5): klawisz O = Dziennik aktywności (10 ostatnich powiadomień). */
+  if((e.key==='o'||e.key==='O') && !e.repeat){
+    if(typeof window._openActivityLog==='function') window._openActivityLog();
   }
   // v1.8.86: Ctrl+S = ręczny zapis (zgłoszenie Ampera). Browser intercept zablokowany przez preventDefault.
   if(e.ctrlKey && (e.key==='s'||e.key==='S')){
@@ -12282,11 +12287,12 @@ function drawLightingOverlay(){
   const w=G.weather||0;
   let L=getSmoothLight();
   let tint=`rgb(${L.r},${L.g},${L.b})`,alpha=L.alpha;
-  // Pogoda nakłada się TYLKO jeśli daje większą gęstość
-  if(w===1&&alpha<0.15){tint='#7a8090';alpha=0.15;} // pochmurno
-  else if((w===2||w===5)&&alpha<0.30){tint='#3a4055';alpha=0.30;} // deszcz/burza
-  else if(w===4&&alpha<0.10){tint='#9aa0a8';alpha=0.10;} // F4.4 FIX: mgła zmniejszona z 0.22 do 0.10 (gracz widzi miasto, atmosferyczna a nie blokujaca)
-  else if(w===3&&alpha<0.15){tint='#c8d4e8';alpha=0.15;} // śnieg
+  // Pogoda nakłada się TYLKO jeśli daje większą gęstość — W12: skalowane intensywnością (stopniowe ciemnienie nieba)
+  const _wi=(typeof G.weatherIntensity==='number')?Math.max(0,Math.min(1,G.weatherIntensity)):1;
+  if(w===1){const wa=0.15*_wi; if(alpha<wa){tint='#7a8090';alpha=wa;}} // pochmurno
+  else if(w===2||w===5){const wa=0.30*_wi; if(alpha<wa){tint='#3a4055';alpha=wa;}} // deszcz/burza
+  else if(w===4){const wa=0.10*_wi; if(alpha<wa){tint='#9aa0a8';alpha=wa;}} // mgła (atmosferyczna, nie blokująca)
+  else if(w===3){const wa=0.15*_wi; if(alpha<wa){tint='#c8d4e8';alpha=wa;}} // śnieg
   if(alpha<=0.01)return;
   X.save();
   X.globalCompositeOperation='multiply';
@@ -12695,7 +12701,58 @@ function emitFootDust(){
   emitDust(P.wx+P.w/2+(Math.random()-0.5)*8,P.wy+P.h-2);
 }
 
+/* ═══ v2.3.117 (PDF Uspr115 W12): STOPNIOWANA POGODA — 5 faz (start/narastanie/trwanie/schodzenie/koniec) ═══
+   Zamiast skoku „słońce → nagła ulewa": intensywność G.weatherIntensity rampuje 0↔1 przez ~3 min real-time.
+   Zjawiska dobierane wg pory roku (getSeasonKey): wiosna/lato = deszcz/burze/mgły (bez śniegu), jesień = deszcz/mgły,
+   zima = śnieg/mgły (bez burz) → „śnieg nie po burzy" spełnione (rozłączne sezony). */
+function _weatherIsPrecip(w){ return w===2||w===3||w===4||w===5; } /* deszcz/śnieg/mgła/burza */
+function _weatherPickForSeason(){
+  if(Math.random()<0.6) return 0; /* 60% słońca */
+  const key=(typeof getSeasonKey==='function')?getSeasonKey():'summer';
+  if(key==='winter'){ const p=[3,3,4,1]; return p[rnd(0,3)]; }   /* śnieg/śnieg/mgła/pochmurno */
+  if(key==='autumn'){ const p=[2,4,4,1]; return p[rnd(0,3)]; }   /* deszcz/mgła/mgła/pochmurno */
+  const p=[2,5,4,1]; return p[rnd(0,3)];                          /* wiosna/lato: deszcz/burza/mgła/pochmurno */
+}
+const _WEATHER_RAMP_MS=180000; /* 3 min 0→1 (i 1→0) */
+window._weatherUpdate=function(){
+  if(typeof G.weather!=='number') G.weather=0;
+  if(typeof G._weatherTarget!=='number') G._weatherTarget=G.weather;
+  if(typeof G.weatherIntensity!=='number') G.weatherIntensity=_weatherIsPrecip(G.weather)?1:0;
+  const now=Date.now();
+  const dt=Math.min(2500, now-(G._weatherPhaseTs||now)); G._weatherPhaseTs=now;
+  const step=dt/_WEATHER_RAMP_MS;
+  if(G._weatherTarget!==G.weather){
+    /* zmiana zjawiska: najpierw ZEJDŹ (schodzenie/koniec), potem przełącz i zacznij NARASTANIE nowego */
+    G.weatherIntensity=Math.max(0,(G.weatherIntensity||0)-step);
+    if(G.weatherIntensity<=0.02){ G.weather=G._weatherTarget; G.weatherIntensity=0; }
+  } else {
+    const goal=_weatherIsPrecip(G.weather)?1:0;
+    if(G.weatherIntensity<goal) G.weatherIntensity=Math.min(goal,(G.weatherIntensity||0)+step);
+    else if(G.weatherIntensity>goal) G.weatherIntensity=Math.max(goal,(G.weatherIntensity||0)-step);
+  }
+};
+/* faza dla podglądu/testów: 0=brak,1=narastanie,2=trwanie,3=schodzenie */
+window._weatherPhase=function(){
+  const wi=G.weatherIntensity||0;
+  if(G._weatherTarget!==G.weather) return 3; /* schodzenie do przełączenia */
+  if(_weatherIsPrecip(G.weather)){ return wi>=0.98?2:1; }
+  return 0;
+};
+/* v2.3.117 (PDF Uspr115 W14): schronienie przed zimnem — w pojeździe/kamperze gracz NIE odczuwa zimna. */
+window._inVehicleShelter=function(){ return !!(G._inCar||G._inCamper); };
+/* Czy gracz jest wystawiony na zimno (plener + zima lub śnieg/burza), bez schronienia w pojeździe. */
+window._playerColdExposed=function(){
+  const outdoor=(currentRoom==='ulica'||currentRoom==='underground'||currentRoom==='coast'||currentRoom==='business');
+  if(!outdoor) return false;
+  const coldWeather=(G.weather===3||G.weather===5); /* śnieg/burza */
+  const coldSeason=(typeof _isWinterSeason==='function'&&_isWinterSeason());
+  if(!coldWeather && !coldSeason) return false;
+  if(window._inVehicleShelter()) return false; /* W14: w pojeździe ciepło — niezależnie od odzieży */
+  return true;
+};
 function drawWeatherFX(){
+  /* W12: rampuj intensywność pogody (real-time, nie podczas pauzy). */
+  if(!(typeof _paused!=='undefined'&&_paused) && typeof window._weatherUpdate==='function') window._weatherUpdate();
   // Low health dramatic effect
   if(G.health<25&&G.health>0){
     const pulse=0.5+Math.sin(Date.now()/200)*0.5;
@@ -12713,18 +12770,21 @@ function drawWeatherFX(){
   /* v2.3.102 (PDF #8-12): pogoda spójna między dzielnicami — FX opadów renderują się też w Underground/Coast/Business (plenerowe mapy). G.weather NIE jest re-losowane przy changeRoom, więc warunki są te same, tylko teraz WIDOCZNE. */
   const outdoor=currentRoom==='ulica'||currentRoom==='underground'||currentRoom==='coast'||currentRoom==='business';
   const w=G.weather;
+  const wi=(typeof G.weatherIntensity==='number')?Math.max(0,Math.min(1,G.weatherIntensity)):1; /* W12: intensywność 0-1 */
   if(outdoor){
-    if(w===2||w===5){
-      X.strokeStyle=w===5?'rgba(150,180,255,.35)':'rgba(160,190,255,.25)';X.lineWidth=1;
-      for(let i=0;i<(w===5?70:40);i++){
+    if((w===2||w===5)&&wi>0.02){
+      X.strokeStyle=w===5?`rgba(150,180,255,${.35*wi})`:`rgba(160,190,255,${.25*wi})`;X.lineWidth=1;
+      const _cnt=Math.round((w===5?70:40)*wi); /* W12: liczba kropli rośnie z intensywnością */
+      for(let i=0;i<_cnt;i++){
         const rx=sr(i*3+weatherTick*.007)*1280,ry=(sr(i*3+1)*720+(weatherTick*(w===5?4:2)))%720+62;
         X.beginPath();X.moveTo(rx,ry);X.lineTo(rx+(w===5?-5:-2),ry+(w===5?16:12));X.stroke();
       }
-      if(w===5&&Math.random()<.002){X.fillStyle='rgba(200,220,255,.07)';X.fillRect(0,62,1280,658);}
+      if(w===5&&Math.random()<.002*wi){X.fillStyle=`rgba(200,220,255,${.07*wi})`;X.fillRect(0,62,1280,658);} /* W12: częstotliwość błysków rośnie z intensywnością (start ~0) */
     }
-    if(w===3){
-      // Padające płatki śniegu — z sway i sparkle
-      for(let i=0;i<70;i++){
+    if(w===3&&wi>0.02){
+      // Padające płatki śniegu — z sway i sparkle (liczba skaluje się intensywnością — W12)
+      const _snowCnt=Math.round(70*wi);
+      for(let i=0;i<_snowCnt;i++){
         const seed=i*7.3;
         const baseX=sr(seed)*1280;
         const sway=Math.sin(weatherTick*0.018+i*0.5)*18;
@@ -12746,7 +12806,7 @@ function drawWeatherFX(){
     }
   }
   /* v1.9.20: BUG FIX — mgła tylko na ulicy (poprzednio leak do mieszkania/studio/siłowni) */
-  if(w===4 && outdoor){X.fillStyle='rgba(180,190,200,.18)';X.fillRect(0,62,1280,658);}
+  if(w===4 && outdoor && wi>0.02){X.fillStyle=`rgba(180,190,200,${.18*wi})`;X.fillRect(0,62,1280,658);} /* W12: mgła gęstnieje stopniowo */
   // F+ Punkt #21: płatki kwiatów spadające wiosną (cherry blossom / bzy)
   if(outdoor && typeof getSeasonKey==='function' && (getSeasonKey()==='spring')){
     const petalCols=['#ffc0cb','#ff80b0','#ffd0e0','#ff70a0'];
@@ -13381,8 +13441,8 @@ function drawPlayer(){
     X.fillStyle='rgba(20,20,40,.95)';
     X.beginPath();X.arc(cx-5,sy+P.h*.26,1.1,0,Math.PI*2);X.fill();
   }
-  // ── Snow accumulation na glowie/ramionach gdy pada snieg (G.weather===3) ──
-  if(currentRoom==='ulica'&&(G.weather===3||G.weather===4)){
+  // ── Snow accumulation na glowie/ramionach gdy pada snieg (G.weather===3) — W14: nie gdy w pojeździe (ciepło) ──
+  if(currentRoom==='ulica'&&(G.weather===3||G.weather===4)&&!(G._inCar||G._inCamper)){
     X.save();
     X.fillStyle='rgba(255,255,255,.85)';
     // Czapka sniegu na wlosach
@@ -13393,8 +13453,8 @@ function drawPlayer(){
     X.fillRect(cx+12,sy+P.h*.48,7,2);
     X.restore();
   }
-  // ── Breath cloud (para z ust) gdy zimno: snieg/burza/mgla ──
-  if(currentRoom==='ulica'&&(G.weather===3||G.weather===4||G.weather===5)){
+  // ── Breath cloud (para z ust) gdy zimno: snieg/burza/mgla — W14: nie gdy w pojeździe (ciepło, brak marznięcia) ──
+  if(currentRoom==='ulica'&&(G.weather===3||G.weather===4||G.weather===5)&&!(G._inCar||G._inCamper)){
     const breathCycle=(Date.now()%2400)/2400; // 2.4s cycle
     if(breathCycle<0.45){
       const ba=Math.sin(breathCycle/0.45*Math.PI)*0.55;
@@ -28383,7 +28443,14 @@ function tickDecay(){
   const _wTime=(G.day||0)*4+(G.timeOfDay||0);
   if(_wTime>(G._lastWeatherTime||0) && Math.random()<.012){
     G._lastWeatherTime=_wTime;
-    G.weather=Math.random()<0.6?0:rnd(0,5); /* 60% słońca, reszta losowo */
+    /* v2.3.117 (PDF Uspr115 W12): zamiast skoku — ustaw CEL, płynne przejście przez 5 faz (_weatherUpdate); dobór wg pory roku. */
+    if(typeof _weatherPickForSeason==='function') G._weatherTarget=_weatherPickForSeason();
+    else G.weather=Math.random()<0.6?0:rnd(0,5);
+  }
+  /* v2.3.117 (PDF Uspr115 W5): po 3 min aktywnej rozgrywki od nowej gry — TrapInfo informuje o Dzienniku aktywności (raz). */
+  if(G._activityLogTipAt && Date.now()>=G._activityLogTipAt){
+    G._activityLogTipAt=null;
+    if(typeof _smsTriggerOnce==='function') _smsTriggerOnce('activity_log_tip','trapinfo','📖 Wskazówka: wszystkie zielone okna informacyjne zapisują się w Dzienniku aktywności. Jeśli przegapisz komunikat, otwórz Dziennik klawiszem O (albo w panelu postaci, pod Punktami umiejętności) i przeczytaj 10 ostatnich powiadomień na spokojnie.');
   }
   // Generuj dzienne zadanie jeśli brak — NIE nadpisuj jeśli ukończone i nieodebrane
   if(!G.dailyQuest) generateDailyQuest();
@@ -63357,6 +63424,7 @@ function openHelpPanel(){
           <kbd>E</kbd> — interakcja<br>
           <kbd>P</kbd> — telefon<br>
           <kbd>M</kbd> — mapa<br>
+          <kbd>O</kbd> — Dziennik aktywności<br>
           <kbd>V</kbd> — wsiądź / wysiądź z auta<br>
           <kbd>K</kbd> — wsiądź / wysiądź z kampera<br>
           <kbd>Ctrl+S</kbd> — szybki zapis<br>
@@ -78924,10 +78992,54 @@ function showMsg(t,type,duration){
   }
   _showMsgNow(t,type,duration);
 }
+/* ═══ v2.3.117 (PDF Uspr115 W5): DZIENNIK AKTYWNOŚCI ═══
+   Panel (klawisz „O" + przycisk obok Punktów umiejętności) z ostatnimi 10 treściami zielonych okien informacyjnych.
+   Jasna czcionka na ciemnym tle, BEZ emoji (wymóg PDF). Odświeżany z każdym nowym powiadomieniem. */
+window._activityLogStripEmoji=function(s){
+  return String(s==null?'':s).replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\u{2300}-\u{23FF}\u{FE00}-\u{FE0F}\u{200D}\u{20E3}]/gu,'').replace(/\s{2,}/g,' ').trim();
+};
+window._activityLogOpen=function(){ return !!document.getElementById('activity-log-overlay'); };
+window._closeActivityLog=function(){ document.getElementById('activity-log-overlay')?.remove(); };
+window._activityLogBodyHTML=function(){
+  const log=Array.isArray(G._activityLog)?G._activityLog:[];
+  if(!log.length) return '<div style="color:#8fa8c0;font-size:13px;text-align:center;padding:30px 12px">Brak zapisanych powiadomień. Pojawią się tu na bieżąco.</div>';
+  /* najnowsze u góry */
+  return log.slice().reverse().map(function(e){
+    const txt=window._activityLogStripEmoji(e&&e.text||'');
+    const tm=window._activityLogStripEmoji(e&&e.time||'');
+    return '<div style="background:#111c2c;border:1px solid #24384f;border-left:3px solid #4a90c0;border-radius:8px;padding:9px 12px;margin-bottom:7px">'
+      +'<div style="color:#dfe9f5;font-size:13px;line-height:1.5">'+txt+'</div>'
+      +(tm?'<div style="color:#7f97ad;font-size:10.5px;margin-top:3px">'+tm+'</div>':'')+'</div>';
+  }).join('');
+};
+window._activityLogRefresh=function(){
+  const b=document.getElementById('activity-log-body'); if(b) b.innerHTML=window._activityLogBodyHTML();
+};
+window._openActivityLog=function(){
+  if(window._activityLogOpen()){ window._closeActivityLog(); return; } /* toggle */
+  const o=document.createElement('div'); o.id='activity-log-overlay';
+  o.style.cssText='position:fixed;inset:0;z-index:66;background:rgba(4,8,16,.86);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;font-family:inherit';
+  o.innerHTML='<div style="width:520px;max-width:94vw;max-height:86vh;display:flex;flex-direction:column;background:#0b1220;border:2px solid #2a3f58;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.6);overflow:hidden">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #1c2c40">'
+    +'<div style="font-size:17px;font-weight:900;color:#cfe2f5;letter-spacing:.5px">Dziennik aktywności</div>'
+    +'<button id="activity-log-close" style="background:#1a2535;border:1px solid #3a5a7a;color:#bcd4ea;padding:6px 14px;border-radius:8px;cursor:pointer;font-weight:700;font-family:inherit">Zamknij (O / Esc)</button></div>'
+    +'<div style="padding:8px 14px 2px;color:#8fa8c0;font-size:11px">Ostatnie 10 powiadomień z rozgrywki — najnowsze na górze.</div>'
+    +'<div id="activity-log-body" style="padding:10px 16px 16px;overflow-y:auto;scrollbar-width:thin"></div></div>';
+  document.body.appendChild(o);
+  window._activityLogRefresh();
+  o.querySelector('#activity-log-close').onclick=window._closeActivityLog;
+  o.addEventListener('click',function(e){ if(e.target===o) window._closeActivityLog(); });
+};
 function _showMsgNow(t,type,duration){
   /* v2.1.701 (user: toast NIGDY nie może pokazać dosłownie „<b>"/„</b>"): strip tagów HTML przed textContent.
      Uniwersalny bezpiecznik — neutralizuje każdy tag w dowolnym wywołaniu showMsg (literalne „< " ze spacją NIE jest tagiem → zachowane). */
   const el=document.getElementById('msg'); if(!el) return; el.textContent=String(t==null?'':t).replace(/<\/?[a-zA-Z][^>]*>/g,'');
+  /* v2.3.117 (PDF Uspr115 W5): Dziennik aktywności — zapamiętaj treść zielonych okien informacyjnych (nie-czerwonych), ostatnie 10. */
+  if(type!=='r'){
+    if(!Array.isArray(G._activityLog)) G._activityLog=[];
+    const _alTxt=String(t==null?'':t).replace(/<\/?[a-zA-Z][^>]*>/g,'').trim();
+    if(_alTxt){ G._activityLog.push({text:_alTxt,time:'Dzień '+(G.day||1)+', '+((typeof CFG!=='undefined'&&CFG.PORA)?CFG.PORA[G.timeOfDay||0]:'')}); if(G._activityLog.length>10) G._activityLog.shift(); if(typeof window._activityLogRefresh==='function') window._activityLogRefresh(); }
+  }
   /* v2.1.752 (user: zakup bez kasy powinien dać dźwięk): centralna detekcja odmowy braku kasy w czerwonym toaście → sfxDenied. Pokrywa ~35 wywołań showMsg('...','r') o braku środków bez 35 osobnych edycji; NIE gra przy innych błędach (nie-globalnie). */
   if(type==='r' && typeof sfxDenied==='function' && /brak kasy|brak [śs]rodk|za ma[łl]o (pieni|[żz]eton)|nie sta[ćc]|nie masz tyle|potrzeba .* z[łl]/i.test(String(t||''))) sfxDenied();
   el.style.background=type==='r'?'rgba(28,6,6,.97)':'rgba(6,18,6,.97)';
@@ -82520,6 +82632,8 @@ function startGame(){
   P.skin=creatorState.skin;P.hair=creatorState.hair;P.cloth=creatorState.cloth;P.pants=creatorState.pants||'#1a2a3a';P.shoes=creatorState.shoes||'#0a0a0a';P.gender=G.gender;
   /* v2.1.980 (beta-tester Vegan): jawny init noszonego outfitu na starcie nowej gry — resetG go nie ustawiał, więc G.outfit zostawał undefined aż do 1. wizyty w sklepie z ubraniami (gdzie renderClothingShop rzucał TypeError). G.cloth (kolor ciała z kreatora) to NIE to samo co G.outfit.top (założony outfit-item). Defensywny guard w renderClothingShop zostaje dla starych/częściowych save. */
   G.outfit=G.outfit||{top:'default'};
+  G._activityLogTipAt=Date.now()+180000; /* v2.3.117 (PDF Uspr115 W5): TrapInfo poinformuje o Dzienniku aktywności po 3 min aktywnej rozgrywki */
+  G._activityLog=Array.isArray(G._activityLog)?G._activityLog:[];
   /* v2.1.959 (PDF l.48, Vegan): start nowej gry = 12:00 + energia 60/100 + głód 30/100 — gracz od razu ma POWÓD by zjeść/wypić (tutorial głodu i energii). resetG dawał 06:00/100/100 (brak motywacji). */
   gameMin=720; G.timeOfDay=1; /* 12:00, pora dnia = dzień */
   G.energy=60; G.hunger=30;
@@ -82935,10 +83049,11 @@ function drawDistrictLife(){
   if(_districtLifeRoom!==room) initDistrictLife(room);
   if(_paused || G._dying) return;
   const roomW=((ROOMS[room]&&ROOMS[room].wT)||30)*T;
+  const _dDriverMult=(typeof _isWinterSeason==='function'&&_isWinterSeason())?0.7:1.0; /* W13: zimą kierowcy 30% wolniej */
   for(const c of districtCars){
     /* v2.3.117 (PDF Uspr115 W11): rozbite auto stoi 3 min real-time, potem wznawia jazdę (odzyskuje pierwotną prędkość). */
     if(c._crashedAt){ if(Date.now()-c._crashedAt>=180000){ c._crashedAt=null; if(typeof c._crashDx==='number'&&c._crashDx) c.dx=c._crashDx; } else { c.dx=0; } }
-    c.x+=c.dx; if(c.x<-80) c.x=roomW+60; else if(c.x>roomW+80) c.x=-60;
+    c.x+=c.dx*_dDriverMult; if(c.x<-80) c.x=roomW+60; else if(c.x>roomW+80) c.x=-60;
     /* v2.3.115 (PDF Uspr): system kolizyjny pojazdów TAKŻE w dzielnicach (Underground/Business) — auto potrąca GRACZA (utrata HP/odrzut/stun) analogicznie do głównego miasta; a gdy gracz JEDZIE, wjazd w auto niszczy jego pojazd. */
     if(Math.abs(c.dx)>0.5){
       const _caw=(c.body==='sports'?60:c.body==='suv'?56:c.body==='luxury'?58:52), _cah=28;
@@ -83423,6 +83538,8 @@ function drawCityLife(){
   // (sygnalizator działa jako ostrzeżenie, nie regulacja)
   const _nightBlink=G.timeOfDay===3;
   const carsMustStop=!_nightBlink && (trafficL.cars==='red'||trafficL.cars==='yellow');
+  /* v2.3.117 (PDF Uspr115 W13): zimą kierowcy NPC jadą 30% wolniej niż wiosną/latem (ostrożniej na śliskiej nawierzchni). */
+  const _driverMult=(typeof _isWinterSeason==='function'&&_isWinterSeason())?0.7:1.0;
   const intersWx=[864,2304,3552];
   const _aC=Math.round(cityCars.length*(window._cityCarDensity?window._cityCarDensity():1)); /* U12/U13 gęstość aut */
   for(const car of cityCars){
@@ -83520,6 +83637,7 @@ function drawCityLife(){
     }
     // v2.3.117 (PDF Uspr115 W11): rozbite auto stoi 3 min real-time (nie na stałe), potem wznawia jazdę normalną logiką.
     if(car._crashedAt){ if(Date.now()-car._crashedAt>=180000){ car._crashedAt=null; } else { targetSpd=0; car.dx=0; } }
+    else targetSpd*=_driverMult; /* W13: zimą 30% wolniej (nie dotyczy zatrzymania po kolizji) */
     // 3. SMOOTH przyspieszanie/hamowanie do targetSpd
     const speedDiff=targetSpd-car.dx;
     const isBraking = Math.abs(targetSpd) < Math.abs(car.dx);
@@ -86448,6 +86566,8 @@ function renderCharPanel(){
         <div style="font-size:28px;color:#f1c40f;font-weight:900">${sp}</div>
         <div style="font-size:12px;color:#667;margin-top:4px">+2 punkty za każdy poziom</div>
       </div>
+      <!-- v2.3.117 (PDF Uspr115 W5): Dziennik aktywności — osobne okno pod Punktami umiejętności (skrót: klawisz O). -->
+      <button onclick="if(window._openActivityLog)window._openActivityLog()" style="margin-top:10px;width:100%;background:linear-gradient(135deg,#0b1626,#12283f);border:1px solid #2a5a8a;color:#bcd4ea;padding:10px 14px;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:700;font-size:13px">📖 Dziennik aktywności <span style="color:#7f97ad;font-weight:400">(O)</span></button>
     </div>
     <div style="flex:1;min-width:400px">
       <h2 style="margin-bottom:8px;background:linear-gradient(135deg,#f1c40f,#e67e22);-webkit-background-clip:text;background-clip:text;color:transparent;font-size:22px;letter-spacing:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">🌳 DRZEWKO UMIEJĘTNOŚCI</h2>
