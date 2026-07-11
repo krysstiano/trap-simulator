@@ -45273,9 +45273,14 @@ window._dlgAnswerFX=function(btn,ok){
 window._startMarinaChoice=function(){
   const _mg=document.getElementById('mg-job');const _mc=document.getElementById('mg-job-content');
   if(!_mg||!_mc) return;
-  if(G._lastMarinaDay && G.day-G._lastMarinaDay<7){const _left=7-(G.day-G._lastMarinaDay);if(typeof showMsg==='function') showMsg(`⛵ Marina — gala co 7 dni. Czekaj ${_left} dni.`,'r',4000);return;}
-  if((G.money||0)<1000){if(typeof showMsg==='function') showMsg('⛵ Wstęp na galę jachtową 1000 zł.','r',3500);return;}
-  G.money-=1000; G._lastMarinaDay=G.day;
+  /* PDF new/4 §49: zaproszenie na after z Eclipse Noir — wejście bez kolejki i opłaty (raz, tego samego dnia). */
+  const _ecInvite = (G._eclipseMarinaInvite===(G.day||0));
+  if(!_ecInvite){
+    if(G._lastMarinaDay && G.day-G._lastMarinaDay<7){const _left=7-(G.day-G._lastMarinaDay);if(typeof showMsg==='function') showMsg(`⛵ Marina — gala co 7 dni. Czekaj ${_left} dni.`,'r',4000);return;}
+    if((G.money||0)<1000){if(typeof showMsg==='function') showMsg('⛵ Wstęp na galę jachtową 1000 zł.','r',3500);return;}
+    G.money-=1000;
+  } else { G._eclipseMarinaInvite=null; if(typeof showMsg==='function') showMsg('⛵ Wchodzisz na after z zaproszenia Eclipse Noir — bez kolejki i opłaty.','g',4500); }
+  G._lastMarinaDay=G.day;
   const _idxs=[...Array(MARINA_GUESTS.length).keys()].sort(()=>Math.random()-0.5).slice(0,4);
   G._marinaMG={guests:_idxs.map(i=>MARINA_GUESTS[i]), round:0, correct:0};
   _mg.classList.add('on'); /* v2.1.822 [Vegan]: BRAKUJĄCE pokazanie panelu — marina renderowała treść do mg-job-content, ale nie dodawała .on do #mg-job → modal pozostawał ukryty = cicha awaria interakcji (jedyne miejsce dzielnic bez .add('on'), reszta np. steakhouse je miała). */
@@ -52856,6 +52861,8 @@ window._eclipseDanceMG=function(){
     if(typeof notify==='function') notify(`💃 Parkiet: +${mood} nastrój`);
     if(typeof updateHUD==='function') updateHUD();
     if(typeof closeJobPanelAfter==='function') closeJobPanelAfter(2200); else setTimeout(()=>{if(window._jobMgCleanup)window._jobMgCleanup();},2200);
+    /* §52: w ścisku parkietu może dojść do kradzieży (po zamknięciu panelu wyniku) */
+    setTimeout(()=>{ if(currentRoom==='eclipse_noir' && typeof window._eclipseClubTheft==='function') window._eclipseClubTheft(); }, 2600);
   }
   function tryHit(){ if(over||locked)return; locked=true;
     if(pos>=zoneX && pos<=zoneX+zoneW){ hits++; const e=document.getElementById('ed-hits'); if(e)e.textContent=hits; if(typeof _gigFlash==='function')_gigFlash('185,140,255'); }
@@ -53104,6 +53111,7 @@ window._eclipseExit=function(){
   window._eclipseNoirEnsure();
   window._eclipseRollPaparazzi('leaving');
   if(typeof window._eclipseNightAftermath==='function') window._eclipseNightAftermath(); /* §47-48: rachunek zdrowotny po ciężkiej nocy */
+  if(typeof window._eclipsePostClubActivity==='function') window._eclipsePostClubActivity(); /* §36/§49/§54: DM po klubie + after Marina + reakcje managerów */
   if(typeof startRoomFade==='function') startRoomFade('underground',210,1140);
   else if(typeof changeRoom==='function') changeRoom('underground',210,1140);
 };
@@ -53301,6 +53309,7 @@ window._eclipseBreakthroughPick=function(choice){
   else if(choice==='content'){ G._socialBuzz=(G._socialBuzz||0)+50; c.atmosphere.paparazziRisk=Math.min(100,(c.atmosphere.paparazziRisk||0)+12); c.scandalTrail=Math.min(100,(c.scandalTrail||0)+6); type='i'; msg='Wrzucasz wszystko na story. Viral gwarantowany — jak i uwaga, której nie zamawiałeś. <span style="color:#e67e22">(+duży szum, +ryzyko afery)</span>'; }
   else { c.reputation=Math.min(100,(c.reputation||0)+3); G.stress=(typeof clamp==='function')?clamp((G.stress||0)+6,0,100):Math.min(100,(G.stress||0)+6); msg='Zostajesz przy swoich. Mniejsze fajerwerki, ale rano budzisz się bez kaca sumienia. <span style="color:#7ec87e">(+stabilność)</span>'; }
   c._breakthroughPending=false; c._lastBreakthroughDay=(G.day||0);
+  if(choice==='set'||choice==='vip'||choice==='content'){ if(typeof window._eclipseManagerReactions==='function') window._eclipseManagerReactions('breakthrough'); } /* §54: manager reaguje na sukces */
   if(typeof updateHUD==='function') updateHUD(); if(typeof saveGameSilent==='function') saveGameSilent();
   const mc=document.getElementById('mg-job-content'); if(mc){ mc.innerHTML=`
     <div style="background:#0a0810;border:2px solid #3a2a5a;border-radius:10px;padding:18px;max-width:500px;margin:0 auto;color:#fff;width:100%;text-align:center">
@@ -53346,6 +53355,104 @@ window._eclipseCrisisPick=function(cost,reduce){
   if(typeof updateHUD==='function') updateHUD();
   if(typeof showMsg==='function') showMsg('📞 S9 bierze temat na siebie. Szum wokół afer opada.','g',5000);
   const _mc=document.getElementById('mg-job-content'); if(_mc)_mc.innerHTML=''; const _mj=document.getElementById('mg-job'); if(_mj)_mj.classList.remove('on');
+};
+
+/* ═══ PDF new/4 BLOK 7: INTEGRACJE (§36,§49-53) — DM po klubie, after Marina, ghostwriting, pojazd, kradzieże ═══ */
+/* §36/§50: DM-y po nocy w klubie (przez system FrameUp DM). */
+window._ECLIPSE_CLUB_DMS=[
+  {idp:'ec_model',name:'model_nova',handle:'@nova.rae',senderType:'fan',category:'fan',text:'widziałam Cię dziś na górze w VIP. Nie wyglądasz na kogoś, kto powinien siedzieć sam…',reply:'Może następnym razem.'},
+  {idp:'ec_press',name:'Redakcja Nocą',handle:'@nocamiasto',senderType:'brand',category:'brand',text:'Byłeś dziś w Eclipse Noir? Mam pytanie o scenę — nie chcę robić tego publicznie.',reply:'Odezwę się.'},
+  {idp:'ec_firm',name:'DripCollective',handle:'@dripcollective',senderType:'brand',category:'brand',text:'Materiał z klubu ma dobry vibe. Może soft campaign pod nocny lifestyle?',reply:'Podeślijcie warunki.'},
+];
+window._eclipsePostClubDMs=function(force){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir;
+  if(typeof window._fudmMakeThread!=='function') return 0;
+  if(!force && (G.fame||0)<25) return 0;
+  let made=0;
+  /* 1 kontekstowy DM (deterministyczny wybór wg nocy) */
+  const P=window._ECLIPSE_CLUB_DMS; const d=P[(Math.floor((gameMin||0)+(c.nightsAttended||0)*3))%P.length];
+  const t=window._fudmMakeThread({idp:d.idp,name:d.name,handle:d.handle,senderType:d.senderType,category:d.category,requiresReply:true,text:d.text,replyOptions:[{label:'Odpisz',fx:{},reply:d.reply},{label:'Zignoruj',fx:{},reply:''}]});
+  if(t) made++;
+  /* §51 hook ghostwriting: przy wysokiej rozpoznawalności w klubie — artysta pisze po tekst „bez oznaczania" */
+  if((c.reputation||0)>=5 && ((Math.floor((gameMin||0)/7)+(c.nightsAttended||0))%3===0)){
+    const g=window._fudmMakeThread({idp:'ec_ghost',name:'Vok',handle:'@vok.ghost',senderType:'fan',category:'fan',requiresReply:true,
+      text:'Widziałem, jak ludzie reagowali na Twój tekst. Mam numer, który potrzebuje dokładnie takiego syfu… tylko bez oznaczania. Wiesz, jak jest.',
+      replyOptions:[{label:'„Ile płacisz?"',fx:{},reply:'Konkrety podeślę. Dobra kasa za dyskrecję.'},{label:'„Nie piszę anonimowo."',fx:{authenticity:1},reply:'Szkoda. Twoja strata.'}]});
+    if(g){ made++; G._eclipseGhostwritingLead=(G._eclipseGhostwritingLead||0)+1; }
+  }
+  /* §50: podejrzany profil tylko dla gracza w cieniu (bez spoilera dla legalnych) */
+  if(window._eclipseUnderworldAccess && window._eclipseUnderworldAccess() && ((Math.floor((gameMin||0)/11))%2===0)){
+    const s=window._fudmMakeThread({idp:'ec_shadow',name:'Nieznany',handle:'@—',senderType:'fan',category:'fan',requiresReply:false,
+      text:'Słyszałem, że znasz odpowiednich ludzi. Jeśli to prawda, ktoś chce Ci coś przekazać. Nie tu.'});
+    if(s) made++;
+  }
+  if(made>0 && typeof showMsg==='function') showMsg(`📱 Po nocy w Eclipse Noir masz nowe wiadomości (${made}) — zajrzyj do DM w telefonie.`,'i',5000);
+  return made;
+};
+/* §49: after na Marinie po mocnej nocy — zaproszenie od Valerii (skip cooldown/opłaty przy najbliższej wizycie). */
+window._eclipseMarinaAfter=function(force){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir; const v=(G.npcRelations&&G.npcRelations.valeriaCross)||{};
+  const eligible = (v.relationship||0)>=4 || (c.vipAccessLevel||0)>=1 || (c.reputation||0)>=15;
+  if(!force && !eligible) return false;
+  G._eclipseMarinaInvite=(G.day||0);
+  if(typeof showMsg==='function') showMsg('⛵ Valeria: „Tu robi się za jasno. Ktoś przenosi after na Marinę — masz 20 minut. Chooooodź." (wejście na najbliższą galę jachtową bez opłaty i kolejki)','g',7000);
+  return true;
+};
+/* §54-58: reakcje managerów (SMS) na sukces/aferę w klubie. */
+window._eclipseManagerReactions=function(kind){
+  if(typeof window._smsTriggerOnce!=='function') return;
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir;
+  if(kind==='breakthrough'){ window._smsTriggerOnce('eclipse_breakthrough','marcin','🌆 Widać Cię tam, gdzie tworzą się prawdziwe kontakty. Eclipse zadziałało! Tylko pamiętaj: nocny networking jest dobry, dopóki nie wygląda jak utrata kontroli 😉'); }
+  else if(kind==='scandal' && (c.scandalTrail||0)>=45){ window._smsTriggerOnce('eclipse_scandal','kamil','👊 Ej, słyszałem że dajesz czadu w tym klubie. Uważaj na siebie, dobra? Zaczynają o Tobie gadać nie tylko w dobrym sensie.'); }
+};
+/* §52: kradzieże NPC w tłumie klubu — okradziony albo świadek. */
+window._eclipseClubTheft=function(force){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir;
+  let chance=2 + (c.atmosphere.crowdDensity||0)*0.04 + (c.atmosphere.intoxicationLevel||0)*0.03;
+  chance=Math.max(0,Math.min(20,chance));
+  if(!force && (Math.floor((gameMin||0)*3+(c.nightsAttended||0)*7)%100) >= chance) return false;
+  const panel=document.getElementById('mg-job'); if(!panel) return false;
+  panel.classList.add('on'); panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  /* wysokie upojenie → sam obrywasz; inaczej jesteś świadkiem */
+  const victim=(c.nightlife&&(c.nightlife.intoxication||0)>=45);
+  if(victim){
+    const lost=Math.min(G.money||0, 200+Math.floor((G.fame||0)));
+    G.money=Math.max(0,(G.money||0)-lost); if(typeof updateHUD==='function')updateHUD();
+    document.getElementById('mg-job-content').innerHTML=`
+      <div style="background:#0a0810;border:2px solid #c0392b;border-radius:10px;padding:16px;max-width:450px;margin:0 auto;color:#fff;width:100%;text-align:center">
+        <h3 style="margin-top:0;color:#e74c3c">🕵️ Ktoś Cię okradł!</h3>
+        <div style="font-size:12px;color:#e6ddff;margin-bottom:12px">W ścisku ktoś wyciągnął Ci portfel. Zorientowałeś się za późno. <b style="color:#c0392b">(−${lost} zł)</b></div>
+        <button class="cbtn" style="width:100%;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Trudno</button>
+      </div>`;
+    return true;
+  }
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="background:#0a0810;border:2px solid #c8a520;border-radius:10px;padding:16px;max-width:460px;margin:0 auto;color:#fff;width:100%">
+      <h3 style="margin-top:0;color:#f1c40f">👀 Widzisz złodzieja</h3>
+      <div style="font-size:12px;color:#e6ddff;background:#161206;border-radius:8px;padding:10px;margin-bottom:10px">Zauważasz, jak ktoś zgrabnie sięga do cudzej torebki na parkiecie. Co robisz?</div>
+      <button class="cbtn" style="width:100%;font-size:12px;padding:8px;margin-top:4px;color:#7ec87e;border-color:#27ae60" onclick="window._eclipseTheftPick('security')">🛡️ Daj znać ochronie</button>
+      <button class="cbtn" style="width:100%;font-size:12px;padding:8px;margin-top:5px;color:#cdb8ff;border-color:#3a2a5a" onclick="window._eclipseTheftPick('ignore')">🙈 Nie mój cyrk</button>
+    </div>`;
+  return true;
+};
+window._eclipseTheftPick=function(choice){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir; let msg='';
+  if(choice==='security'){ if(G.npcRelations&&G.npcRelations.valeriaCross) G.npcRelations.valeriaCross.trust=Math.min(100,(G.npcRelations.valeriaCross.trust||0)+3); c.reputation=Math.min(100,(c.reputation||0)+2); msg='Mason wyłapuje typa w 20 sekund. Klub docenia, że masz oczy dookoła głowy. <b style="color:#7ec87e">(+zaufanie klubu)</b>'; }
+  else { msg='Odwracasz wzrok. Nie Twój problem — dziś.'; }
+  if(typeof updateHUD==='function') updateHUD();
+  const mc=document.getElementById('mg-job-content'); if(mc){ mc.innerHTML=`
+    <div style="background:#0a0810;border:2px solid #3a2a5a;border-radius:10px;padding:16px;max-width:460px;margin:0 auto;color:#fff;width:100%;text-align:center">
+      <div style="font-size:13px;color:#e6ddff;margin-bottom:12px">${msg}</div>
+      <button class="cbtn" style="width:100%;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← OK</button>
+    </div>`; }
+};
+/* Orkiestrator: aktywność po wyjściu z klubu (DM + Marina + reakcje managerów). */
+window._eclipsePostClubActivity=function(){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir; if(!c.visited) return;
+  window._eclipsePostClubDMs();
+  window._eclipseMarinaAfter();
+  if((c.scandalTrail||0)>=45) window._eclipseManagerReactions('scandal');
 };
 
 /* ═══ 4E (§10/§11): SYSTEM KONCERTÓW Eclipse Noir — 6 slotów + calculateEclipsePerformanceScore ═══ */
@@ -54574,7 +54681,14 @@ window._vehStopEngine=function(kind){
   const em=(kind==='camper'?'🚐':'🚗');
   if(typeof window._subtleMsg==='function') window._subtleMsg(em+' Silnik zgaszony'); else if(typeof showMsg==='function') showMsg(em+' Silnik zgaszony','i',2000);
 };
-window._vehOnEnter=function(kind){ const st=window._vehGet(kind); st.engineOn=false; st.engineStartedThisSession=false; st.engineStoppedAfterDrive=false; st.seatbeltOn=false; };
+window._vehOnEnter=function(kind){ const st=window._vehGet(kind); st.engineOn=false; st.engineStartedThisSession=false; st.engineStoppedAfterDrive=false; st.seatbeltOn=false;
+  /* PDF new/4 §53: ostrzeżenie o prowadzeniu po ciężkiej nocy w klubie (upojenie z Eclipse Noir). */
+  try{ if(G.eclipseNoir&&G.eclipseNoir.nightlife&&(G.eclipseNoir.nightlife.intoxication||0)>=50){
+    if(typeof showMsg==='function') showMsg('🥴 Jesteś po ciężkiej nocy. Prowadzenie teraz zwiększa ryzyko kolizji, kontroli i wpadki wizerunkowej. Lepiej przejść się pieszo albo poczekać.','r',6500);
+    G.heat=Math.min(100,(G.heat||0)+5); if(typeof G.mediaRisk==='number') G.mediaRisk=Math.min(100,G.mediaRisk+1);
+    G._eclipseDrunkDrive=(G.day||0);
+  } }catch(e){}
+};
 window._vehExitVehicle=function(kind){
   const st=window._vehGet(kind); st.engineOn=false; st.engineStartedThisSession=false; st.engineStoppedAfterDrive=false; st.seatbeltOn=false; /* §15: pasy auto-odpięte przy wyjściu */
   if(kind==='camper'){ G._inCamper=false; G._camperParkedAt={wx:P.wx,wy:P.wy,room:currentRoom};
@@ -65949,6 +66063,7 @@ const PATCH_NOTES = [
   {t:'new',d:'🌑 W Eclipse Noir otwiera się strefa VIP na piętrze. Wejdziesz tam za wejściówkę VIP, dzięki wysokiej sławie albo dobrej relacji z managerką klubu. Na górze poznasz gości z różnych światów — biznesu, mediów, filmu, sportu i gamingu — i porozmawiasz o współpracy, zaprosisz kogoś na swój koncert, zapytasz o inwestycje albo pozwolisz sobie na flirt. Uważaj: część kontaktów to złote okazje i zastrzyk gotówki, a inne kończą się plotką w sieci albo naciąganiem na fałszywą inwestycję. Najlepsze kontakty łapiesz z umiarem — na jedną noc jest ich ograniczona liczba.'},
   {t:'new',d:'🌑 Eclipse Noir ma teraz ciemniejszą stronę nocy. Im więcej pijesz przy barze, tym bardziej rośnie upojenie i spada Twoja kontrola nad decyzjami — a wtedy łatwiej o wpadkę (widzisz oba wskaźniki przy barze). Przy barze może wybuchnąć awantura: możesz odejść, zawołać ochronę, spróbować uspokoić sytuację (trudniej, gdy jesteś wstawiony), wejść w konflikt (heat, afera i zakaz wstępu) albo to nagrywać. Przy wyjściu z klubu czasem dopadną Cię paparazzi — zdjęcia w sieci nakręcają szum, ale odbijają się na reputacji. Gorące, skandaliczne noce zostawiają po sobie ślad, a poważne przewinienia kończą się czasowym zakazem wstępu do klubu. Między nocami trzeźwiejesz.'},
   {t:'new',d:'🌑 Noce w Eclipse Noir mają teraz swoje kulminacje i skutki. Po naprawdę mocnym występie może trafić Ci się „Noc przełomowa" — jedna decyzja, która potrafi pchnąć karierę mocno do przodu (albo w ryzyko): zagraj set życia, zrób networking z VIP-ami albo zamień to w viralowy content. Po zbyt ostrej nocy ciało wystawia rachunek — spada nastrój i energia, a gra podpowie odpoczynek lub wizytę w Nova Cura. A gdy Twoje nazwisko zbyt mocno zrośnie się z aferami, odezwie się agencja S9 z kontrolą kryzysową: za odpowiednią kwotę wyciszą szum wokół skandali i pomogą odbudować wizerunek.'},
+  {t:'new',d:'🌑 Noc w Eclipse Noir ma teraz swój ciąg dalszy poza samym klubem. Po wyjściu potrafią sypnąć się wiadomości w telefonie — od poznanych osób, mediów czy marek, a czasem ktoś podrzuci propozycję napisania tekstu „bez oznaczania". Po naprawdę dobrej nocy managerka może przenieść afterparty na Marinę i wciągnąć Cię tam bez kolejki i opłaty. W ścisku na parkiecie uważaj na kieszonkowców — możesz sam paść ofiarą albo złapać złodzieja na gorącym uczynku i dać znać ochronie. Gdy wsiadasz za kółko po ostrej nocy, gra ostrzeże Cię przed prowadzeniem po alkoholu. A znajomi z show-biznesu, Marcin i Kamil, reagują SMS-em na Twoje klubowe sukcesy oraz wpadki.'},
   {t:'new',d:'🗺 Nowość: osobne mapy dzielnic! W dużej mapie możesz teraz przełączać widok między Miastem a odblokowanymi dzielnicami (Underground, Marina Coast, Business) — każda ma własną mapę z budynkami i punktami. Zablokowane dzielnice są wyszarzone do czasu ich odblokowania, a mapy aktualizują się same, gdy w dzielnicy pojawiają się nowe miejsca.'},
   {t:'new',d:'🏥 Nova Cura pokazuje teraz Twój stan uzależnień w rozbiciu na kategorie (alkohol, pobudzające, imprezowe, uspokajające, opioidowe) — każda z własnym poziomem ryzyka. Widać też łączne objawy odstawienia i ostrzeżenie, gdy mieszasz różne rodzaje używek. Różne używki działają inaczej i inaczej się uzależniają, więc łatwiej świadomie zdecydować, czego potrzebujesz.'},
   {t:'new',d:'💉 W Nova Cura dostępne są teraz pełne programy wychodzenia z nałogu: krótka stabilizacja po kryzysie oraz intensywne programy (7 dni, 14 dni i dyskretny program premium). Im mocniejszy program, tym większy spadek uzależnienia, objawów odstawienia i napięcia. Kosztują sporo, ale to realna droga do odzyskania kontroli.'},
