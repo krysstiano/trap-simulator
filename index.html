@@ -42198,8 +42198,15 @@ window._camperShowOnMap=function(){
   if(typeof phoneOpen==='function' && phoneOpen() && typeof togglePhone==='function') togglePhone();
   if(G._camperParkedAt && G._camperParkedAt.room){
     const rN=_rn[G._camperParkedAt.room]||G._camperParkedAt.room;
-    if(G._camperParkedAt.room===currentRoom){
-      G._camperPing=Date.now(); /* podświetlenie markera kampera */
+    /* v2.3.117 (PDF Uspr115 W10): otwórz mapę właściwej dzielnicy, podświetl marker kampera na 3s i płynnie przybliż (110% → najazd). */
+    G._camperPing=Date.now(); /* podświetlenie markera kampera 3s (W9 render) */
+    const _cx=G._camperParkedAt.wx, _cy=G._camperParkedAt.wy, _croom=G._camperParkedAt.room;
+    const _mapDistricts=['ulica','underground','coast','business'];
+    if(typeof openFullMap==='function' && _mapDistricts.includes(_croom)){
+      openFullMap(_croom);
+      setTimeout(()=>{ try{ if(typeof window._mapFocusCoord==='function') window._mapFocusCoord(_cx,_cy,1.1,2.2); }catch(e){} }, 130);
+      if(typeof showMsg==='function') showMsg('🚐 Mapa: kamper w lokacji '+rN+' — przybliżam do podświetlonego znacznika.','i',5500);
+    } else if(G._camperParkedAt.room===currentRoom){
       if(typeof showMsg==='function') showMsg('🚐 Twój kamper jest TU — patrz na podświetlony marker 🚐 na mapie. Podejdź i naciśnij K, żeby wsiąść.','i',6000);
     }
     else { if(typeof showMsg==='function') showMsg('🚐 Twój kamper stoi w lokacji: '+rN+'. Przejdź tam (brama dzielnicy), podejdź do markera 🚐 i naciśnij K, żeby wsiąść.','i',6500); }
@@ -55503,7 +55510,8 @@ window._vehHitNpcCar=function(npcCar){
   window._vehApplyDamage(kind, zone, 22+Math.floor(Math.random()*14), 'moving_vehicle');
   window._vehAddIncidentScore(10);
   window._vehIssueFine('Kolizja z innym pojazdem', 1500+Math.floor(Math.random()*2501));
-  if(npcCar) npcCar.dx=0;
+  /* v2.3.117 (PDF Uspr115 W11): auto NPC po kolizji z graczem STOI 3 min real-time (nie na stałe), potem odjeżdża jak zwykły ruch. */
+  if(npcCar){ if(typeof npcCar.dx==='number'&&Math.abs(npcCar.dx)>0.01) npcCar._crashDx=npcCar.dx; npcCar._crashedAt=Date.now(); npcCar.dx=0; }
   if(typeof showMsg==='function') showMsg('💥 Zderzenie z innym autem! Kierowca dzwoni po patrol.','r',4500);
   if(typeof addNotif==='function') addNotif('🚗💥 Stłuczka z innym pojazdem — mandat i „heat".');
   if(typeof window._vehImpactFx==='function') window._vehImpactFx(kind,'moving_vehicle',24);
@@ -65358,7 +65366,7 @@ function _refreshMapNpcs(){
   const npcMap={
     'npc_quest':{name:'❓ Wiktor',emoji:'❓'},
     'npc_fan':{name:'🙋 Fan',emoji:'🙋'},
-    'npc_manager':{name:'🤵 Manager',emoji:'🤵'},
+    'npc_manager':{name:'🤵 Manager',emoji:'🤵',minZoom:1.8}, /* v2.3.117 (PDF Uspr115 W8): Manager stoi obok Nova Cura — na oddalonej mapie priorytet ma znacznik centrum medycznego; Manager pojawia się dopiero po przybliżeniu (zoom ≥180%). */
     'npc_booking':{name:'📅 Booking Agent',emoji:'📅'},
     'npc_producer':{name:'🎧 Producent',emoji:'🎧'},
     'npc_vendor':{name:'🥙 Zbyszek (kebab)',emoji:'🥙'},
@@ -65371,7 +65379,7 @@ function _refreshMapNpcs(){
     /* v2.3.113 (PDF new/111 pkt 1): znacznik NPC na mapie znika, gdy NPC nie jest fizycznie obecny (harmonogram godzin/pogody) —
        ten sam warunek co render w świecie (drawObjects). Fan wraca na mapę, gdy znów pojawia się na ulicy. */
     if(typeof _npcStreetVisible==='function' && !_npcStreetVisible(obj.id)) continue;
-    MAP_LANDMARKS.push({wx:obj.wx+(obj.w||34)/2, wy:obj.wy+(obj.h||56)/2, name:def.name, cat:'npc'});
+    MAP_LANDMARKS.push({wx:obj.wx+(obj.w||34)/2, wy:obj.wy+(obj.h||56)/2, name:def.name, cat:'npc', minZoom:def.minZoom});
   }
 }
 if(typeof window!=='undefined') window._refreshMapNpcs=_refreshMapNpcs;
@@ -65612,6 +65620,7 @@ function openFullMap(districtId){
     for(const {lm,x:_lwx,y:_lwy} of placed){
       const x=_lwx*scale, y=_lwy*scale; /* v2.1.694: world→screen — przypięte do mapy, skaluje płynnie (brak driftu/jumpu) */
       if(lm.wx<0||lm.wx>wW||lm.wy<0||lm.wy>wH) continue;
+      if(lm.minZoom && _mapZoom < lm.minZoom) continue; /* v2.3.117 (PDF Uspr115 W8): pomniejsze znaczniki (np. Manager) tylko po przybliżeniu mapy */
       if(_isQuestTarget(lm)) continue; /* v2.1.184: pomiń landmark — quest pin nim się zajmie */
       const lab=document.createElement('div');
       const colors={home:'#7ec8e3',shop:'#c8a3e3',gym:'#f39c12',career:'#5dade2',park:'#7ec87e',merch:'#f48fb1',health:'#ec7063',concert:'#bb8fce',job:'#f5b041',lux:'#f1c40f',npc:'#e8e8a0',freestyle:'#e91e8c',gate:'#ff6ec7'};
@@ -65648,6 +65657,22 @@ function openFullMap(districtId){
       carLbl.style.cssText=`position:absolute;left:${acx}px;top:${acy-22*zoom}px;background:linear-gradient(135deg,#f1c40f,#c8a520);color:#000;padding:5px 10px;border-radius:10px 10px 10px 4px;font-size:${fontSize+1}px;font-weight:900;transform:translate(-50%,0);box-shadow:0 3px 10px rgba(241,196,15,.8);font-family:inherit;letter-spacing:.5px;border:1.5px solid #8a6e10;pointer-events:none;z-index:6`;
       carLbl.innerHTML=`🚗 ${carDisplayName(G.car.name)}`;
       wrap.appendChild(carLbl);
+    }
+    /* v2.3.117 (PDF Uspr115 W9): ZAPARKOWANY KAMPER na pełnej mapie — analogiczny marker do auta, na mapie dzielnicy w której naprawdę stoi.
+       Podświetlenie 3s po „Pokaż na mapie" (G._camperPing, W10). */
+    if(G.camper && G.camper.owned && G._camperParkedAt && !G._inCamper && G._camperParkedAt.room===_md){
+      const kcx=G._camperParkedAt.wx*scale, kcy=G._camperParkedAt.wy*scale;
+      const _kping=(G._camperPing && (Date.now()-G._camperPing)<3000);
+      const kHalo=document.createElement('div');
+      kHalo.style.cssText=`position:absolute;left:${kcx}px;top:${kcy}px;width:${_kping?60:44}px;height:${_kping?60:44}px;border-radius:50%;background:radial-gradient(circle,rgba(155,89,182,${_kping?0.85:0.6}) 0%,rgba(155,89,182,0) 70%);transform:translate(-50%,-50%);pointer-events:none;animation:fmapHalo 1.4s ease-in-out infinite;z-index:4`;
+      wrap.appendChild(kHalo);
+      const kDot=document.createElement('div');
+      kDot.style.cssText=`position:absolute;left:${kcx}px;top:${kcy}px;width:16px;height:16px;border-radius:50%;background:#9b59b6;border:2px solid #fff;transform:translate(-50%,-50%);box-shadow:0 0 14px rgba(155,89,182,1);pointer-events:none;z-index:5`;
+      wrap.appendChild(kDot);
+      const kLbl=document.createElement('div');
+      kLbl.style.cssText=`position:absolute;left:${kcx}px;top:${kcy-22*zoom}px;background:linear-gradient(135deg,#9b59b6,#6d3f86);color:#fff;padding:5px 10px;border-radius:10px 10px 10px 4px;font-size:${fontSize+1}px;font-weight:900;transform:translate(-50%,0);box-shadow:0 3px 10px rgba(155,89,182,.8);font-family:inherit;letter-spacing:.5px;border:1.5px solid ${_kping?'#fff':'#5a3070'};pointer-events:none;z-index:6`;
+      kLbl.innerHTML=`🚐 Twój kamper`;
+      wrap.appendChild(kLbl);
     }
     // Quest target — cele fabularne używają współrzędnych MIASTA (ulica); na mapie dzielnicy pomijamy (v2.3.113)
     const tgt=_isCity?_storylineTargetLoc():null;
@@ -65714,6 +65739,18 @@ function openFullMap(districtId){
     return true;
   };
   _centerMapOnPlayer();
+  /* v2.3.117 (PDF Uspr115 W10): wycentruj mapę na współrzędnej świata i płynnie przybliż (Zoom 110% → docelowy). Używane przez „Pokaż na mapie" kampera. */
+  window._mapFocusCoord=function(wx,wy,startZoom,endZoom){
+    if(!sc||typeof wx!=='number'||typeof wy!=='number') return false;
+    startZoom=Math.max(0.5,Math.min(3,startZoom||1.1)); endZoom=Math.max(startZoom,Math.min(3,endZoom||2.2));
+    _mapZoom=startZoom; renderMap(startZoom);
+    const zEl=document.getElementById('fmap-zoom'); if(zEl) zEl.textContent=Math.round(startZoom*100)+'%';
+    const scale=baseScale*_mapZoom;
+    sc.scrollLeft=Math.max(0, wx*scale - sc.clientWidth/2);
+    sc.scrollTop =Math.max(0, wy*scale - sc.clientHeight/2);
+    setTimeout(()=>{ try{ _smoothZoomTo(endZoom); }catch(e){} }, 280); /* po wycentrowaniu — płynny najazd (zoom wokół środka widoku = kamper) */
+    return true;
+  };
   // Scroll zoom
   const wheelH=e=>{
     e.preventDefault();
@@ -78872,14 +78909,10 @@ function showMsg(t,type,duration){
     window._cinemQueuedMsgs.push({t,type,duration});
     return;
   }
-  /* U5 (v2.3.44 PDF): aktywna interakcja → powiadomienie na drugi plan (odłóż, pokaż po zamknięciu). */
-  if(_busyInteraction()){
-    if(!window._deferredMsgs) window._deferredMsgs=[];
-    const _last=window._deferredMsgs.length?window._deferredMsgs[window._deferredMsgs.length-1]:null;
-    if(!_last || _last.t!==t) window._deferredMsgs.push({t,type,duration});
-    if(window._deferredMsgs.length>8) window._deferredMsgs.shift();
-    return;
-  }
+  /* v2.3.117 (PDF Uspr115 W7): zielone okna informacyjne pokazują się TERAZ na pierwszym planie TAKŻE podczas
+     aktywnych paneli (streaming/komputer/minigry) oraz przy otwartym smartfonie — #msg ma z-index 9999 > telefon(50)
+     > modale(9000+). Wcześniej (U5, v2.3.44) były odraczane do zamknięcia panelu, przez co gracz nie widział np.
+     komunikatu o limicie sesji streamingu i klikał wielokrotnie myśląc, że to bug. Deferral zniesiony. */
   /* v2.3.30: jeśli poprzedni komunikat jest jeszcze „świeży" (gracz go czyta) — odłóż kolejny do kolejki. */
   const _now=Date.now();
   if(_now < _msgBusyUntil){
@@ -82903,6 +82936,8 @@ function drawDistrictLife(){
   if(_paused || G._dying) return;
   const roomW=((ROOMS[room]&&ROOMS[room].wT)||30)*T;
   for(const c of districtCars){
+    /* v2.3.117 (PDF Uspr115 W11): rozbite auto stoi 3 min real-time, potem wznawia jazdę (odzyskuje pierwotną prędkość). */
+    if(c._crashedAt){ if(Date.now()-c._crashedAt>=180000){ c._crashedAt=null; if(typeof c._crashDx==='number'&&c._crashDx) c.dx=c._crashDx; } else { c.dx=0; } }
     c.x+=c.dx; if(c.x<-80) c.x=roomW+60; else if(c.x>roomW+80) c.x=-60;
     /* v2.3.115 (PDF Uspr): system kolizyjny pojazdów TAKŻE w dzielnicach (Underground/Business) — auto potrąca GRACZA (utrata HP/odrzut/stun) analogicznie do głównego miasta; a gdy gracz JEDZIE, wjazd w auto niszczy jego pojazd. */
     if(Math.abs(c.dx)>0.5){
@@ -83483,6 +83518,8 @@ function drawCityLife(){
         break;
       }
     }
+    // v2.3.117 (PDF Uspr115 W11): rozbite auto stoi 3 min real-time (nie na stałe), potem wznawia jazdę normalną logiką.
+    if(car._crashedAt){ if(Date.now()-car._crashedAt>=180000){ car._crashedAt=null; } else { targetSpd=0; car.dx=0; } }
     // 3. SMOOTH przyspieszanie/hamowanie do targetSpd
     const speedDiff=targetSpd-car.dx;
     const isBraking = Math.abs(targetSpd) < Math.abs(car.dx);
