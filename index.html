@@ -3492,6 +3492,10 @@ const ROOMS = {
       {id:'plantation_underground', wx:60,  wy:1470,w:120,h:120, act:'underground_plantation',prompt:'[E] 🌿 Plantacja (lvl 5+)',   lbl:'Plantacja'},/* v2.3.105 (user): → lewa dolna (droga szutrowa ma biec w x630) */
       /* v2.1.920 (PDF l.57 — nocna aktywność 18+): Nocny zaułek (prostytutki) — dyskretne miejsce w underground, gated za unlock dzielnicy + godziny 21-05 (PLACE_HOURS). Bottom-right, overlap-free vs venue. */
       {id:'prostytutki_underground',wx:1240,wy:810, w:140,h:130, act:'underground_prostytutki',prompt:'[E] 💋 Nocny zaułek (noc)',  lbl:'Zaułek'},/* v2.3.87 G1 (user „zaułek nic nie robi"): był wy:720 — zaciśnięty między plantacją(580) i dealerem(1080), getNear łapał sąsiada. Przesunięty w dół do 810 (gap 110px od plantacji, gracz wchodzi w lukę i łapie zaułek). x1240-1380,y810-940 wolne (map 960). */
+      /* PDF new/4 (Eclipse Noir): FIZYCZNY budynek klubu nocnego na mapie Underground. Wcześniej klub był dodany
+         tylko do martwej listy _renderDistrictOverlay (Underground = walkable, overlay nigdy niepokazywana) → nieosiągalny.
+         Pozycja @130,940 zweryfikowana bezkolizyjnie (90px margines od wszystkich obiektów, poza jezdniami). Godziny 20-06 (PLACE_HOURS). */
+      {id:'eclipse_underground',    wx:130, wy:940, w:160,h:150, act:'underground_eclipse',   prompt:'[E] 🌑 Eclipse Noir (noc)',   lbl:'Eclipse Noir'},
       /* v2.3.102 (PDF #8-24 „docelowo"): DOLNA CZĘŚĆ (nowa, y1100+) — baraki/slumsy + zajazd kempingowy. Osobne interakcje + NPC. */
       {id:'baraki_underground',     wx:200, wy:1200, w:170,h:150, act:'underground_baraki',    prompt:'[E] 🏚 Baraki',                lbl:'Baraki'},
       {id:'slumsy_underground',     wx:470, wy:1220, w:190,h:140, act:'underground_slumsy',    prompt:'[E] 🛖 Slumsy',                lbl:'Slumsy'},
@@ -3619,6 +3623,23 @@ const ROOMS = {
       {id:'velvet_parking', wx:100, wy:430, w:150, h:104, act:'velvet:parking', prompt:'[E] 🚬 Tyły klubu — parking (obserwacja)', lbl:'Parking'},
       /* T11 audyt (PDF v2.3.45 l.1001): Brokat PRZENIESIONY do Kasyno Royale (przy automatach na parterze) — PDF: „nie w Velvet Room jak do tej pory, a w Kasyno Royale". Obiekt teraz w ROOMS.casino. */
       {id:'exit_striptiz',  wx:600, wy:590, w:64, h:62,  act:'goto:ulica:1255:3120', prompt:'[E] Wyjście', lbl:'Wyjście'},
+    ]
+  },
+  /* PDF new/4 (Eclipse Noir §5/§64.1-2): pełnoprawny INTERIOR klubu nocnego jako walkable room (jak striptiz_club/kasyno).
+     Wejście: budynek eclipse_underground → selekcjoner (_openEclipseNoir) → _eclipseEnter → changeRoom('eclipse_noir').
+     Strefy odblokowywane etapami (BLOK 1: Scena/Bar/Parkiet/Wyjście — ZERO ghost-buttonów; VIP/DJ/piwnica/NPC dochodzą z treścią). */
+  eclipse_noir: {
+    wT:27, hT:14, map:null,
+    objects:[
+      {id:'eclipse_stage',  wx:460, wy:90,  w:380, h:120, act:'eclipse:stage', prompt:'[E] 🎤 Scena — koncerty (6 slotów)', lbl:'Scena'},
+      {id:'eclipse_bar',    wx:70,  wy:150, w:190, h:100, act:'eclipse:bar',   prompt:'[E] 🍸 Bar', lbl:'Bar'},
+      {id:'eclipse_dance',  wx:500, wy:320, w:300, h:170, act:'eclipse:dance', prompt:'[E] 💃 Parkiet — tańcz', lbl:'Parkiet'},
+      {id:'eclipse_dj',     wx:1040,wy:150, w:160, h:110, act:null, prompt:'', lbl:'DJ'},               /* dekoracja (act:null) — DJ booth; pełny DJ system w BLOKU 3 */
+      {id:'npc_ec_barman',  wx:150, wy:120, w:34,  h:56,  act:null, prompt:'', lbl:''},
+      {id:'npc_ec_guest1',  wx:380, wy:430, w:34,  h:56,  act:null, prompt:'', lbl:''},
+      {id:'npc_ec_guest2',  wx:920, wy:440, w:34,  h:56,  act:null, prompt:'', lbl:''},
+      {id:'npc_ec_guest3',  wx:660, wy:250, w:34,  h:56,  act:null, prompt:'', lbl:''},
+      {id:'exit_eclipse',   wx:600, wy:600, w:64,  h:62,  act:'goto:underground:210:1140', prompt:'[E] Wyjście', lbl:'Wyjście'},
     ]
   },
   /* v1.9.98: WINDA — PEŁNY EKRAN (27×14 jak kasyno) z przyciskami w centrum + dekoracjami */
@@ -4175,6 +4196,15 @@ function drawSprite(id,sx,sy,w,h){
     case 'velvet_parking': drawVelvetParkingDoor(sx,sy,w,h);break;
     case 'npc_brokat':     drawBrokat(sx,sy,w,h);break;
     case 'exit_striptiz':  drawInteriorExit(sx,sy,w,h);break;
+    /* PDF new/4 (Eclipse Noir): fasada budynku na mapie Underground + strefy interioru */
+    case 'eclipse_underground': drawEclipseClub(sx,sy,w,h);break;
+    case 'eclipse_stage':  drawEclipseStage(sx,sy,w,h);break;
+    case 'eclipse_bar':    drawCasinoBar(sx,sy,w,h,'eclipse');break;
+    case 'eclipse_dance':  drawEclipseDancefloor(sx,sy,w,h);break;
+    case 'eclipse_dj':     drawEclipseDjBooth(sx,sy,w,h);break;
+    case 'npc_ec_barman':  drawBarman(sx,sy,w,h);break;
+    case 'npc_ec_guest1': case 'npc_ec_guest2': case 'npc_ec_guest3': drawCasinoGuest(sx,sy,w,h,id);break;
+    case 'exit_eclipse':   drawInteriorExit(sx,sy,w,h);break;
     case 'merch_studio': drawBuilding(sx,sy,w,h,'#3a1a2a','Studio Merch','#e91e63','🧢',true,{commercial:true});break;
     case 'merch_designer': drawMerchDesignerObj(sx,sy,w,h);break;
     case 'merch_factory':  drawMerchFactoryObj(sx,sy,w,h);break;
@@ -5271,6 +5301,7 @@ function drawRoomDecorations(){
   else if(currentRoom==='casino_lux') drawCasinoLuxDecorations(); /* v2.1.577: 3. piętro Diamond Lounge — żyrandole/złote akcenty */
   else if(currentRoom==='casino_royal') drawCasinoRoyalDecorations(); /* v2.1.589: 4. piętro Royal Penthouse — panorama miasta/platyna */
   else if(currentRoom==='striptiz_club') drawStriptizDecorations(); /* v2.1.930: klub striptiz — parkiet/neony/disco */
+  else if(currentRoom==='eclipse_noir') drawEclipseNoirDecorations(); /* PDF new/4: Eclipse Noir — parkiet/lasery/LED/dym/tłum */
   /* v2.1.482 USER FEEDBACK — kamper/lab interior dekoracje. */
   else if(currentRoom==='kamper') drawKamperInteriorDecorations();
   else if(currentRoom==='lab') drawLabInteriorDecorations();
@@ -7953,6 +7984,7 @@ function drawCasinoBar(sx,sy,w,h,tier){
     diamond:{lvl:2,lada:'#1a2230',edge:'#2a3a52',shelf:'#0c141f',neon:'#22d3ee',neon2:'#5ad0e0',txt:'BAR 💎',bottles:['#22d3ee','#7ec8e3','#a0e8ff','#c8a520','#ffffff','#5ad0e0','#2a8aa0','#e0f8ff','#4dd0e8','#b0f0ff','#7ee0f0']},
     royal:{lvl:3,lada:'#16161f',edge:'#2a2a3c',shelf:'#0a0a12',neon:'#cdb8ff',neon2:'#b98cff',txt:'BAR 👑',bottles:['#cdb8ff','#b98cff','#e6ddff','#c8d2e6','#9a7be0','#ffffff','#5a3aa0','#f0e8ff','#d8c8ff','#a688e8','#efe6ff']},
     velvet:{lvl:2,lada:'#2a0c1c',edge:'#7a2a4a',shelf:'#180610',neon:'#ff5fa2',neon2:'#e0a8c4',txt:'VELVET',bottles:['#ff5fa2','#e0409a','#ffd0e6','#c8a520','#ffffff','#b8407a','#ff90c0','#ffe0f0','#f070b0','#d85a98']},
+    eclipse:{lvl:3,lada:'#161022',edge:'#3a2a5a',shelf:'#0c0818',neon:'#b98cff',neon2:'#8e5ad0',txt:'ECLIPSE',bottles:['#b98cff','#8e5ad0','#e6ddff','#c0c0d0','#ffffff','#6a3aa0','#a888e8','#efe6ff','#d8c8ff','#9a7be0']}, /* PDF new/4: Eclipse Noir — fioletowo-srebrny klimat zaćmienia */
   }[tier]||{};
   const s=S; const lvl=s.lvl||0; const nB=8+lvl;
   X.fillStyle='rgba(0,0,0,.5)';X.fillRect(sx+4,sy+4,w,h);
@@ -8650,6 +8682,29 @@ function drawStriptizDecorations(){
   X.shadowColor='#e91e8c'; X.shadowBlur=26*_vf;
   X.fillStyle='rgba(255,140,210,0.88)'; X.fillText('Velvet Room',640,150);
   X.shadowBlur=10; X.fillStyle='rgba(255,214,242,0.96)'; X.fillText('Velvet Room',640,150);
+  X.restore();
+}
+/* PDF new/4: dekoracje wnętrza Eclipse Noir — ciemny parkiet, lasery, ekran LED, dym, disco, szyld neon „Eclipse Noir". */
+function drawEclipseNoirDecorations(){
+  const t=Date.now()/600;
+  /* podłoga klubu (grafit z fioletowym połyskiem) */
+  X.fillStyle='#0d0a18';X.fillRect(0,62,1296,658);
+  /* pas lounge przy ścianie */
+  X.fillStyle='#140f24';X.fillRect(60,540,1176,150);
+  /* lasery skanujące (skośne linie z góry) */
+  for(let i=0;i<5;i++){const a=0.06+0.06*Math.sin(t*1.4+i);const x0=200+i*220+Math.sin(t*0.5+i)*80;X.strokeStyle=`rgba(185,140,255,${a})`;X.lineWidth=2;X.beginPath();X.moveTo(x0,70);X.lineTo(x0+Math.sin(t+i)*260,700);X.stroke();}
+  /* dym/mgła (miękkie elipsy) */
+  for(let i=0;i<6;i++){const dx=120+(i*210)%1100;const dy=560+((i*90)%120);const a=0.04+0.03*Math.sin(t*0.7+i);X.fillStyle=`rgba(200,190,230,${a})`;X.beginPath();X.ellipse(dx,dy,90,26,0,0,Math.PI*2);X.fill();}
+  /* światła disco na podłodze */
+  for(let i=0;i<16;i++){const dx=100+(i*79)%1120;const dy=340+((i*151)%260);const a=0.10+0.12*Math.sin(t*1.5+i);X.fillStyle=`hsla(${260+(i*14)%80},75%,62%,${a})`;X.beginPath();X.arc(dx,dy,16,0,Math.PI*2);X.fill();}
+  /* szyld neon „Eclipse Noir" na ścianie */
+  X.save();
+  const _vf=0.7+0.3*Math.abs(Math.sin(t*0.9));
+  X.font="italic bold 32px 'Segoe UI','Brush Script MT',cursive";
+  X.textAlign='center';X.textBaseline='middle';
+  X.shadowColor='#b98cff';X.shadowBlur=22*_vf;
+  X.fillStyle='rgba(205,184,255,0.9)';X.fillText('Eclipse Noir',420,285);   /* luka scena↔parkiet, lewy-środek (poza obiektami) */
+  X.shadowBlur=9;X.fillStyle='rgba(230,221,255,0.96)';X.fillText('Eclipse Noir',420,285);
   X.restore();
 }
 /* v2.1.609 (user): biznesmen 4. piętra — ciemny garnitur, krawat, okulary, WALIZKA w ręce. */
@@ -9461,6 +9516,91 @@ function drawCypher(sx,sy,w,h){
     X.fillRect(sx+w*0.7+i*5,sy+h*0.85,3,wh);
   }
   X.textAlign='left';
+}
+
+/* ═══ PDF new/4: ECLIPSE NOIR — rysowanie fasady (mapa Underground) + stref interioru ═══ */
+/* Fasada klubu nocnego: ciemny elegancki budynek, szyld „zaćmienia" (dysk + znikający sierp księżyca), neon, aksamitna lina. */
+function drawEclipseClub(sx,sy,w,h){
+  const isNight=(typeof G!=='undefined' && (G.timeOfDay||0)>=2);
+  const t=Date.now()/1000, beat=Math.sin(t*3)*0.35+0.65;
+  X.fillStyle='rgba(0,0,0,.55)';X.fillRect(sx+5,sy+7,w,h);
+  /* bryła budynku — ciemny grafit z fioletowym podbiciem */
+  const bg=X.createLinearGradient(sx,sy,sx,sy+h);bg.addColorStop(0,'#161022');bg.addColorStop(1,'#0a0713');X.fillStyle=bg;X.fillRect(sx,sy,w,h);
+  X.strokeStyle='#3a2a5a';X.lineWidth=2;X.strokeRect(sx+1,sy+1,w-2,h-2);
+  /* wejście (ciemna brama) + czerwony dywan */
+  const dw=w*0.30, dx=sx+w/2-dw/2, dy=sy+h*0.52, dh=h*0.48;
+  X.fillStyle='#0a0510';X.fillRect(dx,dy,dw,dh);
+  X.fillStyle='#6a1024';X.fillRect(sx+w/2-dw*0.62,sy+h-8,dw*1.24,8); /* dywan u progu */
+  /* szyld zaćmienia: dysk (pełnia) częściowo przesłonięty cieniem (sierp znika) */
+  const cx=sx+w/2, cy=sy+h*0.28, r=Math.min(w,h)*0.15;
+  X.save();
+  X.shadowColor=isNight?'#b98cff':'transparent';X.shadowBlur=isNight?18*beat:0;
+  X.fillStyle=isNight?`rgba(220,210,255,${0.85})`:'#c8c0e0';X.beginPath();X.arc(cx,cy,r,0,Math.PI*2);X.fill();
+  X.restore();
+  /* cień zaćmienia (przesuwający się dysk) */
+  X.fillStyle='#120d1e';X.beginPath();X.arc(cx+r*0.55,cy-r*0.15,r*0.95,0,Math.PI*2);X.fill();
+  /* neon „ECLIPSE NOIR" */
+  X.textAlign='center';X.textBaseline='middle';
+  if(isNight){X.shadowColor='#b98cff';X.shadowBlur=12*beat;X.fillStyle=`rgba(200,170,255,${0.75+0.25*beat})`;}
+  else X.fillStyle='#8e5ad0';
+  X.font='bold 12px "Segoe UI",serif';X.fillText('ECLIPSE',cx,sy+h*0.50);
+  X.font='bold 9px "Segoe UI",serif';X.fillText('NOIR',cx,sy+h*0.50+12);
+  X.shadowBlur=0;
+  /* aksamitna lina na słupkach przy wejściu */
+  X.strokeStyle='#c8a55a';X.lineWidth=2;
+  const px1=dx-6, px2=dx+dw+6, py=sy+h-14;
+  X.fillStyle='#c8a55a';X.beginPath();X.arc(px1,py-10,3,0,Math.PI*2);X.fill();X.beginPath();X.arc(px2,py-10,3,0,Math.PI*2);X.fill();
+  X.strokeStyle='#8a2a52';X.beginPath();X.moveTo(px1,py-8);X.quadraticCurveTo(cx,py+4,px2,py-8);X.stroke();
+  /* nocna poświata z okien */
+  if(isNight){X.fillStyle=`rgba(142,90,208,${0.10*beat})`;X.fillRect(sx,sy,w,h);}
+  X.textAlign='left';X.textBaseline='alphabetic';
+}
+/* Interior: scena koncertowa (LED backdrop + reflektory + mikrofon). */
+function drawEclipseStage(sx,sy,w,h){
+  const t=Date.now()/1000, beat=Math.sin(t*4)*0.4+0.6;
+  X.fillStyle='rgba(0,0,0,.4)';X.fillRect(sx+4,sy+5,w,h);
+  X.fillStyle='#100a1c';X.fillRect(sx,sy,w,h);
+  /* ekran LED z paskami */
+  for(let i=0;i<8;i++){const hue=(i/8);X.fillStyle=`rgba(${Math.round(120+100*Math.sin(t+i))},${Math.round(60+80*Math.sin(t*1.3+i))},${Math.round(200+40*Math.sin(t*0.7+i))},0.5)`;X.fillRect(sx+6+i*(w-12)/8,sy+6,(w-12)/8-2,h*0.34);}
+  /* podest sceny */
+  X.fillStyle='#1a1230';X.fillRect(sx+w*0.15,sy+h*0.5,w*0.7,h*0.42);
+  /* reflektory (stożki) */
+  X.fillStyle=`rgba(185,140,255,${0.22*beat})`;
+  X.beginPath();X.moveTo(sx+w*0.30,sy+h*0.42);X.lineTo(sx+w*0.20,sy+h*0.92);X.lineTo(sx+w*0.42,sy+h*0.92);X.closePath();X.fill();
+  X.beginPath();X.moveTo(sx+w*0.70,sy+h*0.42);X.lineTo(sx+w*0.58,sy+h*0.92);X.lineTo(sx+w*0.80,sy+h*0.92);X.closePath();X.fill();
+  /* mikrofon */
+  X.fillStyle='#888';X.fillRect(sx+w/2-2,sy+h*0.56,4,h*0.22);X.fillStyle='#222';X.beginPath();X.arc(sx+w/2,sy+h*0.54,6,0,Math.PI*2);X.fill();
+  X.textAlign='center';X.textBaseline='middle';X.shadowColor='#b98cff';X.shadowBlur=8*beat;
+  X.fillStyle='#cdb8ff';X.font='bold 12px "Segoe UI",sans-serif';X.fillText('🎤 SCENA',sx+w/2,sy+h*0.20);X.shadowBlur=0;
+  X.textAlign='left';X.textBaseline='alphabetic';
+}
+/* Interior: parkiet (świecące kafelki + dym). */
+function drawEclipseDancefloor(sx,sy,w,h){
+  const t=Date.now()/500;
+  const cols=6, rows=4, cw=w/cols, ch=h/rows;
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    const ph=Math.sin(t+c*0.7+r*1.1);const a=0.15+0.35*(ph*0.5+0.5);
+    const R=Math.round(120+90*Math.sin(t*0.6+c));const Gc=Math.round(50+70*Math.sin(t*0.9+r));const B=Math.round(190+50*Math.sin(t*0.4+c+r));
+    X.fillStyle=`rgba(${R},${Gc},${B},${a})`;X.fillRect(sx+c*cw+1,sy+r*ch+1,cw-2,ch-2);
+  }
+  X.strokeStyle='rgba(185,140,255,0.25)';X.lineWidth=1;X.strokeRect(sx+1,sy+1,w-2,h-2);
+  X.textAlign='center';X.textBaseline='middle';X.fillStyle='rgba(230,221,255,0.85)';X.font='bold 12px "Segoe UI",sans-serif';
+  X.fillText('💃 PARKIET',sx+w/2,sy+h/2);
+  X.textAlign='left';X.textBaseline='alphabetic';
+}
+/* Interior: DJ booth (dekoracja — pełny DJ system w BLOKU 3). */
+function drawEclipseDjBooth(sx,sy,w,h){
+  const t=Date.now()/1000, beat=Math.sin(t*4)*0.4+0.6;
+  X.fillStyle='rgba(0,0,0,.4)';X.fillRect(sx+3,sy+4,w,h);
+  X.fillStyle='#120c22';X.fillRect(sx,sy,w,h);
+  X.fillStyle='#1e1636';X.fillRect(sx+w*0.1,sy+h*0.45,w*0.8,h*0.4); /* pult */
+  /* 2 talerze */
+  for(const dx of [sx+w*0.30,sx+w*0.70]){X.fillStyle='#0a0714';X.beginPath();X.arc(dx,sy+h*0.62,h*0.15,0,Math.PI*2);X.fill();X.fillStyle=`rgba(185,140,255,${0.5*beat})`;X.beginPath();X.arc(dx,sy+h*0.62,h*0.05,0,Math.PI*2);X.fill();}
+  /* equalizer bars */
+  X.fillStyle=`rgba(185,140,255,${0.7*beat})`;
+  for(let i=0;i<7;i++){const bh=4+Math.abs(Math.sin(t*3+i))*(h*0.22);X.fillRect(sx+w*0.12+i*(w*0.11),sy+h*0.40-bh,4,bh);}
+  X.textAlign='center';X.textBaseline='middle';X.fillStyle='#cdb8ff';X.font='bold 10px "Segoe UI",sans-serif';X.fillText('🎧 DJ',sx+w/2,sy+h*0.16);
+  X.textAlign='left';X.textBaseline='alphabetic';
 }
 
 /* v2.1.664: cache obrazka dzieła gracza (G._muralArt = JPEG data URL miniatury). */
@@ -14335,6 +14475,7 @@ function tryInteract(){
 // ═══════════════════════════════════════════════════════════════════
 const PLACE_HOURS={
   'striptiz':        {o:20, c:4,  name:'Velvet Room'}, /* v2.1.919 PDF: nocny klub 20:00-04:00 (overnight); U7 v2.3.44 nazwa własna Velvet Room */
+  'underground_eclipse': {o:20, c:6, name:'Eclipse Noir'}, /* PDF new/4 §59 openHours: klub nocny 20:00-06:00 (overnight, najmocniej Pt/So) */
   'underground_prostytutki': {o:21, c:5, name:'Nocny zaułek'}, /* v2.1.920 PDF l.57: 21:00-05:00 (overnight; user 2026-07-02: było do 03:00) */
   // Drip district / butiki
   'shop:lv':         {o:10, c:20, name:'Luvio'},
@@ -14549,6 +14690,18 @@ function handleAct(act,objId){
   } else if(act==='velvet:brokat'){
     /* v2.3.38 Z3 — dialog z Brokatem (dłużnik) */
     if(typeof window._uwBrokatDialog==='function') window._uwBrokatDialog();
+    return;
+  } else if(act==='eclipse:stage'){
+    /* PDF new/4 (§10): scena Eclipse Noir → panel koncertów (6 slotów) */
+    if(typeof window._eclipseConcertPanel==='function') window._eclipseConcertPanel();
+    return;
+  } else if(act==='eclipse:bar'){
+    /* PDF new/4 (§14): bar Eclipse Noir → drink (nastrój + orzeźwienie) */
+    if(typeof window._eclipseBarMG==='function') window._eclipseBarMG();
+    return;
+  } else if(act==='eclipse:dance'){
+    /* PDF new/4 (§26): parkiet Eclipse Noir → taniec (nastrój + luz społeczny, koszt energii) */
+    if(typeof window._eclipseDanceMG==='function') window._eclipseDanceMG();
     return;
   } else if(act.startsWith('gym:')){
     const parts=act.split(':');
@@ -52516,8 +52669,13 @@ window._eclipseEnter=function(kind){
   if(kind==='vip' && c.vipAccessLevel<1) c.vipAccessLevel=1;
   c.visited=true; c.lastVisitDay=G.day; c.nightsAttended=(c.nightsAttended||0)+1;
   window.eclipseNoirTick();
+  /* PDF §5/§64.1-2: zamknij panel selekcjonera i wejdź do walkable INTERIORU klubu (nie panel-hub). */
+  const _mj=document.getElementById('mg-job'); if(_mj){ _mj.classList.remove('on'); const _mc=document.getElementById('mg-job-content'); if(_mc)_mc.innerHTML=''; }
   if(typeof showMsg==='function') showMsg(`🌑 Wchodzisz do Eclipse Noir${kind==='vip'?' — VIP, ochrona kiwa głową':''}. Bas uderza w klatkę piersiową.`,'g',4500);
-  window._eclipseHub();
+  if(!G.visitedRooms)G.visitedRooms={}; G.visitedRooms.eclipse_noir=true;
+  if(typeof changeRoom==='function') changeRoom('eclipse_noir',600,520);
+  else if(typeof startRoomFade==='function') startRoomFade('eclipse_noir',600,520);
+  else window._eclipseHub();
 };
 /* 4A: hub klubu (rozbudowywany o strefy/aktywności w kolejnych fazach). */
 window._eclipseHub=function(){
@@ -52538,6 +52696,110 @@ window._eclipseHub=function(){
   </div>`;
   const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content');
   if(mgJob&&mgContent){ mgContent.innerHTML=html; mgJob.classList.add('on'); }
+};
+
+/* ═══ PDF new/4 (§14): BAR Eclipse Noir — menu drinków (transakcja money-sink → nastrój + orzeźwienie + upojenie). ═══ */
+/* Upojenie podbija atmosphere.intoxicationLevel = hook pod Decision Control / nawroty (BLOK 4). NIE click=nagroda (płatny wybór). */
+window._ECLIPSE_DRINKS=[
+  {id:'piwo',  em:'🍺', name:'Piwo z baru',       cost:40,  mood:6,  energy:-3, intox:8,  desc:'Klasyk na rozluźnienie.'},
+  {id:'koktajl',em:'🍸',name:'Koktajl klubowy',   cost:120, mood:12, energy:-5, intox:16, desc:'Mocniejszy — lepszy nastrój.'},
+  {id:'shoty', em:'🥃', name:'Seria shotów',       cost:200, mood:18, energy:-8, intox:30, desc:'Impreza rośnie… i ryzyko też.'},
+];
+window._eclipseBarMG=function(){
+  window._eclipseNoirEnsure();
+  const panel=document.getElementById('mg-job'); if(!panel) return;
+  panel.classList.add('on');panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  const rows=window._ECLIPSE_DRINKS.map(d=>`
+    <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:9px;margin-top:5px;color:#cdb8ff;border-color:#3a2a5a" onclick="window._eclipseBarBuy('${d.id}')">
+      ${d.em} <b>${d.name}</b> — ${d.cost} zł<br><span style="color:#9a90b0;font-size:11px">${d.desc} (+${d.mood} nastrój)</span></button>`).join('');
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="background:#0a0810;border:2px solid #3a2a5a;border-radius:10px;padding:16px;max-width:460px;margin:0 auto;color:#fff;width:100%">
+      <h3 style="margin-top:0;color:#b98cff">🍸 Bar Eclipse Noir</h3>
+      <div style="font-size:11px;color:#9a90b0;margin-bottom:6px">Barman miksuje w rytm basu. Co podać?</div>
+      ${rows}
+      <button class="cbtn" style="width:100%;margin-top:8px;color:#ccc" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Wyjdź</button>
+    </div>`;
+};
+window._eclipseBarBuy=function(id){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir;
+  const d=(window._ECLIPSE_DRINKS||[]).find(x=>x.id===id); if(!d) return;
+  if((G.money||0)<d.cost){ if(typeof showMsg==='function') showMsg(`💰 Brakuje ${d.cost-(G.money||0)} zł na ${d.name}.`,'r',3500); return; }
+  G.money-=d.cost; if(typeof spent==='function')spent(d.cost);
+  G.stress=(typeof clamp==='function')?clamp((G.stress||0)+d.mood,0,100):Math.min(100,(G.stress||0)+d.mood);
+  G.energy=(typeof clampStat==='function')?clampStat('energy',(G.energy||0)+d.energy):Math.max(0,(G.energy||0)+d.energy);
+  c.atmosphere.intoxicationLevel=Math.max(0,Math.min(100,(c.atmosphere.intoxicationLevel||0)+d.intox));
+  if(typeof notify==='function') notify(`${d.em} ${d.name}: +${d.mood} nastrój (−${d.cost} zł)`);
+  if(typeof sfxCash==='function')try{sfxCash()}catch(e){}
+  if(typeof updateHUD==='function') updateHUD();
+  const _mc=document.getElementById('mg-job-content'); if(_mc)_mc.innerHTML='';
+  const _mj=document.getElementById('mg-job'); if(_mj)_mj.classList.remove('on');
+};
+
+/* ═══ PDF new/4 (§26): PARKIET Eclipse Noir — minigra rytmu „złap groove" (precyzja timingu, INNA niż rytm VIP/lanie Velvet). ═══ */
+/* Marker sweepuje pasek; klik gdy w świecącej strefie „groove"; 5 rund; wynik → nastrój + luz społeczny. Koszt energii = wysiłek. */
+window._eclipseDanceMG=function(){
+  const ecost=10;
+  if((G.energy||0)<ecost){ if(typeof showMsg==='function') showMsg(`⚡ Za mało energii na parkiet (potrzeba ${ecost}).`,'r',3500); return; }
+  const panel=document.getElementById('mg-job'); if(!panel) return;
+  panel.classList.add('on');panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  const W=560,H=240,col='#b98cff',ROUNDS=5;
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="display:flex;flex-direction:column;align-items:center;gap:8px;width:100%">
+      ${(typeof _gigHeaderHtml==='function')?_gigHeaderHtml('💃','Parkiet — złap groove',col):'<h3 style=\"color:#b98cff\">💃 Parkiet</h3>'}
+      <div style="display:flex;gap:18px;font-size:13px;font-family:'Segoe UI',sans-serif">
+        <span style="color:#7ec8e3">🎯 Trafienia: <span id="ed-hits" style="color:#2ecc71;font-weight:700">0</span>/${ROUNDS}</span>
+      </div>
+      <span style="color:#9a90b0;font-size:12px;font-family:'Segoe UI',sans-serif">Suwak leci po pasku. Kliknij, gdy znajdzie się w świecącej strefie GROOVE. Pudło = ta runda przepada.</span>
+      <canvas id="ed-cv" width="${W}" height="${H}" style="border-radius:8px;cursor:pointer;background:linear-gradient(180deg,#140f24,#0a0713)"></canvas>
+      <button class="cbtn" onclick="if(window._jobMgCleanup)window._jobMgCleanup()">← Wyjdź</button>
+    </div>`;
+  const cv=document.getElementById('ed-cv');const ctx=(typeof _crispCanvas==='function')?_crispCanvas(cv,W,H):cv.getContext('2d');
+  let over=false,raf,round=0,hits=0,pos=0,dir=1,speed=6,zoneX=0,zoneW=90,locked=false;
+  function newRound(){ zoneW=Math.max(52,92-round*8); zoneX=60+Math.random()*(W-120-zoneW); pos=20; dir=1; speed=5+round*0.8; locked=false; }
+  function endGame(){
+    if(over)return;over=true;cancelAnimationFrame(raf);
+    cv.removeEventListener('click',onClick);cv.removeEventListener('touchstart',onTouch);
+    const mood=Math.max(4,Math.min(20,hits*3+2));
+    G.stress=(typeof clamp==='function')?clamp((G.stress||0)+mood,0,100):Math.min(100,(G.stress||0)+mood);
+    G.energy=(typeof clampStat==='function')?clampStat('energy',(G.energy||0)-ecost):Math.max(0,(G.energy||0)-ecost);
+    window._eclipseNoirEnsure(); G.eclipseNoir.atmosphere.flirtPressure=Math.min(100,(G.eclipseNoir.atmosphere.flirtPressure||0)+hits*2);
+    ctx.fillStyle='rgba(0,0,0,.85)';ctx.fillRect(0,0,W,H);ctx.textAlign='center';
+    ctx.fillStyle=col;ctx.font='bold 22px "Segoe UI",sans-serif';ctx.fillText(`💃 ${hits}/${ROUNDS} w rytm`,W/2,H/2-10);
+    ctx.fillStyle='#2ecc71';ctx.font='bold 20px "Segoe UI",sans-serif';ctx.fillText(`+${mood} nastrój`,W/2,H/2+20);ctx.textAlign='left';
+    if(typeof notify==='function') notify(`💃 Parkiet: +${mood} nastrój`);
+    if(typeof updateHUD==='function') updateHUD();
+    if(typeof closeJobPanelAfter==='function') closeJobPanelAfter(2200); else setTimeout(()=>{if(window._jobMgCleanup)window._jobMgCleanup();},2200);
+  }
+  function tryHit(){ if(over||locked)return; locked=true;
+    if(pos>=zoneX && pos<=zoneX+zoneW){ hits++; const e=document.getElementById('ed-hits'); if(e)e.textContent=hits; if(typeof _gigFlash==='function')_gigFlash('185,140,255'); }
+    else { if(typeof _gigFlash==='function')_gigFlash('231,76,60'); }
+    setTimeout(()=>{ round++; if(round>=ROUNDS){ endGame(); } else { newRound(); } }, 350);
+  }
+  function onClick(){ tryHit(); }
+  function onTouch(e){ e.preventDefault(); tryHit(); }
+  cv.addEventListener('click',onClick);cv.addEventListener('touchstart',onTouch,{passive:false});
+  newRound();
+  function draw(){
+    if(over)return;
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#0d0a18';ctx.fillRect(0,0,W,H);
+    const barY=H/2;
+    ctx.fillStyle='#241a3a';ctx.fillRect(40,barY-14,W-80,28);
+    /* strefa groove */
+    const pulse=0.55+0.35*Math.sin(Date.now()/160);
+    ctx.fillStyle=`rgba(185,140,255,${pulse*0.55})`;ctx.fillRect(zoneX,barY-14,zoneW,28);
+    ctx.strokeStyle='#cdb8ff';ctx.lineWidth=2;ctx.strokeRect(zoneX,barY-14,zoneW,28);
+    ctx.fillStyle='#9a90b0';ctx.font='10px "Segoe UI",sans-serif';ctx.textAlign='center';ctx.fillText('GROOVE',zoneX+zoneW/2,barY-20);ctx.textAlign='left';
+    /* marker */
+    if(!locked){ pos+=dir*speed; if(pos>=W-40){pos=W-40;dir=-1;} else if(pos<=40){pos=40;dir=1;} }
+    ctx.fillStyle='#fff';ctx.fillRect(pos-3,barY-22,6,44);
+    ctx.fillStyle='#ffe';ctx.beginPath();ctx.arc(pos,barY,7,0,Math.PI*2);ctx.fill();
+    raf=requestAnimationFrame(draw);
+  }
+  raf=requestAnimationFrame(draw);
+  window._jobMgCleanup=()=>{over=true;cancelAnimationFrame(raf);cv.removeEventListener('click',onClick);cv.removeEventListener('touchstart',onTouch);panel.classList.remove('on');panel.style.display='none';const _mc=document.getElementById('mg-job-content');if(_mc)_mc.innerHTML='';};
 };
 
 /* ═══ 4E (§10/§11): SYSTEM KONCERTÓW Eclipse Noir — 6 slotów + calculateEclipsePerformanceScore ═══ */
@@ -52623,7 +52885,7 @@ window._eclipseConcertPanel=function(){
     <div style="font-size:11px;color:#9a8;margin-bottom:10px">Noc ×${window.getEclipseNoirNightMultiplier()} · rozegranych występów: ${c.concertsPlayed} · rekord formy: ${c.bestConcertScore}/100</div>
     ${note}
     ${slots}
-    <button class="cbtn" style="margin-top:10px;width:100%;color:#fff" onclick="window._eclipseHub()">← Wróć na parkiet</button>
+    <button class="cbtn" style="margin-top:10px;width:100%;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Wróć na parkiet</button>
   </div>`;
   const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content');
   if(mgJob&&mgContent){ mgContent.innerHTML=html; mgJob.classList.add('on'); }
@@ -52675,7 +52937,7 @@ window._eclipsePerform=function(slotKey){
     </div>
     <div style="display:flex;gap:8px;margin-top:14px">
       <button class="cbtn" style="flex:1;color:#e368b8;border-color:#7a2a5a" onclick="window._eclipseConcertPanel()">🎤 Panel koncertów</button>
-      <button class="cbtn" style="flex:1;color:#fff" onclick="window._eclipseHub()">🚪 Na parkiet</button>
+      <button class="cbtn" style="flex:1;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">🚪 Na parkiet</button>
     </div>
   </div>`;
   const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content');
@@ -65136,7 +65398,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.113',date:'2026-07-05',cats:['feature','fix'],title:'🗺 Mapy dzielnic + poprawki wygody i sterowania pojazdami',
  items:[
-  {t:'new',d:'🌑 Nowe miejsce w dzielnicy Underground: klub nocny Eclipse Noir! Wejdź (zwykłe wejście, po znajomości, jako artysta albo VIP) i poczuj klimat nocnego miasta — tłum, VIP-y i mnożnik gorących weekendowych nocy. Na miejscu sprawdzisz możliwość koncertu: sześć rodzajów występów od rozgrzewki po pokaz VIP, a Twoja forma na scenie zależy od umiejętności, sławy, nastroju i tego, jak rozgrzana jest sala. Kolejne strefy klubu będą się otwierać w następnych aktualizacjach.'},
+  {t:'new',d:'🌑 Klub nocny Eclipse Noir stoi teraz na mapie dzielnicy Underground — podejdź do niego wieczorem lub nocą i wejdź do środka! Wchodzisz do prawdziwego wnętrza klubu, po którym chodzisz jak po każdym innym budynku: scena koncertowa (sześć rodzajów występów od rozgrzewki po pokaz VIP — Twoja forma zależy od umiejętności, sławy, nastroju i tego, jak rozgrzana jest sala), bar z drinkami na poprawę nastroju i parkiet, na którym łapiesz rytm. Do klubu wejdziesz na kilka sposobów: zwykłe wejście, po znajomości, jako artysta albo za wejściówkę VIP. Klub żyje własnym rytmem i jest najgorętszy w piątkowe oraz sobotnie noce. To dopiero początek — Eclipse Noir będzie się rozrastał o nowe atrakcje i barwne postacie.'},
   {t:'new',d:'🗺 Nowość: osobne mapy dzielnic! W dużej mapie możesz teraz przełączać widok między Miastem a odblokowanymi dzielnicami (Underground, Marina Coast, Business) — każda ma własną mapę z budynkami i punktami. Zablokowane dzielnice są wyszarzone do czasu ich odblokowania, a mapy aktualizują się same, gdy w dzielnicy pojawiają się nowe miejsca.'},
   {t:'new',d:'🏥 Nova Cura pokazuje teraz Twój stan uzależnień w rozbiciu na kategorie (alkohol, pobudzające, imprezowe, uspokajające, opioidowe) — każda z własnym poziomem ryzyka. Widać też łączne objawy odstawienia i ostrzeżenie, gdy mieszasz różne rodzaje używek. Różne używki działają inaczej i inaczej się uzależniają, więc łatwiej świadomie zdecydować, czego potrzebujesz.'},
   {t:'new',d:'💉 W Nova Cura dostępne są teraz pełne programy wychodzenia z nałogu: krótka stabilizacja po kryzysie oraz intensywne programy (7 dni, 14 dni i dyskretny program premium). Im mocniejszy program, tym większy spadek uzależnienia, objawów odstawienia i napięcia. Kosztują sporo, ale to realna droga do odzyskania kontroli.'},
