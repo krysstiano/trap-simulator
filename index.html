@@ -14989,7 +14989,7 @@ function handleAct(act,objId){
     const _sick=G.dog.sickness;
     const _vetHtml=`<div style="background:#0a1525;border:2px solid #3498db;border-radius:10px;padding:20px;max-width:560px;margin:0 auto;color:#fff">
       <h2 style="color:#7ec8e3;margin-top:0">🩺 Weterynarz</h2>
-      <div style="color:#ccd;font-size:13px;margin-bottom:12px">Pies: ${G.dog.name||'Pies'} · Zdrowie: ${Math.floor(G.dog.health||100)}/100 · ${_sick?'<span style="color:#ec7063">⚠️ Chory: '+(_sick.name||_sick.id||'choroba')+'</span>':'<span style="color:#7ec87e">✓ Zdrowy</span>'}</div>
+      <div style="color:#ccd;font-size:13px;margin-bottom:12px">Pies: ${G.dog.name||'Pies'} · Zdrowie: ${Math.floor((typeof G.dog.health==='number'?G.dog.health:100))}/100 · ${_sick?'<span style="color:#ec7063">⚠️ Chory: '+(_sick.name||_sick.id||'choroba')+'</span>':'<span style="color:#7ec87e">✓ Zdrowy</span>'}</div>
       <div style="background:#0a1220;border-radius:6px;padding:10px;margin-bottom:10px;font-size:13px;color:#ccd">💰 Saldo: <strong style="color:#f1c40f">${(G.money||0).toLocaleString('pl')} zł</strong></div>
       <div style="display:flex;flex-direction:column;gap:8px">
         ${_sick?`<button class="bbtn" onclick="window._dogVetVisit('heal')" ${(G.money||0)<Math.floor((_sick.healCost||500)*1.4)?'disabled':''}>🔍 Diagnozuj i lecz ${_sick.name||'chorobę'} (od ${_sick.healCost||500} zł)</button>`:''}
@@ -15069,7 +15069,7 @@ function handleAct(act,objId){
         const item=G.fridgeItems.find(i=>i.qty>0);
         if(item){
           const _sp=_foodSpoilPenalty(item); /* N2: kara za nieświeże przy stole */
-          if(_sp.pen>0){ G.health=clampStat('health', (G.health||100)-_sp.pen); _spoilNote=` ⚠️ NIEŚWIEŻE (${_sp.fresh}%) −${_sp.pen} HP!`; }
+          if(_sp.pen>0){ G.health=clampStat('health', ((typeof G.health==='number'?G.health:100))-_sp.pen); _spoilNote=` ⚠️ NIEŚWIEŻE (${_sp.fresh}%) −${_sp.pen} HP!`; }
           item.qty--;consumed=item.name||item.id||'jedzenie';
           if(item.qty<=0)G.fridgeItems=G.fridgeItems.filter(i=>i.qty>0);
         }
@@ -15561,7 +15561,7 @@ function _casinoBuyCokeApply(){
     /* v2.1.353 Faza Q+R2 Strumień A audit fix (reguła #7 ghost penalty): addFame(n) IGNORUJE negative input (L14423 `if(!n||n<=0)return 0`). PRZED: `addFame(-8)` był DEAD CODE — fame NIE obniżał się mimo komunikatu "🚔 -8 sławy". Gracz miał ghost penalty. PO: direct decrement spójny z resztą gry (6 innych miejsc używa G.fame=Math.max(0, G.fame-N) pattern, np. L11913/L14768/L21682). */
     G.fame=Math.max(0,(G.fame||0)-8);
     G.streetRep=Math.max(0,(G.streetRep||0)-10);
-    G.health=Math.min(G.health||100, 25);
+    G.health=Math.min((typeof G.health==='number'?G.health:100), 25);
     document.getElementById('bar-result').innerHTML=`<span style="color:#e74c3c;font-weight:700">🚔 WPADKA! Policjanci wpadli do toalety. Mandat -${fine.toLocaleString('pl')} zł, -8 sławy, -10 rep, zdrowie spadło do 25.</span>`;
     if(typeof notify==='function') notify('🚔 Policja zrobiła Ci kontrolę w toalecie kasyna! Drogi mandat.','r',7000);
     if(typeof addNotif==='function') addNotif('🚔 Wpadka u dealera (kokaina)');
@@ -15573,7 +15573,7 @@ function _casinoBuyCokeApply(){
   G.energy=Math.min(typeof getMaxStat==='function'?getMaxStat('energy'):100, (G.energy||0)+100);
   G.stress=Math.min(100, (G.stress||0)+80);
   G.streetRep=Math.min(100,(G.streetRep||0)+12);
-  G.health=Math.max(0,(G.health||100)-20);
+  G.health=Math.max(0,((typeof G.health==='number'?G.health:100))-20);
   document.getElementById('bar-result').innerHTML='<span style="color:#27ae60">🧊 Bierzesz line. Energia naładowana do maxa, +80 nastrój, +12 rep. -20 zdrowie. Ryzykowne, ale dało kopa.</span>';
   if(typeof updateHUD==='function') updateHUD();
   if(typeof sfxCash==='function') sfxCash();
@@ -19271,7 +19271,7 @@ const RANDOM_EVENTS = [
   }},
   /* v2.1.114: Wave 7 W76 — 2 nowe negative events (balance: ratio negative 20.7%→25%). */
   {name:'Health scare', chance:0.006, maxPerDay:1, cond:()=>currentRoom!=='hospital'&&G.day>=15&&(G.health||0)>30, fn:()=>{
-    const _hpLoss=rnd(15,30);G.health=Math.max(5,(G.health||100)-_hpLoss);G.stress=clamp((G.stress||0)-15,0,100);
+    const _hpLoss=rnd(15,30);G.health=Math.max(5,((typeof G.health==='number'?G.health:100))-_hpLoss);G.stress=clamp((G.stress||0)-15,0,100);
     notify(`🤒 Nagłe zachorowanie! Stracone ${_hpLoss} HP + nastrój. Idź do szpitala lub odpocznij.`,'r');
   }},
   {name:'Label scandal', chance:0.005, maxPerDay:1, cond:()=>G.label?.type&&(G.fame||0)>=40, fn:()=>{
@@ -20464,7 +20464,7 @@ window._growWater=function(a,b){
   window._prodCanvasMG({type:'water',title:'Podlewanie',emoji:'💧',hint:'Chwyć konewkę i trzymaj NAD doniczką — lej, aż napełnisz wodę do pełna (100%).',accent:'#3498db',accent2:'#7ec8e3',target:100}, function(q){
     _growEnsure(); const add=_growApplyWater(site,idx,q);
     if(add==null){_growReopenUI();return;}
-    G.energy=Math.max(0,(G.energy||100)-1);
+    G.energy=Math.max(0,((typeof G.energy==='number'?G.energy:100))-1);
     showMsg(`💧 Podlano do pełna (woda 100%).`,'g',2200);
     _growReopenUI();
   });
@@ -20635,7 +20635,7 @@ window._methReactorHeat=function(){
   _methlabEnsure();
   if(G.methlab.stage!==1){ return; }
   G.methlab.heat=Math.min(100,(G.methlab.heat||0)+40);
-  G.energy=Math.max(0,(G.energy||100)-1);
+  G.energy=Math.max(0,((typeof G.energy==='number'?G.energy:100))-1);
   if(typeof showMsg==='function')showMsg(`🔥 Podgrzano reaktor (${Math.round(G.methlab.heat)}°).`,'g',2000);
   if(typeof window._renderMethReactor==='function') window._renderMethReactor();
 };
@@ -21259,16 +21259,16 @@ window._doUseSubstance=function(substanceKey){
   try{ if(_subCat && G.addictionSystem && G.addictionSystem[_subCat]){ _tolMult=1-Math.min(0.4,(G.addictionSystem[_subCat].tolerance||0)/250); } }catch(e){}
   /* Apply effects */
   if(sub.mood) G.stress=Math.min(100,(G.stress||50)+(sub.mood>0?Math.round(sub.mood*_tolMult):sub.mood));
-  if(sub.hunger) G.hunger=Math.min(100,(G.hunger||50)+sub.hunger);
-  if(sub.energy) G.energy=Math.max(0,Math.min(100,(G.energy||100)+(sub.energy>0?Math.round(sub.energy*_tolMult):sub.energy)));
+  if(sub.hunger) G.hunger=Math.min(100,((typeof G.hunger==='number'?G.hunger:50))+sub.hunger);
+  if(sub.energy) G.energy=Math.max(0,Math.min(100,((typeof G.energy==='number'?G.energy:100))+(sub.energy>0?Math.round(sub.energy*_tolMult):sub.energy)));
   if(sub.forma) G.forma=Math.max(0,(G.forma||0)+sub.forma);
   if(sub.fame && typeof addFame==='function') addFame(sub.fame);
-  if(sub.healthLoss) G.health=Math.max(0,(G.health||100)-sub.healthLoss);
+  if(sub.healthLoss) G.health=Math.max(0,((typeof G.health==='number'?G.health:100))-sub.healthLoss);
   if(typeof sub.onUse==='function') sub.onUse(G);
   /* Overdose risk (cocaine) */
   if(sub.overdoseRisk && Math.random()<sub.overdoseRisk){
     G.money=Math.max(0,(G.money||0)-2000);
-    G.health=Math.max(10,(G.health||100)-30);
+    G.health=Math.max(10,((typeof G.health==='number'?G.health:100))-30);
     if(typeof showMilestoneCinematic==='function') showMilestoneCinematic({emoji:'🚑',title:'OVERDOSE!',subtitle:'Szpital ratunkowy',tagline:'-2000 zł szpital, -30 HP. Następnym razem ostrożnie!',accentColor:'#e74c3c',accent2:'#1a0808',duration:6000});
     if(typeof addNotif==='function') addNotif('🚑 OVERDOSE! Szpital uratował życie. -2000 zł.');
   } else {
@@ -21563,7 +21563,7 @@ window._theftWitnessEvent=function(){
     {label:'👁️ Obserwuj z boku', fn:()=>{ G.streetRep=Math.min(100,(G.streetRep||0)+1); if(typeof showMsg==='function')showMsg('👁️ Patrzysz z boku. Widzisz dokładnie, jak to się rozgrywa — ulica uczy.','i',5000); }},
     {label:'📞 Zadzwoń po służby', fn:()=>{ if(typeof _publicRepEnsure==='function')_publicRepEnsure(); if(G.publicRep)G.publicRep.fanLoyalty=Math.min(100,(G.publicRep.fanLoyalty||60)+2); if(streetSide){ G.streetRep=Math.max(0,(G.streetRep||0)-3); if(typeof showMsg==='function')showMsg('📞 Dzwonisz po służby. Ofierze lżej, ale ulica zapamiętuje „kapusia".','i',6000);} else if(typeof showMsg==='function')showMsg('📞 Dzwonisz po służby. Zachowałeś się przyzwoicie.','g',5500); }},
     {label:'⚠️ Ostrzeż ofiarę', fn:()=>{ G.stress=_cl((G.stress||50)+3); if(typeof _publicRepEnsure==='function')_publicRepEnsure(); if(G.publicRep)G.publicRep.fanLoyalty=Math.min(100,(G.publicRep.fanLoyalty||60)+1); if(typeof showMsg==='function')showMsg('⚠️ Krzyczysz ostrzeżenie! Złodziej się spłoszył — ofiara Ci dziękuje.','g',5500); }},
-    {label:'🏃 Dogoń złodzieja', fn:()=>{ G.violenceHeat=(G.violenceHeat||0)+_r(3,8); if(Math.random()<0.4){ G.streetRep=Math.min(100,(G.streetRep||0)+5); if(typeof showMsg==='function')showMsg('🏃 Dogoniłeś go i odbiłeś łup! Respekt ulicy rośnie (ale narobiłeś hałasu).','g',6000);} else { G.health=Math.max(0,(G.health||100)-_r(3,10)); if(typeof showMsg==='function')showMsg('🏃 Uciekł, a Ty oberwałeś w szarpaninie. Bez efektu.','r',5500);} }},
+    {label:'🏃 Dogoń złodzieja', fn:()=>{ G.violenceHeat=(G.violenceHeat||0)+_r(3,8); if(Math.random()<0.4){ G.streetRep=Math.min(100,(G.streetRep||0)+5); if(typeof showMsg==='function')showMsg('🏃 Dogoniłeś go i odbiłeś łup! Respekt ulicy rośnie (ale narobiłeś hałasu).','g',6000);} else { G.health=Math.max(0,((typeof G.health==='number'?G.health:100))-_r(3,10)); if(typeof showMsg==='function')showMsg('🏃 Uciekł, a Ty oberwałeś w szarpaninie. Bez efektu.','r',5500);} }},
     {label:'🎥 Nagrywaj zdarzenie', fn:()=>{ G.followers=(G.followers||0)+_r(20,80); if(typeof _publicRepEnsure==='function')_publicRepEnsure(); if(G.publicRep)G.publicRep.fanLoyalty=Math.max(0,(G.publicRep.fanLoyalty||60)-1); if(typeof showMsg==='function')showMsg('🎥 Nagrywasz i wrzucasz do sieci — zasięgi rosną, ale to trochę żerowanie na cudzym nieszczęściu.','i',6000); }},
   ]);
   return true;
@@ -25846,7 +25846,7 @@ window._dogTrain=function(type){
 };
 /* Common reward func — called by all 3 MG on finish */
 window._dogTrainReward=function(type, qualityPct){
-  G.energy=Math.max(0,(G.energy||100)-10);
+  G.energy=Math.max(0,((typeof G.energy==='number'?G.energy:100))-10);
   G.dog._trainsToday=(G.dog._trainsToday||0)+1;
   G.dog._lastTrainDay=G.day;
   /* XP based on quality (0-100%) — better than random */
@@ -25855,7 +25855,7 @@ window._dogTrainReward=function(type, qualityPct){
   const _xp=Math.floor(_baseXP + (_maxXP-_baseXP)*(qualityPct/100));
   const _moodGain=Math.floor(5 + 10*(qualityPct/100));
   G.dog.mood=Math.min(100,(G.dog.mood||0)+_moodGain);
-  if(type==='bieg') G.dog.health=Math.min(100,(G.dog.health||100)+Math.floor(qualityPct/15));
+  if(type==='bieg') G.dog.health=Math.min(100,((typeof G.dog.health==='number'?G.dog.health:100))+Math.floor(qualityPct/15));
   if(typeof window._addDogXP==='function') window._addDogXP(_xp, 'train_'+type);
   if(typeof progressQuest==='function') progressQuest('dog_train');
   if(typeof showMilestoneCinematic==='function') showMilestoneCinematic({emoji:type==='aport'?'🥏':type==='bieg'?'🏃':'🎯',title:`+${_xp} XP DLA PSA`,subtitle:`${G.dog.name||'Pies'} · Quality ${qualityPct}%`,tagline:`+${_moodGain} nastrój${type==='bieg'?` · +${Math.floor(qualityPct/15)} HP`:''}`,accentColor:'#27ae60',accent2:'#0a1408',duration:4000});
@@ -25903,7 +25903,7 @@ window._petPlay=function(){
   if(typeof window._petStatsEnsure==='function') window._petStatsEnsure();
   if((G.energy||0)<6){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii na zabawę (potrzeba 6).','r',3000); return false; }
   window._petCareEnsureDay();
-  G.energy=Math.max(0,(G.energy||100)-6);
+  G.energy=Math.max(0,((typeof G.energy==='number'?G.energy:100))-6);
   G.dog.mood=Math.min(100,(G.dog.mood||80)+12);
   G.dog.cleanliness=Math.max(0,(G.dog.cleanliness!=null?G.dog.cleanliness:100)-6); /* zabawa brudzi */
   const bg=window._petBondGain(2);
@@ -25919,7 +25919,7 @@ window._petClean=function(){
   if(typeof window._petStatsEnsure==='function') window._petStatsEnsure();
   if((G.dog.cleanliness!=null?G.dog.cleanliness:100)>=98){ if(typeof showMsg==='function') showMsg('🧼 Twój zwierzak jest już czysty.','r',3000); return false; }
   if((G.energy||0)<4){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii na kąpiel (potrzeba 4).','r',3000); return false; }
-  G.energy=Math.max(0,(G.energy||100)-4);
+  G.energy=Math.max(0,((typeof G.energy==='number'?G.energy:100))-4);
   G.dog.cleanliness=100;
   G.dog.mood=Math.min(100,(G.dog.mood||80)+5);
   const bg=window._petBondGain(1);
@@ -26305,7 +26305,7 @@ window._shelterVolunteer=function(type){
   if(!Array.isArray(G._volunteerDone)) G._volunteerDone=[];
   if(G._volunteerDone.includes(type)){ if(typeof showMsg==='function') showMsg('🙌 Tę aktywność zrobiłeś już dziś. Wróć jutro!','r',3500); return false; }
   if((G.energy||0)<act.energy){ if(typeof showMsg==='function') showMsg(`⚡ Za mało energii (potrzeba ${act.energy}).`,'r',3000); return false; }
-  G.energy=Math.max(0,(G.energy||100)-act.energy);
+  G.energy=Math.max(0,((typeof G.energy==='number'?G.energy:100))-act.energy);
   G._charity=Math.min(100,(G._charity||0)+act.charity);
   G._selfRespect=Math.min(100,(G._selfRespect||0)+act.respect);
   if(act.mood) G.stress=(typeof clamp==='function')?clamp((G.stress||50)+act.mood,0,100):Math.min(100,(G.stress||50)+act.mood);
@@ -26477,8 +26477,8 @@ window._dogVetService=function(tier){
   if(tier==='kontrola' && G.dog._lastKontrolaDay===G.day){ if(typeof showMsg==='function')showMsg('📋 Kontrolę masz dziś za sobą — wróć jutro.','r',4000); return false; }
   G.money-=SV.cost;
   const nm=G.dog.name||(typeof window._petSpeciesLabel==='function'?window._petSpeciesLabel():'zwierzak');
-  if(tier==='kontrola'){ G.dog._lastKontrolaDay=G.day; G.dog.health=Math.min(100,(G.dog.health||100)+15); G.dog.lastVetCheckup=G.day; G._responsibility=Math.min(100,(G._responsibility||0)+2); if(typeof showMsg==='function')showMsg('📋 '+nm+': kontrola podstawowa OK. +15 zdrowia i +odpowiedzialność.','g',5000); }
-  else if(tier==='leczenie_drobne'){ G.dog.health=Math.min(100,(G.dog.health||100)+25); if(G.dog.sickness&&(G.dog.sickness.severity==='low'||G.dog.sickness.severity==='mild'||G.dog.sickness.severity==='łagodna')) G.dog.sickness=null; if(typeof showMsg==='function')showMsg('🩹 '+nm+': leczenie drobne. +25 zdrowia, drobne dolegliwości ustąpiły.','g',5000); }
+  if(tier==='kontrola'){ G.dog._lastKontrolaDay=G.day; G.dog.health=Math.min(100,((typeof G.dog.health==='number'?G.dog.health:100))+15); G.dog.lastVetCheckup=G.day; G._responsibility=Math.min(100,(G._responsibility||0)+2); if(typeof showMsg==='function')showMsg('📋 '+nm+': kontrola podstawowa OK. +15 zdrowia i +odpowiedzialność.','g',5000); }
+  else if(tier==='leczenie_drobne'){ G.dog.health=Math.min(100,((typeof G.dog.health==='number'?G.dog.health:100))+25); if(G.dog.sickness&&(G.dog.sickness.severity==='low'||G.dog.sickness.severity==='mild'||G.dog.sickness.severity==='łagodna')) G.dog.sickness=null; if(typeof showMsg==='function')showMsg('🩹 '+nm+': leczenie drobne. +25 zdrowia, drobne dolegliwości ustąpiły.','g',5000); }
   else if(tier==='pakiet'){ G.dog.health=100; G.dog._diseaseProtectUntil=(G.day||0)+30; G.dog.lastVetCheckup=G.day; G.stress=(typeof clamp==='function')?clamp((G.stress||50)+4,0,100):Math.min(100,(G.stress||50)+4); if(typeof showMsg==='function')showMsg('🏥 '+nm+': pakiet miesięczny wykupiony. Pełne zdrowie + ochrona przed chorobami na 30 dni.','g',6000); }
   if(typeof updateHUD==='function') updateHUD();
   window._openDogVet();
@@ -28627,7 +28627,7 @@ function nextPeriod(){
       else G.dog.mood=Math.max(0, (G.dog.mood||100) - 2);
       /* Hunger = 0 → HP loss */
       if(G.dog.hunger<=0){
-        G.dog.health=Math.max(0, (G.dog.health||100) - 10);
+        G.dog.health=Math.max(0, ((typeof G.dog.health==='number'?G.dog.health:100)) - 10);
         if(typeof addNotif==='function') addNotif(`🐕 ${G.dog.name||'Pies'} jest bardzo głodny — -10 HP! Karm go w sklepie zoologicznym!`);
       }
       /* Death gdy HP = 0 */
@@ -29646,7 +29646,7 @@ function rollNpcRobberyAgainstPlayer(loc, hour){
   if(night) score+=0.15;
   if((G.money||0)>50000) score+=0.10;                                                  /* dużo gotówki przy sobie */
   if((G._alcoholAddictionUntil||0)>(G.day||0)||G.activeSubstance||G._highUntil) score+=0.10; /* pod wpływem / niski clarity */
-  if((G.energy||100)<30) score+=0.05;                                                  /* zmęczony */
+  if(((typeof G.energy==='number'?G.energy:100))<30) score+=0.05;                                                  /* zmęczony */
   if((G.streetCredibility||0)<20) score+=0.10;                                         /* niski street cred */
   if((G.drip||0)>100) score+=0.08;                                                     /* drogie ubrania */
   const hasProtection=Array.isArray(G.crew)&&G.crew.some(c=>c.role==='guard'||c.role==='ochrona'||c.role==='bodyguard');
@@ -29787,6 +29787,7 @@ function addFame(n){
     const _now=Date.now();
     if(!window._lastAchCheck || _now-window._lastAchCheck>200){window._lastAchCheck=_now;checkAchievements();}
   }
+  if(!window._suppressEarnFx && typeof _scheduleActionSave==='function') _scheduleActionSave(); /* v2.3.118: zapis po zdobyciu sławy (akcja) */
   return final;
 }
 /* v2.1.141: addFans(n) wrapper — analogicznie do addFame()/earn(). Hook dla crew challenge 'gain_fans' (Faza E TODO L42547).
@@ -29812,6 +29813,7 @@ function addFans(n){
     const _now=Date.now();
     if(!window._lastAchCheck || _now-window._lastAchCheck>200){window._lastAchCheck=_now;checkAchievements();}
   }
+  if(!window._suppressEarnFx && typeof _scheduleActionSave==='function') _scheduleActionSave(); /* v2.3.118: zapis po zdobyciu fanów (akcja) */
   return final;
 }
 /* v2.1.116: Wave 5 S43 / Wave 1 K20 — centralny window._esc (XSS escape) zamiast 6× lokalnych definicji.
@@ -29840,6 +29842,15 @@ function _globalEarnMult(){
   const _jobsGrindMult=1+_jobsEarnBonus();                                    // Prace: 500 zmian +5%, 1000 zmian +10% (rekompensata za grind)
   return mogul*streak*prestigeMult*moodEarnMult*_mgrJrMult*_itemBuffMult*_recoveryMult*_jobsGrindMult;
 }
+/* v2.3.118 (user: zapis po KAŻDEJ akcji, nie tylko co 5 min): debounced zapis (reużywa saveGameSilent 800ms —
+   burst zarobków/fanów/sławy zbiera się w 1 zapis). Guard: nie zapisuj gdy menu/kreator (brak stanu gry). */
+function _scheduleActionSave(){
+  try{
+    const _m=document.getElementById('menu'); if(_m && _m.style.display!=='none') return;
+    const _c=document.getElementById('creator'); if(_c && _c.style.display==='flex') return;
+    if(typeof saveGameSilent==='function') saveGameSilent();
+  }catch(e){}
+}
 function earn(amount,showFloat=true,careerSource){
   if(amount>0){
     /* v2.1.859: soft-cap per kariera — zapamiętaj BAZĘ tu, cap zastosuj PO mnożnikach (by uwzględniał mogul/streak/prestiż/nastrój/buffy). */
@@ -29861,6 +29872,9 @@ function earn(amount,showFloat=true,careerSource){
     if(amount>=50&&typeof emitSpark==='function'&&currentRoom==='ulica' && !window._suppressEarnFx){
       emitSpark(P.wx+P.w/2,P.wy+P.h/2,'rgba(255,220,140,');
     }
+    /* v2.3.118 (user: „gracz zagra koncert, wyjdzie z gry i auto-save tego nie złapie"): każdy zarobek = zapis
+       (debounced 800ms → burst zbiera się w 1 zapis). Nie podczas day-rollover (nextPeriod robi własny zapis). */
+    if(!window._suppressEarnFx && typeof _scheduleActionSave==='function') _scheduleActionSave();
   }
   return amount;
 }
@@ -41551,7 +41565,7 @@ window._novaCuraTick=function(){ if(typeof _5pdfEnsure==='function')_5pdfEnsure(
   if(!n._crisisCd||typeof n._crisisCd!=='object') n._crisisCd={};
   const cd=(id,days)=>((G.day||0)-(n._crisisCd[id]||-99)>=days);
   const fire=(id,title,msg,fx)=>{ n._crisisCd[id]=G.day||0; fx(); window._novaLog('Event: '+title,'nastrój/napięcie'); if(typeof showMsg==='function')showMsg('⚠️ '+title+' — '+msg+' Zajrzyj do Nova Cura.','r',7000); };
-  const mood=(G.stress||0), tension=(n.tension||0), fat=(n.fatigue||0), addR=window._novaAddictionRisk(), en=(G.energy||100);
+  const mood=(G.stress||0), tension=(n.tension||0), fat=(n.fatigue||0), addR=window._novaAddictionRisk(), en=((typeof G.energy==='number'?G.energy:100));
   /* v2.3.113 (PDF new/Nova Cura §10): 5 nazwanych eventów per-kategoria z nowego addictionSystem.
      UWAGA: G.stress to MOOD (high=dobrze) → z PDF "+stress"/"-mood" = SPADEK G.stress. */
   if(typeof window._addictionSysEnsure==='function') window._addictionSysEnsure();
@@ -43537,7 +43551,7 @@ window._prostytutkiVisit=(vibe)=>{
     const roll=Math.random();
     let msg=`💋 Wieczór z ${o.who} minął spokojnie. +${moodGain} nastrój.`;
     if(roll<0.12){ if(typeof addDefamation==='function')addDefamation(12); msg='💋 Ktoś Cię rozpoznał — plotki ruszyły. +nastrój, ale zniesławienie +12.'; }
-    else if(roll<0.24){ G.health=clampStat('health',(G.health||100)-15); msg='🤒 Złapałeś coś nieprzyjemnego. +nastrój, ale −15 zdrowia.'; }
+    else if(roll<0.24){ G.health=clampStat('health',((typeof G.health==='number'?G.health:100))-15); msg='🤒 Złapałeś coś nieprzyjemnego. +nastrój, ale −15 zdrowia.'; }
     else if(roll<0.30){ const fine=Math.min(G.money,400); G.money-=fine; msg=`🚔 Trafiłeś na kontrolę/napad. +nastrój, ale −${fine} zł.`; }
     if(typeof notify==='function')notify(msg);
     if(typeof updateHUD==='function')updateHUD();
@@ -45656,7 +45670,7 @@ window._spaFinish=function(){
   /* v2.3.107 (user CO3: „SPA nic nie daje"): SPA REGENERUJE ENERGIĘ (realny sens wellness — wracasz wypoczęty). */
   const _en=Math.round(18+mg.perfects*4);
   G.stress=Math.min(100,(G.stress||50)+_stress);
-  G.health=Math.min(100,(G.health||100)+_hp);
+  G.health=Math.min(100,((typeof G.health==='number'?G.health:100))+_hp);
   G.forma=Math.min(_maxForma,(G.forma||0)+_forma);
   G.energy=Math.min((typeof getMaxStat==='function'?getMaxStat('energy'):100),(G.energy||0)+_en);
   if(typeof window._coastVibeTick==='function') window._coastVibeTick();
@@ -45764,10 +45778,10 @@ window._startSpeakeasyChoice=function(){
 window._speakeasyDrink=function(id,cost,stress,energy,risk,name){
   G._lastSpeakeasyDay=G.day;G.money-=cost;
   G.stress=Math.min(100,(G.stress||50)+stress);
-  G.energy=Math.max(0,(G.energy||100)+energy);
+  G.energy=Math.max(0,((typeof G.energy==='number'?G.energy:100))+energy);
   /* v2.1.518 fix (user): konsumpcja NIE daje reputacji — rep zarabia się akcją (Cypher/Mural/Tatuaż). */
   const _hangover=Math.random()<risk;
-  if(_hangover) G.health=Math.max(10,(G.health||100)-3);
+  if(_hangover) G.health=Math.max(10,((typeof G.health==='number'?G.health:100))-3);
   document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';
   if(typeof showMilestoneCinematic==='function'){
     showMilestoneCinematic({
@@ -45804,7 +45818,7 @@ window._startSmolarniaChoice=function(){
 window._smolarniaJoint=function(id,cost,stress,energy,name){
   G._lastSmolarniaDay=G.day;G.money-=cost;
   G.stress=Math.min(100,(G.stress||50)+stress);
-  G.energy=Math.max(0,(G.energy||100)+energy);
+  G.energy=Math.max(0,((typeof G.energy==='number'?G.energy:100))+energy);
   /* v2.1.518 fix (user): konsumpcja NIE daje reputacji — rep zarabia się akcją. */
   document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';
   if(typeof showMilestoneCinematic==='function'){
@@ -46026,7 +46040,7 @@ window._steakhouseMeeting=function(type){
   G._lastSteakhouseDay=G.day;
   G.money-=o.cost;
   /* v2.1.517 fix: routing przez eatFood() — przejedzenie ma teraz feedback+kary (user: "steakhouse nie informuje o przejedzeniu"). */
-  if(typeof eatFood==='function'){G.hunger=eatFood(o.hunger);} else {G.hunger=Math.min(100,(G.hunger||50)+o.hunger);}
+  if(typeof eatFood==='function'){G.hunger=eatFood(o.hunger);} else {G.hunger=Math.min(100,((typeof G.hunger==='number'?G.hunger:50))+o.hunger);}
   if(typeof addFame==='function') addFame(o.fame); else G.fame=Math.min(500,(G.fame||0)+o.fame);
   if(o.followers) G.followers=(G.followers||0)+o.followers;
   const _sponsor=Math.random()<o.sponsorChance;
@@ -46524,12 +46538,12 @@ window._enterDistrictPlace=(districtId,placeId)=>{
       G._lastSpeakeasyDay=G.day;
       G.money-=200;
       G.stress=Math.min(100,(G.stress||50)+40);
-      G.energy=Math.max(0,(G.energy||100)-30);
+      G.energy=Math.max(0,((typeof G.energy==='number'?G.energy:100))-30);
       /* v2.1.518: brak street rep — konsumpcja nie kupuje reputacji. */
       const _healthHit=Math.random()<0.3;
       let _msg='🥃 Speakeasy — +40 mood, -30 energii, -200 zł.';
       if(_healthHit){
-        G.health=Math.max(10,(G.health||100)-2);
+        G.health=Math.max(10,((typeof G.health==='number'?G.health:100))-2);
         _msg='🥃 Speakeasy — +40 mood, -30 energii. Kac jutro: -2 zdrowie!';
       }
       if(typeof closeOverlay==='function') closeOverlay();
@@ -52091,7 +52105,7 @@ window._fudmStat=function(name){
     case 'selfRespect': return G._selfRespect||0;
     case 'fanTrust': return (G.publicRep&&typeof G.publicRep.fanLoyalty==='number')?G.publicRep.fanLoyalty:50;
     case 'mediaRisk': return (typeof getMediaPressure==='function')?getMediaPressure():0;
-    case 'fatigue': return Math.max(0,100-(G.energy||100)); /* zmęczenie = odwrotność energii */
+    case 'fatigue': return Math.max(0,100-((typeof G.energy==='number'?G.energy:100))); /* zmęczenie = odwrotność energii */
     default: return (typeof GW[name]==='number')?GW[name]:0;
   }
 };
@@ -52328,7 +52342,7 @@ window._ghostwritingModeMod=function(mode){ return {fast:-12,normal:0,polished:1
 window._ghostwritingQuality=function(job,mode){
   window._frameUpDMEnsure(); const GW=G.frameUpDM.ghostwriting;
   const mood=(G.stress!=null?G.stress:50); /* G.stress = MOOD */
-  const fatigue=Math.max(0,100-(G.energy||100));
+  const fatigue=Math.max(0,100-((typeof G.energy==='number'?G.energy:100)));
   let q=35 + (GW.writingSkill||0)*8 + (GW.careerFocus||0)*3 + (GW.qualityControl||0)*2 + mood*0.08 - fatigue*0.10; /* audyt #13: qualityControl realnie w formule */
   q+=window._ghostwritingModeMod(mode);
   if(job.brief) q+=10;
@@ -52354,7 +52368,7 @@ window._fudmDeliverJob=function(threadId,mode){
   const eCost={fast:8,normal:15,polished:25}[mode]||15;
   const sCost={fast:3,normal:6,polished:9}[mode]||6;
   if((G.energy||0)<eCost){ if(typeof showMsg==='function') showMsg(`⚡ Za mało energii (potrzeba ${eCost}).`,'r',3000); return; }
-  G.energy=Math.max(0,(G.energy||100)-eCost);
+  G.energy=Math.max(0,((typeof G.energy==='number'?G.energy:100))-eCost);
   G.stress=(typeof clamp==='function')?clamp((G.stress||50)-sCost,0,100):Math.max(0,(G.stress||50)-sCost); /* deadline obniża nastrój */
   const quality=window._ghostwritingQuality(job,mode);
   job._deliverMode=mode;
@@ -52761,7 +52775,7 @@ window._ghostwritingDeadlineTick=function(){
   if(!GW.activeJobs.length) return;
   if(GW.activeJobs.length>=2){ /* cudze życie na deadline: stress+= (mood-), fatigue+= (energy-) */
     G.stress=(typeof clamp==='function')?clamp((G.stress||50)-5,0,100):Math.max(0,(G.stress||50)-5);
-    G.energy=Math.max(0,(G.energy||100)-8);
+    G.energy=Math.max(0,((typeof G.energy==='number'?G.energy:100))-8);
   }
   const overdue=GW.activeJobs.filter(j=>G.day>((j.deadlineDay||0)+2));
   overdue.forEach(j=>{
@@ -53276,7 +53290,7 @@ window._eclipseFightPick=function(choice){
   window._eclipseNoirEnsure(); const c=G.eclipseNoir, ctrl=(c.nightlife&&c.nightlife.decisionControl)||100; let msg='',type='i';
   if(choice==='leave'){ msg='Odsuwasz się w tłum. Bez strat, bez historii.'; }
   else if(choice==='security'){ if(G.npcRelations&&G.npcRelations.valeriaCross) G.npcRelations.valeriaCross.trust=Math.min(100,(G.npcRelations.valeriaCross.trust||0)+3); msg='Machasz na Masona — ochrona wygasza temat w 10 sekund. Klub to zapamięta. (+zaufanie klubu)'; type='g'; }
-  else if(choice==='calm'){ if(ctrl<40){ G.health=Math.max(0,(G.health||100)-8); c.streetRep=Math.min(100,(c.streetRep||0)+2); msg='Wchodzisz między nich wstawiony — obrywasz łokciem, ale rozdzielasz. (−zdrowie, +trochę szacunku)'; type='r'; } else { c.streetRep=Math.min(100,(c.streetRep||0)+4); c.reputation=Math.min(100,(c.reputation||0)+2); msg='Trzeźwo studzisz sytuację. Ludzie widzą, że masz jaja i klasę. (+szacunek)'; type='g'; } }
+  else if(choice==='calm'){ if(ctrl<40){ G.health=Math.max(0,((typeof G.health==='number'?G.health:100))-8); c.streetRep=Math.min(100,(c.streetRep||0)+2); msg='Wchodzisz między nich wstawiony — obrywasz łokciem, ale rozdzielasz. (−zdrowie, +trochę szacunku)'; type='r'; } else { c.streetRep=Math.min(100,(c.streetRep||0)+4); c.reputation=Math.min(100,(c.reputation||0)+2); msg='Trzeźwo studzisz sytuację. Ludzie widzą, że masz jaja i klasę. (+szacunek)'; type='g'; } }
   else if(choice==='fight'){ G.heat=Math.min(100,(G.heat||0)+8); G.infamy=(G.infamy||0)+3; c.scandalTrail=Math.min(100,(c.scandalTrail||0)+6); window._eclipseRollPaparazzi('fight_nearby'); window._eclipseBan(3,'udział w bójce'); msg='Wchodzisz w to na całego. Ochrona wyprowadza Cię za drzwi — jest heat, jest afera, jest zakaz.'; type='r'; }
   else if(choice==='record'){ const b=Math.round(10+(G.fame||0)*0.06); G._socialBuzz=(G._socialBuzz||0)+b; window._eclipseAddToxicity(4); G.legalCareer&&(G.legalCareer.brandTrust=Math.max(0,(G.legalCareer.brandTrust||50)-2)); msg=`Kręcisz zamieszanie na telefon — viralowy szum (+${b}), ale wygląda to jak żerowanie (−zaufanie marek).`; type='i'; }
   if(typeof updateHUD==='function') updateHUD();
@@ -53953,7 +53967,7 @@ window._AUREUM_ROUNDS=[
 window.calculateGolfShotResult=function(style,npcPressure){
   window._aureumEnsure(); const g=G.golf; let score=40;
   score += g.skill*8 + g.focus*5 + g.swingConsistency*6;
-  score += (G.stress||50)*0.08 - Math.max(0,100-(G.energy||100))*0.08;
+  score += (G.stress||50)*0.08 - Math.max(0,100-((typeof G.energy==='number'?G.energy:100)))*0.08;
   if(style==='safe') score+=10;
   else if(style==='aggressive') score+= (typeof rnd==='function'?rnd(-18,22):2);
   else if(style==='technical') score+= g.focus*4;
@@ -54172,7 +54186,7 @@ window._aureumTourneyGate=function(t){ window._aureumEnsure(); if(!t.gate) retur
 window.calculateGolfTournamentScore=function(){
   window._aureumEnsure(); const g=G.golf, bn=G.businessNetwork; let score=0;
   score += g.skill*12 + g.pressureHandling*10 + g.putting*8 + bn.patienceWithEgo*3;
-  score += (G.stress||50)*0.12 - Math.max(0,100-(G.energy||100))*0.12;
+  score += (G.stress||50)*0.12 - Math.max(0,100-((typeof G.energy==='number'?G.energy:100)))*0.12;
   if(G.eclipseNoir&&G.eclipseNoir.nightlife&&(G.eclipseNoir.nightlife.intoxication||0)>30) score-=10;
   score += (typeof rnd==='function'?rnd(-12,12):0);
   return Math.max(0,Math.min(100,Math.round(score)));
@@ -55508,7 +55522,7 @@ window._vehExplosionProximity=function(kind,wx,wy){
   const dist=Math.hypot(px-wx,py-wy)/48;
   let hp=0, tension=0;
   if(dist<4){ hp=60; tension=30; } else if(dist<9){ hp=25; tension=15; } else if(dist<15){ tension=8; }
-  if(hp>0 && typeof clampStat==='function'){ G.health=Math.max(1, clampStat('health',(G.health||100)-hp)); if(typeof showMsg==='function') showMsg('🔥 Fala uderzeniowa Cię dosięgła — tracisz zdrowie. Następnym razem oddal się szybciej.','r',5500); }
+  if(hp>0 && typeof clampStat==='function'){ G.health=Math.max(1, clampStat('health',((typeof G.health==='number'?G.health:100))-hp)); if(typeof showMsg==='function') showMsg('🔥 Fala uderzeniowa Cię dosięgła — tracisz zdrowie. Następnym razem oddal się szybciej.','r',5500); }
   if(tension>0){ if(typeof _5pdfEnsure==='function') _5pdfEnsure(); if(G.novacura){ G.novacura.tension=Math.min(100,(G.novacura.tension||0)+tension); } G.stress=Math.max(0,Math.min(100,(G.stress||0)-Math.floor(tension/2))); if(typeof updateHUD==='function') updateHUD(); }
 };
 /* §20 koszt sprzątnięcia wraku. */
@@ -57655,7 +57669,7 @@ function renderPhoneApp(app){
       const _xpPct=_lvl>=20?100:Math.floor((_xp/_nextLvlXP)*100);
       const _hunger=Math.floor(G.dog.hunger||100);
       const _mood=Math.floor(G.dog.mood||100);
-      const _health=Math.floor(G.dog.health||100);
+      const _health=Math.floor((typeof G.dog.health==='number'?G.dog.health:100));
       const _slodkosc=Math.floor(G.dog.slodkosc||0);
       const _bond=Math.floor(G.dog.bond||0); /* v2.3.113 6J */
       const _clean=Math.floor(G.dog.cleanliness!=null?G.dog.cleanliness:100); /* v2.3.113 6J */
@@ -67066,6 +67080,14 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.118',date:'2026-07-11',cats:['critical','bugfix','fix'],title:'🖤 Krytyczna poprawka: śmierć działa wszędzie + zapis po akcjach',
+ items:[
+  {t:'fix',d:'🖤 KRYTYCZNA POPRAWKA: śmierć działa teraz w KAŻDYM miejscu gry. Wcześniej w dzielnicach (Underground, Business, Marina Coast) zdrowie potrafiło spaść do zera i natychmiast wrócić do pełni, przez co gracz nie trafiał do szpitala Nova Cura. Teraz spadek zdrowia do zera zawsze uruchamia pełną sekwencję — wygaszenie ekranu, przebudzenie na sali Nova Cura i rachunek za leczenie — niezależnie od tego, w której części miasta jesteś. Przyczyną był błąd, przez który każde kolejne obrażenie odbudowywało zdrowie z zera zamiast utrzymać je na zerze.'},
+  {t:'fix',d:'⚡ Ta sama poprawka objęła też energię i głód — gdy spadną do zera, nie odbijają już w górę przy kolejnych zmianach, więc wyczerpanie i jego skutki działają poprawnie w całej grze.'},
+  {t:'change',d:'💾 Gra zapisuje się teraz także po Twoich akcjach, nie tylko co 5 minut. Zagrasz koncert, zarobisz pieniądze, zdobędziesz fanów albo sławę — postęp zostaje zapisany od razu (z krótkim opóźnieniem, żeby nie spowalniać rozgrywki). Dzięki temu wyjście z gry zaraz po jakiejś akcji nie cofnie Ci już tego, co przed chwilą zdobyłeś. Zapis poprawnie utrwala też pokój i dzielnicę, w której się znajdujesz.'},
+ ],
+ },
  {
  ver:'v2.3.117',date:'2026-07-11',cats:['beta-tester','Vegan','fix','feature'],reporter:'Vegan',title:'🔧 Usprawnienia: pojazdy i ubezpieczenia, stopniowa pogoda, Dziennik aktywności i wygoda',
  items:[
@@ -83162,7 +83184,7 @@ function drawDistrictLife(){
         if(_now-(G._lastCarHitT||0) >= 3000){
           G._lastCarHitT=_now; G._stunUntilT=_now+3000; G._redFlashUntilT=_now+200;
           const _dmg=3+Math.floor(Math.random()*6);
-          if(typeof clampStat==='function') G.health=clampStat('health',(G.health||100)-_dmg); else G.health=Math.max(0,(G.health||100)-_dmg);
+          if(typeof clampStat==='function') G.health=clampStat('health',((typeof G.health==='number'?G.health:100))-_dmg); else G.health=Math.max(0,((typeof G.health==='number'?G.health:100))-_dmg);
           const _push=(c.dx>0?75:-75); G._knockbackVel={x:_push,t:_now,duration:200};
           P.wx=Math.max(0,Math.min((ROOMS[currentRoom]?.wT||100)*T-P.w, P.wx+_push*0.3));
           if(typeof showMsg==='function') showMsg(`⚠️ Potrącenie! −${_dmg} HP, chodzisz wolniej przez 3s`,'r',3500);
@@ -83783,8 +83805,8 @@ function drawCityLife(){
           G._stunUntilT = _now + 3000;
           G._redFlashUntilT = _now + 200; /* red flash overlay 200ms */
           const _dmg = 3 + Math.floor(Math.random()*6); // 3..8
-          if(typeof clampStat === 'function') G.health = clampStat('health', (G.health||100) - _dmg);
-          else G.health = Math.max(0, (G.health||100) - _dmg);
+          if(typeof clampStat === 'function') G.health = clampStat('health', ((typeof G.health==='number'?G.health:100)) - _dmg);
+          else G.health = Math.max(0, ((typeof G.health==='number'?G.health:100)) - _dmg);
           /* Smooth knockback velocity (decay 200ms ease-out) zamiast instant snap push */
           const _push = dirSign > 0 ? 75 : -75;
           G._knockbackVel = { x: _push, t: _now, duration: 200 };
