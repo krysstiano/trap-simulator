@@ -51975,7 +51975,7 @@ function renderWarsztat(){
     </div>
     <div class="res" id="warz-res">Wybierz co naprawić.</div>
     ${((G.car&&G.car.name)||(G.camper&&G.camper.owned))?`<div style="display:flex;gap:8px;margin-bottom:6px">
-      <button class="cbtn" style="flex:1" onclick="closeOverlay();if(window._vehStatusPanel)window._vehStatusPanel();">🚗 Stan pojazdu</button>
+      <button class="cbtn" style="flex:1" onclick="closeOverlay();if(window._vehStatusPanel)window._vehStatusPanel();">🚗 Stan pojazdów</button>
       <button class="cbtn" style="flex:1" onclick="closeOverlay();if(window._vehInsuranceInfo)window._vehInsuranceInfo();">🛡️ Ubezpieczenie</button>
     </div>`:''}
     <button class="cbtn" style="background:#16402e;color:#9fd;border:1px solid #2a6a4a" onclick="window.openCrafting(false)">🔨 Wytwarzanie (crafting)</button>
@@ -54972,78 +54972,161 @@ window._VEH_INSURANCE_TIERS=[
   {id:'standard', name:'Standard', weekly:1200, coverage:0.40},
   {id:'premium', name:'Premium', weekly:2500, coverage:0.60}, /* fix audytu #9: obniżone składki (proporcjonalniej; ubezpieczenie opłaca się dla droższych aut / częstych kolizji) */
 ];
+/* v2.3.117 (PDF Uspr115 W15): ubezpieczenie OSOBNE per pojazd (car/camper) + kara 5 tys. zł/dzień za brak polisy w ciągu doby od kupna. */
+window._vehOwnedKind=function(kind){ return kind==='camper'?!!(G.camper&&G.camper.owned):!!(G.car&&G.car.name); };
+window._vehKindName=function(kind){ return kind==='camper'?'kamper':'samochód'; };
 window._vehInsuranceEnsure=function(){
   if(!G.insurance||typeof G.insurance!=='object') G.insurance={};
   const ins=G.insurance;
-  if(typeof ins.tier!=='string'||['none','basic','standard','premium'].indexOf(ins.tier)<0) ins.tier='none';
-  if(!('lastChargeDay' in ins)) ins.lastChargeDay=null;
-  if(typeof ins.suspended!=='boolean') ins.suspended=false;
+  if(!ins.policies||typeof ins.policies!=='object'){
+    /* migracja starego GLOBALNEGO ubezpieczenia → polisa auta (najczęstszy pojazd); kamper start bez polisy. */
+    const legacyTier=(typeof ins.tier==='string'&&['none','basic','standard','premium'].indexOf(ins.tier)>=0)?ins.tier:'none';
+    ins.policies={
+      car:{tier:legacyTier,lastChargeDay:(typeof ins.lastChargeDay==='number'?ins.lastChargeDay:null),suspended:!!ins.suspended,purchaseDay:null,purchaseTod:0,warned12h:false,smsSent:false,lastPenaltyDay:null},
+      camper:{tier:'none',lastChargeDay:null,suspended:false,purchaseDay:null,purchaseTod:0,warned12h:false,smsSent:false,lastPenaltyDay:null}
+    };
+  }
+  ['car','camper'].forEach(k=>{
+    const p=ins.policies[k]||(ins.policies[k]={});
+    if(typeof p.tier!=='string'||['none','basic','standard','premium'].indexOf(p.tier)<0) p.tier='none';
+    if(!('lastChargeDay' in p)) p.lastChargeDay=null;
+    if(typeof p.suspended!=='boolean') p.suspended=false;
+    if(!('purchaseDay' in p)) p.purchaseDay=null;
+    if(typeof p.purchaseTod!=='number') p.purchaseTod=0;
+    if(typeof p.warned12h!=='boolean') p.warned12h=false;
+    if(typeof p.smsSent!=='boolean') p.smsSent=false;
+    if(!('lastPenaltyDay' in p)) p.lastPenaltyDay=null;
+    /* karencja: gdy pojazd posiadany a purchaseDay nieustawiony → ustaw teraz (start okna doby); gdy sprzedany → reset polisy karnej. */
+    if(window._vehOwnedKind(k)){ if(p.purchaseDay==null){ p.purchaseDay=(G.day||0); p.purchaseTod=(G.timeOfDay||0); } }
+    else { p.purchaseDay=null; p.warned12h=false; p.smsSent=false; p.lastPenaltyDay=null; }
+  });
 };
-window._vehInsuranceTier=function(){ window._vehInsuranceEnsure(); return window._VEH_INSURANCE_TIERS.find(t=>t.id===G.insurance.tier)||window._VEH_INSURANCE_TIERS[0]; };
-window._vehInsuranceCoverage=function(){ window._vehInsuranceEnsure(); if(G.insurance.suspended) return 0; return window._vehInsuranceTier().coverage; };
-/* pobór składki co 7 dni (wołane z _vehTickDaily). */
+window._vehInsurancePolicy=function(kind){ window._vehInsuranceEnsure(); return G.insurance.policies[(kind==='camper')?'camper':'car']; };
+window._vehInsuranceTier=function(kind){ const p=window._vehInsurancePolicy(kind); return window._VEH_INSURANCE_TIERS.find(t=>t.id===p.tier)||window._VEH_INSURANCE_TIERS[0]; };
+window._vehInsuranceCoverage=function(kind){ /* domyślnie auto (legacy) */ const p=window._vehInsurancePolicy(kind||'car'); if(p.suspended) return 0; const tier=window._VEH_INSURANCE_TIERS.find(t=>t.id===p.tier)||window._VEH_INSURANCE_TIERS[0]; return tier.coverage; };
+/* W15: liczba OKRESÓW doby (timeOfDay 0-3 = 4 okresy/dobę) od kupna pojazdu — do progów 12h(2)/doba(4). */
+window._vehInsuranceElapsedPeriods=function(p){ if(!p||p.purchaseDay==null) return 0; return ((G.day||0)-p.purchaseDay)*4 + ((G.timeOfDay||0)-(p.purchaseTod||0)); };
+/* §40 + W15: pobór składki PER POJAZD co 7 dni + kara 5 tys. zł/dzień za brak polisy w ciągu doby od kupna. Wołane z _vehTickDaily. */
 window._vehInsuranceTick=function(){
-  window._vehInsuranceEnsure(); const ins=G.insurance; const tier=window._vehInsuranceTier();
-  if(tier.weekly<=0) return;
-  if(ins.lastChargeDay==null){ ins.lastChargeDay=(G.day||0); return; }
-  if((G.day||0)-(ins.lastChargeDay)>=7){
-    ins.lastChargeDay=(G.day||0);
-    if((G.money||0)>=tier.weekly){ G.money-=tier.weekly; if(typeof spent==='function'){try{spent(tier.weekly);}catch(_){}} ins.suspended=false; if(typeof addNotif==='function') addNotif('🛡️ Składka ubezpieczenia pojazdu: −'+tier.weekly.toLocaleString('pl')+' zł ('+tier.name+').'); }
-    else { ins.suspended=true; if(typeof addNotif==='function') addNotif('⚠️ Brak środków na składkę ubezpieczenia — ochrona zawieszona do opłacenia (polisa NIE anulowana).'); }
-  }
+  window._vehInsuranceEnsure(); const ins=G.insurance;
+  ['car','camper'].forEach(k=>{
+    if(!window._vehOwnedKind(k)) return;
+    const p=ins.policies[k];
+    const tier=window._VEH_INSURANCE_TIERS.find(t=>t.id===p.tier)||window._VEH_INSURANCE_TIERS[0];
+    /* składka tygodniowa */
+    if(tier.weekly>0){
+      if(p.lastChargeDay==null){ p.lastChargeDay=(G.day||0); }
+      else if((G.day||0)-(p.lastChargeDay)>=7){
+        p.lastChargeDay=(G.day||0);
+        if((G.money||0)>=tier.weekly){ G.money-=tier.weekly; if(typeof spent==='function'){try{spent(tier.weekly);}catch(_){}} p.suspended=false; if(typeof addNotif==='function') addNotif('🛡️ Składka ubezpieczenia ('+window._vehKindName(k)+'): −'+tier.weekly.toLocaleString('pl')+' zł ('+tier.name+').'); }
+        else { p.suspended=true; if(typeof addNotif==='function') addNotif('⚠️ Brak środków na składkę ubezpieczenia ('+window._vehKindName(k)+') — ochrona zawieszona (polisa NIE anulowana).'); }
+      }
+    }
+    /* W15: brak polisy → SMS od razu, dialog po 12h, kara 5 tys. zł/dzień po dobie */
+    if(p.tier==='none' && p.purchaseDay!=null){
+      const per=window._vehInsuranceElapsedPeriods(p);
+      if(!p.smsSent){ p.smsSent=true; if(typeof _smsTriggerOnce==='function') _smsTriggerOnce('veh_insure_'+k,'trapinfo','🚗 Ubezpiecz swój '+window._vehKindName(k)+' w Garage 77 w ciągu doby. Brak polisy = kara 5 000 zł za każdy dzień, aż wykupisz choćby podstawowe OC. To osobna polisa dla każdego pojazdu.'); }
+      if(per>=2 && !p.warned12h){ p.warned12h=true; if(typeof window._vehUninsuredDialog==='function') window._vehUninsuredDialog(k); }
+      if(per>=4 && (p.lastPenaltyDay==null || (G.day||0)>p.lastPenaltyDay)){
+        p.lastPenaltyDay=(G.day||0);
+        const pen=5000; G.money=Math.max(0,(G.money||0)-pen); if(typeof spent==='function'){try{spent(pen);}catch(_){}}
+        if(typeof addNotif==='function') addNotif('⚠️ Kara za brak ubezpieczenia ('+window._vehKindName(k)+'): −5 000 zł/dzień. Wykup polisę w Garage 77, żeby przestała naliczać.');
+        if(typeof showMsg==='function') showMsg('⚠️ −5 000 zł: brak polisy na '+window._vehKindName(k)+'. Ubezpiecz go w Garage 77, aby zatrzymać karę.','r',6000);
+      }
+    } else { /* ubezpieczony → zresetuj karę/ostrzeżenia */ p.lastPenaltyDay=null; }
+  });
 };
-window._vehSetInsurance=function(id){
+/* W15: okno dialogowe po 12h bez polisy. */
+window._vehUninsuredDialog=function(kind){
+  const nm=window._vehKindName(kind);
+  const txt='Minęło pół doby, a Twój '+nm+' wciąż nie ma polisy. Jeśli nie ubezpieczysz go w Garage 77 do końca doby, system naliczy karę 5 000 zł za każdy dzień bez ubezpieczenia — do momentu wykupienia choćby podstawowego OC.';
+  if(typeof window._uwShowDlg==='function'){
+    window._uwShowDlg(txt,[
+      {text:'🛡️ Ubezpiecz teraz (Garage 77)', fn:()=>{ if(typeof closeNPCDlg==='function') closeNPCDlg(); if(typeof window._vehInsuranceInfo==='function') window._vehInsuranceInfo(kind); }},
+      {text:'Później', fn:()=>{ if(typeof closeNPCDlg==='function') closeNPCDlg(); }}
+    ]);
+  } else if(typeof showMsg==='function') showMsg('⚠️ '+txt,'r',8000);
+};
+window._vehSetInsurance=function(kind,id){
   window._vehInsuranceEnsure(); if(['none','basic','standard','premium'].indexOf(id)<0) return;
-  const prevTier=G.insurance.tier; G.insurance.tier=id;
-  if(id==='none'){ G.insurance.suspended=false; G.insurance.lastChargeDay=null; }
-  else if(prevTier!==id || G.insurance.lastChargeDay==null){
-    /* FIX audytu #1 (arbitraż): pobierz PIERWSZĄ składkę OD RAZU przy zmianie na płatny pakiet — pokrycie
-       nie jest darmowe, a „subskrybuj→napraw taniej→anuluj" już nie działa. */
-    const tier=window._vehInsuranceTier();
-    if((G.money||0)>=tier.weekly){ G.money-=tier.weekly; if(typeof spent==='function'){try{spent(tier.weekly);}catch(_){}} G.insurance.suspended=false; G.insurance.lastChargeDay=(G.day||0); }
-    else { G.insurance.suspended=true; G.insurance.lastChargeDay=(G.day||0); if(typeof showMsg==='function') showMsg('🛡️ Brak '+tier.weekly.toLocaleString('pl')+' zł na pierwszą składkę — polisa zapisana, ochrona zawieszona do opłacenia.','r',5000); if(typeof saveGameSilent==='function') saveGameSilent(); if(typeof window._vehInsuranceInfo==='function') window._vehInsuranceInfo(); return; }
+  if(kind!=='car'&&kind!=='camper') kind=window._vehOwnedKind('car')?'car':'camper';
+  const p=G.insurance.policies[kind]; const prevTier=p.tier; p.tier=id;
+  if(id==='none'){ p.suspended=false; p.lastChargeDay=null; }
+  else if(prevTier!==id || p.lastChargeDay==null){
+    /* pobierz PIERWSZĄ składkę OD RAZU (anty-arbitraż). */
+    const tier=window._VEH_INSURANCE_TIERS.find(t=>t.id===id)||window._VEH_INSURANCE_TIERS[0];
+    if((G.money||0)>=tier.weekly){ G.money-=tier.weekly; if(typeof spent==='function'){try{spent(tier.weekly);}catch(_){}} p.suspended=false; p.lastChargeDay=(G.day||0); }
+    else { p.suspended=true; p.lastChargeDay=(G.day||0); if(typeof showMsg==='function') showMsg('🛡️ Brak '+tier.weekly.toLocaleString('pl')+' zł na pierwszą składkę — polisa zapisana, ochrona zawieszona do opłacenia.','r',5000); if(typeof saveGameSilent==='function') saveGameSilent(); if(typeof window._vehInsuranceInfo==='function') window._vehInsuranceInfo(kind); return; }
   }
-  if(typeof showMsg==='function') showMsg('🛡️ Pakiet ubezpieczenia: '+(window._vehInsuranceTier().name)+(id!=='none'?' (składka pobrana)':'')+'.','g',4000);
-  if(typeof saveGameSilent==='function') saveGameSilent(); if(typeof window._vehInsuranceInfo==='function') window._vehInsuranceInfo();
+  if(id!=='none'){ p.lastPenaltyDay=null; } /* wykupienie zatrzymuje karę */
+  if(typeof showMsg==='function') showMsg('🛡️ Ubezpieczenie ('+window._vehKindName(kind)+'): '+((window._VEH_INSURANCE_TIERS.find(t=>t.id===id)||{}).name||id)+(id!=='none'?' (składka pobrana)':'')+'.','g',4000);
+  if(typeof saveGameSilent==='function') saveGameSilent(); if(typeof window._vehInsuranceInfo==='function') window._vehInsuranceInfo(kind);
 };
-/* §40 panel wyboru ubezpieczenia (był ghost w panelu holowania — teraz realny). */
-window._vehInsuranceInfo=function(){
+/* §40 + W15: panel wyboru ubezpieczenia PER POJAZD (przełącznik auto/kamper gdy oba posiadane). */
+window._vehInsuranceInfo=function(kind){
   window._vehInsuranceEnsure();
-  const panel=document.getElementById('mg-job'); if(!panel){ if(typeof showMsg==='function') showMsg('🛡️ Ubezpieczenie pojazdu — wybierz pakiet w warsztacie/telefonie.','i',3500); return; }
+  const carOwned=window._vehOwnedKind('car'), campOwned=window._vehOwnedKind('camper');
+  if(kind!=='car'&&kind!=='camper') kind=carOwned?'car':(campOwned?'camper':'car');
+  else if(!window._vehOwnedKind(kind)) kind=carOwned?'car':'camper';
+  const panel=document.getElementById('mg-job'); if(!panel){ if(typeof showMsg==='function') showMsg('🛡️ Ubezpieczenie pojazdu — wybierz pakiet w Garage 77.','i',3500); return; }
   panel.classList.add('on'); panel.style.display='';
-  const cur=G.insurance.tier;
-  const closeJs="var _e=document.getElementById('mg-job');_e.classList.remove('on');_e.style.display='none';_e.innerHTML='<div id=mg-job-content></div>';";/* fix audytu #2: odtwórz #mg-job-content (inaczej ~70 modali guard-return no-op) */
-  const row=(t)=>{ const active=cur===t.id; return `<button class="cbtn" style="width:100%;text-align:left;margin-bottom:6px;${active?'border-color:#2ecc71;color:#7ec87e':''}" onclick="window._vehSetInsurance('${t.id}')">${active?'✓ ':''}${t.name}${t.weekly>0?(' · '+t.weekly.toLocaleString('pl')+' zł/tydz · pokrywa '+Math.round(t.coverage*100)+'% naprawy'):' · bez ochrony'}</button>`; };
+  const p=window._vehInsurancePolicy(kind); const cur=p.tier; const em=kind==='camper'?'🚐':'🚗';
+  const closeJs="var _e=document.getElementById('mg-job');_e.classList.remove('on');_e.style.display='none';_e.innerHTML='<div id=mg-job-content></div>';";
+  const row=(t)=>{ const active=cur===t.id; return `<button class="cbtn" style="width:100%;text-align:left;margin-bottom:6px;${active?'border-color:#2ecc71;color:#7ec87e':''}" onclick="window._vehSetInsurance('${kind}','${t.id}')">${active?'✓ ':''}${t.name}${t.weekly>0?(' · '+t.weekly.toLocaleString('pl')+' zł/tydz · pokrywa '+Math.round(t.coverage*100)+'% naprawy'):' · bez ochrony'}</button>`; };
+  const bothOwned=carOwned&&campOwned;
+  const sw=(k,lbl)=>`<button class="cbtn" style="flex:1;${kind===k?'border-color:#3498db;color:#7ec8e3':''}" onclick="window._vehInsuranceInfo('${k}')">${kind===k?'● ':''}${lbl}</button>`;
+  const switcher=bothOwned?`<div style="display:flex;gap:6px;margin-bottom:8px">${sw('car','🚗 Samochód')}${sw('camper','🚐 Kamper')}</div>`:'';
+  const uninsuredWarn=(cur==='none'&&p.purchaseDay!=null)?'<div style="background:#2a1408;border:1px solid #7a3a10;border-radius:6px;padding:8px;margin-bottom:8px;color:#e6a86a;font-size:11.5px">⚠️ Ten pojazd nie ma polisy. Brak ubezpieczenia w ciągu doby od zakupu = kara 5 000 zł/dzień. Wystarczy OC podstawowe, żeby jej uniknąć.</div>':'';
   panel.innerHTML=`<div id="mg-job-content" style="max-width:440px;margin:0 auto">
-    <div style="text-align:center;font-size:18px;font-weight:800;color:#3498db;margin-bottom:8px">🛡️ Ubezpieczenie pojazdu</div>
-    <div style="font-size:11.5px;color:#8a939a;margin-bottom:10px">Składka pobierana co tydzień gry. Ochrona pokrywa część kosztu naprawy pojazdu. Brak kasy = ochrona zawieszona (polisa zostaje).${G.insurance.suspended?'<br><b style="color:#e67e22">⚠️ Ochrona zawieszona (nieopłacona składka).</b>':''}</div>
+    <div style="text-align:center;font-size:18px;font-weight:800;color:#3498db;margin-bottom:8px">🛡️ Ubezpieczenie — ${em} ${window._vehKindName(kind)}</div>
+    ${switcher}${uninsuredWarn}
+    <div style="font-size:11.5px;color:#8a939a;margin-bottom:10px">Osobna polisa dla każdego pojazdu. Składka pobierana co tydzień gry, pokrywa część kosztu naprawy. Brak kasy = ochrona zawieszona (polisa zostaje).${p.suspended?'<br><b style="color:#e67e22">⚠️ Ochrona zawieszona (nieopłacona składka).</b>':''}</div>
     ${window._VEH_INSURANCE_TIERS.map(row).join('')}
     <button class="cbtn" style="width:100%;margin-top:6px;color:#e07070;border-color:#5a1a1a" onclick="${closeJs}">← Zamknij</button></div>`;
 };
-/* §44 panel statusu pojazdu — kluczowe strefy + status + akcje. */
-window._vehStatusPanel=function(kind){
-  kind=kind||(typeof window._vehNeediestKind==='function'&&window._vehNeediestKind())||'car';
-  window._vehStateEnsure(); const d=window._vehDmg(kind); if(!d) return;
-  const panel=document.getElementById('mg-job'); if(!panel){ if(typeof showMsg==='function') showMsg('🚗 Stan pojazdu: '+Math.round(window._vehOverall(kind))+'%.','i',3500); return; }
+/* §44 + W15: panel „Stan pojazdów" — WSZYSTKIE posiadane pojazdy (auto + kamper) w osobnych sekcjach, każda z ubezpieczeniem. */
+window._vehStatusPanel=function(){
+  window._vehStateEnsure(); window._vehInsuranceEnsure();
+  const panel=document.getElementById('mg-job'); if(!panel){ if(typeof showMsg==='function') showMsg('🚗 Stan pojazdów — otwórz w Garage 77.','i',3500); return; }
   panel.classList.add('on'); panel.style.display='';
-  const em=kind==='camper'?'🚐':'🚗'; const oh=window._vehOverall(kind);
-  const nm=kind==='camper'?'Kamper':((G.car&&G.car.name)?(typeof carDisplayName==='function'?carDisplayName(G.car.name):G.car.name):'Auto');/* v2.3.115 (PDF Uspr): fikcyjna nazwa w panelu stanu pojazdu */
+  const closeJs="var _e=document.getElementById('mg-job');_e.classList.remove('on');_e.style.display='none';_e.innerHTML='<div id=mg-job-content></div>';";
   const bar=(lbl,v)=>{ v=(v==null?100:v); const col=v>=66?'#2ecc71':v>=33?'#f39c12':'#e74c3c'; return `<div style="display:flex;justify-content:space-between;font-size:12px;color:#cdd;margin-bottom:3px"><span>${lbl}</span><span style="color:${col};font-weight:700">${Math.round(v)}%</span></div>`; };
-  const closeJs="var _e=document.getElementById('mg-job');_e.classList.remove('on');_e.style.display='none';_e.innerHTML='<div id=mg-job-content></div>';";/* fix audytu #2: odtwórz #mg-job-content (inaczej ~70 modali guard-return no-op) */
-  const statusTxt=oh<=0?'unieruchomiony':oh<10?'ledwo działa':oh<35?'poważnie uszkodzony':oh<60?'uszkodzony':oh<80?'lekkie zużycie':'dobry';
-  const ohCol=oh>=66?'#2ecc71':oh>=33?'#f39c12':'#e74c3c';
-  panel.innerHTML=`<div id="mg-job-content" style="max-width:440px;margin:0 auto">
-    <div style="text-align:center;font-size:18px;font-weight:800;color:#95a5a6;margin-bottom:6px">${em} Stan pojazdu — ${nm}</div>
-    <div style="text-align:center;font-size:24px;font-weight:900;color:${ohCol}">${Math.round(oh)}%</div>
-    <div style="text-align:center;font-size:11.5px;color:#8a939a;margin-bottom:8px">Status: ${statusTxt}</div>
-    <div style="display:flex;gap:8px;margin-bottom:8px">
-      ${(function(){var mp=window._vehMechPct(kind),vp=window._vehVisualPct(kind);var mc=mp>=66?'#2ecc71':mp>=33?'#f39c12':'#e74c3c';var vc=vp>=66?'#2ecc71':vp>=33?'#f39c12':'#e74c3c';return `<div style="flex:1;text-align:center;background:#0e1216;border:1px solid #2a3238;border-radius:8px;padding:8px"><div style="font-size:10px;color:#8a939a">🔧 Mechanika (sprawność)</div><div style="font-size:18px;font-weight:800;color:${mc}">${mp}%</div></div><div style="flex:1;text-align:center;background:#0e1216;border:1px solid #2a3238;border-radius:8px;padding:8px"><div style="font-size:10px;color:#8a939a">🎨 Wygląd (blacharka)</div><div style="font-size:18px;font-weight:800;color:${vc}">${vp}%</div></div>`;})()}
-    </div>
-    <div style="background:#0e1216;border:1px solid #2a3238;border-radius:8px;padding:10px;margin-bottom:8px">
-      ${bar('Silnik',d.engine)}${bar('Zawieszenie',d.suspension)}${bar('Hamulce',d.brakes)}${bar('Koła',d.wheels)}${bar('Układ paliwowy',d.fuelSystem)}${bar('Szyby',d.windows)}${bar('Światła',d.lights)}
-    </div>
-    <button class="cbtn" style="width:100%;margin-bottom:6px" onclick="${closeJs}if(window._vehInsuranceInfo)window._vehInsuranceInfo()">🛡️ Ubezpieczenie</button>
-    ${oh<=0?`<button class="cbtn" style="width:100%;margin-bottom:6px" onclick="${closeJs}if(window._vehTowPanel)window._vehTowPanel('${kind}')">🚚 Holowanie</button>`:''}
+  const owned=[]; if(window._vehOwnedKind('car')) owned.push('car'); if(window._vehOwnedKind('camper')) owned.push('camper');
+  const section=(kind)=>{
+    const d=window._vehDmg(kind); if(!d) return '';
+    const em=kind==='camper'?'🚐':'🚗'; const oh=window._vehOverall(kind);
+    const nm=kind==='camper'?((typeof window._camperModelById==='function'&&window._camperModelById(G.camper&&G.camper.model)||{}).name||'Kamper'):((G.car&&G.car.name)?(typeof carDisplayName==='function'?carDisplayName(G.car.name):G.car.name):'Auto');
+    const statusTxt=oh<=0?'unieruchomiony':oh<10?'ledwo działa':oh<35?'poważnie uszkodzony':oh<60?'uszkodzony':oh<80?'lekkie zużycie':'dobry';
+    const ohCol=oh>=66?'#2ecc71':oh>=33?'#f39c12':'#e74c3c';
+    const mp=window._vehMechPct(kind),vp=window._vehVisualPct(kind);const mc=mp>=66?'#2ecc71':mp>=33?'#f39c12':'#e74c3c';const vc=vp>=66?'#2ecc71':vp>=33?'#f39c12':'#e74c3c';
+    const p=window._vehInsurancePolicy(kind); const tier=window._VEH_INSURANCE_TIERS.find(t=>t.id===p.tier)||window._VEH_INSURANCE_TIERS[0];
+    const insLine = p.tier==='none'
+      ? `<div style="color:#e6a86a;font-size:12px">⚠️ Brak polisy — grozi kara 5 000 zł/dzień</div>`
+      : `<div style="color:#7ec87e;font-size:12px">🛡️ ${tier.name} · pokrywa ${Math.round(tier.coverage*100)}% naprawy${p.suspended?' <span style="color:#e67e22">(zawieszona)</span>':''}</div>`;
+    return `<div style="background:#0c1118;border:1px solid ${p.tier==='none'?'#7a3a10':'#24384f'};border-radius:10px;padding:12px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-size:15px;font-weight:800;color:#cfe">${em} ${nm}</div>
+        <div style="font-size:20px;font-weight:900;color:${ohCol}">${Math.round(oh)}%</div>
+      </div>
+      <div style="font-size:10.5px;color:#8a939a;margin-bottom:6px">Status: ${statusTxt}</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <div style="flex:1;text-align:center;background:#0e1216;border:1px solid #2a3238;border-radius:8px;padding:6px"><div style="font-size:10px;color:#8a939a">🔧 Mechanika</div><div style="font-size:16px;font-weight:800;color:${mc}">${mp}%</div></div>
+        <div style="flex:1;text-align:center;background:#0e1216;border:1px solid #2a3238;border-radius:8px;padding:6px"><div style="font-size:10px;color:#8a939a">🎨 Wygląd</div><div style="font-size:16px;font-weight:800;color:${vc}">${vp}%</div></div>
+      </div>
+      <div style="background:#0e1216;border:1px solid #2a3238;border-radius:8px;padding:8px;margin-bottom:8px">
+        ${bar('Silnik',d.engine)}${bar('Zawieszenie',d.suspension)}${bar('Hamulce',d.brakes)}${bar('Koła',d.wheels)}${bar('Układ paliwowy',d.fuelSystem)}${bar('Szyby',d.windows)}${bar('Światła',d.lights)}
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        ${insLine}
+        <button class="cbtn" style="flex:none;font-size:11.5px;padding:6px 10px" onclick="${closeJs}if(window._vehInsuranceInfo)window._vehInsuranceInfo('${kind}')">🛡️ Ubezpiecz</button>
+      </div>
+      ${oh<=0?`<button class="cbtn" style="width:100%;margin-top:6px" onclick="${closeJs}if(window._vehTowPanel)window._vehTowPanel('${kind}')">🚚 Holowanie</button>`:''}
+    </div>`;
+  };
+  const body = owned.length ? owned.map(section).join('') : '<div style="color:#8a939a;font-size:13px;text-align:center;padding:20px">Nie masz jeszcze żadnego pojazdu.</div>';
+  panel.innerHTML=`<div id="mg-job-content" style="max-width:460px;margin:0 auto">
+    <div style="text-align:center;font-size:18px;font-weight:800;color:#95a5a6;margin-bottom:10px">🚗 Stan pojazdów</div>
+    ${body}
     <button class="cbtn" style="width:100%;color:#e07070;border-color:#5a1a1a" onclick="${closeJs}">← Zamknij</button></div>`;
 };
 /* §42 poważne uszkodzenie kampera → zaplecze zablokowane (kaskada destroyed), condition 0. */
@@ -55213,7 +55296,7 @@ window._vehRepairVehicle=function(kind,level){
   window._vehTrafficEnsure();
   if(G.traffic._repair){ if(typeof showMsg==='function') showMsg('🔧 Inny pojazd jest już w naprawie — odbierz go najpierw.','r',3500); return false; }
   const fullCost=window._vehRepairCost(kind,level);
-  const cov=(typeof window._vehInsuranceCoverage==='function')?window._vehInsuranceCoverage():0; /* §40 ubezpieczenie pokrywa część */
+  const cov=(typeof window._vehInsuranceCoverage==='function')?window._vehInsuranceCoverage(kind):0; /* §40 + W15: ubezpieczenie TEGO pojazdu pokrywa część naprawy */
   const cost=Math.max(0,Math.round(fullCost*(1-cov)));
   if((G.money||0)<cost){ if(typeof showMsg==='function') showMsg('💸 Za mało gotówki na naprawę ('+cost.toLocaleString('pl')+' zł).','r',3500); return false; }
   G.money-=cost; if(typeof spent==='function') spent(cost);
