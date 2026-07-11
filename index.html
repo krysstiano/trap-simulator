@@ -3644,7 +3644,7 @@ const ROOMS = {
       {id:'npc_ec_guest1',  wx:380, wy:430, w:34,  h:56,  act:null, prompt:'', lbl:''},
       {id:'npc_ec_guest2',  wx:920, wy:440, w:34,  h:56,  act:null, prompt:'', lbl:''},
       {id:'npc_ec_guest3',  wx:660, wy:250, w:34,  h:56,  act:null, prompt:'', lbl:''},
-      {id:'exit_eclipse',   wx:600, wy:600, w:64,  h:62,  act:'goto:underground:210:1140', prompt:'[E] Wyjście', lbl:'Wyjście'},
+      {id:'exit_eclipse',   wx:600, wy:600, w:64,  h:62,  act:'eclipse:exit', prompt:'[E] Wyjście', lbl:'Wyjście'},
     ]
   },
   /* v1.9.98: WINDA — PEŁNY EKRAN (27×14 jak kasyno) z przyciskami w centrum + dekoracjami */
@@ -14737,6 +14737,11 @@ function handleAct(act,objId){
   } else if(act==='eclipse:vip'){
     /* PDF new/4 (§24-25): strefa VIP — spotkanie z VIP-em (gated) */
     if(typeof window._eclipseVip==='function') window._eclipseVip();
+    return;
+  } else if(act==='eclipse:exit'){
+    /* PDF new/4 (§38): wyjście z klubu — roll paparazzi, potem powrót na Underground */
+    if(typeof window._eclipseExit==='function') window._eclipseExit();
+    else startRoomFade('underground',210,1140);
     return;
   } else if(act.startsWith('gym:')){
     const parts=act.split(':');
@@ -52639,6 +52644,11 @@ window._eclipseNoirEnsure=function(){
   const VR_DEF=[['relationship',0],['trust',0],['attraction',0],['professionalism',0],['clubAccess',0],['favorDebt',0],['privacyTrust',0],['scandalRisk',0],['lastTalkDay',-1],['metDay',-1]];
   if(!vr||typeof vr!=='object'){ const o={}; VR_DEF.forEach(([k,d])=>o[k]=d); G.npcRelations.valeriaCross=o; }
   else { VR_DEF.forEach(([k,d])=>{ if(typeof vr[k]!=='number'||!isFinite(vr[k])) vr[k]=d; }); }
+  /* BLOK 4 (§29-30,§37-38,§46,§61): ryzyko nocne — upojenie/kontrola decyzji, ślad skandalu, toksyczność, ban (save-safe). */
+  if(!c.nightlife||typeof c.nightlife!=='object'){ c.nightlife={intoxication:0,decisionControl:100,clubFatigue:0,nightlifeReputation:0,_day:0}; }
+  [['intoxication',0],['decisionControl',100],['clubFatigue',0],['nightlifeReputation',0],['_day',0]].forEach(([k,d])=>{ if(typeof c.nightlife[k]!=='number'||!isFinite(c.nightlife[k])) c.nightlife[k]=d; });
+  if(c.nightlife._day!==(G.day||0)){ c.nightlife._day=(G.day||0); c.nightlife.intoxication=Math.round((c.nightlife.intoxication||0)*0.3); c.nightlife.clubFatigue=0; } /* trzeźwiejesz między nocami */
+  [['scandalTrail',0],['paparazziHeat',0]].forEach(([k,d])=>{ if(typeof c[k]!=='number'||!isFinite(c[k])) c[k]=d; });
 };
 /* 4C (§7/§8/§64.3): mnożnik weekendowy nocy klubu. 0=Pn..4=Pt,5=So,6=Nd. */
 window.getEclipseNoirNightMultiplier=function(){
@@ -52758,6 +52768,7 @@ window._eclipseBarMG=function(){
     <div style="background:#0a0810;border:2px solid #3a2a5a;border-radius:10px;padding:16px;max-width:460px;margin:0 auto;color:#fff;width:100%">
       <h3 style="margin-top:0;color:#b98cff">🍸 Bar Eclipse Noir</h3>
       <div style="font-size:11px;color:#9a90b0;margin-bottom:6px">Barman Silas miksuje w rytm basu. Co podać?</div>
+      <div style="font-size:11px;color:#c89ab0;background:#160f26;border-radius:6px;padding:6px 8px;margin-bottom:6px">🥴 Upojenie: <b>${Math.round((G.eclipseNoir.nightlife&&G.eclipseNoir.nightlife.intoxication)||0)}</b>/100 · 🧠 Kontrola decyzji: <b>${window.updateEclipseDecisionControl()}</b>/100 <span style="color:#889">(im więcej pijesz, tym łatwiej o wpadkę)</span></div>
       ${rows}
       <button class="cbtn" style="width:100%;margin-top:8px;font-size:12px;padding:8px;color:#cdb8ff;border-color:#3a2a5a" onclick="window._eclipseSilas()">👂 Pogadaj z Silasem (plotki, VIP, napiwek)</button>
       <button class="cbtn" style="width:100%;margin-top:6px;color:#ccc" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Wyjdź</button>
@@ -52770,12 +52781,14 @@ window._eclipseBarBuy=function(id){
   G.money-=d.cost; if(typeof spent==='function')spent(d.cost);
   G.stress=(typeof clamp==='function')?clamp((G.stress||0)+d.mood,0,100):Math.min(100,(G.stress||0)+d.mood);
   G.energy=(typeof clampStat==='function')?clampStat('energy',(G.energy||0)+d.energy):Math.max(0,(G.energy||0)+d.energy);
-  c.atmosphere.intoxicationLevel=Math.max(0,Math.min(100,(c.atmosphere.intoxicationLevel||0)+d.intox));
+  if(typeof window._eclipseAddIntox==='function') window._eclipseAddIntox(d.intox); else c.atmosphere.intoxicationLevel=Math.max(0,Math.min(100,(c.atmosphere.intoxicationLevel||0)+d.intox));
   if(typeof notify==='function') notify(`${d.em} ${d.name}: +${d.mood} nastrój (−${d.cost} zł)`);
   if(typeof sfxCash==='function')try{sfxCash()}catch(e){}
   if(typeof updateHUD==='function') updateHUD();
   const _mc=document.getElementById('mg-job-content'); if(_mc)_mc.innerHTML='';
   const _mj=document.getElementById('mg-job'); if(_mj)_mj.classList.remove('on');
+  /* §39: mocna noc przy barze może skończyć się awanturą (weekend + upojenie + heat). */
+  if(typeof window._eclipseMaybeFight==='function') window._eclipseMaybeFight();
 };
 
 /* ═══ PDF new/4 (§26): PARKIET Eclipse Noir — minigra rytmu „złap groove" (precyzja timingu, INNA niż rytm VIP/lanie Velvet). ═══ */
@@ -53021,6 +53034,96 @@ window._eclipseVipAct=function(type){
     resp= (vip.gossip>=35)?'Flirt idzie gładko — ale ktoś już unosi telefon. <span style="color:#e67e22">(+plotka)</span>':'Miła wymiana spojrzeń. <span style="color:#7ec87e">(+nastrój)</span>'; }
   if(typeof updateHUD==='function') updateHUD();
   window._eclipseVip(false, window._eclipseRelResp(resp)); /* re-render tego samego VIP-a z odpowiedzią */
+};
+
+/* ═══ PDF new/4 BLOK 4: RYZYKO NOCNE — kontrola decyzji, paparazzi, bójki, policja, ban, toksyczność ═══ */
+/* §30: kontrola decyzji spada z upojeniem/zmęczeniem/stresem. */
+window.updateEclipseDecisionControl=function(){
+  window._eclipseNoirEnsure(); const n=G.eclipseNoir.nightlife;
+  const fatigue=Math.max(0,100-(G.energy||0));
+  let ctrl=100 - (n.intoxication||0)*0.45 - fatigue*0.15 - Math.max(0,(50-(G.stress||50)))*0.10 - (n.clubFatigue||0)*0.10;
+  const d=(typeof _dayOfWeek==='function')?_dayOfWeek():2; if(d===4||d===5) ctrl-=5;
+  n.decisionControl=Math.max(0,Math.min(100,Math.round(ctrl)));
+  return n.decisionControl;
+};
+/* §29: upojenie rośnie (drinki/klub). Zwraca aktualną kontrolę decyzji. */
+window._eclipseAddIntox=function(amt){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir, n=c.nightlife;
+  n.intoxication=Math.max(0,Math.min(100,(n.intoxication||0)+amt));
+  c.atmosphere.intoxicationLevel=Math.max(0,Math.min(100,(c.atmosphere.intoxicationLevel||0)+amt*0.5));
+  return window.updateEclipseDecisionControl();
+};
+window._eclipseAddToxicity=function(amt){ window._eclipseNoirEnsure(); const c=G.eclipseNoir; c.sceneToxicity=Math.max(0,Math.min(100,(c.sceneToxicity||0)+amt)); };
+/* §38: paparazzi (kontekst: wyjście/afera). Zwraca true jeśli event odpalił. */
+window._eclipseRollPaparazzi=function(context,force){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir;
+  let risk=5 + (G.fame||0)*0.15 + (G.infamy||0)*0.25 + (c.scandalTrail||0)*0.4 + (c.atmosphere.vipDensity||0)*0.1;
+  const d=(typeof _dayOfWeek==='function')?_dayOfWeek():2; if(d===4||d===5) risk+=10;
+  if(context==='leaving_with_vip') risk+=15; else if(context==='fight_nearby') risk+=20;
+  risk=Math.max(0,Math.min(75,risk));
+  const hit = force===true || (force!==false && ((Math.floor((gameMin||0)+(c._vipMet||0)*7)%100) < risk));
+  if(!hit) return false;
+  const buzz=Math.round(12+(G.fame||0)*0.08); G._socialBuzz=(G._socialBuzz||0)+buzz;
+  G.infamy=(G.infamy||0)+2; c.scandalTrail=Math.min(100,(c.scandalTrail||0)+4); c.paparazziHeat=Math.min(100,(c.paparazziHeat||0)+6);
+  if(typeof G.mediaRisk==='number') G.mediaRisk=Math.min(100,G.mediaRisk+1);
+  if(typeof showMsg==='function') showMsg(`📸 Paparazzi łapią Cię przy Eclipse Noir! Zdjęcia trafiają do sieci — szum rośnie (+${buzz}), ale reputacja obrywa.`,'i',6000);
+  return true;
+};
+/* Wyjście z klubu — roll paparazzi, potem powrót na Underground. */
+window._eclipseExit=function(){
+  window._eclipseNoirEnsure();
+  window._eclipseRollPaparazzi('leaving');
+  if(typeof startRoomFade==='function') startRoomFade('underground',210,1140);
+  else if(typeof changeRoom==='function') changeRoom('underground',210,1140);
+};
+/* §61: ban z klubu. */
+window._eclipseBan=function(days,reason){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir;
+  c.bannedUntilDay=(G.day||0)+days; c.scandalTrail=Math.min(100,(c.scandalTrail||0)+5);
+  if(G.npcRelations&&G.npcRelations.valeriaCross) G.npcRelations.valeriaCross.trust=Math.max(0,(G.npcRelations.valeriaCross.trust||0)-8);
+  if(typeof showMsg==='function') showMsg(`⛔ Zakaz wstępu do Eclipse Noir na ${days} dni. Powód: ${reason}.`,'r',7000);
+};
+/* §39: bójka przy barze — panel wyboru. */
+window._eclipseFightEvent=function(){
+  window._eclipseNoirEnsure(); const ctrl=window.updateEclipseDecisionControl();
+  const panel=document.getElementById('mg-job'); if(!panel) return;
+  panel.classList.add('on'); panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  const calmRisky=ctrl<40; /* niska kontrola → uspokajanie ryzykowne */
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="background:#0a0810;border:2px solid #c0392b;border-radius:10px;padding:16px;max-width:470px;margin:0 auto;color:#fff;width:100%">
+      <h3 style="margin-top:0;color:#e74c3c">🥊 Awantura przy barze!</h3>
+      <div style="font-size:12px;color:#e6ddff;background:#1a0e0e;border-radius:8px;padding:10px;margin-bottom:8px">Dwóch gości skacze sobie do gardeł tuż obok Ciebie. Robi się gęsto. <span style="color:#9a90b0">(kontrola decyzji: ${ctrl})</span></div>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:4px;color:#7ec87e;border-color:#27ae60" onclick="window._eclipseFightPick('leave')">🚶 Odejdź (najbezpieczniej)</button>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;color:#cdb8ff;border-color:#3a2a5a" onclick="window._eclipseFightPick('security')">🛡️ Zawołaj ochronę</button>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;color:#f1c40f;border-color:#c8a520" onclick="window._eclipseFightPick('calm')">🤝 Spróbuj uspokoić ${calmRisky?'<span style="color:#e67e22">(ryzykowne — jesteś wstawiony)</span>':''}</button>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;color:#e74c3c;border-color:#c0392b" onclick="window._eclipseFightPick('fight')">👊 Wejdź w konflikt</button>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;color:#cdb8ff;border-color:#3a2a5a" onclick="window._eclipseFightPick('record')">🎥 Nagrywaj</button>
+    </div>`;
+};
+window._eclipseFightPick=function(choice){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir, ctrl=(c.nightlife&&c.nightlife.decisionControl)||100; let msg='',type='i';
+  if(choice==='leave'){ msg='Odsuwasz się w tłum. Bez strat, bez historii.'; }
+  else if(choice==='security'){ if(G.npcRelations&&G.npcRelations.valeriaCross) G.npcRelations.valeriaCross.trust=Math.min(100,(G.npcRelations.valeriaCross.trust||0)+3); msg='Machasz na Masona — ochrona wygasza temat w 10 sekund. Klub to zapamięta. (+zaufanie klubu)'; type='g'; }
+  else if(choice==='calm'){ if(ctrl<40){ G.health=Math.max(0,(G.health||100)-8); c.streetRep=Math.min(100,(c.streetRep||0)+2); msg='Wchodzisz między nich wstawiony — obrywasz łokciem, ale rozdzielasz. (−zdrowie, +trochę szacunku)'; type='r'; } else { c.streetRep=Math.min(100,(c.streetRep||0)+4); c.reputation=Math.min(100,(c.reputation||0)+2); msg='Trzeźwo studzisz sytuację. Ludzie widzą, że masz jaja i klasę. (+szacunek)'; type='g'; } }
+  else if(choice==='fight'){ G.heat=Math.min(100,(G.heat||0)+8); G.infamy=(G.infamy||0)+3; c.scandalTrail=Math.min(100,(c.scandalTrail||0)+6); window._eclipseRollPaparazzi('fight_nearby'); window._eclipseBan(3,'udział w bójce'); msg='Wchodzisz w to na całego. Ochrona wyprowadza Cię za drzwi — jest heat, jest afera, jest zakaz.'; type='r'; }
+  else if(choice==='record'){ const b=Math.round(10+(G.fame||0)*0.06); G._socialBuzz=(G._socialBuzz||0)+b; window._eclipseAddToxicity(4); G.legalCareer&&(G.legalCareer.brandTrust=Math.max(0,(G.legalCareer.brandTrust||50)-2)); msg=`Kręcisz zamieszanie na telefon — viralowy szum (+${b}), ale wygląda to jak żerowanie (−zaufanie marek).`; type='i'; }
+  if(typeof updateHUD==='function') updateHUD();
+  const mc=document.getElementById('mg-job-content'); if(mc){ mc.innerHTML=`
+    <div style="background:#0a0810;border:2px solid #3a2a5a;border-radius:10px;padding:16px;max-width:470px;margin:0 auto;color:#fff;width:100%;text-align:center">
+      <div style="font-size:13px;color:#e6ddff;margin-bottom:12px">${msg}</div>
+      <button class="cbtn" style="width:100%;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Wróć do klubu</button>
+    </div>`; }
+};
+/* Sprawdzenie triggera bójki (§39): weekend + upojenie + heat + niska kontrola. */
+window._eclipseMaybeFight=function(){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir; window.updateEclipseDecisionControl();
+  let chance=2 + (c.atmosphere.crowdDensity||0)*0.03 + (c.nightlife.intoxication||0)*0.05 + (c.atmosphere.heatLevel||0)*0.04;
+  const d=(typeof _dayOfWeek==='function')?_dayOfWeek():2; if(d===4||d===5) chance+=4;
+  if((c.nightlife.decisionControl||100)<30) chance+=3;
+  chance=Math.max(0,Math.min(25,chance));
+  if((Math.floor((gameMin||0)*3+(c._vipMet||0)*11)%100) < chance){ window._eclipseFightEvent(); return true; }
+  return false;
 };
 
 /* ═══ 4E (§10/§11): SYSTEM KONCERTÓW Eclipse Noir — 6 slotów + calculateEclipsePerformanceScore ═══ */
@@ -65622,6 +65725,7 @@ const PATCH_NOTES = [
   {t:'new',d:'🌑 Klub nocny Eclipse Noir stoi teraz na mapie dzielnicy Underground — podejdź do niego wieczorem lub nocą i wejdź do środka! Wchodzisz do prawdziwego wnętrza klubu, po którym chodzisz jak po każdym innym budynku: scena koncertowa (sześć rodzajów występów od rozgrzewki po pokaz VIP — Twoja forma zależy od umiejętności, sławy, nastroju i tego, jak rozgrzana jest sala), bar z drinkami na poprawę nastroju i parkiet, na którym łapiesz rytm. Do klubu wejdziesz na kilka sposobów: zwykłe wejście, po znajomości, jako artysta albo za wejściówkę VIP. Klub żyje własnym rytmem i jest najgorętszy w piątkowe oraz sobotnie noce. To dopiero początek — Eclipse Noir będzie się rozrastał o nowe atrakcje i barwne postacie.'},
   {t:'new',d:'🌑 W Eclipse Noir poznasz teraz obsługę klubu i pogadasz z nią na miejscu. Managerka klubu prowadzi Cię przez występy — im lepsza relacja i im częściej rozmawiacie o scenie, tym łatwiej o lepsze sceny i dostęp do klubu. Barman naleje drinka, podzieli się plotką z sali i przyjmie napiwek, a ochrona pilnuje, kto gdzie może wejść. Każda z tych rozmów ma swój klimat i drobne konsekwencje.'},
   {t:'new',d:'🌑 W Eclipse Noir otwiera się strefa VIP na piętrze. Wejdziesz tam za wejściówkę VIP, dzięki wysokiej sławie albo dobrej relacji z managerką klubu. Na górze poznasz gości z różnych światów — biznesu, mediów, filmu, sportu i gamingu — i porozmawiasz o współpracy, zaprosisz kogoś na swój koncert, zapytasz o inwestycje albo pozwolisz sobie na flirt. Uważaj: część kontaktów to złote okazje i zastrzyk gotówki, a inne kończą się plotką w sieci albo naciąganiem na fałszywą inwestycję. Najlepsze kontakty łapiesz z umiarem — na jedną noc jest ich ograniczona liczba.'},
+  {t:'new',d:'🌑 Eclipse Noir ma teraz ciemniejszą stronę nocy. Im więcej pijesz przy barze, tym bardziej rośnie upojenie i spada Twoja kontrola nad decyzjami — a wtedy łatwiej o wpadkę (widzisz oba wskaźniki przy barze). Przy barze może wybuchnąć awantura: możesz odejść, zawołać ochronę, spróbować uspokoić sytuację (trudniej, gdy jesteś wstawiony), wejść w konflikt (heat, afera i zakaz wstępu) albo to nagrywać. Przy wyjściu z klubu czasem dopadną Cię paparazzi — zdjęcia w sieci nakręcają szum, ale odbijają się na reputacji. Gorące, skandaliczne noce zostawiają po sobie ślad, a poważne przewinienia kończą się czasowym zakazem wstępu do klubu. Między nocami trzeźwiejesz.'},
   {t:'new',d:'🗺 Nowość: osobne mapy dzielnic! W dużej mapie możesz teraz przełączać widok między Miastem a odblokowanymi dzielnicami (Underground, Marina Coast, Business) — każda ma własną mapę z budynkami i punktami. Zablokowane dzielnice są wyszarzone do czasu ich odblokowania, a mapy aktualizują się same, gdy w dzielnicy pojawiają się nowe miejsca.'},
   {t:'new',d:'🏥 Nova Cura pokazuje teraz Twój stan uzależnień w rozbiciu na kategorie (alkohol, pobudzające, imprezowe, uspokajające, opioidowe) — każda z własnym poziomem ryzyka. Widać też łączne objawy odstawienia i ostrzeżenie, gdy mieszasz różne rodzaje używek. Różne używki działają inaczej i inaczej się uzależniają, więc łatwiej świadomie zdecydować, czego potrzebujesz.'},
   {t:'new',d:'💉 W Nova Cura dostępne są teraz pełne programy wychodzenia z nałogu: krótka stabilizacja po kryzysie oraz intensywne programy (7 dni, 14 dni i dyskretny program premium). Im mocniejszy program, tym większy spadek uzależnienia, objawów odstawienia i napięcia. Kosztują sporo, ale to realna droga do odzyskania kontroli.'},
