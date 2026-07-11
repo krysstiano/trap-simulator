@@ -3453,6 +3453,8 @@ const ROOMS = {
       /* v2.3.116 (user): Eclipse Noir PRZENIESIONY z Underground do Business District. Pozycja @970,620
          zweryfikowana bezkolizyjnie (90px margines od wszystkich obiektów Business, poza jezdniami). Godziny 20-06. */
       {id:'eclipse_business',  wx:970, wy:620, w:160,h:150, act:'business_eclipse',   prompt:'[E] 🌑 Eclipse Noir (noc)',   lbl:'Eclipse Noir'},
+      /* v2.3.116 (PDF Business/golf): Aureum Green Club — prywatne pole golfowe. Pozycja @1216,696 bezkolizyjna (80px margines). Dzień 8-20. */
+      {id:'aureum_business',   wx:1216,wy:696, w:170,h:160, act:'business_aureum',    prompt:'[E] ⛳ Aureum Green Club',    lbl:'Aureum Green'},
     ]
   },
 
@@ -4205,6 +4207,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'exit_striptiz':  drawInteriorExit(sx,sy,w,h);break;
     /* PDF new/4 (Eclipse Noir): fasada budynku na mapie Underground + strefy interioru */
     case 'eclipse_business': drawEclipseClub(sx,sy,w,h);break;
+    case 'aureum_business': drawAureumClub(sx,sy,w,h);break;               /* PDF Business/golf: Aureum Green Club */
     case 'eclipse_stage':  drawEclipseStage(sx,sy,w,h);break;
     case 'eclipse_bar':    drawCasinoBar(sx,sy,w,h,'eclipse');break;
     case 'eclipse_dance':  drawEclipseDancefloor(sx,sy,w,h);break;
@@ -14520,6 +14523,7 @@ function tryInteract(){
 const PLACE_HOURS={
   'striptiz':        {o:20, c:4,  name:'Velvet Room'}, /* v2.1.919 PDF: nocny klub 20:00-04:00 (overnight); U7 v2.3.44 nazwa własna Velvet Room */
   'business_eclipse': {o:20, c:6, name:'Eclipse Noir'}, /* PDF new/4 §59 openHours: klub nocny 20:00-06:00; v2.3.116 przeniesiony do Business District */
+  'business_aureum': {o:8, c:20, name:'Aureum Green Club'}, /* PDF Business/golf: pole golfowe czynne w dzień 8-20 */
   'underground_prostytutki': {o:21, c:5, name:'Nocny zaułek'}, /* v2.1.920 PDF l.57: 21:00-05:00 (overnight; user 2026-07-02: było do 03:00) */
   // Drip district / butiki
   'shop:lv':         {o:10, c:20, name:'Luvio'},
@@ -44352,6 +44356,7 @@ window._renderDistrictOverlay=(districtId)=>{
         {id:'forbes',emoji:'📊',name:'Fortuno Studio',desc:'Quiz biznesowy 3 pytania — 3/3=trofeum, koszt vs reward',ready:true},
         {id:'steakhouse',emoji:'🥩',name:'Steakhouse',desc:'Business meeting',ready:true},
         {id:'eclipse',emoji:'🌑',name:'Eclipse Noir',desc:'Ekskluzywny klub nocny — występy, VIP loże, after-party (najmocniej nocą w weekend)',ready:true},
+        {id:'aureum',emoji:'⛳',name:'Aureum Green Club',desc:'Prywatne pole golfowe — golf, turnieje, inwestorzy i „rekiny" biznesu (dzień)',ready:true},
       ],
       meta:`Sponsor Burden: ${G._activeSponsorBurden||0}/3`,
     },
@@ -46189,6 +46194,10 @@ window._enterDistrictPlace=(districtId,placeId)=>{
     case 'business_eclipse':
       if(typeof closeOverlay==='function') closeOverlay();
       if(typeof window._openEclipseNoir==='function') window._openEclipseNoir();
+      return;
+    case 'business_aureum':
+      if(typeof closeOverlay==='function') closeOverlay();
+      if(typeof window._openAureumGreen==='function') window._openAureumGreen();
       return;
     /* v2.1.408 Faza AN.2 Etap 2: Dealer underground place — manual aktywacja Trap career (user explicit NIE auto-unlock). */
     case 'underground_dealer':
@@ -53728,6 +53737,225 @@ window._eclipseConcertResolve=function(slotKey,crowdQuality,stats){
   </div>`;
   const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content');
   if(mgJob&&mgContent){ mgContent.innerHTML=html; mgJob.classList.add('on'); }
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   PDF Business/golf: AUREUM GREEN CLUB — pole golfowe, networking inwestycyjny, turnieje, VIP, „rekiny".
+   Kontrast Eclipse Noir (§36): dzień, cisza, kapitał, ego, białe kołnierzyki. Panel-hub (§3 menu).
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+/* fasada: elegancki klub golfowy — zielony green, biały budynek klubowy, chorągiewka, bunkier piaskowy. */
+function drawAureumClub(sx,sy,w,h){
+  const t=Date.now()/1000;
+  X.fillStyle='rgba(0,0,0,.4)';X.fillRect(sx+5,sy+7,w,h);
+  /* green (trawa) */
+  const gg=X.createLinearGradient(sx,sy,sx,sy+h);gg.addColorStop(0,'#4a8a3a');gg.addColorStop(1,'#2f6a26');X.fillStyle=gg;X.fillRect(sx,sy,w,h);
+  /* falujące pasy koszenia */
+  for(let i=0;i<6;i++){ X.fillStyle=i%2?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.05)'; X.fillRect(sx,sy+i*(h/6),w,h/12); }
+  /* biały budynek klubowy */
+  X.fillStyle='#eef2f4';X.fillRect(sx+w*0.10,sy+h*0.10,w*0.52,h*0.42);
+  X.fillStyle='#c8a55a';X.fillRect(sx+w*0.10,sy+h*0.10,w*0.52,h*0.06); /* złoty gzyms */
+  X.fillStyle='#3a2a1a';X.fillRect(sx+w*0.30,sy+h*0.30,w*0.12,h*0.22); /* drzwi */
+  for(let c=0;c<3;c++){ X.fillStyle='#7ec8e3';X.fillRect(sx+w*0.14+c*w*0.10,sy+h*0.18,w*0.06,h*0.08); } /* okna */
+  /* bunkier piaskowy */
+  X.fillStyle='#e6d8a8';X.beginPath();X.ellipse(sx+w*0.78,sy+h*0.72,w*0.16,h*0.10,0,0,Math.PI*2);X.fill();
+  /* dołek + chorągiewka */
+  const fx=sx+w*0.80, fy=sy+h*0.40;
+  X.fillStyle='#1a1a1a';X.beginPath();X.ellipse(fx,fy+h*0.16,5,2.5,0,0,Math.PI*2);X.fill();
+  X.strokeStyle='#ddd';X.lineWidth=2;X.beginPath();X.moveTo(fx,fy+h*0.16);X.lineTo(fx,fy-h*0.02);X.stroke();
+  X.fillStyle='#c0392b';X.beginPath();X.moveTo(fx,fy-h*0.02);X.lineTo(fx+14+Math.sin(t*3)*2,fy+h*0.02);X.lineTo(fx,fy+h*0.06);X.closePath();X.fill();
+  /* szyld */
+  X.textAlign='center';X.textBaseline='middle';X.shadowColor='#000';X.shadowBlur=4;
+  X.fillStyle='#f1c40f';X.font='bold 12px "Segoe UI",serif';X.fillText('⛳ AUREUM',sx+w*0.36,sy+h*0.66);
+  X.font='bold 9px "Segoe UI",serif';X.fillText('GREEN CLUB',sx+w*0.36,sy+h*0.78);X.shadowBlur=0;
+  X.textAlign='left';X.textBaseline='alphabetic';
+}
+/* G1: staty golfa + businessNetwork (save-safe). */
+window._aureumEnsure=function(){
+  if(!G.golf||typeof G.golf!=='object') G.golf={skill:0,focus:0,composure:0,swingConsistency:0,putting:0,pressureHandling:0,roundsPlayed:0,tournamentsPlayed:0,tournamentsWon:0};
+  ['skill','focus','composure','swingConsistency','putting','pressureHandling','roundsPlayed','tournamentsPlayed','tournamentsWon'].forEach(k=>{ if(typeof G.golf[k]!=='number'||!isFinite(G.golf[k])) G.golf[k]=0; });
+  if(!G.businessNetwork||typeof G.businessNetwork!=='object') G.businessNetwork={};
+  const bn=G.businessNetwork;
+  [['investorTrust',0],['businessCredibility',0],['sharkPotential',0],['patienceWithEgo',0],['dealSense',0],['riskReading',0],['whiteCollarShadow',0],['aureumGreenAccess',0],['_membershipUntilDay',0],['_lastRoundDay',-1]].forEach(([k,d])=>{ if(typeof bn[k]!=='number'||!isFinite(bn[k])) bn[k]=d; });
+  if(!Array.isArray(bn.unlockedInvestorContacts)) bn.unlockedInvestorContacts=[];
+  if(!G.sharkPath||typeof G.sharkPath!=='object') G.sharkPath={unlocked:false,reputation:0,capitalDiscipline:0,networkDepth:0,moralFlexibility:0,publicLegitimacy:0,shadowLeverage:0,sharkTitleUnlocked:false,path:null};
+  ['unlocked','sharkTitleUnlocked'].forEach(k=>{ if(typeof G.sharkPath[k]!=='boolean') G.sharkPath[k]=false; });
+  ['reputation','capitalDiscipline','networkDepth','moralFlexibility','publicLegitimacy','shadowLeverage'].forEach(k=>{ if(typeof G.sharkPath[k]!=='number'||!isFinite(G.sharkPath[k])) G.sharkPath[k]=0; });
+};
+/* §4: warunki wejścia. */
+window.canEnterAureumGreen=function(){
+  window._aureumEnsure();
+  if((G.infamy||0)>=80) return {ok:false,reason:'🚫 Twoja reputacja jest zbyt toksyczna. Klub nie chce dziś ryzykować problemów.'};
+  if((G.heat||0)>=85) return {ok:false,reason:'🚔 Business District jest dziś zbyt gorący. Ochrona nie chce Cię w środku.'};
+  return {ok:true,reason:''};
+};
+window._aureumMember=function(){ window._aureumEnsure(); return (G.businessNetwork._membershipUntilDay||0) >= (G.day||0); };
+window._openAureumGreen=function(){
+  window._aureumEnsure(); const gate=window.canEnterAureumGreen();
+  if(!gate.ok){ if(typeof showMsg==='function') showMsg(gate.reason,'r',6000); return; }
+  if(window._aureumMember() || (G.businessNetwork.aureumGreenAccess||0)>=(G.day||0)){ window._aureumHub(); return; }
+  const panel=document.getElementById('mg-job'); if(!panel) return; panel.classList.add('on'); panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  const fame=(G.fame||0), bc=(G.businessNetwork.businessCredibility||0);
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="background:#0a1410;border:2px solid #2f6a26;border-radius:10px;padding:18px;max-width:520px;margin:0 auto;color:#fff;max-height:84vh;overflow-y:auto">
+      <h2 style="margin-top:0;color:#7ec87e">⛳ Aureum Green Club</h2>
+      <div style="font-size:11px;color:#9ab;margin-bottom:12px">Prywatne pole golfowe. Selekcjoner w polówce mierzy Cię wzrokiem — jak wchodzisz?</div>
+      <button class="cbtn" style="width:100%;font-size:12px;padding:9px;margin-top:4px;color:#7ec87e;border-color:#2f6a26" onclick="window._aureumEnter('once')">🎟 Wejście jednorazowe — 1200 zł</button>
+      <button class="cbtn" style="width:100%;font-size:12px;padding:9px;margin-top:5px;color:#7ec87e;border-color:#2f6a26" onclick="window._aureumEnter('day')">📅 Dzień klubowy — 3500 zł (cały dzień)</button>
+      ${(bc>=3||fame>=40)?`<button class="cbtn" style="width:100%;font-size:12px;padding:9px;margin-top:5px;color:#f1c40f;border-color:#c8a520" onclick="window._aureumEnter('vip')">🤝 Wejście przez kontakt VIP (za darmo)</button>`:''}
+      <button class="cbtn" style="width:100%;font-size:12px;padding:9px;margin-top:5px;color:#c8a55a;border-color:#8a6a2a" onclick="window._aureumEnter('member')">💎 Członkostwo miesięczne — 25 000 zł</button>
+      <button class="cbtn" style="width:100%;font-size:12px;padding:9px;margin-top:5px;color:#ccc" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">🚶 Odejdź</button>
+    </div>`;
+};
+window._aureumEnter=function(kind){
+  window._aureumEnsure(); const bn=G.businessNetwork; const gate=window.canEnterAureumGreen();
+  if(!gate.ok){ if(typeof showMsg==='function') showMsg(gate.reason,'r',6000); return; }
+  const cost=kind==='member'?25000:kind==='day'?3500:kind==='once'?1200:0;
+  if(cost>0 && (G.money||0)<cost){ if(typeof showMsg==='function') showMsg(`💰 Brakuje ${cost-(G.money||0)} zł na to wejście.`,'r',4000); return; }
+  if(cost>0){ G.money-=cost; if(typeof spent==='function')spent(cost); }
+  if(kind==='member'){ bn._membershipUntilDay=(G.day||0)+30; bn.businessCredibility=Math.min(100,(bn.businessCredibility||0)+2); if(typeof showMsg==='function') showMsg('💎 Zostałeś członkiem Aureum Green — miesiąc pełnego dostępu i prestiżu.','g',5000); }
+  else if(kind==='day'){ bn.aureumGreenAccess=(G.day||0); }
+  else { bn.aureumGreenAccess=(G.day||0); } /* once/vip — dostęp na dziś */
+  if(typeof updateHUD==='function') updateHUD();
+  window._aureumHub();
+};
+/* §3: HUB klubu (rozbudowywany o turnieje/lounge/NPC w kolejnych blokach). */
+window._aureumHub=function(){
+  window._aureumEnsure(); const g=G.golf, bn=G.businessNetwork;
+  const panel=document.getElementById('mg-job'); if(!panel) return; panel.classList.add('on'); panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  const stat=(lbl,v)=>`<span style="color:#9ab">${lbl}: <b style="color:#7ec87e">${Math.round(v)}</b></span>`;
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="background:#0a1410;border:2px solid #2f6a26;border-radius:10px;padding:16px;max-width:540px;margin:0 auto;color:#fff;max-height:84vh;overflow-y:auto">
+      <h2 style="margin-top:0;color:#7ec87e">⛳ Aureum Green Club</h2>
+      <div style="font-size:11px;color:#9ab;background:#0c1a12;border-radius:8px;padding:8px 10px;margin-bottom:10px">Tu rozmowy o pieniądzach brzmią jak żarty, a żarty często są ofertą. ${window._aureumMember()?'<b style="color:#c8a55a">(członek)</b>':''}<br>${stat('⛳ Golf',g.skill*10)} · ${stat('🤝 Zaufanie inwestorów',bn.investorTrust)} · ${stat('💼 Wiarygodność',bn.businessCredibility)} · ${stat('🦈 Potencjał rekina',bn.sharkPotential)}</div>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:13px;padding:10px;margin-top:4px;color:#7ec87e;border-color:#2f6a26" onclick="window._aureumGolfMenu()">🏌️ Zagraj rundę golfa</button>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:9px;margin-top:5px;color:#cdb;border-color:#3a5a2a" onclick="window._aureumDrivingRange()">🎯 Trening na driving range (+focus)</button>
+      <div style="font-size:11px;color:#889;text-align:center;padding:8px">Turnieje, Business Lounge, rozmowy z inwestorami i „rekinami" otwierają się w kolejnych krokach.</div>
+      <button class="cbtn" style="width:100%;margin-top:4px;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">🚪 Wyjdź z klubu</button>
+    </div>`;
+};
+/* ═══ G2: GOLF — minigra DECYZYJNA (style uderzeń + presja) ═══ */
+window._AUREUM_ROUNDS=[
+  {key:'quick',    em:'⏱', name:'Quick Round',    holes:3,  pressure:15, desc:'3 dołki, szybki networking.'},
+  {key:'standard', em:'🏌️', name:'Standard Round', holes:9,  pressure:30, desc:'9 dołków, więcej rozmów i okazji.'},
+  {key:'full',     em:'🏆', name:'Full Round',     holes:18, pressure:45, desc:'18 dołków, duży prestiż i szanse na kontakty.'},
+  {key:'private',  em:'🤝', name:'Private Match',  holes:6,  pressure:55, desc:'Gra 1 na 1 z ważnym NPC.'},
+  {key:'flight',   em:'👥', name:'Investor Flight', holes:6,  pressure:50, desc:'Grupa inwestorów, dużo rozmów biznesowych.'},
+];
+/* §8: kalkulacja uderzenia (adaptacja: G.stress=MOOD high=dobrze; fatigue=100-energia). */
+window.calculateGolfShotResult=function(style,npcPressure){
+  window._aureumEnsure(); const g=G.golf; let score=40;
+  score += g.skill*8 + g.focus*5 + g.swingConsistency*6;
+  score += (G.stress||50)*0.08 - Math.max(0,100-(G.energy||100))*0.08;
+  if(style==='safe') score+=10;
+  else if(style==='aggressive') score+= (typeof rnd==='function'?rnd(-18,22):2);
+  else if(style==='technical') score+= g.focus*4;
+  else if(style==='conservative') score+=5;
+  else if(style==='showoff') score+= (typeof rnd==='function'?rnd(-30,28):-1);
+  score -= (npcPressure||0)*0.10;
+  return Math.max(0,Math.min(100,Math.round(score)));
+};
+window._aureumGolfMenu=function(){
+  window._aureumEnsure(); const g=G.golf;
+  const panel=document.getElementById('mg-job'); if(!panel) return; panel.classList.add('on'); panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  const rows=window._AUREUM_ROUNDS.map(r=>`<button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:9px;margin-top:5px;color:#7ec87e;border-color:#2f6a26" onclick="window._aureumGolfStart('${r.key}')">${r.em} <b>${r.name}</b> — ${r.holes} dołków<br><span style="color:#9ab;font-size:11px">${r.desc}</span></button>`).join('');
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="background:#0a1410;border:2px solid #2f6a26;border-radius:10px;padding:16px;max-width:520px;margin:0 auto;color:#fff;max-height:84vh;overflow-y:auto">
+      <h3 style="margin-top:0;color:#7ec87e">🏌️ Golf — wybierz tryb</h3>
+      <div style="font-size:11px;color:#889;margin-bottom:6px">Golf to chodząca rozmowa. Wybierasz styl uderzenia na każdym dołku — talent i opanowanie robią wynik.</div>
+      ${rows}
+      <button class="cbtn" style="width:100%;margin-top:8px;color:#ccc" onclick="window._aureumHub()">← Wróć</button>
+    </div>`;
+};
+window._aureumGolfStart=function(roundType){
+  window._aureumEnsure();
+  const r=window._AUREUM_ROUNDS.find(x=>x.key===roundType); if(!r) return;
+  if((G.energy||0)<10){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii na rundę (min. 10).','r',3500); return; }
+  G._golfMG={roundType,name:r.name,holes:r.holes,pressure:r.pressure,hole:0,scores:[],lastResp:''};
+  window._aureumGolfHole();
+};
+window._aureumGolfHole=function(resp){
+  const mg=G._golfMG; if(!mg){ window._aureumHub(); return; }
+  if(mg.hole>=mg.holes){ window._aureumGolfFinish(); return; }
+  const panel=document.getElementById('mg-job'); if(!panel) return; panel.classList.add('on'); panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  const holeNo=mg.hole+1, par=[3,4,5][holeNo%3], winds=['brak','lekki boczny','porywisty','pod wiatr'], wind=winds[(holeNo+mg.hole)%4];
+  const avg=mg.scores.length?Math.round(mg.scores.reduce((a,b)=>a+b,0)/mg.scores.length):0;
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="background:#0a1410;border:2px solid #2f6a26;border-radius:10px;padding:16px;max-width:500px;margin:0 auto;color:#fff;max-height:84vh;overflow-y:auto">
+      <h3 style="margin-top:0;color:#7ec87e">🏌️ ${mg.name} · Dołek ${holeNo}/${mg.holes} <span style="font-size:12px;color:#9ab">· Par ${par}</span></h3>
+      <div style="font-size:11px;color:#9ab;background:#0c1a12;border-radius:8px;padding:8px 10px;margin-bottom:8px">💨 Wiatr: ${wind} · 🎯 Presja: ${mg.pressure<25?'niska':mg.pressure<45?'średnia':'wysoka'}${mg.scores.length?` · średnia formy: ${avg}/100`:''}</div>
+      ${resp||''}
+      <div style="font-size:11px;color:#889;margin-bottom:4px">Jak zagrasz tego dołka?</div>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:4px;color:#7ec87e;border-color:#2f6a26" onclick="window._aureumGolfShot('safe')">🟢 Bezpieczny swing <span style="color:#889">(pewny, mniej prestiżu)</span></button>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;color:#e67e22;border-color:#a85a1a" onclick="window._aureumGolfShot('aggressive')">🔶 Agresywny drive <span style="color:#889">(duży potencjał, duże ryzyko)</span></button>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;color:#7ec8e3;border-color:#2a6a8a" onclick="window._aureumGolfShot('technical')">🔷 Techniczne uderzenie <span style="color:#889">(nagradza focus, +respekt)</span></button>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;color:#cdb;border-color:#3a5a2a" onclick="window._aureumGolfShot('conservative')">⚪ Zachowawczo <span style="color:#889">(chroni wynik)</span></button>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;color:#e368b8;border-color:#7a2a5a" onclick="window._aureumGolfShot('showoff')">✨ Pokazowy strzał <span style="color:#889">(szum albo wtopa)</span></button>
+    </div>`;
+};
+window._aureumGolfShot=function(style){
+  const mg=G._golfMG; if(!mg) return; window._aureumEnsure(); const g=G.golf;
+  const res=window.calculateGolfShotResult(style,mg.pressure); mg.scores.push(res); mg.hole++;
+  /* wzrost statów golfa wg jakości i stylu */
+  if(res>=71){ g.skill=Math.min(50,g.skill+0.12); }
+  if(style==='technical'){ g.focus=Math.min(50,g.focus+0.1); }
+  if(style==='safe'||style==='conservative'){ g.swingConsistency=Math.min(50,g.swingConsistency+0.08); }
+  let line,col;
+  if(res<=25){ line='Fatalne uderzenie — piłka ląduje w krzakach. Ktoś przy stole unosi brew.'; col='#c0392b'; }
+  else if(res<=50){ line='Średnie uderzenie, bez dramatu.'; col='#e67e22'; }
+  else if(res<=70){ line='Dobre uderzenie — rozmowa idzie dalej.'; col='#f1c40f'; }
+  else if(res<=90){ line='Bardzo dobre uderzenie. Inwestorzy zaczynają traktować Cię poważniej.'; col='#7ec87e'; if(res>=80) G.businessNetwork.investorTrust=Math.min(100,(G.businessNetwork.investorTrust||0)+0.2); }
+  else { line='Uderzenie pokazowe! Rośnie respekt — ktoś zapisuje sobie Twoje nazwisko.'; col='#7ec8e3'; G.businessNetwork.businessCredibility=Math.min(100,(G.businessNetwork.businessCredibility||0)+0.3); }
+  window._aureumGolfHole(`<div style="font-size:12px;color:${col};background:#0c1a12;border-radius:6px;padding:8px;margin-bottom:8px">⛳ ${res}/100 — ${line}</div>`);
+};
+window._aureumGolfFinish=function(){
+  const mg=G._golfMG; if(!mg){ window._aureumHub(); return; } window._aureumEnsure(); const g=G.golf, bn=G.businessNetwork;
+  const avg=mg.scores.length?Math.round(mg.scores.reduce((a,b)=>a+b,0)/mg.scores.length):0;
+  g.roundsPlayed=(g.roundsPlayed||0)+1; g.putting=Math.min(50,(g.putting||0)+0.1); bn._lastRoundDay=(G.day||0);
+  /* §37: golf uspokaja (mood+), męczy (energia-); niska cierpliwość do ego → mniejszy relaks */
+  const fatigue={quick:8,standard:16,full:26,private:14,flight:14}[mg.roundType]||12;
+  G.energy=Math.max(0,(G.energy||0)-fatigue);
+  G.stress=(typeof clamp==='function')?clamp((G.stress||50)+(bn.patienceWithEgo>=2?7:3),0,100):Math.min(100,(G.stress||50)+5);
+  /* nagrody wg formy */
+  let money=0,tier,tcol,msg,bcGain=0,itGain=0;
+  if(avg<=35){ tier='Słaba runda'; tcol='#c0392b'; msg='Nie zaimponowałeś nikomu. Ludzie z kasą widzieli już wszystko.'; }
+  else if(avg<=60){ tier='Przyzwoita runda'; tcol='#e67e22'; bcGain=1; msg='Solidnie. Jedna rozmowa biznesowa zostaje w pamięci.'; money=200; }
+  else if(avg<=80){ tier='Dobra runda'; tcol='#f1c40f'; bcGain=2; itGain=1; msg='Dobra gra i dobre rozmowy — kilka osób chce mieć Twój numer.'; money=600; }
+  else { tier='Świetna runda'; tcol='#7ec87e'; bcGain=3; itGain=2; bn.sharkPotential=Math.min(100,(bn.sharkPotential||0)+1); msg='Trzymałeś nerwy i klasę. Ktoś poważny właśnie Cię zauważył.'; money=1400; }
+  bn.businessCredibility=Math.min(100,(bn.businessCredibility||0)+bcGain);
+  bn.investorTrust=Math.min(100,(bn.investorTrust||0)+itGain);
+  if(money>0){ G.money=(G.money||0)+money; }
+  if(typeof addXP==='function') addXP(10+Math.round(avg*0.3));
+  if(typeof updateHUD==='function') updateHUD(); if(typeof saveGameSilent==='function') saveGameSilent();
+  const panel=document.getElementById('mg-job'); if(!panel){ G._golfMG=null; return; } panel.classList.add('on'); panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="background:#0a1410;border:2px solid ${tcol};border-radius:10px;padding:18px;max-width:500px;margin:0 auto;color:#fff;text-align:center">
+      <div style="font-size:12px;color:#9ab">${mg.name} · ${mg.holes} dołków</div>
+      <h2 style="margin:6px 0;color:${tcol}">${tier}</h2>
+      <div style="font-size:40px;font-weight:800;color:${tcol}">${avg}<span style="font-size:15px;color:#889">/100</span></div>
+      <div style="font-size:12px;color:#cdd;margin:8px 0 12px">${msg}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:12px;background:#0c1a12;border-radius:8px;padding:10px;text-align:left">
+        <div>💰 Networking: <b style="color:${money?'#7ec87e':'#889'}">${money?'+'+money+' zł':'—'}</b></div>
+        <div>💼 Wiarygodność: <b style="color:${bcGain?'#7ec87e':'#889'}">${bcGain?'+'+bcGain:'—'}</b></div>
+        <div>🤝 Zaufanie inwest.: <b style="color:${itGain?'#7ec87e':'#889'}">${itGain?'+'+itGain:'—'}</b></div>
+        <div>😊 Nastrój: <b style="color:#7ec87e">+</b> · ⚡ Energia: <b style="color:#e67e22">−${fatigue}</b></div>
+      </div>
+      <button class="cbtn" style="width:100%;margin-top:14px;color:#fff" onclick="window._aureumHub()">← Wróć do klubu</button>
+    </div>`;
+  G._golfMG=null;
+};
+window._aureumDrivingRange=function(){
+  window._aureumEnsure(); const g=G.golf;
+  if((G.energy||0)<6){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii na trening.','r',3500); return; }
+  G.energy=Math.max(0,(G.energy||0)-6);
+  g.focus=Math.min(50,(g.focus||0)+0.5); g.swingConsistency=Math.min(50,(g.swingConsistency||0)+0.4); g.skill=Math.min(50,(g.skill||0)+0.2);
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof showMsg==='function') showMsg('🎯 Godzina na driving range — swing bardziej powtarzalny (+focus, +konsystencja). Talent rośnie z każdą koszyczkiem piłek.','g',5000);
+  window._aureumHub();
 };
 
 window._sanitizePlayerLists=function(){
@@ -66202,6 +66430,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'💾 Naprawiliśmy utrwalanie miejsca w zapisie: gdy wchodzisz do nowej lokacji (na przykład do klubu), gra zapamiętuje Twój pokój i pozycję od razu, a nie dopiero przy najbliższym auto-zapisie. Wcześniej dało się wejść gdzieś, zamknąć grę i po wczytaniu tego samego zapisu wylądować w poprzednim miejscu — teraz to naprawione.'},
   {t:'fix',d:'⏸ Naprawiliśmy pauzę w dzielnicach! Gdy zatrzymasz grę (Esc) w Underground albo Business District, ruch aut i przechodniów naprawdę zamiera. Wcześniej auta w dzielnicach jeździły dalej mimo pauzy i potrafiły Cię potrącić, mimo że gra „stała" — teraz na pauzie świat jest w pełni zatrzymany.'},
   {t:'change',d:'🖤 Śmierć (spadek zdrowia do zera) ma teraz prawdziwą oprawę. Zamiast błyskawicznego powrotu do pełni sił świat najpierw rozmywa się i ciemnieje (fade to black), a Ty budzisz się na sali Nova Cura. Zobaczysz eleganckie, wystawione okno rachunku szpitalnego z rozpisanymi kosztami leczenia (przyjęcie, stabilizacja i regeneracja, doba obserwacji), a przycisk „Zapłać i wstań" wraca Cię do gry tuż przy szpitalu — z pełnym zdrowiem, energią i sytością. Podczas gaśnięcia świat jest zamrożony, więc nic Cię już nie potrąci ani nie dobije.'},
+  {t:'new',d:'⛳ Nowe miejsce w Business District: prywatne pole golfowe Aureum Green Club! Wejdź (jednorazowo, na cały dzień, przez kontakt VIP albo wykup miesięczne członkostwo) i zagraj rundę golfa — to nie zwykły sport, lecz chodząca rozmowa biznesowa. Na każdym dołku wybierasz styl uderzenia (bezpieczny, agresywny, techniczny, zachowawczy albo pokazowy), a wynik zależy od Twojego talentu golfowego, opanowania i nastroju. Dobre rundy budują Twoją wiarygodność biznesową i zaufanie inwestorów, a trening na driving range podszlifuje swing. To dopiero początek — kolejne atrakcje pola golfowego dojdą w następnych aktualizacjach.'},
   {t:'new',d:'🗺 Nowość: osobne mapy dzielnic! W dużej mapie możesz teraz przełączać widok między Miastem a odblokowanymi dzielnicami (Underground, Marina Coast, Business) — każda ma własną mapę z budynkami i punktami. Zablokowane dzielnice są wyszarzone do czasu ich odblokowania, a mapy aktualizują się same, gdy w dzielnicy pojawiają się nowe miejsca.'},
   {t:'new',d:'🏥 Nova Cura pokazuje teraz Twój stan uzależnień w rozbiciu na kategorie (alkohol, pobudzające, imprezowe, uspokajające, opioidowe) — każda z własnym poziomem ryzyka. Widać też łączne objawy odstawienia i ostrzeżenie, gdy mieszasz różne rodzaje używek. Różne używki działają inaczej i inaczej się uzależniają, więc łatwiej świadomie zdecydować, czego potrzebujesz.'},
   {t:'new',d:'💉 W Nova Cura dostępne są teraz pełne programy wychodzenia z nałogu: krótka stabilizacja po kryzysie oraz intensywne programy (7 dni, 14 dni i dyskretny program premium). Im mocniejszy program, tym większy spadek uzależnienia, objawów odstawienia i napięcia. Kosztują sporo, ale to realna droga do odzyskania kontroli.'},
