@@ -17082,6 +17082,11 @@ function changeRoom(id,wx,wy){
       }
     }, 900);
   }
+  /* v2.3.116 FIX (user: „wszedłem do Eclipse Noir, zamknąłem grę, wróciłem na save i byłem z powrotem w Studio —
+     jakby gra się nie zapisała"). ROOT: changeRoom NIE utrwalał zmiany pokoju — wejście do lokacji ginęło,
+     dopóki nie zadziałał autosave (co 5 min) lub inna akcja zapisująca. Teraz KAŻDA zmiana pokoju planuje zapis
+     (debounce 800ms, pomija menu/minigry) → pozycja i pokój utrwalone tuż po wejściu, nie po 5 minutach. */
+  if(window._gameStarted && typeof saveGameSilent==='function') saveGameSilent();
 }
 
 // ── Mood & sleep penalty helpers ──
@@ -53525,8 +53530,8 @@ window._eclipseConcertPanel=function(){
       ${lock
         ? `<div style="font-size:11px;color:#c0392b;margin-top:5px">🔒 ${lock}</div>`
         : `<div style="display:flex;align-items:center;gap:8px;margin-top:6px">
-             <div style="flex:1;font-size:10px;color:#7ec87e">prognoza formy: ~${proj}/100</div>
-             <button class="cbtn" style="font-size:11px;padding:5px 10px;color:#e368b8;border-color:#7a2a5a" ${(playedToday||blockers.length)?'disabled':''} onclick="window._eclipsePerform('${s.key}')">🎤 Zagraj</button>
+             <div style="flex:1;font-size:10px;color:#7ec87e">Twój potencjał sceniczny: ~${proj}/100 <span style="color:#889">(reszta zależy od występu)</span></div>
+             <button class="cbtn" style="font-size:11px;padding:5px 10px;color:${(playedToday||blockers.length)?'#8a6a7a':'#e368b8'};border-color:#7a2a5a" onclick="window._eclipsePerform('${s.key}')">🎤 Wejdź na scenę</button>
            </div>`}
     </div>`;
   }).join('');
@@ -53543,55 +53548,161 @@ window._eclipseConcertPanel=function(){
   const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content');
   if(mgJob&&mgContent){ mgContent.innerHTML=html; mgJob.classList.add('on'); }
 };
+/* §10-11 PRZEBUDOWA (user: „koncerty zbyt prymitywne, NIE click=nagroda"): występ to teraz MINIGRA sceniczna.
+   Pre-checki dają JASNY komunikat (fix: klik slotu po zagraniu nic nie robił). */
 window._eclipsePerform=function(slotKey){
   window._eclipseNoirEnsure(); const c=G.eclipseNoir;
   const slot=window._ECLIPSE_SLOTS.find(s=>s.key===slotKey); if(!slot) return;
-  if(window._eclipseSlotLocked(slot)){ if(typeof showMsg==='function') showMsg('🔒 Ten slot jest jeszcze zablokowany.','r',3500); return; }
-  if(c.lastConcertDay===(G.day||0)){ if(typeof showMsg==='function') showMsg('🌙 Zagrałeś już dziś. Wróć jutrzejszej nocy.','i',4000); return; }
-  if((G.energy||0)<15){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii na występ (min. 15).','r',3500); return; }
-  const score=window.calculateEclipsePerformanceScore(slotKey);
-  const nightMult=window.getEclipseNoirNightMultiplier();
+  if(window._eclipseSlotLocked(slot)){ if(typeof showMsg==='function') showMsg(`🔒 Ten występ jest jeszcze zablokowany — ${window._eclipseSlotLocked(slot)}.`,'r',4500); return; }
+  if(c.lastConcertDay===(G.day||0)){ if(typeof showMsg==='function') showMsg('🌙 Zagrałeś już dziś swój set w Eclipse Noir. Scena należy do kogoś innego — wróć jutrzejszej nocy.','i',5000); return; }
+  const mood=(G.stress||50), heat=(G.heat||0), crisis=(G.novacura&&G.novacura.mentalCrisisLevel)||0;
+  if((G.energy||0)<15){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii na występ (potrzeba min. 15). Odpocznij albo coś zjedz.','r',4000); return; }
+  if(mood<20){ if(typeof showMsg==='function') showMsg('😞 Nastrój za niski, żeby wejść na scenę. Ogarnij głowę, zanim staniesz przed tłumem.','r',4500); return; }
+  if(heat>=70){ if(typeof showMsg==='function') showMsg('🚔 Za świeży syf z policją — dziś lepiej nie świecić twarzą ze sceny.','r',4500); return; }
+  if(crisis>=2){ if(typeof showMsg==='function') showMsg('🧠 Jesteś w kryzysie — najpierw zadbaj o siebie (Nova Cura), scena poczeka.','r',4500); return; }
+  /* commit: bierzesz scenę (energia + zużycie próby) — reszta zależy od występu w minigrze */
   G.energy=Math.max(0,(G.energy||0)-15);
   c.lastConcertDay=(G.day||0); c.concertsPlayed=(c.concertsPlayed||0)+1;
+  window._eclipseLiveMG(slotKey);
+};
+/* MINIGRA WYSTĘPU „Trzymaj tłum" — energia tłumu opada; trafiaj bity w rytm, żeby ją podbijać (combo).
+   INNA niż parkiet(sweep)/VIP(4 tory)/bar(słupek): zarządzanie opadającą energią + bity HYPE. Umiejętności
+   (calculateEclipsePerformanceScore) ustawiają sufit/łatwość (start, tempo, okno), Twój występ resztę. */
+window._eclipseLiveMG=function(slotKey){
+  window._eclipseNoirEnsure();
+  const slot=window._ECLIPSE_SLOTS.find(s=>s.key===slotKey)||{emoji:'🎤',name:'Występ'};
+  const skill=window.calculateEclipsePerformanceScore(slotKey); /* 0-100 sufit/łatwość */
+  const W=680,H=340,col='#e368b8';
+  const panel=document.getElementById('mg-job'); if(!panel){ window._eclipseConcertResolve(slotKey,40); return; }
+  panel.classList.add('on'); panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="display:flex;flex-direction:column;align-items:center;gap:8px;width:100%">
+      ${(typeof _gigHeaderHtml==='function')?_gigHeaderHtml(slot.emoji,slot.name+' — występ na żywo',col):'<h3 style="color:#e368b8">🎤 '+slot.name+'</h3>'}
+      <span style="color:#9ab;font-size:12px;font-family:'Segoe UI',sans-serif">Energia tłumu OPADA. Kliknij / SPACJA, gdy bit wpada w świecącą strefę — trzymaj tłum w rytmie. Złote bity 🔥 (HYPE) dają najwięcej. Utrzymaj wysoką energię do końca setu.</span>
+      <canvas id="ec-cv" width="${W}" height="${H}" style="border-radius:8px;cursor:pointer;background:linear-gradient(180deg,#1a0a18,#0a0410)"></canvas>
+      <button class="cbtn" onclick="if(window._jobMgCleanup)window._jobMgCleanup()">← Zejdź ze sceny</button>
+    </div>`;
+  const cv=document.getElementById('ec-cv');const ctx=(typeof _crispCanvas==='function')?_crispCanvas(cv,W,H):cv.getContext('2d');
+  const startEnergy=25+skill*0.25, decay=0.16, speed=3.3-skill*0.012, tol=26+skill*0.24, hitX=140, TOTAL=18;
+  let over=false,raf,energy=startEnergy,combo=0,maxCombo=0,hits=0,spawned=0,spawnT=999,resolved=0,flash=0,crowdBob=0,peakLow=100;
+  const beats=[],floats=[];
+  function spawn(){ const hype=(spawned>0 && spawned%5===4); beats.push({x:W+20,hype,hit:false,dead:false}); spawned++; }
+  function endGame(){
+    if(over)return;over=true;cancelAnimationFrame(raf);clearInterval(timer);
+    cv.removeEventListener('click',onTap);cv.removeEventListener('touchstart',onTouch);document.removeEventListener('keydown',onKey);
+    const crowdQuality=Math.max(0,Math.min(100,Math.round(energy*0.55 + (hits/TOTAL)*45)));
+    if(typeof window._eclipseConcertResolve==='function') window._eclipseConcertResolve(slotKey,crowdQuality,{hits,total:TOTAL,maxCombo,energy:Math.round(energy)});
+  }
+  function tap(){
+    if(over)return;
+    let best=null,bd=1e9; for(const b of beats){ if(b.hit||b.dead)continue; const d=Math.abs(b.x-hitX); if(d<bd){bd=d;best=b;} }
+    if(best && bd<=tol){
+      best.hit=true;resolved++;hits++;combo++;maxCombo=Math.max(maxCombo,combo);
+      const perfect=bd<=tol*0.4; const base=best.hype?(perfect?17:12):(perfect?9:6);
+      const gain=base*(1+Math.min(combo,12)*0.03);
+      energy=Math.min(100,energy+gain); flash=best.hype?1:0.6;
+      floats.push({x:best.x,y:H*0.44,txt:best.hype?'🔥 HYPE!':(perfect?'PERFECT':'+'),col:best.hype?'#ffd86a':'#7ec87e',life:1});
+      if(typeof _gigBurst==='function')_gigBurst(best.x,H*0.5,best.hype?'#ffd86a':'#e368b8',best.hype?16:9);
+    } else {
+      combo=0; energy=Math.max(0,energy-3); flash=0.3;
+      if(typeof _gigFlash==='function')_gigFlash('120,40,60');
+    }
+  }
+  function onTap(){tap();}
+  function onTouch(e){e.preventDefault();tap();}
+  function onKey(e){ if(e.code==='Space'||e.key===' '){ e.preventDefault(); tap(); } }
+  cv.addEventListener('click',onTap);cv.addEventListener('touchstart',onTouch,{passive:false});document.addEventListener('keydown',onKey);
+  const timer=setInterval(()=>{ if(over){clearInterval(timer);return;} },250);
+  if(typeof _gigFXReset==='function')_gigFXReset();
+  function draw(){
+    if(over)return;
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#140812';ctx.fillRect(0,0,W,H);
+    /* tłum (sylwetki) reagujący na energię */
+    const bob=Math.sin(Date.now()/ (energy>60?120:220))* (energy/100)*8; crowdBob=bob;
+    ctx.fillStyle='rgba(60,20,50,0.9)';
+    for(let i=0;i<14;i++){ const cx=20+i*48; const hh=26+((i*37)%14) + (energy>50?Math.abs(Math.sin(Date.now()/150+i))*(energy/100)*14:0); ctx.fillRect(cx,H-hh-6,26,hh); ctx.beginPath();ctx.arc(cx+13,H-hh-6,10,0,Math.PI*2);ctx.fill(); }
+    /* pasek energii tłumu */
+    ctx.fillStyle='#2a0f22';ctx.fillRect(20,14,W-40,18);
+    const eg=ctx.createLinearGradient(20,0,W-20,0); eg.addColorStop(0,'#c0392b');eg.addColorStop(0.5,'#e67e22');eg.addColorStop(1,'#7ec87e');
+    ctx.fillStyle=eg;ctx.fillRect(20,14,(W-40)*energy/100,18);
+    ctx.strokeStyle='#7a2a5a';ctx.lineWidth=1.5;ctx.strokeRect(20,14,W-40,18);
+    ctx.fillStyle='#fff';ctx.font='bold 11px "Segoe UI",sans-serif';ctx.textAlign='left';ctx.fillText('🔥 ENERGIA TŁUMU',24,46);
+    ctx.textAlign='right';ctx.fillText(`bity ${hits}/${TOTAL} · combo ${combo}`,W-24,46);ctx.textAlign='left';
+    /* strefa trafienia (NOW) */
+    const pulse=0.5+0.35*Math.sin(Date.now()/160);
+    ctx.fillStyle=`rgba(227,104,184,${pulse*0.35})`;ctx.fillRect(hitX-tol,H*0.42,tol*2,60);
+    ctx.strokeStyle='#e368b8';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(hitX,H*0.40);ctx.lineTo(hitX,H*0.42+60);ctx.stroke();
+    /* spawner */
+    spawnT++; const interval=Math.max(22,34 - Math.floor(hits*0.3));
+    if(spawnT>interval && spawned<TOTAL){ spawnT=0; spawn(); }
+    /* bity */
+    for(let i=beats.length-1;i>=0;i--){ const b=beats[i];
+      if(!b.hit){ b.x-=speed; if(b.x < hitX-tol-6 && !b.dead){ b.dead=true;resolved++;combo=0;energy=Math.max(0,energy-(b.hype?8:5)); floats.push({x:hitX,y:H*0.44,txt:'miss',col:'#c0392b',life:1}); } }
+      if(b.hit || b.dead){ if(b.x< -30 || b.hit){ beats.splice(i,1); continue; } }
+      const y=H*0.42+30; const r=b.hype?18:13;
+      ctx.beginPath();ctx.arc(b.x,y,r,0,Math.PI*2);
+      ctx.fillStyle=b.hype?'#e8b84a':'#b0407a';ctx.fill();
+      ctx.lineWidth=2;ctx.strokeStyle=b.hype?'#ffe08a':'#e368b8';ctx.stroke();
+      ctx.font=(b.hype?'15px':'12px')+' "Segoe UI Emoji",Arial';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#fff';ctx.fillText(b.hype?'🔥':'♪',b.x,y);ctx.textBaseline='alphabetic';ctx.textAlign='left';
+    }
+    /* floaty */
+    for(let i=floats.length-1;i>=0;i--){ const f=floats[i];f.y-=0.8;f.life-=0.02;if(f.life<=0){floats.splice(i,1);continue;} ctx.globalAlpha=Math.max(0,f.life);ctx.fillStyle=f.col;ctx.font='bold 13px "Segoe UI",sans-serif';ctx.textAlign='center';ctx.fillText(f.txt,f.x,f.y);ctx.textAlign='left';ctx.globalAlpha=1; }
+    /* decay energii */
+    energy=Math.max(0,energy-decay); peakLow=Math.min(peakLow,energy);
+    if(flash>0){ ctx.fillStyle=`rgba(227,104,184,${flash*0.12})`;ctx.fillRect(0,0,W,H); flash-=0.06; }
+    if(typeof _gigDrawFX==='function')_gigDrawFX(ctx,W,H);
+    /* koniec: wszystkie bity rozliczone */
+    if(spawned>=TOTAL && resolved>=TOTAL){ endGame(); return; }
+    raf=requestAnimationFrame(draw);
+  }
+  raf=requestAnimationFrame(draw);
+  window._jobMgCleanup=()=>{ over=true;cancelAnimationFrame(raf);clearInterval(timer);cv.removeEventListener('click',onTap);cv.removeEventListener('touchstart',onTouch);document.removeEventListener('keydown',onKey);
+    /* zejście w trakcie = słaby występ z tego, co zdążyłeś (nie darmowe wyjście — próba zużyta) */
+    if(typeof window._eclipseConcertResolve==='function'){ const cq=Math.max(0,Math.min(100,Math.round(energy*0.4+(hits/TOTAL)*30))); window._eclipseConcertResolve(slotKey,cq,{hits,total:TOTAL,maxCombo,energy:Math.round(energy),aborted:true}); }
+    else { panel.classList.remove('on');panel.style.display='none';const _mc=document.getElementById('mg-job-content');if(_mc)_mc.innerHTML=''; }
+  };
+};
+/* Rozliczenie występu: finalScore = miks umiejętności (sufit) i jakości występu (Twój set). Potem nagrody. */
+window._eclipseConcertResolve=function(slotKey,crowdQuality,stats){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir;
+  const slot=window._ECLIPSE_SLOTS.find(s=>s.key===slotKey)||{emoji:'🎤',name:'Występ',baseMoney:400};
+  const skill=window.calculateEclipsePerformanceScore(slotKey);
+  const score=Math.max(0,Math.min(100,Math.round(skill*0.45 + (crowdQuality||0)*0.55))); /* występ waży więcej niż sam talent */
+  const nightMult=window.getEclipseNoirNightMultiplier();
   if(score>(c.bestConcertScore||0)) c.bestConcertScore=score;
-  /* nagroda: baza × (0.35 + score/100 ×0.9) × mnożnik nocy */
   const money=Math.round(slot.baseMoney*(0.35+score/100*0.9)*nightMult/10)*10;
-  /* fani/szum wg tiera formy */
   let fansGain=0, buzzGain=0, moodDelta=0, tier='', tierColor='', msg='';
-  if(score<=30){ tier='Słaby występ'; tierColor='#c0392b'; fansGain=0; buzzGain=0; moodDelta=-8; c.sceneToxicity=Math.min(100,(c.sceneToxicity||0)+6); msg='Publika buczy, w komentarzach jadą po Tobie. Schodzisz ze sceny z ciężką głową.'; }
-  else if(score<=55){ tier='Poprawny występ'; tierColor='#e67e22'; fansGain=Math.round(6+score*0.3); buzzGain=Math.round(score*0.2); moodDelta=2; msg='Bez fajerwerków, ale ludzie klaskali. Kilka nowych osób Cię zapamiętało.'; }
-  else if(score<=75){ tier='Dobry występ'; tierColor='#f1c40f'; fansGain=Math.round(20+score*0.7); buzzGain=Math.round(score*0.5); moodDelta=6; msg='Parkiet się rozgrzał! Szum w social rośnie, ktoś pisze do Ciebie w DM.'; }
-  else if(score<=90){ tier='Bardzo dobry występ'; tierColor='#7ec87e'; fansGain=Math.round(40+score*1.0); buzzGain=Math.round(score*0.8); moodDelta=10; msg='Klub oszalał. VIP-y z piętra zaczynają pytać, kim jesteś.'; }
-  else { tier='NOC PRZEŁOMOWA'; tierColor='#e368b8'; fansGain=Math.round(70+score*1.4); buzzGain=Math.round(score*1.1); moodDelta=14; c.reputation=Math.min(100,(c.reputation||0)+8); msg='To była TA noc. Cały klub śpiewa z Tobą. Ludzie, którzy się liczą, właśnie Cię zauważyli.'; }
-  /* aplikacja */
+  if(score<=30){ tier='Słaby występ'; tierColor='#c0392b'; fansGain=0; buzzGain=0; moodDelta=-8; c.sceneToxicity=Math.min(100,(c.sceneToxicity||0)+6); msg='Tłum ostygł, publika buczy, w komentarzach jadą po Tobie. Schodzisz ze sceny z ciężką głową.'; }
+  else if(score<=55){ tier='Poprawny występ'; tierColor='#e67e22'; fansGain=Math.round(6+score*0.3); buzzGain=Math.round(score*0.2); moodDelta=2; msg='Bez fajerwerków, ale utrzymałeś salę. Kilka nowych osób Cię zapamiętało.'; }
+  else if(score<=75){ tier='Dobry występ'; tierColor='#f1c40f'; fansGain=Math.round(20+score*0.7); buzzGain=Math.round(score*0.5); moodDelta=6; msg='Parkiet się rozgrzał, trzymałeś rytm! Szum w social rośnie, ktoś pisze do Ciebie w DM.'; }
+  else if(score<=90){ tier='Bardzo dobry występ'; tierColor='#7ec87e'; fansGain=Math.round(40+score*1.0); buzzGain=Math.round(score*0.8); moodDelta=10; msg='Klub oszalał, tłum śpiewał z Tobą. VIP-y z piętra zaczynają pytać, kim jesteś.'; }
+  else { tier='NOC PRZEŁOMOWA'; tierColor='#e368b8'; fansGain=Math.round(70+score*1.4); buzzGain=Math.round(score*1.1); moodDelta=14; c.reputation=Math.min(100,(c.reputation||0)+8); msg='To była TA noc. Trzymałeś energię do ostatniego bitu — cały klub śpiewał z Tobą. Ludzie, którzy się liczą, właśnie Cię zauważyli.'; }
   G.money=(G.money||0)+money;
   if(fansGain>0 && typeof addFans==='function') addFans(fansGain); else if(fansGain>0) G.fans=(G.fans||0)+fansGain;
   if(buzzGain>0){ G._socialBuzz=(G._socialBuzz||0)+buzzGain; }
   G.stress=(typeof clampStat==='function')?clampStat('stress',(G.stress||50)+moodDelta):Math.max(0,Math.min(100,(G.stress||50)+moodDelta));
   if(typeof addXP==='function') addXP(20+Math.round(score*0.5));
   c.reputation=Math.min(100,(c.reputation||0)+Math.round(score*0.03));
-  /* 91-100: flaga na reakcje managerów/sponsora/S9 w kolejnych fazach (§11 wynik 91-100) */
   if(score>=91){ c._breakthroughPending=true; c._breakthroughDay=(G.day||0); }
-  /* afterparty/midnight — większe ryzyko plotki (paparazzi/toxicity) */
   if((slotKey==='afterparty'||slotKey==='midnight') && score<56){ c.atmosphere.paparazziRisk=Math.min(100,(c.atmosphere.paparazziRisk||0)+10); }
   if(typeof updateHUD==='function') updateHUD();
   if(typeof saveGameSilent==='function') saveGameSilent();
-  /* ekran wyniku */
+  const st=stats||{}; const perfLine=(typeof st.hits==='number')?`<div style="font-size:11px;color:#9ab;margin-bottom:8px">Twój set: ${st.hits}/${st.total} bitów w rytm · najdłuższe combo ${st.maxCombo||0} · energia tłumu na finał ${st.energy||0}%${st.aborted?' · (zszedłeś wcześniej)':''}</div>`:'';
   const html=`<div style="background:#0a0810;border:2px solid ${tierColor};border-radius:10px;padding:20px;max-width:560px;margin:0 auto;color:#fff;text-align:center">
     <div style="font-size:12px;color:#9a8">${slot.emoji} ${slot.name}</div>
     <h2 style="margin:6px 0;color:${tierColor}">${tier}</h2>
     <div style="font-size:42px;font-weight:800;color:${tierColor};margin:4px 0">${score}<span style="font-size:16px;color:#889">/100</span></div>
-    <div style="font-size:12px;color:#cdd;margin:10px 0 14px">${msg}</div>
+    ${perfLine}
+    <div style="font-size:12px;color:#cdd;margin:6px 0 14px">${msg}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:12px;background:#140a14;border-radius:8px;padding:10px;text-align:left">
       <div>💰 Zarobek: <b style="color:#7ec87e">+${money} zł</b></div>
       <div>👥 Fani: <b style="color:${fansGain?'#7ec87e':'#889'}">${fansGain?'+'+fansGain:'—'}</b></div>
       <div>📣 Szum: <b style="color:${buzzGain?'#7ec87e':'#889'}">${buzzGain?'+'+buzzGain:'—'}</b></div>
       <div>😊 Nastrój: <b style="color:${moodDelta>=0?'#7ec87e':'#c0392b'}">${moodDelta>=0?'+':''}${moodDelta}</b></div>
     </div>
-    <div style="display:flex;gap:8px;margin-top:14px">
-      <button class="cbtn" style="flex:1;color:#e368b8;border-color:#7a2a5a" onclick="window._eclipseConcertPanel()">🎤 Panel koncertów</button>
-      <button class="cbtn" style="flex:1;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">🚪 Na parkiet</button>
-    </div>
+    <button class="cbtn" style="width:100%;margin-top:14px;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">🚪 Zejdź na parkiet</button>
   </div>`;
   const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content');
   if(mgJob&&mgContent){ mgContent.innerHTML=html; mgJob.classList.add('on'); }
@@ -66064,6 +66175,9 @@ const PATCH_NOTES = [
   {t:'new',d:'🌑 Eclipse Noir ma teraz ciemniejszą stronę nocy. Im więcej pijesz przy barze, tym bardziej rośnie upojenie i spada Twoja kontrola nad decyzjami — a wtedy łatwiej o wpadkę (widzisz oba wskaźniki przy barze). Przy barze może wybuchnąć awantura: możesz odejść, zawołać ochronę, spróbować uspokoić sytuację (trudniej, gdy jesteś wstawiony), wejść w konflikt (heat, afera i zakaz wstępu) albo to nagrywać. Przy wyjściu z klubu czasem dopadną Cię paparazzi — zdjęcia w sieci nakręcają szum, ale odbijają się na reputacji. Gorące, skandaliczne noce zostawiają po sobie ślad, a poważne przewinienia kończą się czasowym zakazem wstępu do klubu. Między nocami trzeźwiejesz.'},
   {t:'new',d:'🌑 Noce w Eclipse Noir mają teraz swoje kulminacje i skutki. Po naprawdę mocnym występie może trafić Ci się „Noc przełomowa" — jedna decyzja, która potrafi pchnąć karierę mocno do przodu (albo w ryzyko): zagraj set życia, zrób networking z VIP-ami albo zamień to w viralowy content. Po zbyt ostrej nocy ciało wystawia rachunek — spada nastrój i energia, a gra podpowie odpoczynek lub wizytę w Nova Cura. A gdy Twoje nazwisko zbyt mocno zrośnie się z aferami, odezwie się agencja S9 z kontrolą kryzysową: za odpowiednią kwotę wyciszą szum wokół skandali i pomogą odbudować wizerunek.'},
   {t:'new',d:'🌑 Noc w Eclipse Noir ma teraz swój ciąg dalszy poza samym klubem. Po wyjściu potrafią sypnąć się wiadomości w telefonie — od poznanych osób, mediów czy marek, a czasem ktoś podrzuci propozycję napisania tekstu „bez oznaczania". Po naprawdę dobrej nocy managerka może przenieść afterparty na Marinę i wciągnąć Cię tam bez kolejki i opłaty. W ścisku na parkiecie uważaj na kieszonkowców — możesz sam paść ofiarą albo złapać złodzieja na gorącym uczynku i dać znać ochronie. Gdy wsiadasz za kółko po ostrej nocy, gra ostrzeże Cię przed prowadzeniem po alkoholu. A znajomi z show-biznesu, Marcin i Kamil, reagują SMS-em na Twoje klubowe sukcesy oraz wpadki.'},
+  {t:'change',d:'🎤 Koncerty w Eclipse Noir to teraz PRAWDZIWY występ na żywo, a nie jedno kliknięcie! Gdy wchodzisz na scenę, grasz minigrę „Trzymaj tłum": energia widowni cały czas opada, a Ty utrzymujesz salę, trafiając bity w rytm (klik lub SPACJA) i łapiąc złote momenty HYPE 🔥 (dają najwięcej). Im dłużej utrzymasz wysoką energię do końca setu i im dłuższe złapiesz combo, tym lepszy występ. Twój talent — umiejętności sceniczne, sława, styl i nastrój — ustawia teraz tylko sufit i ułatwia grę (wolniejsze tempo, szersze okno trafienia), ale o wyniku decyduje sam występ. Słaby set = słaby wieczór nawet dla gwiazdy. Po występie widzisz swój wynik, ile bitów trafiłeś, najdłuższe combo i nagrody (kasa, fani, szum).'},
+  {t:'fix',d:'🎤 Po zagraniu koncertu w Eclipse Noir kliknięcie występu daje teraz jasny komunikat (np. że zagrałeś już dziś albo dlaczego nie możesz wejść na scenę), zamiast milczeć bez żadnej reakcji.'},
+  {t:'fix',d:'💾 Naprawiliśmy utrwalanie miejsca w zapisie: gdy wchodzisz do nowej lokacji (na przykład do klubu), gra zapamiętuje Twój pokój i pozycję od razu, a nie dopiero przy najbliższym auto-zapisie. Wcześniej dało się wejść gdzieś, zamknąć grę i po wczytaniu tego samego zapisu wylądować w poprzednim miejscu — teraz to naprawione.'},
   {t:'new',d:'🗺 Nowość: osobne mapy dzielnic! W dużej mapie możesz teraz przełączać widok między Miastem a odblokowanymi dzielnicami (Underground, Marina Coast, Business) — każda ma własną mapę z budynkami i punktami. Zablokowane dzielnice są wyszarzone do czasu ich odblokowania, a mapy aktualizują się same, gdy w dzielnicy pojawiają się nowe miejsca.'},
   {t:'new',d:'🏥 Nova Cura pokazuje teraz Twój stan uzależnień w rozbiciu na kategorie (alkohol, pobudzające, imprezowe, uspokajające, opioidowe) — każda z własnym poziomem ryzyka. Widać też łączne objawy odstawienia i ostrzeżenie, gdy mieszasz różne rodzaje używek. Różne używki działają inaczej i inaczej się uzależniają, więc łatwiej świadomie zdecydować, czego potrzebujesz.'},
   {t:'new',d:'💉 W Nova Cura dostępne są teraz pełne programy wychodzenia z nałogu: krótka stabilizacja po kryzysie oraz intensywne programy (7 dni, 14 dni i dyskretny program premium). Im mocniejszy program, tym większy spadek uzależnienia, objawów odstawienia i napięcia. Kosztują sporo, ale to realna droga do odzyskania kontroli.'},
