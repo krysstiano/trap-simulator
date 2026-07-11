@@ -3639,6 +3639,8 @@ const ROOMS = {
       /* BLOK 2 (§12-15): managerka + ochrona jako interaktywni NPC */
       {id:'npc_valeria',    wx:1010,wy:430, w:34,  h:56,  act:'eclipse:valeria', prompt:'[E] 💼 Valeria „Vee" Cross — managerka', lbl:'Valeria'},
       {id:'npc_mason',      wx:1120,wy:560, w:34,  h:56,  act:'eclipse:mason',   prompt:'[E] 🕶️ Mason „Lock" Graves — ochrona', lbl:'Mason'},
+      /* BLOK 3 (§24-25): strefa VIP na piętrze — schody, gated (VIP wejscie / slawa / relacja z managerka) */
+      {id:'eclipse_vip',    wx:1200,wy:300, w:80,  h:110, act:'eclipse:vip',     prompt:'[E] 💎 Strefa VIP (schody na piętro)', lbl:'VIP'},
       {id:'npc_ec_guest1',  wx:380, wy:430, w:34,  h:56,  act:null, prompt:'', lbl:''},
       {id:'npc_ec_guest2',  wx:920, wy:440, w:34,  h:56,  act:null, prompt:'', lbl:''},
       {id:'npc_ec_guest3',  wx:660, wy:250, w:34,  h:56,  act:null, prompt:'', lbl:''},
@@ -4208,6 +4210,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'npc_ec_barman':  drawBarman(sx,sy,w,h);break;
     case 'npc_valeria':    drawNPC(sx,sy,w,h,'#e8c090','#5a1442','💼');break;   /* BLOK 2: managerka Valeria */
     case 'npc_mason':      drawNPC(sx,sy,w,h,'#c08858','#14141a','🕶️');break;  /* BLOK 2: ochrona Mason */
+    case 'eclipse_vip':    drawEclipseVipStairs(sx,sy,w,h);break;               /* BLOK 3: schody na strefę VIP */
     case 'npc_ec_guest1': case 'npc_ec_guest2': case 'npc_ec_guest3': drawCasinoGuest(sx,sy,w,h,id);break;
     case 'exit_eclipse':   drawInteriorExit(sx,sy,w,h);break;
     case 'merch_studio': drawBuilding(sx,sy,w,h,'#3a1a2a','Studio Merch','#e91e63','🧢',true,{commercial:true});break;
@@ -9607,6 +9610,21 @@ function drawEclipseDjBooth(sx,sy,w,h){
   X.textAlign='center';X.textBaseline='middle';X.fillStyle='#cdb8ff';X.font='bold 10px "Segoe UI",sans-serif';X.fillText('🎧 DJ',sx+w/2,sy+h*0.16);
   X.textAlign='left';X.textBaseline='alphabetic';
 }
+/* Interior: schody na strefę VIP (BLOK 3) — kręcone schody + aksamitna lina + poświata. */
+function drawEclipseVipStairs(sx,sy,w,h){
+  const t=Date.now()/1000, glow=0.5+0.3*Math.sin(t*2);
+  X.fillStyle='rgba(0,0,0,.4)';X.fillRect(sx+3,sy+4,w,h);
+  X.fillStyle='#120c22';X.fillRect(sx,sy,w,h);
+  /* stopnie schodów (perspektywa w górę) */
+  for(let i=0;i<6;i++){ const sw=w*(0.9-i*0.10), sxo=sx+(w-sw)/2, syo=sy+h-10-i*(h*0.13); X.fillStyle=i%2?'#1e1636':'#2a1e46'; X.fillRect(sxo,syo,sw,h*0.10); X.strokeStyle=`rgba(201,165,90,${0.5})`; X.lineWidth=1; X.strokeRect(sxo,syo,sw,h*0.10); }
+  /* poświata złota z góry */
+  X.fillStyle=`rgba(241,196,15,${0.18*glow})`; X.beginPath(); X.moveTo(sx+w*0.5,sy+2); X.lineTo(sx+w*0.12,sy+h); X.lineTo(sx+w*0.88,sy+h); X.closePath(); X.fill();
+  /* słupki + aksamitna lina */
+  X.fillStyle='#c8a55a'; X.beginPath();X.arc(sx+w*0.16,sy+h*0.30,3,0,Math.PI*2);X.fill(); X.beginPath();X.arc(sx+w*0.84,sy+h*0.30,3,0,Math.PI*2);X.fill();
+  X.strokeStyle='#8a2a52';X.lineWidth=2;X.beginPath();X.moveTo(sx+w*0.16,sy+h*0.32);X.quadraticCurveTo(sx+w*0.5,sy+h*0.44,sx+w*0.84,sy+h*0.32);X.stroke();
+  X.textAlign='center';X.textBaseline='middle';X.shadowColor='#f1c40f';X.shadowBlur=8*glow;X.fillStyle='#ffe08a';X.font='bold 12px "Segoe UI",sans-serif';X.fillText('💎 VIP',sx+w/2,sy+h*0.15);X.shadowBlur=0;
+  X.textAlign='left';X.textBaseline='alphabetic';
+}
 
 /* v2.1.664: cache obrazka dzieła gracza (G._muralArt = JPEG data URL miniatury). */
 let _muralArtImg=null,_muralArtSrc=null;
@@ -14715,6 +14733,10 @@ function handleAct(act,objId){
   } else if(act==='eclipse:mason'){
     /* PDF new/4 (§15): ochrona Mason „Lock" Graves — dialog + gating stref */
     if(typeof window._eclipseMason==='function') window._eclipseMason();
+    return;
+  } else if(act==='eclipse:vip'){
+    /* PDF new/4 (§24-25): strefa VIP — spotkanie z VIP-em (gated) */
+    if(typeof window._eclipseVip==='function') window._eclipseVip();
     return;
   } else if(act.startsWith('gym:')){
     const parts=act.split(':');
@@ -52914,6 +52936,93 @@ window._eclipseSilasAct=function(type){
   window._eclipseSilas(window._eclipseRelResp(resp));
 };
 
+/* ═══ PDF new/4 BLOK 3: SIEĆ VIP (§24-25) — spotkania z VIP-ami na piętrze ═══ */
+window._ECLIPSE_VIP_TYPES=[
+  {key:'actor',     em:'🎬', label:'Aktor',               deal:10, gossip:20, lead:'fame'},
+  {key:'celebrity', em:'⭐', label:'Celebryta',           deal:12, gossip:35, lead:'buzz'},
+  {key:'journalist',em:'📰', label:'Dziennikarz',         deal:8,  gossip:45, lead:'media'},
+  {key:'director',  em:'🎥', label:'Reżyser',             deal:16, gossip:15, lead:'video'},
+  {key:'business',  em:'💼', label:'Właściciel firmy',    deal:22, gossip:10, lead:'money'},
+  {key:'realestate',em:'🏙️', label:'Agent nieruchomości', deal:14, gossip:10, lead:'money'},
+  {key:'corporate', em:'🏢', label:'Człowiek korporacji', deal:18, gossip:12, lead:'sponsor'},
+  {key:'athlete',   em:'🏆', label:'Sportowiec',          deal:12, gossip:15, lead:'buzz'},
+  {key:'gamer',     em:'🎮', label:'Twórca gamingowy',    deal:16, gossip:12, lead:'collab'},
+  {key:'politician',em:'🎩', label:'Gość ze świecznika',  deal:8,  gossip:40, lead:'risk'},
+];
+window._ECLIPSE_VIP_NAMES=['Julian Ashford','Nadia Vale','Marek Rot','Celine Roux','Dorian Kade','Iwo Lange','Sonia Brandt','Kai Mercer','Vera Lind','Rafał Stern'];
+window._eclipseVipAccess=function(){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir, v=(G.npcRelations&&G.npcRelations.valeriaCross)||{};
+  return (c.vipAccessLevel||0)>=1 || (G.fame||0)>=120 || (v.clubAccess||0)>=15;
+};
+window._eclipseVip=function(reroll,resp){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir;
+  const panel=document.getElementById('mg-job'); if(!panel) return;
+  panel.classList.add('on'); panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  if(!window._eclipseVipAccess()){
+    document.getElementById('mg-job-content').innerHTML=`
+      <div style="background:#0a0810;border:2px solid #2a2a3a;border-radius:10px;padding:16px;max-width:440px;margin:0 auto;color:#fff;width:100%">
+        <h3 style="margin-top:0;color:#c8c8d0">💎 Strefa VIP — piętro</h3>
+        <div style="font-size:12px;color:#e6ddff;background:#141420;border-radius:8px;padding:10px;margin-bottom:10px">Ochrona zastępuje Ci drogę: „Górne piętro dziś tylko dla stałych VIP-ów."</div>
+        <div style="font-size:11px;color:#889;background:#141420;border-radius:6px;padding:8px;margin-bottom:10px">🔑 Dostęp otwierają: wejście za wejściówkę VIP, wysoka sława, albo dobra relacja z managerką klubu (rozmawiaj z nią o występach).</div>
+        <button class="cbtn" style="width:100%;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Zejdź z powrotem</button>
+      </div>`;
+    return;
+  }
+  /* wylosuj VIP-a (nowy przy wejściu / rerollu) */
+  if(reroll || !c._curVip){ const T=window._ECLIPSE_VIP_TYPES; const t=T[Math.floor((( (c.nightsAttended||0)*7 + (c._vipMet||0)*3 + Math.floor((gameMin||0)/17)) )%T.length)]; const N=window._ECLIPSE_VIP_NAMES; const nm=N[(( (c._vipMet||0)*3 + Math.floor((gameMin||0)/23) ))%N.length]; c._curVip={key:t.key,em:t.em,label:t.label,deal:t.deal,gossip:t.gossip,lead:t.lead,name:nm}; c._vipMet=(c._vipMet||0)+1; }
+  const vip=c._curVip;
+  if(c.lastVipDay!==(G.day||0)){ c.lastVipDay=(G.day||0); c._vipLeadsToday=0; }
+  const capped=(c._vipLeadsToday||0)>=2;
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="background:#0a0810;border:2px solid #c8a520;border-radius:10px;padding:16px;max-width:480px;margin:0 auto;color:#fff;width:100%;max-height:84vh;overflow-y:auto">
+      <h3 style="margin-top:0;color:#f1c40f">💎 Strefa VIP</h3>
+      <div style="font-size:13px;color:#e6ddff;background:#161206;border-radius:8px;padding:10px;margin-bottom:8px">${vip.em} <b>${vip.name}</b> <span style="color:#9a90b0">— ${vip.label}</span><br><span style="font-size:11px;color:#9a90b0">Nastrój: otwarty · Szansa na deal: ${vip.deal}% · Ryzyko plotki: ${vip.gossip}%</span></div>
+      ${resp||''}
+      ${capped?'<div style="font-size:11px;color:#e67e22;background:#161206;border-radius:6px;padding:7px;margin-bottom:8px">Na dziś złapałeś już swoje najlepsze kontakty — reszta rozmów to głównie rozpoznawalność.</div>':''}
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:4px;color:#cdb8ff;border-color:#3a2a5a" onclick="window._eclipseVipAct('intro')">🙋 Przedstaw się jako artysta</button>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;color:#7ec87e;border-color:#27ae60" onclick="window._eclipseVipAct('deal')">🤝 Porozmawiaj o współpracy</button>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;color:#cdb8ff;border-color:#3a2a5a" onclick="window._eclipseVipAct('invite')">🎤 Zaproś na koncert</button>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;color:#f1c40f;border-color:#c8a520" onclick="window._eclipseVipAct('invest')">💰 Zapytaj o inwestycje <span style="color:#9a90b0">(ryzyko)</span></button>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;color:#e368b8;border-color:#7a2a5a" onclick="window._eclipseVipAct('flirt')">💫 Flirtuj</button>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="cbtn" style="flex:1;color:#ccc" onclick="window._eclipseVip(true)">🔄 Rozejrzyj się dalej</button>
+        <button class="cbtn" style="flex:1;color:#fff" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Zejdź</button>
+      </div>
+    </div>`;
+};
+window._eclipseVipAct=function(type){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir, vip=c._curVip; if(!vip) return;
+  if(c.lastVipDay!==(G.day||0)){ c.lastVipDay=(G.day||0); c._vipLeadsToday=0; }
+  const roll=(p)=>((Math.floor((gameMin||0)+ (c._vipMet||0)*13 + (c._vipLeadsToday||0)*29)%100) < p); /* deterministyczny-ish roll bez Math.random */
+  const cap=(c._vipLeadsToday||0)>=2;
+  let resp='';
+  if(type==='intro'){ c.reputation=Math.min(100,(c.reputation||0)+1); G.fame=(G.fame||0)+1;
+    resp=`${vip.name.split(' ')[0]} kiwa głową: „Kojarzę Cię. Miasto ostatnio o Tobie szepcze." <b style="color:#7ec87e">(+rozpoznawalność)</b>`; }
+  else if(type==='deal'){
+    if(cap){ resp='„Pogadajmy innym razem — dziś mam już zaklepane plany." <span style="color:#9a90b0">(dzienny limit kontaktów)</span>'; }
+    else if(roll(vip.deal+ (G.fame||0)*0.03)){ c._vipLeadsToday=(c._vipLeadsToday||0)+1;
+      if(vip.lead==='money'){ const g=800+Math.floor((G.fame||0)*2); G.money=(G.money||0)+g; resp=`Zamienia się w konkret: „Potrzebuję twarzy do projektu. Zaliczka od ręki." <b style="color:#7ec87e">(+${g} zł)</b>`; }
+      else if(vip.lead==='sponsor'){ G._eclipseSponsorLead=(G._eclipseSponsorLead||0)+1; c.reputation=Math.min(100,(c.reputation||0)+4); resp='„Nasza marka szuka nowego lifestylu. Odezwiemy się." <b style="color:#7ec87e">(lead sponsorski)</b>'; }
+      else if(vip.lead==='collab'||vip.lead==='buzz'){ const b=Math.round(20+(G.fame||0)*0.1); G._socialBuzz=(G._socialBuzz||0)+b; resp=`„Zróbmy razem content — Twój vibe siądzie mojej widowni." <b style="color:#7ec87e">(+${b} szum)</b>`; }
+      else if(vip.lead==='video'){ G._eclipseVideoLead=(G._eclipseVideoLead||0)+1; resp='„Mam pomysł na klip. Zadzwonię." <b style="color:#7ec87e">(kontakt do reżysera)</b>'; }
+      else if(vip.lead==='fame'){ G.fame=(G.fame||0)+6; resp='„Wrzucę Cię na swoje story — moja widownia Cię pokocha." <b style="color:#7ec87e">(+sława)</b>'; }
+      else if(vip.lead==='media'){ G._socialBuzz=(G._socialBuzz||0)+10; c.atmosphere.paparazziRisk=Math.min(100,(c.atmosphere.paparazziRisk||0)+6); resp='„Zrobię o Tobie materiał. Dobry albo zły — zależy od Ciebie." <span style="color:#e67e22">(+szum, +uwaga mediów)</span>'; }
+      else { c.reputation=Math.min(100,(c.reputation||0)+3); resp='„Trzymajmy kontakt." <b style="color:#7ec87e">(nowy kontakt)</b>'; }
+    } else { resp='„Może kiedyś. Teraz nie czuję tematu." <span style="color:#9a90b0">(bez skutku)</span>'; }
+  }
+  else if(type==='invite'){ c.reputation=Math.min(100,(c.reputation||0)+2); G.fame=(G.fame||0)+2;
+    resp= roll(40)?'„Wpadnę na Twój set. Lubię odkrywać, zanim zrobi się głośno." <b style="color:#7ec87e">(VIP przyjdzie na koncert)</b>':'„Zobaczymy, co z grafikiem." <span style="color:#9a90b0">(niepewne)</span>'; }
+  else if(type==='invest'){
+    if(vip.lead==='risk' || vip.gossip>=40){ if(roll(35)){ const loss=Math.min(G.money||0,500+Math.floor((G.fame||0))); G.money=Math.max(0,(G.money||0)-loss); resp=`„Pewna sprawa, tylko wejście na start…" — znika z Twoją zaliczką. <span style="color:#c0392b">(scam −${loss} zł)</span>`; } else { resp='„Odezwę się z papierami." <span style="color:#9a90b0">(mętny temat, na razie nic)</span>'; } }
+    else { G._eclipseInvestLead=(G._eclipseInvestLead||0)+1; resp='„Mam legalny temat inwestycyjny. Podeślę szczegóły." <b style="color:#7ec87e">(kontakt biznesowy)</b>'; }
+  }
+  else if(type==='flirt'){ G.stress=(typeof clamp==='function')?clamp((G.stress||0)+4,0,100):Math.min(100,(G.stress||0)+4); c.atmosphere.paparazziRisk=Math.min(100,(c.atmosphere.paparazziRisk||0)+vip.gossip*0.1);
+    resp= (vip.gossip>=35)?'Flirt idzie gładko — ale ktoś już unosi telefon. <span style="color:#e67e22">(+plotka)</span>':'Miła wymiana spojrzeń. <span style="color:#7ec87e">(+nastrój)</span>'; }
+  if(typeof updateHUD==='function') updateHUD();
+  window._eclipseVip(false, window._eclipseRelResp(resp)); /* re-render tego samego VIP-a z odpowiedzią */
+};
+
 /* ═══ 4E (§10/§11): SYSTEM KONCERTÓW Eclipse Noir — 6 slotów + calculateEclipsePerformanceScore ═══ */
 /* Bonusy sceny (§11) — z atmosfery klubu / DJ / hype-mana z ekipy. */
 window.getClubCrowdMoodBonus=function(){ window._eclipseNoirEnsure(); const a=G.eclipseNoir.atmosphere; return Math.round((a.crowdDensity||0)*0.06 + (a.vipDensity||0)*0.04); }; /* 0-10 */
@@ -65512,6 +65621,7 @@ const PATCH_NOTES = [
  items:[
   {t:'new',d:'🌑 Klub nocny Eclipse Noir stoi teraz na mapie dzielnicy Underground — podejdź do niego wieczorem lub nocą i wejdź do środka! Wchodzisz do prawdziwego wnętrza klubu, po którym chodzisz jak po każdym innym budynku: scena koncertowa (sześć rodzajów występów od rozgrzewki po pokaz VIP — Twoja forma zależy od umiejętności, sławy, nastroju i tego, jak rozgrzana jest sala), bar z drinkami na poprawę nastroju i parkiet, na którym łapiesz rytm. Do klubu wejdziesz na kilka sposobów: zwykłe wejście, po znajomości, jako artysta albo za wejściówkę VIP. Klub żyje własnym rytmem i jest najgorętszy w piątkowe oraz sobotnie noce. To dopiero początek — Eclipse Noir będzie się rozrastał o nowe atrakcje i barwne postacie.'},
   {t:'new',d:'🌑 W Eclipse Noir poznasz teraz obsługę klubu i pogadasz z nią na miejscu. Managerka klubu prowadzi Cię przez występy — im lepsza relacja i im częściej rozmawiacie o scenie, tym łatwiej o lepsze sceny i dostęp do klubu. Barman naleje drinka, podzieli się plotką z sali i przyjmie napiwek, a ochrona pilnuje, kto gdzie może wejść. Każda z tych rozmów ma swój klimat i drobne konsekwencje.'},
+  {t:'new',d:'🌑 W Eclipse Noir otwiera się strefa VIP na piętrze. Wejdziesz tam za wejściówkę VIP, dzięki wysokiej sławie albo dobrej relacji z managerką klubu. Na górze poznasz gości z różnych światów — biznesu, mediów, filmu, sportu i gamingu — i porozmawiasz o współpracy, zaprosisz kogoś na swój koncert, zapytasz o inwestycje albo pozwolisz sobie na flirt. Uważaj: część kontaktów to złote okazje i zastrzyk gotówki, a inne kończą się plotką w sieci albo naciąganiem na fałszywą inwestycję. Najlepsze kontakty łapiesz z umiarem — na jedną noc jest ich ograniczona liczba.'},
   {t:'new',d:'🗺 Nowość: osobne mapy dzielnic! W dużej mapie możesz teraz przełączać widok między Miastem a odblokowanymi dzielnicami (Underground, Marina Coast, Business) — każda ma własną mapę z budynkami i punktami. Zablokowane dzielnice są wyszarzone do czasu ich odblokowania, a mapy aktualizują się same, gdy w dzielnicy pojawiają się nowe miejsca.'},
   {t:'new',d:'🏥 Nova Cura pokazuje teraz Twój stan uzależnień w rozbiciu na kategorie (alkohol, pobudzające, imprezowe, uspokajające, opioidowe) — każda z własnym poziomem ryzyka. Widać też łączne objawy odstawienia i ostrzeżenie, gdy mieszasz różne rodzaje używek. Różne używki działają inaczej i inaczej się uzależniają, więc łatwiej świadomie zdecydować, czego potrzebujesz.'},
   {t:'new',d:'💉 W Nova Cura dostępne są teraz pełne programy wychodzenia z nałogu: krótka stabilizacja po kryzysie oraz intensywne programy (7 dni, 14 dni i dyskretny program premium). Im mocniejszy program, tym większy spadek uzależnienia, objawów odstawienia i napięcia. Kosztują sporo, ale to realna droga do odzyskania kontroli.'},
