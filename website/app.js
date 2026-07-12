@@ -327,7 +327,8 @@
     { src: 'screeny/03-kasyno.png',     cap: 'Kasyno — piętro high-roller' },
     { src: 'screeny/04-park.png',       cap: 'Park miejski — życie ulicy' },
     { src: 'screeny/05-miasto.png',     cap: 'Miasto — sklepy i sala koncertowa' },
-    { src: 'screeny/06-ulica.png',      cap: 'Ulica — usługi i kariera' }
+    { src: 'screeny/06-ulica.png',      cap: 'Ulica — usługi i kariera' },
+    { src: 'screeny/07-marina.png',     cap: 'Marina Coast — nadmorska dzielnica: łodzie, jachty i imprezy na wodzie' }
   ];
   var lb = document.getElementById('lb');
   if (!lb) return;
