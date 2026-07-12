@@ -45719,7 +45719,7 @@ window._marinaOpenDockhouse=function(){
       <button class="bbtn" onclick="window._marinaRenderMyCraft()">📋 Moje jednostki${c?` (${G.marina.owned.length})`:''}</button>
       <button class="bbtn" onclick="window._marinaRenderInstruktaz()">🎓 Instruktaż Marina</button>
     </div>
-    ${G.marina.owned.length?`<div style="margin-top:8px"><button class="bbtn" style="width:100%;background:linear-gradient(135deg,#1a3a4a,#0a1a28)" onclick="window._startMarinaChoice&&window._startMarinaChoice()">🥂 Gala jachtowa / networking (wstęp 1000 zł, co 7 dni)</button></div>`:''}
+    <div style="margin-top:8px"><button class="bbtn" style="width:100%;background:linear-gradient(135deg,#1a3a4a,#0a1a28)" onclick="window._marinaClose();window._startMarinaChoice&&window._startMarinaChoice()">🥂 Gala jachtowa / networking VIP (wstęp 1000 zł, co 7 dni)</button></div>
     <button class="cbtn" style="margin-top:12px;width:100%" onclick="window._marinaClose()">← Zamknij</button>
   </div>`;
   _marinaPanel(html);
@@ -46046,13 +46046,24 @@ function _mrnd(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
 window._marinaCoastMove=function(nx,ny){
   _marinaEnsure(); const sw=G.marina.swimming;
   const fw=(P.w/2), fh=(P.h||44);
-  let rx=nx, ry=ny;
+  let rx=nx, ry=ny; let blockType=null;
   if(sw.isSwimming){
-    const zx=_marinaWaterZoneAt(rx+fw, P.wy+fh);   if(zx==='restricted') rx=P.wx;
-    const zxy=_marinaWaterZoneAt(rx+fw, ry+fh);     if(zxy==='restricted') ry=P.wy;
+    const zx=_marinaWaterZoneAt(rx+fw, P.wy+fh);   if(zx==='restricted'){ rx=P.wx; blockType='restricted'; }
+    const zxy=_marinaWaterZoneAt(rx+fw, ry+fh);     if(zxy==='restricted'){ ry=P.wy; blockType='restricted'; }
   } else {
-    const zx=_marinaWaterZoneAt(rx+fw, P.wy+fh);   if(zx!=null) rx=P.wx;
-    const zxy=_marinaWaterZoneAt(rx+fw, ry+fh);     if(zxy!=null) ry=P.wy;
+    const zx=_marinaWaterZoneAt(rx+fw, P.wy+fh);   if(zx!=null){ rx=P.wx; blockType=(zx==='restricted'?'restricted':'water'); }
+    const zxy=_marinaWaterZoneAt(rx+fw, ry+fh);     if(zxy!=null){ ry=P.wy; blockType=(zxy==='restricted'?'restricted':'water'); }
+  }
+  /* PDF §3: komunikat przy zablokowaniu (throttle ~2.6 s, żeby nie spamować) */
+  if(blockType && (rx!==nx || ry!==ny)){
+    const now=(typeof Date!=='undefined'&&Date.now)?Date.now():0;
+    if(!sw._blockMsgT || (now-sw._blockMsgT)>2600){
+      sw._blockMsgT=now;
+      if(typeof showMsg==='function'){
+        if(blockType==='restricted') showMsg('⚓ Ten fragment portu jest niedostępny do pływania.','i',2600);
+        else if(!sw.isSwimming) showMsg('🌊 Nie wejdziesz do wody jak na chodnik — użyj kąpieliska ([E] Wejdź do wody), żeby zacząć pływać.','i',2900);
+      }
+    }
   }
   return {nx:rx, ny:ry};
 };
@@ -46061,7 +46072,7 @@ window._marinaEnterSwim=function(){
   if(sw.isSwimming){ if(typeof showMsg==='function') showMsg('🏊 Już pływasz — wróć na brzeg (w dół), żeby wyjść.','i',3000); return; }
   if(currentRoom!=='coast'){ if(typeof showMsg==='function') showMsg('Do wody możesz wejść tylko na Wybrzeżu (Marina Coast).','i',3000); return; }
   if((G.energy||0)<15){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii na pływanie — odpocznij najpierw.','r',3500); return; }
-  sw.isSwimming=true; sw.staminaWarned=false; sw._t=0; sw._deepWarned=false;
+  sw.isSwimming=true; sw.staminaWarned=false; sw._t=0; sw._deepWarned=false; sw._farWarned=false;
   /* odsuń od strefy portowej (restricted) — kąpiel tylko poza portem */
   if((P.wx+P.w/2)>=MARINA_PORT_RECT.x-20 && (P.wx+P.w/2)<=MARINA_PORT_RECT.x+MARINA_PORT_RECT.w+20){ P.wx=MARINA_PORT_RECT.x+MARINA_PORT_RECT.w+40; }
   P.wy=Math.max(120, 240-(P.h||44)-8);   /* wsuń do płytkiej wody */
@@ -46072,7 +46083,7 @@ window._marinaEnterSwim=function(){
 window._marinaExitSwim=function(safe){
   _marinaEnsure(); const sw=G.marina.swimming;
   if(!sw.isSwimming) return;
-  sw.isSwimming=false; sw.staminaWarned=false; sw.distanceFromShore=0; sw._deepWarned=false;
+  sw.isSwimming=false; sw.staminaWarned=false; sw.distanceFromShore=0; sw._deepWarned=false; sw._farWarned=false;
   if(safe){ _marinaAddSkillXp(1); if(typeof showMsg==='function') showMsg('🏖️ Wyszedłeś na brzeg. Bezpieczny powrót — Marina Skill rośnie.','g',3200); }
   if(typeof saveGameSilent==='function') saveGameSilent();
 };
@@ -46084,17 +46095,19 @@ window._marinaSwimTick=function(){
   if(footY>=240){ window._marinaExitSwim(true); return; }   /* wrócił na brzeg */
   const zone=_marinaWaterZoneAt(P.wx+P.w/2, footY);
   sw.distanceFromShore=Math.max(0, 240-footY);
-  if(zone==='deep' && !sw._deepWarned){ sw._deepWarned=true; if(typeof showMsg==='function') showMsg('🌊 Oddalasz się od brzegu — jesteś na głębokiej wodzie. Siła spada szybciej.','r',4200); }
+  if(zone==='deep' && !sw._deepWarned){ sw._deepWarned=true; if(typeof showMsg==='function') showMsg('🌊 Oddalasz się od brzegu. Stamina spada szybciej.','r',4200); }
+  if(zone==='deep' && sw.distanceFromShore>=120 && !sw._farWarned){ sw._farWarned=true; if(typeof showMsg==='function') showMsg('🌊 Jesteś za daleko od brzegu. Wróć albo znajdź jednostkę pływającą.','r',4600); }
   sw._t=(sw._t||0)+1;
   if(sw._t % 24 !== 0) return;   /* throttle ~0.4 s */
   const drain=(zone==='deep')?1.4:(zone==='swim'?0.9:0.5);
   G.energy=Math.max(0, (G.energy||0)-drain);
   if(G.energy<=15 && G.energy>0 && !sw.staminaWarned){ sw.staminaWarned=true; if(typeof showMsg==='function') showMsg('⚠️ Kończy Ci się siła. Wróć do brzegu — inaczej trzeba będzie Cię ratować.','r',4500); }
+  if(G.energy<=8 && G.energy>0){ if(typeof showMsg==='function') showMsg('😰 Nie masz siły płynąć dalej!','r',2600); }
   if(G.energy<=0){ window._marinaTriggerRescue(); }
 };
 window._marinaTriggerRescue=function(){
   _marinaEnsure(); const sw=G.marina.swimming;
-  sw.isSwimming=false; sw.staminaWarned=false; sw.distanceFromShore=0; sw._deepWarned=false;
+  sw.isSwimming=false; sw.staminaWarned=false; sw.distanceFromShore=0; sw._deepWarned=false; sw._farWarned=false;
   G.money=Math.max(0,(G.money||0)-1200);
   G.health=(typeof clampStat==='function')?clampStat('health',(typeof G.health==='number'?G.health:100)-15):Math.max(0,(typeof G.health==='number'?G.health:100)-15);
   G.stress=Math.max(0,(G.stress||50)-10);      /* obniż nastrój (stress=mood) */
@@ -46288,7 +46301,7 @@ function _marinaPoliceCheck(craft, opts){
     G.money=Math.max(0,(G.money||0)-mandat);
     G.defamation=(G.defamation||0)+2;
     if(typeof _smsSend==='function') _smsSend('nolan','Dostaliśmy zgłoszenie o hałasie i ryzykownym zachowaniu na jednostce. Wyluzuj z tym eventem albo wróć do spokojnego trybu — inaczej port zacznie się interesować.',{bypass:true});
-    if(typeof showMsg==='function') showMsg(`🚨 Kontrola portowa! Zgłoszono hałas na jednostce. Mandat ${mandat.toLocaleString('pl')} zł, +zniesławienie.`,'r',5500);
+    if(typeof showMsg==='function') showMsg(`🚨 Port Security: „Dostaliśmy zgłoszenie o hałasie i ryzykownym zachowaniu na jednostce. Proszę zakończyć event albo wrócić do spokojnego trybu." Mandat ${mandat.toLocaleString('pl')} zł, +zniesławienie.`,'r',6500);
     return true;
   }
   return false;
@@ -46460,8 +46473,9 @@ window._marinaRenderParty=function(){
     ${_marinaMoney()}
     <div style="background:#06121c;border-radius:6px;padding:8px;margin-bottom:8px;font-size:12px">
       <div style="color:#00d4f0;margin-bottom:4px">Ustawienia eventu:</div>
-      <label style="display:block;color:#bcd;cursor:pointer;margin:2px 0"><input type="checkbox" ${s._stock==='premium'?'checked':''} onclick="G.marina.eventSettings._stock=this.checked?'premium':null"> 🥂 Premium Yacht Stock (9500 zł/event: +jakość, +prestiż, +napiwki)</label>
-      <label style="display:block;color:#bcd;cursor:pointer;margin:2px 0"><input type="checkbox" ${s.noPhonePolicy?'checked':''} onclick="G.marina.eventSettings.noPhonePolicy=this.checked"> 📵 No-Phone Policy (3000 zł/event: −ryzyko przecieku)</label>
+      <div style="color:#9ab;font-size:11px;margin-bottom:5px">🎵 Muzyka: <b style="color:#bcd">${_marinaCraftUps(craft).includes('marine_sound_pro')?'Marine Sound Pro':(_marinaCraftUps(craft).includes('deck_audio_basic')?'Deck Audio Basic':'brak (dobuduj w Doposażeniu)')}</b> · 🕶️ Prywatność: <b style="color:#bcd">${_marinaCraftUps(craft).includes('dock_security')?'Dock Security':(_marinaCraftUps(craft).includes('privacy_screens')?'Privacy Screens':'brak')}</b>${G.marina.berthId==='private_pier'?' · ⚓ Private Pier':''}</div>
+      <label style="display:block;color:#bcd;cursor:pointer;margin:2px 0"><input type="checkbox" ${s._stock==='premium'?'checked':''} onclick="G.marina.eventSettings._stock=this.checked?'premium':null"> 🥂 Asortyment: Premium Yacht Stock (9500 zł/event: +jakość, +prestiż, +napiwki)</label>
+      <label style="display:block;color:#bcd;cursor:pointer;margin:2px 0"><input type="checkbox" ${s.noPhonePolicy?'checked':''} onclick="G.marina.eventSettings.noPhonePolicy=this.checked"> 📵 Telefony NPC: No-Phone Policy (3000 zł/event: −ryzyko przecieku)</label>
     </div>
     ${rows}${_marinaBack('window._marinaRenderActivities()')}</div>`);
 };
