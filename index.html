@@ -3432,6 +3432,8 @@ const ROOMS = {
       {id:'spa_coast',        wx:780, wy:400, w:140,h:130, act:'coast_spa',        prompt:'[E] 💆 SPA',           lbl:'SPA'},
       {id:'photoshoot_coast', wx:1080,wy:400, w:140,h:130, act:'coast_photoshoot', prompt:'[E] 📸 Photoshoot',    lbl:'Photo'},
       {id:'surf_coast',       wx:480, wy:600, w:140,h:130, act:'coast_surf',       prompt:'[E] 🏄 Surf Shop',     lbl:'Surf'},
+      /* PDF „Marina Coast" §3: oznaczone wejście do wody (tryb pływania). Cienki obiekt (h<60) = wykrywany przez getNear (actRadius), nie blokuje ruchu (brak solid). */
+      {id:'swim_entry', wx:960, wy:246, w:200, h:34, act:'coast_swimentry', prompt:'[E] 🏊 Wejdź do wody', lbl:'Kąpielisko', actRadius:120},
     ]
   },
 
@@ -4147,6 +4149,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'spa_coast':               drawCoastBuilding(sx,sy,w,h,'💆','SPA','#e8c8b8');break;
     case 'photoshoot_coast':        drawCoastBuilding(sx,sy,w,h,'📸','Photoshoot','#c89a78');break;
     case 'surf_coast':              drawCoastBuilding(sx,sy,w,h,'🏄','Surf Shop','#80b8c8');break;
+    case 'swim_entry':              drawMarinaSwimEntry(sx,sy,w,h);break;
     /* v2.1.386 Faza D' Business new map: korporacyjne wieżowce */
     case 'exit_business':           drawBusinessExitGate(sx,sy,w,h);break;
     case 'labelhq_business':        drawLabelHQ(sx,sy,w,h);break;
@@ -11221,6 +11224,24 @@ function drawCoastExitGate(sx,sy,w,h){
   X.fillText('WYJŚCIE',sx+w/2,sy+h/2+18);
   X.textAlign='left';X.textBaseline='alphabetic';
 }
+/* PDF „Marina Coast" §3: znacznik kąpieliska / wejścia do wody na plaży. */
+function drawMarinaSwimEntry(sx,sy,w,h){
+  const t=Date.now()/500;
+  /* pas przejścia piasek→woda (subtelny) */
+  X.fillStyle='rgba(120,200,227,0.10)';X.fillRect(sx,sy,w,h);
+  /* dwbite paliki z liną (bezpieczne kąpielisko) */
+  X.strokeStyle='rgba(230,220,180,0.55)';X.lineWidth=2;
+  X.beginPath();X.moveTo(sx+6,sy+h-6);X.lineTo(sx+w-6,sy+h-6);X.stroke();
+  X.fillStyle='#b8a878';
+  for(let i=0;i<=4;i++){ const px=sx+6+i*((w-12)/4); X.fillRect(px-2,sy+h-14,4,12); }
+  /* boja + ikona */
+  const by=sy+h/2+Math.sin(t)*2;
+  X.font='18px serif';X.textAlign='center';X.textBaseline='middle';
+  X.fillText('🛟',sx+18,by);
+  X.font='bold 15px serif';X.fillStyle='#eaffff';
+  X.fillText('🏊 Kąpielisko',sx+w/2+10,sy+h/2);
+  X.textAlign='left';X.textBaseline='alphabetic';
+}
 
 /* v2.1.386 Faza D' Business building — korporacyjne wieżowce z szyldami */
 function drawBusinessBuilding(sx,sy,w,h,emoji,name,bgColor){
@@ -14364,6 +14385,8 @@ function updatePlayer(){
      User: "Czasem normalna, czasem ultra wolna" + "Gracz dalej porusza sie ultra wolno. Nie było tak wcześniej."
      Powrót do prostej P.wx += dx (jak przed v2.1.17). Browser handluje FPS przez requestAnimationFrame
      co naturalnie skaluje (60 FPS = 60 klatek/sec niezależnie od ekranu). */
+  /* PDF „Marina Coast" §4: powolny ruch podczas pływania (przed obliczeniem nx/ny). */
+  if(currentRoom==='coast' && G.marina && G.marina.swimming && G.marina.swimming.isSwimming){ dx*=0.55; dy*=0.55; }
   P.moving=dx!==0||dy!==0;
   if(P.moving){anim++; if(!G._tutStat)G._tutStat={}; if(anim%10===0) G._tutStat.moved=(G._tutStat.moved||0)+1; window._hungerMoveAcc=(window._hungerMoveAcc||0)+1;} /* v1.9.48: throttle 1 inkrement co 10 klatek (audyt tutorial: ~60fps × 30 = 0.5s; po fixie ~5s). v2.1.926 (PDF l.39): _hungerMoveAcc = klatki ruchu od ost. ticku decay (idle = wolniejszy głód). */
   const room=ROOMS[currentRoom];
@@ -14414,7 +14437,11 @@ function updatePlayer(){
       if((_hitX||_hitY)&&typeof window._vehMaybeImpact==='function') window._vehMaybeImpact(_hitX,_hitY,dx,dy);
     }
   }
+  /* PDF „Marina Coast" §1-3: blokada chodzenia po wodzie (chyba że tryb pływania) + strefa portowa restricted. */
+  if(currentRoom==='coast' && typeof window._marinaCoastMove==='function'){ const _mm=window._marinaCoastMove(nx,ny); nx=_mm.nx; ny=_mm.ny; }
   P.wx=nx;P.wy=ny;
+  /* PDF „Marina Coast" §4: tick pływania (zużycie siły, ostrzeżenia, ratunek, auto-wyjście na brzeg). */
+  if(currentRoom==='coast' && typeof window._marinaSwimTick==='function') window._marinaSwimTick();
   // F+ DUPLIKAT KROKÓW — usunięty drugi dźwięk kroków (sfxStep "noise" w tle).
   // Gracz miał 2 nakładające się dźwięki: playStep (tup-tup, gameLoop) + sfxStep (szuru-szuru, tu).
   // Zostaje TYLKO playStep przez maybeSoundStep w gameLoop.
@@ -29112,6 +29139,9 @@ function nextPeriod(){
     if(rentalInc>0){const _p=earn(rentalInc);addNotif(`🎙️ Wynajem studia: +${_p.toLocaleString('pl')} zł`);} /* v2.1.865: notif = REALNA kwota (earn return) */
     /* v2.3.109 (PDF13 TIER 13.5): tygodniowe rozliczenie wynajmu Studio Complex (accrue do weeklyPending, kasa dopiero przy Odbierz). */
     if(typeof window._studioWeeklyTick==='function') window._studioWeeklyTick();
+    /* PDF „Marina Coast" §29: tygodniowe utrzymanie jednostek + portu (co 7 dni) i dzienny tick (wygasanie wynajmu, wyciszanie plotek). */
+    if(typeof window._marinaDailyTick==='function') window._marinaDailyTick();
+    if(typeof window._marinaWeeklyTick==='function') window._marinaWeeklyTick();
     /* v2.3.109 (PDF13 TIER 13.7): integracje kariera/S9/sponsor (jednorazowe boosty przy progach jakości/prestiżu). */
     if(typeof window._studioApplyIntegrations==='function') window._studioApplyIntegrations();
     // ── Merch — dzienne sprzedaże, trendy, marketing ──
@@ -45464,6 +45494,1261 @@ window._marinaFinish=function(){
   if(typeof saveGameSilent==='function') saveGameSilent();
 };
 
+/* MARINA MODULE START (do not duplicate) */
+/* ═══════════════════════════════════════════════════════════════════
+   MARINA COAST — system pływania, jednostek pływających, wynajmu,
+   zakupu, cumowania, imprez i contentu (PDF „Marina Coast").
+   v2.3.120. Samodzielny moduł G.marina (osobny od systemu aut/kampera).
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── §7-8 KATALOG WYNAJMU ── */
+const MARINA_RENTALS=[
+  {id:'sea_kayak',       name:'Sea Kayak — Coastline 1',        emoji:'🛶', cat:'kayak',   prices:{'1h':150,'3h':350,'day':700},              risk:'niskie',        req:{},                use:'Spokojne pływanie, chill, krótkie ujęcia do vloga.'},
+  {id:'rigid_inflatable',name:'Ponton (sztywna podłoga) — Dock 320', emoji:'🚤', cat:'inflatable', prices:{'1h':400,'3h':900,'day':1800},        risk:'średnie',       req:{instruktazOr:true},use:'Krótkie wypady, szybkie ujęcia, małe grupy NPC.'},
+  {id:'open_boat',       name:'Open Boat — Marlin Open 19',       emoji:'⛵', cat:'open',    prices:{'1h':900,'3h':2200,'day':4800},           risk:'średnie',       req:{skill:1},         use:'Vlogi, ujęcia na wodzie, randki, małe imprezy.'},
+  {id:'jet_ski',         name:'Jet Ski — VoltWave 110',           emoji:'🌊', cat:'jetski',  prices:{'30min':700,'1h':1200,'3h':3000},         risk:'wysokie',       req:{skill:1},         use:'Szybki fun, ujęcia dynamiczne, social media.'},
+  {id:'rib',             name:'RIB — IronHull R6',                emoji:'🛥️', cat:'rib',     prices:{'1h':1500,'3h':3800,'day':8500},          risk:'średnio-wysokie',req:{skill:2},        use:'Szybsze rejsy, klipy, transport NPC, content premium.'},
+  {id:'yacht_ballast',   name:'Jacht balastowy — Valea 32',       emoji:'🛳️', cat:'yacht',   prices:{'day':6500,'weekend':18000},              risk:'wysokie reputacyjnie',req:{skill:3},   captainOk:true, use:'Imprezy, klipy, vlogi, relacje lifestyle, prestiż.'},
+  {id:'catamaran',       name:'Katamaran — Aurelia Cat 40',       emoji:'🚢', cat:'catamaran',prices:{'day':12000,'weekend':32000},             risk:'wysokie',       req:{skill:4},         captainOk:true, use:'Duże imprezy, teledyski, sponsorowane materiały, eventy z NPC.'},
+];
+/* ── §10 KATALOG ZAKUPU (fikcyjne modele) ── */
+const MARINA_MODELS=[
+  /* Kajaki morskie — małe, magazyn portowy (bez berth) */
+  {id:'coastline_1',  name:'Coastline 1',   cat:'kayak',    emoji:'🛶', price:6500,    weeklyMaintenance:150,  requiresBerth:false, requiredBerthTier:0, sizeClass:'small', fuelCapacity:0,   fuelBurn:0,  prestige:3,  comfort:5,  partyCapacity:1, contentBonus:2,  hasInteriorMap:false, use:'Chill, sport, spokojne vlogi.'},
+  {id:'northline_duo',name:'Northline Duo', cat:'kayak',    emoji:'🛶', price:11000,   weeklyMaintenance:250,  requiresBerth:false, requiredBerthTier:0, sizeClass:'small', fuelCapacity:0,   fuelBurn:0,  prestige:5,  comfort:8,  partyCapacity:2, contentBonus:3,  hasInteriorMap:false, use:'Pływanie z NPC, romantyczne/chill eventy, małe materiały social.'},
+  /* Skutery wodne — małe, magazyn portowy */
+  {id:'voltwave_110', name:'VoltWave 110',  cat:'jetski',   emoji:'🌊', price:42000,   weeklyMaintenance:1200, requiresBerth:false, requiredBerthTier:0, sizeClass:'small', fuelCapacity:70,  fuelBurn:35, prestige:12, comfort:8,  partyCapacity:1, contentBonus:6,  hasInteriorMap:false, use:'Dynamiczne shorty, fun, street level.'},
+  {id:'voltwave_xr',  name:'VoltWave XR',   cat:'jetski',   emoji:'🌊', price:78000,   weeklyMaintenance:2200, requiresBerth:false, requiredBerthTier:0, sizeClass:'small', fuelCapacity:90,  fuelBurn:45, prestige:20, comfort:10, partyCapacity:1, contentBonus:9,  hasInteriorMap:false, use:'Prestiż, szybkie eventy, materiały akcji.'},
+  /* Open Boat — berth wymagany */
+  {id:'marlin_open_19',name:'Marlin Open 19',cat:'open',    emoji:'⛵', price:95000,   weeklyMaintenance:2500, requiresBerth:true,  requiredBerthTier:1, sizeClass:'medium',fuelCapacity:120, fuelBurn:50, prestige:28, comfort:22, partyCapacity:4, contentBonus:10, hasInteriorMap:false, use:'Vlogi, relacje, małe imprezy, randki NPC.'},
+  {id:'marlin_open_24',name:'Marlin Open 24',cat:'open',    emoji:'⛵', price:155000,  weeklyMaintenance:3900, requiresBerth:true,  requiredBerthTier:1, sizeClass:'medium',fuelCapacity:180, fuelBurn:55, prestige:38, comfort:30, partyCapacity:6, contentBonus:14, hasInteriorMap:false, use:'Klipy, większe grupy NPC, content premium.'},
+  /* RIB — berth wymagany */
+  {id:'ironhull_r6',  name:'IronHull R6',   cat:'rib',      emoji:'🛥️', price:185000,  weeklyMaintenance:4700, requiresBerth:true,  requiredBerthTier:1, sizeClass:'medium',fuelCapacity:200, fuelBurn:80, prestige:42, comfort:28, partyCapacity:6, contentBonus:16, hasInteriorMap:false, use:'Szybkie rejsy, dynamiczne ujęcia, transport.'},
+  {id:'ironhull_r9',  name:'IronHull R9',   cat:'rib',      emoji:'🛥️', price:320000,  weeklyMaintenance:7200, requiresBerth:true,  requiredBerthTier:2, sizeClass:'large', fuelCapacity:280, fuelBurn:95, prestige:55, comfort:40, partyCapacity:8, contentBonus:18, hasInteriorMap:false, use:'Mocny lifestyle, prestiż, ujęcia premium.'},
+  /* Jachty balastowe — berth premium, osobna mapa */
+  {id:'valea_32',     name:'Valea 32',      cat:'yacht',    emoji:'🛳️', price:480000,  weeklyMaintenance:12000,requiresBerth:true,  requiredBerthTier:2, sizeClass:'large', fuelCapacity:340, fuelBurn:45, prestige:62, comfort:55, partyCapacity:8, contentBonus:20, hasInteriorMap:true, interiorMapId:'valea', use:'Imprezy, vlogi, klipy, prestiż.'},
+  {id:'valea_41',     name:'Valea 41',      cat:'yacht',    emoji:'🛳️', price:820000,  weeklyMaintenance:19000,requiresBerth:true,  requiredBerthTier:2, sizeClass:'large', fuelCapacity:420, fuelBurn:55, prestige:72, comfort:65, partyCapacity:10,contentBonus:24, hasInteriorMap:true, interiorMapId:'valea', use:'Teledyski, eventy z NPC, luksusowy content.'},
+  /* Katamarany — berth elite, osobna mapa */
+  {id:'aurelia_cat_40',name:'Aurelia Cat 40',cat:'catamaran',emoji:'🚢',price:1250000, weeklyMaintenance:28000,requiresBerth:true,  requiredBerthTier:3, sizeClass:'premium',fuelCapacity:520, fuelBurn:60, prestige:85, comfort:78, partyCapacity:14,contentBonus:30, hasInteriorMap:true, interiorMapId:'aurelia', use:'Duże imprezy, sponsorowane eventy, klipy, prestiż.'},
+  {id:'aurelia_cat_52',name:'Aurelia Cat 52',cat:'catamaran',emoji:'🚢',price:2400000, weeklyMaintenance:48000,requiresBerth:true,  requiredBerthTier:3, sizeClass:'premium',fuelCapacity:640, fuelBurn:75, prestige:98, comfort:92, partyCapacity:18,contentBonus:34, hasInteriorMap:true, interiorMapId:'aurelia', use:'Najwyższy poziom lifestyle, eventy premium, kampanie.'},
+];
+/* ── §11 MIEJSCA W PORCIE (berth) ── */
+const MARINA_BERTHS=[
+  {id:'basic',       name:'Basic Berth',   tier:1, price:25000,  weekly:1200,  forWho:'Open Boat, mały RIB'},
+  {id:'premium',     name:'Premium Berth', tier:2, price:75000,  weekly:3500,  forWho:'Większe RIB, małe jachty'},
+  {id:'elite',       name:'Elite Berth',   tier:3, price:180000, weekly:8500,  forWho:'Jachty i katamarany'},
+  {id:'private_pier',name:'Private Pier',  tier:4, price:450000, weekly:18000, forWho:'Jednostki premium, eventy prywatne, mniejsze ryzyko paparazzi'},
+];
+/* ── §13-14 DOPOSAŻENIA ── */
+const MARINA_UPGRADES=[
+  /* Audio i DJ */
+  {id:'deck_audio_basic', name:'Deck Audio Basic',  cat:'Audio i DJ',     emoji:'🔊', price:8500,  fx:{atmosphere:8,party:5},               desc:'+8 atmosfera, +5 jakość imprezy'},
+  {id:'marine_sound_pro', name:'Marine Sound Pro',  cat:'Audio i DJ',     emoji:'🎚️', price:28000, fx:{atmosphere:18,party:10,buzz:5},      desc:'+18 atmosfera, +10 jakość imprezy, +5 zasięg'},
+  {id:'dj_deck_station',  name:'DJ Deck Station',   cat:'Audio i DJ',     emoji:'🎧', price:45000, fx:{unlockDj:1},                         desc:'Odblokowuje event „DJ set na wodzie"'},
+  /* Oświetlenie */
+  {id:'soft_deck_lights', name:'Soft Deck Lights',  cat:'Oświetlenie',    emoji:'💡', price:12000, fx:{atmosphere:8,nightVlog:5},           desc:'+8 atmosfera, +5 jakość nocnych vlogów'},
+  {id:'rgb_yacht_kit',    name:'RGB Yacht Kit',     cat:'Oświetlenie',    emoji:'🌈', price:38000, fx:{atmosphere:18,frameup:10},          desc:'+18 atmosfera, +10 jakość FrameUp'},
+  {id:'film_light_marine',name:'Film Light Marine Kit',cat:'Oświetlenie', emoji:'🎬', price:55000, fx:{content:15},                         desc:'+15 jakość teledysków i materiałów'},
+  /* Komfort */
+  {id:'lounge_cushions',  name:'Lounge Cushions',   cat:'Komfort',        emoji:'🛋️', price:15000, fx:{comfort:10},                         desc:'+10 komfort'},
+  {id:'premium_sun_deck', name:'Premium Sun Deck',  cat:'Komfort',        emoji:'☀️', price:42000, fx:{comfort:20,prestige:8},              desc:'+20 komfort, +8 prestiż'},
+  {id:'luxury_cabin_pack',name:'Luxury Cabin Pack', cat:'Komfort',        emoji:'🛏️', price:95000, fx:{comfort:25,privacy:15,prestige:10},  desc:'+25 komfort, +15 prywatność, +10 prestiż'},
+  /* Bar i chłodzenie */
+  {id:'marine_fridge',    name:'Marine Fridge',     cat:'Bar i chłodzenie',emoji:'🧊', price:18000, fx:{unlockBar:1},                        desc:'Odblokowuje asortyment napojów'},
+  {id:'privacy_screens',  name:'Privacy Screens',   cat:'Prywatność',     emoji:'🕶️', price:22000, fx:{paparazzi:-10},                      desc:'-10 ryzyko paparazzi'},
+  {id:'dock_security',    name:'Dock Security',     cat:'Prywatność',     emoji:'🛡️', price:65000, fx:{paparazzi:-20,theft:-10},           desc:'-20 ryzyko paparazzi, -10 ryzyko kradzieży'},
+  /* Content setup */
+  {id:'camera_mounts',    name:'Camera Mounts',     cat:'Content setup',  emoji:'📷', price:9000,  fx:{vlog:8},                             desc:'+8 jakość vlogów i dynamicznych ujęć'},
+  {id:'creator_deck_setup',name:'Creator Deck Setup',cat:'Content setup', emoji:'🎥', price:24000, fx:{viewgrid:15,frameup:10},            desc:'+15 ViewGrid, +10 FrameUp'},
+  {id:'music_video_rig',  name:'Music Video Rig',   cat:'Content setup',  emoji:'🎞️', price:75000, fx:{content:20},                         desc:'+20 jakość teledysku na pokładzie'},
+  /* Technika */
+  {id:'reliability_service_pack',name:'Reliability Service Pack',cat:'Technika',emoji:'🔧',price:35000,fx:{reliability:15},                 desc:'+15 niezawodność (mniej awarii)'},
+  {id:'navigation_assist',name:'Navigation Assist', cat:'Technika',       emoji:'🧭', price:40000, fx:{accident:-10,routes:5},             desc:'-10 ryzyko wypadku, +5 opcje tras'},
+  {id:'fuel_efficiency_kit',name:'Fuel Efficiency Kit',cat:'Technika',    emoji:'⛽', price:55000, fx:{fuelSave:12},                        desc:'-12% koszt paliwa'},
+];
+/* Per-event doposażenia (koszt naliczany przy evencie, NIE instalowane trwale) — §14 bar + no-phone */
+const MARINA_EVENT_ADDONS=[
+  {id:'party_stock_basic',  name:'Party Stock Basic',  emoji:'🍸', cost:2500, fx:{party:8,npcMood:5},         desc:'+8 jakość imprezy, +5 nastrój NPC'},
+  {id:'premium_yacht_stock',name:'Premium Yacht Stock',emoji:'🥂', cost:9500, fx:{party:20,prestige:10,tips:8},desc:'+20 jakość imprezy, +10 prestiż, +8% napiwki'},
+  {id:'no_phone_policy',    name:'No-Phone Event Policy',emoji:'📵',cost:3000, fx:{leak:-15,party:-5},         desc:'-15 ryzyko przecieku, -5 jakość imprezy'},
+];
+
+/* ── §2 STREFY WODNE (mapa coast 1440×960; woda = rzędy 0-4, wy 0..240) ── */
+/* Typy: shallow / swim / deep / restricted. Restricted = teren portowy przy budynku Mariny (kolumny ~9-13). */
+const MARINA_PORT_RECT={x:432, y:0, w:240, h:240};
+function _marinaWaterZoneAt(footX, footY){
+  if(footY>=240) return null;              /* piasek/ląd — nie woda */
+  if(footX>=MARINA_PORT_RECT.x && footX<MARINA_PORT_RECT.x+MARINA_PORT_RECT.w && footY<MARINA_PORT_RECT.y+MARINA_PORT_RECT.h) return 'restricted';
+  if(footY<96) return 'deep';
+  if(footY<192) return 'swim';
+  return 'shallow';
+}
+
+/* ── STAN / MIGRACJA (lazy ensure — bezpieczne na starych save) ── */
+function _marinaEnsure(){
+  if(typeof G==='undefined') return null;
+  if(!G.marina || typeof G.marina!=='object'){
+    G.marina={};
+  }
+  const m=G.marina;
+  if(typeof m.unlocked!=='boolean') m.unlocked=true;
+  if(!m.skill || typeof m.skill!=='object') m.skill={level:0, xp:0};
+  if(typeof m.skill.level!=='number') m.skill.level=0;
+  if(typeof m.skill.xp!=='number') m.skill.xp=0;
+  if(typeof m.instruktazDone!=='boolean') m.instruktazDone=false;
+  if(typeof m.berthId!=='string' && m.berthId!==null) m.berthId=null;
+  if(!Array.isArray(m.owned)) m.owned=[];
+  if(m.activeRental!==null && typeof m.activeRental!=='object') m.activeRental=null;
+  if(!m.reputation || typeof m.reputation!=='object') m.reputation={};
+  const r=m.reputation;
+  ['paparazziRisk','gossipHeat','yachtPrestige','scandalRisk','marinaSocialBuzz'].forEach(k=>{ if(typeof r[k]!=='number') r[k]=0; });
+  if(typeof m.captainUnlocked!=='boolean') m.captainUnlocked=false;
+  if(typeof m.captainTrust!=='number') m.captainTrust=0;
+  if(!m.swimming || typeof m.swimming!=='object') m.swimming={};
+  const sw=m.swimming;
+  if(typeof sw.isSwimming!=='boolean') sw.isSwimming=false;
+  if(typeof sw.distanceFromShore!=='number') sw.distanceFromShore=0;
+  if(typeof sw.staminaWarned!=='boolean') sw.staminaWarned=false;
+  if(typeof sw._t!=='number') sw._t=0;
+  if(typeof m.lastMaintenanceDay!=='number' && m.lastMaintenanceDay!==null) m.lastMaintenanceDay=null;
+  if(!m.eventSettings || typeof m.eventSettings!=='object') m.eventSettings={};
+  if(typeof m.eventSettings.noPhonePolicy!=='boolean') m.eventSettings.noPhonePolicy=false;
+  if(!m.stats || typeof m.stats!=='object') m.stats={};
+  ['rentals','vlogs','clips','parties','safeCruises','swims'].forEach(k=>{ if(typeof m.stats[k]!=='number') m.stats[k]=0; });
+  /* migracja/normalizacja instancji jednostek */
+  m.owned=m.owned.filter(w=>w && typeof w==='object' && w.modelId).map(w=>{
+    const mdl=_marinaModelById(w.modelId)||{};
+    if(!w.condition || typeof w.condition!=='object') w.condition={hull:100,engine:100,electronics:100,interior:100,cleanliness:100};
+    ['hull','engine','electronics','interior','cleanliness'].forEach(k=>{ if(typeof w.condition[k]!=='number') w.condition[k]=100; });
+    if(!Array.isArray(w.upgrades)) w.upgrades=[];
+    if(typeof w.fuelCapacity!=='number') w.fuelCapacity=mdl.fuelCapacity||0;
+    if(typeof w.fuelCurrent!=='number') w.fuelCurrent=w.fuelCapacity;
+    if(typeof w.lastServiceDay!=='number') w.lastServiceDay=(G.day||0);
+    if(typeof w.name!=='string') w.name=mdl.name||w.modelId;
+    if(typeof w.id!=='string') w.id=w.modelId+'_'+Math.floor((G.day||0));
+    return w;
+  });
+  return m;
+}
+function _marinaModelById(id){ for(const m of MARINA_MODELS) if(m.id===id) return m; return null; }
+function _marinaRentalById(id){ for(const r of MARINA_RENTALS) if(r.id===id) return r; return null; }
+function _marinaBerthById(id){ for(const b of MARINA_BERTHS) if(b.id===id) return b; return null; }
+function _marinaUpgradeById(id){ for(const u of MARINA_UPGRADES) if(u.id===id) return u; return null; }
+function _marinaEventAddonById(id){ for(const a of MARINA_EVENT_ADDONS) if(a.id===id) return a; return null; }
+function _marinaSkillLevel(){ _marinaEnsure(); return (G.marina.skill&&G.marina.skill.level)||0; }
+function _marinaBestBerthTier(){ _marinaEnsure(); const b=_marinaBerthById(G.marina.berthId); return b?b.tier:0; }
+function _marinaOwnedById(id){ _marinaEnsure(); return G.marina.owned.find(w=>w.id===id)||null; }
+/* Aktywna jednostka do aktywności: wybrana ręcznie LUB pierwsza własna LUB aktywny wynajem. */
+function _marinaActiveCraft(){
+  _marinaEnsure(); const m=G.marina;
+  if(m._activeCraftId){ const w=_marinaOwnedById(m._activeCraftId); if(w) return {kind:'owned', w:w, model:_marinaModelById(w.modelId)}; }
+  if(m.owned.length){ const w=m.owned[0]; return {kind:'owned', w:w, model:_marinaModelById(w.modelId)}; }
+  if(m.activeRental && (m.activeRental.expiresDay==null || (G.day||0)<=m.activeRental.expiresDay)){ const rm=_marinaRentalById(m.activeRental.modelId); return {kind:'rental', w:m.activeRental, model:rm}; }
+  return null;
+}
+function _marinaHasAnyCraft(){ const c=_marinaActiveCraft(); return !!c; }
+
+/* ── §17 MARINA SKILL ── */
+const MARINA_SKILL_PROGRESSION=[
+  {lvl:0, unlocks:'Kajak, pływanie, wynajem z kapitanem'},
+  {lvl:1, unlocks:'Skuter wodny, małe Open Boat'},
+  {lvl:2, unlocks:'RIB, większe Open Boat'},
+  {lvl:3, unlocks:'Jacht (z ograniczeniami)'},
+  {lvl:4, unlocks:'Katamaran (z ograniczeniami)'},
+  {lvl:5, unlocks:'Pełna swoboda prywatnych rejsów premium'},
+];
+function _marinaSkillXpNeeded(lvl){ return 3+lvl*2; } /* progi: 3,5,7,9,11 xp na kolejne poziomy */
+function _marinaAddSkillXp(n){
+  _marinaEnsure(); const s=G.marina.skill; if(s.level>=5) return;
+  s.xp=(s.xp||0)+n;
+  let leveled=false;
+  while(s.level<5 && s.xp>=_marinaSkillXpNeeded(s.level)){ s.xp-=_marinaSkillXpNeeded(s.level); s.level++; leveled=true; }
+  if(leveled && typeof notify==='function'){ const pr=MARINA_SKILL_PROGRESSION[Math.min(5,s.level)]; notify(`⚓ Marina Skill wzrósł do poziomu ${s.level}! Odblokowane: ${pr?pr.unlocks:''}.`); }
+}
+function _marinaMeetsRentalReq(r){
+  _marinaEnsure();
+  if(r.captainOk) return true;                 /* jacht/katamaran zawsze z kapitanem */
+  if(!r.req || Object.keys(r.req).length===0) return true;
+  if(r.req.instruktazOr) return G.marina.instruktazDone || _marinaSkillLevel()>=1;
+  if(typeof r.req.skill==='number') return _marinaSkillLevel()>=r.req.skill;
+  return true;
+}
+function _marinaRentalReqText(r){
+  if(r.captainOk) return `Marina Skill ≥ ${r.req&&r.req.skill||3} albo wynajem z kapitanem`;
+  if(!r.req||Object.keys(r.req).length===0) return 'brak';
+  if(r.req.instruktazOr) return 'Podstawowy Marina Skill albo opłacony instruktaż';
+  if(typeof r.req.skill==='number') return `Marina Skill ≥ ${r.req.skill}`;
+  return 'brak';
+}
+
+/* ── PALIWO (§15) ── */
+function _marinaFuelPrice(premium){ return premium?36:28; }
+
+/* ── panel helpers ── */
+function _marinaPanel(html){
+  if(typeof window._ensureMgJob==='function') window._ensureMgJob();
+  const mg=document.getElementById('mg-job'); const mc=document.getElementById('mg-job-content');
+  if(!mg||!mc) return false;
+  mc.innerHTML=html; mg.classList.add('on');
+  return true;
+}
+function _marinaClose(){
+  if(typeof G!=='undefined' && G._marinaMC && G._marinaMC.iv){ clearInterval(G._marinaMC.iv); G._marinaMC=null; } /* sprzątnij interwał minigry kadrowania */
+  const mg=document.getElementById('mg-job'); if(mg) mg.classList.remove('on');
+  const mc=document.getElementById('mg-job-content'); if(mc) mc.innerHTML='';
+}
+window._marinaClose=_marinaClose;
+function _marinaMoney(){ return `<div style="background:#06121c;border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:13px;color:#9cc">💰 Saldo: <b style="color:#f1c40f">${(G.money||0).toLocaleString('pl')} zł</b> · ⚓ Marina Skill: <b style="color:#7ec8e3">${_marinaSkillLevel()}</b>${G.marina&&G.marina.berthId?` · ⚓ ${(_marinaBerthById(G.marina.berthId)||{}).name}`:''}</div>`; }
+function _marinaBack(fn){ return `<button class="cbtn" style="margin-top:12px;width:100%" onclick="${fn||'window._marinaOpenDockhouse()'}">← Wróć</button>`; }
+
+/* ═══ §5 MARINA DOCKHOUSE — panel główny ═══ */
+window._marinaOpenDockhouse=function(){
+  _marinaEnsure();
+  const c=_marinaActiveCraft();
+  const html=`<div style="background:#08151f;border:2px solid #00b4d8;border-radius:12px;padding:20px;max-width:600px;margin:0 auto;color:#dff">
+    <h2 style="color:#00d4f0;margin-top:0;text-align:center">⚓ Marina Dockhouse</h2>
+    <div style="text-align:center;color:#8ab;font-size:12px;margin-bottom:12px;font-style:italic">Wynajem, sprzedaż i obsługa jednostek pływających. Tu zaczyna się wszystko, co unosi się na wodzie — od kajaka po prywatny katamaran.</div>
+    ${_marinaMoney()}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button class="bbtn" onclick="window._marinaRenderRental()">🛥️ Wynajmij jednostkę</button>
+      <button class="bbtn" onclick="window._marinaRenderBuyCats()">🛒 Kup jednostkę</button>
+      <button class="bbtn" onclick="window._marinaRenderBerths()">⚓ Wykup miejsce w porcie</button>
+      <button class="bbtn" onclick="window._marinaRenderRefuel()">⛽ Tankowanie</button>
+      <button class="bbtn" onclick="window._marinaRenderService()">🔧 Serwis i naprawy</button>
+      <button class="bbtn" onclick="window._marinaRenderActivities()">🎬 Aktywności na wodzie</button>
+      <button class="bbtn" onclick="window._marinaRenderMyCraft()">📋 Moje jednostki${c?` (${G.marina.owned.length})`:''}</button>
+      <button class="bbtn" onclick="window._marinaRenderInstruktaz()">🎓 Instruktaż Marina</button>
+    </div>
+    ${G.marina.owned.length?`<div style="margin-top:8px"><button class="bbtn" style="width:100%;background:linear-gradient(135deg,#1a3a4a,#0a1a28)" onclick="window._startMarinaChoice&&window._startMarinaChoice()">🥂 Gala jachtowa / networking (wstęp 1000 zł, co 7 dni)</button></div>`:''}
+    <button class="cbtn" style="margin-top:12px;width:100%" onclick="window._marinaClose()">← Zamknij</button>
+  </div>`;
+  _marinaPanel(html);
+};
+
+/* ═══ §7-8 WYNAJEM ═══ */
+window._marinaRenderRental=function(){
+  _marinaEnsure();
+  const rows=MARINA_RENTALS.map(r=>{
+    const ok=_marinaMeetsRentalReq(r);
+    const priceStr=Object.keys(r.prices).map(k=>`${r.prices[k].toLocaleString('pl')} zł/${({'30min':'30 min','1h':'1h','3h':'3h','day':'dzień','weekend':'weekend','night':'noc'})[k]}`).join(' · ');
+    const btns=Object.keys(r.prices).map(k=>`<button class="bbtn" style="padding:6px 8px;font-size:12px" ${(!ok||(G.money||0)<r.prices[k])?'disabled':''} onclick="window._marinaDoRent('${r.id}','${k}')">${({'30min':'30 min','1h':'1h','3h':'3h','day':'Cały dzień','weekend':'Weekend','night':'Noc'})[k]} — ${r.prices[k].toLocaleString('pl')} zł</button>`).join(' ');
+    return `<div style="background:#06121c;border-radius:8px;padding:10px;margin-bottom:8px;border-left:3px solid ${ok?'#00b4d8':'#555'}">
+      <div style="font-weight:700;color:${ok?'#7ec8e3':'#888'}">${r.emoji} ${r.name}</div>
+      <div style="font-size:11px;color:#9ab;margin:3px 0">${r.use} · Ryzyko: ${r.risk}</div>
+      <div style="font-size:11px;color:${ok?'#7ec87e':'#e07070'};margin-bottom:6px">${ok?'✓ Wymagania spełnione':'🔒 Wymóg: '+_marinaRentalReqText(r)}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${btns}</div>
+    </div>`;
+  }).join('');
+  _marinaPanel(`<div style="background:#08151f;border:2px solid #00b4d8;border-radius:12px;padding:18px;max-width:640px;margin:0 auto;color:#dff">
+    <h2 style="color:#00d4f0;margin-top:0;text-align:center">🛥️ Wynajem jednostek</h2>
+    <div style="text-align:center;color:#8ab;font-size:11px;margin-bottom:8px">Wynajem pozwala przetestować różne style aktywności bez zakupu. Wynajęta jednostka ma paliwo w cenie.</div>
+    ${_marinaMoney()}${rows}${_marinaBack()}</div>`);
+};
+window._marinaDoRent=function(modelId,duration){
+  _marinaEnsure(); const r=_marinaRentalById(modelId); if(!r) return;
+  if(!_marinaMeetsRentalReq(r)){ if(typeof showMsg==='function') showMsg('🔒 Nie spełniasz wymagań wynajmu tej jednostki.','r',4000); return; }
+  const price=r.prices[duration]; if(price==null) return;
+  if((G.money||0)<price){ if(typeof showMsg==='function') showMsg('Nie masz wystarczająco gotówki.','r',3500); return; }
+  G.money-=price;
+  const days=(duration==='weekend')?2:(duration==='day'?1:0);
+  G.marina.activeRental={modelId, duration, name:r.name, emoji:r.emoji, expiresDay:(G.day||0)+days, fuelIncluded:true, prestige:0, cat:r.cat};
+  G.marina._activeCraftId=null; /* wynajem staje się aktywną jednostką jeśli brak własnej */
+  G.marina.stats.rentals++;
+  _marinaAddSkillXp(duration==='weekend'?2:1);
+  if(typeof notify==='function') notify(`🛥️ Wynajęto: ${r.name} (${({'30min':'30 min','1h':'1h','3h':'3h','day':'cały dzień','weekend':'weekend'})[duration]}). Miłej wody!`);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._marinaRenderActivities();
+};
+
+/* ═══ §9-10 ZAKUP ═══ */
+window._marinaRenderBuyCats=function(){
+  _marinaEnsure();
+  const cats=[
+    {id:'kayak',label:'🛶 Kajaki i małe jednostki'},
+    {id:'jetski',label:'🌊 Skutery wodne'},
+    {id:'open',label:'⛵ Łodzie Open'},
+    {id:'rib',label:'🛥️ RIB'},
+    {id:'yacht',label:'🛳️ Jachty'},
+    {id:'catamaran',label:'🚢 Katamarany'},
+  ];
+  _marinaPanel(`<div style="background:#08151f;border:2px solid #00b4d8;border-radius:12px;padding:18px;max-width:560px;margin:0 auto;color:#dff">
+    <h2 style="color:#00d4f0;margin-top:0;text-align:center">🛒 Kup jednostkę</h2>
+    <div style="text-align:center;color:#8ab;font-size:11px;margin-bottom:10px">Małe jednostki trzymasz w magazynie portowym. Średnie i duże wymagają wykupionego miejsca w porcie.</div>
+    ${_marinaMoney()}
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${cats.map(c=>`<button class="bbtn" onclick="window._marinaRenderBuyList('${c.id}')">${c.label}</button>`).join('')}
+    </div>${_marinaBack()}</div>`);
+};
+window._marinaRenderBuyList=function(cat){
+  _marinaEnsure();
+  const list=MARINA_MODELS.filter(m=>m.cat===cat);
+  const rows=list.map(m=>{
+    const owned=G.marina.owned.some(w=>w.modelId===m.id);
+    const berthOk=!m.requiresBerth || _marinaBestBerthTier()>=m.requiredBerthTier;
+    const canPay=(G.money||0)>=m.price;
+    const dis=owned||!berthOk||!canPay;
+    return `<div style="background:#06121c;border-radius:8px;padding:10px;margin-bottom:8px;border-left:3px solid ${owned?'#7ec87e':'#00b4d8'}">
+      <div style="font-weight:700;color:#7ec8e3">${m.emoji} ${m.name}${owned?' <span style="color:#7ec87e;font-size:11px">✓ posiadasz</span>':''}</div>
+      <div style="font-size:11px;color:#9ab;margin:3px 0">${m.use}</div>
+      <div style="font-size:11px;color:#bcd">💰 ${m.price.toLocaleString('pl')} zł · Utrzymanie ${m.weeklyMaintenance.toLocaleString('pl')} zł/tydz.${m.fuelCapacity?` · ⛽ ${m.fuelCapacity} l`:''}${m.hasInteriorMap?' · 🗺️ osobna mapa':''}</div>
+      <div style="font-size:11px;color:${berthOk?'#7ec87e':'#e07070'};margin:2px 0">${m.requiresBerth?(berthOk?'✓ Masz odpowiednie miejsce w porcie':'🔒 Wymaga: '+((MARINA_BERTHS.find(b=>b.tier===m.requiredBerthTier)||{}).name||'miejsce w porcie')):'Magazyn portowy (bez berth)'}</div>
+      <button class="bbtn" style="margin-top:4px;width:100%" ${dis?'disabled':''} onclick="window._marinaBuyWatercraft('${m.id}')">${owned?'Posiadasz':(!berthOk?'Brak miejsca w porcie':(!canPay?'Za mało gotówki':'🛒 Kup — '+m.price.toLocaleString('pl')+' zł'))}</button>
+    </div>`;
+  }).join('');
+  _marinaPanel(`<div style="background:#08151f;border:2px solid #00b4d8;border-radius:12px;padding:18px;max-width:640px;margin:0 auto;color:#dff">
+    <h2 style="color:#00d4f0;margin-top:0;text-align:center">🛒 ${({kayak:'Kajaki',jetski:'Skutery wodne',open:'Łodzie Open',rib:'RIB',yacht:'Jachty',catamaran:'Katamarany'})[cat]}</h2>
+    ${_marinaMoney()}${rows}${_marinaBack('window._marinaRenderBuyCats()')}</div>`);
+};
+window._marinaBuyWatercraft=function(modelId){
+  _marinaEnsure(); const m=_marinaModelById(modelId); if(!m) return;
+  if(G.marina.owned.some(w=>w.modelId===modelId)){ if(typeof showMsg==='function') showMsg('Masz już tę jednostkę.','r',3000); return; }
+  if(m.requiresBerth && _marinaBestBerthTier()<m.requiredBerthTier){ if(typeof showMsg==='function') showMsg('Nie masz miejsca w porcie dla tej jednostki. Wykup odpowiednie miejsce cumowania przed zakupem.','r',5000); return; }
+  if((G.money||0)<m.price){ if(typeof showMsg==='function') showMsg('Nie masz wystarczająco gotówki.','r',3500); return; }
+  G.money-=m.price;
+  const inst={
+    id:modelId+'_'+(G.day||0)+'_'+(G.marina.owned.length),
+    modelId:modelId, name:m.name, emoji:m.emoji, cat:m.cat, sizeClass:m.sizeClass,
+    fuelCapacity:m.fuelCapacity, fuelCurrent:m.fuelCapacity,
+    condition:{hull:100,engine:100,electronics:100,interior:100,cleanliness:100},
+    upgrades:[], prestige:m.prestige, comfort:m.comfort, partyCapacity:m.partyCapacity,
+    contentBonus:m.contentBonus, weeklyMaintenance:m.weeklyMaintenance,
+    berthId:(m.requiresBerth?G.marina.berthId:null), hasInteriorMap:!!m.hasInteriorMap,
+    interiorMapId:m.interiorMapId||null, lastServiceDay:(G.day||0)
+  };
+  G.marina.owned.push(inst);
+  G.marina._activeCraftId=inst.id;
+  G.marina.reputation.yachtPrestige += m.prestige;
+  if(m.sizeClass==='large'||m.sizeClass==='premium'){ window._marinaUnlockCaptain(m); }
+  /* Kamil SMS przy pierwszym skuterze / jachcie (§33) */
+  if(m.cat==='jetski') window._marinaKamilSms('jetski');
+  else if(m.cat==='yacht'||m.cat==='catamaran') window._marinaKamilSms('yacht');
+  if(typeof showMilestoneCinematic==='function') showMilestoneCinematic({emoji:m.emoji,title:'NOWA JEDNOSTKA!',subtitle:m.name,tagline:`Twój prestiż na wodzie rośnie · +${m.prestige} yachtPrestige`,accentColor:'#00b4d8',accent2:'#08151f',duration:5200});
+  else if(typeof notify==='function') notify(`⛵ Kupiono jednostkę: ${m.name}!`);
+  if(typeof addXP==='function') addXP(40);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._marinaRenderMyCraft();
+};
+
+/* ═══ §11 MIEJSCA W PORCIE ═══ */
+window._marinaRenderBerths=function(){
+  _marinaEnsure();
+  const cur=_marinaBerthById(G.marina.berthId);
+  const rows=MARINA_BERTHS.map(b=>{
+    const owned=G.marina.berthId===b.id;
+    const canPay=(G.money||0)>=b.price;
+    const isUpgrade=cur && cur.tier<b.tier;
+    return `<div style="background:#06121c;border-radius:8px;padding:10px;margin-bottom:8px;border-left:3px solid ${owned?'#7ec87e':'#00b4d8'}">
+      <div style="font-weight:700;color:#7ec8e3">⚓ ${b.name}${owned?' <span style="color:#7ec87e;font-size:11px">✓ aktywne</span>':''}</div>
+      <div style="font-size:11px;color:#9ab;margin:3px 0">Dla: ${b.forWho}</div>
+      <div style="font-size:11px;color:#bcd">Wykup: ${b.price.toLocaleString('pl')} zł · Opłata ${b.weekly.toLocaleString('pl')} zł/tydz.</div>
+      <button class="bbtn" style="margin-top:4px;width:100%" ${(owned||!canPay)?'disabled':''} onclick="window._marinaBuyBerth('${b.id}')">${owned?'Aktywne':(!canPay?'Za mało gotówki':(isUpgrade?'⬆ Zmień na to miejsce':'⚓ Wykup — '+b.price.toLocaleString('pl')+' zł'))}</button>
+    </div>`;
+  }).join('');
+  _marinaPanel(`<div style="background:#08151f;border:2px solid #00b4d8;border-radius:12px;padding:18px;max-width:600px;margin:0 auto;color:#dff">
+    <h2 style="color:#00d4f0;margin-top:0;text-align:center">⚓ Miejsce w porcie</h2>
+    <div style="text-align:center;color:#8ab;font-size:11px;margin-bottom:8px">${cur?'Aktywne miejsce: '+cur.name:'Nie posiadasz aktywnego miejsca cumowania.'}</div>
+    ${_marinaMoney()}${rows}${_marinaBack()}</div>`);
+};
+window._marinaBuyBerth=function(id){
+  _marinaEnsure(); const b=_marinaBerthById(id); if(!b) return;
+  if(G.marina.berthId===id) return;
+  if((G.money||0)<b.price){ if(typeof showMsg==='function') showMsg('Za mało gotówki na to miejsce.','r',3500); return; }
+  G.money-=b.price; G.marina.berthId=id;
+  if(typeof notify==='function') notify(`⚓ Wykupiono miejsce w porcie: ${b.name}. Opłata ${b.weekly.toLocaleString('pl')} zł/tydzień.`);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._marinaRenderBerths();
+};
+
+/* ═══ §15 TANKOWANIE ═══ */
+window._marinaRenderRefuel=function(){
+  _marinaEnsure();
+  const fuelable=G.marina.owned.filter(w=>{ const md=_marinaModelById(w.modelId); return md && md.fuelCapacity>0; });
+  if(!fuelable.length){ _marinaPanel(`<div style="background:#08151f;border:2px solid #00b4d8;border-radius:12px;padding:18px;max-width:520px;margin:0 auto;color:#dff"><h2 style="color:#00d4f0;margin-top:0;text-align:center">⛽ Tankowanie</h2><div style="color:#9ab;text-align:center;padding:14px">Nie masz własnej jednostki z silnikiem do zatankowania. Kajaki nie potrzebują paliwa, a wynajem ma paliwo w cenie.</div>${_marinaBack()}</div>`); return; }
+  const price=_marinaFuelPrice(false);
+  const rows=fuelable.map(w=>{
+    const pct=w.fuelCapacity?Math.round(w.fuelCurrent/w.fuelCapacity*100):0;
+    return `<div style="background:#06121c;border-radius:8px;padding:10px;margin-bottom:8px;border-left:3px solid #f1c40f">
+      <div style="font-weight:700;color:#7ec8e3">${w.emoji} ${w.name}</div>
+      <div style="font-size:12px;color:#bcd;margin:3px 0">⛽ ${Math.round(w.fuelCurrent)}/${w.fuelCapacity} l (${pct}%)</div>
+      <div style="height:8px;background:#0a1520;border-radius:4px;overflow:hidden;margin-bottom:6px"><div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#f1c40f,#e67e22)"></div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="bbtn" style="padding:5px 8px;font-size:12px" onclick="window._marinaRefuel('${w.id}',25)">+25%</button>
+        <button class="bbtn" style="padding:5px 8px;font-size:12px" onclick="window._marinaRefuel('${w.id}',50)">+50%</button>
+        <button class="bbtn" style="padding:5px 8px;font-size:12px" onclick="window._marinaRefuel('${w.id}',100)">Do pełna</button>
+      </div>
+    </div>`;
+  }).join('');
+  _marinaPanel(`<div style="background:#08151f;border:2px solid #00b4d8;border-radius:12px;padding:18px;max-width:560px;margin:0 auto;color:#dff">
+    <h2 style="color:#00d4f0;margin-top:0;text-align:center">⛽ Tankowanie</h2>
+    <div style="text-align:center;color:#8ab;font-size:11px;margin-bottom:8px">Paliwo marine: <b style="color:#f1c40f">${price} zł/litr</b>. Paliwo jest drogie i realnie wpływa na koszt aktywności.</div>
+    ${_marinaMoney()}${rows}${_marinaBack()}</div>`);
+};
+window._marinaRefuel=function(watercraftId,pct){
+  _marinaEnsure(); const w=_marinaOwnedById(watercraftId); if(!w) return;
+  const md=_marinaModelById(w.modelId); if(!md||!md.fuelCapacity){ return; }
+  const price=_marinaFuelPrice(false);
+  const want=Math.ceil(w.fuelCapacity*(pct/100));
+  const room=w.fuelCapacity-w.fuelCurrent;
+  const liters=Math.min(want, room);
+  if(liters<=0){ if(typeof showMsg==='function') showMsg('Zbiornik jest już pełny.','i',3000); return; }
+  const cost=Math.round(liters*price);
+  if((G.money||0)<cost){ if(typeof showMsg==='function') showMsg(`Nie masz wystarczająco gotówki na paliwo (${cost.toLocaleString('pl')} zł).`,'r',4000); return; }
+  G.money-=cost; w.fuelCurrent=Math.min(w.fuelCapacity, w.fuelCurrent+liters);
+  if(typeof showMsg==='function') showMsg(`⛽ Zatankowano ${liters} l. Koszt: ${cost.toLocaleString('pl')} zł.`,'g',3500);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._marinaRenderRefuel();
+};
+
+/* ═══ §16 SERWIS I NAPRAWY ═══ */
+function _marinaCondAvg(w){ const c=w.condition; return Math.round((c.hull+c.engine+c.electronics+c.interior+c.cleanliness)/5); }
+function _marinaBreakdownChance(w){
+  let ch=2; const c=w.condition;
+  if(c.engine<60) ch+=8;
+  if(c.hull<60) ch+=6;
+  if((w.fuelCurrent||0)<=5 && (_marinaModelById(w.modelId)||{}).fuelCapacity>0) ch+=5;
+  if(((G.day||0)-(w.lastServiceDay||0))>14) ch+=4;
+  if((G.weather||0)>=4) ch+=5; /* zła pogoda */
+  if(w.upgrades && w.upgrades.includes('reliability_service_pack')) ch-=5;
+  return Math.max(0, Math.min(35, ch));
+}
+window._marinaRenderService=function(){
+  _marinaEnsure();
+  if(!G.marina.owned.length){ _marinaPanel(`<div style="background:#08151f;border:2px solid #00b4d8;border-radius:12px;padding:18px;max-width:520px;margin:0 auto;color:#dff"><h2 style="color:#00d4f0;margin-top:0;text-align:center">🔧 Serwis i naprawy</h2><div style="color:#9ab;text-align:center;padding:14px">Nie masz własnej jednostki do serwisu.</div>${_marinaBack()}</div>`); return; }
+  const rows=G.marina.owned.map(w=>{
+    const c=w.condition;
+    const bar=(lbl,v)=>`<div style="display:flex;justify-content:space-between;font-size:11px;color:#bcd"><span>${lbl}</span><span style="color:${v<60?'#e07070':(v<85?'#f1c40f':'#7ec87e')}">${v}%</span></div><div style="height:5px;background:#0a1520;border-radius:3px;overflow:hidden;margin:1px 0 4px"><div style="height:100%;width:${v}%;background:${v<60?'#e07070':(v<85?'#f1c40f':'#7ec87e')}"></div></div>`;
+    return `<div style="background:#06121c;border-radius:8px;padding:10px;margin-bottom:8px;border-left:3px solid #e67e22">
+      <div style="font-weight:700;color:#7ec8e3">${w.emoji} ${w.name} · awaryjność ${_marinaBreakdownChance(w)}%</div>
+      <div style="margin:5px 0">${bar('Kadłub',c.hull)}${bar('Silnik',c.engine)}${bar('Elektronika',c.electronics)}${bar('Wnętrze',c.interior)}${bar('Czystość',c.cleanliness)}</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <button class="bbtn" style="padding:5px 7px;font-size:11px" onclick="window._marinaService('${w.id}','basic')">Serwis podst. 8500 zł</button>
+        <button class="bbtn" style="padding:5px 7px;font-size:11px" onclick="window._marinaService('${w.id}','engine')">Serwis silnika 18000 zł</button>
+        <button class="bbtn" style="padding:5px 7px;font-size:11px" onclick="window._marinaService('${w.id}','hull')">Naprawa kadłuba 24000 zł</button>
+        <button class="bbtn" style="padding:5px 7px;font-size:11px" onclick="window._marinaService('${w.id}','clean')">Czyszczenie po imprezie 6000 zł</button>
+        <button class="bbtn" style="padding:5px 7px;font-size:11px;background:linear-gradient(135deg,#2a6a2a,#0a2a0a)" onclick="window._marinaService('${w.id}','full')">Pełny serwis 52000 zł</button>
+      </div>
+    </div>`;
+  }).join('');
+  _marinaPanel(`<div style="background:#08151f;border:2px solid #00b4d8;border-radius:12px;padding:18px;max-width:640px;margin:0 auto;color:#dff">
+    <h2 style="color:#00d4f0;margin-top:0;text-align:center">🔧 Serwis i naprawy</h2>${_marinaMoney()}${rows}${_marinaBack()}</div>`);
+};
+window._marinaService=function(watercraftId,level){
+  _marinaEnsure(); const w=_marinaOwnedById(watercraftId); if(!w) return;
+  const costs={basic:8500,engine:18000,hull:24000,clean:6000,full:52000};
+  const cost=costs[level]; if(cost==null) return;
+  if((G.money||0)<cost){ if(typeof showMsg==='function') showMsg(`Serwis kosztuje ${cost.toLocaleString('pl')} zł — za mało gotówki.`,'r',4500); return; }
+  G.money-=cost; const c=w.condition;
+  if(level==='basic'){ ['hull','engine','electronics','interior','cleanliness'].forEach(k=>c[k]=Math.min(100,c[k]+20)); }
+  else if(level==='engine'){ c.engine=100; c.electronics=Math.min(100,c.electronics+15); }
+  else if(level==='hull'){ c.hull=100; }
+  else if(level==='clean'){ c.cleanliness=100; c.interior=Math.min(100,c.interior+15); }
+  else if(level==='full'){ c.hull=100;c.engine=100;c.electronics=100;c.interior=100;c.cleanliness=100; }
+  w.lastServiceDay=(G.day||0);
+  if(typeof notify==='function') notify(`🔧 Serwis (${({basic:'podstawowy',engine:'silnika',hull:'kadłuba',clean:'czyszczenie',full:'pełny'})[level]}): ${w.name} — koszt ${cost.toLocaleString('pl')} zł.`);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._marinaRenderService();
+};
+
+/* ═══ MOJE JEDNOSTKI + DOPOSAŻENIA ═══ */
+window._marinaRenderMyCraft=function(){
+  _marinaEnsure();
+  if(!G.marina.owned.length && !G.marina.activeRental){
+    _marinaPanel(`<div style="background:#08151f;border:2px solid #00b4d8;border-radius:12px;padding:18px;max-width:520px;margin:0 auto;color:#dff"><h2 style="color:#00d4f0;margin-top:0;text-align:center">📋 Moje jednostki</h2><div style="color:#9ab;text-align:center;padding:14px">Nie masz jeszcze własnej jednostki. Wynajmij lub kup coś w Dockhouse.</div>${_marinaBack()}</div>`); return;
+  }
+  const rental=(G.marina.activeRental && (G.marina.activeRental.expiresDay==null||(G.day||0)<=G.marina.activeRental.expiresDay))?G.marina.activeRental:null;
+  const rows=G.marina.owned.map(w=>{
+    const isActive=(G.marina._activeCraftId===w.id)||(!G.marina._activeCraftId&&G.marina.owned[0]===w);
+    return `<div style="background:#06121c;border-radius:8px;padding:10px;margin-bottom:8px;border-left:3px solid ${isActive?'#7ec87e':'#00b4d8'}">
+      <div style="font-weight:700;color:#7ec8e3">${w.emoji} ${w.name}${isActive?' <span style="color:#7ec87e;font-size:11px">● aktywna</span>':''}</div>
+      <div style="font-size:11px;color:#9ab;margin:3px 0">Stan ${_marinaCondAvg(w)}%${w.fuelCapacity?` · ⛽ ${Math.round(w.fuelCurrent)}/${w.fuelCapacity} l`:''} · Prestiż ${w.prestige} · Doposażeń: ${w.upgrades.length}</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        ${isActive?'':`<button class="bbtn" style="padding:5px 8px;font-size:11px" onclick="window._marinaSetActive('${w.id}')">Ustaw aktywną</button>`}
+        <button class="bbtn" style="padding:5px 8px;font-size:11px" onclick="window._marinaRenderUpgrades('${w.id}')">🛠️ Doposażenie</button>
+        ${w.hasInteriorMap?`<button class="bbtn" style="padding:5px 8px;font-size:11px;background:linear-gradient(135deg,#1a3a5a,#0a1a28)" onclick="window._marinaEnterInterior('${w.id}')">🗺️ Wejdź na pokład</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  const rentalRow=rental?`<div style="background:#0a1a12;border-radius:8px;padding:10px;margin-bottom:8px;border-left:3px solid #f1c40f">
+    <div style="font-weight:700;color:#f1c40f">${rental.emoji||'🛥️'} ${rental.name} <span style="font-size:11px;color:#8ab">(wynajem${rental.expiresDay?', do dnia '+rental.expiresDay:''})</span></div>
+    <div style="font-size:11px;color:#9ab">Paliwo w cenie · możesz na niej robić aktywności na wodzie.</div></div>`:'';
+  _marinaPanel(`<div style="background:#08151f;border:2px solid #00b4d8;border-radius:12px;padding:18px;max-width:620px;margin:0 auto;color:#dff">
+    <h2 style="color:#00d4f0;margin-top:0;text-align:center">📋 Moje jednostki</h2>${_marinaMoney()}${rentalRow}${rows}${_marinaBack()}</div>`);
+};
+window._marinaSetActive=function(id){ _marinaEnsure(); if(_marinaOwnedById(id)){ G.marina._activeCraftId=id; if(typeof showMsg==='function') showMsg('⛵ Ustawiono aktywną jednostkę.','g',2500); window._marinaRenderMyCraft(); } };
+window._marinaRenderUpgrades=function(watercraftId){
+  _marinaEnsure(); const w=_marinaOwnedById(watercraftId); if(!w) return;
+  const byCat={};
+  MARINA_UPGRADES.forEach(u=>{ (byCat[u.cat]=byCat[u.cat]||[]).push(u); });
+  const cats=Object.keys(byCat).map(cat=>{
+    const items=byCat[cat].map(u=>{
+      const has=w.upgrades.includes(u.id);
+      const canPay=(G.money||0)>=u.price;
+      return `<div style="background:#06121c;border-radius:6px;padding:8px;margin-bottom:6px;border-left:3px solid ${has?'#7ec87e':'#00b4d8'}">
+        <div style="font-size:12px;font-weight:700;color:#7ec8e3">${u.emoji} ${u.name}${has?' <span style="color:#7ec87e;font-size:10px">✓</span>':''}</div>
+        <div style="font-size:11px;color:#9ab">${u.desc}</div>
+        <button class="bbtn" style="margin-top:3px;width:100%;padding:5px;font-size:11px" ${(has||!canPay)?'disabled':''} onclick="window._marinaBuyUpgrade('${w.id}','${u.id}')">${has?'Zainstalowane':(!canPay?'Za mało gotówki':'Kup — '+u.price.toLocaleString('pl')+' zł')}</button>
+      </div>`;
+    }).join('');
+    return `<div style="margin-bottom:8px"><div style="color:#00d4f0;font-size:12px;font-weight:700;margin-bottom:4px">${cat}</div>${items}</div>`;
+  }).join('');
+  _marinaPanel(`<div style="background:#08151f;border:2px solid #00b4d8;border-radius:12px;padding:18px;max-width:640px;margin:0 auto;color:#dff">
+    <h2 style="color:#00d4f0;margin-top:0;text-align:center">🛠️ Doposażenie — ${w.name}</h2>
+    <div style="text-align:center;color:#8ab;font-size:11px;margin-bottom:8px">Rozwijaj jednostkę jak aktywo lifestyle/business — atmosfera, content, prywatność, niezawodność.</div>
+    ${_marinaMoney()}${cats}${_marinaBack('window._marinaRenderMyCraft()')}</div>`);
+};
+window._marinaBuyUpgrade=function(watercraftId,upgradeId){
+  _marinaEnsure(); const w=_marinaOwnedById(watercraftId); const u=_marinaUpgradeById(upgradeId); if(!w||!u) return;
+  if(w.upgrades.includes(upgradeId)) return;
+  if((G.money||0)<u.price){ if(typeof showMsg==='function') showMsg('Za mało gotówki na to doposażenie.','r',3500); return; }
+  G.money-=u.price; w.upgrades.push(upgradeId);
+  /* trwałe efekty statystyk jednostki */
+  if(u.fx.prestige){ w.prestige=(w.prestige||0)+u.fx.prestige; G.marina.reputation.yachtPrestige+=u.fx.prestige; }
+  if(u.fx.comfort) w.comfort=(w.comfort||0)+u.fx.comfort;
+  if(u.fx.content||u.fx.viewgrid||u.fx.frameup||u.fx.vlog) w.contentBonus=(w.contentBonus||0)+(u.fx.content||u.fx.viewgrid||u.fx.frameup||u.fx.vlog);
+  if(typeof notify==='function') notify(`🛠️ Zainstalowano: ${u.name} na ${w.name}. ${u.desc}.`);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._marinaRenderUpgrades(watercraftId);
+};
+
+/* ═══ §17 INSTRUKTAŻ MARINA ═══ */
+window._marinaRenderInstruktaz=function(){
+  _marinaEnsure(); const s=G.marina.skill;
+  const pr=MARINA_SKILL_PROGRESSION.map(p=>`<div style="font-size:11px;color:${s.level>=p.lvl?'#7ec87e':'#788'}">${s.level>=p.lvl?'✓':'•'} Poziom ${p.lvl}: ${p.unlocks}</div>`).join('');
+  _marinaPanel(`<div style="background:#08151f;border:2px solid #00b4d8;border-radius:12px;padding:18px;max-width:560px;margin:0 auto;color:#dff">
+    <h2 style="color:#00d4f0;margin-top:0;text-align:center">🎓 Marina Skill</h2>
+    <div style="background:#06121c;border-radius:6px;padding:10px;margin-bottom:8px">
+      <div style="color:#7ec8e3;font-weight:700">Poziom ${s.level}/5 · ${s.xp}/${s.level>=5?'MAX':_marinaSkillXpNeeded(s.level)} XP</div>
+      <div style="height:6px;background:#0a1520;border-radius:3px;overflow:hidden;margin-top:5px"><div style="height:100%;width:${s.level>=5?100:Math.round(s.xp/_marinaSkillXpNeeded(s.level)*100)}%;background:linear-gradient(90deg,#00b4d8,#7ec8e3)"></div></div>
+    </div>
+    <div style="margin-bottom:10px">${pr}</div>
+    <div style="font-size:11px;color:#9ab;margin-bottom:8px">Marina Skill rośnie przez pływanie, wynajem małych jednostek, bezpieczne kończenie rejsów, udział w instruktażu i eventy na wodzie bez incydentów.</div>
+    <button class="bbtn" style="width:100%" ${(G.marina.instruktazDone||(G.money||0)<2500)?'disabled':''} onclick="window._marinaBuyInstruktaz()">${G.marina.instruktazDone?'✓ Instruktaż Marina Basic ukończony':(( G.money||0)<2500?'Za mało gotówki (2500 zł)':'🎓 Instruktaż Marina Basic — 2500 zł (+1 Marina Skill XP, odblokowuje wynajem skutera i małych łodzi)')}</button>
+    ${_marinaBack()}</div>`);
+};
+window._marinaBuyInstruktaz=function(){
+  _marinaEnsure();
+  if(G.marina.instruktazDone) return;
+  if((G.money||0)<2500){ if(typeof showMsg==='function') showMsg('Instruktaż kosztuje 2500 zł.','r',3500); return; }
+  G.money-=2500; G.marina.instruktazDone=true;
+  _marinaAddSkillXp(1);
+  if(typeof notify==='function') notify('🎓 Ukończyłeś Instruktaż Marina Basic! Odblokowany wynajem skutera i małych łodzi.');
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._marinaRenderInstruktaz();
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   MARINA COAST — część 2: pływanie (runtime), wnętrza jednostek,
+   aktywności, imprezy, plotki/paparazzi, integracje, utrzymanie.
+   ═══════════════════════════════════════════════════════════════════ */
+function _mrnd(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+
+/* ═══ §1-4 PŁYWANIE ═══ */
+window._marinaCoastMove=function(nx,ny){
+  _marinaEnsure(); const sw=G.marina.swimming;
+  const fw=(P.w/2), fh=(P.h||44);
+  let rx=nx, ry=ny;
+  if(sw.isSwimming){
+    const zx=_marinaWaterZoneAt(rx+fw, P.wy+fh);   if(zx==='restricted') rx=P.wx;
+    const zxy=_marinaWaterZoneAt(rx+fw, ry+fh);     if(zxy==='restricted') ry=P.wy;
+  } else {
+    const zx=_marinaWaterZoneAt(rx+fw, P.wy+fh);   if(zx!=null) rx=P.wx;
+    const zxy=_marinaWaterZoneAt(rx+fw, ry+fh);     if(zxy!=null) ry=P.wy;
+  }
+  return {nx:rx, ny:ry};
+};
+window._marinaEnterSwim=function(){
+  _marinaEnsure(); const sw=G.marina.swimming;
+  if(sw.isSwimming){ if(typeof showMsg==='function') showMsg('🏊 Już pływasz — wróć na brzeg (w dół), żeby wyjść.','i',3000); return; }
+  if(currentRoom!=='coast'){ if(typeof showMsg==='function') showMsg('Do wody możesz wejść tylko na Wybrzeżu (Marina Coast).','i',3000); return; }
+  if((G.energy||0)<15){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii na pływanie — odpocznij najpierw.','r',3500); return; }
+  sw.isSwimming=true; sw.staminaWarned=false; sw._t=0; sw._deepWarned=false;
+  /* odsuń od strefy portowej (restricted) — kąpiel tylko poza portem */
+  if((P.wx+P.w/2)>=MARINA_PORT_RECT.x-20 && (P.wx+P.w/2)<=MARINA_PORT_RECT.x+MARINA_PORT_RECT.w+20){ P.wx=MARINA_PORT_RECT.x+MARINA_PORT_RECT.w+40; }
+  P.wy=Math.max(120, 240-(P.h||44)-8);   /* wsuń do płytkiej wody */
+  G.marina.stats.swims++;
+  if(typeof progressQuest==='function') progressQuest('coast_visit');
+  if(typeof showMsg==='function') showMsg('🏊 Wchodzisz do wody. Nie odpływaj za daleko bez jednostki — pływanie zużywa siłę. Wróć na brzeg, żeby wyjść.','g',4800);
+};
+window._marinaExitSwim=function(safe){
+  _marinaEnsure(); const sw=G.marina.swimming;
+  if(!sw.isSwimming) return;
+  sw.isSwimming=false; sw.staminaWarned=false; sw.distanceFromShore=0; sw._deepWarned=false;
+  if(safe){ _marinaAddSkillXp(1); if(typeof showMsg==='function') showMsg('🏖️ Wyszedłeś na brzeg. Bezpieczny powrót — Marina Skill rośnie.','g',3200); }
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+window._marinaSwimTick=function(){
+  if(currentRoom!=='coast') return;
+  _marinaEnsure(); const sw=G.marina.swimming;
+  if(!sw.isSwimming) return;
+  const fh=(P.h||44); const footY=P.wy+fh;
+  if(footY>=240){ window._marinaExitSwim(true); return; }   /* wrócił na brzeg */
+  const zone=_marinaWaterZoneAt(P.wx+P.w/2, footY);
+  sw.distanceFromShore=Math.max(0, 240-footY);
+  if(zone==='deep' && !sw._deepWarned){ sw._deepWarned=true; if(typeof showMsg==='function') showMsg('🌊 Oddalasz się od brzegu — jesteś na głębokiej wodzie. Siła spada szybciej.','r',4200); }
+  sw._t=(sw._t||0)+1;
+  if(sw._t % 24 !== 0) return;   /* throttle ~0.4 s */
+  const drain=(zone==='deep')?1.4:(zone==='swim'?0.9:0.5);
+  G.energy=Math.max(0, (G.energy||0)-drain);
+  if(G.energy<=15 && G.energy>0 && !sw.staminaWarned){ sw.staminaWarned=true; if(typeof showMsg==='function') showMsg('⚠️ Kończy Ci się siła. Wróć do brzegu — inaczej trzeba będzie Cię ratować.','r',4500); }
+  if(G.energy<=0){ window._marinaTriggerRescue(); }
+};
+window._marinaTriggerRescue=function(){
+  _marinaEnsure(); const sw=G.marina.swimming;
+  sw.isSwimming=false; sw.staminaWarned=false; sw.distanceFromShore=0; sw._deepWarned=false;
+  G.money=Math.max(0,(G.money||0)-1200);
+  G.health=(typeof clampStat==='function')?clampStat('health',(typeof G.health==='number'?G.health:100)-15):Math.max(0,(typeof G.health==='number'?G.health:100)-15);
+  G.stress=Math.max(0,(G.stress||50)-10);      /* obniż nastrój (stress=mood) */
+  G.energy=Math.max(25,(G.energy||0));
+  if(currentRoom==='coast' && typeof ROOMS!=='undefined' && ROOMS.coast){ P.wy=Math.min(ROOMS.coast.hT*T-(P.h||44)-8, 320); }
+  let extra='';
+  if(Math.random()<0.4){ G.defamation=(G.defamation||0)+3; extra=' 📸 Ktoś nagrał całą akcję — internet się śmieje (+zniesławienie).'; }
+  if(typeof showMsg==='function') showMsg(`🚑 Zostałeś wyciągnięty z wody przez służby Marina Coast. Koszt interwencji 1200 zł, −15 zdrowia, −nastrój. Następnym razem nie odpływaj tak daleko bez jednostki.${extra}`,'r',7500);
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+
+/* ═══ helpery contentu / jednostek ═══ */
+const _MARINA_CAT_PRESTIGE={kayak:5, inflatable:10, open:25, jetski:15, rib:42, yacht:65, catamaran:88};
+function _marinaCraftPrestige(craft){
+  if(!craft) return 0;
+  if(craft.kind==='owned') return craft.w.prestige||0;
+  return _MARINA_CAT_PRESTIGE[craft.w&&craft.w.cat]||10;
+}
+function _marinaCraftContentBonus(craft){
+  if(!craft) return 0;
+  if(craft.kind==='owned') return craft.w.contentBonus||0;
+  return Math.round((_MARINA_CAT_PRESTIGE[craft.w&&craft.w.cat]||10)*0.2);
+}
+function _marinaCraftUps(craft){ return (craft&&craft.kind==='owned'&&Array.isArray(craft.w.upgrades))?craft.w.upgrades:[]; }
+function _marinaCraftName(craft){ return craft?((craft.kind==='owned'?craft.w.name:craft.w.name)||'jednostka'):'jednostka'; }
+function _marinaCraftCat(craft){ return craft?(craft.kind==='owned'?craft.w.cat:craft.w.cat):null; }
+function _marinaSeaPenalty(){ const w=(G.weather||0); return w>=5?18:(w>=4?12:(w>=3?6:0)); }
+function _marinaContentQuality(type, craft){
+  let base=(typeof window.calculateVideoQuality==='function')?window.calculateVideoQuality(type):(G.camera?G.camera.quality:28);
+  const prestigeBonus=Math.round(_marinaCraftPrestige(craft)*0.15);
+  const scenery=(typeof getSceneryBonus==='function'?0:0)+10;
+  const contentB=_marinaCraftContentBonus(craft);
+  const pen=_marinaSeaPenalty();
+  return Math.max(5, Math.min(100, Math.round(base + prestigeBonus + scenery + contentB - pen)));
+}
+/* zużycie paliwa/energii + roll awarii dla własnej jednostki z silnikiem */
+function _marinaConsume(craft, energyCost, fuelHours){
+  G.energy=Math.max(0,(G.energy||0)-energyCost);
+  if(craft && craft.kind==='owned'){
+    const md=_marinaModelById(craft.w.modelId);
+    if(md && md.fuelCapacity>0 && fuelHours>0){
+      let burn=md.fuelBurn*fuelHours;
+      if(craft.w.upgrades.includes('fuel_efficiency_kit')) burn*=0.88;
+      craft.w.fuelCurrent=Math.max(0, craft.w.fuelCurrent-burn);
+    }
+    /* drobne zużycie condition */
+    craft.w.condition.engine=Math.max(0, craft.w.condition.engine-_mrnd(0,2));
+    craft.w.condition.cleanliness=Math.max(0, craft.w.condition.cleanliness-_mrnd(1,3));
+  }
+}
+function _marinaCheckFuel(craft, hoursNeeded){
+  if(craft && craft.kind==='owned'){
+    const md=_marinaModelById(craft.w.modelId);
+    if(md && md.fuelCapacity>0){ const need=md.fuelBurn*hoursNeeded*0.5; if(craft.w.fuelCurrent<need){ if(typeof showMsg==='function') showMsg('⛽ Za mało paliwa — zatankuj jednostkę w Dockhouse.','r',4000); return false; } }
+  }
+  return true;
+}
+function _marinaCheckBreakdown(craft){
+  if(craft && craft.kind==='owned'){
+    const ch=_marinaBreakdownChance(craft.w);
+    if(Math.random()*100<ch){
+      /* awaria */
+      const zones=['engine','electronics','hull']; const z=zones[_mrnd(0,2)];
+      craft.w.condition[z]=Math.max(0, craft.w.condition[z]-_mrnd(10,25));
+      G.stress=Math.max(0,(G.stress||50)-6);
+      if(typeof showMsg==='function') showMsg(`🛠️ Awaria na wodzie! Problem z: ${({engine:'silnikiem',electronics:'elektroniką',hull:'kadłubem'})[z]}. Wróć do portu i zrób serwis.`,'r',5500);
+      return true;
+    }
+  }
+  return false;
+}
+
+/* ═══ §23-24 PAPARAZZI / PLOTKI ═══ */
+const MARINA_HEADLINES=[
+  'ChirpNet: „${p} znowu widziany na jachcie. Muzyka, czy prywatny casting?"',
+  'FrameUp Gossip: „Kto naprawdę był na pokładzie? Zdjęcia z Marina Coast robią hałas."',
+  'Blog plotkarski: „Nowa modelka, stary schemat? Internet już dopisuje historię."',
+  'Blog plotkarski: „Grzeszny Kurort — mówi radny miasta. Czy powinniśmy zaostrzyć kontrole jednostek?"',
+  'ChirpNet: „Marinka kipi i bardzo dobrze — sezon na wodzie w pełni."',
+  'FrameUp Gossip: „Znani celebryci znowu uchwyceni przez paparazzi na wodzie."',
+];
+function _marinaGossipRisk(craft, opts){
+  opts=opts||{}; _marinaEnsure();
+  let risk=5;
+  risk += (G.fame||0)*0.05;
+  risk += (G.streetRep||0)*0.1;
+  risk += _marinaCraftPrestige(craft)*0.15;
+  const dow=(typeof _dayOfWeek==='function')?_dayOfWeek():0;
+  if(dow===4||dow===5) risk+=10;
+  if((G.timeOfDay||0)>=3) risk+=8;
+  const ups=_marinaCraftUps(craft);
+  if(ups.includes('privacy_screens')) risk-=10;
+  if(ups.includes('dock_security')) risk-=20;
+  if(opts.noPhone) risk-=15;
+  if(G.marina.berthId==='private_pier') risk-=12;
+  if(opts.extra) risk+=opts.extra;
+  return Math.max(0, Math.min(70, Math.round(risk)));
+}
+function _marinaGossipHeadline(){
+  _marinaEnsure(); const r=G.marina.reputation;
+  const nm=(G.name||G.playerName||'Gracz');
+  const h=MARINA_HEADLINES[_mrnd(0,MARINA_HEADLINES.length-1)].replace('${p}',nm);
+  G.defamation=(G.defamation||0)+_mrnd(3,8);
+  r.gossipHeat=Math.min(100, r.gossipHeat+_mrnd(5,15));
+  r.scandalRisk=Math.min(100, r.scandalRisk+8);
+  r.marinaSocialBuzz+=_mrnd(2,6);
+  G.followers=(G.followers||0)+_mrnd(20,60);
+  if(G.signalNine){ G.signalNine.brandTrust=Math.max(0,(G.signalNine.brandTrust||60)-1); }
+  if(G.publicRep){ G.publicRep.sponsorTrust=Math.max(0,(G.publicRep.sponsorTrust||0)-1); }
+  if(typeof addNotif==='function') addNotif('📰 '+h);
+  if(typeof showMsg==='function') showMsg('📸 Plotka z Mariny! '+h+' (+zasięg, ale +zniesławienie i mniej zaufania marek)','r',6500);
+  if(r.gossipHeat>=50) window._marinaSponsorReact(false);
+  if(r.scandalRisk>=40 && typeof addNotif==='function') addNotif('📡 S9 Agency może zaproponować „Crisis Control" — sprawdź Aktywności na wodzie → Kryzys.');
+  return true;
+}
+function _marinaRollGossip(craft, opts){
+  _marinaEnsure();
+  const risk=_marinaGossipRisk(craft,opts);
+  G.marina.reputation.paparazziRisk=risk;
+  if(Math.random()*100<risk){ return _marinaGossipHeadline(); }
+  return false;
+}
+
+/* ═══ §32 SPONSOR ODZIEŻOWY ═══ */
+window._marinaSponsorReact=function(positive){
+  _marinaEnsure();
+  if(positive){
+    const craft=_marinaActiveCraft();
+    if(craft && _marinaCraftPrestige(craft)>=60 && (G.drip||0)>=30 && G.marina.reputation.scandalRisk<25){
+      if(G._sponsorRel){ G._sponsorRel.interest=(G._sponsorRel.interest||0)+1; }
+      if(G.publicRep){ G.publicRep.sponsorTrust=(G.publicRep.sponsorTrust||0)+1; }
+      if(typeof _smsSend==='function') _smsSend('sponsor','Materiał z mariny wygląda mocno. Luksus, ale bez desperacji. Jeśli utrzymasz ten poziom, możemy pomyśleć o letniej kampanii.',{bypass:true});
+    }
+  } else {
+    if(G.marina.reputation.gossipHeat>=50){
+      if(G._sponsorRel){ G._sponsorRel.trust=Math.max(0,(G._sponsorRel.trust||0)-1); }
+      if(G.publicRep){ G.publicRep.sponsorTrust=Math.max(0,(G.publicRep.sponsorTrust||0)-1); }
+      if(typeof _smsSend==='function') _smsSend('sponsor','Musimy chwilowo zatrzymać temat. Zdjęcia z jachtu robią zasięg, ale nie taki, pod którym marka chce się podpisać.',{bypass:true});
+    }
+  }
+};
+
+/* ═══ §33 KAMIL SMS ═══ */
+window._marinaKamilSms=function(kind){
+  if(typeof _smsSend!=='function') return;
+  const texts={
+    jetski:'o kurwa skuter wodny? XD czyli juz nie chodzisz po miescie tylko uciekasz przed problemami po falach? Naaaaaajs',
+    yacht:'dobra, jacht to juz nie flex, stary. To jest komunikat do miasta ze albo ci idzie albo zaraz cie poniesie.',
+    paparazzi:'nie wiem kto tam byl na tym pokladzie i nie chce wiedziec, ale internet juz wie wszystko a nawet rzeczy ktore sie nie wydarzyly. Ludzie sa pojebani'
+  };
+  if(texts[kind]) _smsSend('kamil',texts[kind],{bypass:true});
+};
+
+/* ═══ §6,25 CAPTAIN NOLAN REED ═══ */
+window._marinaUnlockCaptain=function(model){
+  _marinaEnsure();
+  const first=!G.marina.captainUnlocked;
+  G.marina.captainUnlocked=true;
+  if(typeof _smsTriggerOnce==='function' && first){
+    _smsTriggerOnce('marina_captain_intro','nolan','Czołem! Słyszałem, że kupiłeś coś większego niż zabawkę na wodę. Od teraz — cumowanie, paliwo, serwis albo prywatne rejsy — zapraszam do mnie. Na morzu banknoty pomagają, ale rozsądek dalej jest tańszy niż ratunek.',{replySet:'nolan_intro',bypass:true});
+  } else if(typeof _smsSend==='function' && (model&&(model.cat==='yacht'||model.cat==='catamaran'))){
+    _smsSend('nolan',`Gratulacje. ${model.name} to już nie zabawka do zdjęć. Masz miejsce w porcie, ale pamiętaj: paliwo, serwis, załoga i prywatność kosztują więcej niż sam moment zakupu. Jeśli zechcesz zorganizować event — daj info z wyprzedzeniem.`,{bypass:true});
+  }
+};
+window._MARINA_NOLAN_REPLIES={
+  nolan_control:{set:'intro', label:'Jasne. Chcę mieć to pod kontrolą', text:'Jasne. Chcę mieć to pod kontrolą.', fx:{captainTrust:1}, reply:'Rozsądnie. Na prywatnej jednostce najdroższe nie są luksusy, a błędy, które ktoś nagra telefonem. Takie moje delikatne spostrzeżenie.'},
+  nolan_fuel:{set:'intro', label:'Zacznijmy od paliwa i serwisu', text:'Zacznijmy od paliwa i serwisu.', fx:{captainTrust:1}, reply:'Dobre podejście. Zadbana jednostka to mniej awarii i mniej niespodzianek na wodzie.'},
+  nolan_party:{set:'intro', label:'Myślę o pierwszej imprezie na pokładzie', text:'Myślę o pierwszej imprezie na pokładzie.', fx:{captainTrust:1}, reply:'Możemy to ograć. Tylko pamiętaj o prywatności — na wodzie łatwo o niechciane zdjęcia.'},
+  nolan_content:{set:'intro', label:'Chcę nagrać klip albo vloga na jachcie', text:'Chcę nagrać klip albo vloga na jachcie.', fx:{captainTrust:1}, reply:'Świetne tło pod content. Dobre światło i stabilne morze to połowa sukcesu.'},
+  nolan_privacy:{set:'intro', label:'Najważniejsza jest prywatność', text:'Najważniejsza jest prywatność.', fx:{captainTrust:1}, reply:'Mądrze. Privacy Screens i zaufani goście oszczędzą Ci wielu nagłówków.'},
+  nolan_ignore:{set:'intro', label:'— Zignoruj', text:null, fx:{captainTrust:-1}},
+};
+window._marinaHandleReply=function(opt){
+  _marinaEnsure();
+  if(opt && opt.fx && typeof opt.fx.captainTrust==='number'){ G.marina.captainTrust=Math.max(-5,(G.marina.captainTrust||0)+opt.fx.captainTrust); }
+  if(opt && opt.reply && typeof window._smsPushNpcReply==='function'){ setTimeout(()=>{ window._smsPushNpcReply('nolan',opt.reply); }, 700); }
+};
+
+/* ═══ §30 POLICJA / MIASTO ═══ */
+function _marinaPoliceCheck(craft, opts){
+  opts=opts||{}; _marinaEnsure();
+  let risk=opts.base||6;
+  if((G.timeOfDay||0)>=3) risk+=8;         /* noc */
+  risk += G.marina.reputation.scandalRisk*0.1;
+  if(opts.loud) risk+=8;
+  if(G.marina.berthId==='private_pier') risk-=6;
+  risk=Math.max(0, Math.min(45, risk));
+  if(Math.random()*100<risk){
+    const mandat=_mrnd(1,3)*500;
+    G.money=Math.max(0,(G.money||0)-mandat);
+    G.defamation=(G.defamation||0)+2;
+    if(typeof _smsSend==='function') _smsSend('nolan','Dostaliśmy zgłoszenie o hałasie i ryzykownym zachowaniu na jednostce. Wyluzuj z tym eventem albo wróć do spokojnego trybu — inaczej port zacznie się interesować.',{bypass:true});
+    if(typeof showMsg==='function') showMsg(`🚨 Kontrola portowa! Zgłoszono hałas na jednostce. Mandat ${mandat.toLocaleString('pl')} zł, +zniesławienie.`,'r',5500);
+    return true;
+  }
+  return false;
+}
+
+/* ═══ §18 AKTYWNOŚCI NA WODZIE ═══ */
+window._marinaRenderActivities=function(){
+  _marinaEnsure(); const craft=_marinaActiveCraft();
+  if(!craft){ _marinaPanel(`<div style="background:#08151f;border:2px solid #00b4d8;border-radius:12px;padding:18px;max-width:520px;margin:0 auto;color:#dff"><h2 style="color:#00d4f0;margin-top:0;text-align:center">🎬 Aktywności na wodzie</h2><div style="color:#9ab;text-align:center;padding:14px">Potrzebujesz jednostki. Wynajmij albo kup coś w Dockhouse.</div><div style="display:flex;gap:8px;margin-top:8px"><button class="bbtn" style="flex:1" onclick="window._marinaRenderRental()">🛥️ Wynajem</button><button class="bbtn" style="flex:1" onclick="window._marinaRenderBuyCats()">🛒 Zakup</button></div>${_marinaBack()}</div>`); return; }
+  const cat=_marinaCraftCat(craft);
+  const isBig=(cat==='yacht'||cat==='catamaran');
+  const isJet=(cat==='jetski');
+  const crisis=(G.marina.reputation.scandalRisk>=40||G.marina.reputation.gossipHeat>=45);
+  _marinaPanel(`<div style="background:#08151f;border:2px solid #00b4d8;border-radius:12px;padding:18px;max-width:600px;margin:0 auto;color:#dff">
+    <h2 style="color:#00d4f0;margin-top:0;text-align:center">🎬 Aktywności na wodzie</h2>
+    <div style="text-align:center;color:#8ab;font-size:12px;margin-bottom:8px">Jednostka: <b style="color:#7ec8e3">${_marinaCraftName(craft)}</b>${craft.kind==='rental'?' (wynajem)':''}</div>
+    ${_marinaMoney()}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button class="bbtn" onclick="window._marinaActVlog()">📹 Nagraj vlog (ViewGrid)</button>
+      <button class="bbtn" onclick="window._marinaActFrameUp()">📸 Content na FrameUp</button>
+      <button class="bbtn" ${isBig?'':'disabled title="Klip premium: jacht albo katamaran"'} onclick="window._marinaActClip()">🎞️ Nagraj klip${isBig?'':' 🔒'}</button>
+      <button class="bbtn" onclick="window._marinaRenderParty()">🥂 Zorganizuj imprezę z NPC</button>
+      <button class="bbtn" onclick="window._marinaActInviteCrew()">👥 Zaproś ekipę</button>
+      <button class="bbtn" onclick="window._marinaActPrivate()">💋 Prywatne spotkanie</button>
+      <button class="bbtn" ${isJet?'':'disabled title="Wymaga skutera wodnego"'} onclick="window._marinaActJetRace()">🌊 Wyścig skuterów${isJet?'':' 🔒'}</button>
+      <button class="bbtn" onclick="window._marinaActChill()">🛥️ Chill rejs</button>
+    </div>
+    ${crisis?`<button class="bbtn" style="margin-top:8px;width:100%;background:linear-gradient(135deg,#5a1a2a,#2a0a12)" onclick="window._marinaS9Crisis()">📡 S9 Agency — Crisis Control (plotki: ${G.marina.reputation.gossipHeat|0})</button>`:''}
+    ${_marinaBack()}</div>`);
+};
+
+/* generyczna minigra „kadrowania" contentu (timing bar) — używana przez vlog/frameup/klip */
+window._marinaContentMini=function(cfg, onDone){
+  _marinaEnsure();
+  if(G._marinaMC && G._marinaMC.iv){ clearInterval(G._marinaMC.iv); G._marinaMC=null; } /* nie startuj podwójnie */
+  if(!_marinaPanel(`<div style="background:#08151f;border:2px solid ${cfg.accent||'#00b4d8'};border-radius:12px;padding:18px;max-width:520px;margin:0 auto;color:#dff">
+    <h2 style="color:${cfg.accent||'#00d4f0'};margin-top:0;text-align:center">${cfg.emoji||'🎬'} ${cfg.title||'Kadrowanie ujęcia'}</h2>
+    <div style="color:#8ab;font-size:12px;text-align:center;margin-bottom:12px">Zatrzymaj suwak w <b style="color:#27ae60">zielonej strefie</b> — trafione kadrowanie = lepsza jakość materiału.</div>
+    <div style="position:relative;height:38px;background:#06121c;border-radius:6px;overflow:hidden;border:1px solid #1a3a4a">
+      <div style="position:absolute;left:64%;width:22%;height:100%;background:rgba(39,174,96,0.28);border-left:2px solid #27ae60;border-right:2px solid #27ae60"></div>
+      <div id="mc-fill" style="position:absolute;left:0;top:0;height:100%;width:0%;background:linear-gradient(90deg,#0a5a8a,#00b4d8)"></div>
+    </div>
+    <button class="bbtn" style="margin-top:14px;width:100%;padding:12px;font-size:15px" onclick="window._marinaContentStop()">🎯 STOP — kadruję</button>
+  </div>`)) return;
+  G._marinaMC={fill:0, dir:1, over:false, onDone:onDone, cfg:cfg};
+  G._marinaMC.iv=setInterval(window._marinaContentTick, 26);
+};
+window._marinaContentTick=function(){
+  const mc=G._marinaMC; if(!mc||mc.over) return;
+  mc.fill+=mc.dir*2.6;
+  if(mc.fill>=100){ mc.fill=100; mc.dir=-1; } else if(mc.fill<=0){ mc.fill=0; mc.dir=1; }
+  const b=document.getElementById('mc-fill'); if(b) b.style.width=mc.fill+'%';
+};
+window._marinaContentStop=function(){
+  const mc=G._marinaMC; if(!mc||mc.over) return; mc.over=true;
+  if(mc.iv){ clearInterval(mc.iv); mc.iv=null; }
+  const f=mc.fill; let mult;
+  if(f>=64 && f<=86) mult=1.15;
+  else if(f>=52 && f<=94) mult=0.95;
+  else mult=0.7;
+  const onDone=mc.onDone; G._marinaMC=null;
+  if(typeof onDone==='function') onDone(mult);
+};
+
+window._marinaActVlog=function(){
+  _marinaEnsure(); const craft=_marinaActiveCraft(); if(!craft){ window._marinaRenderActivities(); return; }
+  if((G.weather||0)>=6){ if(typeof showMsg==='function') showMsg('🌩️ Pogoda jest ekstremalna — nie nagrasz teraz vloga na wodzie.','r',4000); return; }
+  if((G.energy||0)<10){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii na nagranie.','r',3500); return; }
+  if(!_marinaCheckFuel(craft,1)) return;
+  window._marinaContentMini({title:'Vlog na wodzie', emoji:'📹', accent:'#00d4f0'}, function(mult){
+    const q=Math.round(_marinaContentQuality('vlog',craft)*mult);
+    _marinaConsume(craft, 10, 1);
+    const broke=_marinaCheckBreakdown(craft);
+    const foll=Math.round(q*(6+_mrnd(0,4)));
+    const fameGain=Math.max(1,Math.round(q/16));
+    G.followers=(G.followers||0)+foll;
+    if(typeof addFame==='function') addFame(fameGain);
+    G.marina.reputation.marinaSocialBuzz+=Math.round(q/12);
+    G.marina.stats.vlogs++;
+    if(typeof window._coastVibeTick==='function') window._coastVibeTick();
+    _marinaAddSkillXp(1);
+    if(typeof progressQuest==='function') progressQuest('coast_visit');
+    _marinaRollGossip(craft,{extra:-4});
+    const cmt=q>=70?'„To już wygląda jak lifestyle, a nie spacer po mieście!"':'„Ujęcia z mariny siadły — tylko niech muzyka nadąży za życiem."';
+    if(typeof showMsg==='function') showMsg(`📹 Vlog z Mariny opublikowany! Jakość ${q}/100 · +${foll} obserwujących · +${fameGain} sławy. ${cmt}`,'g',5500);
+    if(typeof saveGameSilent==='function') saveGameSilent();
+    window._marinaRenderActivities();
+  });
+};
+window._marinaActFrameUp=function(){
+  _marinaEnsure(); const craft=_marinaActiveCraft(); if(!craft){ window._marinaRenderActivities(); return; }
+  if((G.energy||0)<8){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii.','r',3500); return; }
+  if(!_marinaCheckFuel(craft,0.5)) return;
+  window._marinaContentMini({title:'Sesja FrameUp', emoji:'📸', accent:'#e94bff'}, function(mult){
+    let q=Math.round(_marinaContentQuality('frameup',craft)*mult);
+    const cat=_marinaCraftCat(craft);
+    if(cat==='yacht'||cat==='catamaran'||cat==='jetski') q=Math.min(100,q+8); /* FrameUp lubi jachty/skutery */
+    _marinaConsume(craft, 8, 0.5);
+    const foll=Math.round(q*(5+_mrnd(0,3)));
+    G.followers=(G.followers||0)+foll;
+    if((G.drip||0)>=25 && G._sponsorRel){ G._sponsorRel.interest=(G._sponsorRel.interest||0)+ (Math.random()<0.35?1:0); }
+    G.marina.reputation.marinaSocialBuzz+=Math.round(q/14);
+    if(typeof window._coastVibeTick==='function') window._coastVibeTick();
+    _marinaAddSkillXp(1);
+    _marinaRollGossip(craft,{extra:-2});
+    window._marinaSponsorReact(true);
+    if(typeof showMsg==='function') showMsg(`📸 Materiał FrameUp gotowy! Jakość ${q}/100 · +${foll} obserwujących. Marka może się zainteresować.`,'g',5000);
+    if(typeof saveGameSilent==='function') saveGameSilent();
+    window._marinaRenderActivities();
+  });
+};
+window._marinaActClip=function(){
+  _marinaEnsure(); const craft=_marinaActiveCraft(); if(!craft){ window._marinaRenderActivities(); return; }
+  const cat=_marinaCraftCat(craft);
+  if(cat!=='yacht'&&cat!=='catamaran'){ if(typeof showMsg==='function') showMsg('🎞️ Klip premium nagrasz na jachcie albo katamaranie.','r',4000); return; }
+  const cam=(G.camera?G.camera.quality:0);
+  const hasCrew=(G.crew&&Array.isArray(G.crew.members)&&G.crew.members.length>0);
+  if(cam<75 && !hasCrew){ if(typeof showMsg==='function') showMsg('🎥 Klip na jachcie wymaga kamery min. 75% jakości (VoltHouse) albo ekipy video.','r',5000); return; }
+  const cost=(cat==='catamaran')?_mrnd(75000,180000):_mrnd(35000,90000);
+  if((G.money||0)<cost){ if(typeof showMsg==='function') showMsg(`🎬 Produkcja klipu kosztuje ~${cost.toLocaleString('pl')} zł — za mało gotówki.`,'r',5000); return; }
+  if((G.energy||0)<15){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii na produkcję klipu.','r',3500); return; }
+  if(!_marinaCheckFuel(craft,2)) return;
+  G.money-=cost;
+  window._marinaContentMini({title:'Teledysk na pokładzie', emoji:'🎞️', accent:'#f1c40f'}, function(mult){
+    const q=Math.round(_marinaContentQuality('video',craft)*mult);
+    _marinaConsume(craft, 15, 2);
+    _marinaCheckBreakdown(craft);
+    const foll=Math.round(q*(14+_mrnd(0,8)));
+    const fameGain=Math.max(2,Math.round(q/10));
+    G.followers=(G.followers||0)+foll;
+    if(typeof addFame==='function') addFame(fameGain);
+    G.streetRep=Math.min(100,(G.streetRep||0)+_mrnd(1,3));
+    G.marina.reputation.marinaSocialBuzz+=Math.round(q/8);
+    G.marina.stats.clips++;
+    if(G.signalNine){ G.signalNine.socialBuzz=(G.signalNine.socialBuzz||0)+_mrnd(3,8); }
+    if(typeof window._coastVibeTick==='function') window._coastVibeTick();
+    _marinaAddSkillXp(2);
+    _marinaRollGossip(craft,{extra:6});
+    window._marinaSponsorReact(true);
+    if(typeof showMilestoneCinematic==='function') showMilestoneCinematic({emoji:'🎞️',title:'TELEDYSK NAGRANY!',subtitle:_marinaCraftName(craft),tagline:`Jakość ${q}/100 · +${foll} obserwujących · +${fameGain} sławy`,accentColor:'#f1c40f',accent2:'#08151f',duration:5200});
+    else if(typeof showMsg==='function') showMsg(`🎞️ Teledysk gotowy! Jakość ${q}/100 · +${foll} obserwujących.`,'g',5500);
+    if(typeof saveGameSilent==='function') saveGameSilent();
+    window._marinaRenderActivities();
+  });
+};
+
+/* ═══ §21 IMPREZA NA JEDNOSTCE ═══ */
+const MARINA_PARTY_TYPES=[
+  {id:'chill',   name:'Mały chill',        cost:1500,  npc:'2-4 NPC', buzz:6,  prestige:1, risk:3,  desc:'niskie ryzyko'},
+  {id:'crew',    name:'Crew night',        cost:4000,  npc:'Twoja ekipa', buzz:14, prestige:3, risk:8, desc:'dobry socialBuzz'},
+  {id:'model',   name:'Model event',       cost:12000, npc:'modelki/NPC lifestyle', buzz:26, prestige:8, risk:22, desc:'wysoki prestiż, wysokie ryzyko plotek'},
+  {id:'premium', name:'Premium yacht party',cost:28000, npc:'dużo NPC', buzz:40, prestige:14, risk:30, desc:'ogromny zasięg, ryzyko skandalu'},
+  {id:'sponsor', name:'Sponsor soft event', cost:9000,  npc:'goście marki', buzz:18, prestige:6, risk:6, desc:'bezpieczniejszy, +brandTrust'},
+];
+window._marinaRenderParty=function(){
+  _marinaEnsure(); const craft=_marinaActiveCraft(); if(!craft){ window._marinaRenderActivities(); return; }
+  const s=G.marina.eventSettings;
+  const rows=MARINA_PARTY_TYPES.map(t=>{
+    const canPay=(G.money||0)>=t.cost;
+    return `<div style="background:#06121c;border-radius:8px;padding:9px;margin-bottom:7px;border-left:3px solid ${canPay?'#00b4d8':'#555'}">
+      <div style="font-weight:700;color:#7ec8e3">${t.name} <span style="font-size:11px;color:#9ab">(${t.cost.toLocaleString('pl')} zł)</span></div>
+      <div style="font-size:11px;color:#9ab">${t.npc} · ${t.desc} · ryzyko plotek ${t.risk}</div>
+      <button class="bbtn" style="margin-top:3px;width:100%;padding:6px;font-size:12px" ${canPay?'':'disabled'} onclick="window._marinaDoParty('${t.id}')">${canPay?'▶ Start eventu':'Za mało gotówki'}</button>
+    </div>`;
+  }).join('');
+  _marinaPanel(`<div style="background:#08151f;border:2px solid #00b4d8;border-radius:12px;padding:18px;max-width:600px;margin:0 auto;color:#dff">
+    <h2 style="color:#00d4f0;margin-top:0;text-align:center">🥂 Impreza na wodzie</h2>
+    <div style="text-align:center;color:#8ab;font-size:12px;margin-bottom:6px">Jednostka: <b style="color:#7ec8e3">${_marinaCraftName(craft)}</b> · pojemność ~${(craft.kind==='owned'?craft.w.partyCapacity:4)} os.</div>
+    ${_marinaMoney()}
+    <div style="background:#06121c;border-radius:6px;padding:8px;margin-bottom:8px;font-size:12px">
+      <div style="color:#00d4f0;margin-bottom:4px">Ustawienia eventu:</div>
+      <label style="display:block;color:#bcd;cursor:pointer;margin:2px 0"><input type="checkbox" ${s._stock==='premium'?'checked':''} onclick="G.marina.eventSettings._stock=this.checked?'premium':null"> 🥂 Premium Yacht Stock (9500 zł/event: +jakość, +prestiż, +napiwki)</label>
+      <label style="display:block;color:#bcd;cursor:pointer;margin:2px 0"><input type="checkbox" ${s.noPhonePolicy?'checked':''} onclick="G.marina.eventSettings.noPhonePolicy=this.checked"> 📵 No-Phone Policy (3000 zł/event: −ryzyko przecieku)</label>
+    </div>
+    ${rows}${_marinaBack('window._marinaRenderActivities()')}</div>`);
+};
+window._marinaDoParty=function(typeId){
+  _marinaEnsure(); const craft=_marinaActiveCraft(); if(!craft){ return; }
+  const t=MARINA_PARTY_TYPES.find(x=>x.id===typeId); if(!t) return;
+  const s=G.marina.eventSettings;
+  let cost=t.cost;
+  if(s._stock==='premium') cost+=9500;
+  if(s.noPhonePolicy) cost+=3000;
+  if((G.money||0)<cost){ if(typeof showMsg==='function') showMsg(`Event z dodatkami kosztuje ${cost.toLocaleString('pl')} zł — za mało gotówki.`,'r',4500); return; }
+  if((G.energy||0)<15){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii na organizację imprezy.','r',3500); return; }
+  G.money-=cost;
+  _marinaConsume(craft, 15, 1);
+  let buzz=t.buzz, prestige=t.prestige;
+  const ups=_marinaCraftUps(craft);
+  if(ups.includes('marine_sound_pro')) buzz+=5;
+  if(ups.includes('deck_audio_basic')) buzz+=2;
+  if(s._stock==='premium'){ buzz+=8; prestige+=4; }
+  const foll=Math.round(buzz*(20+_mrnd(0,15)));
+  G.followers=(G.followers||0)+foll;
+  if(typeof addFame==='function') addFame(Math.max(1,Math.round(prestige*0.6)));
+  G.stress=Math.min(100,(G.stress||50)+_mrnd(6,14));  /* dobra zabawa = nastrój */
+  G.marina.reputation.marinaSocialBuzz+=buzz;
+  G.marina.reputation.yachtPrestige+=prestige;
+  G.marina.stats.parties++;
+  /* napiwki/deale */
+  let tips=0;
+  if(s._stock==='premium'){ tips=_mrnd(2000,8000); if(typeof earn==='function') earn(tips,false); else G.money+=tips; }
+  if(t.id==='sponsor'){ if(G.signalNine) G.signalNine.brandTrust=Math.min(100,(G.signalNine.brandTrust||60)+2); if(G.publicRep) G.publicRep.sponsorTrust=(G.publicRep.sponsorTrust||0)+1; }
+  if(typeof window._coastVibeTick==='function') window._coastVibeTick();
+  _marinaAddSkillXp(1);
+  /* ryzyko: plotki + kontrola portowa */
+  const gossip=_marinaRollGossip(craft,{extra:t.risk, noPhone:s.noPhonePolicy});
+  const police=_marinaPoliceCheck(craft,{loud:(t.id==='premium'||t.id==='model')});
+  if(t.id==='premium'||t.id==='model') window._marinaSponsorReact(false);
+  else if(t.id==='sponsor') window._marinaSponsorReact(true);
+  if(typeof showMsg==='function') showMsg(`🥂 ${t.name} zakończona! +${foll} obserwujących · +nastrój${tips?` · 💰 napiwki +${tips.toLocaleString('pl')} zł`:''}.${gossip?' 📸 Ale internet już gada...':''}`,'g',5500);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._marinaRenderActivities();
+};
+window._marinaActInviteCrew=function(){
+  _marinaEnsure(); const craft=_marinaActiveCraft(); if(!craft){ window._marinaRenderActivities(); return; }
+  if((G.money||0)<2500){ if(typeof showMsg==='function') showMsg('👥 Zaproszenie ekipy na wodę: koszt zaopatrzenia 2500 zł.','r',4000); return; }
+  if((G.energy||0)<10){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii.','r',3500); return; }
+  G.money-=2500; _marinaConsume(craft, 10, 0.5);
+  const foll=_mrnd(150,400);
+  G.followers=(G.followers||0)+foll;
+  G.stress=Math.min(100,(G.stress||50)+10);
+  G.marina.reputation.marinaSocialBuzz+=8;
+  if(G.signalNine){ G.signalNine.fanLoyalty=(G.signalNine.fanLoyalty||0); }
+  if(typeof addFans==='function') addFans(_mrnd(3,8));
+  _marinaAddSkillXp(1);
+  if(typeof window._coastVibeTick==='function') window._coastVibeTick();
+  if(typeof showMsg==='function') showMsg(`👥 Crew night na wodzie! Ekipa dowozi klimat — +${foll} obserwujących, lojalni fani, dobry nastrój.`,'g',4800);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._marinaRenderActivities();
+};
+
+/* ═══ §22 PRYWATNE SPOTKANIE (fade-to-black, wyłącznie dorosłe NPC, dobrowolne) ═══ */
+window._marinaActPrivate=function(){
+  _marinaEnsure(); const craft=_marinaActiveCraft(); if(!craft){ window._marinaRenderActivities(); return; }
+  _marinaPanel(`<div style="background:#120810;border:2px solid #c04a7a;border-radius:12px;padding:18px;max-width:520px;margin:0 auto;color:#f0d8e4">
+    <h2 style="color:#e07aa8;margin-top:0;text-align:center">💋 Prywatne spotkanie z dorosłym NPC</h2>
+    <div style="color:#c8a8b8;font-size:12px;margin-bottom:12px;text-align:center">Scena jest przedstawiana wyłącznie jako abstrakcyjne fade-to-black — bez szczegółów. Wyłącznie dorosłe NPC, wyłącznie za dobrowolną zgodą. W Marina Coast łatwo o plotki, zdjęcia i nadinterpretacje.</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="bbtn" onclick="window._marinaDoPrivate(true)">Zapraszam na pokład (za obopólną zgodą)</button>
+      <button class="cbtn" onclick="window._marinaRenderActivities()">Jednak nie teraz</button>
+    </div>
+  </div>`);
+};
+window._marinaDoPrivate=function(consent){
+  _marinaEnsure(); const craft=_marinaActiveCraft(); if(!craft){ return; }
+  if(!consent){ window._marinaRenderActivities(); return; }
+  if(typeof fadeToBlack==='function'){ try{ fadeToBlack(); }catch(e){} }
+  G.stress=Math.min(100,(G.stress||50)+15);
+  G.streetRep=Math.min(100,(G.streetRep||0)+1);
+  const gossip=_marinaRollGossip(craft,{extra:12, noPhone:G.marina.eventSettings.noPhonePolicy});
+  _marinaClose();
+  if(typeof showMsg==='function') showMsg(`💋 Prywatne spotkanie zakończone. Nastrój wzrósł, street level wzrósł.${gossip?' 📸 Uwaga: w Marinie łatwo o plotki i zdjęcia.':''}`,gossip?'r':'g',5500);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  setTimeout(()=>{ if(document.getElementById('mg-job')&&document.getElementById('mg-job').classList.contains('on')) return; window._marinaRenderActivities(); }, 400);
+};
+
+/* ═══ WYŚCIG SKUTERÓW (decyzyjna minigra — dobór linii/podmuchów) ═══ */
+window._marinaActJetRace=function(){
+  _marinaEnsure(); const craft=_marinaActiveCraft();
+  if(!craft || _marinaCraftCat(craft)!=='jetski'){ if(typeof showMsg==='function') showMsg('🌊 Wyścig wymaga skutera wodnego.','r',3500); return; }
+  if((G.energy||0)<20){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii na wyścig.','r',3500); return; }
+  if(!_marinaCheckFuel(craft,1)) return;
+  G._marinaRace={round:0, correct:0, ans:false};
+  window._marinaRaceRender();
+};
+const MARINA_RACE_GATES=[
+  {q:'Boja z lewej, fala z prawej — którędy?', opts:[{t:'Ostro w lewo obok boi',ok:true},{t:'Prosto na falę',ok:false},{t:'Zwolnij i stój',ok:false}]},
+  {q:'Podmuch bocznny znosi Cię w prawo.', opts:[{t:'Skoryguj lekko w lewo, trzymaj gaz',ok:true},{t:'Dodaj gazu na maxa prosto',ok:false},{t:'Puść kierownicę',ok:false}]},
+  {q:'Inny skuter tnie Ci drogę z przodu.', opts:[{t:'Odpuść gaz i wejdź za jego rufę',ok:true},{t:'Przyśpiesz i wyprzedź w zwarciu',ok:false},{t:'Zamknij oczy',ok:false}]},
+  {q:'Ostatnia prosta, meta blisko.', opts:[{t:'Pełny gaz, linia po zewnętrznej',ok:true},{t:'Efektowny skręt w bok dla kamer',ok:false},{t:'Zdejmij gaz „na luzie"',ok:false}]},
+];
+window._marinaRaceRender=function(){
+  const r=G._marinaRace; if(!r) return;
+  const g=MARINA_RACE_GATES[r.round];
+  if(!g){ window._marinaRaceFinish(); return; }
+  const opts=[...g.opts].sort(()=>Math.random()-0.5);
+  _marinaPanel(`<div style="background:#031a26;border:2px solid #00d4f0;border-radius:12px;padding:18px;max-width:540px;margin:0 auto;color:#dff">
+    <h2 style="color:#00d4f0;margin-top:0;text-align:center">🌊 Wyścig skuterów — bramka ${r.round+1}/4</h2>
+    <div style="text-align:center;color:#7ec87e;font-size:12px;margin-bottom:8px">Czyste bramki: ${r.correct}/4</div>
+    <div style="background:#06121c;padding:11px;border-radius:6px;margin-bottom:10px;color:#cde;font-style:italic">${g.q}</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${opts.map(o=>`<button class="bbtn" style="text-align:left" onclick="window._marinaRaceAnswer(${o.ok},this)">${o.t}</button>`).join('')}
+    </div>
+  </div>`);
+};
+window._marinaRaceAnswer=function(ok,btn){
+  const r=G._marinaRace; if(!r||r.ans) return; r.ans=true;
+  if(typeof window._dlgAnswerFX==='function') window._dlgAnswerFX(btn,!!ok);
+  if(ok){ r.correct++; if(typeof showMsg==='function') showMsg('🏁 Czysto!','g',900); }
+  else { if(typeof showMsg==='function') showMsg('💥 Chlust! Straciłeś tempo.','r',1100); }
+  r.round++;
+  setTimeout(()=>{ r.ans=false; if(r.round>=4) window._marinaRaceFinish(); else window._marinaRaceRender(); }, 380);
+};
+window._marinaRaceFinish=function(){
+  const r=G._marinaRace; if(!r) return; const craft=_marinaActiveCraft();
+  _marinaConsume(craft, 20, 1);
+  const perfect=r.correct>=4;
+  const fameGain=r.correct*2; const foll=r.correct*90; const money=perfect?4000:(r.correct*700);
+  if(fameGain>0 && typeof addFame==='function') addFame(fameGain);
+  G.followers=(G.followers||0)+foll;
+  if(money>0){ if(typeof earn==='function') earn(money,false); else G.money+=money; }
+  G.streetRep=Math.min(100,(G.streetRep||0)+(perfect?3:1));
+  G.marina.reputation.marinaSocialBuzz+=r.correct*3;
+  /* przy słabej kontroli — ryzyko wypadku/awarii */
+  if(r.correct<=1 && Math.random()<0.5){ _marinaCheckBreakdown(craft); }
+  else _marinaAddSkillXp(1);
+  if(typeof window._coastVibeTick==='function') window._coastVibeTick();
+  G._marinaRace=null;
+  if(typeof showMsg==='function') showMsg(`🌊 Wyścig zakończony — ${r.correct}/4 czystych bramek! +${fameGain} sławy · +${foll} obserwujących${money?` · +${money.toLocaleString('pl')} zł`:''}.`, perfect?'g':'i',5200);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._marinaRenderActivities();
+};
+
+/* ═══ CHILL REJS (wybór trasy — relaks) ═══ */
+window._marinaActChill=function(){
+  _marinaEnsure(); const craft=_marinaActiveCraft(); if(!craft){ window._marinaRenderActivities(); return; }
+  _marinaPanel(`<div style="background:#08151f;border:2px solid #00b4d8;border-radius:12px;padding:18px;max-width:520px;margin:0 auto;color:#dff">
+    <h2 style="color:#00d4f0;margin-top:0;text-align:center">🛥️ Chill rejs</h2>
+    <div style="color:#8ab;font-size:12px;text-align:center;margin-bottom:10px">Wybierz trasę. Spokojny rejs regeneruje nastrój i lekko energię (kosztuje paliwo i trochę czasu).</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="bbtn" onclick="window._marinaDoChill('coast')">🏝️ Wzdłuż wybrzeża (spokojnie)</button>
+      <button class="bbtn" onclick="window._marinaDoChill('open')">🌊 Na otwartą wodę (więcej relaksu, więcej paliwa)</button>
+      <button class="bbtn" onclick="window._marinaDoChill('sunset')">🌅 Rejs o zachodzie słońca (najlepszy nastrój)</button>
+    </div>
+    <button class="cbtn" style="margin-top:10px;width:100%" onclick="window._marinaRenderActivities()">← Wróć</button>
+  </div>`);
+};
+window._marinaDoChill=function(route){
+  _marinaEnsure(); const craft=_marinaActiveCraft(); if(!craft){ return; }
+  const cfg={coast:{mood:12,en:6,fuel:0.5},open:{mood:16,en:4,fuel:1.2},sunset:{mood:22,en:8,fuel:1}}[route]||{mood:12,en:6,fuel:0.5};
+  if(!_marinaCheckFuel(craft,cfg.fuel)) return;
+  _marinaConsume(craft, -0, cfg.fuel);
+  G.stress=Math.min(100,(G.stress||50)+cfg.mood);
+  G.energy=Math.min(100,(G.energy||0)+cfg.en);
+  G.marina.stats.safeCruises++;
+  _marinaAddSkillXp(1);
+  if(typeof window._coastVibeTick==='function') window._coastVibeTick();
+  if(route==='sunset' && Math.random()<0.5){ G.followers=(G.followers||0)+_mrnd(40,120); if(typeof showMsg==='function'){ showMsg(`🌅 Rejs o zachodzie — nastrój +${cfg.mood}, a zdjęcia same się robią. +obserwujący.`,'g',4800); } }
+  else if(typeof showMsg==='function') showMsg(`🛥️ Chill rejs — nastrój +${cfg.mood}, energia +${cfg.en}. Spokój wody działa.`,'g',4200);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._marinaRenderActivities();
+};
+
+/* ═══ §34 S9 CRISIS CONTROL ═══ */
+window._marinaS9Crisis=function(){
+  _marinaEnsure(); const r=G.marina.reputation;
+  _marinaPanel(`<div style="background:#1a0812;border:2px solid #c04a6a;border-radius:12px;padding:18px;max-width:540px;margin:0 auto;color:#f0d8e0">
+    <h2 style="color:#e07aa8;margin-top:0;text-align:center">📡 S9 Agency — Crisis Control</h2>
+    <div style="color:#c8a8b8;font-size:12px;margin-bottom:12px;font-style:italic">Nika Ray: „Jacht robi Ci zasięg. Problem w tym, że zasięg nie pyta, czy miał być pozytywny. Możemy to wyciszyć albo przekuć w kontrolowany lifestyle content — ale nie robiłabym kolejnego eventu, zanim nie ogarniemy narracji."</div>
+    <div style="background:#0a0810;border-radius:6px;padding:8px;margin-bottom:10px;font-size:12px;color:#bcd">Poziom plotek: <b style="color:#e07070">${r.gossipHeat|0}</b> · ryzyko skandalu: <b style="color:#e07070">${r.scandalRisk|0}</b> · 💰 ${(G.money||0).toLocaleString('pl')} zł</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="bbtn" ${(G.money||0)<9000?'disabled':''} onclick="window._marinaDoCrisis('mute')">🤫 Wycisz temat — 9000 zł</button>
+      <button class="bbtn" ${(G.money||0)<14000?'disabled':''} onclick="window._marinaDoCrisis('lifestyle')">✨ Przekuj w lifestyle campaign — 14000 zł</button>
+      <button class="cbtn" onclick="window._marinaDoCrisis('ignore')">😐 Zignoruj plotki</button>
+    </div>
+  </div>`);
+};
+window._marinaDoCrisis=function(mode){
+  _marinaEnsure(); const r=G.marina.reputation;
+  if(mode==='mute'){
+    if((G.money||0)<9000){ return; }
+    G.money-=9000; r.gossipHeat=Math.max(0,r.gossipHeat-40); r.scandalRisk=Math.max(0,r.scandalRisk-30); G.defamation=Math.max(0,(G.defamation||0)-4);
+    if(G.signalNine){ G.signalNine.brandTrust=Math.min(100,(G.signalNine.brandTrust||60)+3); if(typeof window._s9Effect==='function') window._s9Effect({agencyHeat:-2}); }
+    if(typeof showMsg==='function') showMsg('🤫 S9 wyciszyło temat. Plotki cichną, zaufanie marek wraca.','g',4800);
+  } else if(mode==='lifestyle'){
+    if((G.money||0)<14000){ return; }
+    G.money-=14000; r.gossipHeat=Math.max(0,r.gossipHeat-25); r.scandalRisk=Math.max(0,r.scandalRisk-20);
+    G.followers=(G.followers||0)+_mrnd(400,900); r.marinaSocialBuzz+=15;
+    if(G.signalNine){ G.signalNine.socialBuzz=(G.signalNine.socialBuzz||0)+15; G.signalNine.brandTrust=Math.min(100,(G.signalNine.brandTrust||60)+2); }
+    if(typeof showMsg==='function') showMsg('✨ S9 przekuło aferę w kontrolowany lifestyle content — zasięg pracuje na Ciebie.','g',5000);
+  } else {
+    if(typeof showMsg==='function') showMsg('😐 Zignorowałeś plotki. Czasem same przygasną... a czasem nie.','i',4200);
+  }
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._marinaRenderActivities();
+};
+
+/* ═══ §12 OSOBNE MAPY JACHTÓW/KATAMARANÓW (interior deck scene) ═══ */
+const MARINA_INTERIOR_ZONES={
+  valea:{ title:'mapa jednostki', zones:[
+    {emoji:'🛥️', name:'Pokład główny', act:'chill'},
+    {emoji:'🎛️', name:'Kokpit', act:'info'},
+    {emoji:'🛋️', name:'Salon', act:'rest'},
+    {emoji:'🍽️', name:'Mała kuchnia', act:'rest'},
+    {emoji:'🛏️', name:'Kajuta', act:'rest'},
+    {emoji:'🚿', name:'Łazienka', act:'rest'},
+    {emoji:'🌅', name:'Dziobowa strefa chill', act:'chill'},
+    {emoji:'🎬', name:'Punkt nagrywania klipu', act:'clip'},
+    {emoji:'🥂', name:'Punkt imprezy NPC', act:'party'},
+  ]},
+  aurelia:{ title:'mapa jednostki', zones:[
+    {emoji:'🥂', name:'Duży pokład imprezowy', act:'party'},
+    {emoji:'🛋️', name:'Salon panoramiczny', act:'rest'},
+    {emoji:'🛏️', name:'Dwie kajuty', act:'rest'},
+    {emoji:'🍹', name:'Bar', act:'rest'},
+    {emoji:'🎧', name:'Strefa DJ / audio', act:'party'},
+    {emoji:'📸', name:'Strefa sesji zdjęciowej', act:'frameup'},
+    {emoji:'🕶️', name:'Strefa prywatna', act:'private'},
+    {emoji:'📹', name:'Punkt nagrywania ViewGrid', act:'vlog'},
+    {emoji:'🎞️', name:'Punkt teledysku', act:'clip'},
+    {emoji:'🤝', name:'Punkt eventu sponsorowanego', act:'party'},
+  ]},
+};
+window._marinaEnterInterior=function(watercraftId){
+  _marinaEnsure(); const w=_marinaOwnedById(watercraftId); if(!w){ return; }
+  if(!w.hasInteriorMap){ if(typeof showMsg==='function') showMsg('Ta jednostka nie ma osobnej mapy.','i',3000); return; }
+  G.marina._activeCraftId=watercraftId; G.marina._activeInteriorId=watercraftId;
+  const layout=MARINA_INTERIOR_ZONES[w.interiorMapId]||MARINA_INTERIOR_ZONES.valea;
+  const zones=layout.zones.map((z,i)=>`<button class="bbtn" style="padding:10px 6px;font-size:12px;display:flex;flex-direction:column;align-items:center;gap:2px;min-height:60px" onclick="window._marinaInteriorZone('${z.act}')"><span style="font-size:20px">${z.emoji}</span><span>${z.name}</span></button>`).join('');
+  _marinaPanel(`<div style="background:linear-gradient(160deg,#06202e,#041018);border:2px solid #00b4d8;border-radius:12px;padding:16px;max-width:640px;margin:0 auto;color:#dff">
+    <h2 style="color:#00d4f0;margin-top:0;text-align:center">🗺️ ${w.name} — ${layout.title}</h2>
+    <div style="text-align:center;color:#8ab;font-size:11px;margin-bottom:10px">Osobna mapa jednostki. Wejdź w strefę, żeby uruchomić aktywność.</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px">${zones}</div>
+    <button class="cbtn" style="margin-top:12px;width:100%" onclick="window._marinaRenderMyCraft()">🚪 Zejdź z pokładu</button>
+  </div>`);
+};
+window._marinaInteriorZone=function(act){
+  _marinaEnsure();
+  if(act==='vlog') return window._marinaActVlog();
+  if(act==='frameup') return window._marinaActFrameUp();
+  if(act==='clip') return window._marinaActClip();
+  if(act==='party') return window._marinaRenderParty();
+  if(act==='private') return window._marinaActPrivate();
+  if(act==='chill') return window._marinaActChill();
+  if(act==='rest'){ G.stress=Math.min(100,(G.stress||50)+6); G.energy=Math.min(100,(G.energy||0)+4); if(typeof showMsg==='function') showMsg('🛋️ Chwila relaksu w strefie — trochę lepszy nastrój.','g',2800); if(typeof saveGameSilent==='function') saveGameSilent(); return; }
+  if(act==='info'){ if(typeof showMsg==='function') showMsg('🎛️ Kokpit — stąd prowadzisz jednostkę. Serwis i paliwo załatwisz w Dockhouse.','i',3500); return; }
+};
+
+/* ═══ §29 TYGODNIOWE UTRZYMANIE + dzienny tick ═══ */
+window._marinaWeeklyTick=function(){
+  _marinaEnsure(); const m=G.marina;
+  if(!m.owned.length && !m.berthId){ m.lastMaintenanceDay=(G.day||0); return; }
+  if(m.lastMaintenanceDay==null){ m.lastMaintenanceDay=(G.day||0); return; }
+  if(((G.day||0)-m.lastMaintenanceDay)<7) return;
+  m.lastMaintenanceDay=(G.day||0);
+  let total=0;
+  m.owned.forEach(w=>{ total+=(w.weeklyMaintenance||0); });
+  if(m.berthId){ const b=_marinaBerthById(m.berthId); if(b) total+=b.weekly; }
+  if(total<=0) return;
+  if((G.money||0)>=total){ G.money-=total; if(typeof addNotif==='function') addNotif(`⚓ Marina: opłacono tygodniowe utrzymanie jednostek i portu — ${total.toLocaleString('pl')} zł.`); }
+  else {
+    m.owned.forEach(w=>{ w.condition.engine=Math.max(0,w.condition.engine-10); w.condition.cleanliness=Math.max(0,w.condition.cleanliness-15); });
+    m.reputation.yachtPrestige=Math.max(0, m.reputation.yachtPrestige-2*Math.max(1,m.owned.length));
+    if(typeof addNotif==='function') addNotif(`⚠️ Marina: brak środków na pełne utrzymanie jednostek (${total.toLocaleString('pl')} zł). Stan jednostek spada, prestiż leci.`);
+  }
+};
+window._marinaDailyTick=function(){
+  _marinaEnsure(); const m=G.marina;
+  if(m.activeRental && m.activeRental.expiresDay!=null && (G.day||0)>m.activeRental.expiresDay){
+    if(typeof addNotif==='function') addNotif(`🛥️ Wynajem „${m.activeRental.name}" wygasł.`);
+    m.activeRental=null;
+  }
+  if(m.reputation.gossipHeat>0) m.reputation.gossipHeat=Math.max(0, m.reputation.gossipHeat-3);
+  if(m.reputation.scandalRisk>0) m.reputation.scandalRisk=Math.max(0, m.reputation.scandalRisk-2);
+  if(m.reputation.paparazziRisk>0) m.reputation.paparazziRisk=Math.max(0, m.reputation.paparazziRisk-4);
+};
+
+/* MARINA MODULE END */
+
 /* v2.1.483 Coast Surf choice — beginner/pro/championship. */
 /* v2.1.524 SURF REDESIGN (user: "surf shop click=nagroda, żadnej akcji gracza"):
    minigra balansu na fali — utrzymaj deskę w środkowej strefie korygując przechył ⬅/➡ przez ~8s.
@@ -46633,10 +47918,17 @@ window._enterDistrictPlace=(districtId,placeId)=>{
       if(typeof window._startSpaChoice==='function'){window._startSpaChoice();return;}
       return; /* v2.1.516 fix: stop fall-through do coast_marina */
     case 'coast_marina':
-      /* v2.1.483 USER FEEDBACK: choice modal — casual/soirée/owner's gala zamiast click=reward. */
-      if((G.fame||0)<100){showMsg('⛵ Marina dla top artystów (fame ≥ 100).','r');return;}
+      /* PDF „Marina Coast": budynek Mariny = Marina Dockhouse (pełny system jednostek pływających).
+         Zaproszenie z Eclipse Noir wciąż prowadzi wprost na galę jachtową (zachowana integracja). */
       if(typeof closeOverlay==='function') closeOverlay();
+      if(G._eclipseMarinaInvite===(G.day||0) && typeof window._startMarinaChoice==='function'){ window._startMarinaChoice(); return; }
+      if(typeof window._marinaOpenDockhouse==='function'){ window._marinaOpenDockhouse(); return; }
       if(typeof window._startMarinaChoice==='function'){window._startMarinaChoice();return;}
+      return;
+    case 'coast_swimentry':
+      /* PDF „Marina Coast" §3-4: [E] Wejdź do wody → tryb pływania. */
+      if(typeof closeOverlay==='function') closeOverlay();
+      if(typeof window._marinaEnterSwim==='function'){ window._marinaEnterSwim(); return; }
       return;
     /* ── BUSINESS ── */
     case 'business_steakhouse':
@@ -55757,6 +57049,11 @@ window._vehCycleInside=function(kind, isRepeat){
 };
 function togglePhone(){
   const ph=document.getElementById('phone');
+  /* PDF „Marina Coast" §4: brak telefonu podczas głębokiego pływania. */
+  if(!ph.classList.contains('on') && currentRoom==='coast' && G.marina && G.marina.swimming && G.marina.swimming.isSwimming && typeof _marinaWaterZoneAt==='function' && _marinaWaterZoneAt(P.wx+P.w/2,P.wy+(P.h||44))==='deep'){
+    if(typeof showMsg==='function') showMsg('📵 Nie użyjesz telefonu podczas głębokiego pływania. Wróć bliżej brzegu.','r',3800);
+    return;
+  }
   if(typeof window._sanitizePlayerLists==='function') window._sanitizePlayerLists(); /* v2.3.33: sanitacja przy otwarciu telefonu (chroni wszystkie panele) */
   // v1.9.15: NIE otwieraj telefonu w trakcie minigry (np. koncert kontynuował się gdy gracz przeglądał Loopify)
   if(!ph.classList.contains('on') && typeof mgOpen==='function' && mgOpen()){
@@ -58297,6 +59594,7 @@ const SMS_CONTACTS={
   jade_mercer:{name:'Jade Mercer (Concrete Pulse)', em:'🛹', color:'#00b894', physical:false}, /* v2.3.99 (PDF #5): organizatorka contestów skate */
   kantar:    {name:'Numer zastrzeżony',         em:'📵', color:'#9b59b6', physical:true}, /* v2.3.38 moduł „Numer zastrzeżony" — nadawca SMS (broker Kantar w Velvet Room); name→„Kantar” po ukończeniu questa (mutowane w TIER 8) */
   knox:      {name:'Knox „Towline” Mercer',     em:'🛻', color:'#e67e22', physical:false}, /* nowy PDF Fizyczne kolizje: holownik/wraki, usługi powtarzalne (menu w renderSMSConversation) */
+  nolan:     {name:'Captain Nolan Reed',        em:'⚓', color:'#00b4d8', physical:false}, /* PDF Marina Coast §6/§25: kapitan portowy — cumowanie, paliwo, serwis, eventy, ostrzeżenia */
 };
 function _ensureSMS(){
   if(!G.sms||typeof G.sms!=='object') G.sms={conversations:{},unread:0,_triggeredEvents:{}};
@@ -59660,6 +60958,11 @@ window.renderSMSConversation=function(contactId){
           if(_sset==='offer' && G._sponsorRel && G._sponsorRel.negDone) _sids=_sids.filter(k=>k!=='so_neg'); /* anti-fishing: 1 negocjacja (PDF §10) */
           return `${_replyCounter}`+window._smsRichButtons('sponsor',_sids);
         }
+        /* PDF Marina Coast §25: Captain Nolan Reed — reply-set (kontrola/paliwo/impreza/content/prywatność/zignoruj). */
+        if(contactId==='nolan' && typeof window._MARINA_NOLAN_REPLIES==='object'){
+          const _nids=Object.keys(window._MARINA_NOLAN_REPLIES).filter(k=>window._MARINA_NOLAN_REPLIES[k].set==='intro');
+          return `${_replyCounter}`+window._smsRichButtons('nolan',_nids);
+        }
         /* Marcin (Organizator) — v2.3.109 (PDF17): kontekstowe odpowiedzi TYLKO dla wiadomości o śniadaniówce (replySet marcin_tv/marcin_sniad).
            STRICT: inne SMS Marcina (np. o mieszkaniu/przyjacielskie) zostają z generycznymi Dzięki/Wpadnę. */
         if(contactId==='marcin' && typeof window._MARCIN_REPLIES==='object' && _firstUnreplied && /^marcin_(tv|sniad|crypto)$/.test(_firstUnreplied.replySet||'')){
@@ -60395,7 +61698,7 @@ window._kamilOpenCooperation=function(){
   ]);
 };
 window._smsRichButtons=function(contactId,ids){
-  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:(contactId==='sponsor')?window._SPONSOR_REPLIES:(contactId==='marcin')?window._MARCIN_REPLIES:(contactId==='manager')?window._MANAGER_REPLIES:(contactId==='producent')?window._PRODUCER_REPLIES:(contactId==='crew')?window._RYDER_REPLIES:window._KAMIL_REPLIES;
+  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:(contactId==='sponsor')?window._SPONSOR_REPLIES:(contactId==='marcin')?window._MARCIN_REPLIES:(contactId==='manager')?window._MANAGER_REPLIES:(contactId==='producent')?window._PRODUCER_REPLIES:(contactId==='crew')?window._RYDER_REPLIES:(contactId==='nolan')?window._MARINA_NOLAN_REPLIES:window._KAMIL_REPLIES;
   return '<div style="display:flex;flex-direction:column;gap:5px">'+ids.map((id,n)=>{
     const o=reg[id]; if(!o) return '';
     const isIgnore=/ignore/.test(id);
@@ -60411,7 +61714,7 @@ window._smsRichReply=function(contactId,replyId){
   let idx=-1;
   for(let i=conv.length-1;i>=0;i--){ if(conv[i].from==='me') continue; if(conv[i]._replied) continue; idx=i; break; }
   if(idx<0){ if(typeof showMsg==='function') showMsg('💬 Już odpowiedziałeś na wszystkie wiadomości od tego kontaktu. Poczekaj na nowe.','r',4500); return; }
-  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='kamil')?window._KAMIL_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:(contactId==='sponsor')?window._SPONSOR_REPLIES:(contactId==='marcin')?window._MARCIN_REPLIES:(contactId==='manager')?window._MANAGER_REPLIES:(contactId==='producent')?window._PRODUCER_REPLIES:(contactId==='crew')?window._RYDER_REPLIES:null;
+  const reg=(contactId==='fan')?window._FAN_REPLIES:(contactId==='kamil')?window._KAMIL_REPLIES:(contactId==='gymbro')?window._GYMBRO_REPLIES:(contactId==='sponsor')?window._SPONSOR_REPLIES:(contactId==='marcin')?window._MARCIN_REPLIES:(contactId==='manager')?window._MANAGER_REPLIES:(contactId==='producent')?window._PRODUCER_REPLIES:(contactId==='crew')?window._RYDER_REPLIES:(contactId==='nolan')?window._MARINA_NOLAN_REPLIES:null;
   const opt=reg&&reg[replyId];
   if(!opt) return;
   conv[idx]._replied=true;
@@ -60424,6 +61727,7 @@ window._smsRichReply=function(contactId,replyId){
   if(contactId==='manager' && typeof window._kamilMgrHandleReply==='function') window._kamilMgrHandleReply(opt);
   if(contactId==='producent' && typeof window._producerHandleReply==='function') window._producerHandleReply(opt);
   if(contactId==='crew' && typeof window._ryderHandleReply==='function') window._ryderHandleReply(opt);
+  if(contactId==='nolan' && typeof window._marinaHandleReply==='function') window._marinaHandleReply(opt);
   if(typeof renderSMSConversation==='function') renderSMSConversation(contactId);
   if(typeof saveGameSilent==='function') saveGameSilent();
 };
@@ -67082,6 +68386,17 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.120',date:'2026-07-12',cats:['feature'],title:'⚓ Marina Coast — pływanie, łodzie, jachty, imprezy na wodzie i cały nadmorski świat',
+ items:[
+  {t:'new',d:'⚓ Wybrzeże Marina Coast to teraz pełnoprawny system, a nie tylko ładny widok na mapie. Możesz pływać w morzu, wynajmować i kupować jednostki pływające, cumować je w porcie, tankować, serwisować, urządzać imprezy i kręcić materiały na social media — od kajaka po prywatny katamaran.'},
+  {t:'new',d:'🏊 Wejdź do wody z oznaczonego kąpieliska na plaży i popływaj w morzu. Uwaga: nie wejdziesz już na wodę jak na chodnik — otwarte morze wymaga pływania, a pływanie zużywa siłę. Im dalej od brzegu, tym szybciej się męczysz. Gdy siły całkiem Ci zabraknie, z pomocą przypłyną służby Marina Coast — wyciągną Cię z wody, ale za interwencję zapłacisz i stracisz trochę zdrowia. Lepiej nie odpływać za daleko bez łodzi.'},
+  {t:'new',d:'🛥️ W porcie otwarliśmy Marina Dockhouse — miejsce, gdzie wynajmiesz albo kupisz jednostkę, wykupisz miejsce cumowania, zatankujesz, oddasz sprzęt do serwisu i zajrzysz w Aktywności na wodzie. Do wyboru masz kajaki morskie, pontony, łodzie open, skutery wodne, RIB-y, jachty balastowe i katamarany. Wynajem pozwala przetestować sprzęt taniej, a zakup to poważna inwestycja z tygodniowymi kosztami utrzymania i wymaganym miejscem w porcie dla większych łodzi.'},
+  {t:'new',d:'💧 Twoje jednostki żyją własnym życiem: mają paliwo (a paliwo do łodzi jest drogie!), stan techniczny, czystość, i potrafią się zepsuć na wodzie, jeśli je zaniedbasz. W Dockhouse zrobisz serwis silnika, naprawę kadłuba albo pełny przegląd, a każdą łódź doposażysz — mocniejsze audio, oświetlenie, komfort, bar, sprzęt do nagrywania, ochronę prywatności czy większą niezawodność. Im droższy i lepiej wyposażony sprzęt, tym wyższy Twój prestiż na wodzie. Świeżo złapaną wprawę w pływaniu i rejsach rozwijasz przez umiejętność Marina, a na start możesz opłacić instruktaż.'},
+  {t:'new',d:'🎬 Na wodzie nakręcisz vloga i materiał na FrameUp, zrealizujesz teledysk na jachcie, urządzisz imprezę z gośćmi (od małego chillu po wielką jachtową galę), zaprosisz ekipę, wybierzesz się na spokojny chill rejs albo ścigniesz się na skuterze wodnym. Jachty i katamarany mają własny pokład — wchodzisz na mapę jednostki i uruchamiasz aktywności w konkretnych strefach: salon, bar, strefa DJ, punkt nagrywania, punkt imprezy.'},
+  {t:'new',d:'📸 Luksus na wodzie przyciąga jednak paparazzi. Głośne imprezy, prywatne spotkania i drogie jachty zwiększają ryzyko plotek i fałszywych nagłówków, które uderzają w Twoją reputację i zaufanie marek — ale potrafią też podbić zasięg. Możesz się bronić: ekrany prywatności, ochrona portu, zasada bez telefonów na evencie i prywatny pomost obniżają ryzyko afery. A doświadczony kapitan portowy zadba o Twoje cumowanie, paliwo i serwis oraz podpowie, jak nie wpakować się w kłopoty.'},
+ ],
+ },
  {
  ver:'v2.3.119',date:'2026-07-11',cats:['bugfix','fix'],title:'🚗🏆 Poprawka nazw pojazdów przy zakupie + błędnie przyznawanych osiągnięć',
  items:[
