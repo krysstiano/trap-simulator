@@ -14755,32 +14755,7 @@ function handleAct(act,objId){
     startRestMG('pond',15,5,15,'🐟 Kontemplujesz staw...',()=>{addXPCapped(3,'rest_pond',60000);}, getWeatherMoodMod());
     return;
   } else if(act==='fountain'){
-    /* v2.1.201 [Amper]: BUFF Fountain ROI — z 15% szans bonus do 35%. Plus 5% jackpot (100-300 zł cash + 3 sławy).
-       Cost 5 zł, +8 nastrój gwarantowane, +2 XP gwarantowane. EV bonus z ~3 zł na ~25-40 zł value. */
-    if(G._lastFountainDay===G.day){showMsg('⛲ Już wrzuciłeś monetę dziś. Wróć jutro.','r');return;}
-    if(G.money<5){showMsg('⚠️ Potrzebujesz 5 zł na monetę.','r');return;}
-    G._lastFountainDay=G.day;
-    G.money-=5;
-    G.stress=clamp(G.stress+8,0,100);
-    G._fountainWishes=(G._fountainWishes||0)+1;
-    if(Math.random()<0.35){
-      // Życzenie się spełnia — losowy bonus (buff v2.1.201)
-      const r=Math.random();
-      if(r<0.05){
-        // JACKPOT — 5% szans (=1.75% per moneta)
-        const cash=rnd(100,300);
-        if(typeof earn==='function') earn(cash,false); else {G.money+=cash;G.totalEarned=(G.totalEarned||0)+cash;}
-        if(typeof addFame==='function')addFame(3);else G.fame=clamp(G.fame+3,0,500);
-        notify(`✨ JACKPOT! Fontanna spełnia hojne życzenie — +${cash} zł i +3 sławy`);
-      }
-      else if(r<0.40){const fans=rnd(30,120);G.followers+=fans;notify(`⛲ Twoje życzenie się spełnia! +${fans} obserwujących`);}
-      else if(r<0.70){const xp=rnd(8,22);addXP(xp);notify(`⛲ Wrzuciłeś monetę — czujesz się lepiej. +${xp} XP`);}
-      else if(r<0.92){if(typeof addFame==='function')addFame(3);else G.fame=clamp(G.fame+3,0,500);notify('⛲ Magia fontanny — +3 sławy');}
-      else {const fans=rnd(5,15); addFans(fans); notify(`⛲ Spotkałeś prawdziwego fana przy fontannie — +${fans} lojalnych fanów`);}
-    } else {
-      notify('⛲ Wrzuciłeś monetę. Trochę spokoju.');
-    }
-    addXP(2);
+    if(typeof window._startFountainToss==='function') window._startFountainToss();
     return;
   } else if(act==='skate'){
     /* v2.1.617 Faza Q (user: gating early-game — mechaniki od lvl 2, gracz musi najpierw popracować dorywczo). */
@@ -47868,6 +47843,103 @@ window._policeRenderLegalApp=function(){
 };
 
 /* POLICE MODULE END */
+
+/* ═══ FONTANNA — minigra celowania (zamiast click=nagroda) ═══
+   User 2026-07-13: „na miejsce wszystkich click=nagroda zbuduj fajny system".
+   Wskaźnik przesuwa się nad strefami fontanny; RZUĆ gdy trafisz w środek. */
+window._startFountainToss=function(){
+  if(G._lastFountainDay===G.day){ if(typeof showMsg==='function') showMsg('⛲ Już wrzuciłeś monetę dziś. Wróć jutro.','r',3000); return; }
+  if((G.money||0)<5){ if(typeof showMsg==='function') showMsg('⚠️ Potrzebujesz 5 zł na monetę.','r',3000); return; }
+  const mg=document.getElementById('mg-job'), mc=document.getElementById('mg-job-content');
+  if(!mg||!mc) return;
+  if(typeof closeOverlay==='function') closeOverlay();
+  G.money-=5; G._lastFountainDay=G.day; G._fountainWishes=(G._fountainWishes||0)+1;
+  G._fountainMG={pos:6, dir:1, speed:1.55, thrown:false};
+  mc.innerHTML=`<div style="background:linear-gradient(165deg,#0d2436,#071722);border:2px solid #3aa0c8;border-radius:14px;padding:18px;max-width:520px;margin:0 auto;color:#dff">
+    <h2 style="color:#7fd8f0;margin-top:0;text-align:center">⛲ Fontanna życzeń</h2>
+    <div style="text-align:center;color:#9cc;font-size:12px;margin-bottom:12px">Wyceluj monetę! Kliknij <b style="color:#f1c40f">RZUĆ</b>, gdy wskaźnik trafi w <b>środek</b> fontanny. Im bliżej środka — tym hojniejsze życzenie.</div>
+    <div style="position:relative;height:118px;margin-bottom:6px;display:flex;align-items:flex-end;justify-content:center">
+      <div style="position:absolute;bottom:0;width:230px;height:52px;border-radius:50%;background:radial-gradient(ellipse at center,#1e6f9a,#0a3550);border:3px solid #2a4a5a"></div>
+      <div style="position:absolute;bottom:16px;width:150px;height:34px;border-radius:50%;background:radial-gradient(ellipse at center,#37b0d8,#155a7a)"></div>
+      <div style="position:absolute;bottom:26px;width:70px;height:18px;border-radius:50%;background:radial-gradient(ellipse at center,#8fe6ff,#2a90c0);box-shadow:0 0 12px rgba(120,220,255,.6)"></div>
+      <div style="position:absolute;bottom:34px;font-size:11px;color:#cdeeff;font-weight:700">🎯 środek</div>
+      <div id="ft-coin" style="position:absolute;bottom:120px;left:50%;transform:translateX(-50%);font-size:22px;opacity:0;transition:none">🪙</div>
+      <div id="ft-splash" style="position:absolute;bottom:30px;left:50%;transform:translateX(-50%);font-size:26px;opacity:0">💦</div>
+    </div>
+    <div style="position:relative;height:30px;border-radius:8px;overflow:hidden;background:linear-gradient(90deg,#0a2a3a 0%,#0a2a3a 14%,#1a6a4a 14%,#1a6a4a 36%,#c8a520 36%,#c8a520 45%,#e84393 45%,#e84393 55%,#c8a520 55%,#c8a520 64%,#1a6a4a 64%,#1a6a4a 86%,#0a2a3a 86%,#0a2a3a 100%);border:1px solid #2a4a5a">
+      <div id="ft-marker" style="position:absolute;top:-2px;left:6%;width:4px;height:34px;background:#fff;box-shadow:0 0 8px #fff;border-radius:2px;transition:left .02s linear"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:9px;color:#8ab;margin-top:2px;padding:0 2px"><span>💧 pudło</span><span>blisko</span><span style="color:#f1c40f">🎯 JACKPOT</span><span>blisko</span><span>💧 pudło</span></div>
+    <button class="bbtn" style="margin-top:12px;width:100%;padding:14px;font-size:16px;background:linear-gradient(135deg,#2a90c0,#155a7a);color:#fff;font-weight:800" onclick="window._fountainThrow()">🪙 RZUĆ MONETĘ</button>
+    <button class="cbtn" style="margin-top:8px;width:100%" onclick="window._fountainAbort()">← Wyjdź (moneta przepada)</button>
+  </div>`;
+  mg.classList.add('on');
+  G._fountainIv=setInterval(window._fountainTick,20);
+};
+window._fountainTick=function(){
+  const m=G._fountainMG; if(!m) return;
+  const panel=document.getElementById('mg-job');
+  if(!panel||!panel.classList.contains('on')){ if(G._fountainIv){clearInterval(G._fountainIv);G._fountainIv=null;} G._fountainMG=null; return; }
+  if(m.thrown) return;
+  m.pos+=m.dir*m.speed;
+  if(m.pos>=94){ m.pos=94; m.dir=-1; } else if(m.pos<=6){ m.pos=6; m.dir=1; }
+  const mk=document.getElementById('ft-marker'); if(mk) mk.style.left=m.pos+'%';
+};
+window._fountainZone=function(pos){
+  const d=Math.abs(pos-50);
+  if(d<=5) return 'jackpot';   /* 45-55 */
+  if(d<=14) return 'srodek';   /* 36-64 (poza jackpot) */
+  if(d<=36) return 'blisko';   /* 14-86 */
+  return 'pudlo';
+};
+window._fountainThrow=function(){
+  const m=G._fountainMG; if(!m||m.thrown) return;
+  m.thrown=true; if(G._fountainIv){clearInterval(G._fountainIv);G._fountainIv=null;}
+  const zone=window._fountainZone(m.pos);
+  /* animacja monety: leci w łuku do środka fontanny + plusk */
+  const coin=document.getElementById('ft-coin');
+  if(coin){ coin.style.opacity='1'; coin.style.transition='all .5s cubic-bezier(.3,-0.4,.7,1)'; requestAnimationFrame(()=>{ coin.style.bottom='30px'; coin.style.transform='translateX(-50%) scale(.6) rotate(360deg)'; coin.style.opacity='0.2'; }); }
+  setTimeout(()=>{ const sp=document.getElementById('ft-splash'); if(sp){ sp.style.transition='all .35s ease-out'; sp.style.opacity='1'; sp.style.transform='translateX(-50%) scale(1.4)'; setTimeout(()=>{ if(sp){sp.style.opacity='0';} },400); } }, 460);
+  setTimeout(()=>window._fountainResolve(zone), 640);
+};
+window._fountainResolve=function(zone){
+  G.stress=(typeof clamp==='function')?clamp((G.stress||50)+8,0,100):Math.min(100,(G.stress||50)+8);
+  let msg='', type='g';
+  if(zone==='jackpot'){
+    const cash=(typeof rnd==='function')?rnd(150,350):200; if(typeof earn==='function') earn(cash,false); else { G.money=(G.money||0)+cash; }
+    if(typeof addFame==='function') addFame(3); else G.fame=Math.min(500,(G.fame||0)+3);
+    if(typeof addXP==='function') addXP(15);
+    msg=`✨ PROSTO W ŚRODEK — JACKPOT! Fontanna spełnia hojne życzenie: +${cash} zł i +3 sławy. 🎯`;
+  } else if(zone==='srodek'){
+    const fans=(typeof rnd==='function')?rnd(60,140):90; G.followers=(G.followers||0)+fans;
+    if(typeof addXP==='function') addXP(12);
+    msg=`⛲ Blisko środka — piękny rzut! Twoje życzenie się spełnia: +${fans} obserwujących.`;
+  } else if(zone==='blisko'){
+    const xp=(typeof rnd==='function')?rnd(12,24):18; if(typeof addXP==='function') addXP(xp);
+    if(Math.random()<0.4){ if(typeof addFame==='function') addFame(2); else G.fame=Math.min(500,(G.fame||0)+2); msg=`⛲ Niezły rzut — +${xp} XP i +2 sławy. Trochę spokoju w głowie.`; }
+    else msg=`⛲ Moneta wpadła — +${xp} XP. Chwila wyciszenia.`;
+  } else {
+    if(typeof addXP==='function') addXP(3); type='i';
+    msg='💧 Moneta plusnęła przy krawędzi — pudło. Ale i tak trochę spokoju (+nastrój). Spróbuj jutro trafić w środek!';
+  }
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof progressQuest==='function'){ try{ progressQuest('relax'); }catch(e){} }
+  const mc=document.getElementById('mg-job-content');
+  if(mc){ mc.innerHTML=`<div style="background:linear-gradient(165deg,#0d2436,#071722);border:2px solid #3aa0c8;border-radius:14px;padding:20px;max-width:460px;margin:0 auto;color:#dff;text-align:center">
+    <div style="font-size:40px;margin-bottom:6px">${zone==='jackpot'?'🎯':zone==='srodek'?'⛲':zone==='blisko'?'🪙':'💧'}</div>
+    <div style="font-size:13px;color:#cfe;line-height:1.6;margin-bottom:14px">${msg}</div>
+    <button class="cbtn" style="width:100%" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Odejdź od fontanny</button>
+  </div>`; }
+  G._fountainMG=null;
+};
+window._fountainAbort=function(){
+  if(G._fountainIv){clearInterval(G._fountainIv);G._fountainIv=null;}
+  G._fountainMG=null;
+  const mg=document.getElementById('mg-job'); if(mg) mg.classList.remove('on');
+  const mc=document.getElementById('mg-job-content'); if(mc) mc.innerHTML='';
+  if(typeof showMsg==='function') showMsg('⛲ Odszedłeś od fontanny (moneta przepada).','i',2800);
+};
+
 /* ─── PATROLE (fizyczne, widoczne) + EVENTY ULICZNE + STRZELANINA ─── */
 
 /* Sprite policjanta (granatowy mundur, czapka, odblask) */
