@@ -14313,6 +14313,7 @@ function updateCamera(){
 function snapCamera(){const room=ROOMS[currentRoom];const wW=room.wT*T,wH=room.hT*T;cam.x=clamp(P.wx+P.w/2-640,0,Math.max(0,wW-1280));cam.y=clamp(P.wy+P.h/2-360,0,Math.max(0,wH-658));cam._initialized=true;}
 
 function updatePlayer(){
+  if(typeof window._policeInDetention==='function' && window._policeInDetention()){ P.moving=false; if(!(document.getElementById('mg-job')&&document.getElementById('mg-job').classList.contains('on'))){ try{ window._policeOpenDetention(); }catch(e){} } return; }
   /* v1.9.89: kamera rusza nawet gdy paused — wymagane dla cinematic flythrough */
   if(window._cinemCam && window._cinemCam.active){
     P.moving=false; /* v2.1.21: clear żeby kroki NIE grały gdy user trzymał strzałkę przed odpaleniem przelot kamerą */
@@ -28653,6 +28654,7 @@ function nextPeriod(){
   try{
   /* v2.1.113: Wave 2 S15 — sanity clamp G.money za każdy tick (chroni przed ujemnymi wartościami z konsoli / corrupted save / race conditions) */
   if((G.money||0)<0) G.money=0;
+  if(typeof window._policeDailyLegalTick==='function') window._policeDailyLegalTick();
   G.timeOfDay++;
   /* NA (v2.3.44 PDF): uzależnienie alkoholowe — nastrój stale obniżony (~35) przez 7 dób od ostatniego przedawkowania. */
   if(typeof _alcoholEnsure==='function'){ _alcoholEnsure(); if(G._alcoholAddictionUntil>(G.day||0) && (G.stress||0)>35) G.stress=35; }
@@ -47583,6 +47585,428 @@ window._drawMarinaPortLife=function(){
 
 /* MARINA MODULE END */
 
+/* ═══════════════════════════════════════════════════════════════════
+   ŻYWE MIASTO + POLICJA + 48H (PDF „Moduł Żywe miasto…"). v2.3.121.
+   Policja = część autonomicznego miasta (patrole, kontrole, interwencje),
+   nie tylko kara. Reużywa G.heat + G.defamation. Nowy G.legal.
+   ═══════════════════════════════════════════════════════════════════ */
+/* POLICE MODULE START (do not duplicate) */
+
+/* §3 profile dzielnic (presence/checkChance/response) */
+const POLICE_DISTRICTS={
+  ulica:      {name:'Główne miasto',    presence:1.00, checkChance:1.00, response:1.00, eventRisk:1.00},
+  underground:{name:'Underground',      presence:0.30, checkChance:0.25, response:1.80, eventRisk:1.55},
+  business:   {name:'Business District',presence:0.15, checkChance:0.20, response:1.60, eventRisk:1.00},
+  coast:      {name:'Marina Coast',     presence:0.20, checkChance:0.10, response:0.60, eventRisk:0.85},
+};
+function _policeDistrict(){ return POLICE_DISTRICTS[currentRoom]||null; }
+function _policeHour(){ return Math.floor(((typeof gameMin!=='undefined'?gameMin:(G.gameMin||360))%1440)/60); }
+function _policeTimeMult(){ const h=_policeHour(); if(h>=6&&h<12) return 0.75; if(h>=12&&h<18) return 1.00; if(h>=18&&h<23) return 1.25; return 0.25; }
+function _policeIsWeekend(){ const d=((G.day||0)%7); return d===5||d===6; } /* Pt/Sob */
+function _policeWeekendMult(){ if(!_policeIsWeekend()) return 1.00; return _policeHour()>=18?1.5:1.25; }
+
+/* stan prawny gracza */
+function _policeEnsure(){
+  if(typeof G==='undefined') return null;
+  if(!G.legal || typeof G.legal!=='object') G.legal={};
+  const L=G.legal;
+  if(!Array.isArray(L.fines)) L.fines=[];
+  if(!Array.isArray(L.incidents)) L.incidents=[];
+  if(typeof L.civicRep!=='number') L.civicRep=0;
+  if(typeof L.lastCheckDay!=='number') L.lastCheckDay=-99;
+  if(L.detention!==null && typeof L.detention!=='object') L.detention=null;
+  if(typeof G.heat!=='number') G.heat=0;
+  if(typeof G.defamation!=='number') G.defamation=0;
+  return L;
+}
+window._policeEnsure=_policeEnsure;
+
+/* kontrabanda w ekwipunku */
+function _policeContraband(){
+  let drugs=0, stolen=0, weapon=false;
+  try{ drugs=Object.values((G.trapInv&&G.trapInv.products)||{}).reduce((s,v)=>s+(v||0),0); }catch(e){}
+  try{ weapon=!!(G.weapon && G.weapon.owned && (G.weapon.durability||0)>0); }catch(e){}
+  try{ const inv=(G.inv||G.inventory||G.items||[]); if(Array.isArray(inv)) stolen=inv.filter(i=>i&&i.stolen).length; }catch(e){}
+  return { drugs, stolen, weapon, any:(drugs>0||stolen>0||weapon) };
+}
+function _policeUnpaidFines(){ _policeEnsure(); return G.legal.fines.filter(f=>f.status==='unpaid'||f.status==='overdue').reduce((s,f)=>s+(f.amount||0),0); }
+window._policeUnpaidFines=_policeUnpaidFines;
+
+/* §12 szansa kontroli gracza */
+function _policeCheckChance(){
+  _policeEnsure(); const d=_policeDistrict(); if(!d) return 0;
+  let c=1; const heat=G.heat||0, inf=G.defamation||0; const cb=_policeContraband();
+  if(heat>=30) c+=5; if(heat>=60) c+=12;
+  if(inf>=40) c+=6;
+  if(cb.weapon) c+=30;
+  if(cb.drugs>0) c+=8;
+  if(cb.stolen>0) c+=6;
+  if(_policeUnpaidFines()>0) c+=4;
+  c*=d.checkChance; c*=_policeTimeMult(); c*=_policeWeekendMult();
+  return Math.max(0, Math.min(70, Math.round(c)));
+}
+window._policeCheckChance=_policeCheckChance;
+
+/* czy w areszcie (blokuje ruch po mieście) */
+window._policeInDetention=function(){ _policeEnsure(); return !!(G.legal.detention && G.legal.detention.active); };
+
+/* ─────────────────────────────────────────────────────────────────
+   §12-13 KONTROLA GRACZA
+   ───────────────────────────────────────────────────────────────── */
+window._policeStartCheck=function(reasonText){
+  _policeEnsure(); if(window._policeInDetention()) return;
+  const d=_policeDistrict(); const dn=d?d.name:'miasto';
+  G.legal.lastCheckDay=(G.day||0);
+  const cb=_policeContraband();
+  showEventChoice('🚔 Kontrola policyjna',
+    `Policjant: „Dobry wieczór. Proszę się na chwilę zatrzymać. Mieliśmy zgłoszenie w okolicy (${dn}) i sprawdzamy osoby, które znajdowały się blisko miejsca zdarzenia."`,
+    [
+      {label:'🤝 Współpracuj spokojnie', fn:()=>window._policeResolveCheck('cooperate', cb)},
+      {label:'❓ Zapytaj o powód kontroli', fn:()=>window._policeResolveCheck('ask', cb)},
+      {label:'🙅 Odmów rozmowy', fn:()=>window._policeResolveCheck('refuse', cb)},
+      {label:'😰 Zachowuj się nerwowo', fn:()=>window._policeResolveCheck('nervous', cb)},
+      {label:'🏃 Uciekaj', fn:()=>window._policeResolveCheck('flee', cb)},
+    ]);
+};
+window._policeResolveCheck=function(choice, cb){
+  _policeEnsure(); cb=cb||_policeContraband();
+  let searchP=0.15; let msg=''; let type='i'; let fled=false;
+  if(choice==='cooperate'){ searchP=cb.any?0.55:0.12; msg='Zachowujesz spokój i pokazujesz ręce. '; }
+  else if(choice==='ask'){ searchP=cb.any?0.5:0.10; G.legal.civicRep=Math.min(100,(G.legal.civicRep||0)+1); msg='Pytasz rzeczowo o podstawę kontroli — policjant tłumaczy procedurę. '; }
+  else if(choice==='refuse'){ searchP=Math.min(0.9, 0.5+(G.heat||0)*0.004); G.heat=Math.min(100,(G.heat||0)+3); msg='Odmowa rozmowy przedłuża kontrolę i podnosi podejrzenie. '; type='r'; }
+  else if(choice==='nervous'){ searchP=Math.min(0.9, 0.6+(G.heat||0)*0.004); G.heat=Math.min(100,(G.heat||0)+2); msg='Trzęsą Ci się ręce, uciekasz wzrokiem — policjant zauważa nerwowość. '; type='r'; }
+  else if(choice==='flee'){ fled=true; G.heat=Math.min(100,(G.heat||0)+18); G.defamation=Math.min(100,(G.defamation||0)+4); G._policeFledRecently=true; msg='Rzucasz się do ucieczki! Rusza pościg. '; type='r'; }
+  if(typeof updateHUD==='function') updateHUD();
+  const doSearch = fled ? true : (Math.random()<searchP);
+  if(fled){
+    /* pościg — złapanie zależne od kondycji/heat */
+    const caught = Math.random() < Math.min(0.9, 0.5 + (G.heat||0)*0.004 - (getRaperST&&getRaperST('kondycja')?getRaperST('kondycja')*0.03:0));
+    if(caught){ window._policeArrest('ucieczka przed kontrolą', {fled:true, cb}); return; }
+    else { showMsg('🏃 Udało Ci się zgubić patrol w zaułkach! Ale heat mocno wzrósł — teraz kontrole będą częstsze.','r',6000); _policeAddIncident('Ucieczka przed policją (zgubiony pościg)', 0, 'brak zatrzymania'); return; }
+  }
+  if(doSearch && cb.any){
+    window._policeArrest('posiadanie nielegalnych przedmiotów', {cb});
+    return;
+  }
+  /* czysto */
+  showMsg(`✅ ${msg}Kontrola zakończona spokojnie — nic nie znaleziono. Miłego wieczoru.`,'g',5200);
+  _policeAddIncident('Kontrola policyjna', 0, 'brak konsekwencji');
+};
+
+/* ─────────────────────────────────────────────────────────────────
+   §14-17 ZATRZYMANIE + 48H DOŁEK + ROZPRAWA
+   ───────────────────────────────────────────────────────────────── */
+function _policeCalcFine(cb, opts){
+  opts=opts||{}; let fine=8000;
+  if(cb.weapon) fine=15000;
+  if(cb.drugs>=3) fine=15000;
+  if(opts.fled||G._policeFledRecently) fine=15000;
+  if((G.heat||0)>=75) fine=15000;
+  return fine;
+}
+window._policeArrest=function(reason, opts){
+  _policeEnsure(); opts=opts||{}; const cb=opts.cb||_policeContraband();
+  /* konfiskata */
+  let confDrugs=cb.drugs||0, confStolen=cb.stolen||0, confWeapon=cb.weapon;
+  try{ if(G.trapInv&&G.trapInv.products){ for(const k of Object.keys(G.trapInv.products)) G.trapInv.products[k]=0; } }catch(e){}
+  try{ if(confWeapon) G.weapon={owned:false,durability:0}; }catch(e){}
+  try{ const inv=(G.inv||G.inventory||G.items); if(Array.isArray(inv)){ for(let i=inv.length-1;i>=0;i--){ if(inv[i]&&inv[i].stolen) inv.splice(i,1); } } }catch(e){}
+  G.heat=Math.min(100,(G.heat||0)+35);
+  G.defamation=Math.min(100,(G.defamation||0)+10);
+  const fine=_policeCalcFine(cb, opts);
+  G.legal.detention={ active:true, reason:reason, startDay:(G.day||0), fine:fine, confDrugs, confStolen, confWeapon, usedOpts:{}, kamilCalled:false };
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  if(typeof showMilestoneCinematic==='function') showMilestoneCinematic({emoji:'🚔',title:'ZATRZYMANIE',subtitle:reason,tagline:'48 godzin na dołku · konfiskata · rozprawa',accentColor:'#c0392b',accent2:'#0a0606',duration:5200,onDone:()=>window._policeOpenDetention()});
+  else window._policeOpenDetention();
+};
+window._policeOpenDetention=function(){
+  _policeEnsure(); const det=G.legal.detention; if(!det||!det.active){ return; }
+  const opt=(id,label,used)=>`<button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;${used?'opacity:0.4;pointer-events:none;color:#667':'color:#cdd'}" onclick="window._policeDetentionOpt('${id}')">${label}${used?' ✓':''}</button>`;
+  const u=det.usedOpts||{};
+  const conf=[]; if(det.confDrugs) conf.push(det.confDrugs+' szt. towaru'); if(det.confWeapon) conf.push('broń'); if(det.confStolen) conf.push(det.confStolen+' kradzionych rzeczy');
+  const panel=document.getElementById('mg-job'); if(!panel) return;
+  panel.classList.add('on'); panel.style.display='';
+  panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+  document.getElementById('mg-job-content').innerHTML=`
+    <div style="background:linear-gradient(165deg,#12100e,#080605);border:2px solid #6a5a48;border-radius:12px;padding:18px;max-width:520px;margin:0 auto;color:#e8e0d4;width:100%">
+      <h2 style="margin-top:0;text-align:center;color:#c9b892;letter-spacing:1px">🚔 DOŁEK — ZATRZYMANIE 48H</h2>
+      <div style="text-align:center;color:#9a8f7a;font-size:12px;margin-bottom:10px">Powód: <b style="color:#d8c8a8">${det.reason}</b></div>
+      <div style="background:#0a0806;border-radius:8px;padding:11px;font-size:12px;margin-bottom:10px;line-height:1.6">
+        <div>⏳ Czas zatrzymania: <b>48 godzin</b> · status: <span style="color:#e6b84a">oczekiwanie na rozprawę</span></div>
+        ${conf.length?`<div style="color:#c0776a">📦 Konfiskata: ${conf.join(', ')}</div>`:''}
+        <div style="color:#9a8f7a">🔥 Heat wzrósł · 📉 zniesławienie wzrosło</div>
+      </div>
+      <div style="font-size:11px;color:#8a8070;margin:6px 0">Co robisz podczas oczekiwania?</div>
+      ${opt('pushups','💪 Wykonaj kilka serii pompek (−stres, +kondycja, +dyscyplina)',u.pushups)}
+      ${opt('calm','😮‍💨 Spróbuj ochłonąć (−5 stres)',u.calm)}
+      ${opt('think','🧠 Przemyśl kolejne ruchy (+świadomość ryzyka, −nastrój)',u.think)}
+      ${opt('kamil','📞 Zadzwoń do Kamila',u.kamil)}
+      ${opt('manager','📞 Zadzwoń do managera (−zniesławienie, jeśli dostępny)',u.manager)}
+      <button class="cbtn" style="width:100%;margin-top:12px;padding:12px;font-size:14px;color:#0a0806;background:linear-gradient(135deg,#c9b892,#9a8560);border:none;font-weight:700" onclick="window._policeCourt()">⏭️ Przeczekaj 48h → rozprawa</button>
+    </div>`;
+};
+window._policeDetentionOpt=function(id){
+  _policeEnsure(); const det=G.legal.detention; if(!det||!det.active) return; det.usedOpts=det.usedOpts||{}; if(det.usedOpts[id]) return;
+  det.usedOpts[id]=true; let m='';
+  if(id==='pushups'){ G.stress=Math.min(100,(G.stress||50)+3); G._discipline=(G._discipline||0)+1; if(typeof addRaperXP==='function'){} m='💪 Seria pompek. Trochę spokoju w głowie, ciało zmęczone. (−stres, +dyscyplina)'; }
+  else if(id==='calm'){ G.stress=Math.min(100,(G.stress||50)+5); m='😮‍💨 Oddychasz, liczysz do dziesięciu. (−stres)'; }
+  else if(id==='think'){ G._riskAwareness=(G._riskAwareness||0)+1; G.stress=Math.max(0,(G.stress||50)-2); m='🧠 Rozkładasz sytuację na czynniki. Wiesz, gdzie popełniłeś błąd. (+świadomość ryzyka, −nastrój)'; }
+  else if(id==='kamil'){ det.kamilCalled=true; G.stress=Math.min(100,(G.stress||50)+5); if(G.npcRelations&&G.npcRelations.kamilFriend) G.npcRelations.kamilFriend.trust=(G.npcRelations.kamilFriend.trust||0)+1; m='📞 Kamil: „No kurwa pięknie… A nie mówiłem, że miasto patrzy? Siedź tam cicho, wyjdź, zapłać co trzeba i nie rób z tego większej legendy niż jest." (+nastrój, +zaufanie Kamila)'; }
+  else if(id==='manager'){ const hasMgr=!!(G.manager&&G.manager.hired)||!!(G.signalNine&&G.signalNine.signed); if(hasMgr){ G.defamation=Math.max(0,(G.defamation||0)-3); m='📞 Manager: „Takie akcje psują rozmowy. Mogę próbować to wyciszyć, ale nie będę zamiatał za Ciebie całego miasta." (−zniesławienie)'; } else { m='📞 Nie masz managera, który odbierze w takiej sytuacji.'; det.usedOpts[id]=false; } }
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof showMsg==='function' && m) showMsg(m,'i',6000);
+  window._policeOpenDetention();
+};
+window._policeCourt=function(){
+  _policeEnsure(); const det=G.legal.detention; if(!det){ if(typeof window._marinaClose==='function')window._marinaClose(); return; }
+  const fine=det.fine||8000;
+  const panel=document.getElementById('mg-job'); if(panel){ panel.classList.add('on'); panel.style.display='';
+    panel.innerHTML='<div id="mg-job-content" style="display:flex;flex-direction:column;align-items:center;width:100%"></div>';
+    document.getElementById('mg-job-content').innerHTML=`
+      <div style="background:linear-gradient(165deg,#0e1016,#06080c);border:2px solid #3a4a6a;border-radius:12px;padding:18px;max-width:500px;margin:0 auto;color:#dfe6f0;width:100%">
+        <h2 style="margin-top:0;text-align:center;color:#8fb0e0">⚖️ ROZPRAWA</h2>
+        <div style="background:#080a10;border-radius:8px;padding:12px;font-size:13px;line-height:1.7">
+          <div>Sprawa: <b>${det.reason}</b></div>
+          <div>Decyzja: <b style="color:#7ec87e">zwolnienie po 48 godzinach zatrzymania</b></div>
+          <div>Kara finansowa: <b style="color:#e6b84a">${fine.toLocaleString('pl')} zł</b></div>
+          <div>Termin zapłaty: <b>30 dni gry</b></div>
+          <div style="color:#9aa8bc;font-size:11px;margin-top:6px">Dodatkowo: +heat, +zniesławienie, konfiskata przedmiotów.</div>
+        </div>
+        <button class="cbtn" style="width:100%;margin-top:14px;padding:12px;font-size:14px;color:#06080c;background:linear-gradient(135deg,#8fb0e0,#5a80c0);border:none;font-weight:700" onclick="window._policeRelease()">Zrozumiałem — wyjdź na wolność</button>
+      </div>`;
+  }
+};
+window._policeRelease=function(){
+  _policeEnsure(); const det=G.legal.detention; const fine=det?det.fine:8000; const reason=det?det.reason:'zatrzymanie';
+  /* skok czasu 48h (najpierw — mandat liczony od dnia zwolnienia) */
+  G.day=(G.day||0)+2;
+  try{ if(typeof gameMin!=='undefined') gameMin=1200; }catch(e){} G.gameMin=1200;
+  /* mandat 30 dni od zwolnienia */
+  const fineObj={ id:'fine_'+(G.day||0)+'_'+Math.floor((G.gameMin||0)), amount:fine, issuedDay:(G.day||0), dueDay:(G.day||0)+30, reason:'Zatrzymanie po kontroli policyjnej', status:'unpaid' };
+  G.legal.fines.push(fineObj);
+  _policeAddIncident('Zatrzymanie po kontroli policyjnej', fine, 'niezapłacone');
+  G.heat=Math.min(100,(G.heat||0)+20);
+  G.defamation=Math.min(100,(G.defamation||0)+8);
+  G.stress=Math.max(0,(G.stress||50)-15);
+  G.energy=(typeof clampStat==='function')?clampStat('energy',(G.energy||50)-10):Math.max(0,(G.energy||50)-10);
+  G.legal.detention=null; G._policeFledRecently=false;
+  /* integracje NPC (SMS/notify) */
+  window._policePostReleaseMessages(reason);
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  if(typeof window._marinaClose==='function') window._marinaClose();
+  if(typeof showMsg==='function') showMsg(`🚪 Wyszedłeś po 48 godzinach zatrzymania. Utracono nielegalne przedmioty, dostałeś mandat ${fine.toLocaleString('pl')} zł (30 dni). Heat i zniesławienie wzrosły, nastrój spadł. Sprawdź „Status prawny" w telefonie.`,'r',9000);
+};
+function _policeAddIncident(text, penalty, status){
+  _policeEnsure();
+  G.legal.incidents.unshift({ day:(G.day||0), text, penalty:penalty||0, status:status||'' });
+  if(G.legal.incidents.length>40) G.legal.incidents.length=40;
+}
+window._policeAddIncident=_policeAddIncident;
+
+/* §24-25,41-42 integracje po zatrzymaniu */
+window._policePostReleaseMessages=function(reason){
+  _policeEnsure();
+  /* legalna kariera */
+  if(G.legalCareer){ G.legalCareer.brandTrust=Math.max(0,(G.legalCareer.brandTrust||50)-2); if(typeof G.legalCareer.professionalism==='number') G.legalCareer.professionalism=Math.max(0,G.legalCareer.professionalism-1); }
+  if(G.signalNine){ G.signalNine.brandTrust=Math.max(0,(G.signalNine.brandTrust||60)-2); }
+  const _sms=(who,txt)=>{ try{ if(typeof window._smsPushNpcReply==='function') window._smsPushNpcReply(who,txt); else if(typeof addNotif==='function') addNotif(txt); }catch(e){ if(typeof addNotif==='function') addNotif(txt); } };
+  setTimeout(()=>{ if(typeof addNotif==='function') addNotif('📱 Kamil: „Dobra, powiedz mi tylko jedno: to był głupi przypadek czy jakiś Twój nowy styl życia?"'); }, 1600);
+  if(G.signalNine&&G.signalNine.signed){ setTimeout(()=>{ if(typeof addNotif==='function') addNotif('📱 Nika Ray (S9): „Jeśli Twoje nazwisko zacznie pojawiać się obok radiowozów częściej niż obok muzyki — przestajemy budować wizerunek."'); }, 3200); }
+  if((G.sponsorClothing&&G.sponsorClothing.active)||(G.sponsor&&G.sponsor.clothingActive)){ setTimeout(()=>{ if(typeof addNotif==='function') addNotif('📱 Sponsor odzieżowy: „Musimy chwilowo wstrzymać temat kampanii. Marka nie wchodzi w ruch, gdy wokół nazwiska robi się zbyt dużo ryzyka."'); }, 4800); }
+};
+
+/* §21-22 mandaty: płatność + przeterminowanie (z nextPeriod) */
+window._policePayFine=function(fineId){
+  _policeEnsure(); const f=G.legal.fines.find(x=>x.id===fineId); if(!f||f.status==='paid') return;
+  if((G.money||0)<f.amount){ if(typeof showMsg==='function') showMsg('Nie masz wystarczająco gotówki na mandat.','r',3500); return; }
+  G.money-=f.amount; f.status='paid';
+  const inc=G.legal.incidents.find(i=>i.penalty===f.amount && i.status!=='zapłacone'); if(inc) inc.status='zapłacone';
+  if(typeof showMsg==='function') showMsg(`✅ Mandat ${f.amount.toLocaleString('pl')} zł zapłacony.`,'g',3500);
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof renderPhoneApp==='function') renderPhoneApp('legal');
+};
+window._policeDailyLegalTick=function(){
+  _policeEnsure(); const day=(G.day||0);
+  G.legal.fines.forEach(f=>{
+    if(f.status==='unpaid' && day>f.dueDay){
+      f.status='overdue'; f.amount=Math.round((f.amount||0)*1.15); /* dopłata za zwłokę */
+      G.heat=Math.min(100,(G.heat||0)+15); G.defamation=Math.min(100,(G.defamation||0)+5);
+      if(typeof addNotif==='function') addNotif(`⚠️ Mandat przeterminowany! Doliczono odsetki — teraz ${f.amount.toLocaleString('pl')} zł. Heat wzrósł, część legalnych współprac może być utrudniona.`);
+    } else if(f.status==='unpaid'){
+      const left=f.dueDay-day;
+      if(left===7||left===3||left===1){ if(typeof addNotif==='function') addNotif(`📄 Przypomnienie: niezapłacony mandat ${f.amount.toLocaleString('pl')} zł — termin za ${left} ${left===1?'dzień':'dni'}.`); }
+    }
+  });
+};
+
+/* §37-38 PANEL STATUSU PRAWNEGO (telefon) */
+window._policeRenderLegalApp=function(){
+  _policeEnsure(); const L=G.legal;
+  const heat=Math.round(G.heat||0), inf=Math.round(G.defamation||0);
+  const unpaid=L.fines.filter(f=>f.status==='unpaid'||f.status==='overdue');
+  const finesRows=unpaid.length?unpaid.map(f=>`<div style="background:#12100c;border-radius:8px;padding:9px;margin-bottom:6px;border-left:3px solid ${f.status==='overdue'?'#c0392b':'#e6b84a'}">
+      <div style="font-weight:700;color:#e6b84a">${f.amount.toLocaleString('pl')} zł ${f.status==='overdue'?'<span style="color:#c0392b">(przeterminowany)</span>':''}</div>
+      <div style="font-size:11px;color:#9a8f7a">${f.reason} · termin: dzień ${f.dueDay} (pozostało ${Math.max(0,f.dueDay-(G.day||0))} dni)</div>
+      <button class="bbtn" style="margin-top:4px;padding:5px 8px;font-size:11px" onclick="window._policePayFine('${f.id}')">💳 Zapłać ${f.amount.toLocaleString('pl')} zł</button>
+    </div>`).join(''):'<div style="color:#7a9a7a;font-size:12px;padding:6px">Brak niezapłaconych mandatów. Czysto. 👌</div>';
+  const incRows=L.incidents.slice(0,8).map(i=>`<div style="font-size:11px;color:#9aa;padding:5px 0;border-bottom:1px solid #1a1a22">Dz. ${i.day} — ${i.text}${i.penalty?` · kara ${i.penalty.toLocaleString('pl')} zł`:''}${i.status?` · <span style="color:${i.status==='zapłacone'?'#7ec87e':i.status==='niezapłacone'?'#e6b84a':'#9aa'}">${i.status}</span>`:''}</div>`).join('')||'<div style="color:#778;font-size:11px;padding:6px">Brak incydentów.</div>';
+  const bar=(v,col)=>`<div style="background:#1a1a22;border-radius:6px;height:10px;overflow:hidden;margin:2px 0"><div style="width:${v}%;height:100%;background:${col}"></div></div>`;
+  return `<div style="padding:4px">
+    <h3 style="color:#c9b892;margin:2px 0 10px;text-align:center">⚖️ Status prawny</h3>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <div style="flex:1;background:#12100c;border-radius:8px;padding:8px"><div style="font-size:11px;color:#9a8f7a">🔥 Heat</div><div style="font-weight:700;color:${heat>=76?'#c0392b':heat>=51?'#e67e22':heat>=21?'#e6b84a':'#7ec87e'}">${heat}/100</div>${bar(heat, heat>=76?'#c0392b':heat>=51?'#e67e22':'#e6b84a')}</div>
+      <div style="flex:1;background:#12100c;border-radius:8px;padding:8px"><div style="font-size:11px;color:#9a8f7a">📉 Zniesławienie</div><div style="font-weight:700;color:${inf>=60?'#c0392b':inf>=30?'#e67e22':'#7ec87e'}">${inf}/100</div>${bar(inf, inf>=60?'#c0392b':'#e67e22')}</div>
+    </div>
+    <div style="font-size:12px;color:#c9b892;margin:8px 0 4px">💳 Aktywne mandaty (${unpaid.length})</div>
+    ${finesRows}
+    <div style="font-size:12px;color:#c9b892;margin:10px 0 4px">📜 Historia incydentów</div>
+    <div style="background:#0a0a0e;border-radius:8px;padding:6px 10px">${incRows}</div>
+  </div>`;
+};
+
+/* POLICE MODULE END */
+/* ─── PATROLE (fizyczne, widoczne) + EVENTY ULICZNE + STRZELANINA ─── */
+
+/* Sprite policjanta (granatowy mundur, czapka, odblask) */
+function _drawCop(sx,sy,walk){
+  const t=Date.now()/260; const bob=walk?Math.abs(Math.sin(t+sx*0.05))*1.4:Math.sin(t*0.4)*0.5;
+  X.save(); X.translate(sx,sy-bob);
+  X.fillStyle='rgba(0,0,0,0.22)'; X.beginPath(); X.ellipse(0,15,7,3,0,0,Math.PI*2); X.fill();
+  X.fillStyle='#0e1424'; X.fillRect(-4,4,3,11); X.fillRect(1,4,3,11);           /* nogi */
+  X.fillStyle='#16233f'; X.beginPath(); X.roundRect(-6,-6,12,12,2); X.fill();    /* mundur granat */
+  X.fillStyle='#f4d24a'; X.fillRect(-6,-1,12,1.5);                               /* odblaskowy pas */
+  X.fillStyle='#0a0f1a'; X.fillRect(-5,-5,3,3);                                  /* naramiennik */
+  X.strokeStyle='#d8a878'; X.lineWidth=2.2; X.lineCap='round';                   /* ręce */
+  X.beginPath(); X.moveTo(-5,-2); X.lineTo(-7,5); X.moveTo(5,-2); X.lineTo(7,5); X.stroke();
+  X.fillStyle='#d8a878'; X.beginPath(); X.arc(0,-12,5,0,Math.PI*2); X.fill();     /* głowa */
+  X.fillStyle='#16233f'; X.fillRect(-6,-16,12,4);                                /* czapka */
+  X.fillStyle='#0a0f1a'; X.fillRect(-6,-13,12,2);                                /* daszek */
+  X.fillStyle='#f4d24a'; X.fillRect(-1.5,-15,3,2);                               /* emblemat */
+  X.restore();
+}
+/* Radiowóz z pulsującym kogutem */
+function _drawPatrolCar(sx,sy,dir){
+  const t=Date.now(); const on=Math.floor(t/280)%2;
+  X.save(); X.translate(sx,sy); if(dir<0) X.scale(-1,1);
+  X.fillStyle='rgba(0,0,0,0.30)'; X.beginPath(); X.ellipse(0,11,28,6,0,0,Math.PI*2); X.fill();
+  X.fillStyle='#12233f'; X.beginPath(); X.roundRect(-26,-6,52,17,4); X.fill();    /* nadwozie granat */
+  X.fillStyle='#e8edf2'; X.fillRect(-8,-6,20,17);                                 /* biały pas drzwi */
+  X.fillStyle='#0a1220'; X.fillRect(-6,-4,16,7);                                  /* okna */
+  X.fillStyle='#8fb0e0'; X.fillRect(-6,-4,16,2);
+  X.fillStyle='#1a1a1e'; X.beginPath(); X.arc(-16,11,5,0,Math.PI*2); X.arc(16,11,5,0,Math.PI*2); X.fill(); /* koła */
+  /* kogut */
+  X.fillStyle=on?'#e8352a':'#3a86ff'; X.fillRect(-8,-11,7,4);
+  X.fillStyle=on?'#3a86ff':'#e8352a'; X.fillRect(1,-11,7,4);
+  X.save(); X.globalCompositeOperation='lighter'; X.fillStyle=on?'rgba(232,53,42,0.4)':'rgba(58,134,255,0.4)'; X.beginPath(); X.arc(0,-9,16,0,Math.PI*2); X.fill(); X.restore();
+  X.fillStyle='#fff'; X.font='bold 5px Arial'; X.textAlign='center'; X.fillText('POLICJA',0,3); X.textAlign='left';
+  X.restore();
+}
+window._drawCityPolice=function(){
+  if(currentRoom!=='ulica') return;                 /* pełna obecność tylko w głównym mieście */
+  if(_paused || G._dying) return;
+  _policeEnsure(); const pres=_policeTimeMult()*_policeWeekendMult();
+  const t=Date.now()/1000;
+  /* radiowóz cruise po drodze H1 (wy~470) */
+  const carX=((t*36)%(4200))-100;
+  _drawPatrolCar(wx2sx(carX), wy2sy(470), 1);
+  if(pres>=1.0){ const car2=4200-((t*30)%(4200)); _drawPatrolCar(wx2sx(car2), wy2sy(1980), -1); } /* drugi w szczycie */
+  /* piesze patrole (pary) na chodnikach */
+  const walkX1=800+((t*20)%1700);
+  _drawCop(wx2sx(walkX1), wy2sy(360), true); _drawCop(wx2sx(walkX1+22), wy2sy(366), true);
+  if(pres>=0.9){ const walkX2=2600-((t*16)%1600); _drawCop(wx2sx(walkX2), wy2sy(2864), true); _drawCop(wx2sx(walkX2+22), wy2sy(2870), true); }
+};
+
+/* Nova Cura — log incydentów miejskich (§27,39) */
+function _policeCityLog(type){
+  _policeEnsure(); if(!Array.isArray(G.legal.cityLog)) G.legal.cityLog=[];
+  G.legal.cityLog.unshift({ type, day:(G.day||0), min:Math.floor(G.gameMin||0) });
+  if(G.legal.cityLog.length>30) G.legal.cityLog.length=30;
+}
+
+/* §7.1 kradzież uliczna (świadek) */
+window._policeStreetPickpocket=function(){
+  _policeEnsure();
+  showEventChoice('👜 Kradzież na ulicy',
+    'NPC wyrwał przechodniowi torbę i rzucił się do ucieczki. Ofiara krzyczy. Jeśli patrol jest blisko, może ruszyć w pościg.',
+    [
+      {label:'📞 Zadzwoń po służby (+reputacja obywatelska)', fn:()=>{ G.legal.civicRep=Math.min(100,(G.legal.civicRep||0)+1); const caught=Math.random()<0.5; showMsg(caught?'🚔 Patrol był blisko — złodziej złapany na sąsiedniej ulicy. Dobrze zrobione.':'🚔 Zgłoszenie przyjęte, ale złodziej zdążył zniknąć w zaułkach.','g',5000); _policeCityLog('pickpocket'); }},
+      {label:'🏃 Spróbuj gonić złodzieja (ryzyko)', fn:()=>{ const ok=Math.random()<0.35; if(ok){ G.streetRep=Math.min(999,(G.streetRep||0)+2); showMsg('💨 Dogoniłeś go za rogiem i odzyskałeś torbę! Ludzie patrzą z podziwem. (+szacunek)','g',5500); } else { G.health=(typeof clampStat==='function')?clampStat('health',(typeof G.health==='number'?G.health:100)-8):Math.max(0,(G.health||100)-8); showMsg('😤 Złodziej był szybszy — zgubiłeś go i tylko zdarłeś sobie kolano. (−zdrowie)','r',5000); } }},
+      {label:'🚶 Nie mieszaj się', fn:()=>{ showMsg('🚶 Odchodzisz. Nie Twój cyrk, nie Twoje małpy.','i',3500); }},
+    ]);
+};
+/* §7.2 bójka NPC */
+window._policeStreetFight=function(){
+  _policeEnsure();
+  showEventChoice('🥊 Awantura na ulicy',
+    'Kilku NPC zaczęło się szarpać tuż obok. Interwencja może skończyć się mandatem, wzrostem heat albo zniesławieniem. Najbezpieczniej odejść.',
+    [
+      {label:'🚶 Odejdź (brak ryzyka)', fn:()=>{ showMsg('🚶 Odsuwasz się w bezpieczne miejsce. Rozsądnie.','g',3500); }},
+      {label:'👀 Obserwuj z dystansu', fn:()=>{ const pull=Math.random()<0.2; if(pull){ window._policeStartCheck('bliskość zdarzenia'); } else { showMsg('👀 Patrzysz z boku. Po chwili przyjeżdża patrol i rozdziela awanturników.','i',4500); } }},
+      {label:'📞 Zadzwoń po służby (+reputacja)', fn:()=>{ G.legal.civicRep=Math.min(100,(G.legal.civicRep||0)+1); showMsg('📞 Zgłosiłeś awanturę. Patrol reaguje szybciej. (+reputacja obywatelska)','g',4500); _policeCityLog('fight'); }},
+      {label:'🤝 Spróbuj rozdzielić (ryzyko)', fn:()=>{ const ok=Math.random()<0.4; if(ok){ G.streetRep=Math.min(999,(G.streetRep||0)+1); showMsg('🤝 Udało się ich rozdzielić bez większych strat. (+szacunek)','g',5000); } else { G.health=(typeof clampStat==='function')?clampStat('health',(typeof G.health==='number'?G.health:100)-10):Math.max(0,(G.health||100)-10); window._policeIssueStreetFine('Udział w bójce', 2500, 5000); } }},
+      {label:'👊 Wejdź w konflikt (wysokie ryzyko)', fn:()=>{ G.health=(typeof clampStat==='function')?clampStat('health',(typeof G.health==='number'?G.health:100)-16):Math.max(0,(G.health||100)-16); G.heat=Math.min(100,(G.heat||0)+8); G.defamation=Math.min(100,(G.defamation||0)+4); window._policeIssueStreetFine('Udział w bójce', 2500, 5000); }},
+    ]);
+};
+/* §7.3 awantura po imprezie / pijacka */
+window._policeStreetDrunk=function(){
+  _policeEnsure();
+  showEventChoice('🍺 Awantura po imprezie',
+    'Grupka wychodząca z klubu jest pod wpływem emocji. Robi się głośno — może skończyć się rozejściem albo interwencją policji.',
+    [
+      {label:'🚶 Omiń ich szerokim łukiem', fn:()=>{ showMsg('🚶 Mijasz towarzystwo bez incydentu.','g',3500); }},
+      {label:'😏 Rzuć żartem, rozładuj napięcie', fn:()=>{ const ok=Math.random()<0.55; if(ok){ G.stress=Math.min(100,(G.stress||50)+4); showMsg('😄 Rozbawiłeś ekipę — napięcie spada, klimat luźny. (+nastrój)','g',4500); } else { showMsg('😐 Nie ten humor — lepiej się oddalić.','i',3500); } }},
+      {label:'📞 Zadzwoń po służby', fn:()=>{ G.legal.civicRep=Math.min(100,(G.legal.civicRep||0)+1); showMsg('📞 Zgłosiłeś zakłócanie porządku. Patrol uspokaja towarzystwo.','g',4500); _policeCityLog('drunk'); }},
+    ]);
+};
+/* §7.5,26-27 STRZELANINA (rzadkie, atmosferyczne) */
+window._policeShootingEvent=function(){
+  _policeEnsure();
+  showMsg('🔫 Słychać strzały! Przechodnie uciekają z chodnika. To nie wygląda jak zwykła awantura.','r',6000);
+  showEventChoice('🔫 Niebezpieczne zdarzenie w okolicy',
+    'Słychać strzały. Ludzie rzucają się do ucieczki, ktoś chowa się za autem. Oddal się albo znajdź bezpieczną drogę.',
+    [
+      {label:'🏃 Uciekaj z okolicy (najbezpieczniej)', fn:()=>{ showMsg('🏃 Oddalasz się szybkim krokiem. Za plecami słyszysz syreny.','g',5000); window._policeShootingAftermath(false); }},
+      {label:'🫥 Schowaj się za autem', fn:()=>{ showMsg('🫥 Kucasz za maską auta. Jesteś świadkiem — policja może chcieć zeznań.','i',5000); window._policeShootingAftermath(true); }},
+      {label:'📞 Zadzwoń po służby (+reputacja)', fn:()=>{ G.legal.civicRep=Math.min(100,(G.legal.civicRep||0)+2); showMsg('📞 Dzwonisz na służby — patrol i karetka reagują szybciej.','g',5000); window._policeShootingAftermath(true); }},
+      {label:'📸 Zbliż się do miejsca zdarzenia (bardzo ryzykowne)', fn:()=>{ G.defamation=Math.min(100,(G.defamation||0)+5); G.heat=Math.min(100,(G.heat||0)+6); if(G.legalCareer) G.legalCareer.brandTrust=Math.max(0,(G.legalCareer.brandTrust||50)-1); showMsg('📸 Podchodzisz za blisko. Policjant: „Proszę się natychmiast odsunąć! To miejsce interwencji." Robi się nerwowo — rośnie heat i zniesławienie.','r',7000); window._policeShootingAftermath(true, true); }},
+    ]);
+};
+window._policeShootingAftermath=function(witness, tooClose){
+  _policeEnsure();
+  const fatal=Math.random()<0.4;
+  _policeCityLog(fatal?'fatal_shooting':'shooting');
+  const eta=(currentRoom==='underground')?'8–14':'3–6';
+  setTimeout(()=>{ if(typeof addNotif==='function') addNotif(`🚑 Ambulans jedzie na miejsce (czas reakcji ~${eta} min). Policja zabezpiecza teren.`); }, 2200);
+  if(fatal){ setTimeout(()=>{ if(typeof addNotif==='function') addNotif('🏥 Nova Cura: przyjęto zgłoszenie o ofierze śmiertelnej w mieście. Ratownicy transportują ciało — wpis do rejestru zdarzeń.'); }, 4400); }
+  setTimeout(()=>{ if(typeof addNotif==='function') addNotif(`📱 ChirpNet: „Radiowozy w mieście, karetki, ktoś mówi że była strzelanina. Miasto dziś nie śpi!"`); }, 3200);
+  if(tooClose && Math.random()<0.4){ setTimeout(()=>window._policeStartCheck('bliskość miejsca strzelaniny'), 6000); }
+};
+/* §30 mandat uliczny */
+window._policeIssueStreetFine=function(reason, lo, hi){
+  _policeEnsure(); const amount=lo+Math.floor(Math.random()*(hi-lo+1));
+  G.legal.fines.push({ id:'sf_'+(G.day||0)+'_'+Math.floor((G.gameMin||0))+'_'+Math.floor(Math.random()*999), amount, issuedDay:(G.day||0), dueDay:(G.day||0)+14, reason, status:'unpaid' });
+  G.heat=Math.min(100,(G.heat||0)+6); G.defamation=Math.min(100,(G.defamation||0)+3);
+  _policeAddIncident('Mandat: '+reason, amount, 'niezapłacone');
+  if(typeof showMsg==='function') showMsg(`🚔 Interwencja policji. Otrzymałeś mandat ${amount.toLocaleString('pl')} zł (14 dni) za: ${reason}. Heat i zniesławienie wzrosły.`,'r',6500);
+  if(typeof updateHUD==='function') updateHUD();
+};
+
+/* rejestracja eventów policyjnych w CHOICE_EVENTS (miasto żyje) */
+(function _policeRegisterEvents(){
+  if(typeof CHOICE_EVENTS==='undefined' || !Array.isArray(CHOICE_EVENTS)) return;
+  if(CHOICE_EVENTS.__policeRegistered) return; CHOICE_EVENTS.__policeRegistered=true;
+  const inDistrict=()=>!!POLICE_DISTRICTS[currentRoom] && !window._policeInDetention();
+  CHOICE_EVENTS.push(
+    { name:'Kontrola policyjna', chance:1.0, cond:()=>inDistrict() && (G.legal?G.legal.lastCheckDay:-99)!==(G.day||0) && (Math.random()*100 < _policeCheckChance()), fn:()=>window._policeStartCheck('rutynowa kontrola') },
+    { name:'Kradzież uliczna', chance:0.16, cond:()=>inDistrict() && (_policeIsWeekend()?true:Math.random()<0.6), fn:()=>window._policeStreetPickpocket() },
+    { name:'Awantura uliczna', chance:0.14, cond:()=>inDistrict(), fn:()=>window._policeStreetFight() },
+    { name:'Awantura po imprezie', chance:0.12, cond:()=>inDistrict() && (_policeHour()>=20||_policeHour()<4), fn:()=>window._policeStreetDrunk() },
+    { name:'Strzelanina w okolicy', chance:0.02, cond:()=>inDistrict() && (_policeHour()>=21||_policeHour()<5) && ((currentRoom==='underground')|| _policeIsWeekend() || Math.random()<0.3), fn:()=>window._policeShootingEvent() }
+  );
+})();
+
+
 /* v2.1.483 Coast Surf choice — beginner/pro/championship. */
 /* v2.1.524 SURF REDESIGN (user: "surf shop click=nagroda, żadnej akcji gracza"):
    minigra balansu na fali — utrzymaj deskę w środkowej strefie korygując przechył ⬅/➡ przez ~8s.
@@ -58045,6 +58469,7 @@ function renderPhoneHome(){
     _phApp('💬',`Wiadomości${_smsUnread>0?' ('+_smsUnread+')':''}`,'#0a1525','#3498db',"renderPhoneSMS()"),
     /* v2.1.305 Faza F1: Oferty (SMS leads). Pokazuje liczę ofert + bardziej widoczne gdy są pilne. */
     _phApp('📩',`Oferty${_leadsCount>0?' ('+_leadsCount+')':''}`,'#1a1505','#f39c12',"renderPhoneLeads()"),
+    _phApp('⚖️',`Prawo${(typeof window._policeUnpaidFines==='function'&&window._policeUnpaidFines()>0)?' ⚠️':''}`,'#12100c','#c9b892',"renderPhoneApp('legal')"),
   ];
   let html='';
   /* v2.1.349 Faza Z: build hotkey map 1-9 dla home (foldery + shortcuts, max 9). Numerek (N) w nazwie. */
@@ -58128,7 +58553,7 @@ function renderPhoneApp(app){
   window._phGoBack=()=>{ if(_fold && _getPhoneFolders()[_fold]) renderPhoneFolder(_fold); else renderPhoneHome(); };
   window._phHotkeys={};
   const ph=document.getElementById('ph-content');
-  const titles={spotify:'🎵 Loopify Artists',tidal:'🌊 AurumWave',youtube:'📺 ViewGrid',instagram:'📸 FrameUp',twitter:'💬 ChirpNet',bank:'🏦 Bank',bills:'💸 Rachunki',merch:'🧢 Merch',label:'🎼 Wytwórnia'};
+  const titles={spotify:'🎵 Loopify Artists',tidal:'🌊 AurumWave',youtube:'📺 ViewGrid',instagram:'📸 FrameUp',twitter:'💬 ChirpNet',bank:'🏦 Bank',bills:'💸 Rachunki',merch:'🧢 Merch',label:'🎼 Wytwórnia',legal:'⚖️ Status prawny'};
   document.getElementById('ph-title').textContent=titles[app]||app;
 
   /* v2.3.33 BUGFIX (Vegan: „masa apek nie dziala") — DEFENSYWNA SANITACJA przed renderem KAZDEJ apki.
@@ -58138,6 +58563,7 @@ function renderPhoneApp(app){
      Sanitacja w 1 miejscu chroni WSZYSTKIE apki + przyszle (reguła #1 — nie psuje poprawnych save). */
   if(typeof window._sanitizePlayerLists==='function') window._sanitizePlayerLists();
 
+  if(app==='legal'){ if(ph&&typeof window._policeRenderLegalApp==='function') ph.innerHTML=window._policeRenderLegalApp(); return; }
   if(app==='spotify'){
     const tracks=(G.studioTracks||[]).slice().sort((a,b)=>(b.streams||0)-(a.streams||0));
     const topTrack=tracks[0];
@@ -89564,7 +89990,7 @@ function loop(){
   _safe(()=>drawRoomDecorations(),'drawRoomDecorations');
   _safe(()=>drawShadows(),'drawShadows');
   _safe(()=>drawObjects(room),'drawObjects');
-  if(currentRoom==='ulica'){_safe(()=>drawParkLife(),'drawParkLife');_safe(()=>drawCityLife(),'drawCityLife');_safe(()=>drawBirds(),'drawBirds');}
+  if(currentRoom==='ulica'){_safe(()=>drawParkLife(),'drawParkLife');_safe(()=>drawCityLife(),'drawCityLife');_safe(()=>{if(typeof window._drawCityPolice==='function')window._drawCityPolice();},'cityPolice');_safe(()=>drawBirds(),'drawBirds');}
   else if(typeof DISTRICT_LIFE_CFG!=='undefined' && DISTRICT_LIFE_CFG[currentRoom]) _safe(()=>drawDistrictLife(),'drawDistrictLife'); /* N3 (v2.3.24): życie NPC w dzielnicach */
   _safe(()=>drawPlayerCar(),'drawPlayerCar');
   _safe(()=>drawPlayerCamper(),'drawPlayerCamper'); /* E4b: sprite kampera podczas jazdy */
