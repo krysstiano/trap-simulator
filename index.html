@@ -47548,6 +47548,8 @@ window._drawDeckLife=function(){
   }
   /* FX imprezy: kolorowe światła + nutki */
   if(party){
+    if(window._reduceFlashing){ /* migotanie wygaszone — spokojne, stałe światło */
+      X.save(); X.globalCompositeOperation='lighter'; X.fillStyle='rgba(150,170,220,0.10)'; X.beginPath(); X.arc(wx2sx(W*0.5),wy2sy(H*0.45),Math.min(W,H)*0.4,0,Math.PI*2); X.fill(); X.restore(); return; }
     const hasAudio=(()=>{ const w=_marinaOwnedById(G.marina._activeInteriorId); return w&&Array.isArray(w.upgrades)&&(w.upgrades.includes('marine_sound_pro')||w.upgrades.includes('deck_audio_basic')||w.upgrades.includes('dj_deck_station')); })();
     X.save(); X.globalCompositeOperation='lighter';
     for(let i=0;i<7;i++){ const hue=(i*52+Date.now()/12)%360; const lx=wx2sx(W*(0.2+i*0.1)), ly=wy2sy(H*0.42+Math.sin(t*2+i)*24);
@@ -47887,7 +47889,7 @@ function _drawCop(sx,sy,walk){
 }
 /* Radiowóz z pulsującym kogutem */
 function _drawPatrolCar(sx,sy,dir){
-  const t=Date.now(); const on=Math.floor(t/280)%2;
+  const t=Date.now(); const on=window._reduceFlashing?1:(Math.floor(t/280)%2);
   X.save(); X.translate(sx,sy); if(dir<0) X.scale(-1,1);
   X.fillStyle='rgba(0,0,0,0.30)'; X.beginPath(); X.ellipse(0,11,28,6,0,0,Math.PI*2); X.fill();
   X.fillStyle='#12233f'; X.beginPath(); X.roundRect(-26,-6,52,17,4); X.fill();    /* nadwozie granat */
@@ -47898,7 +47900,7 @@ function _drawPatrolCar(sx,sy,dir){
   /* kogut */
   X.fillStyle=on?'#e8352a':'#3a86ff'; X.fillRect(-8,-11,7,4);
   X.fillStyle=on?'#3a86ff':'#e8352a'; X.fillRect(1,-11,7,4);
-  X.save(); X.globalCompositeOperation='lighter'; X.fillStyle=on?'rgba(232,53,42,0.4)':'rgba(58,134,255,0.4)'; X.beginPath(); X.arc(0,-9,16,0,Math.PI*2); X.fill(); X.restore();
+  X.save(); X.globalCompositeOperation='lighter'; X.fillStyle=window._reduceFlashing?'rgba(120,120,150,0.22)':(on?'rgba(232,53,42,0.4)':'rgba(58,134,255,0.4)'); X.beginPath(); X.arc(0,-9,16,0,Math.PI*2); X.fill(); X.restore();
   X.fillStyle='#fff'; X.font='bold 5px Arial'; X.textAlign='center'; X.fillText('POLICJA',0,3); X.textAlign='left';
   X.restore();
 }
@@ -91778,7 +91780,7 @@ loop();
    Ustawienia per-urzadzenie (osobny localStorage 'snowy_gfx', NIE w save gry). */
 (function(){
   var KEY='snowy_gfx';
-  var DEF={ renderScale:1, fpsLimit:0, smoothing:'high', colorGrade:'none', bloom:false, vignette:false, scanlines:false, grain:false };
+  var DEF={ renderScale:1, fpsLimit:0, smoothing:'high', colorGrade:'none', bloom:false, vignette:false, scanlines:false, grain:false, reduceFlashing:false, bigText:false };
   /* presety filtra koloru (CSS filter — realny GPU post-process) */
   /* v2.3.54: brightness kompensuje contrast — kolorowe presety NIE ciemnieją (fix „Żywy był ciemny")
      + mocniejsza saturacja = realnie odczuwalna różnica jak w grach AAA (zmierzone _diag_gfx.mjs). */
@@ -91843,6 +91845,10 @@ loop();
     if(vg) vg.style.display=s.vignette?'block':'none';
     if(sc) sc.style.display=s.scanlines?'block':'none';
     if(gr) gr.style.display=s.grain?'block':'none';
+    /* 6) Dostępność */
+    window._reduceFlashing=!!s.reduceFlashing;
+    window._bigText=!!s.bigText;
+    var _pr=document.getElementById('prompt'); if(_pr){ _pr.style.fontSize=s.bigText?'21px':''; _pr.style.padding=s.bigText?'10px 18px':''; _pr.style.fontWeight=s.bigText?'800':''; }
     save(s);
   };
   /* ── Overlay ustawień (tabs Wideo/Efekty) ── */
@@ -91868,6 +91874,9 @@ loop();
       body=_row('Skala renderowania','Niżej = płynniej (mniej pikseli), wyżej = ostrzej.',_seg('renderScale',[{v:0.5,l:'50%'},{v:0.75,l:'75%'},{v:1,l:'100%'},{v:1.25,l:'125%'},{v:1.5,l:'150%'}],s.renderScale))
         +_row('Limit FPS','Ogranicza klatki — oszczędza prąd/CPU.',_seg('fpsLimit',[{v:30,l:'30'},{v:60,l:'60'},{v:120,l:'120'},{v:0,l:'Bez limitu'}],s.fpsLimit))
         +_row('Wygładzanie krawędzi','Antyaliasing skalowanych grafik.',_seg('smoothing',[{v:'off',l:'Wył'},{v:'fxaa',l:'FXAA'},{v:'high',l:'MSAA'}],s.smoothing));
+    } else if(tab==='gra'){
+      body=_row('Redukcja migotania','Wygasza pulsujące/migające światła (koguty policji, światła imprez, neony) — dla wrażliwych na błyski.',_tog('reduceFlashing',s.reduceFlashing))
+        +_row('Większe podpowiedzi [E]','Powiększa napis interakcji przy obiektach — lepsza czytelność.',_tog('bigText',s.bigText));
     } else {
       body=_row('Filtr kolorów','Korekcja barwna całego obrazu (shader).',_seg('colorGrade',[{v:'none',l:'Brak'},{v:'noir',l:'Noir'},{v:'cieply',l:'Ciepły'},{v:'zimny',l:'Zimny'},{v:'zywy',l:'Żywy'},{v:'cyberpunk',l:'Cyber'}],s.colorGrade))
         +_row('Poświata (Bloom)','Świetlisty blask jasnych miejsc i neonów.',_tog('bloom',s.bloom))
@@ -91878,7 +91887,7 @@ loop();
     ov.innerHTML='<div style="width:560px;max-width:94vw;max-height:88vh;overflow:auto;background:#0a0f1a;border:2px solid #2a3a52;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.6)">'
       +'<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #1a2535"><div style="font-size:17px;font-weight:900;color:#fff;letter-spacing:1px">⚙️ USTAWIENIA</div>'
       +'<button id="gfx-close" style="background:#2a1015;border:1px solid #c0392b;color:#f4a097;padding:6px 14px;border-radius:8px;cursor:pointer;font-weight:700;font-family:inherit">✕ Zamknij (Esc)</button></div>'
-      +'<div style="display:flex;gap:2px;padding:0 12px;border-bottom:1px solid #1a2535">'+tabBtn('wideo','🖥️ Wideo')+tabBtn('efekty','✨ Efekty / Shadery')+'</div>'
+      +'<div style="display:flex;gap:2px;padding:0 12px;border-bottom:1px solid #1a2535">'+tabBtn('wideo','🖥️ Wideo')+tabBtn('gra','🎮 Rozgrywka')+tabBtn('efekty','✨ Efekty / Shadery')+'</div>'
       +'<div style="padding:8px 18px 4px">'+body+'</div>'
       +'<div style="padding:10px 18px 16px;display:flex;justify-content:space-between;gap:10px">'
       +'<button id="gfx-reset" style="background:#1a2535;border:1px solid #3a4a5a;color:#9ab;padding:9px 16px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px">↺ Domyślne</button>'
