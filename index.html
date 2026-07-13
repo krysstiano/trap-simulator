@@ -3571,6 +3571,7 @@ const ROOMS = {
 
   /* MARINA — chodzalny pokład jachtu/katamaranu (Faza 2, PDF §12). map:null, obiekty dynamiczne (_marinaSyncDeckObjects). Rozmiar ustawiany w _marinaEnterDeck (jacht 20×13, katamaran 24×13). */
   boat_deck: { wT:20, hT:13, map:null, objects:[] },
+  police_cell: { wT:16, hT:11, map:null, objects:[] },
 
   // KASYNO ROYAL — interior z slotami, ruletką, stołem blackjack, kantorem
   casino: {
@@ -4022,6 +4023,7 @@ function drawObjects(room){
 function drawSprite(id,sx,sy,w,h){
   X.save();
   if(id&&id.indexOf('_mrn_')===0){ if(typeof window._drawMarinaSprite==='function') window._drawMarinaSprite(id,sx,sy,w,h); X.restore(); return; }
+  if(id&&id.indexOf('_pol_')===0){ if(typeof window._drawCellStation==='function') window._drawCellStation(id,sx,sy,w,h); X.restore(); return; }
   switch(id){
     case 'bed':          drawBed(sx,sy,w,h);break;
     case 'fridge':       drawFridge(sx,sy,w,h);break;
@@ -5333,6 +5335,7 @@ function drawRoomDecorations(){
   else if(currentRoom==='lab') drawLabInteriorDecorations();
   else if(currentRoom==='plantacja') drawPlantacjaInteriorDecorations();
   else if(currentRoom==='boat_deck') drawBoatDeck();
+  else if(currentRoom==='police_cell') drawPoliceCell();
   /* v2.1.402 Faza AQ.12 Etap 2 (user explicit "(...) widac w mieszkaniu"): rysuj psa w salonie mieszkania jeśli owned. */
   if(G.dog && G.dog.owned && (currentRoom==='mieszkanie' || currentRoom==='mieszkanie_premium' || currentRoom==='mieszkanie_lux')) {
     drawApartmentDog();
@@ -14313,7 +14316,7 @@ function updateCamera(){
 function snapCamera(){const room=ROOMS[currentRoom];const wW=room.wT*T,wH=room.hT*T;cam.x=clamp(P.wx+P.w/2-640,0,Math.max(0,wW-1280));cam.y=clamp(P.wy+P.h/2-360,0,Math.max(0,wH-658));cam._initialized=true;}
 
 function updatePlayer(){
-  if(typeof window._policeInDetention==='function' && window._policeInDetention()){ P.moving=false; if(!(document.getElementById('mg-job')&&document.getElementById('mg-job').classList.contains('on'))){ try{ window._policeOpenDetention(); }catch(e){} } return; }
+  if(typeof window._policeInDetention==='function' && window._policeInDetention() && currentRoom!=='police_cell'){ P.moving=false; try{ window._policeOpenDetention(); }catch(e){} return; }
   /* v1.9.89: kamera rusza nawet gdy paused — wymagane dla cinematic flythrough */
   if(window._cinemCam && window._cinemCam.active){
     P.moving=false; /* v2.1.21: clear żeby kroki NIE grały gdy user trzymał strzałkę przed odpaleniem przelot kamerą */
@@ -14950,6 +14953,12 @@ function handleAct(act,objId){
   } else if(act&&act.indexOf('marina_zone:')===0){
     const _mz=act.slice('marina_zone:'.length);
     if(typeof window._marinaInteriorZone==='function') window._marinaInteriorZone(_mz);
+  } else if(act==='police_wait'){
+    if(typeof window._policeCourt==='function') window._policeCourt();
+  } else if(act&&act.indexOf('police_opt:')===0){
+    const _po=act.slice('police_opt:'.length);
+    if(_po==='phone'){ if(typeof window._policeCellPhone==='function') window._policeCellPhone(); }
+    else if(typeof window._policeDetentionOpt==='function') window._policeDetentionOpt(_po);
   } else if(act==='marina_disembark'){
     if(typeof window._marinaDisembark==='function') window._marinaDisembark();
   } else if(act==='marina_captain'){
@@ -17130,6 +17139,7 @@ function changeRoom(id,wx,wy){
   currentRoom=id;
   if(id==='coast' && typeof window._marinaSyncCoastObjects==='function') window._marinaSyncCoastObjects();
   if(id==='boat_deck' && typeof window._marinaSyncDeckObjects==='function') window._marinaSyncDeckObjects(G.marina&&G.marina._activeInteriorId);
+  if(id==='police_cell' && typeof window._policeSyncCellObjects==='function') window._policeSyncCellObjects();
   if(id!=='coast' && G.marina && G.marina.piloting) G.marina.piloting=null;
   if(typeof _syncHomeSafe==='function') _syncHomeSafe(); /* v2.1.929: wstaw/usuń obiekt sejfu wg posiadania w tym wnętrzu */
   // Anti-stuck: jeśli spawn na ulicy w bloku/budynku — przesuń gracza na najbliższy wolny punkt
@@ -47698,6 +47708,7 @@ window._policeArrest=function(reason, opts){
 };
 window._policeOpenDetention=function(){
   _policeEnsure(); const det=G.legal.detention; if(!det||!det.active){ return; }
+  if(typeof ROOMS!=='undefined' && ROOMS.police_cell){ _policeSyncCellObjects(); const _mgp=document.getElementById('mg-job'); if(_mgp) _mgp.classList.remove('on'); if(typeof currentRoom!=='undefined' && currentRoom!=='police_cell' && typeof changeRoom==='function') changeRoom('police_cell', 384, 360); return; }
   const opt=(id,label,used)=>`<button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;${used?'opacity:0.4;pointer-events:none;color:#667':'color:#cdd'}" onclick="window._policeDetentionOpt('${id}')">${label}${used?' ✓':''}</button>`;
   const u=det.usedOpts||{};
   const conf=[]; if(det.confDrugs) conf.push(det.confDrugs+' szt. towaru'); if(det.confWeapon) conf.push('broń'); if(det.confStolen) conf.push(det.confStolen+' kradzionych rzeczy');
@@ -47767,6 +47778,7 @@ window._policeRelease=function(){
   G.stress=Math.max(0,(G.stress||50)-15);
   G.energy=(typeof clampStat==='function')?clampStat('energy',(G.energy||50)-10):Math.max(0,(G.energy||50)-10);
   G.legal.detention=null; G._policeFledRecently=false;
+  if(typeof currentRoom!=='undefined' && currentRoom==='police_cell' && typeof changeRoom==='function') changeRoom('ulica', 1200, 500);
   /* integracje NPC (SMS/notify) */
   window._policePostReleaseMessages(reason);
   if(typeof updateHUD==='function') updateHUD();
@@ -47843,6 +47855,103 @@ window._policeRenderLegalApp=function(){
 };
 
 /* POLICE MODULE END */
+
+/* ═══ DOŁEK JAKO CHODZALNA CELA (user: „fizyczne, nie panel") ═══
+   Zamiast panelu 48h — gracz jest fizycznie w celi, chodzi i wchodzi w interakcje
+   ze stacjami (prycza→rozprawa, pompki, telefon, okno, umywalka). */
+function _policeSyncCellObjects(){
+  if(typeof ROOMS==='undefined' || !ROOMS.police_cell) return;
+  const objs=ROOMS.police_cell.objects; objs.length=0;
+  objs.push(
+    {id:'_pol_bunk',   wx:44,  wy:150, w:150, h:92, act:'police_wait',      prompt:'[E] 🛏️ Prycza — prześpij do rozprawy', lbl:'Prycza'},
+    {id:'_pol_pushup', wx:330, wy:300, w:130, h:80, act:'police_opt:pushups',prompt:'[E] 💪 Pompki',        lbl:'Pompki'},
+    {id:'_pol_phone',  wx:60,  wy:372, w:80,  h:96, act:'police_opt:phone',  prompt:'[E] 📞 Telefon',       lbl:'Telefon'},
+    {id:'_pol_window', wx:330, wy:40,  w:130, h:56, act:'police_opt:think',  prompt:'[E] 🪟 Okno — przemyśl ruchy', lbl:'Okno'},
+    {id:'_pol_sink',   wx:600, wy:372, w:96,  h:96, act:'police_opt:calm',   prompt:'[E] 🚰 Umywalka — ochłoń', lbl:'Umywalka'}
+  );
+}
+window._policeSyncCellObjects=_policeSyncCellObjects;
+
+/* rysunek celi (beton, kraty, prycza, kibel, umywalka, okno) */
+function drawPoliceCell(){
+  const room=ROOMS.police_cell; if(!room) return;
+  if(!room.objects || room.objects.length===0) _policeSyncCellObjects();
+  const W=room.wT*48, H=room.hT*48; const t=Date.now()/1000;
+  /* beton */
+  const g=X.createLinearGradient(wx2sx(0),wy2sy(0),wx2sx(0),wy2sy(H));
+  g.addColorStop(0,'#2a2c30'); g.addColorStop(1,'#1a1c20'); X.fillStyle=g; X.fillRect(wx2sx(0),wy2sy(0),W,H);
+  /* fugi płytek */
+  X.strokeStyle='rgba(0,0,0,0.25)'; X.lineWidth=1;
+  for(let x=0;x<=W;x+=48){ X.beginPath(); X.moveTo(wx2sx(x),wy2sy(0)); X.lineTo(wx2sx(x),wy2sy(H)); X.stroke(); }
+  for(let y=0;y<=H;y+=48){ X.beginPath(); X.moveTo(wx2sx(0),wy2sy(y)); X.lineTo(wx2sx(W),wy2sy(y)); X.stroke(); }
+  /* ściany */
+  X.fillStyle='#14161a'; X.fillRect(wx2sx(0),wy2sy(0),W,14); X.fillRect(wx2sx(0),wy2sy(0),14,H); X.fillRect(wx2sx(W-14),wy2sy(0),14,H);
+  /* KRATY na dole (drzwi celi) */
+  X.fillStyle='#3a3d42'; X.fillRect(wx2sx(0),wy2sy(H-16),W,16);
+  X.strokeStyle='#5a5e66'; X.lineWidth=5;
+  for(let x=24;x<W-10;x+=34){ X.beginPath(); X.moveTo(wx2sx(x),wy2sy(H-16)); X.lineTo(wx2sx(x),wy2sy(H-90)); X.stroke(); }
+  X.lineWidth=6; X.beginPath(); X.moveTo(wx2sx(0),wy2sy(H-90)); X.lineTo(wx2sx(W),wy2sy(H-90)); X.stroke();
+  /* prycza (lewy górny) */
+  const bx=wx2sx(44),by=wy2sy(150);
+  X.fillStyle='#3a2f26'; X.fillRect(bx,by,150,92);
+  X.fillStyle='#5a4a38'; X.fillRect(bx,by,150,14);
+  X.fillStyle='#8a8f96'; X.beginPath(); X.roundRect(bx+8,by+18,134,54,4); X.fill();
+  X.fillStyle='#c8ccd0'; X.beginPath(); X.roundRect(bx+12,by+22,44,22,3); X.fill(); /* poduszka */
+  /* okno z kratą (góra środek) — światło */
+  const wx0=wx2sx(330),wy0=wy2sy(40);
+  X.fillStyle='#0a1420'; X.fillRect(wx0,wy0,130,56);
+  X.fillStyle=`rgba(150,180,220,${0.28+0.06*Math.sin(t)})`; X.fillRect(wx0+4,wy0+4,122,48);
+  X.strokeStyle='#2a2d32'; X.lineWidth=4; for(let i=1;i<4;i++){ X.beginPath(); X.moveTo(wx0+i*32,wy0); X.lineTo(wx0+i*32,wy0+56); X.stroke(); }
+  X.beginPath(); X.moveTo(wx0,wy0+28); X.lineTo(wx0+130,wy0+28); X.stroke();
+  /* umywalka + kibel (prawy dół) */
+  const sx0=wx2sx(600),sy0=wy2sy(372);
+  X.fillStyle='#c8ccd0'; X.beginPath(); X.roundRect(sx0,sy0,96,40,6); X.fill();
+  X.fillStyle='#8a9098'; X.beginPath(); X.ellipse(sx0+48,sy0+22,30,12,0,0,Math.PI*2); X.fill();
+  X.fillStyle='#dfe3e6'; X.beginPath(); X.roundRect(sx0+20,sy0+50,56,44,8); X.fill(); /* kibel */
+  /* telefon na ścianie (lewy dół) */
+  const px0=wx2sx(66),py0=wy2sy(372);
+  X.fillStyle='#1a1a1e'; X.beginPath(); X.roundRect(px0,py0,64,86,6); X.fill();
+  X.fillStyle='#2a2a30'; X.fillRect(px0+8,py0+12,48,40);
+  X.fillStyle='#3a3a42'; X.beginPath(); X.roundRect(px0+14,py0-6,36,18,8); X.fill(); /* słuchawka */
+  /* mata do pompek (środek) */
+  X.fillStyle='#20303a'; X.beginPath(); X.roundRect(wx2sx(330),wy2sy(300),130,80,8); X.fill();
+  X.strokeStyle='rgba(90,140,170,0.5)'; X.lineWidth=1; X.strokeRect(wx2sx(334),wy2sy(304),122,72);
+  /* nagłówek */
+  X.save(); X.font='bold 13px "Segoe UI",Arial'; X.textAlign='center';
+  const det=(G.legal&&G.legal.detention)||{}; const used=Object.keys(det.usedOpts||{}).length;
+  const nm='🚔 DOŁEK — 48H · '+(det.reason||'zatrzymanie');
+  X.fillStyle='rgba(4,4,6,0.7)'; const tw=X.measureText(nm).width+16; X.fillRect(wx2sx(W/2)-tw/2, wy2sy(6), tw, 20);
+  X.fillStyle='#c9b892'; X.fillText(nm, wx2sx(W/2), wy2sy(20));
+  X.font='10px Arial'; X.fillStyle='#8a8070'; X.fillText('Prycza → prześpij do rozprawy. Stacje: pompki / telefon / okno / umywalka.', wx2sx(W/2), wy2sy(H-2));
+  X.textAlign='left'; X.restore();
+}
+window.drawPoliceCell=drawPoliceCell;
+
+/* marker stacji celi (drawSprite dla _pol_*) */
+function _drawCellStation(id,sx,sy,w,h){
+  const det=(G.legal&&G.legal.detention)||{}; const u=det.usedOpts||{};
+  const key=id==='_pol_pushup'?'pushups':id==='_pol_sink'?'calm':id==='_pol_window'?'think':id==='_pol_phone'?'phone':null;
+  const done=key&&key!=='phone'&&u[key];
+  const t=Date.now()/700;
+  X.save();
+  X.fillStyle=done?'rgba(90,90,90,0.10)':`rgba(200,184,146,${0.10+0.05*Math.sin(t)})`;
+  X.beginPath(); X.roundRect(sx,sy,w,h,8); X.fill();
+  X.strokeStyle=done?'rgba(120,120,120,0.4)':'rgba(201,184,146,0.5)'; X.lineWidth=1.5; X.beginPath(); X.roundRect(sx+1,sy+1,w-2,h-2,7); X.stroke();
+  if(done){ X.fillStyle='#7a7a7a'; X.font='bold 10px Arial'; X.textAlign='center'; X.fillText('✓ zrobione', sx+w/2, sy+h/2); X.textAlign='left'; }
+  X.restore();
+}
+window._drawCellStation=_drawCellStation;
+
+/* interakcje celi */
+window._policeCellPhone=function(){
+  _policeEnsure(); const det=G.legal.detention||{}; det.usedOpts=det.usedOpts||{};
+  showEventChoice('📞 Telefon w celi','Masz jeden telefon. Do kogo dzwonisz?',[
+    {label:'📞 Zadzwoń do Kamila', fn:()=>window._policeDetentionOpt('kamil')},
+    {label:'📞 Zadzwoń do managera', fn:()=>window._policeDetentionOpt('manager')},
+    {label:'🤫 Odpuść telefon', fn:()=>{ if(typeof showMsg==='function') showMsg('🤫 Odkładasz słuchawkę. Cisza to też decyzja.','i',3000); }},
+  ]);
+};
+
 
 /* ═══ FONTANNA — minigra celowania (zamiast click=nagroda) ═══
    User 2026-07-13: „na miejsce wszystkich click=nagroda zbuduj fajny system".
