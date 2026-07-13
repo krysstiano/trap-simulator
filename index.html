@@ -3433,7 +3433,7 @@ const ROOMS = {
       {id:'photoshoot_coast', wx:1080,wy:400, w:140,h:130, act:'coast_photoshoot', prompt:'[E] 📸 Photoshoot',    lbl:'Photo'},
       {id:'surf_coast',       wx:480, wy:600, w:140,h:130, act:'coast_surf',       prompt:'[E] 🏄 Surf Shop',     lbl:'Surf'},
       /* PDF „Marina Coast" §3: oznaczone wejście do wody (tryb pływania). Cienki obiekt (h<60) = wykrywany przez getNear (actRadius), nie blokuje ruchu (brak solid). */
-      {id:'swim_entry', wx:960, wy:246, w:200, h:34, act:'coast_swimentry', prompt:'[E] 🏊 Wejdź do wody', lbl:'Kąpielisko', actRadius:120},
+      {id:'swim_entry', wx:150, wy:246, w:200, h:34, act:'coast_swimentry', prompt:'[E] 🏊 Wejdź do wody', lbl:'Kąpielisko', actRadius:120},
     ]
   },
 
@@ -3568,6 +3568,9 @@ const ROOMS = {
       {id:'plant_pack',       wx:820, wy:430, w:160,h:110, act:'kamper_pack_view',       prompt:'[E] 📦 Pakowanie', lbl:'Pakowanie'},
     ]
   },
+
+  /* MARINA — chodzalny pokład jachtu/katamaranu (Faza 2, PDF §12). map:null, obiekty dynamiczne (_marinaSyncDeckObjects). Rozmiar ustawiany w _marinaEnterDeck (jacht 20×13, katamaran 24×13). */
+  boat_deck: { wT:20, hT:13, map:null, objects:[] },
 
   // KASYNO ROYAL — interior z slotami, ruletką, stołem blackjack, kantorem
   casino: {
@@ -4018,6 +4021,7 @@ function drawObjects(room){
 
 function drawSprite(id,sx,sy,w,h){
   X.save();
+  if(id&&id.indexOf('_mrn_')===0){ if(typeof window._drawMarinaSprite==='function') window._drawMarinaSprite(id,sx,sy,w,h); X.restore(); return; }
   switch(id){
     case 'bed':          drawBed(sx,sy,w,h);break;
     case 'fridge':       drawFridge(sx,sy,w,h);break;
@@ -5318,7 +5322,7 @@ function drawRoomDecorations(){
   else if(currentRoom==='merch_studio') drawMerchStudioDecorations();
   /* v2.1.465 Etap 2 visual polish — dekoracje 3 dzielnic. */
   else if(currentRoom==='underground') drawUndergroundDecorations();
-  else if(currentRoom==='coast') drawCoastDecorations();
+  else if(currentRoom==='coast'){ drawCoastDecorations(); if(typeof drawMarinaHarbor==='function') drawMarinaHarbor(); if(typeof window._drawMarinaPortLife==='function') window._drawMarinaPortLife(); }
   else if(currentRoom==='business') drawBusinessDecorations();
   else if(currentRoom==='casino_lux') drawCasinoLuxDecorations(); /* v2.1.577: 3. piętro Diamond Lounge — żyrandole/złote akcenty */
   else if(currentRoom==='casino_royal') drawCasinoRoyalDecorations(); /* v2.1.589: 4. piętro Royal Penthouse — panorama miasta/platyna */
@@ -5328,6 +5332,7 @@ function drawRoomDecorations(){
   else if(currentRoom==='kamper') drawKamperInteriorDecorations();
   else if(currentRoom==='lab') drawLabInteriorDecorations();
   else if(currentRoom==='plantacja') drawPlantacjaInteriorDecorations();
+  else if(currentRoom==='boat_deck') drawBoatDeck();
   /* v2.1.402 Faza AQ.12 Etap 2 (user explicit "(...) widac w mieszkaniu"): rysuj psa w salonie mieszkania jeśli owned. */
   if(G.dog && G.dog.owned && (currentRoom==='mieszkanie' || currentRoom==='mieszkanie_premium' || currentRoom==='mieszkanie_lux')) {
     drawApartmentDog();
@@ -13328,6 +13333,7 @@ const SKIN_COLS={verylight:'#f5d8b8',light:'#e0a870',medium:'#c07840',olive:'#a0
 function drawPlayer(){
   // #17: Ukryj gracza gdy wsiadł do auta (postać "siedzi w środku" — auto się rysuje). N6: też w dzielnicach.
   if(G._inCar&&G.car&&_carRoom(currentRoom))return;
+  if(window._marinaIsPiloting&&window._marinaIsPiloting())return; /* piloting: łódź z rysowana w _marinaDrawPiloting */
   /* E4b: ukryj gracza gdy jedzie kamperem (kamper rysowany na jego pozycji w drawPlayerCamper). */
   if(G._inCamper&&G.camper&&G.camper.owned&&_carRoom(currentRoom))return;
   const sx=wx2sx(P.wx);
@@ -14442,12 +14448,23 @@ function updatePlayer(){
   P.wx=nx;P.wy=ny;
   /* PDF „Marina Coast" §4: tick pływania (zużycie siły, ostrzeżenia, ratunek, auto-wyjście na brzeg). */
   if(currentRoom==='coast' && typeof window._marinaSwimTick==='function') window._marinaSwimTick();
+  if(currentRoom==='coast' && typeof window._marinaPilotTick==='function') window._marinaPilotTick();
   // F+ DUPLIKAT KROKÓW — usunięty drugi dźwięk kroków (sfxStep "noise" w tle).
   // Gracz miał 2 nakładające się dźwięki: playStep (tup-tup, gameLoop) + sfxStep (szuru-szuru, tu).
   // Zostaje TYLKO playStep przez maybeSoundStep w gameLoop.
   // Reset licznika żeby nie eskalował:
   if(!P.moving) P._stepCnt=0;
   updateCamera();
+  if(window._marinaIsPiloting&&window._marinaIsPiloting()){
+    const _ppr=document.getElementById('prompt');
+    if(_ppr && !overlayOpen()&&!phoneOpen()&&!npcDlgOpen()){
+      const _pfx=P.wx+P.w/2,_pfy=P.wy+(P.h||44);
+      const _dockable=(typeof _marinaOnPier==='function'&&_marinaOnPier(_pfx,_pfy))||_pfy>=200;
+      _ppr.textContent=_dockable?'[E] ⚓ Zacumuj przy pomoście':'🌊 Steruj po wodzie — wróć do pomostu i [E] zacumuj';
+      _ppr.style.display='block';
+    } else if(_ppr){ _ppr.style.display='none'; }
+    return;
+  }
   const nearId=getNear();
   const pr=document.getElementById('prompt');
   if(nearId&&!overlayOpen()&&!phoneOpen()&&!npcDlgOpen()){
@@ -14598,6 +14615,7 @@ function tryInteract(){
   /* v1.9.54: guard przeciw race condition podczas fade między pokojami (audyt room transitions) */
   if(typeof _roomFadeDir!=='undefined' && _roomFadeDir!==0) return;
   if(npcDlgOpen()){closeNPCDlg();return;}
+  if(window._marinaIsPiloting&&window._marinaIsPiloting()){ window._marinaTryDock(); return; }
   const id=getNear();
   if(!id){ if(typeof window._tryPetDog==='function') window._tryPetDog(); return; } /* U5: brak obiektu → spróbuj pogłaskać psa */
   const obj=ROOMS[currentRoom].objects.find(o=>o.id===id);
@@ -14950,6 +14968,16 @@ function handleAct(act,objId){
     const placeId=act.replace('coast_','');
     if(typeof window._enterDistrictPlace==='function') window._enterDistrictPlace('coast',placeId);
     else if(typeof showMsg==='function') showMsg('🚧 Content w przygotowaniu','f',3000);
+  } else if(act&&act.indexOf('marina_board:')===0){
+    const _mbid=act.slice('marina_board:'.length);
+    if(typeof window._marinaBoardBoat==='function') window._marinaBoardBoat(_mbid);
+  } else if(act&&act.indexOf('marina_zone:')===0){
+    const _mz=act.slice('marina_zone:'.length);
+    if(typeof window._marinaInteriorZone==='function') window._marinaInteriorZone(_mz);
+  } else if(act==='marina_disembark'){
+    if(typeof window._marinaDisembark==='function') window._marinaDisembark();
+  } else if(act==='marina_captain'){
+    if(typeof window._marinaCaptainTalk==='function') window._marinaCaptainTalk();
   } else if(act&&act.startsWith('business_')){
     /* v2.1.386 Faza D' Business new map dispatch */
     const placeId=act.replace('business_','');
@@ -17124,6 +17152,9 @@ function changeRoom(id,wx,wy){
   // Anti-stuck-key przy zmianie pokoju (focus może się przerwać przy fade)
   for(const k in K) delete K[k];
   currentRoom=id;
+  if(id==='coast' && typeof window._marinaSyncCoastObjects==='function') window._marinaSyncCoastObjects();
+  if(id==='boat_deck' && typeof window._marinaSyncDeckObjects==='function') window._marinaSyncDeckObjects(G.marina&&G.marina._activeInteriorId);
+  if(id!=='coast' && G.marina && G.marina.piloting) G.marina.piloting=null;
   if(typeof _syncHomeSafe==='function') _syncHomeSafe(); /* v2.1.929: wstaw/usuń obiekt sejfu wg posiadania w tym wnętrzu */
   // Anti-stuck: jeśli spawn na ulicy w bloku/budynku — przesuń gracza na najbliższy wolny punkt
   if(id==='ulica'){
@@ -45817,6 +45848,7 @@ window._marinaBuyWatercraft=function(modelId){
   };
   G.marina.owned.push(inst);
   G.marina._activeCraftId=inst.id;
+  if(typeof window._marinaSyncCoastObjects==='function') window._marinaSyncCoastObjects();
   G.marina.reputation.yachtPrestige += m.prestige;
   if(m.sizeClass==='large'||m.sizeClass==='premium'){ window._marinaUnlockCaptain(m); }
   /* Kamil SMS przy pierwszym skuterze / jachcie (§33) */
@@ -46044,15 +46076,21 @@ function _mrnd(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
 
 /* ═══ §1-4 PŁYWANIE ═══ */
 window._marinaCoastMove=function(nx,ny){
-  _marinaEnsure(); const sw=G.marina.swimming;
+  _marinaEnsure(); const sw=G.marina.swimming; const _pl=G.marina.piloting;
   const fw=(P.w/2), fh=(P.h||44);
   let rx=nx, ry=ny; let blockType=null;
+  if(_pl && _pl.active){
+    const _dx=nx-P.wx, _dy=ny-P.wy; if(_dx||_dy) _pl.heading=Math.atan2(_dx,-_dy);
+    const zx=_marinaWaterZoneAt(rx+fw, P.wy+fh); if(zx==null && !_marinaOnPier(rx+fw,P.wy+fh)){ rx=P.wx; }
+    const zxy=_marinaWaterZoneAt(rx+fw, ry+fh); if(zxy==null && !_marinaOnPier(rx+fw,ry+fh)){ ry=P.wy; }
+    return {nx:rx, ny:ry};
+  }
   if(sw.isSwimming){
-    const zx=_marinaWaterZoneAt(rx+fw, P.wy+fh);   if(zx==='restricted'){ rx=P.wx; blockType='restricted'; }
-    const zxy=_marinaWaterZoneAt(rx+fw, ry+fh);     if(zxy==='restricted'){ ry=P.wy; blockType='restricted'; }
+    const zx=_marinaWaterZoneAt(rx+fw, P.wy+fh);   if(zx==='restricted' && !_marinaOnPier(rx+fw,P.wy+fh)){ rx=P.wx; blockType='restricted'; }
+    const zxy=_marinaWaterZoneAt(rx+fw, ry+fh);     if(zxy==='restricted' && !_marinaOnPier(rx+fw,ry+fh)){ ry=P.wy; blockType='restricted'; }
   } else {
-    const zx=_marinaWaterZoneAt(rx+fw, P.wy+fh);   if(zx!=null){ rx=P.wx; blockType=(zx==='restricted'?'restricted':'water'); }
-    const zxy=_marinaWaterZoneAt(rx+fw, ry+fh);     if(zxy!=null){ ry=P.wy; blockType=(zxy==='restricted'?'restricted':'water'); }
+    const zx=_marinaWaterZoneAt(rx+fw, P.wy+fh);   if(zx!=null && !_marinaOnPier(rx+fw,P.wy+fh)){ rx=P.wx; blockType=(zx==='restricted'?'restricted':'water'); }
+    const zxy=_marinaWaterZoneAt(rx+fw, ry+fh);     if(zxy!=null && !_marinaOnPier(rx+fw,ry+fh)){ ry=P.wy; blockType=(zxy==='restricted'?'restricted':'water'); }
   }
   /* PDF §3: komunikat przy zablokowaniu (throttle ~2.6 s, żeby nie spamować) */
   if(blockType && (rx!==nx || ry!==ny)){
@@ -46481,6 +46519,7 @@ window._marinaRenderParty=function(){
 };
 window._marinaDoParty=function(typeId){
   _marinaEnsure(); const craft=_marinaActiveCraft(); if(!craft){ return; }
+  if(typeof currentRoom!=='undefined' && currentRoom==='boat_deck' && typeof window._marinaMarkDeckParty==='function') window._marinaMarkDeckParty();
   const t=MARINA_PARTY_TYPES.find(x=>x.id===typeId); if(!t) return;
   const s=G.marina.eventSettings;
   let cost=t.cost;
@@ -46722,6 +46761,7 @@ window._marinaEnterInterior=function(watercraftId){
 };
 window._marinaInteriorZone=function(act){
   _marinaEnsure();
+  if(act==='sail') return window._marinaDeckSail();
   if(act==='vlog') return window._marinaActVlog();
   if(act==='frameup') return window._marinaActFrameUp();
   if(act==='clip') return window._marinaActClip();
@@ -46759,6 +46799,786 @@ window._marinaDailyTick=function(){
   if(m.reputation.gossipHeat>0) m.reputation.gossipHeat=Math.max(0, m.reputation.gossipHeat-3);
   if(m.reputation.scandalRisk>0) m.reputation.scandalRisk=Math.max(0, m.reputation.scandalRisk-2);
   if(m.reputation.paparazziRisk>0) m.reputation.paparazziRisk=Math.max(0, m.reputation.paparazziRisk-4);
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   MARINA COAST — FIZYCZNY PORT (v2.3.121). User 2026-07-12/13:
+   „to mają być fizyczne, widoczne rzeczy, nie panel". Widoczne pomosty,
+   zacumowane jednostki gracza (widać kupiony katamaran z zewnątrz!),
+   kapitan-postać na kei. Chodzalne pokłady = Faza 2.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Geometria portu (mapa coast 1440×960; woda wy 0..240). Wszystko chodzalne
+   (pomost+palce) mimo że nad wodą — carve-out w _marinaCoastMove. */
+const MARINA_HARBOR={
+  boardwalk:{x:624, y:196, w:552, h:52},              /* główny pomost keja */
+  fingers:[                                            /* palce cumownicze (chodzalne) */
+    {cx:696, y:88, w:26, h:120},
+    {cx:791, y:88, w:26, h:120},
+    {cx:902, y:78, w:26, h:130},
+    {cx:1006, y:70, w:26, h:140},
+  ],
+  fuelDock:{x:1146, y:164, w:36, h:46},               /* stacja paliw (wizual przy końcu keja) */
+  captainWx:1150, captainWy:250,                        /* kapitan na pomoście przy Dockhouse */
+};
+/* Sloty cumownicze — footprint dziobem na północ, rufa na sternY (przy kei). Gap ≥34px. */
+const MARINA_SLOTS=[
+  {x:628, sternY:206, cls:'small'},    /* kajak / skuter */
+  {x:716, sternY:206, cls:'medium'},   /* open boat */
+  {x:812, sternY:204, cls:'large'},    /* rib / jacht */
+  {x:918, sternY:202, cls:'large'},    /* jacht / rib */
+  {x:1020,sternY:198, cls:'premium'},  /* KATAMARAN — najszerszy slot przy otwartej wodzie */
+];
+const _MARINA_CLS_RANK={small:0, medium:1, large:2, premium:3};
+const _MARINA_FOOT={ small:{w:48,h:74}, medium:{w:54,h:104}, large:{w:74,h:124}, premium:{w:122,h:138} };
+function _marinaFootForSlot(cls){ return _MARINA_FOOT[cls]||_MARINA_FOOT.medium; }
+/* Kategoria jednostki → klasa slotu (do rozmiaru rysowania). */
+function _marinaCatCls(cat){
+  if(cat==='catamaran') return 'premium';
+  if(cat==='yacht'||cat==='rib') return 'large';
+  if(cat==='open'||cat==='inflatable') return 'medium';
+  return 'small'; /* kayak, jetski */
+}
+
+/* Chodzalność pomostu — foot (fx,fy) na kei/palcu? (tolerancja 4px). */
+function _marinaOnPier(fx,fy){
+  const b=MARINA_HARBOR.boardwalk;
+  if(fx>=b.x-2 && fx<=b.x+b.w+2 && fy>=b.y-4 && fy<=b.y+b.h+2) return true;
+  for(const f of MARINA_HARBOR.fingers){
+    if(fx>=f.cx-f.w/2-2 && fx<=f.cx+f.w/2+2 && fy>=f.y-2 && fy<=f.y+f.h+2) return true;
+  }
+  return false;
+}
+
+/* Przypisanie posiadanych jednostek do slotów: największe → najszersze sloty. */
+function _marinaAssignBoatsToSlots(owned){
+  const boats=(owned||[]).filter(w=>w&&w.modelId).map(w=>({boat:w, cat:(w.cat||(_marinaModelById(w.modelId)||{}).cat||'open')}));
+  /* sortuj malejąco po rozmiarze kategorii */
+  boats.sort((a,b)=>_MARINA_CLS_RANK[_marinaCatCls(b.cat)]-_MARINA_CLS_RANK[_marinaCatCls(a.cat)]);
+  const slots=MARINA_SLOTS.map(s=>({slot:s, used:false}));
+  const out=[];
+  for(const b of boats){
+    const need=_MARINA_CLS_RANK[_marinaCatCls(b.cat)];
+    let pick=null;
+    for(const s of slots){ if(s.used) continue; if(_MARINA_CLS_RANK[s.slot.cls]>=need){ if(!pick || _MARINA_CLS_RANK[s.slot.cls]<_MARINA_CLS_RANK[pick.slot.cls]) pick=s; } }
+    if(!pick){ for(const s of slots){ if(s.used) continue; if(!pick || _MARINA_CLS_RANK[s.slot.cls]>_MARINA_CLS_RANK[pick.slot.cls]) pick=s; } }
+    if(!pick) break;
+    pick.used=true; out.push({boat:b.boat, cat:b.cat, slot:pick.slot});
+  }
+  return { placed:out, overflow:Math.max(0, boats.length-slots.length) };
+}
+
+/* Synchronizacja fizycznych obiektów mariny w ROOMS.coast.objects (łodzie + kapitan). */
+window._marinaSyncCoastObjects=function(){
+  if(typeof ROOMS==='undefined' || !ROOMS.coast || !Array.isArray(ROOMS.coast.objects)) return;
+  _marinaEnsure();
+  const objs=ROOMS.coast.objects;
+  for(let i=objs.length-1;i>=0;i--){ const o=objs[i]; if(o && typeof o.id==='string' && o.id.indexOf('_mrn_')===0) objs.splice(i,1); }
+  /* Kapitan Nolan Reed — fizyczna postać na kei (obecny jako harbormaster; SMS-kontakt osobno wg §25). */
+  objs.push({id:'_mrn_captain', wx:MARINA_HARBOR.captainWx, wy:MARINA_HARBOR.captainWy, w:30, h:50, act:'marina_captain', prompt:'[E] 🧭 Captain Nolan Reed', lbl:'Kapitan', actRadius:74});
+  /* Zacumowane jednostki gracza */
+  const _pilotId=(G.marina.piloting&&G.marina.piloting.active)?G.marina.piloting.craftId:null;
+  const asg=_marinaAssignBoatsToSlots(G.marina.owned.filter(w=>!_pilotId||w.id!==_pilotId));
+  asg.placed.forEach((a,i)=>{
+    const cls=a.slot.cls;                 /* footprint wg pojemności slotu → zero overlap */
+    const fp=_marinaFootForSlot(cls);
+    const wx=Math.round(a.slot.x + (a.slot.cls==='premium'? 0 : 0));
+    const wy=a.slot.sternY - fp.h;
+    objs.push({id:'_mrn_boat_'+i, wx:wx, wy:wy, w:fp.w, h:fp.h, act:'marina_board:'+a.boat.id, prompt:'[E] 🛥️ '+a.boat.name+' — wejdź na pokład', lbl:a.boat.name, _mrnCat:a.cat, _mrnCls:cls, _mrnBoatId:a.boat.id});
+  });
+  G.marina._harborOverflow=asg.overflow;
+};
+
+/* ═══ RYSOWANIE PORTU (pod obiektami; wołane z drawCoastDecorations) ═══ */
+function drawMarinaHarbor(){
+  if(currentRoom!=='coast') return;
+  const t=Date.now()/1000;
+  /* Basen portowy — ciemniejsza, spokojniejsza woda w obrębie mariny (osłona falochronu) */
+  const bx=wx2sx(596), by=wy2sy(40), bw=600, bh=210;
+  X.save();
+  X.fillStyle='rgba(10,44,66,0.34)';
+  X.beginPath(); X.roundRect(bx, by, bw, bh, 10); X.fill();
+  /* delikatny połysk na wodzie basenu */
+  for(let i=0;i<9;i++){
+    const sxr=wx2sx(612+i*64), syr=wy2sy(70+((i*37)%150));
+    X.fillStyle=`rgba(150,205,230,${0.05+0.05*Math.sin(t*1.4+i)})`;
+    X.fillRect(sxr, syr, 30, 2);
+  }
+  X.restore();
+
+  /* Falochron (kamienny) po lewej i prawej krawędzi basenu — zabezpiecza port */
+  X.fillStyle='#4a4640';
+  X.fillRect(wx2sx(592), wy2sy(44), 10, 200);
+  X.fillRect(wx2sx(1178), wy2sy(60), 12, 184);
+  X.fillStyle='rgba(255,255,255,0.06)';
+  X.fillRect(wx2sx(592), wy2sy(44), 10, 3);
+  X.fillRect(wx2sx(1178), wy2sy(60), 12, 3);
+
+  /* Ambient — 2 wynajmowe łódki przy wolnych końcach (życie w porcie, nieinteraktywne) */
+  const usedSlots=(ROOMS.coast.objects||[]).filter(o=>o.id&&o.id.indexOf('_mrn_boat_')===0).length;
+  if(usedSlots<2){ _drawMarinaBoat(wx2sx(628), wy2sy(150), 46, 62, 'kayak', {ambient:true, hue:48}); }
+  if(usedSlots<3){ _drawMarinaBoat(wx2sx(722), wy2sy(120), 52, 90, 'open', {ambient:true, hue:200}); }
+
+  /* Główny pomost keja (drewniany) */
+  const b=MARINA_HARBOR.boardwalk;
+  _drawPierDeck(wx2sx(b.x), wy2sy(b.y), b.w, b.h, true);
+  /* Palce cumownicze */
+  for(const f of MARINA_HARBOR.fingers){
+    _drawPierDeck(wx2sx(f.cx-f.w/2), wy2sy(f.y), f.w, f.h, false);
+    /* pale cumownicze na końcu palca */
+    X.fillStyle='#5a4326';
+    X.fillRect(wx2sx(f.cx-f.w/2)-3, wy2sy(f.y)-4, 5, 9);
+    X.fillRect(wx2sx(f.cx+f.w/2)-2, wy2sy(f.y)-4, 5, 9);
+  }
+  /* Stacja paliw marine (przy końcu keja) */
+  _drawMarinaFuelDock(wx2sx(MARINA_HARBOR.fuelDock.x), wy2sy(MARINA_HARBOR.fuelDock.y), MARINA_HARBOR.fuelDock.w, MARINA_HARBOR.fuelDock.h);
+
+  /* Szyld portu nad kejem */
+  const sgx=wx2sx(824), sgy=wy2sy(232);
+  X.save();
+  X.font='bold 13px "Segoe UI",Arial'; X.textAlign='center';
+  X.fillStyle='rgba(4,16,24,0.7)'; X.fillRect(sgx-72, sgy-13, 144, 18);
+  X.strokeStyle='#00b4d8'; X.lineWidth=1; X.strokeRect(sgx-72, sgy-13, 144, 18);
+  X.fillStyle='#00d4f0'; X.fillText('⚓ MARINA COAST — PORT', sgx, sgy);
+  X.textAlign='left'; X.restore();
+}
+/* Deska pomostu z teksturą desek. main=true → poziome deski keja, false → pionowe (palec). */
+function _drawPierDeck(sx,sy,w,h,main){
+  X.save();
+  const g=X.createLinearGradient(sx,sy,sx,sy+h);
+  g.addColorStop(0,'#7a5a34'); g.addColorStop(0.5,'#6a4c2a'); g.addColorStop(1,'#553d21');
+  X.fillStyle=g; X.beginPath(); X.roundRect(sx,sy,w,h,3); X.fill();
+  X.strokeStyle='rgba(0,0,0,0.35)'; X.lineWidth=1; X.stroke();
+  X.strokeStyle='rgba(30,18,8,0.55)'; X.lineWidth=1;
+  if(main){ for(let yy=sy+6; yy<sy+h-2; yy+=8){ X.beginPath(); X.moveTo(sx+2,yy); X.lineTo(sx+w-2,yy); X.stroke(); } }
+  else { for(let xx=sx+5; xx<sx+w-2; xx+=8){ X.beginPath(); X.moveTo(xx,sy+2); X.lineTo(xx,sy+h-2); X.stroke(); } }
+  /* najaśniejszy blik górnej krawędzi */
+  X.strokeStyle='rgba(255,230,180,0.18)'; X.lineWidth=1;
+  X.beginPath(); X.moveTo(sx+1,sy+1); X.lineTo(sx+w-1,sy+1); X.stroke();
+  X.restore();
+}
+function _drawMarinaFuelDock(sx,sy,w,h){
+  X.save();
+  /* podstawa */
+  X.fillStyle='#3a4048'; X.fillRect(sx,sy+h-10,w,10);
+  /* dystrybutor */
+  X.fillStyle='#c0392b'; X.beginPath(); X.roundRect(sx+w*0.28,sy+6,w*0.44,h-14,3); X.fill();
+  X.fillStyle='#1a1a1e'; X.fillRect(sx+w*0.34,sy+11,w*0.32,10);
+  X.fillStyle='#f1c40f'; X.font='bold 8px Arial'; X.textAlign='center'; X.fillText('⛽',sx+w*0.5,sy+20);
+  /* wąż */
+  X.strokeStyle='#111'; X.lineWidth=2; X.beginPath(); X.moveTo(sx+w*0.72,sy+18); X.quadraticCurveTo(sx+w+6,sy+22,sx+w+2,sy+h-14); X.stroke();
+  X.textAlign='left'; X.restore();
+}
+
+/* ═══ DISPATCH SPRITE (z drawSprite dla id `_mrn_*`) ═══ */
+window._drawMarinaSprite=function(id,sx,sy,w,h){
+  if(id==='_mrn_captain'){ _drawMarinaCaptain(sx,sy,w,h); return; }
+  if(id==='_mrn_deck_exit'){ _drawDeckExit(sx,sy,w,h); return; }
+  if(id.indexOf('_mrn_deck_')===0){ _drawDeckZone(id,sx,sy,w,h); return; }
+  let cat='open', name='';
+  try{ const o=(ROOMS.coast.objects||[]).find(x=>x.id===id); if(o){ cat=o._mrnCat||'open'; name=o.lbl||''; } }catch(e){}
+  _drawMarinaBoat(sx,sy,w,h,cat,{name:name});
+};
+
+/* ═══ SPRITE ŁODZI (top-down, dziób=północ, rufa=południe/keja) ═══ */
+function _drawMarinaBoat(sx,sy,w,h,cat,opts){
+  opts=opts||{};
+  const cx=sx+w/2;
+  X.save();
+  if(opts.ambient) X.globalAlpha=0.72;
+  /* cień na wodzie */
+  X.fillStyle='rgba(0,0,0,0.20)';
+  X.beginPath(); X.ellipse(cx+3, sy+h-8, w*0.42, h*0.30, 0, 0, Math.PI*2); X.fill();
+  if(cat==='kayak')       _boatKayak(sx,sy,w,h,cx,opts);
+  else if(cat==='jetski') _boatJetski(sx,sy,w,h,cx,opts);
+  else if(cat==='inflatable'||cat==='rib') _boatRib(sx,sy,w,h,cx,opts);
+  else if(cat==='yacht')  _boatYacht(sx,sy,w,h,cx,opts);
+  else if(cat==='catamaran') _boatCatamaran(sx,sy,w,h,cx,opts);
+  else                    _boatOpen(sx,sy,w,h,cx,opts);
+  /* nazwa jednostki nad dziobem (tylko własne) */
+  if(!opts.ambient && opts.name){
+    X.font='bold 9px "Segoe UI",Arial'; X.textAlign='center';
+    X.fillStyle='rgba(3,14,22,0.72)'; const tw=X.measureText(opts.name).width+8;
+    X.fillRect(cx-tw/2, sy-13, tw, 12);
+    X.fillStyle='#bfe8ff'; X.fillText(opts.name, cx, sy-4);
+    X.textAlign='left';
+  }
+  X.restore();
+}
+function _hullGrad(sx,sy,h,top,bot){ const g=X.createLinearGradient(sx,sy,sx,sy+h); g.addColorStop(0,top); g.addColorStop(1,bot); return g; }
+function _boatKayak(sx,sy,w,h,cx,o){
+  const hue=(o.hue!=null?o.hue:16);
+  X.fillStyle=`hsl(${hue},80%,52%)`;
+  X.beginPath(); X.moveTo(cx,sy); X.quadraticCurveTo(sx+w-2,sy+h*0.5,cx,sy+h); X.quadraticCurveTo(sx+2,sy+h*0.5,cx,sy); X.fill();
+  X.fillStyle=`hsl(${hue},70%,40%)`; X.fillRect(cx-w*0.06,sy+h*0.14,w*0.12,h*0.72);
+  /* kokpit */
+  X.fillStyle='#12212b'; X.beginPath(); X.ellipse(cx,sy+h*0.52,w*0.16,h*0.14,0,0,Math.PI*2); X.fill();
+  /* wiosło */
+  X.strokeStyle='#8a6a3a'; X.lineWidth=3; X.beginPath(); X.moveTo(cx-w*0.5,sy+h*0.34); X.lineTo(cx+w*0.5,sy+h*0.46); X.stroke();
+  X.fillStyle='#c0392b'; X.beginPath(); X.ellipse(cx-w*0.5,sy+h*0.34,4,6,0,0,Math.PI*2); X.fill(); X.beginPath(); X.ellipse(cx+w*0.5,sy+h*0.46,4,6,0,0,Math.PI*2); X.fill();
+}
+function _boatJetski(sx,sy,w,h,cx,o){
+  X.fillStyle=_hullGrad(sx,sy,h,'#e8e8ee','#9aa4ac');
+  X.beginPath(); X.moveTo(cx,sy); X.quadraticCurveTo(sx+w,sy+h*0.4,sx+w*0.78,sy+h); X.lineTo(sx+w*0.22,sy+h); X.quadraticCurveTo(sx,sy+h*0.4,cx,sy); X.fill();
+  /* pas koloru */
+  X.fillStyle='#e74c3c'; X.beginPath(); X.moveTo(cx,sy+4); X.quadraticCurveTo(sx+w*0.82,sy+h*0.42,sx+w*0.66,sy+h*0.66); X.lineTo(sx+w*0.5,sy+h*0.66); X.lineTo(cx,sy+4); X.fill();
+  /* siedzenie */
+  X.fillStyle='#20242a'; X.beginPath(); X.roundRect(cx-w*0.18,sy+h*0.48,w*0.36,h*0.34,4); X.fill();
+  /* kierownica */
+  X.strokeStyle='#111'; X.lineWidth=2; X.beginPath(); X.moveTo(cx-w*0.16,sy+h*0.4); X.lineTo(cx+w*0.16,sy+h*0.4); X.stroke();
+  /* struga wody z dyszy */
+  X.fillStyle='rgba(200,230,245,0.5)'; X.beginPath(); X.moveTo(cx-4,sy+h); X.lineTo(cx+4,sy+h); X.lineTo(cx,sy+h+8); X.fill();
+}
+function _boatOpen(sx,sy,w,h,cx,o){
+  const hue=(o.hue!=null?o.hue:210);
+  /* kadłub biały z pasem */
+  X.fillStyle=_hullGrad(sx,sy,h,'#f4f6f8','#c4ccd2');
+  X.beginPath(); X.moveTo(cx,sy); X.quadraticCurveTo(sx+w,sy+h*0.3,sx+w-4,sy+h-6); X.quadraticCurveTo(cx,sy+h,sx+4,sy+h-6); X.quadraticCurveTo(sx,sy+h*0.3,cx,sy); X.fill();
+  X.strokeStyle='rgba(0,0,0,0.25)'; X.lineWidth=1; X.stroke();
+  /* wnętrze pokładu */
+  X.fillStyle=`hsl(${hue},34%,30%)`; X.beginPath(); X.moveTo(cx,sy+h*0.16); X.quadraticCurveTo(sx+w-9,sy+h*0.34,sx+w-9,sy+h-12); X.quadraticCurveTo(cx,sy+h-5,sx+9,sy+h-12); X.quadraticCurveTo(sx+9,sy+h*0.34,cx,sy+h*0.16); X.fill();
+  /* konsola + szyba */
+  X.fillStyle='#2a2f36'; X.fillRect(cx-w*0.16,sy+h*0.42,w*0.32,h*0.14);
+  X.fillStyle='rgba(150,200,230,0.7)'; X.fillRect(cx-w*0.16,sy+h*0.38,w*0.32,4);
+  /* ławki */
+  X.fillStyle='#e0d4bc'; X.fillRect(cx-w*0.2,sy+h*0.62,w*0.4,6); X.fillRect(cx-w*0.2,sy+h*0.74,w*0.4,6);
+  /* silnik zaburtowy */
+  X.fillStyle='#1a1e22'; X.fillRect(cx-6,sy+h-4,12,10);
+}
+function _boatRib(sx,sy,w,h,cx,o){
+  /* tuby pontonu (grafit) */
+  X.fillStyle='#2b2f34';
+  X.beginPath(); X.moveTo(cx,sy); X.quadraticCurveTo(sx+w+2,sy+h*0.34,sx+w-3,sy+h-4); X.quadraticCurveTo(cx,sy+h+2,sx+3,sy+h-4); X.quadraticCurveTo(sx-2,sy+h*0.34,cx,sy); X.fill();
+  /* segmenty tub */
+  X.strokeStyle='rgba(0,0,0,0.4)'; X.lineWidth=1;
+  for(let i=1;i<4;i++){ const yy=sy+h*(0.28+i*0.16); X.beginPath(); X.moveTo(sx+3,yy); X.lineTo(sx+7,yy); X.moveTo(sx+w-7,yy); X.lineTo(sx+w-3,yy); X.stroke(); }
+  /* pokład sztywny */
+  X.fillStyle='#5a6068'; X.beginPath(); X.roundRect(cx-w*0.28,sy+h*0.18,w*0.56,h*0.72,5); X.fill();
+  /* pas ratowniczy pomarańcz */
+  X.strokeStyle='#e67e22'; X.lineWidth=2; X.beginPath(); X.roundRect(sx+3,sy+h*0.2,w-6,h*0.66,10); X.stroke();
+  /* konsola centralna + fotele jockey */
+  X.fillStyle='#15181c'; X.fillRect(cx-w*0.12,sy+h*0.4,w*0.24,h*0.16);
+  X.fillStyle='rgba(150,200,230,0.7)'; X.fillRect(cx-w*0.12,sy+h*0.37,w*0.24,3);
+  X.fillStyle='#20242a'; X.fillRect(cx-w*0.1,sy+h*0.6,w*0.2,h*0.14);
+  /* podwójny silnik */
+  X.fillStyle='#0e1114'; X.fillRect(cx-w*0.16,sy+h-4,w*0.1,11); X.fillRect(cx+w*0.06,sy+h-4,w*0.1,11);
+}
+function _boatYacht(sx,sy,w,h,cx,o){
+  /* kadłub */
+  X.fillStyle=_hullGrad(sx,sy,h,'#fbfcfd','#d2d8de');
+  X.beginPath(); X.moveTo(cx,sy); X.quadraticCurveTo(sx+w-2,sy+h*0.3,sx+w-6,sy+h-8); X.quadraticCurveTo(cx,sy+h,sx+6,sy+h-8); X.quadraticCurveTo(sx+2,sy+h*0.3,cx,sy); X.fill();
+  /* linia wodna granatowa */
+  X.strokeStyle='#14335a'; X.lineWidth=2;
+  X.beginPath(); X.moveTo(cx,sy+2); X.quadraticCurveTo(sx+w-4,sy+h*0.32,sx+w-7,sy+h-9); X.stroke();
+  X.beginPath(); X.moveTo(cx,sy+2); X.quadraticCurveTo(sx+4,sy+h*0.32,sx+7,sy+h-9); X.stroke();
+  /* teak deck */
+  X.fillStyle='#b98d55'; X.beginPath(); X.moveTo(cx,sy+h*0.1); X.quadraticCurveTo(sx+w-10,sy+h*0.32,sx+w-11,sy+h-14); X.quadraticCurveTo(cx,sy+h-6,sx+11,sy+h-14); X.quadraticCurveTo(sx+10,sy+h*0.32,cx,sy+h*0.1); X.fill();
+  X.strokeStyle='rgba(90,60,30,0.5)'; X.lineWidth=1;
+  for(let i=-2;i<=2;i++){ X.beginPath(); X.moveTo(cx+i*w*0.06,sy+h*0.16); X.lineTo(cx+i*w*0.06,sy+h-10); X.stroke(); }
+  /* kabina (trunk) */
+  X.fillStyle='#e8eef2'; X.beginPath(); X.roundRect(cx-w*0.2,sy+h*0.34,w*0.4,h*0.24,4); X.fill();
+  X.fillStyle='#26506e'; X.fillRect(cx-w*0.18,sy+h*0.38,w*0.36,5);
+  /* kokpit rufowy + koło */
+  X.fillStyle='#3a3f45'; X.beginPath(); X.roundRect(cx-w*0.14,sy+h*0.66,w*0.28,h*0.2,4); X.fill();
+  X.strokeStyle='#111'; X.lineWidth=1.5; X.beginPath(); X.arc(cx,sy+h*0.76,5,0,Math.PI*2); X.stroke();
+  /* maszt + bom z zwiniętym żaglem */
+  X.strokeStyle='#c8ccd0'; X.lineWidth=2.5; X.beginPath(); X.moveTo(cx,sy+h*0.1); X.lineTo(cx,sy+h*0.62); X.stroke();
+  X.fillStyle='#dfe4e8'; X.beginPath(); X.roundRect(cx-3,sy+h*0.42,6,h*0.2,3); X.fill();
+  X.fillStyle='#c8a520'; X.beginPath(); X.arc(cx,sy+h*0.1,3,0,Math.PI*2); X.fill();
+  /* relingi (słupki) */
+  X.fillStyle='#aeb4ba';
+  for(let i=0;i<5;i++){ const yy=sy+h*(0.16+i*0.15); X.fillRect(sx+7,yy,2,4); X.fillRect(sx+w-9,yy,2,4); }
+  /* proporczyk na dziobie */
+  X.fillStyle='#e74c3c'; X.beginPath(); X.moveTo(cx+2,sy+3); X.lineTo(cx+11,sy+6); X.lineTo(cx+2,sy+9); X.fill();
+}
+function _boatCatamaran(sx,sy,w,h,cx,o){
+  const hullW=w*0.24;
+  /* dwa kadłuby */
+  for(const side of [-1,1]){
+    const hx=cx+side*(w*0.5-hullW*0.5);
+    X.fillStyle=_hullGrad(sx,sy,h,'#fbfcfd','#cfd6dc');
+    X.beginPath(); X.moveTo(hx,sy); X.quadraticCurveTo(hx+hullW*0.5,sy+h*0.28,hx+hullW*0.44,sy+h-6); X.quadraticCurveTo(hx,sy+h,hx-hullW*0.44,sy+h-6); X.quadraticCurveTo(hx-hullW*0.5,sy+h*0.28,hx,sy); X.fill();
+    X.strokeStyle='#14335a'; X.lineWidth=2; X.beginPath(); X.moveTo(hx,sy+2); X.quadraticCurveTo(hx+hullW*0.46,sy+h*0.3,hx+hullW*0.42,sy+h-7); X.stroke();
+    /* okna kabin w kadłubach */
+    X.fillStyle='#1c4a68'; X.fillRect(hx-hullW*0.2,sy+h*0.5,hullW*0.4,h*0.16);
+  }
+  /* trampolina (dziobowa siatka) */
+  X.fillStyle='rgba(40,54,64,0.85)'; X.beginPath(); X.moveTo(cx-w*0.26,sy+h*0.12); X.lineTo(cx+w*0.26,sy+h*0.12); X.lineTo(cx+w*0.2,sy+h*0.36); X.lineTo(cx-w*0.2,sy+h*0.36); X.fill();
+  X.strokeStyle='rgba(120,140,155,0.5)'; X.lineWidth=1;
+  for(let i=-3;i<=3;i++){ X.beginPath(); X.moveTo(cx+i*w*0.07,sy+h*0.12); X.lineTo(cx+i*w*0.055,sy+h*0.36); X.stroke(); }
+  for(let j=0;j<3;j++){ const yy=sy+h*(0.16+j*0.07); X.beginPath(); X.moveTo(cx-w*0.24,yy); X.lineTo(cx+w*0.24,yy); X.stroke(); }
+  /* bridgedeck / salon panoramiczny */
+  X.fillStyle='#eef2f5'; X.beginPath(); X.roundRect(cx-w*0.32,sy+h*0.36,w*0.64,h*0.34,6); X.fill();
+  X.fillStyle='#1c4a68'; X.fillRect(cx-w*0.3,sy+h*0.4,w*0.6,h*0.09); /* okna wraparound */
+  X.strokeStyle='rgba(255,255,255,0.5)'; X.lineWidth=1; X.strokeRect(cx-w*0.3,sy+h*0.4,w*0.6,h*0.09);
+  /* flybridge + sunpady */
+  X.fillStyle='#dfe5ea'; X.beginPath(); X.roundRect(cx-w*0.14,sy+h*0.5,w*0.28,h*0.12,4); X.fill();
+  X.fillStyle='#c9d0d6'; X.fillRect(cx-w*0.28,sy+h*0.72,w*0.24,h*0.06); X.fillRect(cx+w*0.04,sy+h*0.72,w*0.24,h*0.06);
+  /* kokpit rufowy z barem */
+  X.fillStyle='#3a3f45'; X.beginPath(); X.roundRect(cx-w*0.24,sy+h*0.8,w*0.48,h*0.16,4); X.fill();
+  X.fillStyle='#8a5a2a'; X.fillRect(cx-w*0.2,sy+h*0.83,w*0.4,4);
+  /* maszt wysoki */
+  X.strokeStyle='#c8ccd0'; X.lineWidth=3; X.beginPath(); X.moveTo(cx,sy+h*0.1); X.lineTo(cx,sy+h*0.5); X.stroke();
+  X.fillStyle='#c8a520'; X.beginPath(); X.arc(cx,sy+h*0.1,3,0,Math.PI*2); X.fill();
+  /* relingi burtowe */
+  X.fillStyle='#aeb4ba';
+  for(let i=0;i<6;i++){ const yy=sy+h*(0.14+i*0.13); X.fillRect(sx+3,yy,2,4); X.fillRect(sx+w-5,yy,2,4); }
+}
+/* Kapitan Nolan Reed — postać w czapce kapitańskiej, granatowa marynarka. */
+function _drawMarinaCaptain(sx,sy,w,h){
+  const t=Date.now()/600;
+  X.save();
+  /* cień */
+  X.fillStyle='rgba(0,0,0,0.22)'; X.beginPath(); X.ellipse(sx+w/2,sy+h-2,w*0.42,4,0,0,Math.PI*2); X.fill();
+  /* nogi */
+  X.fillStyle='#20252c'; X.fillRect(sx+w*0.3,sy+h*0.6,w*0.16,h*0.4); X.fillRect(sx+w*0.54,sy+h*0.6,w*0.16,h*0.4);
+  /* marynarka granatowa */
+  X.fillStyle='#14335a'; X.beginPath(); X.roundRect(sx+w*0.2,sy+h*0.32,w*0.6,h*0.34,3); X.fill();
+  X.fillStyle='#fbfcfd'; X.fillRect(sx+w*0.44,sy+h*0.34,w*0.12,h*0.3); /* koszula */
+  /* złote guziki */
+  X.fillStyle='#c8a520'; X.fillRect(sx+w*0.47,sy+h*0.4,2,2); X.fillRect(sx+w*0.47,sy+h*0.48,2,2);
+  /* głowa */
+  X.fillStyle='#d8a878'; X.beginPath(); X.arc(sx+w/2,sy+h*0.24,w*0.2,0,Math.PI*2); X.fill();
+  /* broda krótka */
+  X.fillStyle='rgba(120,110,100,0.6)'; X.beginPath(); X.arc(sx+w/2,sy+h*0.3,w*0.16,0.1*Math.PI,0.9*Math.PI); X.fill();
+  /* czapka kapitańska (biała z czarnym daszkiem) */
+  X.fillStyle='#f4f6f8'; X.beginPath(); X.roundRect(sx+w*0.26,sy+h*0.06,w*0.48,h*0.1,3); X.fill();
+  X.fillStyle='#14141a'; X.fillRect(sx+w*0.24,sy+h*0.15,w*0.52,3);
+  X.fillStyle='#c8a520'; X.fillRect(sx+w*0.42,sy+h*0.09,w*0.16,3); /* emblemat */
+  /* delikatny bujak (idle) — brak, statyczny; subtelny błysk emblematu */
+  X.fillStyle=`rgba(255,220,120,${0.3+0.3*Math.sin(t)})`; X.fillRect(sx+w*0.46,sy+h*0.1,w*0.08,1);
+  X.restore();
+}
+
+/* ═══ INTERAKCJA: wejście na pokład / kapitan ═══ */
+window._marinaBoardBoat=function(boatId){
+  _marinaEnsure();
+  const w=_marinaOwnedById(boatId);
+  if(!w){ if(typeof showMsg==='function') showMsg('Nie znaleziono jednostki.','r',3000); return; }
+  G.marina._activeCraftId=boatId;
+  if(w.hasInteriorMap && typeof window._marinaEnterDeck==='function'){ window._marinaEnterDeck(boatId); return; }
+  if(w.hasInteriorMap && typeof window._marinaEnterInterior==='function'){ window._marinaEnterInterior(boatId); return; }
+  /* mała jednostka — panel pokładowy: aktywności na wodzie / paliwo / serwis */
+  window._marinaBoardSmall(boatId);
+};
+window._marinaBoardSmall=function(boatId){
+  _marinaEnsure();
+  const w=_marinaOwnedById(boatId); if(!w) return;
+  const fuelTxt=w.fuelCapacity?`⛽ ${Math.round(w.fuelCurrent)}/${w.fuelCapacity} l`:'bez silnika';
+  _marinaPanel(`<div style="background:linear-gradient(160deg,#06202e,#041018);border:2px solid #00b4d8;border-radius:12px;padding:16px;max-width:520px;margin:0 auto;color:#dff">
+    <h2 style="color:#00d4f0;margin-top:0;text-align:center">${w.emoji} ${w.name}</h2>
+    <div style="text-align:center;color:#8ab;font-size:12px;margin-bottom:12px">Jesteś na pokładzie. Stan ${_marinaCondAvg(w)}% · ${fuelTxt} · Prestiż ${w.prestige}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button class="bbtn" style="grid-column:1/3;background:linear-gradient(135deg,#0a5a7a,#063245)" onclick="window._marinaSetSail('${w.id}')">🌊 Wypłyń w morze (steruj po wodzie)</button>
+      <button class="bbtn" onclick="window._marinaOpenActivities&&window._marinaOpenActivities()">🎬 Aktywności na wodzie</button>
+      <button class="bbtn" onclick="window._marinaRenderUpgrades('${w.id}')">🛠️ Doposażenie</button>
+      <button class="bbtn" onclick="window._marinaRenderFuel&&window._marinaRenderFuel()">⛽ Tankowanie</button>
+      <button class="bbtn" onclick="window._marinaRenderService&&window._marinaRenderService()">🔧 Serwis</button>
+    </div>
+    <button class="cbtn" style="margin-top:12px;width:100%" onclick="window._marinaClose()">🚪 Zejdź z pokładu</button>
+  </div>`);
+};
+window._marinaCaptainTalk=function(){
+  _marinaEnsure(); const m=G.marina;
+  const hasBig=m.owned.some(w=>w.sizeClass==='large'||w.sizeClass==='premium');
+  const trust=m.captainTrust||0;
+  const line=hasBig
+    ? 'Trzymaj jednostkę w formie — paliwo i serwis to nie koszt, to spokój. A o event daj znać z wyprzedzeniem.'
+    : 'Na morzu banknoty pomagają, ale rozsądek dalej jest tańszy niż ratunek. Zacznij od wynajmu, poczuj wodę.';
+  _marinaPanel(`<div style="background:linear-gradient(160deg,#0a2438,#05121c);border:2px solid #00b4d8;border-radius:12px;padding:16px;max-width:540px;margin:0 auto;color:#dff">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <div style="font-size:34px">🧭</div>
+      <div><div style="font-weight:800;color:#00d4f0;font-size:17px">Captain Nolan Reed</div>
+      <div style="font-size:11px;color:#8ab">Harbormaster · zaufanie ${trust}</div></div>
+    </div>
+    <div style="background:#06121c;border-radius:8px;padding:11px;font-size:13px;color:#cfe;font-style:italic;margin-bottom:12px">„${line}"</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button class="bbtn" onclick="window._marinaOpenDockhouse()">⚓ Dockhouse (wynajem/zakup)</button>
+      <button class="bbtn" onclick="window._marinaRenderMyCraft()">📋 Moje jednostki</button>
+      <button class="bbtn" onclick="window._marinaCaptainWeather&&window._marinaCaptainWeather()">🌤️ Prognoza na wodzie</button>
+      <button class="bbtn" onclick="window._marinaRenderService&&window._marinaRenderService()">🔧 Serwis jednostek</button>
+    </div>
+    <button class="cbtn" style="margin-top:12px;width:100%" onclick="window._marinaClose()">← Zakończ rozmowę</button>
+  </div>`);
+};
+window._marinaCaptainWeather=function(){
+  _marinaEnsure();
+  const wsea=(G.weather||0);
+  const seaState=wsea>=5?'sztorm — nie wypływaj':wsea>=4?'wzburzone — ryzyko awarii':wsea>=3?'lekka fala':wsea>=2?'pochmurno, spokojnie':'spokojne, dobra widoczność';
+  if(typeof showMsg==='function') showMsg(`🌤️ Kapitan: dziś na wodzie ${seaState}. ${wsea>=4?'Zostań w porcie albo licz się z serwisem.':'Warunki pod content i rejsy w porządku.'}`,'i',5200);
+  window._marinaCaptainTalk();
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   MARINA COAST — FAZA 2: CHODZALNY POKŁAD (PDF §12). Jacht i katamaran
+   mają osobną, chodzalną mapę pokładu ze strefami-hotspotami (kokpit,
+   salon, bar, DJ, nagrywanie, imprezy, prywatna) zamiast siatki przycisków.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Strefy pokładu wg PDF §12 — act 'marina_zone:<z>' → _marinaInteriorZone(z). */
+const MARINA_DECK_ZONES={
+  yacht:[
+    {e:'🌅', lbl:'Dziób — chill', act:'chill',   x:430, y:92,  w:104, h:78},
+    {e:'🛋️', lbl:'Salon',        act:'rest',    x:270, y:210, w:112, h:82},
+    {e:'🍳', lbl:'Kambuz',        act:'rest',    x:566, y:210, w:104, h:82},
+    {e:'🛏️', lbl:'Kajuta',       act:'rest',    x:270, y:330, w:112, h:82},
+    {e:'🚿', lbl:'Łazienka',      act:'rest',    x:576, y:330, w:96,  h:80},
+    {e:'🎥', lbl:'Nagrywanie klipu', act:'clip', x:262, y:452, w:130, h:82},
+    {e:'🎉', lbl:'Strefa imprezy',   act:'party',x:544, y:452, w:126, h:82},
+    {e:'🎛️', lbl:'Kokpit — ster',   act:'sail', x:430, y:544, w:112, h:64},
+  ],
+  catamaran:[
+    {e:'🛟', lbl:'Trampolina — chill', act:'chill',  x:500, y:80,  w:150, h:70},
+    {e:'🛋️', lbl:'Salon panoramiczny', act:'rest',   x:496, y:186, w:160, h:82},
+    {e:'🍸', lbl:'Bar',                act:'party',  x:150, y:250, w:126, h:82},
+    {e:'🎧', lbl:'Strefa DJ / audio',  act:'party',  x:880, y:250, w:138, h:82},
+    {e:'📸', lbl:'Sesja zdjęciowa',    act:'frameup',x:150, y:392, w:126, h:82},
+    {e:'🎬', lbl:'Teledysk',           act:'clip',   x:880, y:392, w:130, h:82},
+    {e:'🎥', lbl:'ViewGrid',           act:'vlog',   x:496, y:330, w:150, h:78},
+    {e:'🛏️', lbl:'Kajuty',            act:'rest',   x:300, y:470, w:126, h:80},
+    {e:'🔒', lbl:'Strefa prywatna',    act:'private',x:660, y:470, w:126, h:80},
+    {e:'💼', lbl:'Event sponsorowany', act:'party',  x:496, y:520, w:160, h:74},
+    {e:'🧭', lbl:'Ster — rejs',        act:'sail',   x:140, y:530, w:120, h:74},
+  ]
+};
+function _marinaDeckCatOf(boatId){
+  const w=_marinaOwnedById(boatId); if(!w) return 'yacht';
+  return (w.cat==='catamaran')?'catamaran':'yacht';
+}
+/* Synchronizacja obiektów pokładu (gangway + strefy). Robust: zawsze exit → nigdy stuck. */
+window._marinaSyncDeckObjects=function(boatId){
+  if(typeof ROOMS==='undefined' || !ROOMS.boat_deck) return;
+  _marinaEnsure();
+  const objs=ROOMS.boat_deck.objects; objs.length=0;
+  const cat=_marinaDeckCatOf(boatId);
+  const W=ROOMS.boat_deck.wT*48;
+  /* gangway / zejście — rufa (południe, środek) */
+  objs.push({id:'_mrn_deck_exit', wx:Math.round(W*0.70)-34, wy:ROOMS.boat_deck.hT*48-62, w:68, h:56, act:'marina_disembark', prompt:'[E] ⬅ Zejdź z pokładu (trap)', lbl:'Zejście'});
+  const zones=MARINA_DECK_ZONES[cat]||MARINA_DECK_ZONES.yacht;
+  zones.forEach((z,i)=>{
+    objs.push({id:'_mrn_deck_'+i, wx:z.x, wy:z.y, w:z.w, h:z.h, act:'marina_zone:'+z.act, prompt:'[E] '+z.e+' '+z.lbl, lbl:z.lbl, _deckEmoji:z.e, _deckLbl:z.lbl});
+  });
+};
+/* Wejście na pokład jachtu/katamaranu → osobna, chodzalna mapa. */
+window._marinaEnterDeck=function(boatId){
+  _marinaEnsure();
+  const w=_marinaOwnedById(boatId);
+  if(!w){ if(typeof showMsg==='function') showMsg('Nie znaleziono jednostki.','r',3000); return; }
+  if(!w.hasInteriorMap){ return window._marinaBoardSmall(boatId); }
+  const cat=(w.cat==='catamaran')?'catamaran':'yacht';
+  G.marina._activeCraftId=boatId; G.marina._activeInteriorId=boatId; G.marina._deckCat=cat; G.marina._deckName=w.name;
+  ROOMS.boat_deck.wT=(cat==='catamaran')?24:20;
+  ROOMS.boat_deck.hT=13;
+  _marinaSyncDeckObjects(boatId);
+  if(typeof window._marinaClose==='function') window._marinaClose();
+  const spawnX=(cat==='catamaran')?540:448;
+  if(typeof changeRoom==='function') changeRoom('boat_deck', spawnX, 500);
+  if(typeof showMsg==='function') showMsg(`⛵ Jesteś na pokładzie: ${w.name}. Podejdź do stref [E] — nagrywaj, imprezuj, chilluj. Zejście trapem na rufie.`,'g',5200);
+};
+window._marinaDisembark=function(){
+  _marinaEnsure();
+  if(typeof window._marinaClose==='function') window._marinaClose();
+  if(typeof changeRoom==='function') changeRoom('coast', 860, 262);
+  if(typeof showMsg==='function') showMsg('🏖️ Zszedłeś z pokładu na keję.','i',2600);
+};
+
+/* ═══ RYSOWANIE POKŁADU (drawRoomDecorations → boat_deck) ═══ */
+function drawBoatDeck(){
+  const room=ROOMS.boat_deck; if(!room) return;
+  /* self-heal po wczytaniu save (objects nie są w save) */
+  if(!room.objects || room.objects.length===0){ window._marinaSyncDeckObjects(G.marina&&G.marina._activeInteriorId); }
+  const W=room.wT*48, H=room.hT*48;
+  const cat=(G.marina&&G.marina._deckCat)||'yacht';
+  const t=Date.now()/1000;
+  /* WODA dookoła (tło pokoju) */
+  const wg=X.createLinearGradient(wx2sx(0),wy2sy(0),wx2sx(0),wy2sy(H));
+  wg.addColorStop(0,'#0a2c44'); wg.addColorStop(1,'#062033');
+  X.fillStyle=wg; X.fillRect(wx2sx(0),wy2sy(0),W,H);
+  for(let i=0;i<26;i++){ const sxr=wx2sx((i*97)%W), syr=wy2sy(((i*61)%H)); X.fillStyle=`rgba(150,205,230,${0.04+0.05*Math.sin(t*1.2+i)})`; X.fillRect(sxr,syr,26,2); }
+  if(cat==='catamaran') _drawCatDeck(W,H,t); else _drawYachtDeck(W,H,t);
+  if(typeof window._drawDeckLife==='function') window._drawDeckLife();
+  /* nazwa jednostki */
+  X.save(); X.font='bold 15px "Segoe UI",Arial'; X.textAlign='center';
+  X.fillStyle='rgba(3,14,22,0.7)'; const nm='⛵ '+((G.marina&&G.marina._deckName)||'Pokład');
+  const tw=X.measureText(nm).width+16; X.fillRect(wx2sx(W/2)-tw/2, wy2sy(6), tw, 22);
+  X.fillStyle='#bfe8ff'; X.fillText(nm, wx2sx(W/2), wy2sy(22)); X.textAlign='left'; X.restore();
+}
+function _deckHull(cx,bowY,sternY,beam,topCol,botCol){
+  const g=X.createLinearGradient(cx,bowY,cx,sternY); g.addColorStop(0,topCol); g.addColorStop(1,botCol);
+  X.fillStyle=g;
+  X.beginPath();
+  X.moveTo(cx, bowY);
+  X.quadraticCurveTo(cx+beam*0.85, bowY+(sternY-bowY)*0.28, cx+beam, sternY-14);
+  X.quadraticCurveTo(cx+beam, sternY, cx+beam-10, sternY);
+  X.lineTo(cx-beam+10, sternY);
+  X.quadraticCurveTo(cx-beam, sternY, cx-beam, sternY-14);
+  X.quadraticCurveTo(cx-beam*0.85, bowY+(sternY-bowY)*0.28, cx, bowY);
+  X.closePath(); X.fill();
+}
+function _drawYachtDeck(W,H,t){
+  const cx=wx2sx(W/2), bowY=wy2sy(46), sternY=wy2sy(H-30), beam=W*0.34;
+  /* kadłub */
+  _deckHull(cx,bowY,sternY,beam,'#f6f8fa','#c9d1d8');
+  /* linia wodna granatowa */
+  X.strokeStyle='#14335a'; X.lineWidth=3; X.stroke();
+  /* teak deck */
+  _deckHull(cx,bowY+18,sternY-16,beam-16,'#c69a5e','#a87d44');
+  X.save(); X.beginPath(); _deckHullPath(cx,bowY+20,sternY-18,beam-20); X.clip();
+  X.strokeStyle='rgba(90,60,30,0.45)'; X.lineWidth=1;
+  for(let x=cx-beam; x<cx+beam; x+=14){ X.beginPath(); X.moveTo(x,bowY); X.lineTo(x,sternY); X.stroke(); }
+  X.restore();
+  /* kabina / trunk */
+  X.fillStyle='#eef2f5'; X.beginPath(); X.roundRect(cx-W*0.16, wy2sy(200), W*0.32, H*0.24, 8); X.fill();
+  X.fillStyle='#1c4a68'; X.fillRect(cx-W*0.14, wy2sy(214), W*0.28, 10);
+  X.strokeStyle='rgba(255,255,255,0.4)'; X.lineWidth=1; X.strokeRect(cx-W*0.14, wy2sy(214), W*0.28, 10);
+  /* maszt + bom */
+  X.strokeStyle='#c8ccd0'; X.lineWidth=5; X.beginPath(); X.moveTo(cx, wy2sy(70)); X.lineTo(cx, wy2sy(260)); X.stroke();
+  X.fillStyle='#c8a520'; X.beginPath(); X.arc(cx, wy2sy(70), 5, 0, Math.PI*2); X.fill();
+  /* koło sterowe (kokpit rufowy) */
+  X.strokeStyle='#2a2f36'; X.lineWidth=3; X.beginPath(); X.arc(cx, wy2sy(H-70), 16, 0, Math.PI*2); X.stroke();
+  for(let a=0;a<6;a++){ X.beginPath(); X.moveTo(cx,wy2sy(H-70)); X.lineTo(cx+Math.cos(a*Math.PI/3)*16, wy2sy(H-70)+Math.sin(a*Math.PI/3)*16); X.stroke(); }
+  /* relingi obwodowe */
+  _deckRailings(cx,bowY+6,sternY-6,beam-4);
+}
+function _deckHullPath(cx,bowY,sternY,beam){
+  X.moveTo(cx, bowY);
+  X.quadraticCurveTo(cx+beam*0.85, bowY+(sternY-bowY)*0.28, cx+beam, sternY-14);
+  X.quadraticCurveTo(cx+beam, sternY, cx+beam-10, sternY);
+  X.lineTo(cx-beam+10, sternY);
+  X.quadraticCurveTo(cx-beam, sternY, cx-beam, sternY-14);
+  X.quadraticCurveTo(cx-beam*0.85, bowY+(sternY-bowY)*0.28, cx, bowY);
+  X.closePath();
+}
+function _deckRailings(cx,bowY,sternY,beam){
+  X.save(); X.beginPath(); _deckHullPath(cx,bowY,sternY,beam); X.strokeStyle='#aeb4ba'; X.lineWidth=2; X.stroke();
+  /* słupki */
+  X.fillStyle='#9aa0a6';
+  for(let f=0.05;f<1;f+=0.12){ const y=bowY+(sternY-bowY)*f; const w=beam*Math.sin(Math.min(1,f*1.6)*Math.PI*0.5); X.fillRect(cx-w,y,2,5); X.fillRect(cx+w-2,y,2,5); }
+  X.restore();
+}
+function _drawCatDeck(W,H,t){
+  const cx=wx2sx(W/2), bowY=wy2sy(46), sternY=wy2sy(H-30);
+  const hullBeam=W*0.11, off=W*0.34;
+  /* dwa kadłuby */
+  for(const s of [-1,1]){ _deckHull(cx+s*off, bowY, sternY, hullBeam, '#f6f8fa', '#c9d1d8'); X.strokeStyle='#14335a'; X.lineWidth=3; X.stroke(); }
+  /* trampolina dziobowa */
+  X.fillStyle='rgba(38,52,62,0.9)'; X.beginPath(); X.moveTo(cx-off,bowY+40); X.lineTo(cx+off,bowY+40); X.lineTo(cx+off*0.7,wy2sy(180)); X.lineTo(cx-off*0.7,wy2sy(180)); X.closePath(); X.fill();
+  X.strokeStyle='rgba(120,140,155,0.5)'; X.lineWidth=1;
+  for(let i=-5;i<=5;i++){ X.beginPath(); X.moveTo(cx+i*off*0.18,bowY+42); X.lineTo(cx+i*off*0.13,wy2sy(178)); X.stroke(); }
+  for(let yy=bowY+56; yy<wy2sy(180); yy+=16){ X.beginPath(); X.moveTo(cx-off*0.9,yy); X.lineTo(cx+off*0.9,yy); X.stroke(); }
+  /* bridgedeck / pokład imprezowy (środek) */
+  X.fillStyle='#c69a5e'; X.beginPath(); X.roundRect(cx-off, wy2sy(170), off*2, H*0.62, 10); X.fill();
+  X.strokeStyle='rgba(90,60,30,0.4)'; X.lineWidth=1;
+  for(let x=cx-off; x<cx+off; x+=16){ X.beginPath(); X.moveTo(x,wy2sy(172)); X.lineTo(x,wy2sy(H-40)); X.stroke(); }
+  /* salon panoramiczny (kabina) */
+  X.fillStyle='#eef2f5'; X.beginPath(); X.roundRect(cx-off*0.7, wy2sy(180), off*1.4, H*0.16, 8); X.fill();
+  X.fillStyle='#1c4a68'; X.fillRect(cx-off*0.66, wy2sy(190), off*1.32, 12);
+  /* maszt */
+  X.strokeStyle='#c8ccd0'; X.lineWidth=6; X.beginPath(); X.moveTo(cx, wy2sy(72)); X.lineTo(cx, wy2sy(250)); X.stroke();
+  X.fillStyle='#c8a520'; X.beginPath(); X.arc(cx, wy2sy(72), 6, 0, Math.PI*2); X.fill();
+  /* relingi na kadłubach */
+  X.strokeStyle='#aeb4ba'; X.lineWidth=2;
+  X.beginPath(); X.moveTo(cx-off-hullBeam+4,bowY+30); X.lineTo(cx-off-hullBeam+4,sternY-10); X.stroke();
+  X.beginPath(); X.moveTo(cx+off+hullBeam-4,bowY+30); X.lineTo(cx+off+hullBeam-4,sternY-10); X.stroke();
+}
+/* Marker strefy pokładu (drawSprite dla _mrn_deck_*) */
+function _drawDeckZone(id,sx,sy,w,h){
+  let emoji='•', lbl='';
+  try{ const o=(ROOMS.boat_deck.objects||[]).find(x=>x.id===id); if(o){ emoji=o._deckEmoji||'•'; lbl=o._deckLbl||''; } }catch(e){}
+  const t=Date.now()/700;
+  X.save();
+  /* pad podświetlany */
+  X.fillStyle=`rgba(0,180,216,${0.10+0.05*Math.sin(t)})`;
+  X.beginPath(); X.roundRect(sx,sy,w,h,10); X.fill();
+  X.strokeStyle='rgba(0,212,240,0.55)'; X.lineWidth=1.5; X.beginPath(); X.roundRect(sx+1,sy+1,w-2,h-2,9); X.stroke();
+  /* emoji */
+  X.font='26px Arial'; X.textAlign='center'; X.fillText(emoji, sx+w/2, sy+h*0.5);
+  /* label na ciemnym tle (czytelny nad kabiną/teakiem) */
+  X.font='bold 11px "Segoe UI",Arial';
+  const _lw=X.measureText(lbl).width+10;
+  X.fillStyle='rgba(3,16,26,0.74)'; X.beginPath(); X.roundRect(sx+w/2-_lw/2, sy+h-17, _lw, 14, 4); X.fill();
+  X.fillStyle='#dff2ff'; X.fillText(lbl, sx+w/2, sy+h-6);
+  X.textAlign='left'; X.restore();
+}
+function _drawDeckExit(sx,sy,w,h){
+  const t=Date.now()/500; X.save();
+  X.fillStyle='#5a4326'; X.fillRect(sx,sy,w,h);
+  X.fillStyle='#6a4c2a'; for(let i=0;i<4;i++) X.fillRect(sx+2,sy+4+i*((h-6)/4),w-4,3);
+  X.fillStyle=`rgba(0,212,240,${0.5+0.4*Math.sin(t)})`; X.font='20px Arial'; X.textAlign='center'; X.fillText('⬇',sx+w/2,sy+h*0.62);
+  X.textAlign='left'; X.restore();
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MARINA COAST — FAZA 3: PŁYWANIE WŁASNĄ JEDNOSTKĄ (piloting po wodzie).
+   User 2026-07-13: „sterowanie po wodzie". Skuter/łódź/RIB/jacht jako
+   pojazd na wodzie — realny ruch po zatoce, paliwo, wake, [E] = cumowanie.
+   ═══════════════════════════════════════════════════════════════════ */
+window._marinaIsPiloting=function(){
+  return !!(typeof G!=='undefined' && G.marina && G.marina.piloting && G.marina.piloting.active) && (typeof currentRoom!=='undefined' && currentRoom==='coast');
+};
+window._marinaSetSail=function(craftId){
+  _marinaEnsure();
+  let craft=null, cat='open', name='jednostka', engine=false, cid=null, isRental=false;
+  const w=craftId?_marinaOwnedById(craftId):null;
+  if(w){ cat=w.cat; name=w.name; cid=w.id; const md=_marinaModelById(w.modelId); engine=!!(md&&md.fuelCapacity>0);
+    if(engine && w.fuelCurrent<=2){ if(typeof showMsg==='function') showMsg('⛽ Za mało paliwa, żeby wypłynąć — zatankuj jednostkę w Dockhouse.','r',4200); return; }
+    craft=true;
+  } else if(G.marina.activeRental && (G.marina.activeRental.expiresDay==null||(G.day||0)<=G.marina.activeRental.expiresDay)){
+    const rm=_marinaRentalById(G.marina.activeRental.modelId); cat=rm?rm.cat:'open'; name=(rm&&rm.name)||'wynajem'; isRental=true; craft=true;
+  }
+  if(!craft){ if(typeof showMsg==='function') showMsg('Nie masz jednostki do wypłynięcia. Wynajmij albo kup coś w Dockhouse.','r',4200); return; }
+  if(typeof window._marinaClose==='function') window._marinaClose();
+  const go=()=>{
+    G.marina.swimming.isSwimming=false;
+    G.marina.piloting={active:true, craftId:cid, rental:isRental, cat:cat, name:name, engine:engine, heading:0, wakeT:0, t:0};
+    P.wx=940; P.wy=120;   /* w wodzie przy wyjściu z portu */
+    if(typeof updateCamera==='function') updateCamera();
+    if(typeof showMsg==='function') showMsg(`🌊 Wypłynąłeś: ${name}. Steruj (WSAD / strzałki). Wróć w pobliże pomostu i [E] = zacumuj.`,'g',5400);
+    if(window._marinaSyncCoastObjects) window._marinaSyncCoastObjects();
+    if(typeof saveGameSilent==='function') saveGameSilent();
+  };
+  if(currentRoom!=='coast'){ if(typeof changeRoom==='function'){ changeRoom('coast', 900, 300); } go(); }
+  else go();
+};
+window._marinaTryDock=function(){
+  _marinaEnsure(); const pl=G.marina.piloting; if(!pl||!pl.active) return false;
+  const fx=P.wx+P.w/2, fy=P.wy+(P.h||44);
+  const nearDock=(typeof _marinaOnPier==='function' && _marinaOnPier(fx,fy)) || fy>=200;
+  if(!nearDock){ if(typeof showMsg==='function') showMsg('⚓ Podpłyń bliżej pomostu (na południe), żeby zacumować.','i',2800); return true; }
+  G.marina.piloting=null;
+  /* zejdź na kej */
+  P.wy=252; P.wx=Math.max(660, Math.min(1100, P.wx));
+  if(typeof updateCamera==='function') updateCamera();
+  _marinaAddSkillXp(1);
+  window._marinaSyncCoastObjects&&window._marinaSyncCoastObjects();
+  if(typeof showMsg==='function') showMsg('⚓ Zacumowałeś przy pomoście. Bezpieczny powrót — Marina Skill rośnie.','g',3400);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return true;
+};
+window._marinaPilotTick=function(){
+  if(typeof currentRoom==='undefined'||currentRoom!=='coast') return;
+  _marinaEnsure(); const pl=G.marina.piloting; if(!pl||!pl.active) return;
+  pl.t=(pl.t||0)+1;
+  /* paliwo silnikowych jednostek — spala się przy ruchu */
+  if(pl.engine && pl.craftId && (pl.t%18===0) && P.moving){
+    const w=_marinaOwnedById(pl.craftId);
+    if(w){ const md=_marinaModelById(w.modelId);
+      if(md && md.fuelCapacity>0){
+        let burn=md.fuelBurn*0.03; if(w.upgrades && w.upgrades.includes('fuel_efficiency_kit')) burn*=0.88;
+        w.fuelCurrent=Math.max(0, w.fuelCurrent-burn);
+        if(w.fuelCurrent<=0 && !pl._outOfFuel){ pl._outOfFuel=true; if(typeof showMsg==='function') showMsg('⛽ Skończyło się paliwo! Dryfujesz — dopłyń do pomostu i zacumuj (potem zatankuj).','r',4600); }
+      }
+    }
+  }
+};
+/* rysunek jednostki pod graczem (wołane z pipeline przed drawPlayer) */
+window._marinaDrawPiloting=function(){
+  if(!window._marinaIsPiloting()) return;
+  const pl=G.marina.piloting;
+  const cx=wx2sx(P.wx)+P.w/2, cy=wy2sy(P.wy)+(P.h||44)/2;
+  const cat=pl.cat||'open';
+  const SZ={kayak:[30,54],jetski:[30,52],open:[42,76],inflatable:[42,76],rib:[44,82],yacht:[54,94],catamaran:[72,98]};
+  const s=SZ[cat]||SZ.open; const bw=s[0], bh=s[1];
+  const heading=(typeof pl.heading==='number')?pl.heading:0;
+  /* wake za rufą (przeciwnie do dziobu) */
+  if(P.moving && !pl._outOfFuel){
+    X.save(); X.globalAlpha=0.4; X.fillStyle='#d4ecf7';
+    for(let i=1;i<=4;i++){ const wx=cx-Math.sin(heading)*(bh*0.5+i*7), wy=cy+Math.cos(heading)*(bh*0.5+i*7); X.beginPath(); X.arc(wx,wy,2.5+i,0,Math.PI*2); X.fill(); }
+    X.restore();
+  }
+  X.save();
+  X.translate(cx,cy); X.rotate(heading);
+  _drawMarinaBoat(-bw/2,-bh/2,bw,bh,cat,{piloting:true});
+  /* sternik: głowa + tors na środku pokładu */
+  const sc=(typeof SKIN_COLS!=='undefined'&&SKIN_COLS[P.skin])||'#d8a878';
+  X.fillStyle=(P.cloth||'#2a5080'); X.fillRect(-6, bh*0.02, 12, 11);
+  X.fillStyle=sc; X.beginPath(); X.arc(0, bh*0.02-2, 6, 0, Math.PI*2); X.fill();
+  X.restore();
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   MARINA COAST — FAZA 4: ŻYCIE (user 2026-07-13: „na prawdę mocno rozwijaj").
+   Rejs jachtem/katamaranem z kokpitu · NPC + FX imprezy na pokładzie ·
+   życie portu (mewy, przepływająca łódź, fale).
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── rejs dużą jednostką: kokpit/ster → wypłyń ── */
+window._marinaDeckSail=function(){
+  _marinaEnsure();
+  const bid=G.marina._activeInteriorId;
+  const w=bid?_marinaOwnedById(bid):null;
+  if(!w){ if(typeof showMsg==='function') showMsg('Najpierw wejdź na pokład własnej jednostki.','i',3000); return; }
+  if(typeof window._marinaSetSail==='function') window._marinaSetSail(bid);
+};
+
+/* ── życie na pokładzie: załoga + goście imprezy + FX ── */
+function _marinaDeckPartyActive(){
+  return !!(G.marina && G.marina._deckPartyT && (typeof Date!=='undefined'&&Date.now)&&Date.now()<G.marina._deckPartyT);
+}
+window._marinaMarkDeckParty=function(){ if(G.marina && typeof Date!=='undefined'&&Date.now) G.marina._deckPartyT=Date.now()+90000; };
+function _drawDeckPerson(sx,sy,scale,cloth,skin,dance){
+  scale=scale||1; const t=Date.now()/300;
+  const bob=dance?Math.abs(Math.sin(t+sx*0.1))*3:Math.sin(t*0.4+sx)*0.6;
+  X.save(); X.translate(sx, sy-bob);
+  X.fillStyle='rgba(0,0,0,0.18)'; X.beginPath(); X.ellipse(0, 14*scale, 7*scale, 3*scale, 0,0,Math.PI*2); X.fill();
+  /* nogi */ X.fillStyle='#20252c'; X.fillRect(-4*scale,4*scale,3*scale,10*scale); X.fillRect(1*scale,4*scale,3*scale,10*scale);
+  /* tors */ X.fillStyle=cloth||'#c0392b'; X.beginPath(); X.roundRect(-6*scale,-6*scale,12*scale,12*scale,2); X.fill();
+  /* ręce (dance→uniesione) */ X.strokeStyle=skin||'#d8a878'; X.lineWidth=2.4*scale; X.lineCap='round';
+  if(dance){ const a=Math.sin(t+sx)*0.5; X.beginPath(); X.moveTo(-5*scale,-3*scale); X.lineTo(-9*scale,-10*scale-a*4*scale); X.moveTo(5*scale,-3*scale); X.lineTo(9*scale,-10*scale+a*4*scale); X.stroke(); }
+  else { X.beginPath(); X.moveTo(-5*scale,-2*scale); X.lineTo(-8*scale,5*scale); X.moveTo(5*scale,-2*scale); X.lineTo(8*scale,5*scale); X.stroke(); }
+  /* głowa */ X.fillStyle=skin||'#d8a878'; X.beginPath(); X.arc(0,-12*scale,5*scale,0,Math.PI*2); X.fill();
+  X.restore();
+}
+window._drawDeckLife=function(){
+  const room=ROOMS.boat_deck; if(!room) return;
+  const W=room.wT*48, H=room.hT*48; const cat=(G.marina&&G.marina._deckCat)||'yacht';
+  const party=_marinaDeckPartyActive();
+  const t=Date.now()/1000;
+  /* załoga / goście — pozycje na pokładzie (skalowane do rozmiaru pokładu) */
+  const spots = cat==='catamaran'
+    ? [[W*0.20,H*0.62],[W*0.80,H*0.62],[W*0.5,H*0.30],[W*0.34,H*0.78],[W*0.66,H*0.78]]
+    : [[W*0.30,H*0.36],[W*0.70,H*0.55],[W*0.5,H*0.20],[W*0.40,H*0.72]];
+  const cloths=['#c0392b','#8e44ad','#2980b9','#d68910','#16a085'];
+  const skins=['#d8a878','#b98a5e','#e8c0a0','#a06a40'];
+  const n = party ? spots.length : Math.min(2, spots.length);
+  for(let i=0;i<n;i++){
+    _drawDeckPerson(wx2sx(spots[i][0]), wy2sy(spots[i][1]), 1.05, cloths[i%cloths.length], skins[i%skins.length], party);
+  }
+  /* FX imprezy: kolorowe światła + nutki */
+  if(party){
+    const hasAudio=(()=>{ const w=_marinaOwnedById(G.marina._activeInteriorId); return w&&Array.isArray(w.upgrades)&&(w.upgrades.includes('marine_sound_pro')||w.upgrades.includes('deck_audio_basic')||w.upgrades.includes('dj_deck_station')); })();
+    X.save(); X.globalCompositeOperation='lighter';
+    for(let i=0;i<7;i++){ const hue=(i*52+Date.now()/12)%360; const lx=wx2sx(W*(0.2+i*0.1)), ly=wy2sy(H*0.42+Math.sin(t*2+i)*24);
+      X.fillStyle=`hsla(${hue},90%,60%,${0.18+0.12*Math.sin(t*3+i)})`; X.beginPath(); X.arc(lx,ly,26,0,Math.PI*2); X.fill(); }
+    X.restore();
+    if(hasAudio){ X.save(); X.font='16px Arial'; X.globalAlpha=0.6;
+      for(let i=0;i<4;i++){ const nx=wx2sx(W*(0.3+i*0.15)), ny=wy2sy(H*0.3)-((Date.now()/18+i*40)%120); X.fillStyle='#bfe8ff'; X.fillText(i%2?'♪':'♫', nx, ny); }
+      X.restore(); }
+  }
+};
+
+/* ── życie portu: mewy + przepływająca łódź (na mapie Coast) ── */
+window._drawMarinaPortLife=function(){
+  if(currentRoom!=='coast') return;
+  const t=Date.now()/1000;
+  /* mewy — kilka „ptaszków" (litera M) sunących nad wodą */
+  X.save(); X.strokeStyle='rgba(230,240,250,0.7)'; X.lineWidth=2; X.lineCap='round';
+  for(let i=0;i<5;i++){
+    const gx=wx2sx(((t*24+i*260)% (1600))-80), gy=wy2sy(30+i*22+Math.sin(t*1.5+i)*8);
+    const flap=Math.sin(t*6+i)*4;
+    X.beginPath(); X.moveTo(gx-7,gy+flap); X.quadraticCurveTo(gx,gy-3,gx+0,gy); X.quadraticCurveTo(gx,gy-3,gx+7,gy+flap); X.stroke();
+  }
+  X.restore();
+  /* przepływająca łódź w tle (daleko na horyzoncie, wolno w prawo) */
+  const bx=((t*14)% (1700))-120, by=44;
+  const sx=wx2sx(bx), sy=wy2sy(by);
+  if(sx>-60 && sx<1360){
+    X.save(); X.globalAlpha=0.85;
+    X.fillStyle='#e8edf1'; X.beginPath(); X.moveTo(sx,sy); X.lineTo(sx+44,sy); X.lineTo(sx+36,sy+11); X.lineTo(sx+8,sy+11); X.closePath(); X.fill();
+    X.fillStyle='#5a8aac'; X.fillRect(sx+16,sy-9,14,9);
+    X.strokeStyle='rgba(255,255,255,0.5)'; X.lineWidth=1; X.beginPath(); X.moveTo(sx-8,sy+12); X.lineTo(sx,sy+11); X.stroke();
+    X.restore();
+  }
 };
 
 /* MARINA MODULE END */
@@ -83407,6 +84227,9 @@ function loadGame(){
   /* v2.1.489 Round 2: safety — gdy save ma room nieobecny w aktualnym kodzie ROOMS, fallback do ulica. */
   currentRoom=(s.room && ROOMS[s.room])?s.room:'ulica';
   P.wx=s.wx||600;P.wy=s.wy||500;
+  /* Marina (fizyczny port): loadGame ustawia currentRoom BEZ changeRoom, więc dosync obiektów mariny po wczytaniu. */
+  if(currentRoom==='coast' && typeof window._marinaSyncCoastObjects==='function') window._marinaSyncCoastObjects();
+  if(currentRoom==='boat_deck' && typeof window._marinaSyncDeckObjects==='function') window._marinaSyncDeckObjects(G.marina&&G.marina._activeInteriorId);
   /* v2.1.773 audyt: odtwórz porę dnia (gameMin) — wcześniej reset do 06:00 po reloadzie + niespójność z cooldownami _lastXMin. Clamp 0..1439, fallback 360 (Rano). */
   if(typeof s.gameMin==='number' && isFinite(s.gameMin)) gameMin=Math.max(0,Math.min(1439,s.gameMin));
   /* v2.3.97 (PDF #1 bugfix): sprite gubił wygląd po reloadzie — P.hair klampowany do 0-3 (są fryzury 0-9),
@@ -88745,6 +89568,7 @@ function loop(){
   else if(typeof DISTRICT_LIFE_CFG!=='undefined' && DISTRICT_LIFE_CFG[currentRoom]) _safe(()=>drawDistrictLife(),'drawDistrictLife'); /* N3 (v2.3.24): życie NPC w dzielnicach */
   _safe(()=>drawPlayerCar(),'drawPlayerCar');
   _safe(()=>drawPlayerCamper(),'drawPlayerCamper'); /* E4b: sprite kampera podczas jazdy */
+  _safe(()=>{ if(window._marinaIsPiloting&&window._marinaIsPiloting()) window._marinaDrawPiloting(); },'marinaPilot');
   _safe(()=>drawPlayer(),'drawPlayer');
   /* v2.1.411 Faza AQ.3 Etap 2: pies za graczem na ulicy. Rysuj dopiero po playerze (z-order). */
   if(currentRoom==='ulica' && G.dog && G.dog.owned && !G._inCar) _safe(()=>drawPlayerDog(),'drawPlayerDog');
