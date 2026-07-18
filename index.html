@@ -57799,7 +57799,15 @@ window._vehInsuranceEnsure=function(){
     if(typeof p.smsSent!=='boolean') p.smsSent=false;
     if(!('lastPenaltyDay' in p)) p.lastPenaltyDay=null;
     /* karencja: gdy pojazd posiadany a purchaseDay nieustawiony → ustaw teraz (start okna doby); gdy sprzedany → reset polisy karnej. */
-    if(window._vehOwnedKind(k)){ if(p.purchaseDay==null){ p.purchaseDay=(G.day||0); p.purchaseTod=(G.timeOfDay||0); } }
+    if(window._vehOwnedKind(k)){ if(p.purchaseDay==null){ p.purchaseDay=(G.day||0); p.purchaseTod=(G.timeOfDay||0);
+      /* v2.3.122 (PDF Uspr v2.3.121): po KAŻDYM zakupie pojazdu (pierwszym i kolejnym) TrapInfo przypomina
+         o obowiązku ubezpieczenia i możliwej karze. Wysyłka od razu przy zakupie, nie dopiero przy dobowym
+         przeliczeniu. Wiadomość informacyjna → odpowiedź „OK". */
+      if(p.tier==='none' && !p.smsSent){
+        p.smsSent=true;
+        if(typeof window._smsSend==='function') window._smsSend('trapinfo','🚗 Nowy pojazd w garażu ('+window._vehKindName(k)+') — pamiętaj o ubezpieczeniu. Polisę wykupisz w Garage 77 (zakładka Ubezpieczenie). Brak polisy w ciągu doby od zakupu = kara 5 000 zł za każdy dzień, aż wykupisz choćby podstawowe OC. Każdy pojazd ma osobną polisę.',{bypass:true});
+      }
+    } }
     else { p.purchaseDay=null; p.warned12h=false; p.smsSent=false; p.lastPenaltyDay=null; }
   });
 };
@@ -61259,9 +61267,14 @@ window._underworldTick=function(){
     const _pt=u._pendingKantarSms.shift();
     if(typeof window._smsSend==='function') window._smsSend('kantar',_pt,{bypass:true});
   }
-  if(u._bReplyPending && u.bMs && (Date.now()-u.bMs)>=180000){
+  /* v2.3.122 (PDF Uspr v2.3.121): 2 minuty czasu rzeczywistego (było 3) — po nich przychodzi odpowiedź
+     zwrotna, a gracz odzyskuje wybór opcji (bez wykorzystanej już „Z kim mam do czynienia?"). */
+  if(u._bReplyPending && u.bMs && (Date.now()-u.bMs)>=120000){
     u._bReplyPending=false;
     window._smsSend('kantar','Ktoś, kto nie lubi pisać dwa razy. Przyjdź albo usuń wiadomość i wróć do noszenia pizzy.',{bypass:true});
+    /* jeśli gracz ma otwarty ten wątek — odśwież, żeby od razu zobaczył odpowiedź i opcje */
+    try{ if(typeof window.renderSMSConversation==='function' && document.getElementById('sms-thread')) window.renderSMSConversation('kantar'); }catch(_e){}
+    if(typeof saveGameSilent==='function') saveGameSilent();
   }
   /* C6 (PDF most): przypomnienia anti-zgubienie — neutralny showMsg, NIE SMS (PDF wprost). Self-heal bridgeMs dla starych save. */
   if(u.state==='testing' && u.task && u.task.t1 && u.task.t2 && !u.task.t3 && (u.bridgeStage==='after_parking_task'||u.bridgeStage==='find_brokat')){
@@ -62400,10 +62413,16 @@ window.renderSMSConversation=function(contactId){
       ${(()=>{
         /* v2.3.38 moduł „Numer zastrzeżony": 4 wybory fabularne (§5) zamiast generycznych quick-replies, póki SMS otwarty. */
         if(contactId==='kantar' && G.underworldIntro && G.underworldIntro.state==='sms_sent'){
+          const _u=G.underworldIntro;
+          /* v2.3.122 (PDF Uspr v2.3.121): po wysłaniu wiadomości gracz CZEKA na odpowiedź zwrotną —
+             nie może wysłać kolejnej. Po odpowiedzi wracają opcje, ale bez tej już wykorzystanej. */
+          if(_u._bReplyPending){
+            return `<div style="background:#0a0512;border:1px solid #3a2a4a;border-radius:6px;padding:9px 11px;font-size:11px;color:#b59ad5;text-align:center;font-style:italic">📵 Wiadomość wysłana. Czekasz na odpowiedź…</div>`;
+          }
           const _b=(opt,label,sub,col)=>`<button onclick="_uwSmsChoice('${opt}')" style="width:100%;text-align:left;background:#1a1226;border:1px solid ${col}66;border-left:4px solid ${col};color:#e8def5;padding:9px 11px;border-radius:8px;cursor:pointer;font-size:12.5px;margin-bottom:6px"><b>${label}</b><div style="color:#9a8ab5;font-size:10.5px;margin-top:2px">${sub}</div></button>`;
           return `<div style="background:#0a0512;border:1px solid #3a2a4a;border-radius:6px;padding:6px 9px;margin-bottom:7px;font-size:10.5px;color:#b59ad5;text-align:center">📵 Numer zastrzeżony. Co odpisujesz?</div>
             ${_b('A','„Będę.”','Pójdziesz na spotkanie — Velvet Room, dziś 23:40.','#27ae60')}
-            ${_b('B','„Z kim mam do czynienia?”','Dopytujesz, kto pisze. Może mu się to nie spodobać.','#f1c40f')}
+            ${_u._bAsked?'':_b('B','„Z kim mam do czynienia?”','Dopytujesz, kto pisze. Może mu się to nie spodobać.','#f1c40f')}
             ${_b('C','„Spierdalaj.”','Olewasz kontakt. Zniknie na jakiś czas.','#e67e22')}
             ${_b('D','„Blokuj numer.”','Blokujesz na zawsze — ten kontakt nigdy nie wróci.','#c0392b')}`;
         }
@@ -62507,7 +62526,10 @@ window.renderSMSConversation=function(contactId){
           return `${_replyCounter}`+window._smsRichButtons('crew',_rids);
         }
         /* system / bank — automaty, gracz nie buduje "przyjaźni" */
-        if(contactId==='system'||contactId==='bank'){
+        /* v2.3.122 (PDF Uspr v2.3.121): „TrapInfo" to systemowy nadawca informacyjny — jak mBank Trap.
+           Do jego wiadomości nie buduje się relacji, więc zamiast Dzięki/Zadzwoń/Ignoruj jest wyłącznie
+           potwierdzenie przeczytania. Dotyczy WSZYSTKICH obecnych i przyszłych wiadomości TrapInfo. */
+        if(contactId==='system'||contactId==='bank'||contactId==='trapinfo'){
           return `${_replyCounter}<div style="display:flex;gap:4px;flex-wrap:wrap">
             <button onclick="_smsQuickReply('${contactId}','thanks')" style="flex:1;background:#1a2535;border:1px solid #2a4a6a;color:#7ec8e3;padding:8px;border-radius:6px;cursor:pointer;font-size:12px">✓ OK</button>
           </div>`;
@@ -62783,7 +62805,10 @@ window._smsQuickReply=function(contactId,type){
   _smsReply(contactId,r.text);
   /* v1.9.82: mark target msg as replied */
   if(conv[targetMsgIdx]) conv[targetMsgIdx]._replied=true;
-  if(typeof addFriendship==='function' && r.friendDelta!==0) addFriendship(contactId,r.friendDelta);
+  /* v2.3.122: nadawcy systemowi (TrapInfo, mBank Trap, system) to komunikaty informacyjne —
+     potwierdzenie przeczytania NIE buduje z nimi relacji. */
+  const _sysSender=(contactId==='trapinfo'||contactId==='bank'||contactId==='system');
+  if(typeof addFriendship==='function' && r.friendDelta!==0 && !_sysSender) addFriendship(contactId,r.friendDelta);
   if(r.energyDelta<0 && typeof clampStat==='function') G.energy=clampStat('energy',(G.energy||0)+r.energyDelta);
   if(r.pendingVisit){
     if(!G._smsPendingVisit) G._smsPendingVisit={};
@@ -69928,6 +69953,9 @@ const PATCH_NOTES = [
   {t:'fix',d:'🗺️ „Pokaż na mapie" przy kamperze wreszcie robi to, co obiecuje. Wcześniej mapa tylko się przybliżała, a znacznik potrafił zostać poza kadrem — zwłaszcza gdy kamper stał przy krawędzi mapy. Teraz widok najeżdża i za każdym razem ustawia znacznik dokładnie na środku ekranu.'},
   {t:'fix',d:'🛡️ W panelach ubezpieczenia samochodu i kampera doszedł przycisk „Wróć" obok „Zamknij". Nie musisz już zamykać całego okna i przechodzić całej drogi od nowa — cofniesz się o jeden krok do stanu pojazdów albo warsztatu.'},
   {t:'fix',d:'📖 Dziennik aktywności nie wskakuje już na ekran w trakcie freestyle’u i transmisji na żywo. W tych aktywnościach klawiatura należy do rozgrywki, a litera „O" bywa częścią hasła — dziennik otworzysz normalnie po zakończeniu sesji.'},
+  {t:'fix',d:'📵 Rozmowa z zastrzeżonym numerem zachowuje się wreszcie jak prawdziwa wymiana wiadomości. Gdy o coś dopytasz, nie możesz od razu wysłać kolejnej odpowiedzi — czekasz na reakcję drugiej strony. Po dwóch minutach przychodzi odpowiedź, a wtedy wracają pozostałe możliwości, bez tej, której już użyłeś.'},
+  {t:'fix',d:'ℹ️ Wiadomości od TrapInfo mają teraz tylko przycisk „OK", tak jak powiadomienia z banku. To komunikaty systemowe, więc nie da się już do nich odpisywać „Dzięki" ani „Zadzwoń" i nie budują one żadnej znajomości.'},
+  {t:'new',d:'🚗 Po zakupie samochodu albo kampera TrapInfo przypomni Ci o obowiązku ubezpieczenia i o karze za jego brak. Wiadomość przychodzi przy każdym kupionym pojeździe, nie tylko przy pierwszym, i osobno dla auta i kampera.'},
   {t:'feature',d:'📡 Transmisja na żywo ma teraz dziesięć różnych haseł zamiast jednego. Przy każdym wejściu na antenę losuje się inne — LIVE, STREAM, LIKE, FOLLOW, SHARE, HYPE, NOTIFY, BOOST, SUPPORT albo klasyczne SNOWY — a przyciski dopasowują się do jego długości, więc każda transmisja ma inny rytm.'},
  ],
  },
