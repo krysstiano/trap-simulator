@@ -17247,6 +17247,10 @@ function changeRoom(id,wx,wy){
   if(id==='boat_deck' && typeof window._marinaSyncDeckObjects==='function') window._marinaSyncDeckObjects(G.marina&&G.marina._activeInteriorId);
   if(id==='police_cell' && typeof window._policeSyncCellObjects==='function') window._policeSyncCellObjects();
   if(id==='stary_kwartal' && typeof window._skSyncObjects==='function') window._skSyncObjects();
+  /* v2.3.122: wyczyść podpowiedź [E] przy KAŻDEJ zmianie pokoju. Bez tego potrafiła zostać treść
+     obiektu z poprzedniej lokacji (np. „[E] Zajazd kempingowy" na innym podwórku), bo aktualizacja
+     podpowiedzi żyje w updatePlayer, a ten wychodzi wcześniej, gdy otwarty jest panel. */
+  { const _prClr=document.getElementById('prompt'); if(_prClr){ _prClr.textContent=''; _prClr.style.display='none'; } }
   /* v2.3.122 (PDF Uspr v2.3.121, BŁĘDY #1): awaryjne domknięcie spotkania z dealerem, gdyby gracz
      zamknął panel inną drogą niż przyciskiem (ESC / zmiana lokacji). No-op bez trwającego spotkania. */
   if(typeof window._trapDealerPanelClosed==='function') window._trapDealerPanelClosed();
@@ -47061,22 +47065,24 @@ window._marinaDailyTick=function(){
    + 5 miejsc zarezerwowanych dla NPC (stoją tam ich jednostki albo miejsce jest puste,
    co znaczy, że akurat są w rejsie). Keja biegnie wzdłuż linii brzegu nowej, większej mapy. */
 const MARINA_HARBOR={
-  boardwalk:{x:1150, y:MARINA_SHORE_Y-76, w:1920, h:52},   /* główny pomost keja */
+  /* v2.3.122: dolna krawędź keji styka się z linią brzegu — inaczej między piaskiem a pomostem
+     zostaje pas wody i gracz nie może wejść na port pieszo. */
+  boardwalk:{x:1150, y:MARINA_SHORE_Y-52, w:1920, h:52},   /* główny pomost keja (1004..1056) */
   fingers:[                                                 /* palce cumownicze (chodzalne) */
-    {cx:1290, y:MARINA_SHORE_Y-232, w:26, h:160},
-    {cx:1580, y:MARINA_SHORE_Y-244, w:26, h:172},
-    {cx:1880, y:MARINA_SHORE_Y-256, w:26, h:184},
-    {cx:2190, y:MARINA_SHORE_Y-256, w:26, h:184},
-    {cx:2500, y:MARINA_SHORE_Y-244, w:26, h:172},
-    {cx:2820, y:MARINA_SHORE_Y-232, w:26, h:160},
+    {cx:1290, y:MARINA_SHORE_Y-212, w:26, h:168},
+    {cx:1580, y:MARINA_SHORE_Y-224, w:26, h:180},
+    {cx:1880, y:MARINA_SHORE_Y-236, w:26, h:192},
+    {cx:2190, y:MARINA_SHORE_Y-236, w:26, h:192},
+    {cx:2500, y:MARINA_SHORE_Y-224, w:26, h:180},
+    {cx:2820, y:MARINA_SHORE_Y-212, w:26, h:168},
   ],
-  fuelDock:{x:3010, y:MARINA_SHORE_Y-116, w:40, h:50},      /* stacja paliw przy końcu keja */
-  captainWx:1180, captainWy:MARINA_SHORE_Y-20,               /* kapitan przy nasadzie pomostu */
+  fuelDock:{x:3010, y:MARINA_SHORE_Y-98, w:40, h:50},       /* stacja paliw przy końcu keja */
+  captainWx:1180, captainWy:MARINA_SHORE_Y-56,               /* kapitan STOI NA pomoście (stopy w obrysie keji) */
 };
 /* Sloty cumownicze — footprint dziobem na północ, rufa na sternY (przy kei).
    16 pierwszych = miejsca gracza, 5 ostatnich (npc:true) = miejsca NPC, niedostępne do wykupienia. */
 const MARINA_SLOTS=(function(){
-  const out=[]; const sternY=MARINA_SHORE_Y-86;
+  const out=[]; const sternY=MARINA_SHORE_Y-42;   /* rufa 10 px w obrysie keji */
   const plan=[
     'small','small','medium','medium','large','premium','large','medium',
     'small','large','premium','medium','large','small','medium','premium',   /* 16 gracza */
@@ -72495,6 +72501,9 @@ const PATCH_NOTES = [
   {t:'fix',d:'🌿 Przy nawiązywaniu współpracy z dealerem na niektórych zapisach gubił się starterowy zapas surowca. Teraz zawsze dostajesz obiecane pięć sztuk, niezależnie od stanu zapisu.'},
   {t:'fix',d:'🗺️ „Pokaż na mapie" przy kamperze wreszcie robi to, co obiecuje. Wcześniej mapa tylko się przybliżała, a znacznik potrafił zostać poza kadrem — zwłaszcza gdy kamper stał przy krawędzi mapy. Teraz widok najeżdża i za każdym razem ustawia znacznik dokładnie na środku ekranu.'},
   {t:'fix',d:'🛡️ W panelach ubezpieczenia samochodu i kampera doszedł przycisk „Wróć" obok „Zamknij". Nie musisz już zamykać całego okna i przechodzić całej drogi od nowa — cofniesz się o jeden krok do stanu pojazdów albo warsztatu.'},
+  {t:'fix',d:'⚓ Poprawiliśmy dojście do portu po powiększeniu Mariny. Między pomostem a plażą zostawał wąski pas wody, przez który nie dało się przejść — port był nieosiągalny na piechotę. Teraz keja styka się z brzegiem, kapitan stoi na pomoście, a zacumowane łodzie przylegają do nabrzeża.'},
+  {t:'fix',d:'🚶 Przechodnie na Marina Coast spacerowali po otwartym morzu, bo po powiększeniu mapy ich ścieżki zostały pod wodą. Teraz chodzą po piasku, tak jak powinni.'},
+  {t:'fix',d:'💬 Podpowiedź „[E]" nie zostaje już z poprzedniej lokacji. Zdarzało się, że po przejściu w inne miejsce na ekranie wisiał opis obiektu, którego nie było w pobliżu.'},
   {t:'new',d:'🏕 Zajazd kempingowy dostał własne menu zamiast jednego kliknięcia. Nadal odpoczniesz tam i przenocujesz, ale możesz też zagrać krótki set przy ognisku, wpaść na domówkę, posiedzieć przy grillu i pogadać z lokalnymi. A jeśli wszedłeś już głębiej w tamten świat — zejść na bok z zupełnie innym tematem. Doszła też boczna ścieżka prosto na Stary Kwartał.'},
   {t:'new',d:'🎉 Domówka przy Zajeździe to osobne wydarzenie z pięcioma decyzjami: wejść jako gość, zagrać dwa numery, poznać ludzi, porozmawiać na boku albo wyjść, zanim zrobi się za gorąco. W tle dzieją się swoje rzeczy — ktoś kłóci się o pieniądze, sąsiad grozi telefonem na policję, a znajomy daje znak, że lepiej się zwijać.'},
   {t:'new',d:'💬 Rozmowa o interesach na Kwartale bywa teraz dwuetapowa. Ktoś potrafi się potargować („za tyle mam pół osiedla do wyboru") albo poprosić o towar na słowo, z obietnicą zwrotu wieczorem. Za każdym razem decydujesz: zejść z ceny, zostać przy swoim, odmówić albo zaproponować mniejszy pakiet — a niespłacone zobowiązania na dzielnicy wracają.'},
@@ -88676,7 +88685,9 @@ function initDistrictLife(room){
   const _peds=Math.max(1, Math.round(cfg.peds*_districtActivityMult(room))); // D7: aktywność wg dnia/pory
   const roomW=((ROOMS[room]&&ROOMS[room].wT)||30)*T;
   /* v2.3.103 (user: NPC dzielnic): pasy pieszych na WALKALNYCH kaflach. Business [300,660,905] chodziło po budynkach (y176-336) i w gdark-border (y905) → chodniki y360/600 + niższy marmur y810. */
-  const pedLanes=(room==='underground')?[300,660,905,1300,1560]:(room==='business'?[360,600,810]:[300,660,905]); /* underground 2x; business=chodniki+marmur; coast=piasek/park */
+  /* v2.3.122: po powiększeniu Mariny woda sięga do y=1056 — pasy pieszych na wybrzeżu muszą leżeć
+     na PIASKU (poniżej linii brzegu), inaczej przechodnie spacerowali po otwartym morzu. */
+  const pedLanes=(room==='underground')?[300,660,905,1300,1560]:(room==='business'?[360,600,810]:[1240,1520,1820,2060]); /* underground 2x; business=chodniki+marmur; coast=piasek/park */
   const elegantCloth=['#1a1a2a','#22223a','#2a2238','#1a2a3a','#30203a']; /* ciemne garnitury/suknie/marynarki */
   const casualCloth=['#2a3a5a','#3a2a4a','#1a3a2a','#3a1a1a','#4a3a1a','#205a40','#704020'];
   /* U15 (v2.3.44 PDF): Marina Coast — przechodnie plażowi/wakacyjni (różnorodnie): jaskrawe stroje/bikini, szorty, kapelusze, okulary. */
