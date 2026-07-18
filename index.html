@@ -2011,8 +2011,10 @@ document.addEventListener('keydown', e => {
       else openFullMap();
     }
   }
-  /* v2.3.117 (PDF Uspr115 W5): klawisz O = Dziennik aktywności (10 ostatnich powiadomień). */
-  if((e.key==='o'||e.key==='O') && !e.repeat){
+  /* v2.3.117 (PDF Uspr115 W5): klawisz O = Dziennik aktywności (10 ostatnich powiadomień).
+     v2.3.122 (PDF Uspr v2.3.121): NIE podczas sesji wymagających klawiatury (Freestyle, Streaming) —
+     tam „O" jest częścią rozgrywki (litera hasła / wpisywanie słów) i Dziennik zasłaniał ekran. */
+  if((e.key==='o'||e.key==='O') && !e.repeat && !(typeof window._kbSessionActive==='function' && window._kbSessionActive())){
     if(typeof window._openActivityLog==='function') window._openActivityLog();
   }
   // v1.8.86: Ctrl+S = ręczny zapis (zgłoszenie Ampera). Browser intercept zablokowany przez preventDefault.
@@ -35152,8 +35154,13 @@ function startStreamMG(){
   let eventTimer=0;
   let comboCount=0,maxCombo=0;
   // Phase system: stream trwa 40s, podzielony na 5 faz po 8s. W każdej fazie inna litera SNOWY jest aktywna do spamowania.
-  const PHASES=['S','N','O','W','Y'];
-  const PHASE_LEN=8; // sekund na fazę
+  /* v2.3.122 (PDF Uspr v2.3.121): pula haseł zamiast jednego „SNOWY" — losowe hasło na każdą sesję.
+     Fazy liczone z długości hasła (stream nadal trwa 40 s), więc hasła 4-7 liter działają tak samo.
+     Litery bywają powtórzone (FOLLOW, SUPPORT) → przyciski adresujemy INDEKSEM, nie literą. */
+  const STREAM_WORDS=['SNOWY','LIVE','STREAM','LIKE','FOLLOW','SHARE','HYPE','NOTIFY','BOOST','SUPPORT'];
+  const STREAM_WORD=STREAM_WORDS[Math.floor(Math.random()*STREAM_WORDS.length)];
+  const PHASES=STREAM_WORD.split('');
+  const PHASE_LEN=40/PHASES.length; // sekund na fazę (stream = 40 s)
   const EV_DEADLINE=2500; // ms na event (było 4000)
 
   // v1.8.19: Stream MG redesign — Twitch-style premium look z gradientami + ramkami glow
@@ -35184,12 +35191,8 @@ function startStreamMG(){
         <div id="s-chat" style="flex:1;height:380px;background:linear-gradient(180deg,#0a0612,#08040e);border:1px solid rgba(74,42,106,0.5);border-radius:12px;padding:10px;overflow-y:auto;font-size:11px;line-height:1.6;backdrop-filter:blur(4px);box-shadow:inset 0 1px 0 rgba(255,255,255,.03)"></div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center" id="s-actions">
-        <span style="color:#aac;font-size:11px;margin-right:6px">Aktywny przycisk:</span>
-        <button id="s-btn-S" onclick="window._streamAct&&window._streamAct('S')" style="width:64px;height:64px;border-radius:14px;border:2px solid rgba(74,42,106,.3);background:linear-gradient(145deg,rgba(40,30,60,.4),rgba(20,15,40,.4));color:#fff;font-size:26px;font-weight:900;cursor:pointer;opacity:.4;transition:all .15s">S</button>
-        <button id="s-btn-N" onclick="window._streamAct&&window._streamAct('N')" style="width:64px;height:64px;border-radius:14px;border:2px solid rgba(74,42,106,.3);background:linear-gradient(145deg,rgba(40,30,60,.4),rgba(20,15,40,.4));color:#fff;font-size:26px;font-weight:900;cursor:pointer;opacity:.4;transition:all .15s">N</button>
-        <button id="s-btn-O" onclick="window._streamAct&&window._streamAct('O')" style="width:64px;height:64px;border-radius:14px;border:2px solid rgba(74,42,106,.3);background:linear-gradient(145deg,rgba(40,30,60,.4),rgba(20,15,40,.4));color:#fff;font-size:26px;font-weight:900;cursor:pointer;opacity:.4;transition:all .15s">O</button>
-        <button id="s-btn-W" onclick="window._streamAct&&window._streamAct('W')" style="width:64px;height:64px;border-radius:14px;border:2px solid rgba(74,42,106,.3);background:linear-gradient(145deg,rgba(40,30,60,.4),rgba(20,15,40,.4));color:#fff;font-size:26px;font-weight:900;cursor:pointer;opacity:.4;transition:all .15s">W</button>
-        <button id="s-btn-Y" onclick="window._streamAct&&window._streamAct('Y')" style="width:64px;height:64px;border-radius:14px;border:2px solid rgba(74,42,106,.3);background:linear-gradient(145deg,rgba(40,30,60,.4),rgba(20,15,40,.4));color:#fff;font-size:26px;font-weight:900;cursor:pointer;opacity:.4;transition:all .15s">Y</button>
+        <span style="color:#aac;font-size:11px;margin-right:6px">Hasło: <b style="color:#f1c40f;letter-spacing:2px">${STREAM_WORD}</b> — aktywny przycisk:</span>
+        ${PHASES.map((L,i)=>`<button id="s-btn-i${i}" onclick="window._streamAct&&window._streamAct(${i})" style="width:64px;height:64px;border-radius:14px;border:2px solid rgba(74,42,106,.3);background:linear-gradient(145deg,rgba(40,30,60,.4),rgba(20,15,40,.4));color:#fff;font-size:26px;font-weight:900;cursor:pointer;opacity:.4;transition:all .15s">${L}</button>`).join('')}
         <span style="color:#aac;font-size:11px;margin-left:10px;border-left:1px solid #3a2a4a;padding-left:10px">Eventy: <b style="color:#f1c40f">SPACE</b></span>
       </div>
       <div id="s-msg" style="font-size:13px;color:#7ec8e3;min-height:18px"></div>
@@ -35291,11 +35294,12 @@ function startStreamMG(){
     document.getElementById('s-combo').textContent=comboCount;
   }
 
-  function _highlightPhase(letter){
-    PHASES.forEach(L=>{
-      const btn=document.getElementById('s-btn-'+L);
+  /* v2.3.122: podświetlenie po INDEKSIE fazy (hasła mają powtórzone litery, np. FOLLOW/SUPPORT). */
+  function _highlightPhase(activeIdx){
+    PHASES.forEach((L,i)=>{
+      const btn=document.getElementById('s-btn-i'+i);
       if(!btn) return;
-      if(L===letter){
+      if(i===activeIdx){
         btn.style.opacity='1';
         btn.style.transform='scale(1.12)';
         btn.style.background='linear-gradient(145deg,rgba(241,196,15,.95),rgba(180,120,10,.95))';
@@ -35311,16 +35315,15 @@ function startStreamMG(){
     });
   }
 
-  // _streamAct: spam aktywnej litery = donacje. Niepoprawna litera = nic.
-  window._streamAct=(letter)=>{
+  // _streamAct: spam aktywnego przycisku = donacje. Nieaktywny = nic. (v2.3.122: argument = INDEKS fazy)
+  window._streamAct=(idx)=>{
     if(over)return;
     /* v2.1.742 (audyt): rate-limit anti key-repeat/autoclicker — donacje z klikania nie miały capu (przytrzymanie klawisza spamowało rnd(1,3) zł bez limitu). 200ms = max ~5 klik/s, blokuje key-repeat (~20-30/s). Eventy SPACE pozostają głównym źródłem. */
     const _nowSA=Date.now();
     if(window._lastStreamActT && _nowSA-window._lastStreamActT<200) return;
     window._lastStreamActT=_nowSA;
     const phaseIdx=Math.min(PHASES.length-1, Math.floor((40-timeLeft)/PHASE_LEN));
-    const activeLetter=PHASES[phaseIdx];
-    if(letter!==activeLetter) return; // nieaktywny przycisk — ignore
+    if(idx!==phaseIdx) return; // nieaktywny przycisk — ignore
     // Każdy klik aktywnej litery daje rnd(1,3) zł + 1 hype
     const gain=Math.floor(Math.random()*3)+1;
     donations+=gain;
@@ -35328,7 +35331,7 @@ function startStreamMG(){
     document.getElementById('s-don').textContent=donations+' zł';
     document.getElementById('s-hype').textContent=Math.round(hype)+'%';
     // Krótki "puls" wizualny na aktywnym przycisku
-    const btn=document.getElementById('s-btn-'+letter);
+    const btn=document.getElementById('s-btn-i'+idx);
     if(btn){
       btn.style.transform='scale(1.22)';
       setTimeout(()=>{ if(btn) btn.style.transform='scale(1.12)'; },80);
@@ -35349,11 +35352,13 @@ function startStreamMG(){
       }
       return;
     }
-    if(['S','N','O','W','Y'].includes(k)) window._streamAct(k);
+    /* v2.3.122: klawiatura działa dla litery AKTYWNEJ fazy (przy powtórzonych literach nie ma dwuznaczności). */
+    const _pi=Math.min(PHASES.length-1, Math.floor((40-timeLeft)/PHASE_LEN));
+    if(PHASES[_pi]===k) window._streamAct(_pi);
   };
   document.addEventListener('keydown',kh);
-  // Inicjalny highlight fazy S
-  setTimeout(()=>_highlightPhase('S'),0);
+  // Inicjalny highlight pierwszej fazy hasła
+  setTimeout(()=>_highlightPhase(0),0);
 
   function draw(){
     if(!document.getElementById('s-cv')){cancelAnimationFrame(raf);return;}
@@ -35414,11 +35419,11 @@ function startStreamMG(){
     // Hype naturalnie spada
     hype=Math.max(0,hype-1);
     document.getElementById('s-hype').textContent=Math.round(hype)+'%';
-    // v1.8.68: phase advance — co 8s przesuwamy aktywną literę S→N→O→W→Y
+    // v1.8.68: phase advance — kolejne litery hasła (v2.3.122: hasło losowe, długość faz z jego długości)
     const phaseIdx=Math.min(PHASES.length-1, Math.floor((40-timeLeft)/PHASE_LEN));
     if(phaseIdx!==_lastPhaseIdx){
       _lastPhaseIdx=phaseIdx;
-      _highlightPhase(PHASES[phaseIdx]);
+      _highlightPhase(phaseIdx);
       pushChat('SYSTEM',`▶ Aktywny przycisk: ${PHASES[phaseIdx]}`,'#f1c40f');
     }
     // v1.8.66: NIE ustawiamy over=true tutaj — finishStream() sam to robi po guardzie.
@@ -53307,6 +53312,14 @@ function startSkateparkMG(){
 // ═══════════════════════════════════════════════════════════════════
 //  FREESTYLE MINIGAME 🎤
 // ═══════════════════════════════════════════════════════════════════
+/* v2.3.122 (PDF Uspr v2.3.121): czy trwa sesja przechwytująca klawiaturę (Freestyle / Streaming).
+   Wykrywane po elementach panelu — samo się zeruje przy zamknięciu sesji (cleanup czyści zawartość),
+   więc nie da się zostawić „wiszącej" flagi po przerwanej sesji. */
+window._kbSessionActive=function(){
+  try{
+    return !!(document.getElementById('fs-wordarea') || document.getElementById('fs-words') || document.getElementById('s-cv'));
+  }catch(_e){ return false; }
+};
 function startFreestyleMG(){
   /* v2.1.864 (audyt): bramka energii TU = single-source — by „Jeszcze raz" i triggerFreestyle też ją respektowały (był EXPLOIT: spam freestyle za 0 energii → farm raperXP/skillPts/fani/streetRep, drzewko maksowane za szybko). Mapa-handler już NIE odejmuje (przeniesione). */
   /* v2.1.865 (user): TWARDY limit 3 freestyle/dobę gry. Sprawdzane TU (single-source) — licznik G._fsCountToday inkrementowany przy wyniku (L~39641). */
@@ -54765,7 +54778,7 @@ function renderWarsztat(){
     <div class="res" id="warz-res">Wybierz co naprawić.</div>
     ${((G.car&&G.car.name)||(G.camper&&G.camper.owned))?`<div style="display:flex;gap:8px;margin-bottom:6px">
       <button class="cbtn" style="flex:1" onclick="closeOverlay();if(window._vehStatusPanel)window._vehStatusPanel();">🚗 Stan pojazdów</button>
-      <button class="cbtn" style="flex:1" onclick="closeOverlay();if(window._vehInsuranceInfo)window._vehInsuranceInfo();">🛡️ Ubezpieczenie</button>
+      <button class="cbtn" style="flex:1" onclick="closeOverlay();if(window._vehInsuranceInfo)window._vehInsuranceInfo('car','warsztat');">🛡️ Ubezpieczenie</button>
     </div>`:''}
     <button class="cbtn" style="background:#16402e;color:#9fd;border:1px solid #2a6a4a" onclick="window.openCrafting(false)">🔨 Wytwarzanie (crafting)</button>
     <button class="cbtn" onclick="closeOverlay()">← Wróć</button>
@@ -57852,8 +57865,23 @@ window._vehSetInsurance=function(kind,id){
   if(typeof saveGameSilent==='function') saveGameSilent(); if(typeof window._vehInsuranceInfo==='function') window._vehInsuranceInfo(kind);
 };
 /* §40 + W15: panel wyboru ubezpieczenia PER POJAZD (przełącznik auto/kamper gdy oba posiadane). */
-window._vehInsuranceInfo=function(kind){
+/* v2.3.122 (PDF Uspr v2.3.121): powrót o krok wstecz z panelu ubezpieczenia do miejsca, z którego
+   gracz tu wszedł (Stan pojazdów / Warsztat / panel holowania) — zamiast zamykania całego panelu.
+   Miejsce pamiętane jako PROSTY identyfikator tekstowy (nigdy JSON w onclick — łamie atrybut). */
+window._vehInsuranceBack=function(){
+  const from=window._vehInsFrom||'', kind=window._vehInsFromKind||'car';
+  const _e=document.getElementById('mg-job');
+  if(_e){ _e.classList.remove('on'); _e.style.display='none'; _e.innerHTML='<div id="mg-job-content"></div>'; }
+  window._vehInsFrom='';
+  if(from==='status' && typeof window._vehStatusPanel==='function'){ window._vehStatusPanel(); return true; }
+  if(from==='tow' && typeof window._vehTowPanel==='function'){ window._vehTowPanel(kind); return true; }
+  if(from==='warsztat' && typeof renderWarsztat==='function'){ renderWarsztat(); if(typeof openOverlay==='function') openOverlay(); return true; }
+  return false;
+};
+window._vehInsuranceInfo=function(kind,from){
   window._vehInsuranceEnsure();
+  /* zapamiętaj punkt wejścia; przełącznik auto/kamper wywołuje się bez „from" i nie może go gubić */
+  if(typeof from==='string'&&from) window._vehInsFrom=from;
   const carOwned=window._vehOwnedKind('car'), campOwned=window._vehOwnedKind('camper');
   if(kind!=='car'&&kind!=='camper') kind=carOwned?'car':(campOwned?'camper':'car');
   else if(!window._vehOwnedKind(kind)) kind=carOwned?'car':'camper';
@@ -57871,7 +57899,11 @@ window._vehInsuranceInfo=function(kind){
     ${switcher}${uninsuredWarn}
     <div style="font-size:11.5px;color:#8a939a;margin-bottom:10px">Osobna polisa dla każdego pojazdu. Składka pobierana co tydzień gry, pokrywa część kosztu naprawy. Brak kasy = ochrona zawieszona (polisa zostaje).${p.suspended?'<br><b style="color:#e67e22">⚠️ Ochrona zawieszona (nieopłacona składka).</b>':''}</div>
     ${window._VEH_INSURANCE_TIERS.map(row).join('')}
-    <button class="cbtn" style="width:100%;margin-top:6px;color:#e07070;border-color:#5a1a1a" onclick="${closeJs}">← Zamknij</button></div>`;
+    <div style="display:flex;gap:6px;margin-top:6px">
+      ${window._vehInsFrom?`<button class="cbtn" style="flex:1" onclick="window._vehInsuranceBack&&window._vehInsuranceBack()">↩ Wróć</button>`:''}
+      <button class="cbtn" style="flex:1;color:#e07070;border-color:#5a1a1a" onclick="${closeJs}">← Zamknij</button>
+    </div></div>`;
+  window._vehInsFromKind=kind;
 };
 /* §44 + W15: panel „Stan pojazdów" — WSZYSTKIE posiadane pojazdy (auto + kamper) w osobnych sekcjach, każda z ubezpieczeniem. */
 window._vehStatusPanel=function(){
@@ -57907,7 +57939,7 @@ window._vehStatusPanel=function(){
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
         ${insLine}
-        <button class="cbtn" style="flex:none;font-size:11.5px;padding:6px 10px" onclick="${closeJs}if(window._vehInsuranceInfo)window._vehInsuranceInfo('${kind}')">🛡️ Ubezpiecz</button>
+        <button class="cbtn" style="flex:none;font-size:11.5px;padding:6px 10px" onclick="${closeJs}if(window._vehInsuranceInfo)window._vehInsuranceInfo('${kind}','status')">🛡️ Ubezpiecz</button>
       </div>
       ${oh<=0?`<button class="cbtn" style="width:100%;margin-top:6px" onclick="${closeJs}if(window._vehTowPanel)window._vehTowPanel('${kind}')">🚚 Holowanie</button>`:''}
     </div>`;
@@ -58171,7 +58203,7 @@ window._vehTowPanel=function(kind){
     <div style="margin-top:12px">
       ${btn("window._vehCallTow('"+kind+"','workshop');"+closeJs,'🚚 Wezwij holowanie do warsztatu · '+towWork.toLocaleString('pl')+' zł')}
       ${btn("window._vehCallTow('"+kind+"','metal_valley');"+closeJs,'♻️ Holowanie do Metal Valley Yard (kasacja) · '+towMV.toLocaleString('pl')+' zł')}
-      ${btn(closeJs+"if(typeof window._vehInsuranceInfo==='function')window._vehInsuranceInfo();",'🛡️ Ubezpieczenie pojazdu')}
+      ${btn(closeJs+"if(typeof window._vehInsuranceInfo==='function')window._vehInsuranceInfo('${kind}','tow');",'🛡️ Ubezpieczenie pojazdu')}
       ${btn("window._vehExitVehicle&&window._vehExitVehicle('"+kind+"');"+closeJs,'🚶 Wróć pieszo / zostaw pojazd','; color:#e07070; border-color:#5a1a1a')}
     </div></div>`;
 };
@@ -68699,12 +68731,27 @@ function openFullMap(districtId){
   window._mapFocusCoord=function(wx,wy,startZoom,endZoom){
     if(!sc||typeof wx!=='number'||typeof wy!=='number') return false;
     startZoom=Math.max(0.5,Math.min(3,startZoom||1.1)); endZoom=Math.max(startZoom,Math.min(3,endZoom||2.2));
+    /* v2.3.122 (PDF Uspr v2.3.121): centrowanie liczone ZAWSZE ze współrzędnej świata i z aktualnej skali,
+       z poprawnym przycięciem do zakresu przewijania. Wcześniej pozycja ustawiana była raz, przed przeliczeniem
+       układu (scrollWidth jeszcze stary → przeglądarka przycinała wartość), a po najeździe _smoothZoomTo
+       odtwarzało widok ze STAREGO punktu ogniskowego — przez co znacznik uciekał z centrum. */
+    const _centerOn=(z)=>{
+      const scale=baseScale*z;
+      const maxL=Math.max(0, sc.scrollWidth - sc.clientWidth);
+      const maxT=Math.max(0, sc.scrollHeight - sc.clientHeight);
+      sc.scrollLeft=Math.max(0, Math.min(maxL, wx*scale - sc.clientWidth/2));
+      sc.scrollTop =Math.max(0, Math.min(maxT, wy*scale - sc.clientHeight/2));
+    };
     _mapZoom=startZoom; renderMap(startZoom);
     const zEl=document.getElementById('fmap-zoom'); if(zEl) zEl.textContent=Math.round(startZoom*100)+'%';
-    const scale=baseScale*_mapZoom;
-    sc.scrollLeft=Math.max(0, wx*scale - sc.clientWidth/2);
-    sc.scrollTop =Math.max(0, wy*scale - sc.clientHeight/2);
-    setTimeout(()=>{ try{ _smoothZoomTo(endZoom); }catch(e){} }, 280); /* po wycentrowaniu — płynny najazd (zoom wokół środka widoku = kamper) */
+    _centerOn(startZoom);
+    requestAnimationFrame(()=>_centerOn(startZoom)); /* po przeliczeniu układu — bez przycięcia */
+    setTimeout(()=>{
+      try{ _smoothZoomTo(endZoom); }catch(e){}
+      /* po zakończeniu najazdu wycentruj PONOWNIE na znaczniku (a nie na środku poprzedniego widoku) */
+      setTimeout(()=>{ _centerOn(endZoom); requestAnimationFrame(()=>_centerOn(endZoom)); }, 240);
+    }, 280);
+    window._mapLastFocus={wx,wy,zoom:endZoom};
     return true;
   };
   // Scroll zoom
@@ -69878,6 +69925,10 @@ const PATCH_NOTES = [
   {t:'fix',d:'🤝 Nagroda przychodzi też w naturalniejszym momencie: nie w chwili samej rozmowy, tylko dopiero gdy zamkniesz panel dealera i wrócisz do gry. Dzięki temu nie zasypuje Cię komunikatami w środku transakcji.'},
   {t:'fix',d:'💡 Podpowiedź o odblokowaniu zakładki Trap w telefonie czeka teraz na ten sam warunek. Wcześniej potrafiła wyprzedzać rzeczywisty stan gry i tłumaczyć mechanikę, do której nie miałeś jeszcze dostępu.'},
   {t:'fix',d:'🌿 Przy nawiązywaniu współpracy z dealerem na niektórych zapisach gubił się starterowy zapas surowca. Teraz zawsze dostajesz obiecane pięć sztuk, niezależnie od stanu zapisu.'},
+  {t:'fix',d:'🗺️ „Pokaż na mapie" przy kamperze wreszcie robi to, co obiecuje. Wcześniej mapa tylko się przybliżała, a znacznik potrafił zostać poza kadrem — zwłaszcza gdy kamper stał przy krawędzi mapy. Teraz widok najeżdża i za każdym razem ustawia znacznik dokładnie na środku ekranu.'},
+  {t:'fix',d:'🛡️ W panelach ubezpieczenia samochodu i kampera doszedł przycisk „Wróć" obok „Zamknij". Nie musisz już zamykać całego okna i przechodzić całej drogi od nowa — cofniesz się o jeden krok do stanu pojazdów albo warsztatu.'},
+  {t:'fix',d:'📖 Dziennik aktywności nie wskakuje już na ekran w trakcie freestyle’u i transmisji na żywo. W tych aktywnościach klawiatura należy do rozgrywki, a litera „O" bywa częścią hasła — dziennik otworzysz normalnie po zakończeniu sesji.'},
+  {t:'feature',d:'📡 Transmisja na żywo ma teraz dziesięć różnych haseł zamiast jednego. Przy każdym wejściu na antenę losuje się inne — LIVE, STREAM, LIKE, FOLLOW, SHARE, HYPE, NOTIFY, BOOST, SUPPORT albo klasyczne SNOWY — a przyciski dopasowują się do jego długości, więc każda transmisja ma inny rytm.'},
  ],
  },
  {
