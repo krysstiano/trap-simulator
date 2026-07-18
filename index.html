@@ -17140,6 +17140,9 @@ function changeRoom(id,wx,wy){
   if(id==='coast' && typeof window._marinaSyncCoastObjects==='function') window._marinaSyncCoastObjects();
   if(id==='boat_deck' && typeof window._marinaSyncDeckObjects==='function') window._marinaSyncDeckObjects(G.marina&&G.marina._activeInteriorId);
   if(id==='police_cell' && typeof window._policeSyncCellObjects==='function') window._policeSyncCellObjects();
+  /* v2.3.122 (PDF Uspr v2.3.121, BŁĘDY #1): awaryjne domknięcie spotkania z dealerem, gdyby gracz
+     zamknął panel inną drogą niż przyciskiem (ESC / zmiana lokacji). No-op bez trwającego spotkania. */
+  if(typeof window._trapDealerPanelClosed==='function') window._trapDealerPanelClosed();
   if(id!=='coast' && G.marina && G.marina.piloting) G.marina.piloting=null;
   if(typeof _syncHomeSafe==='function') _syncHomeSafe(); /* v2.1.929: wstaw/usuń obiekt sejfu wg posiadania w tym wnętrzu */
   // Anti-stuck: jeśli spawn na ulicy w bloku/budynku — przesuń gracza na najbliższy wolny punkt
@@ -18471,7 +18474,9 @@ const ACHIEVEMENTS = [
   {id:'ig_tweet_master',name:'ChirpNet Master',desc:'Napisz 30 własnych wpisów (kompozytor)',icon:'💬',check:()=>(G.userTweets?.length||0)>=30},
   /* v2.1.397 Faza AQ Etap 2 (user 2026-05-28): pies achievementy */
   /* v2.1.408 Faza AN.4 Etap 2: 5 trap achievementy. */
-  {id:'trap_unlock',name:'Pierwszy biznes',desc:'Spotkaj dealera w Underground District',icon:'🤝',check:()=>!!(G.trap?.unlocked)},
+  /* v2.3.122 (PDF Uspr v2.3.121, BŁĘDY #1): warunkiem jest REALNE, domknięte spotkanie z dealerem
+     w Underground District (flaga po wyjściu z panelu), a nie samo G.trap.unlocked. */
+  {id:'trap_unlock',name:'Pierwszy biznes',desc:'Spotkaj dealera w Underground District',icon:'🤝',check:()=>(typeof window._trapDealerMetReal==='function')?window._trapDealerMetReal():(!!(G.trap?.unlocked)&&!!G._trapDealerMet)},
   {id:'first_cook',name:'Kucharz',desc:'Ugotuj pierwszy produkt',icon:'👨‍🍳',check:()=>(G.trap?.cooked||0)>=1},
   {id:'first_sell',name:'Pierwsza sprzedaż',desc:'Sprzedaj pierwszy produkt na ulicy',icon:'💰',check:()=>(G.trap?.sold||0)>=1},
   {id:'trap_pro',name:'Trap Pro',desc:'Sprzedaj 100 produktów łącznie',icon:'🌟',check:()=>(G.trap?.sold||0)>=100},
@@ -21863,16 +21868,51 @@ window._trapUnlockDialog=function(){
   gameConfirm('🤝 Dealer mówi: "Słyszałem że jesteś gotów na poważną forsę. Mam dla ciebie wprowadzenie do gry. Niski risk na starcie. Wchodzisz?\n\nUWAGA: Ten system jest opcjonalny. Jeśli wejdziesz, ryzyko aresztu (utrata 1000 zł + 1 dzień gry)."', ()=>{
     /* OK callback — kontynuuj unlock */
     G.trap.unlocked=true;
-    G._trapDealerMet=true;
-    G.trapInv.traw=5;
+    /* v2.3.122 (PDF Uspr v2.3.121, BŁĘDY #1): NIE ustawiamy tu _trapDealerMet ani nie przyznajemy
+       osiągnięcia/nagrody/XP. PDF wprost: nagroda ma przyjść „nie przy samej interakcji z panelem,
+       tylko po opuszczeniu panelu, dostępnego u dealera w dzielnicy Underground District".
+       Tu ustawiamy tylko stan „w trakcie spotkania"; domknięcie robi _trapDealerPanelClosed(). */
+    G._trapDealerPending=true;
+    /* v2.3.122: guard — po resecie/na uszkodzonym save G.trapInv bywa undefined → `G.trapInv.traw=5` rzucało
+       wyjątkiem i przerywało cały unlock w połowie (trap.unlocked=true, ale bez surowca i bez domknięcia). */
+    if(!G.trapInv||typeof G.trapInv!=='object') G.trapInv={traw:0,krysztal:0,prosz:0,products:{}};
+    if(!G.trapInv.products||typeof G.trapInv.products!=='object') G.trapInv.products={};
+    G.trapInv.traw=(G.trapInv.traw||0)+5;
     if(typeof showMsg==='function') showMsg('🤝 Dealer: "Witam w grze. Daje ci 5 traw na start. Otwórz Telefon → Kariera → Trap."','g',6000);
-    if(typeof addNotif==='function') addNotif('🤝 Trap career unlocked! Telefon → Kariera → Trap.');
-    if(typeof checkAchievements==='function') checkAchievements();
-    if(typeof _smsTriggerOnce==='function'){
-      /* v2.3.102 (PDF #8): wiadomość informacyjna przychodzi od SYSTEMU „TrapInfo", nie od Marcina (Organizatora) — spoza-dzielnicowy NPC nie powinien wiedzieć o lokalnej współpracy z dealerem. */
-      _smsTriggerOnce('trap_unlocked','trapinfo','ℹ️ Pamiętaj! Ten sposób działania to system opcjonalny — uważaj na heat policji. Lvl 15 = pełna ochrona. Joint = -56% bust risk vs Mix.');
-    }
+    /* panel dealera — gracz kończy spotkanie zamykając go (wtedy dopiero nagrody) */
+    if(typeof window._renderKamperBuy==='function'){ try{ window._renderKamperBuy(); }catch(_e){} }
   });
+};
+
+/* v2.3.122 (PDF Uspr v2.3.121, BŁĘDY #1+#2): domknięcie spotkania z dealerem.
+   Wołane przy WYJŚCIU z panelu dealera (przycisk „Wyjdź") oraz awaryjnie przy zmianie pokoju,
+   gdyby gracz zamknął panel inną drogą. Dopiero tutaj: flaga rzeczywistego spotkania,
+   osiągnięcie, krok kariery, SMS informacyjny i dopuszczenie wskazówki o panelu Trap. */
+window._trapDealerPanelClosed=function(){
+  if(typeof G==='undefined'||!G) return false;
+  if(!G._trapDealerPending) return false;
+  G._trapDealerPending=false;
+  G._trapDealerMet=true;
+  if(typeof addNotif==='function') addNotif('🤝 Nawiązałeś współpracę z dealerem — Telefon → Kariera → Trap.');
+  if(typeof checkAchievements==='function') try{ checkAchievements(); }catch(_e){}
+  if(typeof checkCareerTracks==='function') try{ checkCareerTracks(); }catch(_e){}
+  if(typeof checkSideStorylines==='function') try{ checkSideStorylines(); }catch(_e){}
+  if(typeof _smsTriggerOnce==='function'){
+    /* v2.3.102 (PDF #8): wiadomość informacyjna przychodzi od SYSTEMU „TrapInfo", nie od Marcina (Organizatora) — spoza-dzielnicowy NPC nie powinien wiedzieć o lokalnej współpracy z dealerem. */
+    _smsTriggerOnce('trap_unlocked','trapinfo','ℹ️ Pamiętaj! Ten sposób działania to system opcjonalny — uważaj na heat policji. Lvl 15 = pełna ochrona. Joint = -56% bust risk vs Mix.');
+  }
+  if(typeof saveGameSilent==='function') try{ saveGameSilent(); }catch(_e){}
+  return true;
+};
+
+/* v2.3.122: jedno źródło prawdy dla „gracz naprawdę spotkał dealera w Underground District".
+   Wymaga odblokowanej dzielnicy ORAZ domkniętego spotkania — odporne na to, że jakakolwiek inna
+   ścieżka (migracja, panel admina, przyszły moduł) ustawi samo G.trap.unlocked. */
+window._trapDealerMetReal=function(){
+  if(typeof G==='undefined'||!G) return false;
+  if(!(G.trap&&G.trap.unlocked)) return false;
+  if(!G._trapDealerMet) return false;
+  return Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes('underground');
 };
 
 /* AN.5 Cook handler — combine ingredients → product. */
@@ -44751,7 +44791,7 @@ window._renderKamperBuy=function(){
     <h2 style="color:#7ec8e3;margin-top:0;text-align:center">📞 Zamów składniki od dealera</h2>
     <div style="color:#aaa;font-size:12px;text-align:center;margin-bottom:10px">${_discount>0?`✨ Rabat lojalnościowy ${Math.round(_discount*100)}% (rep ${_rep})`:'Buduj reputację (rep 20+) by uzyskać rabat'}</div>
     <div style="display:flex;flex-direction:column;gap:8px">${_ingHtml}</div>
-    <button class="cbtn" style="margin-top:14px;width:100%" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Wyjdź</button>
+    <button class="cbtn" style="margin-top:14px;width:100%" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';if(window._trapDealerPanelClosed)window._trapDealerPanelClosed();">← Wyjdź</button>
   </div>`;
   _mg.classList.add('on');
 };
@@ -68028,7 +68068,9 @@ const SMART_HINTS=[
   /* v2.1.405 Faza AR.10 #6 analog: smart hint dla Trader career — lvl 6+. */
   {id:'trader_intro', cond:()=>G.level>=6 && !!(G.trader?.unlocked) && !(G.trader?.tradesCount>0) && !G._hintShown_trader_intro, msg:'📈 Trader career odblokowany! Otwórz telefon → folder Finanse → Crypto. 6 coinów (stable/volatile/memecoin), staking po 7 dniach holdu (+0.5%/dzień), scalping (5×/dzień), leverage 2x-5x. Trading fee 1%, XP = abs(PnL)/100.'},
   /* v2.1.408 Faza AN.4 #6 analog: smart hint dla Trap career — visible po dealer meeting. */
-  {id:'trap_intro', cond:()=>!!(G.trap?.unlocked) && (G.trap?.cooked||0)===0 && !G._hintShown_trap_intro, msg:'🤝 Trap odblokowany! Telefon → Kariera → Trap. Kup składniki od dealera (Trawa/Kryształ/Proszek) → Ugotuj receptury (Joint/Shard/Powder/Mix) → Sprzedaj na ulicy. UWAGA: bust risk 5-30% per receptura. Bust = -1000 zł + 1 dzień jail. Level 15 = -56% bust.'},
+  /* v2.3.122 (PDF Uspr v2.3.121, BŁĘDY #2): wskazówka o panelu Trap czeka na REALNE spotkanie z dealerem
+     w Underground District (domknięte wyjściem z panelu). Wcześniej mogła wyprzedzać warunki gry. */
+  {id:'trap_intro', cond:()=>((typeof window._trapDealerMetReal==='function')?window._trapDealerMetReal():(!!(G.trap?.unlocked)&&!!G._trapDealerMet)) && (G.trap?.cooked||0)===0 && !G._hintShown_trap_intro, msg:'🤝 Trap odblokowany! Telefon → Kariera → Trap. Kup składniki od dealera (Trawa/Kryształ/Proszek) → Ugotuj receptury (Joint/Shard/Powder/Mix) → Sprzedaj na ulicy. UWAGA: bust risk 5-30% per receptura. Bust = -1000 zł + 1 dzień jail. Level 15 = -56% bust.'},
   /* v2.1.419 #18 Round 2 milestone hint: gracz blisko vendor loyalty (rep 15-19) — poinformuj o przyszłym rabacie. */
   {id:'trap_loyalty_close', cond:()=>(G.trap?.reputation||0)>=15 && (G.trap?.reputation||0)<20 && !G._hintShown_trap_loyalty_close, msg:'🤝 Vendor loyalty discount blisko! Reputacja 20+ daje -15% rabat na składniki (potem 50+ → -25%). Sprzedawaj dalej żeby zwiększyć rep (1 rep per sprzedaż, 2× przy Tłum kupców event).'},
   /* v2.1.421 Faza AN.6: heat warning gdy zbliża się do high-risk zone. */
@@ -69829,6 +69871,15 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.122',date:'2026-07-18',cats:['fix'],title:'🤝 Koniec z nagrodą za spotkanie dealera, do którego nigdy nie doszło',
+ items:[
+  {t:'fix',d:'🤝 Naprawiliśmy nagrodę za poznanie dealera, która potrafiła pojawić się już po kilku minutach nowej gry — mimo że Underground District był jeszcze zamknięty i gracz nie miał jak tam dotrzeć. Osiągnięcie, pieniądze i punkty doświadczenia dostaniesz teraz wyłącznie po prawdziwym spotkaniu z dealerem w tej dzielnicy.'},
+  {t:'fix',d:'🤝 Nagroda przychodzi też w naturalniejszym momencie: nie w chwili samej rozmowy, tylko dopiero gdy zamkniesz panel dealera i wrócisz do gry. Dzięki temu nie zasypuje Cię komunikatami w środku transakcji.'},
+  {t:'fix',d:'💡 Podpowiedź o odblokowaniu zakładki Trap w telefonie czeka teraz na ten sam warunek. Wcześniej potrafiła wyprzedzać rzeczywisty stan gry i tłumaczyć mechanikę, do której nie miałeś jeszcze dostępu.'},
+  {t:'fix',d:'🌿 Przy nawiązywaniu współpracy z dealerem na niektórych zapisach gubił się starterowy zapas surowca. Teraz zawsze dostajesz obiecane pięć sztuk, niezależnie od stanu zapisu.'},
+ ],
+ },
  {
  ver:'v2.3.121',date:'2026-07-13',cats:['feature'],title:'🚔⚓ Żywe miasto z policją i odsiadką 48h + Marina Coast staje się fizyczna (widoczne łodzie, chodzalne pokłady, sterowanie po wodzie)',
  items:[
@@ -83552,7 +83603,8 @@ const SIDE_STORYLINES={
     name:'🤝 Linia Trap', color:'#e91e8c',
     quests:[
       {id:'tp1', em:'🤝', name:'Pierwszy biznes', desc:'Spotkaj dealera w Underground District',
-        check:()=>!!(G.trap?.unlocked), reward:{money:500,xp:30}},
+        /* v2.3.122 (PDF Uspr v2.3.121, BŁĘDY #1): j.w. — realne spotkanie, nie samo odblokowanie. */
+        check:()=>(typeof window._trapDealerMetReal==='function')?window._trapDealerMetReal():(!!(G.trap?.unlocked)&&!!G._trapDealerMet), reward:{money:500,xp:30}},
       {id:'tp2', em:'👨‍🍳', name:'Kucharz', desc:'Ugotuj pierwszy produkt — fizycznie w Kamperze (Joint) lub Laboratorium (Shard/Proszek/Mix) na mapie Underground',
         check:()=>(G.trap?.cooked||0)>=1, reward:{money:1000,xp:40}},
       {id:'tp3', em:'💰', name:'Pierwsza sprzedaż', desc:'Sprzedaj pierwszy produkt',
@@ -83731,7 +83783,8 @@ const CAREER_TRACKS={
     {id:'und_camper', em:'🚐', name:'Pierwszy kamper', desc:'Zdobądź kampera — mobilna baza i pierwszy krok w stronę własnej produkcji.', check:()=>!!(G.camper&&G.camper.owned), reward:{money:1000,xp:40}},
     {id:'und_plant', em:'🌱', name:'Pierwsza roślinka', desc:'Zasadź pierwsze nasiono w doniczce — początek własnej uprawy.', check:()=>(G.grow?.totalHarvested||0)>=1||(G.grow?.pots||[]).some(p=>p&&p.planted), reward:{money:600,xp:35}},
     {id:'und_harvest', em:'🌿', name:'Pierwsze zbiory', desc:'Wyhoduj i zbierz pierwszą partię z własnej uprawy — od nasionka do produktu.', check:()=>(G.grow?.totalHarvested||0)>=1, reward:{money:1200,xp:50}},
-    {id:'und_dealer', em:'🤝', name:'Wejście w biznes', desc:'Nawiąż współpracę z dealerem w Underground — odblokuj ścieżkę trap.', check:()=>!!(G.trap?.unlocked), reward:{money:800,xp:40}},
+    /* v2.3.122 (PDF Uspr v2.3.121, BŁĘDY #1): nagroda dopiero po REALNYM, domkniętym spotkaniu z dealerem. */
+    {id:'und_dealer', em:'🤝', name:'Wejście w biznes', desc:'Nawiąż współpracę z dealerem w Underground — odblokuj ścieżkę trap.', check:()=>(typeof window._trapDealerMetReal==='function')?window._trapDealerMetReal():(!!(G.trap?.unlocked)&&!!G._trapDealerMet), reward:{money:800,xp:40}},
     {id:'und_cook', em:'👨‍🍳', name:'Pierwszy wyrób', desc:'Wyprodukuj pierwszy towar — w kamperze albo w laboratorium na mapie Underground.', check:()=>(G.trap?.cooked||0)>=1, reward:{money:1500,xp:50}},
     {id:'und_sold', em:'💵', name:'Pierwsza sprzedaż', desc:'Sprzedaj pierwszy produkt na ulicy — biznes rusza z miejsca.', check:()=>(G.trap?.sold||0)>=1, reward:{money:2000,fame:3,xp:60,skillPts:1}},
     {id:'und_plantation', em:'🪴', name:'Plantacja', desc:'Rozbuduj uprawę o kolejne doniczki — większa skala produkcji z rośliny.', check:()=>(G.grow?.potsOwned||1)>1, reward:{money:3000,xp:70,skillPts:1}},
@@ -84519,6 +84572,15 @@ function loadGame(){
      okno przed flushem, stary wpis utrwalał się i po wczytaniu (np. po prestige = level 2 + trap zablokowany) pokazywał
      osiągnięcie, którego gracz NIE zdobył teraz. To transient UI-state — czyścimy przy każdym wczytaniu. */
   G._pendingAchToasts=[];
+  /* v2.3.122 (PDF Uspr v2.3.121, BŁĘDY #1) — migracja zgodności zapisów (reguła #1):
+     w starych zapisach jedynym źródłem G.trap.unlocked było realne spotkanie z dealerem w Underground,
+     więc domykamy je wstecznie. Bez tego gracz z odblokowanym trapem straciłby zdobyte osiągnięcie.
+     Naprawiamy też listę dzielnic — odblokowany trap dowodzi, że gracz był w Underground District. */
+  if(G.trap && G.trap.unlocked && !G._trapDealerMet && !G._trapDealerPending){
+    G._trapDealerMet=true;
+    if(!Array.isArray(G._unlockedDistricts)) G._unlockedDistricts=[];
+    if(!G._unlockedDistricts.includes('underground')) G._unlockedDistricts.push('underground');
+  }
   try{ if(typeof _achFlushTimer!=='undefined' && _achFlushTimer){ clearTimeout(_achFlushTimer); _achFlushTimer=null; } }catch(_){}
   /* v2.3.33 BUGFIX (Vegan: „FrameUp nie dziala"): ROOT sanitacja igPosts po wczytaniu
      save — uszkodzone/stare zapisy mialy null/string/undefined w igPosts -> render IG,
