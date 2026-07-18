@@ -3501,15 +3501,15 @@ const ROOMS = {
       {id:'zone_old_parking',       wx:1000,wy:1700,w:110,h:110, act:'ug_zone:old_parking',    prompt:'[E] 🅿️ Strefa: Stary Postój',  lbl:'Stary Postój'},
       {id:'zone_silent_channel',    wx:150, wy:1700,w:110,h:110, act:'ug_zone:silent_channel', prompt:'[E] 🌀 Strefa: Cichy Kanał',    lbl:'Cichy Kanał'},
       {id:'zone_rear_yard',         wx:1285,wy:1300,w:110,h:110, act:'ug_zone:rear_yard',       prompt:'[E] 🏭 Strefa: Tylny Plac',     lbl:'Tylny Plac'},
-      {id:'lab_underground',        wx:380, wy:950, w:170,h:150, act:'underground_lab',       prompt:'[E] 🏢 Powierzchnie produkcyjno-biurowe', lbl:'Powierzchnie'}, /* v2.3.115 (PDF Uspr): przemianowane z „Laboratorium (lvl 10+)", większy obiekt. Wnętrze = hala produkcyjna (ROOMS.lab), id/act bez zmian = save-safe. */
-      {id:'underground_office_info', wx:585, wy:1000, w:44, h:66, act:'underground_office_info', actRadius:72, prompt:'[E] ℹ️ Słupek informacyjny', lbl:''}, /* v2.3.115 (PDF Uspr): słupek info przy Powierzchniach — kieruje do Kariera→Trap→Załóż legalny front (bez wyjawiania nielegalności) */
+      {id:'lab_underground',        wx:240, wy:930, w:340,h:300, act:'underground_lab',       prompt:'[E] 🏢 Powierzchnie produkcyjno-biurowe', lbl:'Powierzchnie'}, /* v2.3.115 (PDF Uspr): przemianowane z „Laboratorium (lvl 10+)", większy obiekt. Wnętrze = hala produkcyjna (ROOMS.lab), id/act bez zmian = save-safe. */
+      {id:'underground_office_info', wx:630, wy:1050, w:44, h:66, act:'underground_office_info', actRadius:72, prompt:'[E] ℹ️ Słupek informacyjny', lbl:''}, /* v2.3.115 (PDF Uspr): słupek info przy Powierzchniach — kieruje do Kariera→Trap→Załóż legalny front (bez wyjawiania nielegalności) */
       {id:'plantation_underground', wx:60,  wy:1470,w:120,h:120, act:'underground_plantation',prompt:'[E] 🌿 Plantacja (lvl 5+)',   lbl:'Plantacja'},/* v2.3.105 (user): → lewa dolna (droga szutrowa ma biec w x630) */
       /* v2.1.920 (PDF l.57 — nocna aktywność 18+): Nocny zaułek (prostytutki) — dyskretne miejsce w underground, gated za unlock dzielnicy + godziny 21-05 (PLACE_HOURS). Bottom-right, overlap-free vs venue. */
       {id:'prostytutki_underground',wx:1240,wy:810, w:140,h:130, act:'underground_prostytutki',prompt:'[E] 💋 Nocny zaułek (noc)',  lbl:'Zaułek'},/* v2.3.87 G1 (user „zaułek nic nie robi"): był wy:720 — zaciśnięty między plantacją(580) i dealerem(1080), getNear łapał sąsiada. Przesunięty w dół do 810 (gap 110px od plantacji, gracz wchodzi w lukę i łapie zaułek). x1240-1380,y810-940 wolne (map 960). */
       /* v2.3.116 (user): Eclipse Noir PRZENIESIONY do Business District (był tu @130,940). Patrz ROOMS.business. */
       /* v2.3.102 (PDF #8-24 „docelowo"): DOLNA CZĘŚĆ (nowa, y1100+) — baraki/slumsy + zajazd kempingowy. Osobne interakcje + NPC. */
-      {id:'baraki_underground',     wx:200, wy:1200, w:170,h:150, act:'underground_baraki',    prompt:'[E] 🏚 Baraki',                lbl:'Baraki'},
-      {id:'slumsy_underground',     wx:470, wy:1220, w:190,h:140, act:'underground_slumsy',    prompt:'[E] 🛖 Slumsy',                lbl:'Slumsy'},
+      {id:'baraki_underground',     wx:150, wy:1290, w:170,h:150, act:'underground_baraki',    prompt:'[E] 🏚 Baraki',                lbl:'Baraki'},
+      {id:'slumsy_underground',     wx:470, wy:1300, w:190,h:140, act:'underground_slumsy',    prompt:'[E] 🛖 Slumsy',                lbl:'Slumsy'},
       {id:'zajazd_underground',     wx:900, wy:1400, w:260,h:170, act:'underground_zajazd',    prompt:'[E] 🏕 Zajazd kempingowy',     lbl:'Zajazd'},
     ]
   },
@@ -4146,7 +4146,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'zone_old_parking':        drawBackroomZoneMarker(sx,sy,w,h,'old_parking');break; /* v2.3.108 PDF#10 */
     case 'zone_silent_channel':     drawBackroomZoneMarker(sx,sy,w,h,'silent_channel');break;
     case 'zone_rear_yard':          drawBackroomZoneMarker(sx,sy,w,h,'rear_yard');break;
-    case 'lab_underground':         drawLab(sx,sy,w,h);break;
+    case 'lab_underground':         drawUgOffice(sx,sy,w,h);break;/* v2.3.122 (PDF Uspr v2.3.121): z zewnątrz biurowiec z parkingiem i halą, nie laboratorium */
     case 'underground_office_info':  drawInfoPillar(sx,sy,w,h);break;/* v2.3.115 (PDF Uspr): słupek informacyjny */
     case 'plantation_underground':  drawPlantation(sx,sy,w,h);break;
     case 'gravellot_underground':   drawGravelLotHall(sx,sy,w,h);break; /* v2.3.102 (PDF #8-24): hala serwisowa/warsztatowa zamiast zwykłej fasady */
@@ -10609,6 +10609,83 @@ function drawLab(sx,sy,w,h){
   X.shadowBlur=0;X.textAlign='left';
 }
 
+/* v2.3.122 (PDF Uspr v2.3.121): „Powierzchnie produkcyjno-biurowe" z zewnątrz to NIE laboratorium,
+   tylko wyremontowany biurowiec pod legalną działalność — z parkingiem od frontu i sporą halą z tyłu
+   na terenie obiektu. Obiekt jest 2× większy (340×300), więc rysunek dzieli się na trzy strefy:
+   hala (góra/tył), biurowiec (środek), parking (dół/front). Wnętrze bez zmian (ROOMS.lab). */
+function drawUgOffice(sx,sy,w,h){
+  const isNight=(typeof G!=='undefined' && G.timeOfDay>=2);
+  const t=Date.now();
+  /* cień całego terenu */
+  X.fillStyle='rgba(0,0,0,.45)';X.fillRect(sx+6,sy+10,w,h);
+  /* ── teren/asfalt ── */
+  X.fillStyle='#2e3138';X.fillRect(sx,sy,w,h);
+  X.strokeStyle='#4a4f58';X.lineWidth=2;X.strokeRect(sx+1,sy+1,w-2,h-2);
+
+  /* ── HALA z tyłu (górny pas) — blacha trapezowa + świetliki + brama ── */
+  const hallH=h*0.30, hallW=w*0.92, hallX=sx+w*0.04, hallY=sy+h*0.02;
+  X.fillStyle='#8d939c';X.fillRect(hallX,hallY,hallW,hallH);
+  X.fillStyle='#767c85';                       /* dach hali */
+  X.beginPath();X.moveTo(hallX,hallY);X.lineTo(hallX+hallW*0.5,hallY-h*0.05);X.lineTo(hallX+hallW,hallY);X.closePath();X.fill();
+  X.strokeStyle='#5f656e';X.lineWidth=1;       /* pionowe przetłoczenia blachy */
+  for(let i=1;i<14;i++){ const bx=hallX+hallW*(i/14); X.beginPath();X.moveTo(bx,hallY);X.lineTo(bx,hallY+hallH);X.stroke(); }
+  X.fillStyle=isNight?'rgba(255,225,150,.55)':'rgba(190,215,235,.75)';  /* świetliki */
+  for(let i=0;i<4;i++) X.fillRect(hallX+hallW*(0.10+i*0.22),hallY+hallH*0.18,hallW*0.12,hallH*0.16);
+  X.fillStyle='#3c4149';X.fillRect(hallX+hallW*0.40,hallY+hallH*0.45,hallW*0.24,hallH*0.55); /* brama wjazdowa */
+  X.strokeStyle='#20242a';X.lineWidth=1;
+  for(let i=1;i<5;i++){ const gy=hallY+hallH*0.45+(hallH*0.55)*(i/5); X.beginPath();X.moveTo(hallX+hallW*0.40,gy);X.lineTo(hallX+hallW*0.64,gy);X.stroke(); }
+
+  /* ── BIUROWIEC (środek) — odnowiona elewacja + przeszklenia ── */
+  const bX=sx+w*0.10, bY=sy+h*0.34, bW=w*0.62, bH=h*0.36;
+  X.fillStyle='#e8e4dc';X.fillRect(bX,bY,bW,bH);                 /* jasny tynk po remoncie */
+  X.fillStyle='#cfc9be';X.fillRect(bX,bY,bW,bH*0.10);            /* gzyms */
+  X.fillStyle='#3a4048';X.fillRect(bX-2,bY-h*0.02,bW+4,h*0.025); /* attyka */
+  const rows=3, cols=6;                                           /* okna biurowe */
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      const wx2=bX+bW*(0.06+c*0.152), wy2=bY+bH*(0.20+r*0.24);
+      const lit=isNight && ((r*7+c*3+Math.floor(t/2600))%4!==0);
+      X.fillStyle=isNight?(lit?'rgba(255,220,140,.92)':'#20262e'):'#9fc4de';
+      X.fillRect(wx2,wy2,bW*0.11,bH*0.16);
+      X.strokeStyle='#b9b3a8';X.lineWidth=1;X.strokeRect(wx2,wy2,bW*0.11,bH*0.16);
+    }
+  }
+  /* wejście: zadaszenie + przeszklone drzwi */
+  const dX=bX+bW*0.40, dY=bY+bH*0.72;
+  X.fillStyle='#2f353d';X.fillRect(dX-bW*0.05,dY-bH*0.06,bW*0.30,bH*0.06);
+  X.fillStyle=isNight?'rgba(150,205,235,.55)':'#7fb3d5';X.fillRect(dX,dY,bW*0.20,bH*0.28);
+  X.strokeStyle='#5a6068';X.lineWidth=2;X.strokeRect(dX,dY,bW*0.20,bH*0.28);
+  X.beginPath();X.moveTo(dX+bW*0.10,dY);X.lineTo(dX+bW*0.10,dY+bH*0.28);X.stroke();
+  /* szyld na elewacji */
+  X.fillStyle='#1c222a';X.fillRect(bX+bW*0.16,bY+bH*0.02,bW*0.68,bH*0.14);
+  X.font='bold 11px Arial';X.textAlign='center';
+  if(isNight){X.shadowColor='rgba(126,200,227,.85)';X.shadowBlur=7;}
+  X.fillStyle='#7ec8e3';X.fillText('POWIERZCHNIE BIUROWE',bX+bW*0.50,bY+bH*0.12);
+  X.shadowBlur=0;X.textAlign='left';
+
+  /* ── PARKING od frontu (dolny pas) — miejsca + auta + latarnia ── */
+  const pY=sy+h*0.74, pH=h*0.24;
+  X.fillStyle='#33373e';X.fillRect(sx+w*0.04,pY,w*0.92,pH);
+  X.strokeStyle='#d8d2c4';X.lineWidth=2;                          /* linie miejsc postojowych */
+  for(let i=0;i<=6;i++){ const lx=sx+w*(0.08+i*0.135); X.beginPath();X.moveTo(lx,pY+pH*0.15);X.lineTo(lx,pY+pH*0.92);X.stroke(); }
+  X.beginPath();X.moveTo(sx+w*0.08,pY+pH*0.15);X.lineTo(sx+w*0.89,pY+pH*0.15);X.stroke();
+  const cars=[['#7ec8e3',0.10],['#c85a5a',0.375],['#d8d2c4',0.645]];  /* zaparkowane auta */
+  cars.forEach(([col,fx])=>{
+    const cx=sx+w*fx, cy=pY+pH*0.30, cw=w*0.10, ch=pH*0.52;
+    X.fillStyle='rgba(0,0,0,.35)';X.fillRect(cx+2,cy+3,cw,ch);
+    X.fillStyle=col;X.fillRect(cx,cy,cw,ch);
+    X.fillStyle='rgba(20,28,38,.75)';X.fillRect(cx+cw*0.14,cy+ch*0.12,cw*0.72,ch*0.30);
+    X.fillStyle='#20242a';X.fillRect(cx+cw*0.05,cy+ch*0.78,cw*0.9,ch*0.14);
+  });
+  /* latarnia parkingowa */
+  X.fillStyle='#4a4f58';X.fillRect(sx+w*0.93,pY-h*0.10,4,pH+h*0.10);
+  X.fillStyle=isNight?'rgba(255,235,170,.95)':'#9aa2ac';
+  X.beginPath();X.arc(sx+w*0.938,pY-h*0.10,6,0,Math.PI*2);X.fill();
+  if(isNight){ X.fillStyle='rgba(255,225,150,.13)';X.beginPath();X.moveTo(sx+w*0.938,pY-h*0.09);X.lineTo(sx+w*0.85,pY+pH);X.lineTo(sx+w*1.0,pY+pH);X.closePath();X.fill(); }
+  /* wjazd na teren (przerwa w krawężniku od strony drogi szutrowej) */
+  X.fillStyle='#4a4f58';X.fillRect(sx+w*0.86,pY+pH*0.15,w*0.10,pH*0.80);
+}
+
 function drawPlantation(sx,sy,w,h){
   /* Plantacja — szklarnia z roślinami w środku */
   const isDay=(typeof G!=='undefined' && G.timeOfDay<2);
@@ -10810,7 +10887,10 @@ function _drawUndergroundOutskirts(){
   /* szutrowa ścieżka: od dzielnicy (worldX ~630, worldY 900) w dół, rozgałęzia do baraki/slumsy (lewo) i zajazdu (prawo) */
   const path=(x1,y1,x2,y2,pw)=>{ const a=wx2sx(x1),b=wy2sy(y1),c=wx2sx(x2),d=wy2sy(y2); X.strokeStyle='#4a4436'; X.lineWidth=pw; X.lineCap='round'; X.beginPath(); X.moveTo(a,b); X.lineTo(c,d); X.stroke(); X.strokeStyle='rgba(120,110,88,.25)'; X.lineWidth=pw*0.5; X.beginPath(); X.moveTo(a,b); X.lineTo(c,d); X.stroke(); };
   /* v2.3.105 (user: droga szutrowa większa + ŁĄCZY się z ulicą): główna droga wyrównana z pionową jezdnią (x720), szersza (64), od granicy jezdni (y880) w dół; odnogi do baraków/slumsów, plantacji (lewa dolna), zajazdu, kampera. */
-  path(720,880,720,1300,64); path(720,1240,240,1260,46); path(400,1250,90,1490,40); path(720,1300,1000,1440,50); path(1000,1480,1000,1660,42);
+  /* v2.3.122 (PDF Uspr v2.3.121): odnoga do plantacji przetrasowana — po powiększeniu biurowca baraki
+     stoją niżej (150,1290) i stara linia (400,1250)->(90,1490) przechodziłaby pod budynkiem.
+     Teraz droga schodzi korytarzem między barakami a Starym Kwartałem (x~410) i dopiero potem skręca. */
+  path(720,880,720,1300,64); path(720,1240,240,1260,46); path(410,1255,410,1455,40); path(410,1455,90,1500,40); path(720,1300,1000,1440,50); path(1000,1480,1000,1660,42);
   /* płot z siatki wzdłuż prawej krawędzi rubieży */
   const fx=wx2sx(1400); if(fx>-20&&fx<1310){ X.strokeStyle='rgba(90,90,90,.5)'; X.lineWidth=1; for(let wy=940;wy<1900;wy+=140){ const sy=wy2sy(wy),sy2=wy2sy(wy+120); if(sy>750||sy2<-20)continue; X.beginPath(); X.moveTo(fx,sy); X.lineTo(fx,sy2); X.stroke(); for(let k=0;k<8;k++){ const yy=sy+(sy2-sy)*k/8; X.beginPath(); X.moveTo(fx-6,yy); X.lineTo(fx+6,yy+8); X.stroke(); } } }
   /* złom/dekoracje (deterministyczne pozycje) */
@@ -69952,6 +70032,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'🌿 Przy nawiązywaniu współpracy z dealerem na niektórych zapisach gubił się starterowy zapas surowca. Teraz zawsze dostajesz obiecane pięć sztuk, niezależnie od stanu zapisu.'},
   {t:'fix',d:'🗺️ „Pokaż na mapie" przy kamperze wreszcie robi to, co obiecuje. Wcześniej mapa tylko się przybliżała, a znacznik potrafił zostać poza kadrem — zwłaszcza gdy kamper stał przy krawędzi mapy. Teraz widok najeżdża i za każdym razem ustawia znacznik dokładnie na środku ekranu.'},
   {t:'fix',d:'🛡️ W panelach ubezpieczenia samochodu i kampera doszedł przycisk „Wróć" obok „Zamknij". Nie musisz już zamykać całego okna i przechodzić całej drogi od nowa — cofniesz się o jeden krok do stanu pojazdów albo warsztatu.'},
+  {t:'feature',d:'🏢 Budynek „Powierzchnie produkcyjno-biurowe" w Underground District jest teraz dwa razy większy i wygląda jak to, czym ma być: wyremontowany biurowiec z przeszkloną elewacją i szyldem, z parkingiem od frontu i sporą halą z tyłu. Wcześniej z zewnątrz wciąż przypominał dawne laboratorium. Wieczorem świecą się okna i latarnia nad parkingiem, a sąsiednie obiekty i słupek informacyjny zostały rozstawione tak, żeby nic na siebie nie nachodziło.'},
   {t:'fix',d:'📖 Dziennik aktywności nie wskakuje już na ekran w trakcie freestyle’u i transmisji na żywo. W tych aktywnościach klawiatura należy do rozgrywki, a litera „O" bywa częścią hasła — dziennik otworzysz normalnie po zakończeniu sesji.'},
   {t:'fix',d:'📵 Rozmowa z zastrzeżonym numerem zachowuje się wreszcie jak prawdziwa wymiana wiadomości. Gdy o coś dopytasz, nie możesz od razu wysłać kolejnej odpowiedzi — czekasz na reakcję drugiej strony. Po dwóch minutach przychodzi odpowiedź, a wtedy wracają pozostałe możliwości, bez tej, której już użyłeś.'},
   {t:'fix',d:'ℹ️ Wiadomości od TrapInfo mają teraz tylko przycisk „OK", tak jak powiadomienia z banku. To komunikaty systemowe, więc nie da się już do nich odpisywać „Dzięki" ani „Zadzwoń" i nie budują one żadnej znajomości.'},
