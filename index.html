@@ -68499,6 +68499,20 @@ window.doPrestige=()=>{
   G._trapDealerMet=false; /* musi ponownie odkryć dealer */
   G._trapPoliceWarningDay=0;
   G._trapDoubleSaleDay=0;
+  /* v2.3.122 (PDF „Slumsy Underground"): Stary Kwartał resetuje się przy Prestiżu tak samo jak trap —
+     inaczej dałoby się przenosić przez kolejne prestiże gotową ekipę i jej tygodniowy dochód, mimo że
+     reszta nielegalnej ścieżki startuje od zera. Zaufanie sąsiadów budujesz na nowo, jak wszystko inne. */
+  if(G.staryKwartal && typeof G.staryKwartal==='object'){
+    G.staryKwartal.crew=null;
+    G.staryKwartal.crewSeeds=[];
+    ['visits','streetDeals','failedApproaches','localTrust','localRespect','localFear','competitorHeat',
+     'policePressure','partyConnections','campingInnLinks','riskyContactsUnlocked','legalCommunityTrust',
+     'crewFormationProgress','stage','performances','parties','miraQuest','burstQuest','szkloQuest',
+     'zajazdQuest','competitorTax','selfProtection','riskReading','_debts'].forEach(k=>{ G.staryKwartal[k]=0; });
+    G.staryKwartal.met={burst:false,lenny:false,szklo:false,mira:false};
+    if(G.staryKwartal.stock) Object.keys(G.staryKwartal.stock).forEach(k=>{ G.staryKwartal.stock[k]=0; });
+    G.staryKwartal.opLog=[];
+  }
   addNotif('🤝 Trap career + inventory zresetowane przy Prestige.');
   /* v2.1.452 Round 2 #18 EXPLOIT fix: counters tied to careers/districts NIE były resetowane przy Prestige.
      Bez tego gracz Prestige 5× = lifetime stats trywialnie unlocked dla każdego playthrough (5+ forbes wins, 25+ coast vibe, 100 UR).
@@ -72501,6 +72515,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'🌿 Przy nawiązywaniu współpracy z dealerem na niektórych zapisach gubił się starterowy zapas surowca. Teraz zawsze dostajesz obiecane pięć sztuk, niezależnie od stanu zapisu.'},
   {t:'fix',d:'🗺️ „Pokaż na mapie" przy kamperze wreszcie robi to, co obiecuje. Wcześniej mapa tylko się przybliżała, a znacznik potrafił zostać poza kadrem — zwłaszcza gdy kamper stał przy krawędzi mapy. Teraz widok najeżdża i za każdym razem ustawia znacznik dokładnie na środku ekranu.'},
   {t:'fix',d:'🛡️ W panelach ubezpieczenia samochodu i kampera doszedł przycisk „Wróć" obok „Zamknij". Nie musisz już zamykać całego okna i przechodzić całej drogi od nowa — cofniesz się o jeden krok do stanu pojazdów albo warsztatu.'},
+  {t:'fix',d:'🏚️ Postęp na Starym Kwartale — zaufanie sąsiadów, szacunek, zapasy i cała ekipa — resetuje się przy Prestiżu, tak samo jak reszta nielegalnej ścieżki. Bez tego dałoby się przenosić gotową ekipę i jej cotygodniowy dochód przez kolejne przejścia gry.'},
   {t:'fix',d:'⚓ Poprawiliśmy dojście do portu po powiększeniu Mariny. Między pomostem a plażą zostawał wąski pas wody, przez który nie dało się przejść — port był nieosiągalny na piechotę. Teraz keja styka się z brzegiem, kapitan stoi na pomoście, a zacumowane łodzie przylegają do nabrzeża.'},
   {t:'fix',d:'🚶 Przechodnie na Marina Coast spacerowali po otwartym morzu, bo po powiększeniu mapy ich ścieżki zostały pod wodą. Teraz chodzą po piasku, tak jak powinni.'},
   {t:'fix',d:'💬 Podpowiedź „[E]" nie zostaje już z poprzedniej lokacji. Zdarzało się, że po przejściu w inne miejsce na ekranie wisiał opis obiektu, którego nie było w pobliżu.'},
