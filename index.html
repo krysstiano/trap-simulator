@@ -1954,6 +1954,11 @@ document.addEventListener('keydown', e => {
   }
   /* v2.3.108 PDF#9 §8-9: [G] światła pojazdu — 3-cykl (dzienne→długie→wyłączone), niezależne od silnika. Siedząc w pojeździe. */
   if((e.key==='g'||e.key==='G') && !_busyMG){
+    /* v2.3.122 (PDF Uspr v2.3.121): [G] na wodzie = ZAKOTWICZENIE jednostki i wejście na pokład
+       (tylko jednostki z pokładem, na które można wejść). Poza wodą [G] dalej przełącza światła pojazdu. */
+    if(typeof window._marinaIsPiloting==='function' && window._marinaIsPiloting()){
+      if(typeof window._marinaAnchorBoard==='function'){ window._marinaAnchorBoard(); return; }
+    }
     const _gk = G._inCar?'car':(G._inCamper?'camper':null);
     if(_gk){
       if(typeof window._vehStateEnsure==='function') window._vehStateEnsure();
@@ -3422,20 +3427,21 @@ const ROOMS = {
      Gracz wchodzi przez gate_coast w ulica → changeRoom('coast') → spawn po południowej krawędzi (gracz przyszedł z N gate_coast = N edge map ulica → spawn S Coast).
      5 places + exit_back na S edge powrót do ulica gate_coast pozycji. */
   coast: {
-    wT:30, hT:20, map:null,
+    /* v2.3.122 (PDF Uspr v2.3.121): mapa >=3x wieksza (30x20 -> 66x46 kafli = 3168x2208 px). */
+    wT:66, hT:46, map:null,
     objects:[
       /* Exit back to ulica — południowa krawędź (gracz "wraca na ląd") */
-      {id:'exit_coast', wx:660, wy:880, w:120, h:60, act:'goto:ulica:3552:3360', prompt:'[E] ⬆ Wróć do miasta', lbl:'Wyjście'},
+      {id:'exit_coast', wx:1500, wy:2120, w:120, h:60, act:'goto:ulica:3552:3360', prompt:'[E] ⬆ Wróć do miasta', lbl:'Wyjście'},
       /* N6 (v2.3.25): mały parking dzielnicy (zweryfikowany bezkolizyjnie). */
-      {id:'parking', wx:350, wy:430, w:160, h:96, act:'parking:info', prompt:'[E] 🅿️ Parking', lbl:'Parking'},
+      {id:'parking', wx:700, wy:1330, w:160, h:96, act:'parking:info', prompt:'[E] 🅿️ Parking', lbl:'Parking'},
       /* 5 places Coast (basic stubs, content reuse _enterDistrictPlace v2.1.376) */
-      {id:'plaza_coast',      wx:180, wy:400, w:140,h:130, act:'coast_plaza',      prompt:'[E] 🏖 Plaża + Bar',  lbl:'Plaża'},
-      {id:'marina_coast',     wx:480, wy:160, w:140,h:130, act:'coast_marina',     prompt:'[E] ⛵ Marina',        lbl:'Marina'},
-      {id:'spa_coast',        wx:780, wy:400, w:140,h:130, act:'coast_spa',        prompt:'[E] 💆 SPA',           lbl:'SPA'},
-      {id:'photoshoot_coast', wx:1080,wy:400, w:140,h:130, act:'coast_photoshoot', prompt:'[E] 📸 Photoshoot',    lbl:'Photo'},
-      {id:'surf_coast',       wx:480, wy:600, w:140,h:130, act:'coast_surf',       prompt:'[E] 🏄 Surf Shop',     lbl:'Surf'},
+      {id:'plaza_coast',      wx:300, wy:1320, w:140,h:130, act:'coast_plaza',      prompt:'[E] 🏖 Plaża + Bar',  lbl:'Plaża'},
+      {id:'marina_coast',     wx:1180, wy:1090, w:140,h:130, act:'coast_marina',     prompt:'[E] ⛵ Marina',        lbl:'Marina'},
+      {id:'spa_coast',        wx:1700, wy:1320, w:140,h:130, act:'coast_spa',        prompt:'[E] 💆 SPA',           lbl:'SPA'},
+      {id:'photoshoot_coast', wx:2200,wy:1320, w:140,h:130, act:'coast_photoshoot', prompt:'[E] 📸 Photoshoot',    lbl:'Photo'},
+      {id:'surf_coast',       wx:1000, wy:1620, w:140,h:130, act:'coast_surf',       prompt:'[E] 🏄 Surf Shop',     lbl:'Surf'},
       /* PDF „Marina Coast" §3: oznaczone wejście do wody (tryb pływania). Cienki obiekt (h<60) = wykrywany przez getNear (actRadius), nie blokuje ruchu (brak solid). */
-      {id:'swim_entry', wx:150, wy:246, w:200, h:34, act:'coast_swimentry', prompt:'[E] 🏊 Wejdź do wody', lbl:'Kąpielisko', actRadius:120},
+      {id:'swim_entry', wx:360, wy:1062, w:260, h:34, act:'coast_swimentry', prompt:'[E] 🏊 Wejdź do wody', lbl:'Kąpielisko', actRadius:120},
     ]
   },
 
@@ -3905,10 +3911,11 @@ function buildMaps(){
       rc.map.push([]);
       for(let c=0;c<rc.wT;c++){
         let t;
-        if(r<=4) t='water'; /* ocean N */
-        else if(r===5) t='sand'; /* shoreline */
-        else if(r>=15&&c>=8&&c<=21) t='park'; /* palm grove S */
-        else t='sand'; /* beach */
+        /* v2.3.122 (PDF Uspr v2.3.121): horyzont wody 5 -> 22 rzedy (y 0..1055), linia brzegu r=22. */
+        if(r<=21) t='water';                      /* ocean N — rzedy 0..21 = y 0..1055 */
+        else if(r===22) t='sand';                 /* linia brzegu */
+        else if(r>=34&&c>=14&&c<=46) t='park';    /* palmowy gaj na poludniu */
+        else t='sand';
         rc.map[r].push(t);
       }
     }
@@ -5326,7 +5333,7 @@ function drawRoomDecorations(){
   else if(currentRoom==='merch_studio') drawMerchStudioDecorations();
   /* v2.1.465 Etap 2 visual polish — dekoracje 3 dzielnic. */
   else if(currentRoom==='underground') drawUndergroundDecorations();
-  else if(currentRoom==='coast'){ drawCoastDecorations(); if(typeof drawMarinaHarbor==='function') drawMarinaHarbor(); if(typeof window._drawMarinaPortLife==='function') window._drawMarinaPortLife(); }
+  else if(currentRoom==='coast'){ if(typeof drawCoastWater==='function') drawCoastWater(); drawCoastDecorations(); if(typeof drawMarinaHarbor==='function') drawMarinaHarbor(); if(typeof window._drawMarinaPortLife==='function') window._drawMarinaPortLife(); }
   else if(currentRoom==='business') drawBusinessDecorations();
   else if(currentRoom==='casino_lux') drawCasinoLuxDecorations(); /* v2.1.577: 3. piętro Diamond Lounge — żyrandole/złote akcenty */
   else if(currentRoom==='casino_royal') drawCasinoRoyalDecorations(); /* v2.1.589: 4. piętro Royal Penthouse — panorama miasta/platyna */
@@ -14995,7 +15002,7 @@ function handleAct(act,objId){
           else if(typeof startRoomFade==='function') startRoomFade('underground', 1200, 480);
         } else if(districtId==='coast' && ROOMS.coast){
           /* v2.1.463 fix UX: spawn 720,800 (NIE 900) — wcześniej player spawnował dokładnie w exit_coast (wx 660-780, wy 880-940), widząc od razu "[E] Wróć do miasta" confusingly. Teraz 100 px na N od exit. */
-          if(typeof changeRoom==='function') changeRoom('coast', 720, 800);
+          if(typeof changeRoom==='function') changeRoom('coast', 1500, 1900);
           else if(typeof startRoomFade==='function') startRoomFade('coast', 720, 800);
         } else if(districtId==='business' && ROOMS.business){
           if(typeof changeRoom==='function') changeRoom('business', 720, 60);
@@ -19378,7 +19385,8 @@ const RANDOM_EVENTS = [
     if(typeof window._theftOpportunity==='function') window._theftOpportunity();
   }},
   /* v2.3.113 (PDF new/3 §... świadek): gracz świadkiem kradzieży NPC↔NPC — nocny/dzielnicowy event, 6 opcji reakcji. */
-  {name:'Świadek kradzieży', chance:0.013, maxPerDay:2, cond:()=>(currentRoom==='ulica'||currentRoom==='underground'||currentRoom==='coast'||currentRoom==='business'), fn:()=>{
+  /* v2.3.122 (PDF Uspr v2.3.121): bez coast — patrz wyzej. */
+  {name:'Świadek kradzieży', chance:0.013, maxPerDay:2, cond:()=>(currentRoom==='ulica'||currentRoom==='underground'||currentRoom==='business'), fn:()=>{
     if(typeof window._theftWitnessEvent==='function') window._theftWitnessEvent();
   }},
   {name:'Pochwała od fana',chance:0.014,cond:()=>currentRoom==='ulica'&&(G.fans||0)>=200&&G.fame>=10,fn:()=>{
@@ -45716,14 +45724,19 @@ const MARINA_EVENT_ADDONS=[
   {id:'no_phone_policy',    name:'No-Phone Event Policy',emoji:'📵',cost:3000, fx:{leak:-15,party:-5},         desc:'-15 ryzyko przecieku, -5 jakość imprezy'},
 ];
 
-/* ── §2 STREFY WODNE (mapa coast 1440×960; woda = rzędy 0-4, wy 0..240) ── */
-/* Typy: shallow / swim / deep / restricted. Restricted = teren portowy przy budynku Mariny (kolumny ~9-13). */
-const MARINA_PORT_RECT={x:432, y:0, w:240, h:240};
+/* ── §2 STREFY WODNE (v2.3.122: mapa coast 3168×2208; woda = rzędy 0-21, wy 0..1056) ── */
+/* Typy: shallow / swim / deep / restricted. Restricted = akwen portowy (manewrowanie jednostek).
+   Progi trzymane jako NAZWANE stałe — cała reszta modułu liczy z nich, żeby kolejna zmiana rozmiaru
+   mapy nie wymagała szukania liczb po całym pliku. */
+const MARINA_SHORE_Y=1056;                       /* linia brzegu: powyżej woda, poniżej piasek */
+const MARINA_DEEP_Y=Math.round(MARINA_SHORE_Y*0.40);   /* 422 — otwarte morze */
+const MARINA_SWIM_Y=Math.round(MARINA_SHORE_Y*0.80);   /* 845 — strefa pływania */
+const MARINA_PORT_RECT={x:1120, y:700, w:1960, h:356};
 function _marinaWaterZoneAt(footX, footY){
-  if(footY>=240) return null;              /* piasek/ląd — nie woda */
-  if(footX>=MARINA_PORT_RECT.x && footX<MARINA_PORT_RECT.x+MARINA_PORT_RECT.w && footY<MARINA_PORT_RECT.y+MARINA_PORT_RECT.h) return 'restricted';
-  if(footY<96) return 'deep';
-  if(footY<192) return 'swim';
+  if(footY>=MARINA_SHORE_Y) return null;    /* piasek/ląd — nie woda */
+  if(footX>=MARINA_PORT_RECT.x && footX<MARINA_PORT_RECT.x+MARINA_PORT_RECT.w && footY>=MARINA_PORT_RECT.y && footY<MARINA_PORT_RECT.y+MARINA_PORT_RECT.h) return 'restricted';
+  if(footY<MARINA_DEEP_Y) return 'deep';
+  if(footY<MARINA_SWIM_Y) return 'swim';
   return 'shallow';
 }
 
@@ -45758,6 +45771,11 @@ function _marinaEnsure(){
   if(typeof m.eventSettings.noPhonePolicy!=='boolean') m.eventSettings.noPhonePolicy=false;
   if(!m.stats || typeof m.stats!=='object') m.stats={};
   ['rentals','vlogs','clips','parties','safeCruises','swims'].forEach(k=>{ if(typeof m.stats[k]!=='number') m.stats[k]=0; });
+  /* v2.3.122 (PDF Uspr v2.3.121): stan zakotwiczenia ([G] na wodzie). Zapis-bezpieczne: brak pola w starym
+     zapisie = null. Rekord uszkodzony/wskazujący na nieistniejącą jednostkę czyszczony przy wczytaniu. */
+  if(m._anchored!==null && typeof m._anchored!=='object') m._anchored=null;
+  if(m._anchored && (typeof m._anchored.craftId!=='string' || typeof m._anchored.wx!=='number' || typeof m._anchored.wy!=='number')) m._anchored=null;
+  if(typeof m._anchored==='undefined') m._anchored=null;
   /* migracja/normalizacja instancji jednostek */
   m.owned=m.owned.filter(w=>w && typeof w==='object' && w.modelId).map(w=>{
     const mdl=_marinaModelById(w.modelId)||{};
@@ -45847,6 +45865,8 @@ function _marinaBack(fn){ return `<button class="cbtn" style="margin-top:12px;wi
 /* ═══ §5 MARINA DOCKHOUSE — panel główny ═══ */
 window._marinaOpenDockhouse=function(){
   _marinaEnsure();
+  /* v2.3.122 (PDF Uspr v2.3.121): wchodzac do kapitanatu gracz od razu slyszy, jak wyglada morze. */
+  if(typeof window._marinaStormWarn==='function') window._marinaStormWarn('dockhouse');
   const c=_marinaActiveCraft();
   const html=`<div style="background:#08151f;border:2px solid #00b4d8;border-radius:12px;padding:20px;max-width:600px;margin:0 auto;color:#dff">
     <h2 style="color:#00d4f0;margin-top:0;text-align:center">⚓ Marina Dockhouse</h2>
@@ -45927,7 +45947,9 @@ window._marinaRenderBuyList=function(cat){
   const list=MARINA_MODELS.filter(m=>m.cat===cat);
   const rows=list.map(m=>{
     const owned=G.marina.owned.some(w=>w.modelId===m.id);
-    const berthOk=!m.requiresBerth || _marinaBestBerthTier()>=m.requiredBerthTier;
+    /* v2.3.122 (PDF Uspr v2.3.121): miejsce w porcie jest wymagane ZAWSZE — najpierw kupujesz cumowanie,
+       dopiero potem jednostkę (także kajak/skuter, które wcześniej ten warunek omijały). */
+    const berthOk=_marinaBestBerthTier()>=Math.max(1,m.requiredBerthTier||1);
     const canPay=(G.money||0)>=m.price;
     const dis=owned||!berthOk||!canPay;
     return `<div style="background:#06121c;border-radius:8px;padding:10px;margin-bottom:8px;border-left:3px solid ${owned?'#7ec87e':'#00b4d8'}">
@@ -45945,7 +45967,14 @@ window._marinaRenderBuyList=function(cat){
 window._marinaBuyWatercraft=function(modelId){
   _marinaEnsure(); const m=_marinaModelById(modelId); if(!m) return;
   if(G.marina.owned.some(w=>w.modelId===modelId)){ if(typeof showMsg==='function') showMsg('Masz już tę jednostkę.','r',3000); return; }
-  if(m.requiresBerth && _marinaBestBerthTier()<m.requiredBerthTier){ if(typeof showMsg==='function') showMsg('Nie masz miejsca w porcie dla tej jednostki. Wykup odpowiednie miejsce cumowania przed zakupem.','r',5000); return; }
+  /* v2.3.122 (PDF Uspr v2.3.121): kolejność wymuszona — bez wykupionego miejsca w porcie nie ma zakupu
+     jednostki, niezależnie od stanu konta. */
+  if(_marinaBestBerthTier()<Math.max(1,m.requiredBerthTier||1)){
+    if(typeof showMsg==='function') showMsg((_marinaBestBerthTier()<1)
+      ? 'Najpierw wykup miejsce w porcie — bez cumowania nie sprzedamy Ci jednostki. Zakładka „Miejsca w porcie" w Dockhouse.'
+      : 'To miejsce w porcie jest za małe dla tej jednostki. Wykup wyższy standard cumowania przed zakupem.','r',5200);
+    return;
+  }
   if((G.money||0)<m.price){ if(typeof showMsg==='function') showMsg('Nie masz wystarczająco gotówki.','r',3500); return; }
   G.money-=m.price;
   const inst={
@@ -46028,8 +46057,15 @@ window._marinaRenderRefuel=function(){
     ${_marinaMoney()}${rows}${_marinaBack()}</div>`);
 };
 window._marinaRefuel=function(watercraftId,pct){
-  _marinaEnsure(); const w=_marinaOwnedById(watercraftId); if(!w) return;
-  const md=_marinaModelById(w.modelId); if(!md||!md.fuelCapacity){ return; }
+  _marinaEnsure(); const w=_marinaOwnedById(watercraftId); if(!w){ if(typeof showMsg==='function') showMsg('⛽ Nie znaleziono tej jednostki w Twoim porcie.','r',3500); return; }
+  const md=_marinaModelById(w.modelId);
+  /* v2.3.122 (PDF Uspr v2.3.121): wcześniej ciche `return` — gracz klikał i NIC się nie działo.
+     Teraz każda odmowa mówi dlaczego. Dodatkowo self-heal pojemności zbiornika: na starszych zapisach
+     instancja mogła mieć fuelCapacity=0 mimo modelu z silnikiem → tankowanie liczyło 0 l („zbiornik pełny"). */
+  if(!md){ if(typeof showMsg==='function') showMsg('⛽ Nieznany model jednostki — zgłoś to w serwisie w Dockhouse.','r',4000); return; }
+  if(!md.fuelCapacity){ if(typeof showMsg==='function') showMsg('⛽ Ta jednostka nie ma silnika — nie ma czego tankować.','i',3500); return; }
+  if(!w.fuelCapacity||w.fuelCapacity<=0) w.fuelCapacity=md.fuelCapacity;
+  if(typeof w.fuelCurrent!=='number'||!isFinite(w.fuelCurrent)||w.fuelCurrent<0) w.fuelCurrent=0;
   const price=_marinaFuelPrice(false);
   const want=Math.ceil(w.fuelCapacity*(pct/100));
   const room=w.fuelCapacity-w.fuelCurrent;
@@ -46107,7 +46143,7 @@ window._marinaRenderMyCraft=function(){
       <div style="font-size:11px;color:#9ab;margin:3px 0">Stan ${_marinaCondAvg(w)}%${w.fuelCapacity?` · ⛽ ${Math.round(w.fuelCurrent)}/${w.fuelCapacity} l`:''} · Prestiż ${w.prestige} · Doposażeń: ${w.upgrades.length}</div>
       <div style="display:flex;gap:5px;flex-wrap:wrap">
         ${isActive?'':`<button class="bbtn" style="padding:5px 8px;font-size:11px" onclick="window._marinaSetActive('${w.id}')">Ustaw aktywną</button>`}
-        <button class="bbtn" style="padding:5px 8px;font-size:11px" onclick="window._marinaRenderUpgrades('${w.id}')">🛠️ Doposażenie</button>
+        ${window._marinaCanUpgrade(w)?`<button class="bbtn" style="padding:5px 8px;font-size:11px" onclick="window._marinaRenderUpgrades('${w.id}')">🛠️ Doposażenie</button>`:''}
         ${w.hasInteriorMap?`<button class="bbtn" style="padding:5px 8px;font-size:11px;background:linear-gradient(135deg,#1a3a5a,#0a1a28)" onclick="window._marinaEnterInterior('${w.id}')">🗺️ Wejdź na pokład</button>`:''}
       </div>
     </div>`;
@@ -46119,8 +46155,20 @@ window._marinaRenderMyCraft=function(){
     <h2 style="color:#00d4f0;margin-top:0;text-align:center">📋 Moje jednostki</h2>${_marinaMoney()}${rentalRow}${rows}${_marinaBack()}</div>`);
 };
 window._marinaSetActive=function(id){ _marinaEnsure(); if(_marinaOwnedById(id)){ G.marina._activeCraftId=id; if(typeof showMsg==='function') showMsg('⛵ Ustawiono aktywną jednostkę.','g',2500); window._marinaRenderMyCraft(); } };
+/* v2.3.122 (PDF Uspr v2.3.121): kajaki i skutery wodne NIE mają doposażenia — nie ma na nich pokładu,
+   baru, oświetlenia ani kabiny, więc cały katalog był dla nich bezsensowny. */
+window._marinaCanUpgrade=function(w){
+  if(!w) return false;
+  const md=(typeof _marinaModelById==='function')?_marinaModelById(w.modelId):null;
+  const cat=(md&&md.cat)||w.cat||'';
+  return cat!=='kayak' && cat!=='jetski';
+};
 window._marinaRenderUpgrades=function(watercraftId){
   _marinaEnsure(); const w=_marinaOwnedById(watercraftId); if(!w) return;
+  if(!window._marinaCanUpgrade(w)){
+    if(typeof showMsg==='function') showMsg('🛠️ Kajaki i skutery wodne nie mają opcji doposażenia — to jednostki bez pokładu i instalacji.','i',4200);
+    return;
+  }
   const byCat={};
   MARINA_UPGRADES.forEach(u=>{ (byCat[u.cat]=byCat[u.cat]||[]).push(u); });
   const cats=Object.keys(byCat).map(cat=>{
@@ -46222,10 +46270,19 @@ window._marinaEnterSwim=function(){
   if(sw.isSwimming){ if(typeof showMsg==='function') showMsg('🏊 Już pływasz — wróć na brzeg (w dół), żeby wyjść.','i',3000); return; }
   if(currentRoom!=='coast'){ if(typeof showMsg==='function') showMsg('Do wody możesz wejść tylko na Wybrzeżu (Marina Coast).','i',3000); return; }
   if((G.energy||0)<15){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii na pływanie — odpocznij najpierw.','r',3500); return; }
+  /* v2.3.122 (PDF Uspr v2.3.121): kapielisko zamkniete przy sztormie. */
+  {
+    const _stL=(typeof window._marinaStormLevel==='function')?window._marinaStormLevel():0;
+    if(_stL>=0.45){
+      if(typeof showMsg==='function') showMsg('⛔ Kąpielisko zamknięte — '+((window._marinaStormPhase&&window._marinaStormPhase())||{}).name+'. Na taką falę nikt rozsądny nie wchodzi.','r',5200);
+      return;
+    }
+    if(_stL>0.02 && typeof showMsg==='function') showMsg('🌊 Woda jest niespokojna — popłyniesz wolniej i szybciej się zmęczysz.','i',4200);
+  }
   sw.isSwimming=true; sw.staminaWarned=false; sw._t=0; sw._deepWarned=false; sw._farWarned=false;
   /* odsuń od strefy portowej (restricted) — kąpiel tylko poza portem */
   if((P.wx+P.w/2)>=MARINA_PORT_RECT.x-20 && (P.wx+P.w/2)<=MARINA_PORT_RECT.x+MARINA_PORT_RECT.w+20){ P.wx=MARINA_PORT_RECT.x+MARINA_PORT_RECT.w+40; }
-  P.wy=Math.max(120, 240-(P.h||44)-8);   /* wsuń do płytkiej wody */
+  P.wy=Math.max(120, MARINA_SHORE_Y-(P.h||44)-8);   /* wsuń do płytkiej wody */
   G.marina.stats.swims++;
   if(typeof progressQuest==='function') progressQuest('coast_visit');
   if(typeof showMsg==='function') showMsg('🏊 Wchodzisz do wody. Nie odpływaj za daleko bez jednostki — pływanie zużywa siłę. Wróć na brzeg, żeby wyjść.','g',4800);
@@ -46242,14 +46299,21 @@ window._marinaSwimTick=function(){
   _marinaEnsure(); const sw=G.marina.swimming;
   if(!sw.isSwimming) return;
   const fh=(P.h||44); const footY=P.wy+fh;
-  if(footY>=240){ window._marinaExitSwim(true); return; }   /* wrócił na brzeg */
+  if(footY>=MARINA_SHORE_Y){ window._marinaExitSwim(true); return; }   /* wrócił na brzeg */
   const zone=_marinaWaterZoneAt(P.wx+P.w/2, footY);
-  sw.distanceFromShore=Math.max(0, 240-footY);
+  sw.distanceFromShore=Math.max(0, MARINA_SHORE_Y-footY);
   if(zone==='deep' && !sw._deepWarned){ sw._deepWarned=true; if(typeof showMsg==='function') showMsg('🌊 Oddalasz się od brzegu. Stamina spada szybciej.','r',4200); }
-  if(zone==='deep' && sw.distanceFromShore>=120 && !sw._farWarned){ sw._farWarned=true; if(typeof showMsg==='function') showMsg('🌊 Jesteś za daleko od brzegu. Wróć albo znajdź jednostkę pływającą.','r',4600); }
+  if(zone==='deep' && sw.distanceFromShore>=500 && !sw._farWarned){ sw._farWarned=true; if(typeof showMsg==='function') showMsg('🌊 Jesteś za daleko od brzegu. Wróć albo znajdź jednostkę pływającą.','r',4600); }
   sw._t=(sw._t||0)+1;
   if(sw._t % 24 !== 0) return;   /* throttle ~0.4 s */
-  const drain=(zone==='deep')?1.4:(zone==='swim'?0.9:0.5);
+  /* v2.3.122 (PDF Uspr v2.3.121): sztorm realnie utrudnia pływanie — fala zabiera więcej siły
+     i znosi pływaka w bok. Efekt rośnie płynnie razem z fazą sztormu. */
+  const _stSw=(typeof window._marinaStormLevel==='function')?window._marinaStormLevel():0;
+  if(_stSw>0.02){
+    P.wx=Math.max(0, Math.min(ROOMS.coast.wT*T-P.w, P.wx+Math.sin(Date.now()/700)*(2.5+7*_stSw)));
+    if(!sw._stormWarned && _stSw>=0.25){ sw._stormWarned=true; if(typeof showMsg==='function') showMsg('🌊 Fala Cię znosi — przy takiej wodzie lepiej trzymać się brzegu.','r',4600); }
+  }
+  const drain=((zone==='deep')?1.4:(zone==='swim'?0.9:0.5))*(1+_stSw*1.6);
   G.energy=Math.max(0, (G.energy||0)-drain);
   if(G.energy<=15 && G.energy>0 && !sw.staminaWarned){ sw.staminaWarned=true; if(typeof showMsg==='function') showMsg('⚠️ Kończy Ci się siła. Wróć do brzegu — inaczej trzeba będzie Cię ratować.','r',4500); }
   if(G.energy<=8 && G.energy>0){ if(typeof showMsg==='function') showMsg('😰 Nie masz siły płynąć dalej!','r',2600); }
@@ -46262,7 +46326,7 @@ window._marinaTriggerRescue=function(){
   G.health=(typeof clampStat==='function')?clampStat('health',(typeof G.health==='number'?G.health:100)-15):Math.max(0,(typeof G.health==='number'?G.health:100)-15);
   G.stress=Math.max(0,(G.stress||50)-10);      /* obniż nastrój (stress=mood) */
   G.energy=Math.max(25,(G.energy||0));
-  if(currentRoom==='coast' && typeof ROOMS!=='undefined' && ROOMS.coast){ P.wy=Math.min(ROOMS.coast.hT*T-(P.h||44)-8, 320); }
+  if(currentRoom==='coast' && typeof ROOMS!=='undefined' && ROOMS.coast){ P.wy=Math.min(ROOMS.coast.hT*T-(P.h||44)-8, MARINA_SHORE_Y+60); }
   let extra='';
   if(Math.random()<0.4){ G.defamation=(G.defamation||0)+3; extra=' 📸 Ktoś nagrał całą akcję — internet się śmieje (+zniesławienie).'; }
   if(typeof showMsg==='function') showMsg(`🚑 Zostałeś wyciągnięty z wody przez służby Marina Coast. Koszt interwencji 1200 zł, −15 zdrowia, −nastrój. Następnym razem nie odpływaj tak daleko bez jednostki.${extra}`,'r',7500);
@@ -46285,7 +46349,53 @@ function _marinaCraftContentBonus(craft){
 function _marinaCraftUps(craft){ return (craft&&craft.kind==='owned'&&Array.isArray(craft.w.upgrades))?craft.w.upgrades:[]; }
 function _marinaCraftName(craft){ return craft?((craft.kind==='owned'?craft.w.name:craft.w.name)||'jednostka'):'jednostka'; }
 function _marinaCraftCat(craft){ return craft?(craft.kind==='owned'?craft.w.cat:craft.w.cat):null; }
-function _marinaSeaPenalty(){ const w=(G.weather||0); return w>=5?18:(w>=4?12:(w>=3?6:0)); }
+/* ═══ v2.3.122 (PDF Uspr v2.3.121) — SZTORM NA MORZU ═══
+   Sztorm NIE jest osobną losową pogodą — jest stanem morza wynikającym WYŁĄCZNIE z deszczu (2)
+   i burzy (5). Przy słońcu sztormu nie ma nigdy. Narasta i opada płynnie, tak jak deszcz:
+   gra ma już `G.weatherIntensity` (0→1 w ~3 min) i `_weatherPhase()` (0 brak / 1 narastanie /
+   2 pełnia / 3 schodzenie) — wykorzystujemy je, żeby fale rosły stopniowo, a nie skokiem.
+   Zwraca 0..1: 0 = spokojne morze, 1 = pełny sztorm. */
+window._marinaStormLevel=function(){
+  if(typeof G==='undefined'||!G) return 0;
+  const w=G.weather||0;
+  if(w!==2 && w!==5) return 0;                       /* tylko deszcz i burza */
+  let inten=(typeof G.weatherIntensity==='number' && isFinite(G.weatherIntensity))?G.weatherIntensity:1;
+  inten=Math.max(0,Math.min(1,inten));
+  /* faza schodzenia: morze uspokaja się wolniej niż znika deszcz */
+  let ph=3;
+  try{ if(typeof window._weatherPhase==='function') ph=window._weatherPhase(); }catch(_e){}
+  if(ph===3) inten=Math.max(inten,0.25);
+  const ceil=(w===5)?1.0:0.62;                       /* burza = pełny sztorm, deszcz = wzburzone morze */
+  return Math.max(0,Math.min(1, inten*ceil));
+};
+/* Nazwa fazy sztormu — do komunikatów dla gracza (bez żargonu). */
+window._marinaStormPhase=function(){
+  const L=window._marinaStormLevel();
+  if(L<=0.02) return null;
+  if(L<0.30) return {lvl:L, name:'fala rośnie', desc:'Morze zaczyna się marszczyć, pojedyncze fale idą szybciej niż zwykle.'};
+  if(L<0.60) return {lvl:L, name:'wzburzone morze', desc:'Fale są już wyraźne i nieregularne — pływanie męczy szybciej, jednostką rzuca.'};
+  if(L<0.85) return {lvl:L, name:'silny sztorm', desc:'Wysoka fala i biała piana. Wypływanie to proszenie się o kłopoty.'};
+  return {lvl:L, name:'pełny sztorm', desc:'Morze jest wzburzone do granic. Port zamyka się dla rozsądnych.'};
+};
+/* Komunikat ostrzegawczy — pokazywany przy wejściu do Dockhouse i przy wchodzeniu na jednostkę.
+   Dławik: nie częściej niż raz na 45 s, żeby nie zasypywać gracza. */
+window._marinaStormWarn=function(where){
+  const st=window._marinaStormPhase(); if(!st) return false;
+  const now=Date.now();
+  if(window._marinaStormWarnT && (now-window._marinaStormWarnT)<45000) return false;
+  window._marinaStormWarnT=now;
+  const pre=(where==='dockhouse')?'⚓ Kapitanat ostrzega: ':'🌊 Na wodzie: ';
+  const tail=(st.lvl>=0.60)?' Kapitan odradza wypływanie.':' Zachowaj ostrożność.';
+  if(typeof showMsg==='function') showMsg(pre+st.name+' — '+st.desc+tail, st.lvl>=0.60?'r':'i', 6000);
+  return true;
+};
+/* Kara do jakości/ryzyka na morzu — teraz płynna, oparta na sile sztormu (było skokowo po pogodzie). */
+function _marinaSeaPenalty(){
+  const w=(G.weather||0);
+  const base=(w>=4?12:(w>=3?6:0));                   /* mgła/śnieg jak dotąd */
+  const storm=Math.round(20*(window._marinaStormLevel?window._marinaStormLevel():0));
+  return Math.max(base, storm);
+}
 function _marinaContentQuality(type, craft){
   let base=(typeof window.calculateVideoQuality==='function')?window.calculateVideoQuality(type):(G.camera?G.camera.quality:28);
   const prestigeBonus=Math.round(_marinaCraftPrestige(craft)*0.15);
@@ -46922,25 +47032,42 @@ window._marinaDailyTick=function(){
 
 /* Geometria portu (mapa coast 1440×960; woda wy 0..240). Wszystko chodzalne
    (pomost+palce) mimo że nad wodą — carve-out w _marinaCoastMove. */
+/* v2.3.122 (PDF Uspr v2.3.121): port poszerzony — 16 miejsc do wykupienia przez gracza
+   + 5 miejsc zarezerwowanych dla NPC (stoją tam ich jednostki albo miejsce jest puste,
+   co znaczy, że akurat są w rejsie). Keja biegnie wzdłuż linii brzegu nowej, większej mapy. */
 const MARINA_HARBOR={
-  boardwalk:{x:624, y:196, w:552, h:52},              /* główny pomost keja */
-  fingers:[                                            /* palce cumownicze (chodzalne) */
-    {cx:696, y:88, w:26, h:120},
-    {cx:791, y:88, w:26, h:120},
-    {cx:902, y:78, w:26, h:130},
-    {cx:1006, y:70, w:26, h:140},
+  boardwalk:{x:1150, y:MARINA_SHORE_Y-76, w:1920, h:52},   /* główny pomost keja */
+  fingers:[                                                 /* palce cumownicze (chodzalne) */
+    {cx:1290, y:MARINA_SHORE_Y-232, w:26, h:160},
+    {cx:1580, y:MARINA_SHORE_Y-244, w:26, h:172},
+    {cx:1880, y:MARINA_SHORE_Y-256, w:26, h:184},
+    {cx:2190, y:MARINA_SHORE_Y-256, w:26, h:184},
+    {cx:2500, y:MARINA_SHORE_Y-244, w:26, h:172},
+    {cx:2820, y:MARINA_SHORE_Y-232, w:26, h:160},
   ],
-  fuelDock:{x:1146, y:164, w:36, h:46},               /* stacja paliw (wizual przy końcu keja) */
-  captainWx:1150, captainWy:250,                        /* kapitan na pomoście przy Dockhouse */
+  fuelDock:{x:3010, y:MARINA_SHORE_Y-116, w:40, h:50},      /* stacja paliw przy końcu keja */
+  captainWx:1180, captainWy:MARINA_SHORE_Y-20,               /* kapitan przy nasadzie pomostu */
 };
-/* Sloty cumownicze — footprint dziobem na północ, rufa na sternY (przy kei). Gap ≥34px. */
-const MARINA_SLOTS=[
-  {x:628, sternY:206, cls:'small'},    /* kajak / skuter */
-  {x:716, sternY:206, cls:'medium'},   /* open boat */
-  {x:812, sternY:204, cls:'large'},    /* rib / jacht */
-  {x:918, sternY:202, cls:'large'},    /* jacht / rib */
-  {x:1020,sternY:198, cls:'premium'},  /* KATAMARAN — najszerszy slot przy otwartej wodzie */
-];
+/* Sloty cumownicze — footprint dziobem na północ, rufa na sternY (przy kei).
+   16 pierwszych = miejsca gracza, 5 ostatnich (npc:true) = miejsca NPC, niedostępne do wykupienia. */
+const MARINA_SLOTS=(function(){
+  const out=[]; const sternY=MARINA_SHORE_Y-86;
+  const plan=[
+    'small','small','medium','medium','large','premium','large','medium',
+    'small','large','premium','medium','large','small','medium','premium',   /* 16 gracza */
+    'small','medium','large','small','medium',                                /* 5 NPC */
+  ];
+  const W={small:48, medium:54, large:74, premium:122};
+  let x=1176;
+  plan.forEach((cls,i)=>{
+    const npc=(i>=16);
+    if(i===16) x+=40;                       /* wyraźna przerwa: dalej część NPC */
+    out.push({x:x, sternY:sternY-((i%3)*4), cls:cls, npc:npc, idx:i});
+    x+=W[cls]+22;
+  });
+  return out;
+})();
+const MARINA_PLAYER_SLOTS=MARINA_SLOTS.filter(s=>!s.npc).length;
 const _MARINA_CLS_RANK={small:0, medium:1, large:2, premium:3};
 const _MARINA_FOOT={ small:{w:48,h:74}, medium:{w:54,h:104}, large:{w:74,h:124}, premium:{w:122,h:138} };
 function _marinaFootForSlot(cls){ return _MARINA_FOOT[cls]||_MARINA_FOOT.medium; }
@@ -46963,6 +47090,7 @@ function _marinaOnPier(fx,fy){
 }
 
 /* Przypisanie posiadanych jednostek do slotów: największe → najszersze sloty. */
+/* v2.3.122: jednostki gracza trafiają WYŁĄCZNIE na sloty gracza (npc:false). */
 function _marinaAssignBoatsToSlots(owned){
   const boats=(owned||[]).filter(w=>w&&w.modelId).map(w=>({boat:w, cat:(w.cat||(_marinaModelById(w.modelId)||{}).cat||'open')}));
   /* sortuj malejąco po rozmiarze kategorii */
@@ -47002,17 +47130,76 @@ window._marinaSyncCoastObjects=function(){
 };
 
 /* ═══ RYSOWANIE PORTU (pod obiektami; wołane z drawCoastDecorations) ═══ */
+/* v2.3.122 (PDF Uspr v2.3.121): ZYWA WODA — statyczny kafel 'water' dostaje warstwe animacji:
+   przesuwajace sie grzbiety fal, migot slonca i biala piana przy linii brzegu. Amplituda i tempo
+   rosna razem ze sztormem (_marinaStormLevel), wiec pogoda widac na wodzie, nie tylko w komunikacie. */
+function drawCoastWater(){
+  if(currentRoom!=='coast') return;
+  const room=ROOMS.coast; if(!room) return;
+  const t=Date.now()/1000;
+  const storm=(typeof window._marinaStormLevel==='function')?window._marinaStormLevel():0;
+  const shoreSy=wy2sy(MARINA_SHORE_Y);
+  if(shoreSy<=0) return;                       /* woda poza kadrem */
+  const W=(typeof cvs!=='undefined'&&cvs)?cvs.width:1280;
+  const top=Math.max(0, wy2sy(0));
+  const bottom=Math.min((typeof cvs!=='undefined'&&cvs)?cvs.height:800, shoreSy);
+  if(bottom<=top) return;
+  X.save();
+  X.beginPath(); X.rect(0, top, W, bottom-top); X.clip();
+  /* przygaszenie/wzburzenie tafli przy sztormie */
+  if(storm>0){ X.fillStyle='rgba(10,26,44,'+(0.10+0.30*storm).toFixed(3)+')'; X.fillRect(0, top, W, bottom-top); }
+  /* grzbiety fal — kilka warstw o roznej predkosci i skali */
+  const layers=[
+    {step:26, amp:2.0, spd:0.55, a:0.10},
+    {step:38, amp:3.2, spd:0.34, a:0.085},
+    {step:54, amp:4.6, spd:0.22, a:0.07},
+  ];
+  for(const L of layers){
+    const amp=L.amp*(1+storm*2.1);
+    X.strokeStyle='rgba(168,214,240,'+(L.a+storm*0.05).toFixed(3)+')';
+    X.lineWidth=1.4;
+    for(let y=top-40; y<bottom+40; y+=L.step){
+      X.beginPath();
+      for(let x=0; x<=W; x+=14){
+        const yy=y+Math.sin((x*0.016)+(t*L.spd*(1+storm*1.6))+(y*0.05))*amp;
+        if(x===0) X.moveTo(x,yy); else X.lineTo(x,yy);
+      }
+      X.stroke();
+    }
+  }
+  /* migot slonca (spokojna pogoda) */
+  if(storm<0.35){
+    for(let i=0;i<22;i++){
+      const gx=((i*167)%W), gy=top+((i*89)%Math.max(1,(bottom-top)));
+      const a=0.05+0.05*Math.sin(t*1.6+i);
+      X.fillStyle='rgba(220,242,255,'+a.toFixed(3)+')';
+      X.fillRect(gx, gy, 22, 2);
+    }
+  }
+  /* piana przy linii brzegu — przy sztormie szersza i bardziej nerwowa */
+  const foamH=8+18*storm;
+  const fy=shoreSy;
+  X.strokeStyle='rgba(255,255,255,'+(0.22+0.30*storm).toFixed(3)+')';
+  X.lineWidth=2+2*storm;
+  X.beginPath();
+  for(let x=0;x<=W;x+=10){
+    const yy=fy-foamH*0.5+Math.sin((x*0.05)+t*(1.5+storm*2.4))*(2.2+4.5*storm);
+    if(x===0) X.moveTo(x,yy); else X.lineTo(x,yy);
+  }
+  X.stroke();
+  X.restore();
+}
 function drawMarinaHarbor(){
   if(currentRoom!=='coast') return;
   const t=Date.now()/1000;
   /* Basen portowy — ciemniejsza, spokojniejsza woda w obrębie mariny (osłona falochronu) */
-  const bx=wx2sx(596), by=wy2sy(40), bw=600, bh=210;
+  const bx=wx2sx(MARINA_PORT_RECT.x+6), by=wy2sy(MARINA_PORT_RECT.y+8), bw=MARINA_PORT_RECT.w-12, bh=MARINA_PORT_RECT.h-16;
   X.save();
   X.fillStyle='rgba(10,44,66,0.34)';
   X.beginPath(); X.roundRect(bx, by, bw, bh, 10); X.fill();
   /* delikatny połysk na wodzie basenu */
-  for(let i=0;i<9;i++){
-    const sxr=wx2sx(612+i*64), syr=wy2sy(70+((i*37)%150));
+  for(let i=0;i<26;i++){
+    const sxr=wx2sx(MARINA_PORT_RECT.x+30+i*64), syr=wy2sy(MARINA_PORT_RECT.y+40+((i*53)%(MARINA_PORT_RECT.h-90)));
     X.fillStyle=`rgba(150,205,230,${0.05+0.05*Math.sin(t*1.4+i)})`;
     X.fillRect(sxr, syr, 30, 2);
   }
@@ -47020,16 +47207,28 @@ function drawMarinaHarbor(){
 
   /* Falochron (kamienny) po lewej i prawej krawędzi basenu — zabezpiecza port */
   X.fillStyle='#4a4640';
-  X.fillRect(wx2sx(592), wy2sy(44), 10, 200);
-  X.fillRect(wx2sx(1178), wy2sy(60), 12, 184);
+  X.fillRect(wx2sx(MARINA_PORT_RECT.x-8), wy2sy(MARINA_PORT_RECT.y+4), 12, MARINA_PORT_RECT.h-20);
+  X.fillRect(wx2sx(MARINA_PORT_RECT.x+MARINA_PORT_RECT.w-4), wy2sy(MARINA_PORT_RECT.y+20), 14, MARINA_PORT_RECT.h-40);
   X.fillStyle='rgba(255,255,255,0.06)';
-  X.fillRect(wx2sx(592), wy2sy(44), 10, 3);
-  X.fillRect(wx2sx(1178), wy2sy(60), 12, 3);
+  X.fillRect(wx2sx(MARINA_PORT_RECT.x-8), wy2sy(MARINA_PORT_RECT.y+4), 12, 3);
+  X.fillRect(wx2sx(MARINA_PORT_RECT.x+MARINA_PORT_RECT.w-4), wy2sy(MARINA_PORT_RECT.y+20), 14, 3);
 
   /* Ambient — 2 wynajmowe łódki przy wolnych końcach (życie w porcie, nieinteraktywne) */
-  const usedSlots=(ROOMS.coast.objects||[]).filter(o=>o.id&&o.id.indexOf('_mrn_boat_')===0).length;
-  if(usedSlots<2){ _drawMarinaBoat(wx2sx(628), wy2sy(150), 46, 62, 'kayak', {ambient:true, hue:48}); }
-  if(usedSlots<3){ _drawMarinaBoat(wx2sx(722), wy2sy(120), 52, 90, 'open', {ambient:true, hue:200}); }
+  /* v2.3.122 (PDF Uspr v2.3.121): miejsca NPC — na czesci stoja realne lodzie NPC, czesc jest pusta
+     (co znaczy, ze wlasciciel jest akurat w rejsie albo przeniosl jednostke do innego portu).
+     Obsada jest STALA w obrebie doby gry — nie migocze miedzy klatkami. */
+  const _npcSlots=MARINA_SLOTS.filter(sl=>sl.npc);
+  const _dayKey=(typeof G!=='undefined'&&G.day)?G.day:0;
+  const _npcCats=['open','rib','kayak','yacht','jetski'];
+  const _npcHues=[24,196,48,210,140];
+  _npcSlots.forEach((sl,i)=>{
+    /* deterministycznie: ~1 na 4 miejsca puste, rotuje wraz z doba gry */
+    const occupied=(((_dayKey*7)+(i*3))%4)!==0;
+    if(!occupied) return;
+    const cat=_npcCats[(i+_dayKey)%_npcCats.length];
+    const fp=_marinaFootForSlot(sl.cls);
+    _drawMarinaBoat(wx2sx(sl.x), wy2sy(sl.sternY-fp.h), fp.w, fp.h, cat, {ambient:true, hue:_npcHues[(i+_dayKey)%_npcHues.length]});
+  });
 
   /* Główny pomost keja (drewniany) */
   const b=MARINA_HARBOR.boardwalk;
@@ -47046,7 +47245,7 @@ function drawMarinaHarbor(){
   _drawMarinaFuelDock(wx2sx(MARINA_HARBOR.fuelDock.x), wy2sy(MARINA_HARBOR.fuelDock.y), MARINA_HARBOR.fuelDock.w, MARINA_HARBOR.fuelDock.h);
 
   /* Szyld portu nad kejem */
-  const sgx=wx2sx(824), sgy=wy2sy(232);
+  const sgx=wx2sx(MARINA_PORT_RECT.x+MARINA_PORT_RECT.w/2), sgy=wy2sy(MARINA_SHORE_Y-8);
   X.save();
   X.font='bold 13px "Segoe UI",Arial'; X.textAlign='center';
   X.fillStyle='rgba(4,16,24,0.7)'; X.fillRect(sgx-72, sgy-13, 144, 18);
@@ -47265,6 +47464,8 @@ function _drawMarinaCaptain(sx,sy,w,h){
 /* ═══ INTERAKCJA: wejście na pokład / kapitan ═══ */
 window._marinaBoardBoat=function(boatId){
   _marinaEnsure();
+  /* v2.3.122 (PDF Uspr v2.3.121): komunikat o stanie morza przy wchodzeniu na jednostke. */
+  if(typeof window._marinaStormWarn==='function') window._marinaStormWarn('boat');
   const w=_marinaOwnedById(boatId);
   if(!w){ if(typeof showMsg==='function') showMsg('Nie znaleziono jednostki.','r',3000); return; }
   G.marina._activeCraftId=boatId;
@@ -47282,13 +47483,20 @@ window._marinaBoardSmall=function(boatId){
     <div style="text-align:center;color:#8ab;font-size:12px;margin-bottom:12px">Jesteś na pokładzie. Stan ${_marinaCondAvg(w)}% · ${fuelTxt} · Prestiż ${w.prestige}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <button class="bbtn" style="grid-column:1/3;background:linear-gradient(135deg,#0a5a7a,#063245)" onclick="window._marinaSetSail('${w.id}')">🌊 Wypłyń w morze (steruj po wodzie)</button>
-      <button class="bbtn" onclick="window._marinaOpenActivities&&window._marinaOpenActivities()">🎬 Aktywności na wodzie</button>
-      <button class="bbtn" onclick="window._marinaRenderUpgrades('${w.id}')">🛠️ Doposażenie</button>
-      <button class="bbtn" onclick="window._marinaRenderFuel&&window._marinaRenderFuel()">⛽ Tankowanie</button>
+      <button class="bbtn" onclick="window._marinaRenderActivities&&window._marinaRenderActivities()">🎬 Aktywności na wodzie</button>
+      ${window._marinaCanUpgrade(w)?`<button class="bbtn" onclick="window._marinaRenderUpgrades('${w.id}')">🛠️ Doposażenie</button>`:''}
+      <button class="bbtn" onclick="window._marinaRenderRefuel&&window._marinaRenderRefuel()">⛽ Tankowanie</button>
       <button class="bbtn" onclick="window._marinaRenderService&&window._marinaRenderService()">🔧 Serwis</button>
     </div>
-    <button class="cbtn" style="margin-top:12px;width:100%" onclick="window._marinaClose()">🚪 Zejdź z pokładu</button>
+    <button class="cbtn" style="margin-top:12px;width:100%" onclick="window._marinaLeaveSmallDeck()">🚪 Zejdź z pokładu</button>
   </div>`);
+};
+/* v2.3.122 (PDF Uspr v2.3.121): zejście z pokładu małej jednostki — gdy stoi na kotwicy na morzu,
+   wracamy za ster w to samo miejsce zamiast tylko zamykać panel (gracz zostawał wtedy „na wodzie" bez łodzi). */
+window._marinaLeaveSmallDeck=function(){
+  _marinaEnsure();
+  if(typeof window._marinaClose==='function') window._marinaClose();
+  if(G.marina && G.marina._anchored && typeof window._marinaResumeFromAnchor==='function') window._marinaResumeFromAnchor();
 };
 window._marinaCaptainTalk=function(){
   _marinaEnsure(); const m=G.marina;
@@ -47390,7 +47598,13 @@ window._marinaEnterDeck=function(boatId){
 window._marinaDisembark=function(){
   _marinaEnsure();
   if(typeof window._marinaClose==='function') window._marinaClose();
-  if(typeof changeRoom==='function') changeRoom('coast', 860, 262);
+  /* v2.3.122 (PDF Uspr v2.3.121): jeśli jednostka stoi na kotwicy na morzu, zejście z pokładu
+     NIE teleportuje na keję — wracasz za ster w tym samym miejscu. */
+  if(G.marina && G.marina._anchored && typeof window._marinaResumeFromAnchor==='function'){
+    window._marinaResumeFromAnchor();
+    return;
+  }
+  if(typeof changeRoom==='function') changeRoom('coast', 1400, MARINA_SHORE_Y-46);
   if(typeof showMsg==='function') showMsg('🏖️ Zszedłeś z pokładu na keję.','i',2600);
 };
 
@@ -47539,11 +47753,20 @@ window._marinaSetSail=function(craftId){
     const rm=_marinaRentalById(G.marina.activeRental.modelId); cat=rm?rm.cat:'open'; name=(rm&&rm.name)||'wynajem'; isRental=true; craft=true;
   }
   if(!craft){ if(typeof showMsg==='function') showMsg('Nie masz jednostki do wypłynięcia. Wynajmij albo kup coś w Dockhouse.','r',4200); return; }
+  /* v2.3.122 (PDF Uspr v2.3.121): przy silnym sztormie port nie wypuszcza jednostek. */
+  {
+    const _stL=(typeof window._marinaStormLevel==='function')?window._marinaStormLevel():0;
+    if(_stL>=0.60){
+      if(typeof showMsg==='function') showMsg('⛔ Kapitanat wstrzymał wyjścia w morze — '+((window._marinaStormPhase&&window._marinaStormPhase())||{}).name+'. Poczekaj, aż fala opadnie.','r',5200);
+      return;
+    }
+    if(_stL>0.02 && typeof window._marinaStormWarn==='function'){ window._marinaStormWarnT=0; window._marinaStormWarn('boat'); }
+  }
   if(typeof window._marinaClose==='function') window._marinaClose();
   const go=()=>{
     G.marina.swimming.isSwimming=false;
     G.marina.piloting={active:true, craftId:cid, rental:isRental, cat:cat, name:name, engine:engine, heading:0, wakeT:0, t:0};
-    P.wx=940; P.wy=120;   /* w wodzie przy wyjściu z portu */
+    P.wx=2040; P.wy=MARINA_SHORE_Y-260;   /* w wodzie przy wyjściu z portu */
     if(typeof updateCamera==='function') updateCamera();
     if(typeof showMsg==='function') showMsg(`🌊 Wypłynąłeś: ${name}. Steruj (WSAD / strzałki). Wróć w pobliże pomostu i [E] = zacumuj.`,'g',5400);
     if(window._marinaSyncCoastObjects) window._marinaSyncCoastObjects();
@@ -47559,7 +47782,7 @@ window._marinaTryDock=function(){
   if(!nearDock){ if(typeof showMsg==='function') showMsg('⚓ Podpłyń bliżej pomostu (na południe), żeby zacumować.','i',2800); return true; }
   G.marina.piloting=null;
   /* zejdź na kej */
-  P.wy=252; P.wx=Math.max(660, Math.min(1100, P.wx));
+  P.wy=MARINA_SHORE_Y-56; P.wx=Math.max(1180, Math.min(3000, P.wx));
   if(typeof updateCamera==='function') updateCamera();
   _marinaAddSkillXp(1);
   window._marinaSyncCoastObjects&&window._marinaSyncCoastObjects();
@@ -47567,10 +47790,65 @@ window._marinaTryDock=function(){
   if(typeof saveGameSilent==='function') saveGameSilent();
   return true;
 };
+/* v2.3.122 (PDF Uspr v2.3.121): ZAKOTWICZENIE w miejscu ([G]) — zatrzymuje jednostkę na wodzie
+   i wpuszcza gracza na pokład, żeby korzystał z tego, co dana jednostka oferuje. Dotyczy WYŁĄCZNIE
+   jednostek, na które da się wejść (jacht/katamaran mają chodzalny pokład, reszta panel pokładowy).
+   Podniesienie kotwicy = ponowne „Wypłyń" z pokładu; pozycja i paliwo zostają zapamiętane. */
+window._marinaAnchorBoard=function(){
+  _marinaEnsure(); const pl=G.marina.piloting;
+  if(!pl||!pl.active){ if(typeof showMsg==='function') showMsg('⚓ Nie sterujesz teraz żadną jednostką.','i',2600); return false; }
+  if(pl.rental){ if(typeof showMsg==='function') showMsg('⚓ Wynajęta jednostka nie ma pokładu do dyspozycji — dopłyń do pomostu i zdaj ją ([E]).','i',4200); return false; }
+  const w=_marinaOwnedById(pl.craftId);
+  if(!w){ if(typeof showMsg==='function') showMsg('⚓ Nie znaleziono tej jednostki.','r',3000); return false; }
+  const md=_marinaModelById(w.modelId);
+  const cat=(md&&md.cat)||pl.cat||'';
+  if(cat==='kayak'||cat==='jetski'){
+    if(typeof showMsg==='function') showMsg('⚓ Na kajaku ani skuterze nie ma pokładu, na który można wejść. Wróć do pomostu ([E]).','i',4200);
+    return false;
+  }
+  /* zapamiętaj miejsce zakotwiczenia — po zejściu z pokładu gracz wraca dokładnie tu */
+  G.marina._anchored={craftId:pl.craftId, wx:P.wx, wy:P.wy, heading:pl.heading||0, cat:cat};
+  G.marina.piloting=null;
+  G.marina._activeCraftId=pl.craftId;
+  if(typeof showMsg==='function') showMsg('⚓ Rzuciłeś kotwicę. Wchodzisz na pokład — jednostka czeka w tym miejscu.','g',4200);
+  if(typeof window._marinaBoardBoat==='function') window._marinaBoardBoat(pl.craftId);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return true;
+};
+/* powrót z pokładu zakotwiczonej jednostki: wracamy na wodę w to samo miejsce (nie na kej) */
+window._marinaResumeFromAnchor=function(){
+  _marinaEnsure(); const a=G.marina._anchored;
+  if(!a||!a.craftId) return false;
+  const w=_marinaOwnedById(a.craftId); if(!w){ G.marina._anchored=null; return false; }
+  const md=_marinaModelById(w.modelId);
+  G.marina.piloting={active:true, craftId:a.craftId, rental:false, cat:a.cat||(md&&md.cat)||'', name:w.name||(md&&md.name)||'Jednostka', engine:!!(md&&md.fuelCapacity>0), heading:a.heading||0, wakeT:0, t:0};
+  if(typeof currentRoom!=='undefined' && currentRoom!=='coast' && typeof changeRoom==='function') changeRoom('coast', a.wx, a.wy);
+  else { P.wx=a.wx; P.wy=a.wy; if(typeof updateCamera==='function') updateCamera(); }
+  G.marina._anchored=null;
+  window._marinaSyncCoastObjects&&window._marinaSyncCoastObjects();
+  if(typeof showMsg==='function') showMsg('⚓ Podniosłeś kotwicę — znowu sterujesz jednostką.','g',3200);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return true;
+};
 window._marinaPilotTick=function(){
   if(typeof currentRoom==='undefined'||currentRoom!=='coast') return;
   _marinaEnsure(); const pl=G.marina.piloting; if(!pl||!pl.active) return;
   pl.t=(pl.t||0)+1;
+  /* v2.3.122 (PDF Uspr v2.3.121): sztorm rzuca jednostką — fala znosi ją z kursu i mocniej kołysze.
+     Siła rośnie płynnie z fazą sztormu; przy pełnym sztormie sterowanie robi się naprawdę trudne. */
+  {
+    const _stP=(typeof window._marinaStormLevel==='function')?window._marinaStormLevel():0;
+    if(_stP>0.02){
+      const sway=Math.sin(Date.now()/540)*(1.6+6.5*_stP);
+      const surge=Math.cos(Date.now()/900)*(0.8+3.4*_stP);
+      P.wx=Math.max(0, Math.min(ROOMS.coast.wT*T-P.w, P.wx+sway*0.35));
+      P.wy=Math.max(62, Math.min(MARINA_SHORE_Y-(P.h||44)-2, P.wy+surge*0.35));
+      if(!pl._stormWarned && _stP>=0.30){
+        pl._stormWarned=true;
+        if(typeof showMsg==='function') showMsg('🌊 Fala rzuca jednostką — wracaj do portu, zanim zrobi się gorzej.','r',5000);
+      }
+    }
+  }
   /* paliwo silnikowych jednostek — spala się przy ruchu */
   if(pl.engine && pl.craftId && (pl.t%18===0) && P.moving){
     const w=_marinaOwnedById(pl.craftId);
@@ -48307,7 +48585,9 @@ window._policeIssueStreetFine=function(reason, lo, hi){
   const inDistrict=()=>!!POLICE_DISTRICTS[currentRoom] && !window._policeInDetention();
   CHOICE_EVENTS.push(
     { name:'Kontrola policyjna', chance:1.0, cond:()=>inDistrict() && (G.legal?G.legal.lastCheckDay:-99)!==(G.day||0) && (Math.random()*100 < _policeCheckChance()), fn:()=>window._policeStartCheck('rutynowa kontrola') },
-    { name:'Kradzież uliczna', chance:0.16, cond:()=>inDistrict() && (_policeIsWeekend()?true:Math.random()<0.6), fn:()=>window._policeStreetPickpocket() },
+    /* v2.3.122 (PDF Uspr v2.3.121): ZERO kradziezy ulicznych na Marina Coast — to dzielnica wypoczynkowa,
+       a zdarzenie wchodzilo graczowi w aktywnosci na wodzie i na pokladach jednostek. */
+    { name:'Kradzież uliczna', chance:0.16, cond:()=>inDistrict() && currentRoom!=='coast' && (_policeIsWeekend()?true:Math.random()<0.6), fn:()=>window._policeStreetPickpocket() },
     { name:'Awantura uliczna', chance:0.14, cond:()=>inDistrict(), fn:()=>window._policeStreetFight() },
     { name:'Awantura po imprezie', chance:0.12, cond:()=>inDistrict() && (_policeHour()>=20||_policeHour()<4), fn:()=>window._policeStreetDrunk() },
     { name:'Strzelanina w okolicy', chance:0.02, cond:()=>inDistrict() && (_policeHour()>=21||_policeHour()<5) && ((currentRoom==='underground')|| _policeIsWeekend() || Math.random()<0.3), fn:()=>window._policeShootingEvent() }
@@ -70032,6 +70312,14 @@ const PATCH_NOTES = [
   {t:'fix',d:'🌿 Przy nawiązywaniu współpracy z dealerem na niektórych zapisach gubił się starterowy zapas surowca. Teraz zawsze dostajesz obiecane pięć sztuk, niezależnie od stanu zapisu.'},
   {t:'fix',d:'🗺️ „Pokaż na mapie" przy kamperze wreszcie robi to, co obiecuje. Wcześniej mapa tylko się przybliżała, a znacznik potrafił zostać poza kadrem — zwłaszcza gdy kamper stał przy krawędzi mapy. Teraz widok najeżdża i za każdym razem ustawia znacznik dokładnie na środku ekranu.'},
   {t:'fix',d:'🛡️ W panelach ubezpieczenia samochodu i kampera doszedł przycisk „Wróć" obok „Zamknij". Nie musisz już zamykać całego okna i przechodzić całej drogi od nowa — cofniesz się o jeden krok do stanu pojazdów albo warsztatu.'},
+  {t:'new',d:'🌊 Marina Coast urosła ponad pięciokrotnie, a morze sięga teraz daleko za horyzont — otwartej wody jest ponad cztery razy więcej niż wcześniej. Woda wreszcie żyje: przez taflę przesuwają się fale, słońce mieni się na powierzchni, a przy brzegu rozbija się biała piana.'},
+  {t:'new',d:'⛈️ Na morzu pojawiły się sztormy. Nie biorą się znikąd — narastają wyłącznie wtedy, gdy pada deszcz albo idzie burza, i rosną stopniowo: od przyspieszonych pojedynczych fal, przez wzburzone morze, aż po pełny sztorm. Kapitanat i załoga uprzedzą Cię o stanie morza, gdy wejdziesz do Dockhouse albo na pokład. Przy dużej fali kąpielisko zostaje zamknięte, a port wstrzymuje wyjścia w morze — jeśli akurat płyniesz, fala będzie Cię znosić i rzucać jednostką.'},
+  {t:'new',d:'⚓ Port został poszerzony do szesnastu miejsc, które możesz wykupić, plus pięć miejsc zarezerwowanych dla mieszkańców mariny — stoją tam ich łodzie albo miejsce jest puste, bo właśnie są w rejsie. Keja biegnie teraz wzdłuż całego wybrzeża, z sześcioma pomostami i stacją paliw na końcu.'},
+  {t:'new',d:'⚓ Stojąc za sterem możesz rzucić kotwicę klawiszem G i wejść na pokład swojej jednostki w dowolnym miejscu na morzu — bez wracania do portu. Gdy zejdziesz z pokładu, wracasz za ster dokładnie tam, gdzie zakotwiczyłeś.'},
+  {t:'fix',d:'⛽ „Tankowanie" i „Aktywności na wodzie" na pokładzie mniejszych jednostek — między innymi Marlin Open 24, VoltWave XR i IronHull R9 — nie robiły zupełnie nic po kliknięciu. Oba przyciski prowadziły donikąd. Teraz otwierają właściwe panele, a tankowanie zawsze mówi wprost, jeśli z jakiegoś powodu nie może dolać paliwa.'},
+  {t:'fix',d:'⚓ Zakup jednostki wymaga teraz najpierw wykupienia miejsca w porcie — niezależnie od tego, ile masz na koncie i jak małą łódź wybierasz. Wcześniej kajak czy skuter można było kupić bez cumowania.'},
+  {t:'fix',d:'🛠️ Kajaki i skutery wodne nie mają już opcji „Doposażenie". Nie mają pokładu, baru ani instalacji, więc cały katalog dodatków był przy nich bez sensu.'},
+  {t:'fix',d:'👜 Na Marina Coast nie zdarzają się już uliczne kradzieże. To dzielnica wypoczynkowa, a zdarzenie potrafiło wejść w środek pływania albo pobytu na pokładzie.'},
   {t:'feature',d:'🏢 Budynek „Powierzchnie produkcyjno-biurowe" w Underground District jest teraz dwa razy większy i wygląda jak to, czym ma być: wyremontowany biurowiec z przeszkloną elewacją i szyldem, z parkingiem od frontu i sporą halą z tyłu. Wcześniej z zewnątrz wciąż przypominał dawne laboratorium. Wieczorem świecą się okna i latarnia nad parkingiem, a sąsiednie obiekty i słupek informacyjny zostały rozstawione tak, żeby nic na siebie nie nachodziło.'},
   {t:'fix',d:'📖 Dziennik aktywności nie wskakuje już na ekran w trakcie freestyle’u i transmisji na żywo. W tych aktywnościach klawiatura należy do rozgrywki, a litera „O" bywa częścią hasła — dziennik otworzysz normalnie po zakończeniu sesji.'},
   {t:'fix',d:'📵 Rozmowa z zastrzeżonym numerem zachowuje się wreszcie jak prawdziwa wymiana wiadomości. Gdy o coś dopytasz, nie możesz od razu wysłać kolejnej odpowiedzi — czekasz na reakcję drugiej strony. Po dwóch minutach przychodzi odpowiedź, a wtedy wracają pozostałe możliwości, bez tej, której już użyłeś.'},
