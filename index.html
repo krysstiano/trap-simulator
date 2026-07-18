@@ -5348,7 +5348,7 @@ function drawRoomDecorations(){
   else if(currentRoom==='plantacja') drawPlantacjaInteriorDecorations();
   else if(currentRoom==='boat_deck') drawBoatDeck();
   else if(currentRoom==='police_cell') drawPoliceCell();
-  else if(currentRoom==='stary_kwartal'){ if(typeof drawStaryKwartal==='function') drawStaryKwartal(); }
+  else if(currentRoom==='stary_kwartal'){ if(typeof drawStaryKwartal==='function') drawStaryKwartal(); if(typeof window._skDrawLife==='function') window._skDrawLife(); }
   /* v2.1.402 Faza AQ.12 Etap 2 (user explicit "(...) widac w mieszkaniu"): rysuj psa w salonie mieszkania jeśli owned. */
   if(G.dog && G.dog.owned && (currentRoom==='mieszkanie' || currentRoom==='mieszkanie_premium' || currentRoom==='mieszkanie_lux')) {
     drawApartmentDog();
@@ -44583,8 +44583,8 @@ window._tryUnlockDistrict=(districtId)=>{
     if(typeof showDistrictUnlockCinematic==='function') showDistrictUnlockCinematic(districtId);
     if(typeof addNotif==='function') addNotif(`🔓 ${req.name} odblokowane! Wejdź ponownie ([E] na bramie) żeby zobaczyć miejsca.`);
     if(typeof _smsTriggerOnce==='function'){
-      if(districtId==='underground') _smsTriggerOnce('district_underground_unlocked','marcin','🌑 Słyszałem o twoim Underground unlock. Tam zaczyna się prawdziwa ulica.',{replySet:'marcin_underground_unlock'});
-      else if(districtId==='coast') _smsTriggerOnce('district_coast_unlocked','marcin','🌊 Coast — wybrzeże VIP-ów. Tylko top artyści tam bywają.',{replySet:'marcin_coast_unlock'});
+      if(districtId==='underground') _smsTriggerOnce('district_underground_unlocked','marcin','Odblokowałeś Underground District. Tam zaczyna się inna warstwa miasta — mniej reklamy, więcej obserwowania. Wchodź z głową.'/* v2.3.122 tresc wg PDF */,{replySet:'marcin_underground_unlock'});
+      else if(districtId==='coast') _smsTriggerOnce('district_coast_unlocked','marcin','Marina Coast to wybrzeże VIP-ów, artystów i ludzi z dużym budżetem. Warto tam bywać, ale tylko z konkretnym celem.'/* v2.3.122 tresc wg PDF */,{replySet:'marcin_coast_unlock'});
       else if(districtId==='business') _smsTriggerOnce('district_business_unlocked','manager','💼 Business District unlock. Czas na profesjonalny ruch.',{replySet:'manager_business_district_unlock'});
     }
     /* v2.1.366 Faza E TIER 5: immediate achievement check po unlock (analog Faza H — 13 immediate calls). Triggeruje 'all_districts' gdy 3 dzielnice odblokowane. */
@@ -45986,6 +45986,12 @@ window._marinaRenderBuyList=function(cat){
 window._marinaBuyWatercraft=function(modelId){
   _marinaEnsure(); const m=_marinaModelById(modelId); if(!m) return;
   if(G.marina.owned.some(w=>w.modelId===modelId)){ if(typeof showMsg==='function') showMsg('Masz już tę jednostkę.','r',3000); return; }
+  /* v2.3.122 (PDF Uspr v2.3.121): port ma 16 miejsc, które gracz może posiadać — po ich zajęciu
+     nie da się kupić kolejnej jednostki, dopóki którejś nie sprzedasz. Miejsca NPC są niedostępne. */
+  if(typeof MARINA_PLAYER_SLOTS==='number' && G.marina.owned.length>=MARINA_PLAYER_SLOTS){
+    if(typeof showMsg==='function') showMsg('⚓ Wszystkie '+MARINA_PLAYER_SLOTS+' miejsc w porcie jest zajętych przez Twoje jednostki. Pozostałe miejsca należą do innych właścicieli.','r',5600);
+    return;
+  }
   /* v2.3.122 (PDF Uspr v2.3.121): kolejność wymuszona — bez wykupionego miejsca w porcie nie ma zakupu
      jednostki, niezależnie od stanu konta. */
   if(_marinaBestBerthTier()<Math.max(1,m.requiredBerthTier||1)){
@@ -48296,6 +48302,16 @@ window._npcCrashRegister=function(a,b,room){
   if(typeof a.dx==='number'){ a._crashDx=a.dx; a.dx=0; }
   if(typeof b.dx==='number'){ b._crashDx=b.dx; b.dx=0; }
   a._hazard=true; b._hazard=true;
+  /* v2.3.122 (PDF Uspr v2.3.121): „NPC rozwiązują te sprawy między sobą i SCHODZĄ NA BOK" —
+     uczestnicy zjeżdżają z osi pasa na pobocze, żeby nie blokować ruchu do czasu przyjazdu patrolu.
+     Pierwotne położenie zapamiętane, przywracane przy wznowieniu jazdy. */
+  const _side=(o,dir)=>{
+    if(!o) return;
+    const key=(o.wy!=null)?'wy':'y';
+    if(typeof o._preCrashY!=='number') o._preCrashY=o[key];
+    o[key]=o._preCrashY+dir*16;
+  };
+  _side(a,-1); _side(b,1);
   if(typeof addNotif==='function') addNotif('🚗💥 Stłuczka na ulicy — kierowcy czekają na patrol.');
   return scene;
 };
@@ -48328,9 +48344,10 @@ window._npcCrashDraw=function(room){
     const s=window._npcCrashScenes[i];
     if(s.room!==room) continue;
     const el=now-s.t;
-    if(el>75000){                                          /* koniec sceny — uczestnicy odjeżdżają */
-      if(s.a){ s.a._crashedAt=null; s.a._hazard=false; if(typeof s.a._crashDx==='number') s.a.dx=s.a._crashDx; }
-      if(s.b){ s.b._crashedAt=null; s.b._hazard=false; if(typeof s.b._crashDx==='number') s.b.dx=s.b._crashDx; }
+    if(el>75000){                                          /* koniec sceny — uczestnicy wracają na pas i odjeżdżają */
+      const _back=(o)=>{ if(!o) return; const key=(o.wy!=null)?'wy':'y'; if(typeof o._preCrashY==='number'){ o[key]=o._preCrashY; o._preCrashY=null; } };
+      if(s.a){ s.a._crashedAt=null; s.a._hazard=false; _back(s.a); if(typeof s.a._crashDx==='number') s.a.dx=s.a._crashDx; }
+      if(s.b){ s.b._crashedAt=null; s.b._hazard=false; _back(s.b); if(typeof s.b._crashDx==='number') s.b.dx=s.b._crashDx; }
       window._npcCrashScenes.splice(i,1);
       continue;
     }
@@ -48435,6 +48452,9 @@ const SK_CREW_PROFILES=[
 ];
 /* §19/§20 — kategorie operacji nazwane neutralnie (czarna skrzynka, bez instrukcji) */
 const SK_OPERATIONS=[
+  /* §19 PDF: kategorie fabularne (haracz/presja, odzyskanie mienia, temat pojazdowy, incydent
+     na obiekcie, duża robota miejska, ciche rozwiązanie, sprawa z czarnej teczki) — nazwy neutralne,
+     rozliczenie wyłącznie jako czarna skrzynka. */
   {id:'pressure_operation',  name:'Operacja nacisku',        risk:45, payout:'średni',  crew:2, heatOk:8,  heatFail:22, infamyFail:8,  trust:2, desc:'Ekipa ma wywrzeć presję na kimś, kto zalega albo za dużo mówi.'},
   {id:'asset_retrieval',     name:'Odzyskanie towaru',       risk:55, payout:'średni',  crew:2, heatOk:10, heatFail:26, infamyFail:10, trust:2, desc:'Odebranie tego, co komuś „przypadkiem" zostało.'},
   {id:'vehicle_shadow_job',  name:'Robota na pojazdach',     risk:75, payout:'wysoki',  crew:3, heatOk:12, heatFail:35, infamyFail:15, trust:4, desc:'Temat pojazdowy — szybki zysk, długi cień.'},
@@ -48462,7 +48482,7 @@ function _skEnsure(){
    ['campingInnLinks',0],['riskyContactsUnlocked',0],['legalCommunityTrust',0],
    ['crewFormationProgress',0],['stage',0],['lastVisitDay',-1],['lastDealDay',-1],
    ['performances',0],['parties',0],['miraQuest',0],['burstQuest',0],['szkloQuest',0],
-   ['competitorTax',0],['selfProtection',0],['riskReading',0]
+   ['competitorTax',0],['selfProtection',0],['riskReading',0],['zajazdQuest',0],['_debts',0]
   ].forEach(([k,d])=>{ if(typeof s[k]!=='number'||!isFinite(s[k])) s[k]=d; });
   if(!Array.isArray(s.crewSeeds)) s.crewSeeds=[];
   if(!s.stock || typeof s.stock!=='object') s.stock={};
@@ -48695,7 +48715,7 @@ window._skOpenYard=function(){
       📦 Pakiety przy sobie: <b>${stock}</b>${shadow?'':' · <span style="color:#7a7060">warstwa cienia zamknięta</span>'}
     </div>
     ${row('window._skLookAround()','🔍','Rozejrzyj się po podwórku','Co dziś widać, kto się kręci, gdzie stoją oczy.')}
-    ${row('window._skTalkLocals()','💬','Zagaduj do lokalnych','Historie mieszkańców, plotki, kontakty.')}
+    ${row('window._skTalkLocals()','💬','Zagadaj do lokalnych','Historie mieszkańców, plotki, kontakty.')}
     ${row('window._skFindClient()','🤝','Szukaj klienta / kontaktu', shadow?'Rozmowa z ryzykiem — nie każdy jest tym, na kogo wygląda.':'Wymaga wejścia w Nielegalny Front i zaufania Kantara.', !shadow)}
     ${row('window._skLocalOpportunity()','🎲','Wejdź w lokalną okazję', shadow?'Szybki temat od pośrednika. Bywa pułapką.':'Niedostępne bez kontaktów.', !shadow)}
     ${row('window._skHouseParty()','🎉','Domówka w bloku','Ludzie, muzyka, kontakty — i ryzyko, że zrobi się za gorąco.')}
@@ -48703,7 +48723,7 @@ window._skOpenYard=function(){
     ${row('window._skFrontPanel()','🌑','Nielegalny Front', shadow?'Twoje pakiety, kontakty i ekipa.':'Zamknięte — najpierw wejście w Nielegalny Front.', !shadow)}
     ${row('window._skRiskPanel()','⚠️','Sprawdź ryzyko okolicy','Świadkowie, konkurencja, patrol, nastawienie Kantara.')}
     ${row('window._skToCampingInn()','🏕','Przejście do Zajazdu kempingowego','Boczną ścieżką, bez wracania przez bramę.')}
-    <button class="cbtn" style="width:100%;margin-top:8px" onclick="window._skClose()">🚪 Zamknij</button>
+    <button class="cbtn" style="width:100%;margin-top:8px" onclick="window._skClose()">↩ Wróć</button>
   </div>`);
 };
 
@@ -48940,7 +48960,7 @@ window._skFindClient=function(){
   if((G.energy||0)<6){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii (potrzeba 6).','r',3000); return; }
   G.energy=Math.max(0,(G.energy||0)-6);
   const npc=_skRollNpc();
-  s._npc=npc;
+  s._npc=npc; s._reacted=false; s._kantarWarned=false;
   const risk=window._skNpcRisk(npc); const rl=window._skRiskLabel(risk);
   const w=window._skWitnessPressure();
   const trustTxt=(s.localTrust>=30)?'wysokie':(s.localTrust>=12?'średnie':'niskie');
@@ -49089,7 +49109,7 @@ window._skNegotiate=function(pkgId){
     <div style="color:#9a8f80;font-size:12px;margin-bottom:10px">Zainteresowanie rozmówcy: <b>${npc.demandLevel}/100</b> · orientacyjna wartość: <b>${base} zł</b></div>
     <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skResolveDeal('hold_price')">💼 Trzymaj cenę<div style="font-size:11px;color:#9ab">Standardowy zysk, standardowe ryzyko.</div></button>
     <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skResolveDeal('small_discount')">🤝 Zejdź trochę, żeby zbudować kontakt<div style="font-size:11px;color:#9ab">Mniejszy zysk, większa szansa, że wróci.</div></button>
-    <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skResolveDeal('push_price')">📈 Podbij cenę<div style="font-size:11px;color:#9ab">Większy zysk, większe ryzyko konfliktu albo długu.</div></button>
+    <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skResolveDeal('push_price')">📈 Podbij cenę, jeśli wygląda na zdesperowanego<div style="font-size:11px;color:#9ab">Większy zysk, większe ryzyko konfliktu albo długu.</div></button>
     <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skResolveDeal('walk_away')">✋ Odmów, jeśli zaczyna kombinować<div style="font-size:11px;color:#9ab">Brak zysku, ale rośnie samoochrona.</div></button>
     <button class="cbtn" style="width:100%" onclick="window._skOpenYard()">🚶 Odejdź</button>
   </div>`);
@@ -49125,6 +49145,13 @@ window._skResolveDeal=function(choice){
   const composure=Math.min(20,(s.selfProtection||0)+(s.riskReading||0));
   const successScore=(s.riskReading||0)*8 + (G.kantarTrust||0)*3 + composure*2 - npcRisk*0.4 - (G.heat||0)*0.2 + 38;
   const chance=Math.max(5,Math.min(85,successScore));
+  /* v2.3.122 (PDF §13): zanim dojdzie do rozliczenia, NPC może się targować albo poprosić o dług.
+     Dzieje się to RAZ na rozmowę (flaga _reacted), żeby nie zapętlić wymiany. */
+  if(!s._reacted && choice!=='walk_away'){
+    const aggr=(npc.negotiationAggression||0), debt=(npc.debtRisk||0);
+    if(choice==='push_price' && Math.random()*100<Math.min(70,aggr)){ s._reacted=true; window._skHaggle(); return; }
+    if(Math.random()*100<Math.min(45,debt*0.55)){ s._reacted=true; window._skDebtRequest(); return; }
+  }
   const success=(Math.random()*100)<chance;
   const value=window._skDealValue(pkg,npc,choice);
   const w=window._skWitnessPressure();
@@ -49215,7 +49242,7 @@ window._skPoliceScene=function(){
     'Ciotka Mira zamyka okno. To zawsze znaczy to samo.',
     'Burst nagle znika w klatce. „Teraz się nie gada. Teraz się patrzy w telefon i wygląda normalnie. Kumasz?"',
     'Lenny mruczy pod nosem: „Za późno na luz. Za wcześnie na panikę."',
-    'Szkło patrzy, czy spanikujesz.',
+    'Szkło patrzy, czy spanikujesz. „No i co, gwiazdo? Dalej chcesz robić interesy pod latarnią?"',
   ];
   const r=reactions[Math.floor(Math.random()*reactions.length)];
   if(typeof showMsg==='function') showMsg('🚔 '+r,'i',5600);
@@ -49788,6 +49815,352 @@ window._skDailyTick=function(){
   window._skCareerConsequences();
   window._skStoryStage();
 };
+
+/* ═══ v2.3.122 UZUPEŁNIENIE PDF „Slumsy Underground" — §13, §24, §27-§29, §31, §38 ═══ */
+
+/* ── §31 ŻYCIE LOKACJI (City Pulse): mieszkańcy chodzą po podwórku ── */
+let _skPeds=null, _skPedsDay=-1, _skPedsPart=-1;
+function _skDayPart(){
+  const h=(typeof gameMin!=='undefined')?Math.floor((gameMin%1440)/60):12;
+  if(h>=6&&h<17) return 0;      /* dzień: mieszkańcy, zakupy, dzieciaki */
+  if(h>=17&&h<22) return 1;     /* wieczór: grupy, domówki, spięcia */
+  return 2;                     /* noc: mniej przypadkowych, więcej obserwatorów */
+}
+function _skInitPeds(){
+  _skEnsure();
+  const part=_skDayPart();
+  const W=(ROOMS.stary_kwartal?ROOMS.stary_kwartal.wT:24)*48;
+  const base=Math.round(9*SK_PULSE_PROFILE.basePedestrianDensity);
+  const n=(part===0)?base:(part===1?base+3:Math.max(3,base-4));
+  const lanes=[300,430,560];
+  _skPeds=[];
+  for(let i=0;i<n;i++){
+    const watcher=(part===2)?(Math.random()<0.45):(Math.random()<SK_PULSE_PROFILE.underworldSignalMultiplier*0.2);
+    _skPeds.push({
+      x:90+Math.random()*(W-180),
+      y:lanes[i%lanes.length]+((i*17)%26)-13,
+      dx:(Math.random()>0.5?1:-1)*(0.25+Math.random()*0.5),
+      col:['#7d6a55','#5a6b7d','#6b5a7d','#7d5a5a','#5a7d63'][i%5],
+      watcher, anim:Math.random()*100,
+      idle:watcher?1:0,
+    });
+  }
+  _skPedsDay=(G.day||0); _skPedsPart=part;
+}
+window._skDrawLife=function(){
+  if(typeof currentRoom==='undefined'||currentRoom!=='stary_kwartal') return;
+  if(typeof _paused!=='undefined' && _paused) return;
+  if(typeof G!=='undefined' && G._dying) return;
+  const part=_skDayPart();
+  if(!_skPeds || _skPedsDay!==(G.day||0) || _skPedsPart!==part) _skInitPeds();
+  const W=(ROOMS.stary_kwartal?ROOMS.stary_kwartal.wT:24)*48;
+  for(const p of _skPeds){
+    p.anim++;
+    if(!p.idle){
+      p.x+=p.dx;
+      if(p.x<80){ p.x=80; p.dx=Math.abs(p.dx); }
+      else if(p.x>W-80){ p.x=W-80; p.dx=-Math.abs(p.dx); }
+    } else if(Math.random()<0.002){ p.idle=0; }
+    const sx=wx2sx(p.x), sy=wy2sy(p.y);
+    if(sx<-40||sx>1330||sy<-40||sy>860) continue;
+    const bob=p.idle?0:Math.sin(p.anim*0.14)*1.4;
+    X.fillStyle='rgba(0,0,0,.30)';
+    X.beginPath(); X.ellipse(sx+8,sy+46,11,4,0,0,Math.PI*2); X.fill();
+    X.fillStyle=p.col; X.fillRect(sx,sy+14+bob,17,24);
+    X.fillStyle='#d8b48c'; X.fillRect(sx+3,sy+2+bob,11,12);
+    X.fillStyle='#22202a'; X.fillRect(sx+3,sy+bob,11,5);
+    X.fillStyle='#2a2a32'; X.fillRect(sx+1,sy+38+bob,6,8); X.fillRect(sx+10,sy+38+bob,6,8);
+    /* obserwator — patrzy w stronę gracza (§8.3) */
+    if(p.watcher){
+      X.fillStyle='rgba(180,160,220,.5)';
+      X.beginPath(); X.arc(sx+8,sy-6,3,0,Math.PI*2); X.fill();
+    }
+  }
+};
+
+/* ── §13 REAKCJE NPC NA NEGOCJACJĘ: targowanie i próba długu ── */
+window._skHaggle=function(){
+  _skEnsure(); const s=G.staryKwartal;
+  const pkg=_skPkgById(s._pkg), npc=s._npc;
+  if(!pkg||!npc){ window._skOpenYard(); return; }
+  _skPanel(`<div style="background:#141018;border:2px solid #f1c40f;border-radius:12px;padding:16px;max-width:520px;margin:0 auto;color:#e8e2d8">
+    <h3 style="color:#f1c40f;margin-top:0">💬 Targuje się</h3>
+    <div style="color:#cfc5b5;font-size:13px;line-height:1.55;font-style:italic;margin-bottom:12px">„Za tyle to ja mam pół osiedla do wyboru. Nie rób ze mnie niepełnosprawnego."</div>
+    <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skResolveDeal('small_discount')">🤝 Zejdź z ceny</button>
+    <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skHoldGround()">💼 Zostań przy swoim</button>
+    <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skResolveDeal('walk_away')">✋ Odmów</button>
+    ${_skBack()}
+  </div>`);
+};
+window._skHoldGround=function(){
+  _skEnsure(); const s=G.staryKwartal;
+  const npc=s._npc; if(!npc){ window._skOpenYard(); return; }
+  /* im bardziej agresywny w negocjacji, tym większa szansa, że odejdzie */
+  const walks=(Math.random()*100)<(npc.negotiationAggression||40);
+  if(walks){
+    s.localRespect=Math.min(100,(s.localRespect||0)+1);
+    _skPanel(`<div style="background:#141018;border:2px solid #e67e22;border-radius:12px;padding:16px;max-width:520px;margin:0 auto;color:#e8e2d8">
+      <h3 style="color:#e67e22;margin-top:0">💼 Trzymasz cenę</h3>
+      <div style="color:#cfc5b5;font-size:13px;line-height:1.55">Machnął ręką i poszedł. Nic nie sprzedałeś, ale na podwórku widzieli, że nie zbijasz ceny na zawołanie.<br><br>+1 szacunek lokalny</div>
+      ${_skBack()}
+    </div>`);
+    return;
+  }
+  window._skResolveDeal('hold_price');
+};
+window._skDebtRequest=function(){
+  _skEnsure(); const s=G.staryKwartal;
+  const pkg=_skPkgById(s._pkg), npc=s._npc;
+  if(!pkg||!npc){ window._skOpenYard(); return; }
+  _skPanel(`<div style="background:#141018;border:2px solid #e6a86a;border-radius:12px;padding:16px;max-width:520px;margin:0 auto;color:#e8e2d8">
+    <h3 style="color:#e6a86a;margin-top:0">🪙 Próbuje długu</h3>
+    <div style="color:#cfc5b5;font-size:13px;line-height:1.55;font-style:italic;margin-bottom:12px">„Daj teraz to oddam Ci wieczorem. Przecież widujemy się na tej samej dzielni."</div>
+    <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skDebtChoice('agree')">🤝 Zgódź się<div style="font-size:11px;color:#9ab">Ryzyko długu i przyszłego konfliktu.</div></button>
+    <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skDebtChoice('refuse')">✋ Odmów<div style="font-size:11px;color:#9ab">+samoochrona, gorsza relacja.</div></button>
+    <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skDebtChoice('smaller')">📦 Zaproponuj mniejszy pakiet<div style="font-size:11px;color:#9ab">Mniejszy zysk, mniejsze ryzyko.</div></button>
+    ${_skBack()}
+  </div>`);
+};
+window._skDebtChoice=function(kind){
+  _skEnsure(); const s=G.staryKwartal;
+  const pkg=_skPkgById(s._pkg), npc=s._npc;
+  if(!pkg||!npc){ window._skOpenYard(); return; }
+  if(kind==='agree'){
+    s.stock[pkg.id]=Math.max(0,(s.stock[pkg.id]||0)-1);
+    s.streetDeals=(s.streetDeals||0)+1;
+    s._debts=(s._debts||0)+1;
+    npc.debtRisk=Math.min(100,(npc.debtRisk||0)+30);
+    s.competitorHeat=Math.min(100,(s.competitorHeat||0)+4);
+    _skPanel(`<div style="background:#141018;border:2px solid #e6a86a;border-radius:12px;padding:16px;max-width:520px;margin:0 auto;color:#e8e2d8">
+      <h3 style="color:#e6a86a;margin-top:0">🪙 Dałeś na słowo</h3>
+      <div style="color:#cfc5b5;font-size:13px;line-height:1.55">Wziął i zniknął w klatce. Może odda wieczorem. Może za tydzień. Może wcale.<br><br>Niespłaconych zobowiązań na dzielnicy: <b>${s._debts}</b> — takie rzeczy wracają.</div>
+      ${_skBack()}
+    </div>`);
+  } else if(kind==='refuse'){
+    s.selfProtection=Math.min(20,(s.selfProtection||0)+2);
+    s.localTrust=Math.max(0,(s.localTrust||0)-1);
+    _skPanel(`<div style="background:#141018;border:2px solid #7ec87e;border-radius:12px;padding:16px;max-width:520px;margin:0 auto;color:#e8e2d8">
+      <h3 style="color:#7ec87e;margin-top:0">✋ Bez kredytu</h3>
+      <div style="color:#cfc5b5;font-size:13px;line-height:1.55">„Na słowo to w sklepie na rogu." Odszedł obrażony, ale Ty nie masz problemu na przyszłość.<br><br>+2 samoochrona · −1 zaufanie tego człowieka</div>
+      ${_skBack()}
+    </div>`);
+  } else {
+    const smaller=SK_PACKAGES.filter(p=>p.family===pkg.family && p.baseValue<pkg.baseValue).sort((a,b)=>b.baseValue-a.baseValue)[0];
+    if(smaller && (s.stock[smaller.id]||0)>0){ s._pkg=smaller.id; }
+    window._skResolveDeal('small_discount');
+  }
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+
+/* ── §24, §27, §28, §29 ZAJAZD KEMPINGOWY — własne menu (legalne + ciemniejsze) ── */
+window._skZajazdPanel=function(){
+  _skEnsure(); const s=G.staryKwartal;
+  const shadow=window._skShadowAccess();
+  /* §38: quest startuje przy pierwszej wizycie kogoś, kto już wszedł w Nielegalny Front */
+  if(shadow && (s.zajazdQuest||0)===0 && (s.campingInnLinks||0)>=1) window._skQuestZajazdStart();
+  const restedToday=((G._zajazdDay||-1)===(G.day||0));
+  const row=(fn,em,txt,sub,dis)=>`<button class="bbtn" style="width:100%;text-align:left;margin-bottom:6px;${dis?'opacity:.45;cursor:not-allowed':''}" ${dis?'disabled':''} onclick="${fn}">${em} <b>${txt}</b><div style="font-size:11px;color:#9ab;margin-top:2px">${sub}</div></button>`;
+  _skPanel(`<div style="background:linear-gradient(160deg,#141810,#0a0c08);border:2px solid #6a7a4a;border-radius:12px;padding:16px;max-width:560px;margin:0 auto;color:#e2e8d8">
+    <h2 style="color:#b8d89a;margin-top:0;text-align:center">🏕 Zajazd kempingowy</h2>
+    <div style="text-align:center;color:#8f9a80;font-size:12px;margin-bottom:10px">Ognisko, kampery, ludzie z okolicy. Miejsce, gdzie można odpocząć — albo załatwić coś, o czym nie mówi się głośno.</div>
+    ${row('window._skZajazdRest()','🛌','Odpoczynek i nocleg', restedToday?'Byłeś tu dziś — wróć jutro.':'60 zł · lepszy nastrój i energia', restedToday)}
+    ${row('window._skZajazdPerform()','🎤','Mały występ przy ognisku','Kilka numerów, ludzie przy ogniu, ktoś nagrywa telefonem.')}
+    ${row('window._skZajazdParty()','🎉','Domówka przy Zajeździe','Luźny wieczór — kontakty, nastrój i ryzyko, że zrobi się za gorąco.')}
+    ${row('window._skZajazdGrill()','🍖','Grill i rozmowy z lokalnymi','Spotkanie ze znajomymi, mniej formalny networking.')}
+    ${row('window._skZajazdShadow()','🌑','Zejdź na bok z tematem', shadow?'Spotkanie z klientem, pośrednik, sygnał od Kantara.':'Zamknięte — najpierw wejście w Nielegalny Front.', !shadow)}
+    ${row('window._skZajazdToYard()','🏚️','Boczną ścieżką na Stary Kwartał','Wracasz na podwórko bez okrążania dzielnicy.')}
+    <button class="cbtn" style="width:100%;margin-top:8px" onclick="window._skClose()">↩ Wróć</button>
+  </div>`);
+};
+window._skZajazdRest=function(){
+  _skEnsure();
+  const fee=60;
+  if((G._zajazdDay||-1)===(G.day||0)){ if(typeof showMsg==='function') showMsg('🏕 Odpoczywałeś tu dziś. Wróć jutro.','i',3500); return; }
+  if((G.money||0)<fee){ if(typeof showMsg==='function') showMsg('🏕 Odpoczynek w zajeździe kosztuje '+fee+' zł.','r',3500); return; }
+  G._zajazdDay=(G.day||0); G.money-=fee;
+  G.stress=(typeof clampStat==='function')?clampStat('stress',(G.stress||0)+18):Math.min(100,(G.stress||0)+18);
+  G.energy=(typeof clampStat==='function')?clampStat('energy',(G.energy||0)+20):Math.min(100,(G.energy||0)+20);
+  G.staryKwartal.localTrust=Math.min(100,(G.staryKwartal.localTrust||0)+1);
+  if(typeof showMsg==='function') showMsg('🏕 Odpocząłeś przy ognisku (−'+fee+' zł). Cisza, kampery, spokój — wracasz wypoczęty.','g',5200);
+  if(typeof updateHUD==='function') updateHUD();
+  window._skZajazdPanel();
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+window._skZajazdPerform=function(){
+  _skEnsure(); const s=G.staryKwartal;
+  if((G.energy||0)<10){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii (potrzeba 10).','r',3200); return; }
+  G.energy=Math.max(0,(G.energy||0)-10);
+  s.performances=(s.performances||0)+1;
+  const skill=(typeof getSkillLvl==='function')?(getSkillLvl('raper')||0):0;
+  const roll=Math.random()*100+skill*6+(s.localTrust||0)*0.4;
+  let title,col,body;
+  if(roll>=70){
+    const fans=5+Math.floor(Math.random()*12)+skill*2;
+    if(typeof addFans==='function') addFans(fans); else G.fans=(G.fans||0)+fans;
+    s.localRespect=Math.min(100,s.localRespect+2);
+    s.localTrust=Math.min(100,s.localTrust+2);
+    if(typeof G.streetRep==='number') G.streetRep=Math.min(100,G.streetRep+2);
+    G.stress=(typeof clampStat==='function')?clampStat('stress',(G.stress||0)+9):Math.min(100,(G.stress||0)+9);
+    title='🎤 Dobry set przy ognisku'; col='#7ec87e';
+    body=`Nie koncert klubowy — kilka numerów, ludzie przy ogniu, ktoś nagrywa telefonem. Ale wyszło szczerze.<br><br>+${fans} fanów · +2 szacunek · +2 zaufanie lokalnych`;
+    if(!s.met.burst && Math.random()<0.5){ s.met.burst=true; body+='<br><br>Po wszystkim podszedł Burst: „Widzę, że umiesz. Odezwę się."'; }
+    window._skSocialPost(true);
+  } else if(roll>=35){
+    s.localTrust=Math.min(100,s.localTrust+1);
+    title='🎤 Przeciętnie'; col='#f1c40f';
+    body='Kilku posłuchało, reszta rozmawiała dalej. Bez wpadki.<br><br>+1 zaufanie lokalnych';
+  } else {
+    s.localTrust=Math.max(0,s.localTrust-1);
+    G.stress=(typeof clampStat==='function')?clampStat('stress',(G.stress||0)-6):Math.max(0,(G.stress||0)-6);
+    title='🎤 Słaby występ'; col='#e67e22';
+    body='Ktoś rzucił żartem, ktoś inny się zaśmiał. Skończyłeś wcześniej, niż planowałeś.<br><br>−1 zaufanie · gorszy nastrój';
+  }
+  /* ryzyko przypału przy podejrzanych NPC albo policji w okolicy */
+  if((G.heat||0)>=50 || window._skPoliceChance()>=30){
+    s.policePressure=Math.min(100,(s.policePressure||0)+4);
+    body+='<br><br><span style="color:#e07070">Ktoś nagrywał dłużej, niż wypada. Przy Twoim „przypale" to nie jest obojętne.</span>';
+  }
+  window._skMusicInspiration('small_performance');
+  _skPanel(`<div style="background:#141810;border:2px solid ${col};border-radius:12px;padding:16px;max-width:520px;margin:0 auto;color:#e2e8d8">
+    <h3 style="color:${col};margin-top:0">${title}</h3>
+    <div style="color:#cfc5b5;font-size:13px;line-height:1.55">${body}</div>
+    <button class="cbtn" style="width:100%;margin-top:10px" onclick="window._skZajazdPanel()">↩ Wróć</button>
+  </div>`);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+window._skZajazdParty=function(){
+  _skEnsure();
+  _skPanel(`<div style="background:#141810;border:2px solid #9b59b6;border-radius:12px;padding:16px;max-width:540px;margin:0 auto;color:#e2e8d8">
+    <h3 style="color:#c39bd3;margin-top:0">🎉 Domówka przy Zajeździe</h3>
+    <div style="color:#cfc5b5;font-size:12.5px;line-height:1.5;margin-bottom:10px">Muzyka, alkohol, ognisko i ludzie, którzy rozmawiają za cicho jak na imprezę.</div>
+    <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skZajazdPartyChoice('guest')">🚪 Wejdź jako gość</button>
+    <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skZajazdPartyChoice('play')">🎤 Zagraj 2 numery</button>
+    <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skZajazdPartyChoice('meet')">🤝 Poznaj ludzi</button>
+    <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skZajazdPartyChoice('side')">🌑 Porozmawiaj na boku</button>
+    <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skZajazdPartyChoice('leave')">🚶 Wyjdź, zanim zrobi się za gorąco</button>
+    <button class="cbtn" style="width:100%" onclick="window._skZajazdPanel()">↩ Wróć</button>
+  </div>`);
+};
+window._skZajazdPartyChoice=function(kind){
+  _skEnsure(); const s=G.staryKwartal;
+  const mood=(v)=>{ G.stress=(typeof clampStat==='function')?clampStat('stress',(G.stress||0)+v):Math.max(0,Math.min(100,(G.stress||0)+v)); };
+  let txt='', col='#c39bd3';
+  const fatigue=()=>{ G.energy=Math.max(0,(G.energy||0)-8); };
+  if(kind==='guest'){ mood(8); fatigue(); s.localTrust=Math.min(100,s.localTrust+1); s.parties++; txt='Wchodzisz, ktoś podaje picie, ktoś inny pyta, skąd Cię kojarzy.<br><br>+nastrój · +1 zaufanie lokalnych · −energia'; }
+  else if(kind==='play'){ mood(10); fatigue(); s.localRespect=Math.min(100,s.localRespect+2); s.parties++; const f=4+Math.floor(Math.random()*9); if(typeof addFans==='function') addFans(f); else G.fans=(G.fans||0)+f; txt=`Dwa numery przy ognisku. Refren podchwycili przy drugim.<br><br>+${f} fanów · +2 szacunek`; window._skMusicInspiration('small_performance'); }
+  else if(kind==='meet'){ fatigue(); s.partyConnections=(s.partyConnections||0)+1; s.campingInnLinks=(s.campingInnLinks||0)+1; txt='Kilka numerów telefonu, jeden konkretny kontakt.<br><br>+1 kontakt imprezowy'; }
+  else if(kind==='side'){
+    if(!window._skShadowAccess()){ col='#e67e22'; txt='Schodzisz na bok, ale rozmówca patrzy na Ciebie jak na turystę.<br><br><i>„'+SK_DENY_LINES[2]+'"</i>'; }
+    else { fatigue(); s.riskyContactsUnlocked=(s.riskyContactsUnlocked||0)+1; s.policePressure=Math.min(100,s.policePressure+4); if(typeof window._uwAddStat==='function') window._uwAddStat('street_heat',4); col='#e6a86a'; txt='Krótka rozmowa za kamperem. Zostaje kontakt i cień ryzyka.<br><br>+1 ryzykowny kontakt · rośnie uwaga służb'; }
+  }
+  else { s.selfProtection=Math.min(20,(s.selfProtection||0)+1); col='#7ec87e'; txt='Wychodzisz przed patrolem. Za Tobą zostaje hałas i cudze problemy.<br><br>+1 samoochrona'; }
+  if(kind!=='leave' && Math.random()<0.45){
+    const evs=['Ktoś kłóci się o pieniądze przy ognisku.','Sąsiad z pola namiotowego grozi, że dzwoni po policję.','Burst daje znak, że lepiej się zwijać.','Lenny ostrzega, że ktoś nagrywa.','Patrol przejeżdża drogą obok.'];
+    const e=evs[Math.floor(Math.random()*evs.length)];
+    txt+=`<br><br><span style="color:#e6a86a">${_skH(e)}</span>`;
+    if(/policj|patrol/i.test(e)) s.policePressure=Math.min(100,s.policePressure+3);
+  }
+  /* §38 quest — domówka, która nie jest domówką */
+  if(s.zajazdQuest===1){ window._skQuestZajazdProgress(kind); }
+  _skPanel(`<div style="background:#141810;border:2px solid ${col};border-radius:12px;padding:16px;max-width:520px;margin:0 auto;color:#e2e8d8">
+    <h3 style="color:${col};margin-top:0">🎉 Domówka przy Zajeździe</h3>
+    <div style="color:#cfc5b5;font-size:13px;line-height:1.55">${txt}</div>
+    <button class="cbtn" style="width:100%;margin-top:10px" onclick="window._skZajazdPanel()">↩ Wróć</button>
+  </div>`);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+window._skZajazdGrill=function(){
+  _skEnsure(); const s=G.staryKwartal;
+  if((G.energy||0)<5){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii.','r',3000); return; }
+  G.energy=Math.max(0,(G.energy||0)-5);
+  G.stress=(typeof clampStat==='function')?clampStat('stress',(G.stress||0)+6):Math.min(100,(G.stress||0)+6);
+  s.localTrust=Math.min(100,(s.localTrust||0)+1);
+  s.legalCommunityTrust=Math.min(100,(s.legalCommunityTrust||0)+1);
+  const talks=[
+    'Facet od kampera opowiada, jak objechał pół kraju bez nawigacji.',
+    'Kobieta z sąsiedniego pola pyta, czy to Ty śpiewałeś ostatnio na podwórku.',
+    'Ktoś tłumaczy, dlaczego grill na węglu jest jedynym słusznym grillem.',
+    'Dwóch starszych panów kłóci się o to, która dzielnica była kiedyś gorsza.',
+  ];
+  const t=talks[Math.floor(Math.random()*talks.length)];
+  if(Math.random()<0.3) window._skMusicInspiration('npc_story');
+  _skPanel(`<div style="background:#141810;border:2px solid #7ec87e;border-radius:12px;padding:16px;max-width:520px;margin:0 auto;color:#e2e8d8">
+    <h3 style="color:#7ec87e;margin-top:0">🍖 Przy grillu</h3>
+    <div style="color:#cfc5b5;font-size:13px;line-height:1.55">${_skH(t)}<br><br>Luźna rozmowa, żadnych interesów. Czasem to najlepszy networking.<br><br>+nastrój · +1 zaufanie lokalnych · +1 zaufanie społeczności</div>
+    <button class="cbtn" style="width:100%;margin-top:10px" onclick="window._skZajazdPanel()">↩ Wróć</button>
+  </div>`);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+window._skZajazdShadow=function(){
+  _skEnsure(); const s=G.staryKwartal;
+  if(!window._skShadowAccess()){ window._skZajazdPanel(); return; }
+  const r=Math.random();
+  if(r<0.3){ window._skWrongManEvent(); return; }
+  if(r<0.5 && (G.kantarTrust||0)>=3){
+    window._skKantarComment('careful');
+    _skPanel(`<div style="background:#141810;border:2px solid #8a7ab5;border-radius:12px;padding:16px;max-width:520px;margin:0 auto;color:#e2e8d8">
+      <h3 style="color:#b9a8e0;margin-top:0">📵 Sygnał od Kantara</h3>
+      <div style="color:#cfc5b5;font-size:13px;line-height:1.55">Telefon zawibrował dokładnie wtedy, kiedy odszedłeś od ogniska. Ktoś wie, gdzie jesteś, i uznał to za dobry moment.</div>
+      <button class="cbtn" style="width:100%;margin-top:10px" onclick="window._skZajazdPanel()">↩ Wróć</button>
+    </div>`);
+    return;
+  }
+  if(r<0.72){
+    s.riskyContactsUnlocked=(s.riskyContactsUnlocked||0)+1;
+    s._npc={type:'camp_party_guest', label:'Imprezowicz z Zajazdu', line:'Słyszałem, że można u Ciebie coś ogarnąć. Bez nerwów, pytam grzecznie.',
+      demandLevel:55+Math.floor(Math.random()*35), negotiationAggression:20+Math.floor(Math.random()*40),
+      policeRisk:5+Math.floor(Math.random()*25), debtRisk:20+Math.floor(Math.random()*50), violenceRisk:0,
+      gossipRisk:20+Math.floor(Math.random()*40), repeatCustomerChance:40};
+    window._skOfferPackages();
+    return;
+  }
+  s.riskyContactsUnlocked=(s.riskyContactsUnlocked||0)+1;
+  _skPanel(`<div style="background:#141810;border:2px solid #e6a86a;border-radius:12px;padding:16px;max-width:520px;margin:0 auto;color:#e2e8d8">
+    <h3 style="color:#e6a86a;margin-top:0">👁️ Ktoś Cię obserwuje</h3>
+    <div style="color:#cfc5b5;font-size:13px;line-height:1.55">Człowiek przy sąsiednim kamperze nie pije, nie je i nie rozmawia. Po prostu jest — i patrzy w Twoją stronę o sekundę za długo.<br><br>Nie wiesz, czy to konkurencja, informator, czy nikt ważny. Na razie nic się nie dzieje.</div>
+    <button class="cbtn" style="width:100%;margin-top:10px" onclick="window._skZajazdPanel()">↩ Wróć</button>
+  </div>`);
+};
+window._skZajazdToYard=function(){
+  _skEnsure();
+  G.staryKwartal.campingInnLinks=(G.staryKwartal.campingInnLinks||0)+1;
+  if(typeof window._skClose==='function') window._skClose();
+  window._skEnter();
+};
+
+/* ── §38 QUEST „Domówka, która nie jest domówką" ── */
+window._skQuestZajazdStart=function(){
+  _skEnsure(); const s=G.staryKwartal;
+  if(s.zajazdQuest>0) return false;
+  s.zajazdQuest=1; s._zqSet=false; s._zqMet=0; s._zqSide=false;
+  if(typeof addNotif==='function') addNotif('🎉 Nowe zadanie: „Domówka, która nie jest domówką".');
+  if(typeof showMsg==='function') showMsg('🎉 Zajazd zaprasza Cię na luźny wieczór. Na miejscu są ludzie, którzy rozmawiają za cicho jak na imprezę.','i',6000);
+  return true;
+};
+window._skQuestZajazdProgress=function(kind){
+  _skEnsure(); const s=G.staryKwartal;
+  if(s.zajazdQuest!==1) return;
+  if(kind==='play') s._zqSet=true;
+  if(kind==='meet') s._zqMet=(s._zqMet||0)+2;
+  if(kind==='guest') s._zqMet=(s._zqMet||0)+1;
+  if(kind==='side') s._zqSide=true;
+  if(kind==='leave'){
+    s.zajazdQuest=2;
+    s.selfProtection=Math.min(20,(s.selfProtection||0)+2);
+    if(typeof addNotif==='function') addNotif('🎉 „Domówka, która nie jest domówką" — wyszedłeś przed patrolem.');
+    return;
+  }
+  if((s._zqMet||0)>=2){
+    s.zajazdQuest=2;
+    const bonus=s._zqSet?2:1;
+    s.localTrust=Math.min(100,(s.localTrust||0)+bonus);
+    s.partyConnections=(s.partyConnections||0)+1;
+    if(s._zqSide){ s.riskyContactsUnlocked=(s.riskyContactsUnlocked||0)+1; s.policePressure=Math.min(100,s.policePressure+4); }
+    if(typeof addNotif==='function') addNotif('🎉 „Domówka, która nie jest domówką" — poznałeś ludzi i wyszedłeś z tego cało.');
+    if(typeof addXP==='function') addXP(20);
+  }
+};
+
 /* STARY KWARTAŁ MODULE END */
 
 
@@ -51019,6 +51392,10 @@ window._enterDistrictPlace=(districtId,placeId)=>{
       return;
     case 'underground_zajazd':
       if(typeof closeOverlay==='function') closeOverlay();
+      /* v2.3.122 (PDF „Slumsy Underground" §24/§27/§28): Zajazd ma teraz własne menu —
+         odpoczynek został jedną z opcji, doszły występy, domówki, grill i (po progresie
+         Nielegalnego Frontu) ciemniejsza warstwa. Stary jednorazowy odpoczynek działa dalej. */
+      if(typeof window._skZajazdPanel==='function'){ window._skZajazdPanel(); return; }
       { const _fee=60;
         if((G._zajazdDay||-1)===(G.day||0)){ showMsg('🏕 Odpoczywałeś tu dziś. Wróć jutro.','i',3500); return; }
         if((G.money||0)<_fee){ showMsg(`🏕 Odpoczynek w zajeździe kempingowym kosztuje ${_fee} zł.`,'r',3500); return; }
@@ -63917,10 +64294,10 @@ window._smsCheckTriggers=function(){
   if(typeof _expireOldLeads==='function') _expireOldLeads();
   /* v2.1.304 Faza 6 — polskie memy/easter eggs SMS pool (~15 triggerów). Klimat polskiej sceny hip-hop + meme'y internetowe. */
   /* v2.1.309 fix: meme_biedra próg podniesiony z 500 (= initial G.money) do 2000 — żeby NIE triggerował przy starcie gry w trakcie cinematicu. */
-  if(G.money>=2000 && G.totalEarned>=1000 && (typeof isPlaceOpen!=='function'||isPlaceOpen('npc:vendor').open)) _smsTriggerOnce('meme_biedra','zbyszek','Stary jutro Biedra ma promo na pączki 2+1, wpadnij. Każdy MC kiedyś tam stał w kolejce 🥯',{replySet:'zbyszek_donut_promo'}); /* v2.3.102 (PDF #8): tylko w godzinach pracy */
+  if(G.money>=2000 && G.totalEarned>=1000 && (typeof isPlaceOpen!=='function'||isPlaceOpen('npc:vendor').open)) _smsTriggerOnce('meme_biedra','zbyszek','Stary jutro Corner ma promo na paczki 2+2, wpadaj. Każdy MC kiedyś tam stał w kolejce'/* v2.3.122 tresc wg PDF */,{replySet:'zbyszek_donut_promo'}); /* v2.3.102 (PDF #8): tylko w godzinach pracy */
   if(G.totalEarned>=5000) _smsTriggerOnce('meme_hajs','kamil','HAJS HAJS HAJS 💸 widać że jedziesz. Pamiętaj — pierwszy milion się ukradnie, reszta sama przyjdzie',{replySet:'hajs'});
   if(freestyles>=3) _smsTriggerOnce('meme_punchline','kamil','siema, Twoje punchline’y rozjebały mi mózg. Dawaj diss na siebie next time 😈',{replySet:'kamil_three_freestyles'});
-  if(tracks>=5) _smsTriggerOnce('meme_allegro','label','🏢 wystawiamy Twoje single na portalu z ogłoszeniami jako limited press CD — kolekcjonerzy szaleją. Pasek 80% Twój.',{replySet:'label_limited_press_cd'});
+  if(tracks>=5) _smsTriggerOnce('meme_allegro','label','Chcemy wypuścić limitowane, fizyczne wydanie Twoich singli i wystawić je na miejskiej platformie ogłoszeniowej. Kolekcjonerzy reagują dobrze. Proponowany udział dla Ciebie: 80% przychodu netto.'/* v2.3.122 tresc wg PDF */,{replySet:'label_limited_press_cd'});
   if((G.haters||0)>=50) _smsTriggerOnce('meme_hejt','system','📱 Pierwsi hejterzy w komentarzach piszą "to nie jest rap to disco polo". KLASYK. Każdy MC to przeszedł.');
   if(G.fame>=40) _smsTriggerOnce('meme_tvn','marcin',((G.fame>=20||(G.fans||0)>=1000)?'Telewizja śniadaniowa dzwoniła — chcieli Cię w piątek jako „młody głos ulicy", więc już wiesz, czemu odmówiłem. Nie pozwolę, żeby zrobili z Ciebie dekorację do fragmentu o trendach 📺':'śniadaniówka w telewizji dzwoni — chcą Cię w piątek. Naturalnie odmówiłem za Ciebie. Nie ten level 📺'),{replySet:'marcin_tv'});
   if(concerts>=3) _smsTriggerOnce('meme_sylwester','marcin','📅 Robimy listę na telewizyjnego Sylwestra. Wiem wiem, to disco polo level, ale 80k zł za 2 numery to nie hajs do pogardzenia',{replySet:'marcin_tv_new_year'});
@@ -63939,11 +64316,11 @@ window._smsCheckTriggers=function(){
   }
   if(G.streetRep>=30) _smsTriggerOnce('meme_dzielnia','kamil','na dzielni gadają że "Ten z bloku" robi już rap. Babcie spod sklepu mówią "ładny chłopak ale śpiewa o czymś dziwnym" 👵',{replySet:'kamil_street_rep_30'});
   if(G.fame>=20 && freestyles>=1) _smsTriggerOnce('meme_kazik','fan','❤️ Mistrzu, masz "to coś" jak stara legenda sceny. Cisną Cię w sieci do collabu z gwiazdą rapu. Powiedz że TAK 🙏',{replySet:'fan_star_collab_pressure'});
-  if((G.fans||0)>=2000) _smsTriggerOnce('meme_paluch','fan','Słyszałem Twój ostatni numer 5x dziennie w autobusie nr 175. Cała Warszawa jedzie w słuchawkach. KONKURENCJA MOŻE SIĘ SCHOWAĆ 🚌',{replySet:'fan_bus_175'});
-  if(G.money>=20000) _smsTriggerOnce('meme_janusz','manager','🤵 Yo, ten gość co podał Ci wczoraj wódkę pod klubem to "Janusz biznesu" — chce 10% z każdej Twojej książki kucharskiej. SPADAJ z nim',{replySet:'manager_bad_business_offer'});
+  if((G.fans||0)>=2000) _smsTriggerOnce('meme_paluch','fan','Słucham Twój ostatni track z jakieś 20x dziennie jadąc autobusem do roboty! Całe miasto leci na słuchawkach! KONKURENCJA MOŻE SIĘ SCHOWAĆ'/* v2.3.122 tresc wg PDF */,{replySet:'fan_bus_175'});
+  if(G.money>=20000) _smsTriggerOnce('meme_janusz','manager','Ten gość, który wczoraj postawił Ci wódkę pod klubem, to typ od agresywnych umów. Chce 10% od wszystkich Twoich przyszłych projektów przez kilka lat. Nie podpisuj niczego, dopóki tego nie sprawdzimy.'/* v2.3.122 tresc wg PDF */,{replySet:'manager_bad_business_offer'});
   if(G.level>=5) _smsTriggerOnce('meme_lvl','kamil','widzę że robisz progress jak postać w grze akcji. Tylko nie zacznij teraz mówić "trzeba grindować" bo Cię zablokuję ⛔',{replySet:'kamil_level_five'});
   if(G.drip>=80) _smsTriggerOnce('meme_drip','wiktor','👔 Drip 80+! Wyglądasz jak gwiazda rapu na okładce magazynu. Tylko nie zacznij teraz nosić tej różowej kurtki proszę.',{replySet:'wiktor_drip_80'});
-  if(G.fame>=60) _smsTriggerOnce('meme_pjs','fan','PROSZE_PANA NIE WIERZĘ ŻE TO PAN PISZE DO MNIE 😱 dawaj autograf na koncercie, jadę z Krakowa specjalnie. /Karol, lat 23, fan od 3 dni/',{replySet:'fan_karol_autograph'});
+  if(G.fame>=60) _smsTriggerOnce('meme_pjs','fan','PROSZE PANA NIE WIERZĘ ŻE PANA ZNALAZŁAM poprosze o autograf na koncercie, jade specjalnie z drugiego konca kraju! /Katty, lat 22, fan od wczoraj'/* v2.3.122 tresc wg PDF */,{replySet:'fan_karol_autograph'});
   if(G.totalEarned>=50000) _smsTriggerOnce('meme_polak','kamil','Stary, robisz hajs jak Polak po przyjeździe do Anglii w 2007. Nic się nie stało, dawaj dalej 🇵🇱',{replySet:'kamil_total_income_50k'});
   if(G.money>=100000) _smsTriggerOnce('meme_plecak','kamil','🎒 Yoooo, dosłownie chodzisz z plecakiem pełnym cashu. Ogarnij se jakieś VVS-y czy coś, na chleb i tak starczy 💎💸',{replySet:'kamil_cash_100k'});
 };
@@ -72118,6 +72495,13 @@ const PATCH_NOTES = [
   {t:'fix',d:'🌿 Przy nawiązywaniu współpracy z dealerem na niektórych zapisach gubił się starterowy zapas surowca. Teraz zawsze dostajesz obiecane pięć sztuk, niezależnie od stanu zapisu.'},
   {t:'fix',d:'🗺️ „Pokaż na mapie" przy kamperze wreszcie robi to, co obiecuje. Wcześniej mapa tylko się przybliżała, a znacznik potrafił zostać poza kadrem — zwłaszcza gdy kamper stał przy krawędzi mapy. Teraz widok najeżdża i za każdym razem ustawia znacznik dokładnie na środku ekranu.'},
   {t:'fix',d:'🛡️ W panelach ubezpieczenia samochodu i kampera doszedł przycisk „Wróć" obok „Zamknij". Nie musisz już zamykać całego okna i przechodzić całej drogi od nowa — cofniesz się o jeden krok do stanu pojazdów albo warsztatu.'},
+  {t:'new',d:'🏕 Zajazd kempingowy dostał własne menu zamiast jednego kliknięcia. Nadal odpoczniesz tam i przenocujesz, ale możesz też zagrać krótki set przy ognisku, wpaść na domówkę, posiedzieć przy grillu i pogadać z lokalnymi. A jeśli wszedłeś już głębiej w tamten świat — zejść na bok z zupełnie innym tematem. Doszła też boczna ścieżka prosto na Stary Kwartał.'},
+  {t:'new',d:'🎉 Domówka przy Zajeździe to osobne wydarzenie z pięcioma decyzjami: wejść jako gość, zagrać dwa numery, poznać ludzi, porozmawiać na boku albo wyjść, zanim zrobi się za gorąco. W tle dzieją się swoje rzeczy — ktoś kłóci się o pieniądze, sąsiad grozi telefonem na policję, a znajomy daje znak, że lepiej się zwijać.'},
+  {t:'new',d:'💬 Rozmowa o interesach na Kwartale bywa teraz dwuetapowa. Ktoś potrafi się potargować („za tyle mam pół osiedla do wyboru") albo poprosić o towar na słowo, z obietnicą zwrotu wieczorem. Za każdym razem decydujesz: zejść z ceny, zostać przy swoim, odmówić albo zaproponować mniejszy pakiet — a niespłacone zobowiązania na dzielnicy wracają.'},
+  {t:'new',d:'🚶 Na podwórku Starego Kwartału widać teraz mieszkańców, a ich liczba i zachowanie zmieniają się w ciągu doby: w dzień więcej zwykłego ruchu, wieczorem grupy i spięcia, w nocy mniej przypadkowych ludzi, za to więcej takich, którzy tylko patrzą.'},
+  {t:'fix',d:'📱 Poprawiliśmy treść siedmiu wiadomości, które brzmiały nielogicznie albo nie pasowały do nadawcy — między innymi ofertę „na 10% z książki kucharskiej" od menadżera muzycznego. Teraz mówią to, co faktycznie mają znaczyć.'},
+  {t:'fix',d:'🚦 Po stłuczce uczestnicy zjeżdżają na pobocze zamiast blokować pas, a gdy patrol skończy spisywać protokół — wracają na jezdnię i odjeżdżają. W dzielnicach doszły też latarnie wzdłuż jezdni, tak jak w głównym mieście.'},
+  {t:'fix',d:'⚓ Port ma realny limit: szesnaście miejsc należy do Ciebie i tylu jednostek możesz naraz trzymać. Pozostałe cumowania są zajęte przez innych właścicieli i nie da się ich wykupić.'},
   {t:'new',d:'🏚️ Slumsy w Underground District przestały być jednym kliknięciem — to teraz Stary Kwartał: chodzalne podwórko między starymi blokami. Masz tu bramę, ławkę, klatki schodowe, nocny sklepik, puste garaże, śmietniki, trzepak, zejście do piwnicy, mieszkanie z domówką, punkt obserwacyjny i boczne przejście prosto do Zajazdu kempingowego.'},
   {t:'new',d:'🏚️ Kwartał ma dwie warstwy. Legalna jest otwarta od razu: rozmowy z mieszkańcami i ich historie, mały występ przy trzepaku, domówka w bloku i zadanie od Ciotki Miry, która widzi z okna więcej niż ktokolwiek. Za to buduje się zaufanie sąsiadów, szacunek i autentyczność — bez żadnego ryzyka.'},
   {t:'new',d:'🌑 Druga warstwa otwiera się dopiero, gdy naprawdę wejdziesz w tamten świat i zdobędziesz zaufanie kontaktu z zastrzeżonego numeru. Wtedy podwórko zaczyna testować, czy umiesz czytać ludzi: każda napotkana osoba ma własny profil ryzyka, nie każdy pytający jest klientem, a obserwator albo konkurent potrafią wciągnąć Cię w prowokację. Liczy się też, ile oczu akurat patrzy.'},
@@ -88232,6 +88616,27 @@ function drawDistrictRoadFurniture(room){
   sign(ix+150, roadY+half+8, 'pedestrian');
   sign(ix-190, roadY+half+8, 'yield');
   sign(ix+190, roadY-half-30, 'stop');
+  /* ── latarnie uliczne wzdłuż jezdni (jak w głównym mieście) ── */
+  {
+    const isNight=(typeof G!=='undefined' && G.timeOfDay>=2);
+    for(let x=180; x<roomW-80; x+=340){
+      if(Math.abs(x-ix)<150) continue;                 /* nie zasłaniaj skrzyżowania */
+      for(const side of [-1,1]){
+        const ly=roadY+side*(half+22);
+        const sx=wx2sx(x), sy=wy2sy(ly);
+        if(sx<-30||sx>1330) continue;
+        X.fillStyle='#4a4f58'; X.fillRect(sx-2, sy-(side<0?0:34), 4, 34);
+        const hx=sx, hy=sy-(side<0?0:34)+(side<0?34:0);
+        X.fillStyle=isNight?'rgba(255,232,170,.95)':'#9aa2ac';
+        X.beginPath(); X.arc(hx, side<0?sy+34:sy-34, 5, 0, Math.PI*2); X.fill();
+        if(isNight){
+          X.fillStyle='rgba(255,225,150,.10)';
+          const gy=(side<0)?sy+34:sy-34;
+          X.beginPath(); X.moveTo(hx,gy); X.lineTo(hx-42,gy+(side<0?-60:60)); X.lineTo(hx+42,gy+(side<0?-60:60)); X.closePath(); X.fill();
+        }
+      }
+    }
+  }
   /* ── sygnalizacja świetlna (ta sama logika faz co w mieście) ── */
   if(typeof _drawCarSignal==='function'){
     _drawCarSignal(wx2sx(ix-96), wy2sy(roadY-half-16), 'right', L);
