@@ -11047,6 +11047,8 @@ function drawUndergroundDecorations(){
       X.fillRect(sx-6,sy-3,16,36);
     }
   }
+  /* v2.3.122 (PDF Uspr v2.3.121): elementy drogowe dzielnicy — pasy, sygnalizacja, znaki, studzienki. */
+  if(typeof drawDistrictRoadFurniture==='function') drawDistrictRoadFurniture('underground');
 }
 
 function drawCoastDecorations(){
@@ -11194,6 +11196,8 @@ function drawLabInteriorDecorations(){
 }
 
 function drawBusinessDecorations(){
+  /* v2.3.122 (PDF Uspr v2.3.121): elementy drogowe jak w glownym miescie. */
+  if(typeof drawDistrictRoadFurniture==='function') drawDistrictRoadFurniture('business');
   const isNight=(typeof G!=='undefined' && G.timeOfDay>=2);
   const pulse=Math.sin(Date.now()/700)*0.2+0.8;
   /* 4 latarnie eleganckie */
@@ -14422,10 +14426,17 @@ function updatePlayer(){
   // DOM-first: element istnieje = aktywny | usunięty = automatyczne odblokowanie (samoresetujący)
   if(document.querySelector('[id$="-cinematic"]')) return;
   let dx=0,dy=0;
-  if(K['ArrowUp']||K['w']||K['W']){dy=-P.spd;P.dir=0;}
-  if(K['ArrowDown']||K['s']||K['S']){dy=P.spd;P.dir=2;}
-  if(K['ArrowLeft']||K['a']||K['A']){dx=-P.spd;P.dir=3;}
-  if(K['ArrowRight']||K['d']||K['D']){dx=P.spd;P.dir=1;}
+  /* v2.3.122 (PDF Uspr v2.3.121): siedząc w pojeździe z ZGASZONYM silnikiem nie da się nim obrócić.
+     Wcześniej blokada dotyczyła tylko przesunięcia (dx/dy), a P.dir ustawiał się mimo to — auto/kamper
+     kręciło się w miejscu na W/S/A/D przy wyłączonym silniku. P.dir jest wspólny z chodzeniem pieszo,
+     więc blokujemy WYŁĄCZNIE gdy gracz siedzi w pojeździe. */
+  const _inVeh=(G._inCar||G._inCamper);
+  const _vehKindNow=G._inCar?'car':(G._inCamper?'camper':null);
+  const _canTurn=!_inVeh || !_vehKindNow || (typeof window._vehEngineOn!=='function') || window._vehEngineOn(_vehKindNow);
+  if(K['ArrowUp']||K['w']||K['W']){dy=-P.spd;if(_canTurn)P.dir=0;}
+  if(K['ArrowDown']||K['s']||K['S']){dy=P.spd;if(_canTurn)P.dir=2;}
+  if(K['ArrowLeft']||K['a']||K['A']){dx=-P.spd;if(_canTurn)P.dir=3;}
+  if(K['ArrowRight']||K['d']||K['D']){dx=P.spd;if(_canTurn)P.dir=1;}
   if(dx!==0 && dy!==0){
     const norm = 1/Math.sqrt(2);
     dx *= norm; dy *= norm;
@@ -48257,6 +48268,89 @@ window._policeRenderLegalApp=function(){
   </div>`;
 };
 
+/* ═══ v2.3.122 (PDF Uspr v2.3.121) — STŁUCZKI MIĘDZY POJAZDAMI NPC ═══
+   NPC potrafią zderzyć się także między sobą (nie tylko z graczem). Wtedy: oba auta stają,
+   włączają światła awaryjne, na miejsce przyjeżdża radiowóz, spisuje protokół i notatkę ze zdarzenia,
+   a po wszystkim uczestnicy zjeżdżają na bok i ruch wraca do normy.
+   Stan trzymany w zmiennej modułu (scena wizualna, nie zapis gry) — nic nie ląduje w save. */
+window._npcCrashScenes=[];
+window._npcCrashRegister=function(a,b,room){
+  if(!a||!b) return null;
+  const now=Date.now();
+  /* jedna scena na ~40 s w danym pokoju — bez lawiny zdarzeń */
+  if(window._npcCrashScenes.some(s=>s.room===room && now-s.t<40000)) return null;
+  if(window._npcCrashScenes.length>3) window._npcCrashScenes.shift();
+  const cx=((a.wx!=null?a.wx:a.x)+(b.wx!=null?b.wx:b.x))/2;
+  const cy=((a.wy!=null?a.wy:a.y)+(b.wy!=null?b.wy:b.y))/2;
+  const scene={t:now, room:room, x:cx, y:cy, phase:'crash', patrolX:cx-900, reported:false, a:a, b:b};
+  window._npcCrashScenes.push(scene);
+  a._crashedAt=now; b._crashedAt=now;
+  if(typeof a.dx==='number'){ a._crashDx=a.dx; a.dx=0; }
+  if(typeof b.dx==='number'){ b._crashDx=b.dx; b.dx=0; }
+  a._hazard=true; b._hazard=true;
+  if(typeof addNotif==='function') addNotif('🚗💥 Stłuczka na ulicy — kierowcy czekają na patrol.');
+  return scene;
+};
+/* wykrywanie zderzeń NPC-NPC w podanej liście aut (city: wx/wy, dzielnice: x/y) */
+window._npcCrashDetect=function(list, room, lenFn){
+  if(!Array.isArray(list)||list.length<2) return;
+  for(let i=0;i<list.length;i++){
+    const a=list[i]; if(!a||a._crashedAt) continue;
+    const ax=(a.wx!=null?a.wx:a.x), ay=(a.wy!=null?a.wy:a.y);
+    if(Math.abs(a.dx||0)<0.2) continue;
+    for(let j=i+1;j<list.length;j++){
+      const b=list[j]; if(!b||b._crashedAt) continue;
+      const bx=(b.wx!=null?b.wx:b.x), by=(b.wy!=null?b.wy:b.y);
+      if(Math.abs(ay-by)>26) continue;                    /* ten sam pas */
+      const la=lenFn?lenFn(a):52, lb=lenFn?lenFn(b):52;
+      const gap=(ax<bx)?(bx-(ax+la)):(ax-(bx+lb));
+      if(gap>-6) continue;                                 /* realne nachodzenie brył */
+      const closing=(ax<bx)?((a.dx||0)-(b.dx||0)):((b.dx||0)-(a.dx||0));
+      if(closing<=0.6) continue;                           /* zbliżają się do siebie */
+      window._npcCrashRegister(a,b,room);
+      return;
+    }
+  }
+};
+/* rysowanie sceny: radiowóz dojeżdża, stoi, spisuje protokół, po czym scena znika */
+window._npcCrashDraw=function(room){
+  if(!window._npcCrashScenes.length) return;
+  const now=Date.now();
+  for(let i=window._npcCrashScenes.length-1;i>=0;i--){
+    const s=window._npcCrashScenes[i];
+    if(s.room!==room) continue;
+    const el=now-s.t;
+    if(el>75000){                                          /* koniec sceny — uczestnicy odjeżdżają */
+      if(s.a){ s.a._crashedAt=null; s.a._hazard=false; if(typeof s.a._crashDx==='number') s.a.dx=s.a._crashDx; }
+      if(s.b){ s.b._crashedAt=null; s.b._hazard=false; if(typeof s.b._crashDx==='number') s.b.dx=s.b._crashDx; }
+      window._npcCrashScenes.splice(i,1);
+      continue;
+    }
+    /* radiowóz: dojazd ~12 s, potem postój obok zdarzenia */
+    const arrive=Math.min(1, el/12000);
+    const px=s.patrolX+(s.x-120-s.patrolX)*arrive;
+    const py=s.y+((s.room==='ulica')?0:0);
+    const sx=(typeof wx2sx==='function')?wx2sx(px):px, sy=(typeof wy2sy==='function')?wy2sy(py):py;
+    if(sx>-140 && sx<1420 && sy>-90 && sy<900){
+      if(typeof window._drawPatrolCar==='function') window._drawPatrolCar(sx, sy, 1);
+      if(arrive>=1){
+        /* funkcjonariusz przy aucie + notatnik */
+        if(typeof window._drawCop==='function') window._drawCop(sx+64, sy-6, 0);
+        X.save();
+        X.fillStyle='rgba(6,12,20,.72)';
+        X.fillRect(sx+24, sy-52, 132, 20);
+        X.strokeStyle='#7ec8e3'; X.lineWidth=1; X.strokeRect(sx+24, sy-52, 132, 20);
+        X.fillStyle='#cfe6f5'; X.font='bold 10px Arial'; X.textAlign='center';
+        X.fillText('📋 Protokół ze zdarzenia', sx+90, sy-38);
+        X.textAlign='left'; X.restore();
+      }
+    }
+    if(arrive>=1 && !s.reported){
+      s.reported=true;
+      if(typeof addNotif==='function') addNotif('🚔 Patrol spisuje protokół ze stłuczki — kierowcy wymieniają dane.');
+    }
+  }
+};
 /* POLICE MODULE END */
 
 /* ═══ DOŁEK JAKO CHODZALNA CELA (user: „fizyczne, nie panel") ═══
@@ -70312,6 +70406,11 @@ const PATCH_NOTES = [
   {t:'fix',d:'🌿 Przy nawiązywaniu współpracy z dealerem na niektórych zapisach gubił się starterowy zapas surowca. Teraz zawsze dostajesz obiecane pięć sztuk, niezależnie od stanu zapisu.'},
   {t:'fix',d:'🗺️ „Pokaż na mapie" przy kamperze wreszcie robi to, co obiecuje. Wcześniej mapa tylko się przybliżała, a znacznik potrafił zostać poza kadrem — zwłaszcza gdy kamper stał przy krawędzi mapy. Teraz widok najeżdża i za każdym razem ustawia znacznik dokładnie na środku ekranu.'},
   {t:'fix',d:'🛡️ W panelach ubezpieczenia samochodu i kampera doszedł przycisk „Wróć" obok „Zamknij". Nie musisz już zamykać całego okna i przechodzić całej drogi od nowa — cofniesz się o jeden krok do stanu pojazdów albo warsztatu.'},
+  {t:'fix',d:'🚗 Siedząc w aucie lub kamperze z zgaszonym silnikiem nie obrócisz już pojazdu klawiszami ruchu. Wcześniej samochód kręcił się w miejscu mimo wyłączonego silnika. Na piechotę obracasz się oczywiście normalnie.'},
+  {t:'new',d:'🚦 Kierowcy w mieście zaczęli zwracać uwagę na Ciebie i na siebie nawzajem. Gdy stoisz autem na światłach, NPC zatrzymują się za Tobą i trzymają odstęp zamiast wjeżdżać w zderzak. Jeśli wtargniesz na jezdnię pieszo, kierowca hamuje i odbija w bok, żeby Cię ominąć — ale gdy wejdziesz mu tuż pod koła, i tak Cię potrąci.'},
+  {t:'new',d:'🚨 Auta NPC potrafią teraz zderzyć się także między sobą. Wtedy oba stają na jezdni, na miejsce przyjeżdża radiowóz, spisuje protokół i notatkę ze zdarzenia, a po wszystkim uczestnicy zjeżdżają na bok i ruch wraca do normy.'},
+  {t:'new',d:'🛣️ Underground District i Business District dostały te same elementy drogowe co główne miasto: przejścia dla pieszych, sygnalizację świetlną działającą w tym samym rytmie, znaki (stop, ustąp pierwszeństwa, przejście) oraz studzienki na jezdni. Auta w dzielnicach zatrzymują się na czerwonym świetle i ustawiają w kolejce, zamiast przenikać przez siebie.'},
+  {t:'new',d:'🚶 Przechodnie w dzielnicach reagują tak samo jak w centrum. Potrącenie kogoś autem albo kamperem ma te same skutki: świadkowie wzywają służby, dostajesz mandat, rośnie zainteresowanie policji, a Ty stajesz przed wyborem — zostać na miejscu czy odjechać.'},
   {t:'new',d:'🌊 Marina Coast urosła ponad pięciokrotnie, a morze sięga teraz daleko za horyzont — otwartej wody jest ponad cztery razy więcej niż wcześniej. Woda wreszcie żyje: przez taflę przesuwają się fale, słońce mieni się na powierzchni, a przy brzegu rozbija się biała piana.'},
   {t:'new',d:'⛈️ Na morzu pojawiły się sztormy. Nie biorą się znikąd — narastają wyłącznie wtedy, gdy pada deszcz albo idzie burza, i rosną stopniowo: od przyspieszonych pojedynczych fal, przez wzburzone morze, aż po pełny sztorm. Kapitanat i załoga uprzedzą Cię o stanie morza, gdy wejdziesz do Dockhouse albo na pokład. Przy dużej fali kąpielisko zostaje zamknięte, a port wstrzymuje wyjścia w morze — jeśli akurat płyniesz, fala będzie Cię znosić i rzucać jednostką.'},
   {t:'new',d:'⚓ Port został poszerzony do szesnastu miejsc, które możesz wykupić, plus pięć miejsc zarezerwowanych dla mieszkańców mariny — stoją tam ich łodzie albo miejsce jest puste, bo właśnie są w rejsie. Keja biegnie teraz wzdłuż całego wybrzeża, z sześcioma pomostami i stacją paliw na końcu.'},
@@ -86354,6 +86453,76 @@ function drawTrafficLights(){
    Osobny lekki system (geometria city-life jest sprzężona z 'ulica'). Populacja proporcjonalnie mniejsza:
    −80% Underground/Coast, −40% Business. Business: 50% NPC elegancko; auta 40-50% sport/lux (sylwetki floty N4).
    Stan efemeryczny (NIE w save) — save-safe z definicji. */
+/* v2.3.122 (PDF Uspr v2.3.121): skrzyżowanie dzielnicy — droga pionowa (kolumny 14-15) przecina poziomą.
+   Underground i Business mają tę samą siatkę dróg, więc jedna współrzędna wystarcza obu. */
+const DISTRICT_INTERSECTION_X=720;
+const DISTRICT_ROAD_Y={underground:520, business:480};
+/* Elementy drogowe w dzielnicach — pasy dla pieszych, sygnalizacja, znaki, studzienki.
+   Rysowane analogicznie do głównego miasta, żeby ruch wyglądał tak samo wiarygodnie. */
+function drawDistrictRoadFurniture(room){
+  const roadY=DISTRICT_ROAD_Y[room]; if(roadY==null) return;
+  const ix=DISTRICT_INTERSECTION_X;
+  const roomW=((ROOMS[room]&&ROOMS[room].wT)||30)*T;
+  const L=(typeof getTrafficLight==='function')?getTrafficLight():{cars:'green',peds:'red'};
+  const half=32;                                   /* pół szerokości jezdni */
+  /* ── pasy dla pieszych po obu stronach skrzyżowania ── */
+  const zebra=(cx)=>{
+    X.save();
+    X.fillStyle='rgba(18,18,18,0.34)';
+    X.fillRect(wx2sx(cx-16), wy2sy(roadY-half), 32, half*2);
+    X.fillStyle='#c8c4be';
+    for(let y=roadY-half+5; y<roadY+half-4; y+=14){
+      X.fillRect(wx2sx(cx-13), wy2sy(y), 26, 7);
+    }
+    X.restore();
+  };
+  zebra(ix-118); zebra(ix+118);
+  /* ── studzienki kanalizacyjne na jezdni ── */
+  X.save();
+  for(let x=140; x<roomW-100; x+=330){
+    const sx=wx2sx(x), sy=wy2sy(roadY+ (x%2?12:-12));
+    if(sx<-40||sx>1340) continue;
+    X.fillStyle='#20242a'; X.beginPath(); X.ellipse(sx, sy, 11, 6, 0, 0, Math.PI*2); X.fill();
+    X.strokeStyle='#3a4048'; X.lineWidth=1; X.stroke();
+    X.strokeStyle='rgba(120,130,140,0.35)';
+    for(let k=0;k<4;k++){ X.beginPath(); X.moveTo(sx-8+k*4, sy-4); X.lineTo(sx-8+k*4, sy+4); X.stroke(); }
+  }
+  X.restore();
+  /* ── znaki drogowe przy skrzyżowaniu ── */
+  const sign=(x,y,type)=>{
+    const sx=wx2sx(x), sy=wy2sy(y);
+    if(sx<-30||sx>1330) return;
+    X.save();
+    X.fillStyle='#6a7078'; X.fillRect(sx-1, sy, 3, 26);          /* słupek */
+    if(type==='stop'){
+      X.fillStyle='#b8281f'; X.beginPath();
+      for(let k=0;k<8;k++){ const a=Math.PI/8+k*Math.PI/4; const px=sx+Math.cos(a)*10, py=sy-10+Math.sin(a)*10; if(k===0)X.moveTo(px,py); else X.lineTo(px,py); }
+      X.closePath(); X.fill();
+      X.fillStyle='#fff'; X.font='bold 7px Arial'; X.textAlign='center'; X.fillText('STOP', sx, sy-8);
+    } else if(type==='yield'){
+      X.fillStyle='#f2f2f2'; X.beginPath(); X.moveTo(sx-10,sy-19); X.lineTo(sx+10,sy-19); X.lineTo(sx,sy-2); X.closePath(); X.fill();
+      X.strokeStyle='#b8281f'; X.lineWidth=2.5; X.stroke();
+    } else {                                                      /* przejście dla pieszych */
+      X.fillStyle='#1f4fa8'; X.beginPath(); X.moveTo(sx,sy-22); X.lineTo(sx+10,sy-12); X.lineTo(sx,sy-2); X.lineTo(sx-10,sy-12); X.closePath(); X.fill();
+      X.fillStyle='#fff'; X.font='bold 9px Arial'; X.textAlign='center'; X.fillText('🚶', sx, sy-9);
+    }
+    X.textAlign='left'; X.restore();
+  };
+  sign(ix-150, roadY-half-30, 'pedestrian');
+  sign(ix+150, roadY+half+8, 'pedestrian');
+  sign(ix-190, roadY+half+8, 'yield');
+  sign(ix+190, roadY-half-30, 'stop');
+  /* ── sygnalizacja świetlna (ta sama logika faz co w mieście) ── */
+  if(typeof _drawCarSignal==='function'){
+    _drawCarSignal(wx2sx(ix-96), wy2sy(roadY-half-16), 'right', L);
+    _drawCarSignal(wx2sx(ix+96), wy2sy(roadY+half+4), 'left', L);
+  }
+  if(typeof _drawPedSignalSmall==='function'){
+    const tNow=Date.now();
+    _drawPedSignalSmall(wx2sx(ix-126), wy2sy(roadY-half-14), L, tNow);
+    _drawPedSignalSmall(wx2sx(ix+126), wy2sy(roadY+half+2), L, tNow);
+  }
+}
 const DISTRICT_LIFE_CFG={
   underground:{peds:8, cars:3, elegantPct:0,    luxCarPct:0.30, carBody:['compact','sedan','suv'], luxBody:['sports','luxury']}, /* v2.3.102: +3 piesi na 2x powiekszona mape (dolna czesc: baraki/slumsy/zajazd) */
   coast:      {peds:7, cars:0, elegantPct:0.10, luxCarPct:0.50, carBody:['sedan','suv','compact'], luxBody:['sports','luxury']}, /* U15 (v2.3.44 PDF): bez aut (jeździły po piasku); piesi plażowi (poniżej) */
@@ -86470,9 +86639,56 @@ function drawDistrictLife(){
   if(_paused || G._dying) return;
   const roomW=((ROOMS[room]&&ROOMS[room].wT)||30)*T;
   const _dDriverMult=(typeof _isWinterSeason==='function'&&_isWinterSeason())?0.7:1.0; /* W13: zimą kierowcy 30% wolniej */
+  /* v2.3.122 (PDF Uspr v2.3.121): ruch w dzielnicach zachowuje się jak w głównym mieście —
+     auta stają na czerwonym, trzymają dystans za pojazdem gracza i hamują/odbijają przed pieszym. */
+  const _dLight=(typeof getTrafficLight==='function')?getTrafficLight():{cars:'green'};
+  const _dMustStop=(_dLight.cars==='red'||_dLight.cars==='yellow');
+  const _dInterX=(typeof DISTRICT_INTERSECTION_X!=='undefined')?DISTRICT_INTERSECTION_X:720;
   for(const c of districtCars){
     /* v2.3.117 (PDF Uspr115 W11): rozbite auto stoi 3 min real-time, potem wznawia jazdę (odzyskuje pierwotną prędkość). */
     if(c._crashedAt){ if(Date.now()-c._crashedAt>=180000){ c._crashedAt=null; if(typeof c._crashDx==='number'&&c._crashDx) c.dx=c._crashDx; } else { c.dx=0; } }
+    if(typeof c.baseDx!=='number') c.baseDx=c.dx;
+    let _dSpd=c.baseDx;
+    const _dSign=Math.sign(c.baseDx||c.dx||1);
+    const _cw=(c.body==='sports'?60:c.body==='suv'?56:c.body==='luxury'?58:52);
+    /* czerwone/żółte światło na skrzyżowaniu dzielnicy */
+    if(_dMustStop && !c._crashedAt){
+      const stopLine=_dSign>0?(_dInterX-140-_cw):(_dInterX+140);
+      const dist=_dSign>0?(stopLine-c.x):(c.x-stopLine);
+      if(dist>-10 && dist<170) _dSpd=c.baseDx*Math.max(0,Math.min(1,(dist-5)/140));
+    }
+    /* kolejka: inne auta ORAZ pojazd gracza */
+    {
+      const _pvD=(G._inCar||G._inCamper)&&_carRoom(currentRoom)?{x:P.wx,y:P.wy+((P.h||44)/2)-14,dx:0,_len:(G._inCamper?92:52),_isPlayer:true}:null;
+      const list=_pvD?districtCars.concat([_pvD]):districtCars;
+      for(const o of list){
+        if(o===c) continue;
+        if(Math.abs((o.y||0)-(c.y||0))>30) continue;
+        if(!o._isPlayer && Math.sign(o.baseDx||o.dx)!==_dSign) continue;
+        const oLen=o._len||(o.body==='sports'?60:o.body==='suv'?56:o.body==='luxury'?58:52);
+        const gap=_dSign>0?(o.x-(c.x+_cw)):(c.x-(o.x+oLen));
+        if(gap>0 && gap<70){
+          const _nowDd=Date.now();
+          if(!c._distractedUntil && Math.random()<0.00035) c._distractedUntil=_nowDd+1400;
+          if(c._distractedUntil && _nowDd<c._distractedUntil) break;
+          if(c._distractedUntil && _nowDd>=c._distractedUntil) c._distractedUntil=0;
+          _dSpd=(gap<26)?0:_dSign*Math.abs(o.dx||0)*((gap-26)/44);
+          break;
+        }
+      }
+    }
+    /* pieszy gracz na jezdni — awaryjne hamowanie i odbicie w bok */
+    if(!G._inCar && !G._inCamper){
+      const aheadD=_dSign>0?(P.wx-(c.x+_cw)):(c.x-(P.wx+P.w));
+      if(Math.abs((P.wy+P.h*0.5)-(c.y+14))<52 && aheadD>0 && aheadD<190){
+        const react=Math.max(0,Math.min(1,1-(aheadD/190)));
+        _dSpd*=(1-0.55*react);
+        const side=((P.wy+P.h*0.5)<(c.y+14))?1:-1;
+        c._swerve=(c._swerve||0)+side*1.5*react; c._swerveT=Date.now();
+      }
+    }
+    if(c._swerve){ c.y+=c._swerve*0.5; c._swerve*=0.86; if(Math.abs(c._swerve)<0.05||(c._swerveT&&Date.now()-c._swerveT>2200)) c._swerve=0; }
+    if(!c._crashedAt) c.dx=c.dx+(_dSpd-c.dx)*0.14;   /* płynne hamowanie/rozpędzanie */
     c.x+=c.dx*_dDriverMult; if(c.x<-80) c.x=roomW+60; else if(c.x>roomW+80) c.x=-60;
     /* v2.3.115 (PDF Uspr): system kolizyjny pojazdów TAKŻE w dzielnicach (Underground/Business) — auto potrąca GRACZA (utrata HP/odrzut/stun) analogicznie do głównego miasta; a gdy gracz JEDZIE, wjazd w auto niszczy jego pojazd. */
     if(Math.abs(c.dx)>0.5){
@@ -86518,8 +86734,21 @@ function drawDistrictLife(){
       else p.x=nx;
     }
     if(p.x<40){ p.x=40; p.dx=Math.abs(p.dx); } else if(p.x>roomW-40){ p.x=roomW-40; p.dx=-Math.abs(p.dx); }
+    /* v2.3.122 (PDF Uspr v2.3.121): przechodnie w dzielnicach są tak samo reaktywni jak w głównym mieście —
+       wjechanie w nich autem/kamperem wywraca ich, świadkowie dzwonią po służby, a gracz staje przed tymi
+       samymi wyborami (zostać i czekać na służby albo odjechać). Ten sam przepływ co w mieście. */
+    if((G._inCar||G._inCamper) && typeof _carRoom==='function' && _carRoom(currentRoom)){
+      const _dk=G._inCar?'car':'camper';
+      if(P.moving && (typeof window._vehEngineOn!=='function'||window._vehEngineOn(_dk))
+         && (p.x-8)<P.wx+P.w && (p.x-8+16)>P.wx && p.y<P.wy+P.h && (p.y+50)>P.wy){
+        if(typeof window._vehHitPedestrian==='function') window._vehHitPedestrian(p);
+      }
+    }
     _drawDistrictPed(p);
   }
+  /* v2.3.122: stłuczki NPC-NPC także w dzielnicach + patrol spisujący protokół */
+  if(typeof window._npcCrashDetect==='function') window._npcCrashDetect(districtCars,room,(c)=>(c.body==='sports'?60:c.body==='suv'?56:c.body==='luxury'?58:52));
+  if(typeof window._npcCrashDraw==='function') window._npcCrashDraw(room);
 }
 // ═══ drawCityLife — ruch NPC i samochodów (~7098) ═══
 function drawCityLife(){
@@ -87027,11 +87256,18 @@ function drawCityLife(){
     // 2. Sprawdź czy jest auto przed nami na tym samym pasie (utrzymaj dystans)
     // v1.8.15: tolerance wy 40 (zwiększone z 28 — bus 26px + sedan 19px środek do środka może być 30+).
     // Stop distance zależny od rozmiaru aut: bus potrzebuje większego odstępu.
-    for(const other of cityCars){
+    /* v2.3.122 (PDF Uspr v2.3.121): pojazd GRACZA jest dla NPC normalnym uczestnikiem ruchu —
+       trafia do tej samej kolejki co inne auta, więc NPC utrzymuje dystans i zatrzymuje się za nim
+       (np. gdy gracz stoi na czerwonym), zamiast wjeżdżać w niego albo przenikać. */
+    const _pv=(G._inCar||G._inCamper)&&_carRoom(currentRoom)
+      ? {wx:P.wx, wy:P.wy+((P.h||44)/2)-14, dx:0, baseSpd:dirSign, shape:(G._inCamper?'bus':'sedan'), _rank:-1, _isPlayer:true}
+      : null;
+    const _trafficList=_pv?cityCars.concat([_pv]):cityCars;
+    for(const other of _trafficList){
       if(other===car) continue;
-      if((other._rank||0)>=_aC) continue; /* U12/U13: pomiń ukryte auta w kolizji */
+      if(!other._isPlayer && (other._rank||0)>=_aC) continue; /* U12/U13: pomiń ukryte auta w kolizji */
       if(Math.abs(other.wy-car.wy)>40) continue;
-      if(Math.sign(other.baseSpd||other.dx)!==dirSign) continue;
+      if(!other._isPlayer && Math.sign(other.baseSpd||other.dx)!==dirSign) continue;
       const distToOther=dirSign>0?(other.wx-car.wx):(car.wx-other.wx);
       // Min stop distance: 50px dla aut + dodatkowe 20px gdy bus
       const _ownLen = car.shape==='bus'?92:52;
@@ -87040,6 +87276,13 @@ function drawCityLife(){
       const _matchDist = _stopDist + 25;
       const _maxDist = _stopDist + 60;
       if(distToOther>0 && distToOther<_maxDist){
+        /* v2.3.122 (PDF Uspr v2.3.121): rzadki nieuważny kierowca — przez chwilę nie reaguje na
+           poprzedzający pojazd. Dzięki temu stłuczki między samymi NPC realnie się zdarzają
+           (a nie tylko teoretycznie), a potem wjeżdża patrol i spisuje protokół. */
+        const _nowD=Date.now();
+        if(!car._distractedUntil && Math.random()<0.00035) car._distractedUntil=_nowD+1400;
+        if(car._distractedUntil && _nowD<car._distractedUntil) break;   /* ignoruje poprzednika */
+        if(car._distractedUntil && _nowD>=car._distractedUntil) car._distractedUntil=0;
         const otherSpd=Math.abs(other.dx);
         if(distToOther<_stopDist){
           targetSpd=0;
@@ -87094,6 +87337,27 @@ function drawCityLife(){
     if(!G._inCar && Math.abs(car.dx)>0.5){
       const _carAW = car.shape==='bus'?92:car.shape==='suv'?56:car.shape==='sports'?60:52;
       const _carAH = car.shape==='bus'?34:28;
+      /* v2.3.122 (PDF Uspr v2.3.121): gdy gracz wtargnie na jezdnię, kierowca NIE jedzie dalej jak automat —
+         hamuje awaryjnie i odbija w bok. Czy zdąży, zależy od dystansu: przy bliskim wtargnięciu i tak potrąci.
+         Odbicie (car._swerve) jest chwilowe i wygasa samo, więc auto wraca na swój pas. */
+      const _aheadPed = dirSign>0 ? (P.wx-(car.wx+_carAW)) : (car.wx-(P.wx+P.w));
+      const _sameLane = Math.abs((P.wy+P.h*0.5)-(car.wy+_carAH*0.5))<52;
+      if(_sameLane && _aheadPed>0 && _aheadPed<190){
+        const _react=Math.max(0,Math.min(1,1-(_aheadPed/190)));   /* im bliżej, tym mocniej */
+        car.dx*=(1-0.55*_react);                                   /* awaryjne hamowanie */
+        const _side=((P.wy+P.h*0.5)<(car.wy+_carAH*0.5))?1:-1;     /* odbij w przeciwną stronę niż pieszy */
+        car._swerve=(car._swerve||0)+_side*1.6*_react;
+        car._swerveT=Date.now();
+        if(_aheadPed>70 && !car._hornT || (car._hornT&&Date.now()-car._hornT>4000)){
+          car._hornT=Date.now();
+          if(typeof window._subtleMsg==='function' && Math.random()<0.35) window._subtleMsg('📯 Kierowca trąbi — zejdź z jezdni!');
+        }
+      }
+      if(car._swerve){
+        car.wy+=car._swerve*0.5;
+        car._swerve*=0.86;
+        if(Math.abs(car._swerve)<0.05 || (car._swerveT&&Date.now()-car._swerveT>2200)) car._swerve=0;
+      }
       const _collide = car.wx < P.wx+P.w && car.wx+_carAW > P.wx && car.wy < P.wy+P.h && car.wy+_carAH > P.wy;
       if(_collide){
         const _now = Date.now();
@@ -87385,6 +87649,9 @@ function drawCityLife(){
     const _crosswalkYs=[290,320,590,615,1830,1860,2120,2150,2790,2820,3080,3110];
     return _crosswalkYs.some(sy=>Math.abs(p.wy-sy)<=25);
   };
+  /* v2.3.122 (PDF Uspr v2.3.121): stłuczki między pojazdami NPC + przyjazd patrolu i protokół. */
+  if(typeof window._npcCrashDetect==='function') window._npcCrashDetect(cityCars,'ulica',(c)=>c.shape==='bus'?92:(c.shape==='suv'?56:(c.shape==='sports'?60:52)));
+  if(typeof window._npcCrashDraw==='function') window._npcCrashDraw('ulica');
   /* v2.1.143: NPC z-ordering — sort cityPeds po Y żeby NPC z dołu ekranu (wyższe Y) rysowali się NA WIERZCHU NPC z góry (niższe Y). Wcześniej array insertion order = NPC za budynkami pojawiali się na wierzchu (visual glitch). Single sort per frame, n≈30-50, trivial cost. */
   const _aP=Math.round(cityPeds.length*(window._cityPedDensity?window._cityPedDensity():1)); /* U12/U13 gęstość pieszych */
   cityPeds.sort((a,b)=>(a.wy||0)-(b.wy||0));
