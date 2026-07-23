@@ -3481,6 +3481,7 @@ const ROOMS = {
       {id:'eclipse_business',  wx:970, wy:620, w:160,h:150, act:'business_eclipse',   prompt:'[E] 🌑 Eclipse Noir (noc)',   lbl:'Eclipse Noir'},
       /* v2.3.116 (PDF Business/golf): Aureum Green Club — prywatne pole golfowe. Pozycja @1216,696 bezkolizyjna (80px margines). Dzień 8-20. */
       {id:'aureum_business',   wx:1216,wy:696, w:170,h:160, act:'business_aureum',    prompt:'[E] ⛳ Aureum Green Club',    lbl:'Aureum Green'},
+      {id:'vesper_business',   wx:976, wy:812, w:150,h:140, act:'business_vesper',    prompt:'[E] 🏨 The Vesper House',      lbl:'Vesper House'}, /* PDF Vesper House §2: hotel butikowy pod Eclipse Noir (bezkolizyjnie, min 42px margines) */
     ]
   },
 
@@ -3593,6 +3594,28 @@ const ROOMS = {
   /* MARINA — chodzalny pokład jachtu/katamaranu (Faza 2, PDF §12). map:null, obiekty dynamiczne (_marinaSyncDeckObjects). Rozmiar ustawiany w _marinaEnterDeck (jacht 20×13, katamaran 24×13). */
   boat_deck: { wT:20, hT:13, map:null, objects:[] },
   police_cell: { wT:16, hT:11, map:null, objects:[] },
+  /* PDF Vesper House §4: walkable interior hotelu (27×14). Obiekty = pozycje menu §3. */
+  vesper_house: {
+    wT:27, hT:14, map:null,
+    objects:[
+      {id:'vesper_reception',   wx:500, wy:150, w:300, h:64,  act:'vesper:reception', prompt:'[E] 🛎️ Recepcja — wynajmij pokój', lbl:'Recepcja'},
+      {id:'npc_v_evelyn',       wx:635, wy:92,  w:34,  h:56,  act:'vesper:evelyn',    prompt:'[E] 💼 Evelyn Hart — managerka', lbl:'Evelyn'},
+      {id:'vesper_rooms',       wx:70,  wy:150, w:180, h:100, act:'vesper:rooms',     prompt:'[E] 🛏️ Pokoje i apartamenty', lbl:'Pokoje'},
+      {id:'vesper_bar',         wx:1050,wy:150, w:180, h:110, act:'vesper:bar',       prompt:'[E] 🍸 Vesper Bar', lbl:'Bar'},
+      {id:'vesper_meet',        wx:520, wy:300, w:240, h:120, act:'vesper:meet',      prompt:'[E] 🥂 Spotkaj się z NPC', lbl:'Spotkania'},
+      {id:'vesper_party',       wx:1010,wy:320, w:150, h:130, act:'vesper:party',     prompt:'[E] 🎉 Private room party', lbl:'Party'},
+      {id:'npc_v_iris',         wx:1095,wy:478, w:34,  h:56,  act:'vesper:iris',      prompt:'[E] 🎀 Iris Monroe — eventy', lbl:'Iris'},
+      {id:'npc_v_dorian',       wx:300, wy:430, w:34,  h:56,  act:'vesper:dorian',    prompt:'[E] 🎩 Dorian Vale — concierge', lbl:'Dorian'},
+      {id:'vesper_corridor',    wx:70,  wy:390, w:150, h:120, act:'vesper:corridor',  prompt:'[E] 🚪 Korytarze hotelowe', lbl:'Korytarze'},
+      {id:'vesper_privatefloor',wx:1186,wy:300, w:90,  h:110, act:'vesper:privatefloor', prompt:'[E] 👑 Piętro Prywatne', lbl:'Piętro'},
+      {id:'vesper_staff',       wx:90,  wy:540, w:120, h:90,  act:'vesper:staff',     prompt:'[E] 🚪 Staff Only', lbl:'Staff'},
+      {id:'vesper_framedm',     wx:340, wy:545, w:100, h:70,  act:'vesper:framedm',   prompt:'[E] 📩 FrameUp DM', lbl:'DM'},
+      {id:'vesper_history',     wx:900, wy:560, w:120, h:70,  act:'vesper:history',   prompt:'[E] 📖 Historia rezerwacji', lbl:'Historia'},
+      {id:'npc_v_guest1',       wx:430, wy:470, w:34,  h:56,  act:null, prompt:'', lbl:''},
+      {id:'npc_v_guest2',       wx:840, wy:450, w:34,  h:56,  act:null, prompt:'', lbl:''},
+      {id:'exit_vesper',        wx:610, wy:590, w:64,  h:62,  act:'vesper:exit',      prompt:'[E] 🚪 Wyjście', lbl:'Wyjście'},
+    ]
+  },
   /* STARY KWARTAŁ (PDF „Slumsy Underground") — podwórko między blokami. map:null, obiekty dynamiczne (_skSyncObjects). */
   stary_kwartal: { wT:24, hT:16, map:null, objects:[] },
 
@@ -4247,6 +4270,7 @@ function drawSprite(id,sx,sy,w,h){
     /* PDF new/4 (Eclipse Noir): fasada budynku na mapie Underground + strefy interioru */
     case 'eclipse_business': drawEclipseClub(sx,sy,w,h);break;
     case 'aureum_business': drawAureumClub(sx,sy,w,h);break;               /* PDF Business/golf: Aureum Green Club */
+    case 'vesper_business': drawVesperHotel(sx,sy,w,h);break;              /* PDF Vesper House §2: butikowy hotel pod Eclipse Noir */
     case 'eclipse_stage':  drawEclipseStage(sx,sy,w,h);break;
     case 'eclipse_bar':    drawCasinoBar(sx,sy,w,h,'eclipse');break;
     case 'eclipse_dance':  drawEclipseDancefloor(sx,sy,w,h);break;
@@ -5362,6 +5386,7 @@ function drawRoomDecorations(){
   else if(currentRoom==='plantacja') drawPlantacjaInteriorDecorations();
   else if(currentRoom==='boat_deck') drawBoatDeck();
   else if(currentRoom==='police_cell') drawPoliceCell();
+  else if(currentRoom==='vesper_house'){ if(typeof drawVesperHouse==='function') drawVesperHouse(); }
   else if(currentRoom==='stary_kwartal'){ if(typeof drawStaryKwartal==='function') drawStaryKwartal(); if(typeof window._skDrawLife==='function') window._skDrawLife(); }
   /* v2.1.402 Faza AQ.12 Etap 2 (user explicit "(...) widac w mieszkaniu"): rysuj psa w salonie mieszkania jeśli owned. */
   if(G.dog && G.dog.owned && (currentRoom==='mieszkanie' || currentRoom==='mieszkanie_premium' || currentRoom==='mieszkanie_lux')) {
@@ -15118,6 +15143,8 @@ function handleAct(act,objId){
     const _po=act.slice('police_opt:'.length);
     if(_po==='phone'){ if(typeof window._policeCellPhone==='function') window._policeCellPhone(); }
     else if(typeof window._policeDetentionOpt==='function') window._policeDetentionOpt(_po);
+  } else if(act&&act.indexOf('vesper:')===0){
+    if(typeof window._vesperAct==='function') window._vesperAct(act.slice(7));
   } else if(act&&act.indexOf('sk:')===0){
     if(typeof window._skAct==='function') window._skAct(act.slice(3));
   } else if(act==='marina_disembark'){
@@ -17306,6 +17333,7 @@ function changeRoom(id,wx,wy){
   if(id==='coast' && typeof window._marinaSyncCoastObjects==='function') window._marinaSyncCoastObjects();
   if(id==='boat_deck' && typeof window._marinaSyncDeckObjects==='function') window._marinaSyncDeckObjects(G.marina&&G.marina._activeInteriorId);
   if(id==='police_cell' && typeof window._policeSyncCellObjects==='function') window._policeSyncCellObjects();
+  if(id==='vesper_house' && typeof window._vesperSyncObjects==='function') window._vesperSyncObjects();
   if(id==='stary_kwartal' && typeof window._skSyncObjects==='function') window._skSyncObjects();
   /* v2.3.122: wyczyść podpowiedź [E] przy KAŻDEJ zmianie pokoju. Bez tego potrafiła zostać treść
      obiektu z poprzedniej lokacji (np. „[E] Zajazd kempingowy" na innym podwórku), bo aktualizacja
@@ -50475,6 +50503,1059 @@ window._skQuestZajazdProgress=function(kind){
 
 /* STARY KWARTAŁ MODULE END */
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE VESPER HOUSE MODULE START (do not duplicate)
+   PDF „The Vesper House, czyli hotel przy Eclipse Noir…" (§1-§39).
+   Hotel butikowy w Business District (pod Eclipse Noir @976,812). Walkable interior.
+   Ścieżka legalna (każdy gracz) + ciemna warstwa (gated wątkiem Kantara).
+   MAPOWANIE OSI PDF→gra: money=G.money · fame=G.fame · heat=G.heat ·
+     infamy=G.defamation(0-100) · mood=G.stress(0-100, HIGH=dobry nastrój — patrz project_stress_is_mood) ·
+     fatigue=G.energy(spada) · kantarTrust=G.kantarTrust · underworld intro=G.underworldIntro.state.
+   Stan modułu: G.vesperHouse (§20). Sceny intymne: 18+, zgoda, fade-to-black (_blackoutScene), BEZ opisu.
+   Shadow jobs: WYŁĄCZNIE abstrakcyjne (black-box) — gra NIE opisuje przestępstw (§16 zasada techniczna).
+   ═══════════════════════════════════════════════════════════════════════════ */
+const _vClamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,(typeof v==='number'&&isFinite(v))?v:lo));
+const _vRound=(v)=>Math.round(_vClamp(v,-1e9,1e9));
+
+/* §6-7: katalog pokoi (ceny 1:1 z PDF). baseHourly = cena godzinowa (2h). */
+const VESPER_ROOMS=[
+  {id:'standard_room',  name:'Standard Room',   emoji:'🛏️', night:650,   hourly:250,  cap:2,  extraGuest:300,  privacy:'niska/średnia', gossip:'średnie',  privacyBase:-15},
+  {id:'deluxe_room',    name:'Deluxe Room',     emoji:'🛎️', night:1400,  hourly:600,  cap:3,  extraGuest:500,  privacy:'średnia',       gossip:'średnie',  privacyBase:0},
+  {id:'party_suite',    name:'Party Suite',     emoji:'🎉', night:4500,  hourly:1800, cap:8,  extraGuest:900,  privacy:'zależna od ochrony', gossip:'wysokie', privacyBase:5},
+  {id:'penthouse_suite',name:'Penthouse Suite', emoji:'🌆', night:12000, hourly:5000, cap:12, extraGuest:1200, privacy:'wysoka',        gossip:'wysokie przy dużej liczbie NPC', privacyBase:15},
+  {id:'private_floor',  name:'Private Floor',   emoji:'👑', night:35000, hourly:15000,cap:20, extraGuest:1500, privacy:'bardzo wysoka', gossip:'ogromne przy wycieku', privacyBase:30, needUnlock:true},
+];
+function _vesperRoom(id){ return VESPER_ROOMS.find(r=>r.id===id)||VESPER_ROOMS[0]; }
+
+/* §20: stan hotelu — save-safe ensure na WSZYSTKICH ścieżkach (nowa gra ORAZ load). */
+window._vesperEnsure=function(){
+  if(!G.vesperHouse||typeof G.vesperHouse!=='object'){
+    G.vesperHouse={visited:false,roomsBooked:0,privateMeetings:0,partiesHosted:0,shadowJobsCompleted:0,shadowJobsFailed:0,
+      hotelTrust:0,evelynTrust:0,dorianTrust:0,irisTrust:0,scandalScore:0,hotelHeat:0,bannedUntilDay:null,privateFloorUnlocked:false,
+      activeBooking:null,history:[],incidents:[],lastCorridorDay:-1,pending407:false,lastAfterOfferDay:-1};
+  }
+  const v=G.vesperHouse;
+  ['visited','privateFloorUnlocked','pending407'].forEach(k=>{ if(typeof v[k]!=='boolean') v[k]=false; });
+  [['roomsBooked',0],['privateMeetings',0],['partiesHosted',0],['shadowJobsCompleted',0],['shadowJobsFailed',0],
+   ['hotelTrust',0],['evelynTrust',0],['dorianTrust',0],['irisTrust',0],['scandalScore',0],['hotelHeat',0],
+   ['lastCorridorDay',-1],['lastAfterOfferDay',-1]].forEach(([k,d])=>{ if(typeof v[k]!=='number'||!isFinite(v[k])) v[k]=d; });
+  if(v.bannedUntilDay!==null && (typeof v.bannedUntilDay!=='number'||!isFinite(v.bannedUntilDay))) v.bannedUntilDay=null;
+  if(!Array.isArray(v.history)) v.history=[];
+  if(!Array.isArray(v.incidents)) v.incidents=[];
+  if(v.activeBooking!==null && typeof v.activeBooking!=='object') v.activeBooking=null;
+  v.hotelHeat=_vClamp(v.hotelHeat,0,100); v.scandalScore=_vClamp(v.scandalScore,0,200);
+  ['evelynTrust','dorianTrust','irisTrust','hotelTrust'].forEach(k=>{ v[k]=_vClamp(v[k],0,100); });
+  return v;
+};
+
+/* §15: gate ciemnej warstwy — dostęp tylko po progresie Kantara / zaufanych kontaktach. */
+window._vesperShadowUnlocked=function(){
+  const introOk = !!(G.underworldIntro && G.underworldIntro.state && G.underworldIntro.state!=='none')
+               || !!(G.underworld && G.underworld.introCompleted);
+  const trustOk = (typeof G.kantarTrust==='number' && G.kantarTrust>=2)
+               || !!(G.underworld && (G.underworld.shadowReputation||0)>=3);
+  return introOk && trustOk;
+};
+
+/* ── helper: panel (mg-job) + zamknięcie ── */
+function _vesperPanel(html){
+  const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content');
+  if(mgJob&&mgContent){ mgContent.innerHTML=html; mgJob.classList.add('on'); mgJob.style.display=''; }
+}
+function _vesperClose(){
+  const mgJob=document.getElementById('mg-job'); if(mgJob){ mgJob.classList.remove('on'); const c=document.getElementById('mg-job-content'); if(c) c.innerHTML=''; }
+}
+window._vesperClose=_vesperClose;
+/* toast helper */
+function _vMsg(t,kind,ms){ if(typeof showMsg==='function') showMsg(t,kind||'g',ms||4000); }
+/* zmiana osi mood/energy z klamrą */
+function _vMood(d){ G.stress=_vClamp((G.stress||50)+d,0,100); }
+function _vFatigue(d){ G.energy=_vClamp((G.energy||100)-d,0,100); } /* fatigue rośnie = energia spada */
+
+/* ═══ §9-10-13-32: KALKULACJE RYZYKA I KOSZTÓW ═══ */
+/* §10: koszt prywatnego spotkania (pokój + osoby + prywatność + koordynacja). */
+window.calculatePrivateMeetingCost=function(roomId,guestCount,privacyLevel){
+  const room=_vesperRoom(roomId); let cost=room.hourly;
+  cost += Math.max(0,guestCount) * room.extraGuest;
+  if(privacyLevel==='discreet') cost+=2500;
+  else if(privacyLevel==='premium_discreet') cost+=7000;
+  else if(privacyLevel==='no_phone') cost+=3500;
+  if(guestCount>=6) cost+=2500;   /* sprzątanie / koordynacja */
+  if(guestCount>=10) cost+=6000;
+  return _vRound(cost);
+};
+/* §13: ryzyko plotek/paparazzi (0-85). */
+window.calculateHotelScandalRisk=function(booking){
+  const v=window._vesperEnsure(); let risk=5;
+  risk += (G.fame||0)*0.20;
+  risk += (G.defamation||0)*0.25;
+  risk += (booking.guestCount||0)*3;
+  risk += (v.scandalScore||0)*0.15;
+  const ecl=(G.eclipseNoir&&G.eclipseNoir.scandalTrail)||0; risk += ecl*0.3;
+  if(booking.roomType==='standard_room') risk+=12;
+  if(booking.roomType==='penthouse_suite') risk+=8;
+  if(booking.roomType==='private_floor') risk-=15;
+  if((booking.privacyScore||0)>=70) risk-=15;
+  if(booking.noPhonePolicy===true) risk-=20;
+  if(booking.securityPackage===true) risk-=10;
+  return _vClamp(_vRound(risk),0,85);
+};
+/* §32: Privacy Score (0-100). */
+window.calculateVesperPrivacyScore=function(booking){
+  const v=window._vesperEnsure(); let score=50;
+  const rt=booking.roomType;
+  const room=_vesperRoom(rt); score+=room.privacyBase;
+  if(booking.noPhonePolicy===true) score+=20;
+  if(booking.securityPackage===true) score+=10;
+  if(booking.privateElevator===true) score+=12;
+  score -= (booking.guestCount||0)*2;
+  score -= (G.defamation||0)*0.10;
+  score -= (v.scandalScore||0)*0.20;
+  return _vClamp(_vRound(score),0,100);
+};
+
+/* ═══ §2 + §22: WEJŚCIE Z MAPY (Business District, budynek vesper_business) ═══ */
+window.canEnterVesperHouse=function(){
+  const v=window._vesperEnsure();
+  if(v.bannedUntilDay!==null && v.bannedUntilDay>(G.day||0)) return {ok:false,reason:`⛔ Masz zakaz wstępu do The Vesper House do dnia ${v.bannedUntilDay}.`};
+  return {ok:true,reason:''};
+};
+window._openVesperHouse=function(){
+  const v=window._vesperEnsure();
+  const gate=window.canEnterVesperHouse();
+  if(!gate.ok){ _vMsg(gate.reason,'r',6000); return; }
+  v.visited=true;
+  if(!G.visitedRooms)G.visitedRooms={}; G.visitedRooms.vesper_house=true;
+  _vesperClose();
+  _vMsg('🏨 Wchodzisz do The Vesper House. Recepcja wita Cię spokojnym spojrzeniem, które widzi więcej, niż mówi.','g',4500);
+  if(typeof changeRoom==='function') changeRoom('vesper_house',648,600);
+  else if(typeof startRoomFade==='function') startRoomFade('vesper_house',648,600);
+  /* §22: po wejściu — okazjonalne zdarzenie korytarzowe (raz/dzień). */
+  setTimeout(()=>{ if(typeof currentRoom!=='undefined'&&currentRoom==='vesper_house' && typeof window._vesperMaybeCorridorEvent==='function') window._vesperMaybeCorridorEvent(); }, 1200);
+};
+/* powrót do Business District pod budynek (spawn na lewo od wejścia, poza footprintem). */
+window._vesperExit=function(){
+  window._vesperEnsure();
+  if(typeof startRoomFade==='function') startRoomFade('business',940,760);
+  else if(typeof changeRoom==='function') changeRoom('business',940,760);
+};
+
+/* ═══ §4: WALKABLE INTERIOR — synchronizacja obiektów (gating stref) ═══ */
+window._vesperSyncObjects=function(){
+  if(typeof ROOMS==='undefined'||!ROOMS.vesper_house) return;
+  const v=window._vesperEnsure();
+  const shadow=window._vesperShadowUnlocked();
+  ROOMS.vesper_house.objects.forEach(o=>{
+    if(o.id==='vesper_privatefloor'){ o._hidden=!v.privateFloorUnlocked; }
+    if(o.id==='vesper_staff'){ o._hidden=!shadow; }  /* Staff Only = warstwa cienia */
+  });
+};
+
+/* ═══ §3: obiekty wnętrza = pozycje menu głównego. Router: vesper:<sub> → _vesperAct. ═══ */
+window._vesperAct=function(sub){
+  window._vesperEnsure();
+  switch(sub){
+    case 'reception': return window._vesperReception();
+    case 'rooms':     return window._vesperRoomsPanel();
+    case 'meet':      return window._vesperMeetPanel();
+    case 'party':     return window._vesperPartyPanel();
+    case 'bar':       return window._vesperBar();
+    case 'evelyn':    return window._vesperEvelyn();
+    case 'dorian':    return window._vesperDorian();
+    case 'iris':      return window._vesperIris();
+    case 'corridor':  return window._vesperCorridor();
+    case 'staff':     return window._vesperStaff();
+    case 'privatefloor': return window._vesperPrivateFloorPanel();
+    case 'framedm':   return window._vesperFrameDM();
+    case 'history':   return window._vesperHistory();
+    case 'exit':      return window._vesperExit();
+    default: return;
+  }
+};
+
+/* ═══ §5: NPC HOTELOWI ═══ */
+/* 5.1 Evelyn Hart — managerka (dyskrecja, dostęp, ban). */
+window._vesperEvelyn=function(){
+  const v=window._vesperEnsure();
+  _vesperPanel(`<div style="background:#120d08;border:2px solid #b8933a;border-radius:12px;padding:20px;max-width:560px;margin:0 auto;color:#f0e4cc;max-height:82vh;overflow-y:auto">
+    <h2 style="margin-top:0;color:#e0c06a">💼 Evelyn Hart — managerka</h2>
+    <div style="font-size:12px;color:#c8b890;font-style:italic;background:#0c0805;border-radius:8px;padding:11px;margin-bottom:12px">„Goście przychodzą tu odpocząć, ukryć się albo udawać, że jedno i drugie oznacza to samo. Jeśli chce Pan pokój, zapraszam do formalności. Natomiast jeśli zechciałby Pan dyskrecji — proszę udowodnić, że nie narobi Pan hałasu."</div>
+    <div style="font-size:11px;color:#a89870;background:#0c0805;border-radius:6px;padding:8px;margin-bottom:12px">🤝 Zaufanie Evelyn: <b>${_vRound(v.evelynTrust)}</b>/100 · 🔥 Hotel „na oku": <b>${_vRound(v.hotelHeat)}</b>/100 · 📸 Skandale: <b>${_vRound(v.scandalScore)}</b></div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <button class="cbtn" style="color:#e0c06a;border-color:#b8933a" onclick="window._vesperRoomsPanel()">🛏️ Zarezerwuj pokój</button>
+      <button class="cbtn" style="color:#e0c06a;border-color:#b8933a" onclick="window._vesperEvelynTalk()">💬 Zbuduj relację (drobna uprzejmość — 800 zł)</button>
+      ${v.privateFloorUnlocked?'':`<button class="cbtn" style="color:#c8b890;border-color:#6a5a30" onclick="window._vesperPrivateFloorPanel()">👑 Zapytaj o Piętro Prywatne</button>`}
+      <button class="cbtn" style="color:#ccc" onclick="window._vesperClose()">← Odejdź</button>
+    </div>
+  </div>`);
+};
+window._vesperEvelynTalk=function(){
+  const v=window._vesperEnsure();
+  if((G.money||0)<800){ _vMsg('💰 Brakuje 800 zł na gest wobec Evelyn.','r',3500); return; }
+  G.money-=800; v.evelynTrust=_vClamp(v.evelynTrust+3,0,100); v.hotelTrust=_vClamp(v.hotelTrust+2,0,100);
+  _vMsg(`💼 Evelyn przyjmuje gest z lekkim skinieniem. Zaufanie rośnie (${_vRound(v.evelynTrust)}/100).`,'g',4000);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._vesperEvelyn();
+};
+/* 5.2 Dorian Vale — concierge (umawia spotkania, filtr informacji, hook do eventu „Pokój 407"). */
+window._vesperDorian=function(){
+  const v=window._vesperEnsure();
+  _vesperPanel(`<div style="background:#0d0b10;border:2px solid #7a5a8a;border-radius:12px;padding:20px;max-width:560px;margin:0 auto;color:#e8dcf0;max-height:82vh;overflow-y:auto">
+    <h2 style="margin-top:0;color:#c89ad8">🎩 Dorian Vale — concierge</h2>
+    <div style="font-size:12px;color:#b8a8c8;font-style:italic;background:#08060a;border-radius:8px;padding:11px;margin-bottom:12px">„The Vesper House z reguły nie rozwiązuje problemów. My tylko zapewniamy, że nie każdy problem musi stać na środku naszego lobby…"</div>
+    <div style="font-size:11px;color:#a898b8;background:#08060a;border-radius:6px;padding:8px;margin-bottom:12px">🤝 Zaufanie Doriana: <b>${_vRound(v.dorianTrust)}</b>/100</div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <button class="cbtn" style="color:#c89ad8;border-color:#7a5a8a" onclick="window._vesperMeetPanel()">🥂 Umów spotkanie z NPC</button>
+      <button class="cbtn" style="color:#c89ad8;border-color:#7a5a8a" onclick="window._vesperPartyPanel()">🎉 Zorganizuj private room party</button>
+      <button class="cbtn" style="color:#c89ad8;border-color:#7a5a8a" onclick="window._vesperEvent407()">🔑 Zapytaj, czy „coś jest do odebrania"</button>
+      <button class="cbtn" style="color:#ccc" onclick="window._vesperClose()">← Odejdź</button>
+    </div>
+  </div>`);
+};
+/* 5.3 Iris Monroe — koordynatorka prywatnych eventów. */
+window._vesperIris=function(){
+  const v=window._vesperEnsure();
+  _vesperPanel(`<div style="background:#100a0d;border:2px solid #c0507a;border-radius:12px;padding:20px;max-width:560px;margin:0 auto;color:#f0d8e2;max-height:82vh;overflow-y:auto">
+    <h2 style="margin-top:0;color:#e878a8">🎀 Iris Monroe — koordynatorka eventów</h2>
+    <div style="font-size:12px;color:#d0a8bc;font-style:italic;background:#0a0608;border-radius:8px;padding:11px;margin-bottom:12px">„Możemy zrobić spokojne spotkanie, zorganizować mini-domówkę albo coś, o czym nikt z nas jutro nie będzie mówił publicznie. Upomnę tylko, że każda dodatkowa osoba to dodatkowy koszt. Każdy telefon w pokoju to też pewne ryzyko."</div>
+    <div style="font-size:11px;color:#c098ac;background:#0a0608;border-radius:6px;padding:8px;margin-bottom:12px">🤝 Zaufanie Iris: <b>${_vRound(v.irisTrust)}</b>/100 · 🎉 Imprez zorganizowanych: <b>${_vRound(v.partiesHosted)}</b></div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <button class="cbtn" style="color:#e878a8;border-color:#c0507a" onclick="window._vesperPartyPanel()">🎉 Zaplanuj private room party</button>
+      <button class="cbtn" style="color:#e878a8;border-color:#c0507a" onclick="window._vesperMeetPanel()">🥂 Spotkanie z NPC (lista gości)</button>
+      <button class="cbtn" style="color:#ccc" onclick="window._vesperClose()">← Odejdź</button>
+    </div>
+  </div>`);
+};
+
+/* ═══ §6: RECEPCJA + WYNAJEM POKOI ═══ */
+window._vesperReception=function(){ return window._vesperRoomsPanel(); };
+window._vesperRoomsPanel=function(){
+  const v=window._vesperEnsure();
+  const rows=VESPER_ROOMS.map(r=>{
+    const locked=r.needUnlock && !v.privateFloorUnlocked;
+    return `<button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:10px;margin-top:6px;color:${locked?'#8a7a5a':'#e8d8b0'};border-color:${locked?'#4a3f28':'#7a6438'}" ${locked?'disabled':''} onclick="window._vesperBookRoom('${r.id}')">
+      ${r.emoji} <b>${r.name}</b> ${locked?'🔒':''}<br>
+      <span style="color:#b0a078;font-size:11px">Noc: ${r.night.toLocaleString('pl')} zł · 2h: ${r.hourly.toLocaleString('pl')} zł · do ${r.cap} os. · dyskrecja: ${r.privacy}</span>
+      ${locked?'<br><span style="color:#a06060;font-size:10px">Wymaga odblokowania Piętra Prywatnego (rozmowa z Evelyn).</span>':''}
+    </button>`;
+  }).join('');
+  _vesperPanel(`<div style="background:#0c0a06;border:2px solid #7a6438;border-radius:12px;padding:18px;max-width:600px;margin:0 auto;color:#f0e4cc;max-height:84vh;overflow-y:auto">
+    <h2 style="margin-top:0;color:#e0c06a">🛎️ Recepcja — The Vesper House</h2>
+    <div style="font-size:11px;color:#b0a078;margin-bottom:6px">Wybierz pokój. Koszt zależy od typu, czasu, liczby gości, prywatności i ochrony.</div>
+    ${rows}
+    <button class="cbtn" style="width:100%;margin-top:10px;color:#ccc" onclick="window._vesperClose()">← Zamknij</button>
+  </div>`);
+};
+/* konfigurator rezerwacji: czas (2h/noc), liczba gości, dyskrecja, ochrona, no-phone. */
+window._vesperBookRoom=function(roomId){
+  const v=window._vesperEnsure(); const room=_vesperRoom(roomId);
+  if(room.needUnlock && !v.privateFloorUnlocked){ _vMsg('🔒 Piętro Prywatne nie jest jeszcze dostępne.','r',3500); return; }
+  G._vesperCfg={roomId:roomId,durationType:'night',guestCount:0,privacy:'standard',security:false,noPhone:false};
+  window._vesperBookRender();
+};
+window._vesperBookRender=function(){
+  const c=G._vesperCfg; if(!c) return; const room=_vesperRoom(c.roomId);
+  const base=c.durationType==='night'?room.night:room.hourly;
+  const booking=window._vesperBuildBooking(c);
+  const priv=window.calculateVesperPrivacyScore(booking);
+  booking.privacyScore=priv;
+  const gossip=window.calculateHotelScandalRisk(booking);
+  const btn=(lbl,on,fn)=>`<button class="cbtn" style="font-size:11px;padding:6px 9px;color:${on?'#7ec87e':'#c8b890'};border-color:${on?'#27ae60':'#5a4c30'}" onclick="${fn}">${lbl}</button>`;
+  _vesperPanel(`<div style="background:#0c0a06;border:2px solid #7a6438;border-radius:12px;padding:18px;max-width:560px;margin:0 auto;color:#f0e4cc;max-height:84vh;overflow-y:auto">
+    <h2 style="margin-top:0;color:#e0c06a">${room.emoji} Rezerwacja: ${room.name}</h2>
+    <div style="font-size:11px;color:#b0a078;margin-bottom:8px">Do ${room.cap} osób. Ryzyko plotek zależy od Twojej sławy, rozgłosu i konfiguracji.</div>
+    <div style="background:#080602;border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px">
+      <div style="margin-bottom:6px">⏱️ Czas: ${btn('2 godziny',c.durationType==='hourly',"window._vesperCfgSet('durationType','hourly')")} ${btn('Cała noc',c.durationType==='night',"window._vesperCfgSet('durationType','night')")}</div>
+      <div style="margin-bottom:6px">👥 Goście (poza Tobą): ${btn('−',false,"window._vesperCfgGuest(-1)")} <b style="padding:0 8px">${c.guestCount}</b> ${btn('+',false,"window._vesperCfgGuest(1)")} <span style="color:#8a7a5a">(max ${room.cap-1})</span></div>
+      <div style="margin-bottom:6px">🔕 Dyskrecja: ${btn('Standard',c.privacy==='standard',"window._vesperCfgSet('privacy','standard')")} ${btn('Dyskretna +2500',c.privacy==='discreet',"window._vesperCfgSet('privacy','discreet')")} ${btn('Premium +7000',c.privacy==='premium_discreet',"window._vesperCfgSet('privacy','premium_discreet')")}</div>
+      <div style="margin-bottom:6px">🛡️ ${btn(c.security?'Ochrona: TAK (+2500)':'Ochrona prywatna (+2500)',c.security,"window._vesperCfgToggle('security')")} 📵 ${btn(c.noPhone?'No-Phone: TAK (+3500)':'No-Phone Policy (+3500)',c.noPhone,"window._vesperCfgToggle('noPhone')")}</div>
+      <div>🛗 ${btn(c.privateElevator?'Prywatna winda: TAK (+5000)':'Prywatna winda (+5000)',c.privateElevator,"window._vesperCfgToggle('privateElevator')")}</div>
+    </div>
+    <div style="background:#080602;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;color:#e8d8b0">
+      💰 <b>Koszt łączny: ${booking.totalCost.toLocaleString('pl')} zł</b><br>
+      🔒 Prywatność: <b>${priv}/100</b> · 📸 Ryzyko plotek: <b>${gossip}%</b>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <button class="cbtn" style="color:#7ec87e;border-color:#27ae60" onclick="window._vesperConfirmBooking()">✅ Zarezerwuj i wejdź</button>
+      <button class="cbtn" style="color:#ccc" onclick="window._vesperRoomsPanel()">← Wróć do pokoi</button>
+    </div>
+  </div>`);
+};
+window._vesperCfgSet=function(k,val){ if(G._vesperCfg){ G._vesperCfg[k]=val; window._vesperBookRender(); } };
+window._vesperCfgToggle=function(k){ if(G._vesperCfg){ G._vesperCfg[k]=!G._vesperCfg[k]; window._vesperBookRender(); } };
+window._vesperCfgGuest=function(d){ const c=G._vesperCfg; if(!c) return; const room=_vesperRoom(c.roomId); c.guestCount=_vClamp(c.guestCount+d,0,room.cap-1); window._vesperBookRender(); };
+/* buduje strukturę rezerwacji (§8) z konfiguratora. */
+window._vesperBuildBooking=function(c){
+  const room=_vesperRoom(c.roomId);
+  const base=c.durationType==='night'?room.night:room.hourly;
+  let extraGuest=c.guestCount*room.extraGuest;
+  let privacyCost=0; if(c.privacy==='discreet')privacyCost=2500; else if(c.privacy==='premium_discreet')privacyCost=7000;
+  let secCost=c.security?2500:0;
+  let noPhoneCost=c.noPhone?3500:0;
+  let elevatorCost=c.privateElevator?5000:0; /* §7: prywatna winda 5000/event (+ dyskrecja §32) */
+  const total=_vRound(base+extraGuest+privacyCost+secCost+noPhoneCost+elevatorCost);
+  return {id:'bk_'+(G.day||0)+'_'+_vRound((G.gameMin||0)),hotelId:'vesper_house',roomType:c.roomId,durationType:c.durationType,
+    startDay:(G.day||0),guestNpcIds:[],guestCount:c.guestCount,basePrice:base,extraGuestCost:extraGuest,
+    privacyPackageCost:privacyCost,securityCost:secCost,noPhoneCost:noPhoneCost,privateElevatorCost:elevatorCost,cleaningDeposit:0,totalCost:total,
+    privacyLevel:c.privacy,noPhonePolicy:c.noPhone,securityPackage:c.security,privateElevator:c.privateElevator,privacyScore:0,scandalRisk:0,status:'active'};
+};
+window._vesperConfirmBooking=function(){
+  const v=window._vesperEnsure(); const c=G._vesperCfg; if(!c){ return; }
+  const booking=window._vesperBuildBooking(c);
+  const _rm=_vesperRoom(booking.roomType);
+  if(_rm.needUnlock && !v.privateFloorUnlocked){ _vMsg('🔒 Piętro Prywatne nie jest jeszcze dostępne.','r',3500); return; }
+  booking.privacyScore=window.calculateVesperPrivacyScore(booking);
+  if((G.money||0)<booking.totalCost){ _vMsg(`💰 Brakuje ${(booking.totalCost-(G.money||0)).toLocaleString('pl')} zł na tę rezerwację.`,'r',4000); return; }
+  G.money-=booking.totalCost;
+  v.activeBooking=booking; v.roomsBooked=(v.roomsBooked||0)+1;
+  _vMood(6); _vFatigue(4);
+  const room=_vesperRoom(booking.roomType);
+  window._vesperLogHistory({room:room.name,type:booking.durationType==='night'?'Nocleg':'Pokój na godziny',guests:booking.guestCount,cost:booking.totalCost,effect:'+nastrój'});
+  _vMsg(`${room.emoji} Zarezerwowano ${room.name} za ${booking.totalCost.toLocaleString('pl')} zł. Klucz w dłoni, winda czeka.`,'g',5000);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._vesperRoomInside(booking);
+};
+/* panel „w pokoju" — hub akcji po rezerwacji (odpoczynek / spotkanie / party / content). */
+window._vesperRoomInside=function(booking){
+  const v=window._vesperEnsure(); const room=_vesperRoom(booking.roomType);
+  _vesperPanel(`<div style="background:#0c0a06;border:2px solid #7a6438;border-radius:12px;padding:18px;max-width:560px;margin:0 auto;color:#f0e4cc;max-height:84vh;overflow-y:auto">
+    <h2 style="margin-top:0;color:#e0c06a">${room.emoji} ${room.name} — Twój pokój</h2>
+    <div style="font-size:11px;color:#b0a078;margin-bottom:10px">Miękkie światło, ciemne drewno, przygaszony klimat. Co robisz?</div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <button class="cbtn" style="color:#7ec87e;border-color:#27ae60" onclick="window._vesperRest()">😌 Odpocznij (regeneracja, upływ czasu)</button>
+      <button class="cbtn" style="color:#e878a8;border-color:#c0507a" onclick="window._vesperMeetPanel()">🥂 Zaproś dorosłe NPC na spotkanie</button>
+      <button class="cbtn" style="color:#e0c06a;border-color:#b8933a" onclick="window._vesperPartyPanel()">🎉 Zrób z tego imprezę</button>
+      <button class="cbtn" style="color:#c89ad8;border-color:#7a5a8a" onclick="window._vesperContentPanel()">📱 Nagraj content z hotelu</button>
+      <button class="cbtn" style="color:#ccc" onclick="window._vesperClose()">🚪 Zamknij pokój</button>
+    </div>
+  </div>`);
+};
+window._vesperRest=function(){
+  const v=window._vesperEnsure();
+  G.health=_vClamp((G.health||100)+10,0,100); G.energy=_vClamp((G.energy||100)+22,0,100); _vMood(8);
+  if(typeof advanceTime==='function'){ try{ advanceTime(3); }catch(e){} }
+  _vMsg('😌 Odpoczywasz w ciszy hotelu. Zdrowie i energia wracają.','g',4200);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  _vesperClose();
+};
+
+/* ═══ historia rezerwacji (§37) ═══ */
+window._vesperLogHistory=function(entry){
+  const v=window._vesperEnsure();
+  v.history.unshift(Object.assign({day:(G.day||0)},entry));
+  if(v.history.length>30) v.history.length=30;
+};
+window._vesperHistory=function(){
+  const v=window._vesperEnsure();
+  const rows=v.history.length? v.history.map(h=>`<div style="background:#080602;border-radius:6px;padding:8px;margin-top:5px;font-size:11px;color:#d8c8a0">
+    <b style="color:#e0c06a">Dz. ${h.day}</b> · ${h.room||h.type||'—'}${h.guests?` · 👥 ${h.guests}`:''}${h.cost?` · 💰 ${Number(h.cost).toLocaleString('pl')} zł`:''}<br><span style="color:#a89870">${h.type&&h.room?h.type+' — ':''}${h.effect||h.status||''}</span></div>`).join('')
+    : '<div style="color:#8a7a5a;font-size:12px;padding:10px">Brak rezerwacji. Historia zapełni się, gdy zaczniesz korzystać z hotelu.</div>';
+  _vesperPanel(`<div style="background:#0c0a06;border:2px solid #7a6438;border-radius:12px;padding:18px;max-width:560px;margin:0 auto;color:#f0e4cc;max-height:84vh;overflow-y:auto">
+    <h2 style="margin-top:0;color:#e0c06a">📖 Historia The Vesper House</h2>
+    ${rows}
+    <button class="cbtn" style="width:100%;margin-top:10px;color:#ccc" onclick="window._vesperClose()">← Zamknij</button>
+  </div>`);
+};
+/* ═══ §9-11: SPOTKANIA Z NPC + SCENY INTYMNE (18+, zgoda, fade-to-black, BEZ opisu) ═══ */
+window._vesperMeetPanel=function(){
+  const v=window._vesperEnsure();
+  const shadow=window._vesperShadowUnlocked();
+  _vesperPanel(`<div style="background:#100a0d;border:2px solid #b0507a;border-radius:12px;padding:18px;max-width:560px;margin:0 auto;color:#f0d8e2;max-height:84vh;overflow-y:auto">
+    <h2 style="margin-top:0;color:#e878a8">🥂 Spotkanie z NPC</h2>
+    <div style="font-size:11px;color:#c8a8bc;margin-bottom:8px">Wybierz typ spotkania. Sceny intymne dotyczą wyłącznie dorosłych NPC i wyłącznie za obopólną zgodą — przedstawiane jako fade-to-black, bez szczegółów.</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <button class="cbtn" style="text-align:left;color:#e0c06a;border-color:#7a6438" onclick="window._vesperMeetDrink()">🍸 Drink w Vesper Bar</button>
+      <button class="cbtn" style="text-align:left;color:#e0c06a;border-color:#7a6438" onclick="window._vesperMeetDinner()">🍽️ Kolacja / rozmowa prywatna</button>
+      <button class="cbtn" style="text-align:left;color:#e0c06a;border-color:#7a6438" onclick="window._vesperMeetAfter()">🌙 After po Eclipse Noir</button>
+      <button class="cbtn" style="text-align:left;color:#c89ad8;border-color:#7a5a8a" onclick="window._vesperMeetBusiness()">💼 Spotkanie biznesowe</button>
+      <button class="cbtn" style="text-align:left;color:#e878a8;border-color:#c0507a" onclick="window._vesperIntimate(false)">💋 Spotkanie intymne (18+, dobrowolne)</button>
+      <button class="cbtn" style="text-align:left;color:#e878a8;border-color:#c0507a" onclick="window._vesperIntimate(true)">💞 Spotkanie intymne grupowe (18+, dobrowolne)</button>
+      ${shadow?`<button class="cbtn" style="text-align:left;color:#a878c8;border-color:#5a3a7a" onclick="window._vesperMeetKantar()">🕶️ Spotkanie z kontaktem Kantara</button>`:''}
+      <button class="cbtn" style="color:#ccc" onclick="window._vesperClose()">← Wróć</button>
+    </div>
+  </div>`);
+};
+window._vesperMeetDrink=function(){
+  const v=window._vesperEnsure();
+  if((G.money||0)<180){ _vMsg('💰 Brakuje 180 zł na drinki.','r',3000); return; }
+  G.money-=180; _vMood(6); v.hotelTrust=_vClamp(v.hotelTrust+1,0,100);
+  if(typeof G.socialBuzz==='number') G.socialBuzz=_vClamp((G.socialBuzz||0)+2,0,1e9);
+  _vMsg('🍸 Drink przy przygaszonym barze. Luźna rozmowa, dobry nastrój.','g',4000);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._vesperMeetPanel();
+};
+window._vesperMeetDinner=function(){
+  const v=window._vesperEnsure();
+  if((G.money||0)<650){ _vMsg('💰 Brakuje 650 zł na kolację.','r',3000); return; }
+  G.money-=650; _vMood(10); _vFatigue(4);
+  const risk=window.calculateHotelScandalRisk({roomType:'deluxe_room',guestCount:1,privacyScore:55});
+  if(Math.random()*100<risk*0.5) v.scandalScore=_vClamp(v.scandalScore+3,0,200);
+  _vMsg('🍽️ Kolacja i długa, prywatna rozmowa. Relacja i nastrój rosną.','g',4500);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._vesperMeetPanel();
+};
+window._vesperMeetAfter=function(){
+  const v=window._vesperEnsure();
+  if((G.money||0)<900){ _vMsg('💰 Brakuje 900 zł na kameralny after.','r',3000); return; }
+  G.money-=900; _vMood(12); _vFatigue(12);
+  if(typeof G.socialBuzz==='number') G.socialBuzz=_vClamp((G.socialBuzz||0)+4,0,1e9);
+  v.scandalScore=_vClamp(v.scandalScore+2,0,200);
+  window._vesperLogHistory({room:'After po Eclipse',type:'After',guests:3,cost:900,effect:'+nastrój, +rozgłos, +ryzyko plotek'});
+  _vMsg('🌙 Kameralny after po klubie. Ludzie, muzyka, dobry wieczór — i trochę ryzyka.','g',4800);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._vesperMeetPanel();
+};
+window._vesperMeetBusiness=function(){
+  const v=window._vesperEnsure();
+  if((G.money||0)<1200){ _vMsg('💰 Brakuje 1200 zł na dyskretny dinner biznesowy.','r',3000); return; }
+  G.money-=1200; _vMood(6);
+  let lead=false;
+  if(Math.random()<0.35){ lead=true; if(typeof G.businessLeads==='number') G.businessLeads=(G.businessLeads||0)+1; v.hotelTrust=_vClamp(v.hotelTrust+2,0,100); }
+  window._vesperLogHistory({room:'Penthouse Suite',type:'Spotkanie biznesowe',guests:2,cost:1200,effect:lead?'+lead inwestorski':'+relacja'});
+  _vMsg(lead?'💼 Dyskretna rozmowa z inwestorem — pojawił się realny lead.':'💼 Spotkanie biznesowe. Kontakt nawiązany, temat wróci.','g',5000);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._vesperMeetPanel();
+};
+/* §9-11: scena intymna — panel potwierdzenia (18+, zgoda), potem fade-to-black + skutki. */
+window._vesperIntimate=function(group){
+  const v=window._vesperEnsure();
+  const guestCount=group?4:1;
+  const roomId=v.activeBooking?v.activeBooking.roomType:(group?'party_suite':'deluxe_room');
+  const room=_vesperRoom(roomId);
+  const priv=v.activeBooking?(v.activeBooking.privacyScore||50):55;
+  const cost=window.calculatePrivateMeetingCost(roomId,guestCount,'discreet');
+  const gossip=window.calculateHotelScandalRisk({roomType:roomId,guestCount:guestCount,privacyScore:priv,securityPackage:v.activeBooking?v.activeBooking.securityPackage:false,noPhonePolicy:v.activeBooking?v.activeBooking.noPhonePolicy:false});
+  _vesperPanel(`<div style="background:#120810;border:2px solid #c04a7a;border-radius:12px;padding:18px;max-width:520px;margin:0 auto;color:#f0d8e4;max-height:84vh;overflow-y:auto">
+    <h2 style="color:#e07aa8;margin-top:0;text-align:center">💋 ${group?'Prywatne spotkanie grupowe':'Prywatne spotkanie'}</h2>
+    <div style="color:#c8a8b8;font-size:12px;margin-bottom:10px;text-align:center">Scena jest przedstawiana wyłącznie jako abstrakcyjne fade-to-black (rozmyte bokeh) — bez szczegółów. Wyłącznie dorosłe NPC, wyłącznie za dobrowolną zgodą wszystkich stron. Płacisz za pokój, obsługę, dyskrecję i liczbę gości — nie za czynność.</div>
+    <div style="background:#0a0508;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;color:#e0c0d0">
+      🛏️ Pokój: <b>${room.name}</b> · 👥 Osób: <b>${guestCount}</b><br>
+      💰 Koszt: <b>${cost.toLocaleString('pl')} zł</b> · 🔒 Prywatność: <b>${priv}/100</b> · 📸 Ryzyko plotek: <b>${gossip}%</b>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="bbtn" onclick="window._vesperDoIntimate(${group?'true':'false'})">Za obopólną zgodą — potwierdź</button>
+      <button class="cbtn" onclick="window._vesperMeetPanel()">Jednak nie teraz</button>
+    </div>
+  </div>`);
+};
+window._vesperDoIntimate=function(group){
+  const v=window._vesperEnsure();
+  const guestCount=group?4:1;
+  const roomId=v.activeBooking?v.activeBooking.roomType:(group?'party_suite':'deluxe_room');
+  const cost=window.calculatePrivateMeetingCost(roomId,guestCount,'discreet');
+  if((G.money||0)<cost){ _vMsg(`💰 Brakuje ${(cost-(G.money||0)).toLocaleString('pl')} zł na obsługę i pokój.`,'r',4000); return; }
+  G.money-=cost;
+  const booking={roomType:roomId,guestCount:guestCount,privacyScore:v.activeBooking?(v.activeBooking.privacyScore||50):55,
+    securityPackage:v.activeBooking?v.activeBooking.securityPackage:false,noPhonePolicy:v.activeBooking?v.activeBooking.noPhonePolicy:false};
+  const scandal=window.calculateHotelScandalRisk(booking);
+  _vesperClose();
+  const apply=()=>{
+    /* §11 resolvePrivateAdultEncounter: mood, nightlifeRep, scandalRisk, gossip roll. */
+    _vMood(15); _vFatigue(10);
+    if(typeof G.streetRep==='number') G.streetRep=_vClamp((G.streetRep||0)+1,0,100);
+    v.privateMeetings=(v.privateMeetings||0)+1;
+    v.scandalScore=_vClamp(v.scandalScore + Math.round(scandal*0.25),0,200);
+    window._vesperLogHistory({room:_vesperRoom(roomId).name,type:group?'Spotkanie intymne grupowe':'Spotkanie intymne',guests:guestCount,cost:cost,effect:'+nastrój, +ryzyko plotek'});
+    const leaked=window._vesperRollGossip(booking,scandal);
+    _vMsg(`💋 Prywatne spotkanie zakończone. Nastrój wzrósł.${leaked?' 📸 Uwaga: w hotelu łatwo o plotki i zdjęcia — ktoś to zauważył.':''}`,leaked?'r':'g',5500);
+    if(typeof saveGameSilent==='function') saveGameSilent();
+  };
+  if(typeof window._blackoutScene==='function'){ window._blackoutScene({label:'Reszta wieczoru zostaje między ścianami…',sound:true,onDone:apply}); }
+  else { apply(); }
+};
+/* §13: losowe zdarzenie plotki po evencie (zwraca true jeśli wyciek). */
+window._vesperRollGossip=function(booking,scandal){
+  const v=window._vesperEnsure();
+  const roll=Math.random()*100;
+  if(roll < scandal){
+    v.scandalScore=_vClamp(v.scandalScore+5,0,200);
+    if(typeof G.defamation==='number') G.defamation=_vClamp((G.defamation||0)+2,0,100);
+    if(typeof addMediaHeat==='function'){ try{ addMediaHeat(2); }catch(e){} } else if(typeof G.mediaHeat==='number'){ G.mediaHeat=(G.mediaHeat||0)+2; }
+    window._vesperGossipHeadline(booking);
+    return true;
+  }
+  return false;
+};
+window._vesperGossipHeadline=function(booking){
+  const name=(typeof G.playerName==='string'&&G.playerName)?G.playerName:(G.name||'Gwiazda');
+  const heads=[
+    `📸 FrameUp Gossip: „Kto wchodził do Vesper House po zamknięciu Eclipse Noir? Internet już dopisuje resztę historii."`,
+    `🐦 ChirpNet: „${name} znowu widziany z VIP-ami pod hotelem. Nowy styl życia?"`,
+    `📰 Blog plotkarski: „Modelki, suite i gorąca noc. Historia, której nikt nie wrzucił — jeszcze…"`,
+  ];
+  const h=heads[Math.floor(Math.random()*heads.length)];
+  if(typeof addNotif==='function') addNotif(h);
+  else _vMsg(h,'r',6000);
+};
+
+/* ═══ §12: PRIVATE ROOM PARTY ═══ */
+const VESPER_PARTIES=[
+  {id:'models_after',   name:'After z modelkami',        emoji:'💃', room:'party_suite',     guests:6, cost:6200,  scandal:26, mood:14, biz:0},
+  {id:'cheer_after',    name:'After z cheerleaderkami',  emoji:'📣', room:'party_suite',     guests:6, cost:6000,  scandal:24, mood:14, biz:0},
+  {id:'stew_after',     name:'After ze stewardessami',   emoji:'✈️', room:'party_suite',     guests:5, cost:5600,  scandal:22, mood:13, biz:0},
+  {id:'eclipse_house',  name:'Domówka po Eclipse Noir',  emoji:'🌙', room:'deluxe_room',     guests:5, cost:3400,  scandal:20, mood:12, biz:0},
+  {id:'vip_business',   name:'VIP business after',       emoji:'💼', room:'penthouse_suite', guests:8, cost:9800,  scandal:20, mood:8,  biz:25},
+  {id:'crew_party',     name:'Hotel room party z ekipą', emoji:'🎧', room:'party_suite',     guests:8, cost:5200,  scandal:28, mood:16, biz:0},
+  {id:'kantar_closed',  name:'Zamknięty event Kantara',  emoji:'🕶️', room:'private_floor',   guests:10,cost:14000, scandal:15, mood:6,  biz:0, shadow:true},
+];
+window._vesperPartyPanel=function(){
+  const v=window._vesperEnsure(); const shadow=window._vesperShadowUnlocked();
+  const rows=VESPER_PARTIES.map(p=>{
+    const locked=(p.shadow&&!shadow)||(p.room==='private_floor'&&!v.privateFloorUnlocked);
+    return `<button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:9px;margin-top:5px;color:${locked?'#7a6a5a':'#f0d0a0'};border-color:${locked?'#463a28':'#8a5a30'}" ${locked?'disabled':''} onclick="window._vesperHostParty('${p.id}')">
+      ${p.emoji} <b>${p.name}</b> ${locked?'🔒':''}<br><span style="color:#b09070;font-size:11px">${_vesperRoom(p.room).name} · ~${p.guests} gości · ${p.cost.toLocaleString('pl')} zł · ryzyko plotek ~${p.scandal}%</span></button>`;
+  }).join('');
+  _vesperPanel(`<div style="background:#0d0805;border:2px solid #8a5a30;border-radius:12px;padding:18px;max-width:580px;margin:0 auto;color:#f0e0c8;max-height:84vh;overflow-y:auto">
+    <h2 style="margin-top:0;color:#e0a860">🎉 Private Room Party</h2>
+    <div style="font-size:11px;color:#b09070;margin-bottom:6px">Iris ustawia listę gości i pilnuje kosztów. Więcej ludzi = więcej życia, ale i więcej ryzyka.</div>
+    ${rows}
+    <button class="cbtn" style="width:100%;margin-top:10px;color:#ccc" onclick="window._vesperClose()">← Zamknij</button>
+  </div>`);
+};
+window._vesperHostParty=function(pid){
+  const v=window._vesperEnsure(); const p=VESPER_PARTIES.find(x=>x.id===pid); if(!p) return;
+  if(p.shadow && !window._vesperShadowUnlocked()){ _vMsg('🕶️ Ten event nie jest dla Ciebie — jeszcze nie te kontakty.','r',4000); return; }
+  if(p.room==='private_floor' && !v.privateFloorUnlocked){ _vMsg('🔒 Zamknięty event wymaga Piętra Prywatnego.','r',3800); return; }
+  if((G.money||0)<p.cost){ _vMsg(`💰 Brakuje ${(p.cost-(G.money||0)).toLocaleString('pl')} zł na tę imprezę.`,'r',4000); return; }
+  G.money-=p.cost;
+  v.partiesHosted=(v.partiesHosted||0)+1; v.irisTrust=_vClamp(v.irisTrust+2,0,100);
+  _vMood(p.mood); _vFatigue(16);
+  if(typeof G.socialBuzz==='number') G.socialBuzz=_vClamp((G.socialBuzz||0)+6,0,1e9);
+  const booking={roomType:p.room,guestCount:p.guests,privacyScore:_vesperRoom(p.room).privacyBase+45,noPhonePolicy:false,securityPackage:false};
+  const scandal=window.calculateHotelScandalRisk(booking);
+  /* okazja biznesowa (VIP after). */
+  let bizMsg='';
+  if(p.biz>0 && Math.random()*100<p.biz){ if(typeof G.businessLeads==='number') G.businessLeads=(G.businessLeads||0)+1; bizMsg=' 💼 Zamknięta rozmowa dała lead inwestorski.'; }
+  window._vesperLogHistory({room:_vesperRoom(p.room).name,type:p.name,guests:p.guests,cost:p.cost,effect:'+nastrój, +rozgłos'+(bizMsg?', +lead':'')});
+  const leaked=window._vesperRollGossip(booking,scandal);
+  /* szansa na zdarzenie „after robi się za drogi" przy dużej imprezie. */
+  const chaos=(p.guests>=6 && Math.random()<0.35);
+  _vMsg(`${p.emoji} ${p.name} rozkręca się.${bizMsg}${leaked?' 📸 Ktoś już to nagrywa — plotki ruszają.':''}`,leaked?'r':'g',5200);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  if(chaos && typeof window._vesperEventExpensiveAfter==='function'){ setTimeout(()=>window._vesperEventExpensiveAfter(), 700); }
+  else window._vesperPartyPanel();
+};
+
+/* ═══ §30: VESPER CONTENT (ryzykowny) ═══ */
+const VESPER_CONTENT=[
+  {id:'lobby_story',  name:'FrameUp story z lobby',   emoji:'📸', buzz:5,  risk:5},
+  {id:'vlog_night',   name:'ViewGrid vlog: noc po Eclipse', emoji:'🎥', buzz:8, risk:18},
+  {id:'backstage',    name:'Backstage po koncercie',  emoji:'🎤', buzz:7,  risk:12},
+  {id:'lux_post',     name:'Luxury lifestyle post',   emoji:'✨', buzz:6,  risk:10},
+];
+window.calculateVesperContentRisk=function(contentType){
+  const v=window._vesperEnsure(); let risk=5;
+  risk += (G.fame||0)*0.15;
+  risk += (v.scandalScore||0)*0.25;
+  const intox=(G.eclipseNoir&&G.eclipseNoir.nightlife&&G.eclipseNoir.nightlife.intoxication)||0;
+  risk += intox*0.10;
+  if(contentType==='private_party') risk+=25;
+  if(contentType==='vip_lounge') risk+=18;
+  if(contentType==='lobby_story') risk+=5;
+  return _vClamp(_vRound(risk),0,70);
+};
+window._vesperContentPanel=function(){
+  const v=window._vesperEnsure();
+  const rows=VESPER_CONTENT.map(ct=>{
+    const risk=_vClamp(ct.risk + (G.fame||0)*0.15 + (v.scandalScore||0)*0.25,0,70);
+    return `<button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:9px;margin-top:5px;color:#c8a8e0;border-color:#5a4a7a" onclick="window._vesperMakeContent('${ct.id}')">${ct.emoji} <b>${ct.name}</b><br><span style="color:#9888b0;font-size:11px">+${ct.buzz} rozgłos · ryzyko plotek ~${_vRound(risk)}%</span></button>`;
+  }).join('');
+  _vesperPanel(`<div style="background:#0b0810;border:2px solid #5a4a7a;border-radius:12px;padding:18px;max-width:540px;margin:0 auto;color:#e8dcf0;max-height:84vh;overflow-y:auto">
+    <h2 style="margin-top:0;color:#b89ad8">📱 Vesper Content</h2>
+    <div style="font-size:11px;color:#a898c0;margin-bottom:6px">Hotel dobrze wygląda w kadrze — ale to ryzykowne miejsce. Im większy skandal na koncie, tym łatwiej o wpadkę.</div>
+    ${rows}
+    <button class="cbtn" style="width:100%;margin-top:8px;color:#c8a8c0;border-color:#4a3a5a" onclick="window._vesperMakeContent('none')">🚫 Nie publikuj nic</button>
+    <button class="cbtn" style="width:100%;margin-top:6px;color:#ccc" onclick="window._vesperClose()">← Zamknij</button>
+  </div>`);
+};
+window._vesperMakeContent=function(id){
+  const v=window._vesperEnsure();
+  if(id==='none'){ _vMsg('🚫 Chowasz telefon. Czasem najlepszy content to ten, którego nie ma.','f',3800); window._vesperClose(); return; }
+  const ct=VESPER_CONTENT.find(x=>x.id===id); if(!ct) return;
+  const risk=window.calculateVesperContentRisk(id);
+  if(typeof G.socialBuzz==='number') G.socialBuzz=_vClamp((G.socialBuzz||0)+ct.buzz,0,1e9);
+  if(typeof G.fame==='number' && Math.random()<0.6) G.fame=(G.fame||0)+1;
+  let leaked=false;
+  if(Math.random()*100<risk){ leaked=true; v.scandalScore=_vClamp(v.scandalScore+4,0,200); if(typeof G.defamation==='number') G.defamation=_vClamp((G.defamation||0)+2,0,100); window._vesperGossipHeadline({roomType:'party_suite',guestCount:4}); }
+  _vMsg(`${ct.emoji} Opublikowano: ${ct.name}. Rozgłos rośnie.${leaked?' 📸 …ale coś, czego nie chciałeś pokazać, też trafiło w kadr.':''}`,leaked?'r':'g',5000);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._vesperContentPanel();
+};
+
+/* ═══ §31: ZNISZCZENIA POKOJU ═══ */
+window._vesperRoomDamageRoll=function(intensity){
+  const v=window._vesperEnsure();
+  /* intensity 0-100 — im wyższa, tym większa szkoda. */
+  let cost=0, tier='';
+  const r=Math.random()*100;
+  if(r < intensity*0.15){ cost=_vRound(10000+Math.random()*15000); tier='poważne zniszczenia'; v.hotelHeat=_vClamp(v.hotelHeat+15,0,100); if(typeof G.defamation==='number')G.defamation=_vClamp((G.defamation||0)+5,0,100); }
+  else if(r < intensity*0.35){ cost=_vRound(4000+Math.random()*8000); tier='duża impreza i skargi'; v.hotelHeat=_vClamp(v.hotelHeat+8,0,100); }
+  else if(r < intensity*0.6){ cost=_vRound(2000+Math.random()*6000); tier='uszkodzone meble'; v.hotelHeat=_vClamp(v.hotelHeat+4,0,100); }
+  else if(r < intensity*0.85){ cost=_vRound(500+Math.random()*1000); tier='mały bałagan'; }
+  if(cost>0){
+    G.money=Math.max(0,(G.money||0)-cost);
+    v.incidents.unshift({day:(G.day||0),type:tier,cost:cost}); if(v.incidents.length>30)v.incidents.length=30;
+    _vMsg(`💥 Rachunek za ${tier}: ${cost.toLocaleString('pl')} zł. Recepcja to zapamięta.`,'r',5500);
+    if(v.hotelHeat>=81 && typeof window._vesperBan==='function') window._vesperBan(7,'poważne zniszczenia i skandal');
+    if(typeof saveGameSilent==='function') saveGameSilent();
+  }
+  return cost;
+};
+/* ═══ §4: DEKORACJE WNĘTRZA — ciemne drewno, złote detale, bordowe dywany, przygaszony bar, lustra ═══ */
+function drawVesperHouse(){
+  const room=(typeof ROOMS!=='undefined')?ROOMS.vesper_house:null; if(!room) return;
+  if(typeof window._vesperSyncObjects==='function') window._vesperSyncObjects();
+  const W=room.wT*48, H=room.hT*48; const t=Date.now()/1000;
+  /* podłoga — ciemne drewno */
+  const g=X.createLinearGradient(wx2sx(0),wy2sy(0),wx2sx(0),wy2sy(H));
+  g.addColorStop(0,'#241813'); g.addColorStop(1,'#160d09'); X.fillStyle=g; X.fillRect(wx2sx(0),wy2sy(0),W,H);
+  /* deski */
+  X.strokeStyle='rgba(0,0,0,0.30)'; X.lineWidth=1;
+  for(let y=0;y<=H;y+=40){ X.beginPath(); X.moveTo(wx2sx(0),wy2sy(y)); X.lineTo(wx2sx(W),wy2sy(y)); X.stroke(); }
+  /* bordowy dywan-runner (środek) */
+  X.fillStyle='#4a1424'; X.fillRect(wx2sx(W/2-120),wy2sy(0),240,H);
+  X.strokeStyle='#7a2038'; X.lineWidth=3; X.strokeRect(wx2sx(W/2-120),wy2sy(6),240,H-12);
+  X.fillStyle='rgba(200,150,60,0.10)'; X.fillRect(wx2sx(W/2-108),wy2sy(0),12,H); X.fillRect(wx2sx(W/2+96),wy2sy(0),12,H);
+  /* ściany + złote listwy */
+  X.fillStyle='#0e0906'; X.fillRect(wx2sx(0),wy2sy(0),W,16); X.fillRect(wx2sx(0),wy2sy(0),16,H); X.fillRect(wx2sx(W-16),wy2sy(0),16,H); X.fillRect(wx2sx(0),wy2sy(H-16),W,16);
+  X.fillStyle='#b8933a'; X.fillRect(wx2sx(0),wy2sy(16),W,3); X.fillRect(wx2sx(0),wy2sy(H-19),W,3);
+  /* recepcja (lada, góra-środek) */
+  const rx=wx2sx(500),ry=wy2sy(150);
+  X.fillStyle='#2a1a10'; X.fillRect(rx,ry,300,64);
+  X.fillStyle='#3a2418'; X.fillRect(rx,ry,300,12);
+  X.fillStyle='#d8b048'; X.fillRect(rx+8,ry+4,284,3);
+  X.fillStyle='rgba(230,200,120,0.85)'; X.font='bold 13px sans-serif'; X.textAlign='center'; X.fillText('THE VESPER HOUSE', rx+150, ry+40);
+  /* żyrandol (górny środek) — miękkie światło */
+  const cx=wx2sx(W/2), cy=wy2sy(70);
+  const glow=X.createRadialGradient(cx,cy,4,cx,cy,90);
+  glow.addColorStop(0,`rgba(240,210,140,${0.22+0.05*Math.sin(t*1.5)})`); glow.addColorStop(1,'rgba(240,210,140,0)');
+  X.fillStyle=glow; X.beginPath(); X.arc(cx,cy,90,0,Math.PI*2); X.fill();
+  X.fillStyle='#d8b048'; for(let i=0;i<6;i++){ const a=i/6*Math.PI*2; X.beginPath(); X.arc(cx+Math.cos(a)*26,cy+Math.sin(a)*12,4,0,Math.PI*2); X.fill(); }
+  /* bar (prawy) — przygaszony, butelki + lustro */
+  const bx=wx2sx(1050),by=wy2sy(150);
+  X.fillStyle='#1c120c'; X.fillRect(bx,by,180,110);
+  X.fillStyle='#0a0604'; X.fillRect(bx+6,by+8,168,40); /* lustro/półka za barem */
+  const bottleCols=['#8a2a4a','#b8933a','#3a5a7a','#7a3a8a','#c8c0d0'];
+  for(let i=0;i<8;i++){ X.fillStyle=bottleCols[i%bottleCols.length]; X.fillRect(bx+14+i*20,by+12,8,30); }
+  X.fillStyle='#2a1a10'; X.fillRect(bx,by+96,180,14);
+  X.fillStyle='rgba(230,200,120,0.7)'; X.font='10px sans-serif'; X.textAlign='center'; X.fillText('VESPER BAR', bx+90, by+72);
+  /* lustro (lewa ściana) */
+  X.fillStyle='rgba(120,140,160,0.10)'; X.fillRect(wx2sx(30),wy2sy(300),20,150);
+  X.strokeStyle='#8a6a2a'; X.lineWidth=3; X.strokeRect(wx2sx(30),wy2sy(300),20,150);
+  /* winda / piętro prywatne (prawa krawędź) — złote drzwi */
+  const ex=wx2sx(1180),ey=wy2sy(300);
+  X.fillStyle='#2a2018'; X.fillRect(ex,ey,90,110);
+  X.fillStyle='#c8a038'; X.fillRect(ex+8,ey+8,34,94); X.fillStyle='#a88028'; X.fillRect(ex+48,ey+8,34,94);
+  X.fillStyle='rgba(230,200,120,0.5)'; X.font='9px sans-serif'; X.fillText('▲', ex+45, ey+56);
+  /* rośliny w rogach */
+  X.fillStyle='#1a3a1a'; X.beginPath(); X.arc(wx2sx(60),wy2sy(60),16,0,Math.PI*2); X.fill(); X.beginPath(); X.arc(wx2sx(W-60),wy2sy(60),16,0,Math.PI*2); X.fill();
+}
+window.drawVesperHouse=drawVesperHouse;
+/* PDF Vesper House §2: fasada budynku na mapie Business — butikowy hotel, ciemna bryła, złote detale, okna w ciepłym świetle, markiza. */
+function drawVesperHotel(sx,sy,w,h){
+  const t=Date.now()/1000;
+  X.fillStyle='rgba(0,0,0,.45)'; X.fillRect(sx+5,sy+7,w,h); /* cień */
+  /* bryła — ciemne drewno/kamień */
+  const gg=X.createLinearGradient(sx,sy,sx,sy+h); gg.addColorStop(0,'#24160f'); gg.addColorStop(1,'#150c07'); X.fillStyle=gg; X.fillRect(sx,sy,w,h);
+  /* złote gzymsy */
+  X.fillStyle='#b8933a'; X.fillRect(sx,sy,w,4); X.fillRect(sx,sy+h*0.5,w,3);
+  X.fillStyle='#8a6a28'; X.fillRect(sx,sy+h-6,w,6);
+  /* rzędy okien w ciepłym świetle (część zapalona) */
+  const cols=4, rowsY=[0.12,0.30,0.62,0.80];
+  for(let r=0;r<rowsY.length;r++){ for(let c=0;c<cols;c++){
+    const wx0=sx+w*(0.10+c*0.205), wy0=sy+h*rowsY[r], ww=w*0.12, wh=h*0.10;
+    const lit=((r*cols+c*3+Math.floor(t*0.3))%3!==0);
+    X.fillStyle=lit?`rgba(240,205,120,${0.55+0.12*Math.sin(t+ c+r)})`:'#0c0806'; X.fillRect(wx0,wy0,ww,wh);
+    X.strokeStyle='#6a5222'; X.lineWidth=1; X.strokeRect(wx0,wy0,ww,wh);
+  }}
+  /* markiza nad wejściem + drzwi */
+  X.fillStyle='#5a1626'; X.fillRect(sx+w*0.32,sy+h*0.50,w*0.36,h*0.07); /* bordowa markiza */
+  X.fillStyle='#7a2038'; X.fillRect(sx+w*0.32,sy+h*0.50,w*0.36,3);
+  X.fillStyle='#1a0f08'; X.fillRect(sx+w*0.40,sy+h*0.57,w*0.20,h*0.28); /* drzwi */
+  X.fillStyle='#c8a038'; X.fillRect(sx+w*0.40,sy+h*0.57,w*0.20,3); /* złota framuga */
+  /* szyld VESPER */
+  X.fillStyle='rgba(230,205,130,0.95)'; X.font='bold '+Math.max(9,Math.round(w*0.08))+'px sans-serif'; X.textAlign='center';
+  X.shadowColor='rgba(240,210,140,0.7)'; X.shadowBlur=8; X.fillText('VESPER', sx+w*0.5, sy+h*0.44); X.shadowBlur=0;
+  X.font=Math.max(7,Math.round(w*0.045))+'px sans-serif'; X.fillStyle='rgba(200,175,110,0.85)'; X.fillText('HOUSE', sx+w*0.5, sy+h*0.475);
+  X.textAlign='left';
+}
+window.drawVesperHotel=drawVesperHotel;
+/* ═══ §14 + Vesper Bar (money-sink → nastrój/orzeźwienie) ═══ */
+const VESPER_DRINKS=[
+  {id:'wino',  em:'🍷', name:'Kieliszek wina',    cost:90,  mood:6,  desc:'Spokojnie, elegancko.'},
+  {id:'whisky',em:'🥃', name:'Whisky z lodem',    cost:160, mood:10, desc:'Ciężki bar, ciemne drewno.'},
+  {id:'szampan',em:'🍾',name:'Butelka szampana',  cost:420, mood:16, desc:'Dla towarzystwa i kadru.'},
+];
+window._vesperBar=function(){
+  const v=window._vesperEnsure();
+  const rows=VESPER_DRINKS.map(d=>`<button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:9px;margin-top:5px;color:#e8d0b0;border-color:#7a5a38" onclick="window._vesperBarBuy('${d.id}')">${d.em} <b>${d.name}</b> — ${d.cost} zł<br><span style="color:#b09878;font-size:11px">${d.desc} (+${d.mood} nastrój)</span></button>`).join('');
+  _vesperPanel(`<div style="background:#0c0805;border:2px solid #7a5a38;border-radius:12px;padding:18px;max-width:480px;margin:0 auto;color:#f0e0c8;max-height:84vh;overflow-y:auto">
+    <h2 style="margin-top:0;color:#d8a860">🍸 Vesper Bar</h2>
+    <div style="font-size:11px;color:#b09878;margin-bottom:6px">Przygaszony bar, lustra i cicha muzyka. Barman wie, kiedy nie pytać.</div>
+    ${rows}
+    <button class="cbtn" style="width:100%;margin-top:8px;color:#ccc" onclick="window._vesperClose()">← Wyjdź z baru</button>
+  </div>`);
+};
+window._vesperBarBuy=function(id){
+  const d=VESPER_DRINKS.find(x=>x.id===id); if(!d) return;
+  if((G.money||0)<d.cost){ _vMsg(`💰 Brakuje ${d.cost-(G.money||0)} zł na ${d.name}.`,'r',3000); return; }
+  G.money-=d.cost; _vMood(d.mood);
+  _vMsg(`${d.em} ${d.name}. Nastrój się poprawia.`,'g',3200);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._vesperBar();
+};
+
+/* ═══ §21: BAN + §20: hotelHeat ═══ */
+window._vesperBan=function(days,reason){
+  const v=window._vesperEnsure();
+  v.bannedUntilDay=(G.day||0)+days; v.hotelHeat=_vClamp(v.hotelHeat+20,0,100);
+  if(typeof G.defamation==='number') G.defamation=_vClamp((G.defamation||0)+10,0,100);
+  v.incidents.unshift({day:(G.day||0),type:'ban',cost:0,reason:reason}); if(v.incidents.length>30)v.incidents.length=30;
+  _vMsg(`⛔ Zakaz wejścia do The Vesper House: ${days} dni. Powód: ${reason}.`,'r',7000);
+  _vesperClose();
+  if(typeof currentRoom!=='undefined'&&currentRoom==='vesper_house' && typeof window._vesperExit==='function') window._vesperExit();
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+
+/* ═══ §36: PIĘTRO PRYWATNE (late-game) ═══ */
+window.canUnlockPrivateFloor=function(){
+  const v=window._vesperEnsure();
+  const investorTrust=(G.businessNetwork&&G.businessNetwork.investorTrust)||(typeof G.investorTrust==='number'?G.investorTrust:0);
+  return (G.fame||0)>=30 && v.evelynTrust>=5 && investorTrust>=4 && v.hotelHeat<50;
+};
+window._vesperPrivateFloorPanel=function(){
+  const v=window._vesperEnsure();
+  if(v.privateFloorUnlocked){
+    _vesperPanel(`<div style="background:#0c0a04;border:2px solid #c8a030;border-radius:12px;padding:18px;max-width:540px;margin:0 auto;color:#f4e8c0;max-height:84vh;overflow-y:auto">
+      <h2 style="margin-top:0;color:#e8c860">👑 Piętro Prywatne</h2>
+      <div style="font-size:12px;color:#c8b880;margin-bottom:12px">Najwyższa dyskrecja w hotelu. Zamknięte aftery, spotkania VIP, kontrakty, których nikt nie wynosi na korytarz.</div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <button class="cbtn" style="color:#e8c860;border-color:#c8a030" onclick="window._vesperPartyPanel()">🕶️ Zamknięty after (Private Floor)</button>
+        <button class="cbtn" style="color:#e8c860;border-color:#c8a030" onclick="window._vesperMeetPanel()">💼 Duże spotkanie VIP</button>
+        <button class="cbtn" style="color:#ccc" onclick="window._vesperClose()">← Zamknij</button>
+      </div>
+    </div>`);
+    return;
+  }
+  const can=window.canUnlockPrivateFloor();
+  const investorTrust=(G.businessNetwork&&G.businessNetwork.investorTrust)||(typeof G.investorTrust==='number'?G.investorTrust:0);
+  _vesperPanel(`<div style="background:#0c0a04;border:2px solid #8a7028;border-radius:12px;padding:18px;max-width:540px;margin:0 auto;color:#f4e8c0;max-height:84vh;overflow-y:auto">
+    <h2 style="margin-top:0;color:#c8a840">👑 Piętro Prywatne — dostęp</h2>
+    <div style="font-size:12px;color:#c8b880;font-style:italic;margin-bottom:10px">Evelyn: „To piętro nie jest na sprzedaż. Jest na zaufanie. Proszę pokazać, że ludzie tacy jak Pan nie robią tu problemów."</div>
+    <div style="font-size:11px;background:#080702;border-radius:6px;padding:10px;margin-bottom:12px;color:#d8c890">
+      Wymagania:<br>
+      ${(G.fame||0)>=30?'✅':'❌'} Sława ≥ 30 (masz ${G.fame||0})<br>
+      ${v.evelynTrust>=5?'✅':'❌'} Zaufanie Evelyn ≥ 5 (masz ${_vRound(v.evelynTrust)})<br>
+      ${investorTrust>=4?'✅':'❌'} Zaufanie inwestorów ≥ 4 (masz ${_vRound(investorTrust)})<br>
+      ${v.hotelHeat<50?'✅':'❌'} Hotel „na oku" < 50 (masz ${_vRound(v.hotelHeat)})
+    </div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <button class="cbtn" style="color:${can?'#7ec87e':'#8a7a5a'};border-color:${can?'#27ae60':'#4a3f28'}" ${can?'':'disabled'} onclick="window._vesperUnlockPrivateFloor()">🔓 Odblokuj Piętro Prywatne</button>
+      <button class="cbtn" style="color:#ccc" onclick="window._vesperClose()">← Zamknij</button>
+    </div>
+  </div>`);
+};
+window._vesperUnlockPrivateFloor=function(){
+  const v=window._vesperEnsure();
+  if(!window.canUnlockPrivateFloor()){ _vMsg('🔒 Evelyn jeszcze Ci nie ufa na tyle.','r',4000); return; }
+  v.privateFloorUnlocked=true; v.evelynTrust=_vClamp(v.evelynTrust+3,0,100);
+  window._vesperSyncObjects();
+  _vMsg('👑 Evelyn kiwa głową. Piętro Prywatne stoi przed Tobą otworem.','g',6000);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._vesperPrivateFloorPanel();
+};
+
+/* ═══ §15-19: CIEMNA WARSTWA — Staff Only + Shadow Jobs (WYŁĄCZNIE abstrakcyjne, black-box) ═══ */
+/* §16: kategorie — flavor, ZERO instruktażu przestępstw. */
+const VESPER_SHADOW_CATS=[
+  {id:'sealed_exchange',label:'Zamknięta wymiana',desc:'Przekazujesz zamkniętą kopertę/przedmiot bez wiedzy o zawartości.',risk:35},
+  {id:'room_retrieval', label:'Odbiór z pokoju',   desc:'Odzyskujesz coś z pokoju — sprawa rozliczana jako abstrakcyjne zdarzenie.',risk:45},
+  {id:'pressure_meeting',label:'Spotkanie naciskowe',desc:'Rozmowa pod presją z NPC — sam dialog, ryzyko i konsekwencje.',risk:50},
+  {id:'vip_compromise', label:'Kompromitacja VIP', desc:'Zdobywasz kompromitującą informację o VIP-ie.',risk:60},
+  {id:'silent_cleanup', label:'Ciche uporządkowanie',desc:'Fabularne „uporządkowanie problemu" po czyjejś nocy — bez szczegółów.',risk:65},
+  {id:'shadow_transport',label:'Dyskretny transport',desc:'Dyskretny transport osoby lub przedmiotu, bez wiedzy o szczegółach.',risk:40},
+  {id:'false_guest',    label:'Fałszywy gość',     desc:'Podszycie obecności pod legalną rezerwację — rozliczane ryzykiem hotelowym.',risk:38},
+  {id:'staged_incident',label:'Pozorowane zdarzenie',desc:'Zadanie wysokiego ryzyka wokół pozorowanego zdarzenia — wyłącznie czarna skrzynka.',risk:80},
+];
+window._vesperStaff=function(){
+  const v=window._vesperEnsure();
+  if(!window._vesperShadowUnlocked()){
+    const lines=['„To nie ze mną, nie ta rozmowa.","Pomylił Pan piętro.","Tu ludzie śpią. Nie załatwiaj spraw.","Nie znamy się na tyle."'];
+    _vMsg('🚪 Ktoś przy zapleczu mierzy Cię wzrokiem: „Pomylił Pan piętro." — jeszcze nie te kontakty.','f',5000);
+    return;
+  }
+  window._vesperEnsureShadowOffer();
+  const offer=v._shadowOffer;
+  const cat=offer?VESPER_SHADOW_CATS.find(c=>c.id===offer.catId):null;
+  _vesperPanel(`<div style="background:#080609;border:2px solid #4a2a5a;border-radius:12px;padding:18px;max-width:560px;margin:0 auto;color:#e0d0e8;max-height:84vh;overflow-y:auto">
+    <h2 style="margin-top:0;color:#a878c8">🚪 Staff Only — zaplecze</h2>
+    <div style="font-size:11px;color:#a090b0;margin-bottom:10px">Te same korytarze są dłuższe. Te same drzwi mają znaczenie. Tu okazje pokazują cenę.</div>
+    <div style="font-size:11px;background:#0c0810;border-radius:6px;padding:8px;margin-bottom:10px;color:#b8a0c8">🕶️ Zaufanie Kantara: <b>${_vRound(G.kantarTrust||0)}</b> · 🌑 Reputacja cienia: <b>${_vRound((G.underworld&&G.underworld.shadowReputation)||0)}</b> · 🔥 Hotel „na oku": <b>${_vRound(v.hotelHeat)}</b></div>
+    ${cat?`<div style="background:#0c0810;border-radius:8px;padding:11px;margin-bottom:10px">
+      <div style="color:#c8a0e0;font-size:13px;font-weight:600;margin-bottom:4px">📄 Dostępne zlecenie: ${cat.label}</div>
+      <div style="color:#a898b8;font-size:11px;margin-bottom:6px">${cat.desc}</div>
+      <div style="color:#9888a8;font-size:11px">Ryzyko: <b>${offer.riskLevel}</b>/100 · Możliwa zapłata: <b>${offer.payment.toLocaleString('pl')} zł</b></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <button class="cbtn" style="color:#7ec87e;border-color:#27ae60" onclick="window._vesperShadowDecide('accept')">✅ Przyjmij zlecenie</button>
+      <button class="cbtn" style="color:#e0c060;border-color:#8a7030" onclick="window._vesperShadowDecide('consult')">🕶️ Skonsultuj z Kantarem</button>
+      <button class="cbtn" style="color:#c0a0d0;border-color:#5a3a6a" onclick="window._vesperShadowDecide('time')">⏳ Poproś o więcej czasu</button>
+      <button class="cbtn" style="color:#c8a0a0;border-color:#6a3a3a" onclick="window._vesperShadowDecide('refuse')">✋ Odmów</button>
+    </div>`:'<div style="color:#8a7a9a;font-size:12px;padding:10px">Dziś zaplecze jest ciche. Wróć później — sprawy same się znajdą.</div>'}
+    <button class="cbtn" style="color:#a878c8;border-color:#4a2a5a" onclick="window._vesperStaffKnox()">🚛 Pogadaj z Knoxem (transport, zaplecze)</button>
+    <button class="cbtn" style="width:100%;margin-top:6px;color:#ccc" onclick="window._vesperClose()">← Wyjdź z zaplecza</button>
+  </div>`);
+};
+/* generuje dzienną ofertę shadow (jedna aktywna). */
+window._vesperEnsureShadowOffer=function(){
+  const v=window._vesperEnsure();
+  if(v._shadowOffer && v._shadowOffer.day===(G.day||0)) return;
+  if(v._shadowOffer && v._shadowOffer.day!==(G.day||0)) v._shadowOffer=null;
+  if(!v._shadowOffer){
+    const cat=VESPER_SHADOW_CATS[Math.floor(Math.random()*VESPER_SHADOW_CATS.length)];
+    const riskLevel=_vClamp(cat.risk + Math.round((Math.random()*20-10)),5,100);
+    const payment=_vRound(1800 + riskLevel*140 + (G.kantarTrust||0)*120);
+    v._shadowOffer={day:(G.day||0),catId:cat.id,riskLevel:riskLevel,payment:payment,prepLevel:0,consulted:false};
+  }
+};
+window._vesperShadowDecide=function(choice){
+  const v=window._vesperEnsure(); window._vesperEnsureShadowOffer(); const o=v._shadowOffer; if(!o){ window._vesperStaff(); return; }
+  if(choice==='refuse'){ if(typeof G.underworld==='object'&&G.underworld) G.underworld.shadowReputation=Math.max(0,(G.underworld.shadowReputation||0)-1); v._shadowOffer=null; _vMsg('✋ Odmawiasz. Bez ryzyka — ale i bez momentum w półświatku.','f',4200); if(typeof saveGameSilent==='function')saveGameSilent(); window._vesperStaff(); return; }
+  if(choice==='time'){ _vMsg('⏳ „Zastanowię się." Kantar nie lubi zwłoki, ale oferta zostaje na dziś.','f',4200); return; }
+  if(choice==='consult'){ o.consulted=true; o.prepLevel=_vClamp(o.prepLevel+2,0,10); _vMsg('🕶️ Konsultacja z Kantarem daje Ci kontekst — łatwiej to rozegrać (prep +).','g',4500); window._vesperStaff(); return; }
+  if(choice==='accept'){ window._vesperResolveShadowContract(o); }
+};
+/* §18-19: rozliczenie kontraktu jako black box. */
+window._vesperResolveShadowContract=function(o){
+  const v=window._vesperEnsure();
+  const kantarTrust=(G.kantarTrust||0);
+  const riskReading=(G.underworld&&G.underworld.shadowReputation)||0;
+  const discipline=_vClamp((G.streetRep||0)*0.1 + (v.hotelTrust||0)*0.05,0,10);
+  const successScore = kantarTrust*8 + riskReading*5 + discipline*3 + (o.prepLevel||0)*4 - (G.heat||0)*0.25 - (o.riskLevel||0)*0.35;
+  const chance=_vClamp(_vRound(successScore),5,80);
+  const success=(Math.random()*100)<chance;
+  _vesperClose();
+  const finish=()=>{
+    if(success) window._vesperCompleteShadow(o);
+    else window._vesperFailShadow(o);
+    v._shadowOffer=null;
+    if(typeof saveGameSilent==='function') saveGameSilent();
+  };
+  if(typeof window._blackoutScene==='function') window._blackoutScene({label:'Sprawa hotelowa. Bez historii.',sound:true,onDone:finish});
+  else finish();
+};
+window._vesperCompleteShadow=function(o){
+  const v=window._vesperEnsure();
+  G.money=(G.money||0)+o.payment;
+  G.kantarTrust=_vClamp((G.kantarTrust||0)+2,-50,100);
+  if(typeof G.underworld==='object'&&G.underworld){ G.underworld.shadowReputation=(G.underworld.shadowReputation||0)+2; if(Array.isArray(G.underworld.completedShadowJobs)) G.underworld.completedShadowJobs.push(o.catId); }
+  G.heat=_vClamp((G.heat||0)+Math.round(o.riskLevel*0.08),0,100);
+  if(typeof G.defamation==='number') G.defamation=_vClamp((G.defamation||0)+Math.round(o.riskLevel*0.05),0,100);
+  v.hotelHeat=_vClamp(v.hotelHeat+Math.round(o.riskLevel*0.06),0,100);
+  v.shadowJobsCompleted=(v.shadowJobsCompleted||0)+1;
+  v.incidents.unshift({day:(G.day||0),type:'shadow: '+o.catId,cost:0,status:'completed'}); if(v.incidents.length>30)v.incidents.length=30;
+  _vMsg(`🕶️ Sprawa załatwiona. ${o.payment.toLocaleString('pl')} zł, zaufanie Kantara rośnie. Bez historii.`,'g',5500);
+  if(v.hotelHeat>=81 && typeof window._vesperBan==='function') window._vesperBan(7,'spalona przykrywka');
+};
+window._vesperFailShadow=function(o){
+  const v=window._vesperEnsure();
+  G.heat=_vClamp((G.heat||0)+Math.round(o.riskLevel*0.15),0,100);
+  if(typeof G.defamation==='number') G.defamation=_vClamp((G.defamation||0)+Math.round(o.riskLevel*0.10),0,100);
+  if(typeof G.mediaHeat==='number') G.mediaHeat=(G.mediaHeat||0)+2;
+  if(typeof G.underworld==='object'&&G.underworld) G.underworld.failedShadowJobs=(G.underworld.failedShadowJobs||0)+1;
+  v.shadowJobsFailed=(v.shadowJobsFailed||0)+1;
+  v.hotelHeat=_vClamp(v.hotelHeat+12,0,100);
+  v.incidents.unshift({day:(G.day||0),type:'shadow FAIL: '+o.catId,cost:0,status:'failed'}); if(v.incidents.length>30)v.incidents.length=30;
+  _vMsg('🚨 Sprawa się wysypała. Podniesiony heat, ryzyko rozgłosu — i ktoś to zapamięta.','r',6000);
+  /* policyjny incydent / wyciek. */
+  if(Math.random()*100 < o.riskLevel*0.4) window._vesperPoliceIncident('spalone zlecenie');
+  else if(Math.random()<0.5) window._vesperGossipHeadline({roomType:'penthouse_suite',guestCount:6});
+  if(v.hotelHeat>=81 && typeof window._vesperBan==='function') window._vesperBan(10,'policyjna interwencja po nocy');
+};
+window._vesperPoliceIncident=function(reason){
+  G.heat=_vClamp((G.heat||0)+15,0,100);
+  const msg=`🚔 Przy Vesper House pojawia się patrol (${reason}). Recepcja milczy, ale heat rośnie.`;
+  if(typeof addNotif==='function') addNotif(msg); else _vMsg(msg,'r',6000);
+};
+window._vesperStaffKnox=function(){
+  _vesperPanel(`<div style="background:#0a0808;border:2px solid #5a4a3a;border-radius:12px;padding:18px;max-width:540px;margin:0 auto;color:#e0d8cc;max-height:84vh;overflow-y:auto">
+    <h2 style="margin-top:0;color:#c8a870">🚛 Knox „Towline" Mercer</h2>
+    <div style="font-size:12px;color:#b0a890;font-style:italic;background:#080604;border-radius:8px;padding:11px;margin-bottom:12px">„Hotele są kurewsko śmieszne. Ludzie myślą, że jak zamkną drzwi, to świat przestaje istnieć — a potem ktoś musi po nich posprzątać…"</div>
+    <div style="font-size:11px;color:#a89870;margin-bottom:10px">Knox ogarnia transport i zaplecze. Konkrety pojawią się przy wyższym zaufaniu.</div>
+    <button class="cbtn" style="width:100%;color:#ccc" onclick="window._vesperStaff()">← Wróć na zaplecze</button>
+  </div>`);
+};
+
+/* ═══ §17 + §34: EVENT „POKÓJ 407" (koperta Kantara) ═══ */
+window._vesperEvent407=function(){
+  const v=window._vesperEnsure();
+  const hasKantar=window._vesperShadowUnlocked();
+  const intro=hasKantar
+    ? `Kantar: „VESPER HOUSE. Pokój 407. Nie pukasz dwa razy. Nie pytasz, kto wynajął pokój. Bierzesz kopertę z recepcji i zostawiasz ją pod drzwiami. Potem odchodzisz. Bez historii."`
+    : `Numer zastrzeżony: „Hotel przy Eclipse. Czwarte piętro. 407. Jedna koperta. Jeśli nie rozumiesz — nie idź."`;
+  _vesperPanel(`<div style="background:#08060a;border:2px solid #5a3a6a;border-radius:12px;padding:18px;max-width:540px;margin:0 auto;color:#e0d0e8;max-height:84vh;overflow-y:auto">
+    <h2 style="margin-top:0;color:#b088d0">🔑 Pokój 407</h2>
+    <div style="font-size:12px;color:#c0a8d0;font-style:italic;background:#0c0810;border-radius:8px;padding:11px;margin-bottom:12px">${intro}</div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <button class="cbtn" style="color:#7ec87e;border-color:#27ae60" onclick="window._vesper407('accept')">✅ Przyjmij zlecenie</button>
+      <button class="cbtn" style="color:#e0c060;border-color:#8a7030" onclick="window._vesper407('ask_pay')">💰 Zapytaj o stawkę</button>
+      <button class="cbtn" style="color:#c0a0d0;border-color:#5a3a6a" onclick="window._vesper407('ask_content')">📦 Zapytaj, co jest w kopercie</button>
+      <button class="cbtn" style="color:#c8a0a0;border-color:#6a3a3a" onclick="window._vesper407('refuse')">✋ Odmów</button>
+      <button class="cbtn" style="color:#999;border-color:#444" onclick="window._vesper407('ignore')">🚶 Zignoruj</button>
+    </div>
+  </div>`);
+};
+window._vesper407=function(choice){
+  const v=window._vesperEnsure();
+  if(choice==='accept'){
+    G.kantarTrust=_vClamp((G.kantarTrust||0)+1,-50,100);
+    if(typeof G.underworld==='object'&&G.underworld) G.underworld.shadowReputation=(G.underworld.shadowReputation||0)+2;
+    v.hotelHeat=_vClamp(v.hotelHeat+5,0,100);
+    v.incidents.unshift({day:(G.day||0),type:'Pokój 407',status:'completed'}); if(v.incidents.length>30)v.incidents.length=30;
+    _vMsg('🔑 Bierzesz kopertę, zostawiasz pod drzwiami, odchodzisz. Zaufanie Kantara rośnie. Bez historii.','g',5500);
+  } else if(choice==='ask_pay'){
+    _vMsg('💰 „Stawka? Dowiesz się, jak zrobisz to dobrze." Kantar nie lubi pytań, ale zapłata może być lepsza.','f',4800); return;
+  } else if(choice==='ask_content'){
+    G.kantarTrust=_vClamp((G.kantarTrust||0)-1,-50,100);
+    _vMsg('📦 „Nie pytasz, co jest w kopercie." — pytanie kosztuje Cię odrobinę zaufania, ale to Twoja ostrożność.','f',5000); return;
+  } else if(choice==='refuse'){
+    _vMsg('✋ Odmawiasz. Bez ryzyka — Kantar może wrócić później.','f',4200);
+  } else if(choice==='ignore'){
+    _vMsg('🚶 Zostawiasz temat. Kantar może uznać, że nie jesteś gotowy.','f',4200);
+  }
+  v.pending407=false;
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  _vesperClose();
+};
+
+/* ═══ §33: KORYTARZOWE ZDARZENIA LOSOWE ═══ */
+const VESPER_CORRIDOR=[
+  'Dwoje NPC ostro kłóci się pod pokojem. Ochrona już idzie.',
+  'Znany biznesmen chowa twarz, mijając Cię w korytarzu.',
+  'Dorian prowadzi kogoś tylnym korytarzem i udaje, że Cię nie widzi.',
+  'Ochrona blokuje jedno z pięter. „Dziś nie tędy."',
+  'Ktoś zostawił kopertę przy recepcji. Nikt się nie przyznaje.',
+  'Paparazzi kręci się przy parkingu podziemnym.',
+  'Modelka prosi Cię o drobną pomoc przy windzie.',
+];
+window._vesperMaybeCorridorEvent=function(){
+  const v=window._vesperEnsure();
+  if(v.lastCorridorDay===(G.day||0)) return;
+  if(Math.random()<0.45){ v.lastCorridorDay=(G.day||0); const t=VESPER_CORRIDOR[Math.floor(Math.random()*VESPER_CORRIDOR.length)];
+    if(typeof addNotif==='function') addNotif('🏨 '+t); else _vMsg('🏨 '+t,'f',5000); }
+};
+window._vesperCorridor=function(){
+  const v=window._vesperEnsure();
+  const t=VESPER_CORRIDOR[Math.floor(Math.random()*VESPER_CORRIDOR.length)];
+  _vesperPanel(`<div style="background:#0a0808;border:2px solid #5a4a4a;border-radius:12px;padding:18px;max-width:520px;margin:0 auto;color:#e0d8d8;max-height:84vh;overflow-y:auto">
+    <h2 style="margin-top:0;color:#c8a0a0">🚪 Korytarze hotelowe</h2>
+    <div style="font-size:12px;color:#c0b0b0;font-style:italic;background:#080606;border-radius:8px;padding:11px;margin-bottom:12px">${t}</div>
+    <div style="font-size:11px;color:#a09090;margin-bottom:10px">Długie korytarze, lustra, przygaszone światło. Lepiej nie zaglądać za każde drzwi.</div>
+    <button class="cbtn" style="width:100%;color:#ccc" onclick="window._vesperClose()">← Wróć do lobby</button>
+  </div>`);
+};
+
+/* ═══ §35: EVENT „AFTER, KTÓRY ROBI SIĘ ZA DROGI" ═══ */
+window._vesperEventExpensiveAfter=function(){
+  const v=window._vesperEnsure();
+  _vesperPanel(`<div style="background:#0d0806;border:2px solid #b05a2a;border-radius:12px;padding:18px;max-width:540px;margin:0 auto;color:#f0d8c0;max-height:84vh;overflow-y:auto">
+    <h2 style="margin-top:0;color:#e08a40">🔥 After, który robi się za drogi</h2>
+    <div style="font-size:12px;color:#d0b0a0;font-style:italic;background:#080604;border-radius:8px;padding:11px;margin-bottom:12px">Impreza w apartamencie wymyka się z eleganckiego chaosu. Ktoś nagrywa. Ktoś kłóci się przy drzwiach. Ktoś wymawia Twoją ksywę zbyt głośno. Iris patrzy na Ciebie tak, jakby pytała: kontrolujesz to czy tylko za to płacisz?</div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <button class="cbtn" style="color:#7ec87e;border-color:#27ae60" onclick="window._vesperExpensiveChoice('end')">🛑 Zakończ imprezę</button>
+      <button class="cbtn" style="color:#e0c060;border-color:#8a7030" onclick="window._vesperExpensiveChoice('security')">🛡️ Zapłać za ochronę (2500 zł)</button>
+      <button class="cbtn" style="color:#e07a7a;border-color:#8a3030" onclick="window._vesperExpensiveChoice('grab')">📱 Zabierz telefon nagrywającemu (ryzykowne)</button>
+      <button class="cbtn" style="color:#c0a0d0;border-color:#5a3a6a" onclick="window._vesperExpensiveChoice('iris')">🎀 Wezwij Iris</button>
+      <button class="cbtn" style="color:#999;border-color:#444" onclick="window._vesperExpensiveChoice('ignore')">🙈 Udawaj, że nic się nie dzieje</button>
+    </div>
+  </div>`);
+};
+window._vesperExpensiveChoice=function(choice){
+  const v=window._vesperEnsure();
+  if(choice==='end'){ v.scandalScore=_vClamp(v.scandalScore-4,0,200); _vMsg('🛑 Kończysz imprezę. Mniej ryzyka plotek, trochę zawiedzionych gości.','g',4500); }
+  else if(choice==='security'){ if((G.money||0)<2500){ _vMsg('💰 Brakuje 2500 zł na ochronę.','r',3500); return; } G.money-=2500; v.scandalScore=_vClamp(v.scandalScore-3,0,200); _vMsg('🛡️ Ochrona wchodzi dyskretnie. Sytuacja pod kontrolą, mniejsze ryzyko.','g',4800); }
+  else if(choice==='grab'){ G.heat=_vClamp((G.heat||0)+8,0,100); if(typeof G.defamation==='number')G.defamation=_vClamp((G.defamation||0)+4,0,100); v.hotelHeat=_vClamp(v.hotelHeat+8,0,100); const dmg=window._vesperRoomDamageRoll(60); _vMsg('📱 Wyrywasz telefon — robi się nerwowo. Heat i rozgłos rosną, możliwa szarpanina.','r',5500); }
+  else if(choice==='iris'){ if(v.irisTrust>=3){ v.scandalScore=_vClamp(v.scandalScore-5,0,200); _vMsg('🎀 Iris przejmuje kontrolę nad sytuacją. Ratuje wieczór.','g',5000); } else { _vMsg('🎀 Iris próbuje pomóc, ale jeszcze Cię tak dobrze nie zna. Skromny efekt.','f',4500); v.scandalScore=_vClamp(v.scandalScore-1,0,200); } }
+  else if(choice==='ignore'){ v.scandalScore=_vClamp(v.scandalScore+6,0,200); if(typeof G.mediaHeat==='number')G.mediaHeat=(G.mediaHeat||0)+2; window._vesperRoomDamageRoll(70); _vMsg('🙈 Udajesz, że nic się nie dzieje. Ryzyko plotek i szkód rośnie.','r',5500); }
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  _vesperClose();
+};
+
+/* ═══ §27: FRAMEUP DM po wydarzeniach ═══ */
+const VESPER_DM=[
+  'Modelka: „Vesper było ciekawsze niż Eclipse, ale następnym razem mniej ludzi albo trochę więcej dyskrecji…"',
+  'Dorian Vale: „Recepcja pamięta mniej, jeśli goście płacą na czas i nie robią przedstawienia."',
+  'Numer zastrzeżony: „Pokój 407 był testem. Nie wynikiem."',
+  'S9 Agency: „Jeśli hotelowe plotki pójdą dalej, będziemy musieli wybrać narrację, zanim internet zrobi to za nas."',
+];
+window._vesperFrameDM=function(){
+  const v=window._vesperEnsure();
+  const dm=VESPER_DM[Math.floor(Math.random()*VESPER_DM.length)];
+  _vesperPanel(`<div style="background:#080a0c;border:2px solid #2a5a6a;border-radius:12px;padding:18px;max-width:520px;margin:0 auto;color:#d0e4ec;max-height:84vh;overflow-y:auto">
+    <h2 style="margin-top:0;color:#5ab8d0">📩 FrameUp DM</h2>
+    <div style="font-size:12px;color:#a0c8d4;font-style:italic;background:#060809;border-radius:8px;padding:11px;margin-bottom:12px">${dm}</div>
+    ${(v.scandalScore>=30)?`<button class="cbtn" style="width:100%;color:#e0a860;border-color:#8a6030;margin-bottom:6px" onclick="window._vesperCrisisControl()">🆘 Otwórz S9 Hotel Crisis Control</button>`:''}
+    <button class="cbtn" style="width:100%;color:#ccc" onclick="window._vesperClose()">← Zamknij</button>
+  </div>`);
+};
+
+/* ═══ §28: S9 AGENCY — HOTEL CRISIS CONTROL ═══ */
+window._vesperCrisisControl=function(){
+  const v=window._vesperEnsure();
+  _vesperPanel(`<div style="background:#0a0806;border:2px solid #8a6030;border-radius:12px;padding:18px;max-width:560px;margin:0 auto;color:#f0e0c8;max-height:84vh;overflow-y:auto">
+    <h2 style="margin-top:0;color:#e0a860">🆘 S9 Agency — Hotel Crisis Control</h2>
+    <div style="font-size:12px;color:#c8b090;margin-bottom:10px">Problem: Twoje nazwisko zaczyna pojawiać się w plotkach związanych z The Vesper House. 📸 Skandale: <b>${_vRound(v.scandalScore)}</b></div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <button class="cbtn" style="text-align:left;color:#7ec87e;border-color:#27ae60" onclick="window._vesperCrisis('mute')">🔇 Wycisz plotki — 10 000 zł</button>
+      <button class="cbtn" style="text-align:left;color:#e0c060;border-color:#8a7030" onclick="window._vesperCrisis('lifestyle')">✨ Przekuj w lifestyle narrative — 16 000 zł</button>
+      <button class="cbtn" style="text-align:left;color:#c0a0d0;border-color:#5a3a6a" onclick="window._vesperCrisis('cut')">✂️ Odetnij się od hotelowej afery — 20 000 zł</button>
+      <button class="cbtn" style="text-align:left;color:#60c0e0;border-color:#30608a" onclick="window._vesperCrisis('vip')">🤝 Zabezpiecz relację z VIP — 25 000 zł</button>
+      <button class="cbtn" style="text-align:left;color:#999;border-color:#444" onclick="window._vesperClose()">🚫 Zignoruj</button>
+    </div>
+  </div>`);
+};
+window._vesperCrisis=function(kind){
+  const v=window._vesperEnsure();
+  const costs={mute:10000,lifestyle:16000,cut:20000,vip:25000};
+  const cost=costs[kind]; if((G.money||0)<cost){ _vMsg(`💰 Brakuje ${(cost-(G.money||0)).toLocaleString('pl')} zł na tę akcję.`,'r',4000); return; }
+  G.money-=cost;
+  if(kind==='mute'){ if(typeof G.mediaHeat==='number')G.mediaHeat=Math.max(0,(G.mediaHeat||0)-15); v.scandalScore=_vClamp(v.scandalScore-10,0,200); _vMsg('🔇 S9 wycisza plotki. Media milkną.','g',5000); }
+  else if(kind==='lifestyle'){ if(typeof G.socialBuzz==='number')G.socialBuzz=_vClamp((G.socialBuzz||0)+8,0,1e9); if(typeof G.brandTrust==='number')G.brandTrust=Math.max(0,(G.brandTrust||50)-4); v.scandalScore=_vClamp(v.scandalScore-4,0,200); _vMsg('✨ S9 przekuwa aferę w lifestyle. Rozgłos rośnie — ale utrzymaj się 5 dni bez kolejnej wpadki.','g',5500); }
+  else if(kind==='cut'){ if(typeof G.defamation==='number')G.defamation=_vClamp((G.defamation||0)-20,0,100); v.scandalScore=_vClamp(v.scandalScore-8,0,200); _vMsg('✂️ Odcinasz się od afery. Rozgłos w dół, ale i jedna relacja mniej.','g',5000); }
+  else if(kind==='vip'){ if(G.businessNetwork&&typeof G.businessNetwork.investorTrust==='number')G.businessNetwork.investorTrust+=1; else if(typeof G.investorTrust==='number')G.investorTrust+=1; if(typeof G.mediaHeat==='number')G.mediaHeat=Math.max(0,(G.mediaHeat||0)-8); _vMsg('🤝 Zabezpieczasz relację z VIP. Zaufanie inwestorów rośnie.','g',5000); }
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  _vesperClose();
+};
+
+/* ═══ §25: NOVA CURA — event „Pokój, który pachnie rosą" ═══ */
+window._vesperNovaCuraEvent=function(){
+  const v=window._vesperEnsure();
+  _vMood(10); _vFatigue(20); if(typeof G.stress==='number'){} /* mood short-term up, fatigue up */
+  if(G.addictionSystem){ try{ if(G.addictionSystem.alcohol) G.addictionSystem.alcohol.craving=_vClamp((G.addictionSystem.alcohol.craving||0)+4,0,100); if(G.addictionSystem.partySubstances) G.addictionSystem.partySubstances.craving=_vClamp((G.addictionSystem.partySubstances.craving||0)+4,0,100); }catch(e){} }
+  const msg='🌫️ „Pokój, który pachnie rosą" — noc dała Ci nastrój, kontakt i kilka wspomnień, których lepiej nie publikować. Organizm zaczyna pytać, kiedy przestaniesz udawać, że to forma odpoczynku.';
+  if(typeof addNotif==='function') addNotif(msg); else _vMsg(msg,'f',6500);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+
+/* ═══ §22: AFTER-HUB — zaproszenie do Vesper po Eclipse Noir (DM Valerii) ═══ */
+window._vesperMaybeAfterOffer=function(){
+  const v=window._vesperEnsure();
+  if(v.lastAfterOfferDay===(G.day||0)) return false;
+  const clubFame=(G.eclipseNoir&&G.eclipseNoir.reputation)||0;
+  const night=(G.timeOfDay||0)>=2;
+  if(!(G.eclipseNoir&&G.eclipseNoir.visited)) return false;
+  if(clubFame<10 || !night) return false;
+  v.lastAfterOfferDay=(G.day||0);
+  const msg='📩 Valeria „Vee" Cross: „Eclipse robi się za głośne. Vesper ma jeszcze wolny apartament. Jeśli zechcesz pogadać z ludźmi, którzy nie rozmawiają przy barze — masz okienko przez 30 minut."';
+  if(typeof addNotif==='function') addNotif(msg); else _vMsg(msg,'f',7000);
+  return true;
+};
+/* hook wołany przy wyjściu z Eclipse Noir (integracja). */
+window._vesperOnEclipseExit=function(){ try{ window._vesperMaybeAfterOffer(); }catch(e){} };
+
+/* THE VESPER HOUSE MODULE END */
+
+
 
 /* ═══ DOŁEK JAKO CHODZALNA CELA (user: „fizyczne, nie panel") ═══
    Zamiast panelu 48h — gracz jest fizycznie w celi, chodzi i wchodzi w interakcje
@@ -51658,6 +52739,10 @@ window._enterDistrictPlace=(districtId,placeId)=>{
     case 'business_eclipse':
       if(typeof closeOverlay==='function') closeOverlay();
       if(typeof window._openEclipseNoir==='function') window._openEclipseNoir();
+      return;
+    case 'business_vesper':
+      if(typeof closeOverlay==='function') closeOverlay();
+      if(typeof window._openVesperHouse==='function') window._openVesperHouse();
       return;
     case 'business_aureum':
       if(typeof closeOverlay==='function') closeOverlay();
@@ -58653,6 +59738,7 @@ window._eclipseRollPaparazzi=function(context,force){
 window._eclipseExit=function(){
   window._eclipseNoirEnsure();
   window._eclipseRollPaparazzi('leaving');
+  try{ if(typeof window._vesperOnEclipseExit==='function') window._vesperOnEclipseExit(); }catch(e){} /* PDF Vesper §22: after-hub */
   if(typeof window._eclipseNightAftermath==='function') window._eclipseNightAftermath(); /* §47-48: rachunek zdrowotny po ciężkiej nocy */
   if(typeof window._eclipsePostClubActivity==='function') window._eclipsePostClubActivity(); /* §36/§49/§54: DM po klubie + after Marina + reakcje managerów */
   if(typeof startRoomFade==='function') startRoomFade('business',1050,800); /* v2.3.116: klub w Business District */
@@ -72843,6 +73929,17 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.124',date:'2026-07-24',cats:['feature'],title:'🏨 Nowe miejsce: The Vesper House — butikowy hotel przy Eclipse Noir',
+ items:[
+  {t:'new',d:'🏨 W Business District, tuż pod klubem Eclipse Noir, otwarto The Vesper House — butikowy hotel z recepcją, barem, korytarzami i apartamentami. Wchodzisz do środka jak do osobnego budynku i chodzisz po jego wnętrzu.'},
+  {t:'new',d:'🛏️ Wynajmiesz pokój lub apartament — od zwykłego pokoju, przez apartament imprezowy, aż po penthouse. Koszt zależy od typu pokoju, czasu wynajmu, liczby gości, poziomu dyskrecji, ochrony i prywatnej windy. W recepcji od razu widzisz łączną cenę, poziom prywatności i ryzyko plotek.'},
+  {t:'new',d:'🥂 Możesz umówić się na drinka lub kolację, zorganizować afterparty po klubie albo prywatną imprezę (z modelkami, z ekipą, w gronie VIP). Prywatne, intymne sceny (18+) są zawsze dobrowolne i pokazywane wyłącznie jako delikatne przyciemnienie ekranu — bez żadnych szczegółów.'},
+  {t:'new',d:'🎀 Poznasz obsługę hotelu, która pamięta więcej, niż mówi. Od tego, jak się zachowujesz, zależy Twoja dyskrecja, dostęp do wyższych pięter, a w skrajnych przypadkach nawet czasowy zakaz wstępu.'},
+  {t:'new',d:'📸 Hotel to miejsce konsekwencji: głośne imprezy, nagrania i wpadki zamieniają się w plotki i nagłówki, które uderzają w Twój wizerunek. Zdemolowany pokój oznacza słony rachunek. W razie afery możesz zamówić „gaszenie" tematu u agencji od wizerunku.'},
+  {t:'new',d:'👑 Dla stałych, zaufanych gości z czasem otwiera się Piętro Prywatne — najbardziej dyskretna część hotelu z zamkniętymi wydarzeniami. A ci, którzy szukają mocniejszych wrażeń, mogą trafić na propozycje, o których lepiej nie rozmawiać przy barze…'}
+ ]
+ },
  {
  ver:'v2.3.123',date:'2026-07-23',cats:['feature'],title:'🚔🅿️🚐 Ruch uliczny z policją na zasadach · magazyn kampera (skrzynia + sejf) · sen w kamperze, mapa Slumsów i mnóstwo drobnych usprawnień',
  items:[
