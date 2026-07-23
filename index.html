@@ -1582,9 +1582,15 @@ function initCityLife(){
   // F+ Punkt #12: 2 autobusy miejskie (większe, długie, na H2 i H3)
   cityCars.push({wx:rnd(0,4200), wy:1960, dx:-2.8, color:'#3498db', anim:0, shape:'bus', bus:true, lbl:'12'});
   cityCars.push({wx:rnd(0,4200), wy:2912, dx:-3.0, color:'#e67e22', anim:0, shape:'bus', bus:true, lbl:'5'});
+  /* v2.3.122 (PDF T1/T3): radiowozy NPC są teraz CZĘŚCIĄ ruchu — jeżdżą po pasach, stają na czerwonym,
+     jadą w kolejce (inne auta nie wyprzedzają radiowozu, tylko za nim). Syrena (kogut) tylko w trybie
+     uprzywilejowanym (emergency) przy zgłoszeniu — wtedy wolno im łamać zasady. */
+  cityCars.push({wx:rnd(0,4200), wy:525,  dx:3.4,  color:'#12233f', anim:0, shape:'sedan', police:true, emergency:false});
+  cityCars.push({wx:rnd(0,4200), wy:1976, dx:-3.4, color:'#12233f', anim:0, shape:'sedan', police:true, emergency:false});
   /* U12+U13 (v2.3.44 PDF): stały _rank per NPC (0..n-1) — niezależny od sortowania z-order; gęstość ukrywa NPC o ranku >= aktywna_liczba. */
   cityPeds.forEach((p,i)=>{ p._rank=i; });
   cityCars.forEach((c,i)=>{ c._rank=i; });
+  cityCars.forEach(c=>{ if(c.police) c._rank=0; }); /* radiowozy zawsze widoczne (nie chowa ich filtr gęstości) */
 }
 /* U12+U13 (v2.3.44 PDF): gęstość NPC miasta zależna od pory dnia i pogody (0..1 = frakcja aktywnych; pool spawnu 30/12 bez zmian). */
 function _npcTimeDensity(h){
@@ -2011,11 +2017,16 @@ document.addEventListener('keydown', e => {
     }
   }
   if(e.key==='m'||e.key==='M'){
-    if(!_busyMG){
+    /* v2.3.122 (PDF): w „Slumsy" (Stary Kwartał) M otwiera osobną mapę terenu podwórka, nie mapę miasta. */
+    if(typeof window._skSubMapOpen==='function' && window._skSubMapOpen()){ window._skCloseSubMap(); }
+    else if(typeof currentRoom!=='undefined' && currentRoom==='stary_kwartal'){ if(!_busyMG && typeof window._skOpenSubMap==='function') window._skOpenSubMap(); }
+    else if(!_busyMG){
       if(document.getElementById('fullmap-overlay')) document.getElementById('fullmap-overlay').remove();
       else openFullMap();
     }
   }
+  /* v2.3.122: ESC zamyka mapę Starego Kwartału (zanim otworzy pauzę). */
+  if(e.key==='Escape' && typeof window._skSubMapOpen==='function' && window._skSubMapOpen()){ window._skCloseSubMap(); e.preventDefault(); return; }
   /* v2.3.117 (PDF Uspr115 W5): klawisz O = Dziennik aktywności (10 ostatnich powiadomień).
      v2.3.122 (PDF Uspr v2.3.121): NIE podczas sesji wymagających klawiatury (Freestyle, Streaming) —
      tam „O" jest częścią rozgrywki (litera hasła / wpisywanie słów) i Dziennik zasłaniał ekran. */
@@ -3532,11 +3543,13 @@ const ROOMS = {
        Plus za mało odstępów horyzontalnych. ROZSZERZENIA pozycji: gap 30 między każdą stacją + cook obniżona do h:110 (jak inne). */
     objects:[
       {id:'exit_kamper',  wx:460, wy:480, w:62, h:62,  act:'camper_exit',  prompt:'[E] ⬅ Wyjdź z kampera', lbl:'Wyjście'},
-      {id:'kamper_stash', wx:30,  wy:140, w:120,h:110, act:'kamper_stash_view',          prompt:'[E] 📦 Sprawdź stash',   lbl:'Stash'},
+      {id:'kamper_stash', wx:30,  wy:140, w:120,h:110, act:'kamper_stash_view',          prompt:'[E] 📦 Otwórz skrzynię', lbl:'Skrzynia'},
       {id:'kamper_drying',wx:180, wy:140, w:200,h:110, act:'kamper_drying_view',         prompt:'[E] 🌬 Suszarnia',       lbl:'Suszarnia'},
       {id:'kamper_cook',  wx:410, wy:140, w:160,h:110, act:'kamper_cook_basic',          prompt:'[E] 🚬 Roluj jointa',    lbl:'Rolowanie'},
       {id:'kamper_pack',  wx:600, wy:140, w:140,h:110, act:'kamper_pack_view',           prompt:'[E] 📦 Pakuj produkty',  lbl:'Pakowanie'},
-      {id:'kamper_bed',   wx:30,  wy:300, w:200,h:90,  act:'rest',                       prompt:'[E] 🛏 Zdrzemnij się',   lbl:'Łóżko'},
+      /* v2.3.122 (PDF T13): sejf „Stash" po prawej, obok Stacji pakowania. Prompt/rysunek zależny od zakupu. */
+      {id:'kamper_safe',  wx:770, wy:140, w:120,h:110, act:'camper_safe_view',            prompt:'[E] 🔒 Stash (sejf)',    lbl:'Stash'},
+      {id:'kamper_bed',   wx:30,  wy:300, w:200,h:90,  act:'camper_sleep',                prompt:'[E] 🛏 Zdrzemnij się',   lbl:'Łóżko'},
       {id:'kamper_pot_0', wx:380, wy:305, w:56, h:80,  act:'grow_pot:kamper:0', actRadius:64, prompt:'[E] Doniczka 1',     lbl:''}, /* v2.1.782 starter grow Tier 0 */
       {id:'kamper_pot_1', wx:560, wy:305, w:56, h:80,  act:'grow_pot:kamper:1', actRadius:64, prompt:'[E] Doniczka 2',     lbl:''},
     ]
@@ -4322,7 +4335,8 @@ function drawSprite(id,sx,sy,w,h){
       drawAptWall(sx,sy,w,h);break;
     /* v2.1.496 USER FEEDBACK — dedicated draw per station w kamper/lab (zamiast szarych kwadratów). */
     case 'exit_kamper':case 'exit_lab':    drawInteriorExit(sx,sy,w,h);break;
-    case 'kamper_stash':                    drawStashSafe(sx,sy,w,h);break;
+    case 'kamper_stash':                    drawWoodChest(sx,sy,w,h);break; /* v2.3.122 (PDF T12): domyślnie drewniana skrzynia */
+    case 'kamper_safe':                     { const _b=(typeof window._camperHasStash==='function'&&window._camperHasStash()); X.save(); if(!_b) X.globalAlpha=0.32; drawStashSafe(sx,sy,w,h); X.restore(); }break; /* v2.3.122 (PDF T13): sejf (przygaszony przed zakupem) */
     case 'kamper_drying':                   drawDryingRack(sx,sy,w,h);break;
     case 'kamper_cook':                     drawJointRollingTable(sx,sy,w,h);break;
     case 'kamper_pack':                     drawPackingStation(sx,sy,w,h);break;
@@ -10197,6 +10211,34 @@ function drawStashSafe(sx,sy,w,h){
   X.fillText('📦 STASH',sx+w/2,sy+h*0.92);
   X.textAlign='left';
 }
+/* v2.3.122 (PDF T12): drewniana SKRZYNIA — domyślny magazyn kampera (zamiast sejfu). */
+function drawWoodChest(sx,sy,w,h){
+  X.save();
+  X.fillStyle='rgba(0,0,0,.45)';X.fillRect(sx+4,sy+8,w,h-6);
+  /* korpus skrzyni */
+  const bodyY=sy+Math.round(h*0.32);
+  const g=X.createLinearGradient(sx,bodyY,sx,sy+h);
+  g.addColorStop(0,'#6a4a28');g.addColorStop(1,'#4a3018');
+  X.fillStyle=g;X.fillRect(sx+2,bodyY,w-4,h-(bodyY-sy)-2);
+  /* wieko (łukowate) */
+  X.fillStyle='#7a5430';X.beginPath();
+  X.moveTo(sx+2,bodyY);X.lineTo(sx+2,sy+Math.round(h*0.20));
+  X.quadraticCurveTo(sx+w/2,sy+2,sx+w-2,sy+Math.round(h*0.20));
+  X.lineTo(sx+w-2,bodyY);X.closePath();X.fill();
+  /* deski pionowe */
+  X.strokeStyle='rgba(30,18,8,.5)';X.lineWidth=1.5;
+  for(let i=1;i<4;i++){ const dx=sx+2+(w-4)*i/4; X.beginPath();X.moveTo(dx,bodyY);X.lineTo(dx,sy+h-2);X.stroke(); }
+  /* okucia metalowe */
+  X.fillStyle='#3a3a42';X.fillRect(sx+2,bodyY-3,w-4,4);
+  X.fillStyle='#2a2a30';X.fillRect(sx+2,sy+h-8,w-4,4);
+  /* zamek */
+  X.fillStyle='#c8a520';X.fillRect(sx+w/2-5,bodyY-4,10,10);
+  X.fillStyle='#7a5010';X.fillRect(sx+w/2-2,bodyY+1,4,4);
+  /* label */
+  X.font='bold 9px Arial';X.fillStyle='#e8c884';X.textAlign='center';
+  X.fillText('📦 SKRZYNIA',sx+w/2,sy+h*0.96);
+  X.textAlign='left';X.restore();
+}
 
 function drawDryingRack(sx,sy,w,h){
   /* Drewniana suszarnia z pętlami wiszących topów marihuany */
@@ -13272,10 +13314,15 @@ function drawPlayerCar(){
     const body=G.car.color||(carC[G.car.name]||'#555');
     X.save();
     X.translate(_psx,_psy);
+    /* v2.3.122 (PDF): na parkingu auto stoi RÓWNOLEGLE do innych (pionowo, dziobem w stronę wjazdu), jak zaparkowane auta w miejscu. */
+    const _lotPark=!!(G._carParkedAt&&G._carParkedAt._lot);
+    X.save();
+    if(_lotPark) X.rotate(-Math.PI/2);
     /* Cień */
     X.fillStyle='rgba(0,0,0,.30)';X.beginPath();X.ellipse(3,5,30,14,0,0,Math.PI*2);X.fill();
     /* Karoseria (sylwetka per typ auta — v2.1.693) */
     _drawCarShape(carBodyType(G.car.name), body);
+    X.restore();
     /* Pulsujący marker 🚗 nad zaparkowanym autem (tylko gdy auto poza ekranem widoczne też przez minimapę) */
     const _pulse=0.7+Math.sin(Date.now()/500)*0.3;
     X.font='bold 18px "Segoe UI",Arial,sans-serif';X.textAlign='center';X.textBaseline='middle';
@@ -13352,11 +13399,15 @@ function drawPlayerCamper(){
     const _psx=wx2sx(G._camperParkedAt.wx)+P.w/2, _psy=wy2sy(G._camperParkedAt.wy)+P.h/2;
     const _wm=(typeof window._camperDriveParams==='function')?((window._camperDriveParams().widthMul)||1.3):1.3;
     X.save(); X.translate(_psx,_psy);
+    /* v2.3.122 (PDF): na parkingu kamper stoi równolegle do innych aut (pionowo). */
+    const _lotParkC=!!(G._camperParkedAt&&G._camperParkedAt._lot);
+    X.save(); if(_lotParkC) X.rotate(-Math.PI/2);
     X.fillStyle='rgba(0,0,0,.28)';X.beginPath();X.ellipse(3,7,34*_wm,20,0,0,Math.PI*2);X.fill();
     const _L=42*_wm,_H=34;/* v2.3.100: wyższy kamper (26→34) */
     X.fillStyle='#d8d8e0'; if(X.roundRect){X.beginPath();X.roundRect(-_L/2,-_H/2,_L,_H,5);X.fill();}else{X.fillRect(-_L/2,-_H/2,_L,_H);}
     X.fillStyle='#9aa3b0'; if(X.roundRect){X.beginPath();X.roundRect(_L/2-13,-_H/2+2,12,_H-4,3);X.fill();}else{X.fillRect(_L/2-13,-_H/2+2,12,_H-4);}
     X.fillStyle='rgba(120,180,210,0.85)';X.fillRect(-_L/2+5,-_H/2+4,_L-24,5);
+    X.restore();
     const _pulse=0.7+Math.sin(Date.now()/500)*0.3;
     X.font='bold 18px "Segoe UI",Arial,sans-serif';X.textAlign='center';X.textBaseline='middle';
     X.shadowColor='#f1c40f';X.shadowBlur=12*_pulse;X.fillStyle='rgba(241,196,15,'+_pulse+')';X.fillText('🚐',0,-30);X.shadowBlur=0;
@@ -14827,6 +14878,10 @@ function handleAct(act,objId){
     const msg=hasSofaLux?'Odpoczywasz na sofie LUX — większa regeneracja...':'Odpoczywasz na sofie...';
     startRestMG('sofa',20,stressGain,20,msg);
     return;
+  } else if(act==='camper_sleep'){
+    /* v2.3.122 (PDF): „[E] Zdrzemnij się" w kamperze = realny (lękowy) sen z upływem czasu, jak w mieszkaniu. */
+    if(typeof window._camperSleep==='function') window._camperSleep(); else startSleepAnimation({anxious:true});
+    return;
   } else if(act==='relax'){
     // Komunikat zależny od typu/lokalizacji ławki
     let benchMsg='🌳 Siedzisz na ławce w parku...';
@@ -15095,6 +15150,11 @@ function handleAct(act,objId){
        panelu = wygladalo na zepsute). Realny dispatch to bezposrednie wywolania ponizej —
        pokrywaja wszystkie 11 stacji kamper/lab/plantacja. Usuwam wadliwy forward. */
     if(act==='kamper_stash_view' && typeof window._renderTrapStashInline==='function') window._renderTrapStashInline();
+    else if(act==='camper_safe_view'){ /* v2.3.122 (PDF T13): sejf — kupiony → podgląd (sekcja sejfu); niekupiony → Doposażenie */
+      if(window._camperHasStash&&window._camperHasStash()){ if(typeof window._renderTrapStashInline==='function') window._renderTrapStashInline(); }
+      else if(typeof gameConfirm==='function'){ gameConfirm('🔒 Zamontować Stash (sejf) w kamperze?\n\nOsobny magazyn na 500 pozycji, obok Stacji pakowania.\nKoszt: '+((window._CAMPER_STASH_PRICE||8000)).toLocaleString('pl')+' zł.', ()=>{ window._camperBuyStash&&window._camperBuyStash(); }); }
+      else { window._camperBuyStash&&window._camperBuyStash(); }
+    }
     else if(act==='kamper_drying_view' && typeof window._renderDryingRack==='function') window._renderDryingRack();
     else if(act==='kamper_pack_view' && typeof window._renderPackingStation==='function') window._renderPackingStation();
     else if(act==='kamper_cook_basic' && typeof window._renderKamperCook==='function') window._renderKamperCook('joint');
@@ -15451,7 +15511,7 @@ function handleAct(act,objId){
     /* v2.3.102 (PDF #8-29): kamper też kwalifikuje się do postoju na parkingu miejskim (jak auto). */
     if(G._inCamper){
       const _pObj=(ROOMS[currentRoom]&&ROOMS[currentRoom].objects||[]).find(o=>o.id==='parking');
-      const _doParkCamper=()=>{ const s=(typeof _findFreeParkingSpot==='function'&&_findFreeParkingSpot(_pObj))||{wx:P.wx,wy:P.wy}; G._camperParkedAt={wx:s.wx,wy:s.wy,room:currentRoom}; G._inCamper=false; if(typeof showMsg==='function') showMsg('🅿️ Zaparkowałeś kampera na parkingu. Wróć tutaj i naciśnij K, by nim ruszyć.'); if(typeof saveGameSilent==='function') saveGameSilent(); };
+      const _doParkCamper=()=>{ const s=(typeof _findFreeParkingSpot==='function'&&_findFreeParkingSpot(_pObj))||{wx:P.wx,wy:P.wy}; G._camperParkedAt={wx:s.wx,wy:s.wy,room:currentRoom,_lot:true};/* v2.3.122: parkowanie równoległe (parking) */ G._inCamper=false; if(typeof showMsg==='function') showMsg('🅿️ Zaparkowałeś kampera na parkingu. Wróć tutaj i naciśnij K, by nim ruszyć.'); if(typeof saveGameSilent==='function') saveGameSilent(); };
       if(typeof gameConfirm==='function') gameConfirm('🅿️ Zaparkować tu kampera?\n\nKamper zostanie na parkingu — wróć, aby nim ruszyć (K).',_doParkCamper);
       else _doParkCamper();
       return;
@@ -15466,7 +15526,7 @@ function handleAct(act,objId){
           /* v1.8.41: parkowanie zapisuje konkretną pozycję na parkingu (puste miejsce). N6: parking w bieżącym pokoju + room. */
           const parkObj=(ROOMS[currentRoom]&&ROOMS[currentRoom].objects||[]).find(o=>o.id==='parking');
           const slotPos=_findFreeParkingSpot(parkObj);
-          G._carParkedAt={wx:slotPos.wx,wy:slotPos.wy,room:currentRoom};
+          G._carParkedAt={wx:slotPos.wx,wy:slotPos.wy,room:currentRoom,_lot:true};/* v2.3.122: parkowanie równoległe (parking) */
           G._inCar=false;
           G._carsParked=(G._carsParked||0)+1;
           if(typeof showMsg==='function') showMsg('🅿️ Zaparkowałeś auto na parkingu. Wróć tutaj, by je odebrać (E).');
@@ -15476,7 +15536,7 @@ function handleAct(act,objId){
         /* v2.1.497 USER FEEDBACK FIX — fallback NIE używa native confirm. Auto-park bez confirm (gameConfirm zawsze dostępne w normalnym flow). */
         const parkObj=(ROOMS[currentRoom]&&ROOMS[currentRoom].objects||[]).find(o=>o.id==='parking');
         const slotPos=_findFreeParkingSpot(parkObj);
-        G._carParkedAt={wx:slotPos.wx,wy:slotPos.wy,room:currentRoom};
+        G._carParkedAt={wx:slotPos.wx,wy:slotPos.wy,room:currentRoom,_lot:true};/* v2.3.122: parkowanie równoległe (parking) */
         G._inCar=false;
         G._carsParked=(G._carsParked||0)+1;
         if(typeof showMsg==='function') showMsg('🅿️ Zaparkowałeś auto na parkingu. Wróć tutaj, by je odebrać (E).');
@@ -18316,8 +18376,11 @@ function wakeUp(){
   setTimeout(()=>showDailyTip(),3500);
 }
 
-function startSleepAnimation(){
+function startSleepAnimation(opts){
   if(sleepInterval) return;
+  /* v2.3.122 (PDF): „lękowy sen" w kamperze — realny sen z upływem czasu jak w mieszkaniu, tylko niespokojny. */
+  const _anxious=!!(opts&&opts.anxious);
+  window._anxiousSleep=_anxious;
   /* v2.1.122: Wave 5 S48 — Sleep mid-tour guard. Gdy gracz w trasie, sen wstrzymuje World Tour (anti exploit multi-day sleep podczas tour). */
   /* v2.1.232: typed tour msg — Coachella/Megastar (nowe venues v2.1.232) używają tej samej state machine, msg adekwatne. */
   if(G._tourActive){
@@ -18337,6 +18400,7 @@ function startSleepAnimation(){
   window._sleepStartDay = G.day;
   const ov=document.getElementById('sleep-overlay');
   ov.classList.add('on');
+  if(_anxious && typeof showMsg==='function') showMsg('🛏 Kładziesz się w kamperze. Sen jest płytki i niespokojny — śpisz jednym uchem na zewnątrz, ale czas leci jak wszędzie.','i',5200);
   // #77 BUG FIX: Łóżko Lux daje +20% szybkość regeneracji (poza apartmentowym bonusem)
   // v1.8.96: Aptbonus multiplikatywny (premium +15%, luxury +25%) zamiast dodatku 0.15/0.25 do bazy 1.5 (które dawało tylko +10%/+16%)
   const aptBonus=G.apartment==='basic'?0.05:G.apartment==='premium'?0.15:G.apartment==='luxury'?0.25:G.apartment==='duplex'?0.32:G.apartment==='mansion'?0.40:G.apartment==='mega_villa'?0.50:0; /* v1.9.58: basic +5% · v2.1.159: mansion +40% · v2.1.215: Mega Villa +50% regen */
@@ -18350,9 +18414,9 @@ function startSleepAnimation(){
   // Bazowa: 0.6→1.5 energy/tick (2.5×), health 0.18→0.45, stress 0.3→0.6
   sleepInterval=setInterval(()=>{
     window._sleepTicks++;
-    G.energy=clampStat('energy', G.energy+(1.5+totalBonus)*getMedytacjaStressBonus()); // F3-FIX: medytacja
+    G.energy=clampStat('energy', G.energy+(1.5+totalBonus)*getMedytacjaStressBonus()*(_anxious?0.9:1)); // F3-FIX: medytacja; v2.3.122 lękowy sen regeneruje odrobinę słabiej
     G.health=clampStat('health', G.health+0.45);
-    G.stress=clamp(G.stress+0.15,0,100); /* v2.1.200: 0.6→0.15 — Agent audyt: sleep tick 200ms, 0.6/tick = 180/min (vs decay 10/min) → 18× imbalance. Teraz 0.15/tick = 45/min — sleep nadal regeneruje mood ale nie cap'uje natychmiast. Wraz z decay 1.0/tick=10/min, gracz musi aktywnie zarządzać nastrojem. */
+    G.stress=clamp(G.stress+(_anxious?0.06:0.15),0,100); /* v2.1.200: 0.6→0.15 — sleep regeneruje mood ale nie cap'uje natychmiast. v2.3.122: lękowy sen w kamperze poprawia nastrój wyraźnie słabiej. */
     G.hunger=clampStat('hunger', G.hunger-0.22);
     gameMin+=10; // 10 game mins per tick
     /* v2.1.326 fix EXPLOIT SPANIA: naturalne crossing północy DURING sleep — day++ tylko gdy faktycznie przekroczono 24:00.
@@ -18393,6 +18457,8 @@ function startSleepAnimation(){
     }
   },200);
 }
+/* v2.3.122 (PDF): sen w kamperze — realny (lękowy) sen z upływem czasu jak w mieszkaniu. */
+window._camperSleep=function(){ startSleepAnimation({anxious:true}); };
 
 // ═══════════════════════════════════════════════════════════════════
 //  REST MINIGAME (sofa/bench/pond) — real-time, cancellable
@@ -20647,6 +20713,7 @@ window._growFertilize=function(a,b){
 window._growHarvest=function(a,b){
   const {site,idx}=_growArgs(a,b); const pot=_growSitePots(site)[idx];
   if(!pot||!pot.planted||pot.stage<4){showMsg('🌾 Roślina jeszcze nie gotowa.','r',2500);return;}
+  if(window._trapChestBlocked&&window._trapChestBlocked()) return; /* v2.3.122 (PDF T12): limit skrzyni 100 */
   /* minigra trymowania canvas — przeciągnij nożyce po pąkach, by je przyciąć. Jakość wpływa na plon. */
   window._prodCanvasMG({type:'trim',title:'Trymowanie',emoji:'✂️',hint:'Chwyć nożyce i przeciągnij po wszystkich pąkach, by je przyciąć.',accent:'#27ae60',accent2:'#7df0a0'}, function(q){
     _growEnsure(); const pot2=_growSitePots(site)[idx];
@@ -21146,6 +21213,8 @@ window._renderHireWorker=function(){
 /* v2.1.804 (user „pracownicy mają mieć magazyn/szafkę ze składnikami") — szafka zaopatrzenia: widoczne zapasy + zużycie + restock. Pracownicy ciągną ze wspólnego stashu (zachowuje łańcuch ogrodnik→chemik). */
 window._buyWorkerSupply=function(id, qty){
   qty=Math.max(1, qty|0); _growEnsure();
+  /* v2.3.122 (PDF T12): surowiec do skrzyni tylko gdy jest miejsce (limit 100); nasiona idą do grow, więc bez blokady. */
+  if(id!=='seeds' && window._trapChestBlocked && window._trapChestBlocked()) return;
   /* v2.3.115 (PDF Uspr): nasiona limit 20 szt./dzień (wspólny licznik z grow UI). */
   if(id==='seeds'){
     const _seedRem=window._seedDailyRemaining();
@@ -21219,6 +21288,7 @@ window._workersDailyTick=function(){
       for(let idx=0; idx<owned && procd<cap; idx++){
         const pot=pots[idx]; if(!pot) continue; procd++;
         if(pot.planted && pot.stage>=4){
+          if(window._trapChestFull&&window._trapChestFull()) continue; /* v2.3.122 (PDF T12): skrzynia pełna — zostaw plon do zebrania później */
           let y=3; if((pot.peakWater||0)>=80)y++; if((pot.peakFert||0)>=70)y++; if(G.grow.upgrades&&G.grow.upgrades.genetics)y++;
           G.trapInv=G.trapInv||{traw:0,krysztal:0,prosz:0,products:{}}; G.trapInv.traw=(G.trapInv.traw||0)+y;
           G.grow.totalHarvested=(G.grow.totalHarvested||0)+y; harvested+=y;
@@ -21241,6 +21311,7 @@ window._workersDailyTick=function(){
       }
       let made=0, botched=0; const cap=w.rate*2; const order=['lsd','ecstasy','mix','powder','shard','joint'];
       for(let s=0; s<cap; s++){
+        if(window._trapChestFull&&window._trapChestFull()) break; /* v2.3.122 (PDF T12): chemik nie przepełnia skrzyni (limit 100) */
         let recipe=null;
         for(const rid of order){ const r=TRAP_RECIPES.find(x=>x.id===rid); if(r && Object.keys(r.requires).every(k=>(G.trapInv[k]||0)>=r.requires[k])){ recipe=r; break; } }
         if(!recipe) break;
@@ -23691,6 +23762,7 @@ window._cocaineRefine=function(){
   if(typeof currentRoom!=='undefined' && currentRoom!=='lab'){ if(typeof showMsg==='function') showMsg('🔬 Rafinacja wymaga Laboratorium — idź do Underground → Lab (stacja ❄️ Cocaine Lab). Telefon to tylko podgląd.','r',6000); return; }
   if(!G.cocaine?.equipmentBought){if(typeof showMsg==='function') showMsg('🚫 Brak equipment.','r',3000);return;}
   if(G.cocaine.lastRefineDay===G.day){if(typeof showMsg==='function') showMsg('⏳ Już refined dziś.','r',3000);return;}
+  if(window._trapChestBlocked&&window._trapChestBlocked()) return; /* v2.3.122 (PDF T12): limit skrzyni 100 */
   /* v2.1.789 — rafinacja = minigra rozpuszczania/krystalizacji w zlewce (reuse 'cook'). Jakość → czystość. */
   window._growUICtx=null;
   window._prodCanvasMG({type:'cook',title:'Rafinacja kokainy',emoji:'❄️',emoji2:'❄️',hint:'Rozpuść pastę w rozpuszczalniku i mieszaj w zlewce (przeciągaj kółka nad zlewką), aż wykrystalizuje czysty proszek. Dokładne mieszanie = wyższa czystość.',accent:'#ec7063',accent2:'#f0a080',liquidCol:'#d6d6e0',bubbleCol:'#ffffff',target:100}, function(q){ window._cocaineRefineApply(q); });
@@ -23776,6 +23848,7 @@ window._mushroomCheckTemp=function(idx){
 window._mushroomHarvest=function(idx){
   const j=G.mushrooms.jars[idx];if(!j||j.stage!=='gotowe') return;
   if(!_drugLabGate('Zbiór grzybów')) return;
+  if(window._trapChestBlocked&&window._trapChestBlocked()) return; /* v2.3.122 (PDF T12): limit skrzyni 100 */
   /* v2.1.789 — zbiór = minigra zrywania grzybów (reuse 'trim': przeciągnij po wszystkich kapeluszach). */
   window._growUICtx=null;
   window._prodCanvasMG({type:'trim',theme:'mushroom',title:'Zbiór grzybów',emoji:'🍄',hint:'Zerwij wszystkie dojrzałe grzyby — przeciągnij po wszystkich kapeluszach, by je zebrać.',accent:'#9b59b6',accent2:'#c89bf0',buds:4}, function(q){ window._mushroomHarvestApply(idx,q); });
@@ -27600,7 +27673,11 @@ const NPC_DATA = {
           <div>💼 Powyżej 1000 obserwujących możesz brać sponsorów</div>
           <div>🎤 Mikrofon i kamera to Twoja najlepsza inwestycja</div>
           <div>📋 Nie odrzucaj kontraktów — nawet małe pieniądze się liczą!</div>
-          <div>📈 Crypto (lvl 6+) → diversifikuj portfolio. Diamond Hands po 30 dniach hold.</div>
+          <div>📈 Crypto (lvl 6+) → dywersyfikuj portfolio. Diamond Hands po 30 dniach hold.</div>
+          <div>🎤 Ćwicz freestyle, kiedy tylko możesz — to najszybszy sposób na sławę i formę sceniczną, a przy okazji wpada trochę fanów bez wydawania złotówki.</div>
+          <div>🏢 Wejdź w S9 Agency — profesjonalne wsparcie menadżerskie otwiera lepsze zlecenia, kontakty i pomaga ogarnąć karierę, gdy robi się jej za dużo na jedną głowę.</div>
+          <div>🍸 Po odblokowaniu Underground zaglądaj do mini-baru Cypher Club — poznasz tam ludzi ze sceny, złapiesz klimat dzielnicy i nawiążesz kontakty.</div>
+          <div>🎯 Celuj w coraz większe sceny. To najprościej: <b>im więcej masz fanów, tym większe koncerty odblokowujesz</b> — od podwórka i małych klubów, przez większe sale, aż po wielkie areny. To zwykła prosta drabinka: rośnie sława → rośnie scena → rośnie wypłata. Graj, zbieraj fanów, a kolejne sceny same się otworzą.</div>
           <div>🗺 Zdobywaj sławę, a odblokujesz kolejne dzielnice — najpierw Underground, potem Coast, a na końcu Business.</div>
           <div>🐕 Zwierzak sprawia, że Twoje posty na FrameUp są bardziej popularne (nawet do +50% więcej polubień). Adoptuj go w schronisku, gdy masz już mieszkanie.</div>
         </div>
@@ -42430,6 +42507,18 @@ window.renderCamperPanel=function(){
       </div>
     </div>
     ${workSection}
+    ${(()=>{ /* v2.3.122 (PDF T13): Doposażenie — dokup Stash (sejf, +500 miejsc osobno od skrzyni). */
+      window._camperSafeEnsure&&window._camperSafeEnsure();
+      const bought=window._camperHasStash&&window._camperHasStash();
+      const price=(window._CAMPER_STASH_PRICE||8000);
+      return `<div style="background:#12100a;border:1px solid ${bought?'#7a6a3a':'#5a4a20'};border-radius:8px;padding:10px;margin-bottom:10px">
+        <div style="color:#d8c89a;font-weight:700;font-size:12.5px;margin-bottom:4px">🛠️ Doposażenie</div>
+        ${bought
+          ? `<div style="color:#9aa;font-size:11px;line-height:1.5">🔒 <b>Stash (sejf)</b> zamontowany obok Stacji pakowania — dodatkowe <b>500</b> miejsc, osobno od skrzyni. Zarządzasz nim w podglądzie stashu (📦 Sprawdź stash we wnętrzu).</div>`
+          : `<div style="color:#9aa;font-size:11px;line-height:1.5;margin-bottom:6px">🔒 <b>Stash (sejf)</b> — osobny magazyn na <b>500</b> pozycji, montowany obok Stacji pakowania. Nie sumuje się ze skrzynią.</div>
+             <button class="cbtn" style="width:100%;border-color:#c8a520;color:#e8d08a" ${(G.money||0)<price?'disabled':''} onclick="window._camperBuyStash&&window._camperBuyStash()">${(G.money||0)<price?'Brak gotówki':'Dokup Stash — '+price.toLocaleString('pl')+' zł'}</button>`}
+      </div>`;
+    })()}
     <div style="display:flex;flex-direction:column;gap:6px">
       <button class="cbtn" style="width:100%" onclick="window._camperInteriorStatus&&window._camperInteriorStatus()">🔎 Sprawdź stan zaplecza</button>
       <button class="cbtn" style="width:100%" onclick="window._camperSwitchActive&&window._camperSwitchActive()">🔁 Zmień aktywny kamper</button>
@@ -44846,14 +44935,90 @@ window._packBag=function(qty){
   window._renderPackingStation();
 };
 
+/* ═══ v2.3.122 (PDF T12/T13): SKRZYNIA (limit 100) + dokupowany SEJF „Stash" (limit 500, osobny) ═══
+   Skrzynia = domyślne trapInv (Surowce + Gotowe produkty), twardy limit 100 pozycji sumowanych.
+   Sejf (G.camperSafe) = osobny magazyn 500 pozycji, kupowany w Doposażeniu (panel Kamper [L]).
+   Save-safe: stare zapisy mogą mieć >100 w skrzyni — NIE kasujemy nic, tylko blokujemy DODAWANIE gdy pełna. */
+window._trapChestCap=function(){ return 100; };
+window._trapChestTotal=function(){
+  const inv=(typeof G!=='undefined'&&G.trapInv)?G.trapInv:{}; let n=0;
+  for(const k in inv){ if(k==='products') continue; const v=inv[k]; if(typeof v==='number'&&isFinite(v)) n+=Math.max(0,v); }
+  const p=inv.products||{}; for(const k in p){ const v=p[k]; if(typeof v==='number'&&isFinite(v)) n+=Math.max(0,v); }
+  return n;
+};
+window._trapChestFull=function(){ return window._trapChestTotal()>=window._trapChestCap(); };
+/* wspólny strażnik dla akcji produkcyjnych/zakupowych — komunikat + true gdy zablokowane (pełna skrzynia) */
+window._trapChestBlocked=function(){
+  if(window._trapChestFull()){
+    if(typeof showMsg==='function') showMsg('📦 Skrzynia pełna ('+window._trapChestTotal()+'/100)! Sprzedaj towar albo przełóż część do sejfu (Stash), zanim wyprodukujesz lub kupisz więcej.','r',5600);
+    return true;
+  }
+  return false;
+};
+window._camperSafeCap=function(){ return 500; };
+window._camperHasStash=function(){ return !!(typeof G!=='undefined' && G.camperStashBought); };
+window._camperSafeEnsure=function(){
+  if(typeof G==='undefined') return null;
+  if(typeof G.camperStashBought!=='boolean') G.camperStashBought=false;
+  if(!G.camperSafe || typeof G.camperSafe!=='object') G.camperSafe={products:{}};
+  if(!G.camperSafe.products || typeof G.camperSafe.products!=='object') G.camperSafe.products={};
+  return G.camperSafe;
+};
+window._camperSafeTotal=function(){
+  window._camperSafeEnsure(); const s=G.camperSafe; let n=0;
+  for(const k in s){ if(k==='products') continue; const v=s[k]; if(typeof v==='number'&&isFinite(v)) n+=Math.max(0,v); }
+  const p=s.products||{}; for(const k in p){ const v=p[k]; if(typeof v==='number'&&isFinite(v)) n+=Math.max(0,v); }
+  return n;
+};
+window._camperSafeFull=function(){ return window._camperSafeTotal()>=window._camperSafeCap(); };
+/* cena Doposażenia (sejf) — decyzja projektowa: znaczący, ale osiągalny early-mid game */
+window._CAMPER_STASH_PRICE=8000;
+window._camperBuyStash=function(){
+  if(typeof G==='undefined') return false;
+  if(typeof window._camperEnsure==='function') window._camperEnsure();
+  window._camperSafeEnsure();
+  if(!(G.camper&&G.camper.owned)){ if(typeof showMsg==='function') showMsg('🚐 Najpierw kup kampera — Stash montujemy w jego wnętrzu.','r',4500); return false; }
+  if(G.camperStashBought){ if(typeof showMsg==='function') showMsg('🔒 Stash (sejf) jest już zamontowany w kamperze.','i',3800); return false; }
+  const price=window._CAMPER_STASH_PRICE;
+  if((G.money||0)<price){ if(typeof showMsg==='function') showMsg('💸 Brak '+(price-(G.money||0)).toLocaleString('pl')+' zł na Stash (koszt '+price.toLocaleString('pl')+' zł).','r',4500); return false; }
+  G.money-=price; G.camperStashBought=true; window._camperSafeEnsure();
+  if(typeof showMsg==='function') showMsg('🔒 Zamontowano Stash (sejf) obok Stacji pakowania — dodatkowe 500 miejsc, liczonych OSOBNO od skrzyni.','g',6000);
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof renderCamperPanel==='function') renderCamperPanel();
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return true;
+};
+/* przełożenie 1 pozycji między skrzynią (trapInv) a sejfem (camperSafe). dir: 'toSafe'|'toChest' */
+window._camperStashMove=function(dir, bucket, key){
+  if(!window._camperHasStash()){ if(typeof showMsg==='function') showMsg('🔒 Nie masz jeszcze sejfu (Stash). Dokup go w Doposażeniu (panel Kamper [L]).','i',4200); return false; }
+  window._camperSafeEnsure();
+  G.trapInv=G.trapInv||{products:{}}; if(!G.trapInv.products) G.trapInv.products={};
+  const getV=(store,b,k)=> b==='products' ? ((store.products&&store.products[k])||0) : (store[k]||0);
+  const setV=(store,b,k,v)=>{ if(b==='products'){ store.products=store.products||{}; store.products[k]=v; } else { store[k]=v; } };
+  const from = dir==='toSafe' ? G.trapInv : G.camperSafe;
+  const to   = dir==='toSafe' ? G.camperSafe : G.trapInv;
+  const have = getV(from,bucket,key);
+  if(have<=0){ if(typeof showMsg==='function') showMsg('Nie ma czego przełożyć.','i',2500); return false; }
+  const cap = dir==='toSafe' ? window._camperSafeCap() : window._trapChestCap();
+  const tot = dir==='toSafe' ? window._camperSafeTotal() : window._trapChestTotal();
+  if(tot>=cap){ if(typeof showMsg==='function') showMsg(dir==='toSafe'?'🔒 Sejf pełny (500/500).':'📦 Skrzynia pełna (100/100).','r',3800); return false; }
+  setV(from,bucket,key,have-1); setV(to,bucket,key,getV(to,bucket,key)+1);
+  if(typeof window._renderTrapStashInline==='function') window._renderTrapStashInline();
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return true;
+};
+
 /* v2.1.482 KAMPER/LAB station modals — buy ingredients / cook minigame / sell on street.
    USER FEEDBACK: "Mają być animacje, minigry, wymagana akcja gracza, a nie tylko naciskanie interakcji". */
 window._renderTrapStashInline=function(){
   const _mg=document.getElementById('mg-job');const _mc=document.getElementById('mg-job-content');
   if(!_mg||!_mc) return;
+  const _chestTot=window._trapChestTotal(), _chestCap=window._trapChestCap();
+  const _hasSafe=window._camperHasStash();
+  const _STASH_ITEMS=[['surowce','traw','🌿 Trawa'],['surowce','krysztal','💎 Kryształ'],['surowce','prosz','❄️ Proszek (sur.)'],['surowce','chem','🧴 Prekursor'],['products','joint','🚬 Joint'],['products','shard','💠 Shard'],['products','powder','⚪ Proszek'],['products','mix','🌟 Mix'],['products','lsd','🧪 LSD'],['products','ecstasy','💊 Ecstasy'],['products','mushrooms','🍄 Grzyby']];
   _mc.innerHTML=`<div style="background:#0a1a14;border:2px solid #27ae60;border-radius:10px;padding:18px;max-width:540px;margin:0 auto;color:#e8f0ea">
-    <h2 style="color:#52be80;margin-top:0;text-align:center">📦 Stash</h2>
-    <div style="color:#ddd;font-size:13px;margin-bottom:10px;text-align:center">Twój magazyn — surowce i gotowy towar.</div>
+    <h2 style="color:#52be80;margin-top:0;text-align:center">📦 Skrzynia <span style="font-size:12px;color:${_chestTot>=_chestCap?'#e07070':'#9ab'};font-weight:600">(Limit: ${_chestTot}/${_chestCap})</span></h2>
+    <div style="color:#ddd;font-size:13px;margin-bottom:10px;text-align:center">Drewniana skrzynia — surowce i gotowy towar. Mieści łącznie ${_chestCap} pozycji.${_hasSafe?'':' Więcej miejsca? Dokup <b>Stash</b> (sejf) w Doposażeniu (panel Kamper [L]).'}</div>
     <h3 style="color:#52be80;font-size:13px;margin:8px 0 4px 0">🌿 Surowce</h3>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px">
       <div style="background:#0a2010;padding:8px;border-radius:5px;text-align:center">🌿 Trawa<br><strong style="color:#52be80;font-size:18px">${G.trapInv?.traw||0}</strong></div>
@@ -44871,6 +45036,27 @@ window._renderTrapStashInline=function(){
       <div style="background:#1a0a14;padding:8px;border-radius:5px;text-align:center">💊 Ecstasy<br><strong style="color:#ff8fc8;font-size:18px">${G.trapInv?.products?.ecstasy||0}</strong></div>
     </div>
     ${(()=>{const prods=[['joint','🚬 Joint'],['shard','💠 Shard'],['powder','⚪ Proszek'],['mix','🌟 Mix'],['lsd','🧪 LSD'],['ecstasy','💊 Ecstasy']].filter(p=>(G.trapInv?.products?.[p[0]]||0)>0);return prods.length?`<h3 style="color:#7ec8e3;font-size:13px;margin:12px 0 4px 0">⭐ Jakość partii (→ cena sprzedaży)</h3><div style="font-size:10px;color:#9aa;margin-bottom:4px">Lepsze wykonanie produkcji = wyższy grade = wyższa cena u dealera i na ulicy.</div><div style="display:flex;flex-direction:column;gap:3px">${prods.map(p=>{const q=window._trapQMult?_trapQMult(p[0]):1;const pc=Math.round((q-1)*100);return `<div style="display:flex;justify-content:space-between;font-size:11px;background:#10141a;padding:5px 8px;border-radius:4px"><span>${p[1]}</span><span><strong>${window._trapGradeLabel?_trapGradeLabel(_trapGrade(p[0])):''}</strong> <span style="color:${pc>=0?'#27ae60':'#e74c3c'}">${pc>=0?'+':''}${pc}% ceny</span></span></div>`;}).join('')}</div>`:'';})()}
+    ${(()=>{
+      if(!_hasSafe){
+        return `<div style="margin:12px 0;padding:9px 11px;background:#12100a;border:1px dashed #7a6a3a;border-radius:6px;font-size:11px;color:#c8b88a">🔒 <b>Sejf (Stash)</b> niezamontowany. Dokup go w <b>Doposażeniu</b> (panel Kamper [L]) — dodatkowe <b>500</b> miejsc, liczonych osobno od skrzyni.</div>`;
+      }
+      const safeTot=window._camperSafeTotal();
+      const chestV=(b,k)=> b==='products'?((G.trapInv&&G.trapInv.products&&G.trapInv.products[k])||0):((G.trapInv&&G.trapInv[k])||0);
+      const safeV=(b,k)=> b==='products'?((G.camperSafe&&G.camperSafe.products&&G.camperSafe.products[k])||0):((G.camperSafe&&G.camperSafe[k])||0);
+      const rows=_STASH_ITEMS.filter(it=>chestV(it[0],it[1])>0||safeV(it[0],it[1])>0).map(it=>{
+        const cv=chestV(it[0],it[1]), sv=safeV(it[0],it[1]);
+        return `<div style="display:flex;align-items:center;font-size:11px;background:#0d1510;padding:4px 8px;border-radius:4px;margin-bottom:3px">
+          <span style="flex:1">${it[2]}</span>
+          <span style="color:#9ab;margin-right:4px">📦 ${cv}</span>
+          <button class="cbtn" style="font-size:10px;padding:2px 6px;margin:0 2px" ${cv<1||window._camperSafeFull()?'disabled':''} onclick="window._camperStashMove('toSafe','${it[0]}','${it[1]}')">→🔒</button>
+          <button class="cbtn" style="font-size:10px;padding:2px 6px;margin:0 2px" ${sv<1||window._trapChestFull()?'disabled':''} onclick="window._camperStashMove('toChest','${it[0]}','${it[1]}')">🔒→📦</button>
+          <span style="color:#c8b88a;margin-left:4px">🔒 ${sv}</span>
+        </div>`;
+      }).join('');
+      return `<h3 style="color:#c8b88a;font-size:13px;margin:14px 0 4px 0">🔒 Sejf (Stash) <span style="font-size:11px;color:${safeTot>=500?'#e07070':'#9ab'};font-weight:600">(${safeTot}/500)</span></h3>
+        <div style="font-size:10px;color:#9aa;margin-bottom:5px">Osobny magazyn 500 pozycji, obok Stacji pakowania. Przekładaj towar między skrzynią (📦) a sejfem (🔒).</div>
+        ${rows||'<div style="font-size:11px;color:#778;padding:6px">Sejf pusty. Przełóż tu nadmiar ze skrzyni.</div>'}`;
+    })()}
     <h3 style="color:#bb8fce;font-size:13px;margin:12px 0 4px 0">💊 Weź działkę na własny użytek</h3>
     <div style="color:#9aa;font-size:10px;margin-bottom:6px">Zażywasz <b>gotowy produkt</b> (🚬 Joint = marihuana, 💠 Shard = meta, ⚪ Proszek = kokaina, 🍄 grzyby). Surowa 🌿 trawa to składnik — zroluj z niej jointa w Kamperze. Bierzesz porcję do ekwipunku → zażywasz klawiszem <b style="color:#bb8fce">I</b> (gdziekolwiek). Podnosi uzależnienie.</div>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:5px">
@@ -44915,6 +45101,8 @@ window._kamperBuyIng=function(ingId,qty){
   const ing=(typeof TRAP_INGREDIENTS!=='undefined'?TRAP_INGREDIENTS:[]).find(i=>i.id===ingId);
   if(!ing) return;
   qty=Math.max(1,qty|0);
+  /* v2.3.122 (PDF T12): skrzynia ma twardy limit 100 — nie kupujemy surowca gdy pełna. */
+  if(window._trapChestBlocked&&window._trapChestBlocked()) return;
   /* v2.3.102 (PDF #8): składniki od dealera wymagają zaplecza (kamper LUB laboratorium) — bez tego są bezużyteczne. */
   const _hasProd=(G.camper&&G.camper.owned)||((G.lab&&G.lab.tier)||0)>=1;
   if(!_hasProd){ if(typeof showMsg==='function')showMsg('🚐 Najpierw kup kampera (Gravel Lot / CityDrive) albo laboratorium — bez zaplecza produkcyjnego te składniki na nic się nie przydadzą.','i',5500); return; }
@@ -44940,6 +45128,8 @@ window._kamperBuyIng=function(ingId,qty){
 window._renderKamperCook=function(recipeId){
   const _mg=document.getElementById('mg-job');const _mc=document.getElementById('mg-job-content');
   if(!_mg||!_mc) return;
+  /* v2.3.122 (PDF T12): nie produkujemy, gdy skrzynia pełna (limit 100). */
+  if(window._trapChestBlocked&&window._trapChestBlocked()) return;
   const recipe=(typeof TRAP_RECIPES!=='undefined'?TRAP_RECIPES:[]).find(r=>r.id===recipeId);
   if(!recipe){showMsg('Brak receptury.','r',2500);return;}
   /* Check ingredients */
@@ -44969,6 +45159,7 @@ window._renderKamperCook=function(recipeId){
 /* v2.1.797 FAZA 3 — picker stacji „Synteza zaawansowana": wybór substancji lab-only (LSD/Ecstasy). */
 window._renderLabSynth=function(){
   const _mg=document.getElementById('mg-job');const _mc=document.getElementById('mg-job-content'); if(!_mg||!_mc) return;
+  if(window._trapChestBlocked&&window._trapChestBlocked()) return; /* v2.3.122 (PDF T12): limit skrzyni 100 */
   const recs=(typeof TRAP_RECIPES!=='undefined'?TRAP_RECIPES:[]).filter(r=>r.labOnly);
   _mc.innerHTML=`<div style="background:#0a0a14;border:2px solid #a020f0;border-radius:10px;padding:16px;max-width:520px;margin:0 auto;color:#fff;max-height:88vh;overflow-y:auto">
     <h2 style="color:#e879f9;margin-top:0;text-align:center">🧪 Synteza zaawansowana</h2>
@@ -47806,10 +47997,29 @@ window._marinaSetSail=function(craftId){
   if(currentRoom!=='coast'){ if(typeof changeRoom==='function'){ changeRoom('coast', 900, 300); } go(); }
   else go();
 };
+/* v2.3.122 (PDF): cumować można TYLKO w pobliżu portu (do 20 m). T=48px≈1,5 m → 20 m ≈ 640 px. */
+const MARINA_MOOR_RANGE_PX=640;
+function _marinaPortDist(fx,fy){
+  const b=MARINA_HARBOR.boardwalk;
+  const cxp=Math.max(b.x, Math.min(fx, b.x+b.w));
+  const cyp=Math.max(b.y, Math.min(fy, b.y+b.h));
+  return Math.hypot(fx-cxp, fy-cyp);
+}
+window._marinaPortDist=_marinaPortDist;
 window._marinaTryDock=function(){
   _marinaEnsure(); const pl=G.marina.piloting; if(!pl||!pl.active) return false;
   const fx=P.wx+P.w/2, fy=P.wy+(P.h||44);
-  const nearDock=(typeof _marinaOnPier==='function' && _marinaOnPier(fx,fy)) || fy>=200;
+  /* v2.3.122 (PDF): poza 20 m od portu NIE cumujemy — gra sugeruje zakotwiczenie [G] (o ile jednostka ma pokład). */
+  const dist=_marinaPortDist(fx,fy);
+  if(dist>MARINA_MOOR_RANGE_PX){
+    const cat=pl.cat||''; const canBoard=(cat!=='kayak'&&cat!=='jetski');
+    if(typeof showMsg==='function'){
+      if(canBoard) showMsg('⚓ Jesteś za daleko od portu, żeby zacumować (ponad 20 m). Rzuć kotwicę klawiszem [G], żeby wejść na pokład — albo podpłyń bliżej pomostu.','i',5200);
+      else showMsg('⚓ Za daleko od portu, żeby zacumować (ponad 20 m). Podpłyń bliżej pomostu — na tej jednostce nie ma pokładu do zakotwiczenia.','i',5000);
+    }
+    return true;
+  }
+  const nearDock=(typeof _marinaOnPier==='function' && _marinaOnPier(fx,fy)) || dist<=MARINA_MOOR_RANGE_PX;
   if(!nearDock){ if(typeof showMsg==='function') showMsg('⚓ Podpłyń bliżej pomostu (na południe), żeby zacumować.','i',2800); return true; }
   G.marina.piloting=null;
   /* zejdź na kej */
@@ -48507,9 +48717,27 @@ function _skEnsure(){
   }
   if(!Array.isArray(s.opLog)) s.opLog=[];
   if(s.opLog.length>12) s.opLog=s.opLog.slice(-12);
+  /* v2.3.122 (PDF: cooldowny interakcji podwórka/Zajazdu) — czas ostatniej akcji w minutach absolutnych gry. */
+  if(!s._cd || typeof s._cd!=='object') s._cd={};
+  ['perform','party','zPerform','zGrill'].forEach(k=>{ if(typeof s._cd[k]!=='number') s._cd[k]=-999999; });
+  if(!Array.isArray(s._cd.zParty)) s._cd.zParty=[]; /* czasy „Domówki przy Zajeździe" — limit 2/dobę */
   return s;
 }
 window._skEnsure=_skEnsure;
+
+/* ── v2.3.122 (PDF: cooldowny) — pomocniki czasu gry ── */
+/* absolutny czas gry w minutach (dzień×1440 + minuta doby) — do liczenia przerw między interakcjami. */
+function _skNowMin(){ return (G.day||0)*1440 + ((typeof gameMin!=='undefined'&&isFinite(gameMin))?gameMin:360); }
+/* godzina doby 0..23 */
+function _skHourNow(){ return Math.floor((((typeof gameMin!=='undefined'&&isFinite(gameMin))?gameMin:360)%1440)/60); }
+/* czy jesteśmy w oknie godzinowym [from..to) (to może przekraczać północ, np. 21..2 albo 20..3) */
+function _skInHourWindow(from,to){ const h=_skHourNow(); return (from<=to) ? (h>=from && h<to) : (h>=from || h<to); }
+/* sprawdza cooldown; zwraca {ok, leftMin}. mins = długość przerwy w minutach gry. */
+function _skCooldownCheck(key, mins){ _skEnsure(); const last=G.staryKwartal._cd[key]; const now=_skNowMin(); const left=Math.max(0,(last+mins)-now); return { ok:left<=0, leftMin:left }; }
+function _skCooldownStamp(key){ _skEnsure(); G.staryKwartal._cd[key]=_skNowMin(); }
+/* ładny opis pozostałego czasu przerwy */
+function _skFmtLeft(mins){ mins=Math.max(1,Math.ceil(mins)); const h=Math.floor(mins/60), m=mins%60; return h>0?(m>0?`${h} h ${m} min`:`${h} h`):`${m} min`; }
+window._skNowMin=_skNowMin; window._skHourNow=_skHourNow; window._skInHourWindow=_skInHourWindow; window._skCooldownCheck=_skCooldownCheck; window._skCooldownStamp=_skCooldownStamp;
 
 /* ── §45 dostęp do ciemniejszej warstwy ── */
 window._skShadowAccess=function(){
@@ -48655,7 +48883,9 @@ window._skClose=function(){
   const mg=document.getElementById('mg-job');
   if(mg){ mg.classList.remove('on'); mg.style.display='none'; mg.innerHTML='<div id="mg-job-content"></div>'; }
 };
-function _skBack(fn){ return `<button class="cbtn" style="width:100%;margin-top:10px" onclick="${fn||'window._skOpenYard()'}">↩ Wróć</button>`; }
+/* v2.3.122 (PDF): po wyjściu z interakcji wracamy na CHODZALNE podwórko (zamykamy panel), a NIE otwieramy
+   za każdym razem menu „Stary Kwartał". Sub-panele, które mają wracać do konkretnego huba, przekazują fn jawnie. */
+function _skBack(fn){ return `<button class="cbtn" style="width:100%;margin-top:10px" onclick="${fn||'window._skClose()'}">↩ Wróć</button>`; }
 const _skH=(t)=>String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
 /* ── §4 układ pod-mapy: obiekty pokoju „stary_kwartal" ── */
@@ -48680,6 +48910,54 @@ window._skSyncObjects=function(){
   objs.push({id:'_sk_npc_lenny', wx:660, wy:150, w:34, h:56, act:'sk:npc:lenny', prompt:'[E] 👁️ Lenny „Kreska" Wilson', lbl:'Lenny', actRadius:70});
   objs.push({id:'_sk_npc_szklo', wx:880, wy:300, w:34, h:56, act:'sk:npc:szklo', prompt:'[E] 🥃 „Szkło"', lbl:'Szkło', actRadius:70});
   objs.push({id:'_sk_npc_mira',  wx:200, wy:290, w:34, h:56, act:'sk:npc:mira',  prompt:'[E] 👵 Ciotka Mira', lbl:'Ciotka Mira', actRadius:70});
+};
+
+/* ── v2.3.122 (PDF): osobna mapa terenu Slumsów pod klawiszem „M" (jak mapa dzielnicy) ── */
+window._skSubMapOpen=function(){ return !!document.getElementById('sk-submap-overlay'); };
+window._skCloseSubMap=function(){ const e=document.getElementById('sk-submap-overlay'); if(e&&e.parentNode) e.parentNode.removeChild(e); };
+window._skOpenSubMap=function(){
+  if(window._skSubMapOpen()){ window._skCloseSubMap(); return; }
+  if(typeof ROOMS==='undefined'||!ROOMS.stary_kwartal) return;
+  window._skSyncObjects&&window._skSyncObjects();
+  const room=ROOMS.stary_kwartal;
+  const WW=(room.wT||24)*(typeof T!=='undefined'?T:48), WH=(room.hT||16)*(typeof T!=='undefined'?T:48);
+  const cw=560, scale=cw/WW, ch=Math.round(WH*scale);
+  const o=document.createElement('div'); o.id='sk-submap-overlay';
+  const hudEl=document.getElementById('hud'); const hudBottom=hudEl?Math.round(hudEl.getBoundingClientRect().bottom)+6:66;
+  o.style.cssText=`position:fixed;top:${hudBottom}px;left:0;right:0;bottom:0;background:rgba(0,0,0,.93);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:60;padding:14px;font-family:inherit`;
+  o.innerHTML=`
+    <div style="color:#d8c89a;font-size:17px;font-weight:900;letter-spacing:1px;margin-bottom:8px">🗺 STARY KWARTAŁ — mapa terenu</div>
+    <div style="color:#9a8f80;font-size:11px;margin-bottom:8px">Podwórko Slumsów w Underground District · <span style="color:#f1c40f">📍 = Ty</span> · ESC / M = zamknij</div>
+    <div style="position:relative;border:2px solid #6a5a3a;border-radius:8px;overflow:hidden;box-shadow:0 0 30px rgba(0,0,0,.8)"><canvas id="sk-submap-canvas" width="${cw}" height="${ch}" style="display:block;background:#141018"></canvas></div>
+    <button id="sk-submap-close" style="margin-top:12px;background:#1a1520;border:1px solid #6a5a3a;color:#d8c89a;padding:7px 22px;border-radius:6px;cursor:pointer;font-family:inherit;font-weight:700">← Zamknij mapę</button>`;
+  document.body.appendChild(o);
+  const cv=document.getElementById('sk-submap-canvas'); const cx=cv.getContext('2d');
+  /* tło terenu */
+  cx.fillStyle='#171320'; cx.fillRect(0,0,cw,ch);
+  cx.fillStyle='#1d1828'; for(let i=0;i<80;i++){ cx.fillRect((i*61)%cw,(i*37)%ch,2,1); }
+  /* obiekty */
+  const npcCol={burst:'#c8a520',lenny:'#7ec8e3',szklo:'#e07070',mira:'#c39bd3'};
+  (room.objects||[]).forEach(ob=>{
+    const x=ob.wx*scale, y=ob.wy*scale, w=Math.max(6,(ob.w||40)*scale), h=Math.max(6,(ob.h||40)*scale);
+    let col='#5a5470', bd='#8a7a5a';
+    if(ob.id==='_sk_gate'){ col='#3a5a3a'; bd='#7ec87e'; }
+    else if(ob.id&&ob.id.indexOf('_sk_npc_')===0){ const who=ob.id.replace('_sk_npc_',''); col=npcCol[who]||'#aaa'; bd=col; }
+    else if(ob.id==='_sk_party'){ col='#4a2a5a'; bd='#c39bd3'; }
+    else if(ob.id==='_sk_cellar'){ col='#3a2a4a'; bd='#9a7ac0'; }
+    else if(ob.id==='_sk_path'){ col='#4a4020'; bd='#c8b060'; }
+    cx.fillStyle=col; cx.strokeStyle=bd; cx.lineWidth=1.4;
+    if(cx.roundRect){ cx.beginPath(); cx.roundRect(x,y,w,h,3); cx.fill(); cx.stroke(); }
+    else { cx.fillRect(x,y,w,h); cx.strokeRect(x,y,w,h); }
+    if(ob.lbl){ cx.fillStyle='#e8e2d8'; cx.font='9px system-ui,Arial'; cx.textAlign='center'; cx.fillText(ob.lbl, x+w/2, y+h+9); }
+  });
+  /* gracz */
+  if(typeof P!=='undefined'){
+    const px=(P.wx+(P.w||24)/2)*scale, py=(P.wy+(P.h||44)/2)*scale;
+    cx.fillStyle='#f1c40f'; cx.beginPath(); cx.arc(px,py,6,0,Math.PI*2); cx.fill();
+    cx.font='14px system-ui,Arial'; cx.textAlign='center'; cx.fillText('📍', px, py-8);
+  }
+  cx.textAlign='left';
+  document.getElementById('sk-submap-close').onclick=()=>window._skCloseSubMap();
 };
 
 /* ── wejście / wyjście ── */
@@ -48786,8 +49064,11 @@ window._skTalkLocals=function(){
 /* ── §27 mały występ na podwórku ── */
 window._skPerform=function(){
   _skEnsure(); const s=G.staryKwartal;
+  /* v2.3.122 (PDF): cooldown 6 h między występami na podwórku. */
+  { const cd=_skCooldownCheck('perform',360); if(!cd.ok){ if(typeof showMsg==='function') showMsg('🎤 Już grałeś tu niedawno. Kolejny występ na podwórku za '+_skFmtLeft(cd.leftMin)+' — ludzie muszą za Tobą zatęsknić.','i',4600); return; } }
   if((G.energy||0)<12){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii na występ (potrzeba 12).','r',3200); return; }
   G.energy=Math.max(0,(G.energy||0)-12);
+  _skCooldownStamp('perform');
   s.performances=(s.performances||0)+1;
   const skill=(typeof getSkillLvl==='function')?(getSkillLvl('raper')||0):0;
   const w=window._skWitnessPressure();
@@ -48829,6 +49110,10 @@ window._skPerform=function(){
 /* ── §28/§29 domówka w bloku ── */
 window._skHouseParty=function(){
   _skEnsure(); const s=G.staryKwartal;
+  /* v2.3.122 (PDF): domówki tylko wieczorem/nocą (21:00–02:00), z godzinną przerwą między nimi. */
+  if(!_skInHourWindow(21,2)){ if(typeof showMsg==='function') showMsg('🎉 Domówki w bloku ruszają dopiero wieczorem — wpadnij między 21:00 a 02:00. Za dnia sąsiedzi tylko czekają na pretekst do awantury.','i',5200); return; }
+  { const cd=_skCooldownCheck('party',60); if(!cd.ok){ if(typeof showMsg==='function') showMsg('🎉 Dopiero co wyszedłeś z jednej domówki. Następna za '+_skFmtLeft(cd.leftMin)+' — daj osiedlu chwilę odsapnąć.','i',4600); return; } }
+  _skCooldownStamp('party');
   _skPanel(`<div style="background:#141018;border:2px solid #9b59b6;border-radius:12px;padding:16px;max-width:540px;margin:0 auto;color:#e8e2d8">
     <h3 style="color:#c39bd3;margin-top:0">🎉 Domówka w bloku</h3>
     <div style="color:#cfc5b5;font-size:12.5px;line-height:1.5;margin-bottom:10px">Mieszkanie na drugim piętrze. Muzyka, dym, za dużo ludzi jak na tę kuchnię. Ktoś Cię rozpoznaje.</div>
@@ -48984,14 +49269,14 @@ window._skFindClient=function(){
     <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skApproach('ask')">❓ Zapytaj, czego szuka</button>
     <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skApproach('signal')">🌑 Zasygnalizuj, że masz kontakt</button>
     ${kantarBtn}
-    <button class="cbtn" style="width:100%" onclick="window._skOpenYard()">🚶 Odejdź</button>
+    <button class="cbtn" style="width:100%" onclick="window._skClose()">🚶 Odejdź</button>
   </div>`);
 };
 
 window._skCallKantar=function(){
   _skEnsure(); const s=G.staryKwartal;
   const npc=s._npc;
-  if(!npc){ window._skOpenYard(); return; }
+  if(!npc){ window._skClose(); return; }
   const risk=window._skNpcRisk(npc);
   const honest=((G.kantarTrust||0)>=4);
   const verdict=honest
@@ -49002,7 +49287,7 @@ window._skCallKantar=function(){
     <h3 style="color:#b9a8e0;margin-top:0">📵 Numer zastrzeżony</h3>
     <div style="color:#cfc5b5;font-size:13px;line-height:1.55;font-style:italic">„${_skH(verdict)}"</div>
     <button class="bbtn" style="width:100%;margin-top:10px" onclick="window._skFindClientResume()">↩ Wróć do rozmowy</button>
-    <button class="cbtn" style="width:100%;margin-top:6px" onclick="window._skOpenYard()">🚶 Odejdź</button>
+    <button class="cbtn" style="width:100%;margin-top:6px" onclick="window._skClose()">🚶 Odejdź</button>
   </div>`);
 };
 window._skFindClientResume=function(){
@@ -49016,14 +49301,14 @@ window._skFindClientResume=function(){
     <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skApproach('neutral')">😐 Zagraj neutralnie</button>
     <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skApproach('ask')">❓ Zapytaj, czego szuka</button>
     <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skApproach('signal')">🌑 Zasygnalizuj, że masz kontakt</button>
-    <button class="cbtn" style="width:100%" onclick="window._skOpenYard()">🚶 Odejdź</button>
+    <button class="cbtn" style="width:100%" onclick="window._skClose()">🚶 Odejdź</button>
   </div>`);
 };
 
 /* §9/§13 podejście do NPC — nie każdy jest klientem */
 window._skApproach=function(mode){
   _skEnsure(); const s=G.staryKwartal;
-  const npc=s._npc; if(!npc){ window._skOpenYard(); return; }
+  const npc=s._npc; if(!npc){ window._skClose(); return; }
   const risk=window._skNpcRisk(npc);
   const w=window._skWitnessPressure();
   if(mode==='neutral'){
@@ -49100,14 +49385,14 @@ window._skOfferPackages=function(){
     <h3 style="color:#d8c89a;margin-top:0">📦 Co proponujesz?</h3>
     <div style="color:#9a8f80;font-size:12px;margin-bottom:10px">Rozmowa jest ogólna. Liczy się zainteresowanie, ryzyko i to, jak poprowadzisz cenę.</div>
     ${rows}
-    <button class="cbtn" style="width:100%;margin-top:6px" onclick="window._skOpenYard()">🚶 Odpuść</button>
+    <button class="cbtn" style="width:100%;margin-top:6px" onclick="window._skClose()">🚶 Odpuść</button>
   </div>`);
 };
 
 window._skNegotiate=function(pkgId){
   _skEnsure(); const s=G.staryKwartal;
   const pkg=_skPkgById(pkgId); const npc=s._npc;
-  if(!pkg||!npc){ window._skOpenYard(); return; }
+  if(!pkg||!npc){ window._skClose(); return; }
   s._pkg=pkgId;
   const base=window._skDealValue(pkg,npc,'hold_price');
   _skPanel(`<div style="background:#141018;border:2px solid #7a6a4a;border-radius:12px;padding:16px;max-width:540px;margin:0 auto;color:#e8e2d8">
@@ -49117,7 +49402,7 @@ window._skNegotiate=function(pkgId){
     <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skResolveDeal('small_discount')">🤝 Zejdź trochę, żeby zbudować kontakt<div style="font-size:11px;color:#9ab">Mniejszy zysk, większa szansa, że wróci.</div></button>
     <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skResolveDeal('push_price')">📈 Podbij cenę, jeśli wygląda na zdesperowanego<div style="font-size:11px;color:#9ab">Większy zysk, większe ryzyko konfliktu albo długu.</div></button>
     <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skResolveDeal('walk_away')">✋ Odmów, jeśli zaczyna kombinować<div style="font-size:11px;color:#9ab">Brak zysku, ale rośnie samoochrona.</div></button>
-    <button class="cbtn" style="width:100%" onclick="window._skOpenYard()">🚶 Odejdź</button>
+    <button class="cbtn" style="width:100%" onclick="window._skClose()">🚶 Odejdź</button>
   </div>`);
 };
 
@@ -49137,7 +49422,7 @@ window._skDealValue=function(pkg,npc,choice){
 window._skResolveDeal=function(choice){
   _skEnsure(); const s=G.staryKwartal;
   const pkg=_skPkgById(s._pkg); const npc=s._npc;
-  if(!pkg||!npc){ window._skOpenYard(); return; }
+  if(!pkg||!npc){ window._skClose(); return; }
   if(choice==='walk_away'){
     s.selfProtection=Math.min(20,(s.selfProtection||0)+1);
     _skPanel(`<div style="background:#141018;border:2px solid #7ec87e;border-radius:12px;padding:16px;max-width:520px;margin:0 auto;color:#e8e2d8">
@@ -49500,7 +49785,12 @@ window._skFrontPanel=function(){
     <div style="color:#9a8f80;font-size:12px;margin-bottom:10px">Transakcje ${(s.streetDeals||0)} · nieudane podejścia ${(s.failedApproaches||0)} · szacunek ${(s.localRespect||0)}${(s.competitorTax||0)?(' · podatek konkurencji '+s.competitorTax+'%'):''}</div>
     <div style="font-size:12px;color:#d8c89a;margin-bottom:5px">Pakiety:</div>
     ${stockRows}
-    <div style="margin-top:10px">${crewBtn}</div>
+    <!-- v2.3.122 (PDF): akcje handlowe przeniesione z menu „Stary Kwartał" do huba Nielegalnego Frontu -->
+    <div style="margin-top:10px">
+      <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skFindClient()">🤝 <b>Szukaj klienta / kontaktu</b><div style="font-size:11px;color:#9ab;margin-top:2px">Rozmowa z ryzykiem — nie każdy jest tym, na kogo wygląda.</div></button>
+      <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skLocalOpportunity()">🎲 <b>Wejdź w lokalną okazję</b><div style="font-size:11px;color:#9ab;margin-top:2px">Szybki temat od pośrednika. Bywa pułapką.</div></button>
+    </div>
+    <div style="margin-top:6px">${crewBtn}</div>
     <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._skScoutCandidate()">🔎 Szukaj ludzi do ekipy</button>
     ${_skBack()}
   </div>`);
@@ -49736,7 +50026,9 @@ window._drawSkZone=function(id,sx,sy,w,h){
 window._skAct=function(act){
   _skEnsure();
   if(act==='exit'){ window._skExit(); return true; }
-  if(act==='bench'||act==='watchpoint'){ window._skLookAround(); return true; }
+  if(act==='bench'){ window._skLookAround(); return true; }
+  /* v2.3.122 (PDF): „Punkt obserwacyjny" = ocena ryzyka okolicy (przeniesione z menu „Stary Kwartał"). */
+  if(act==='watchpoint'){ window._skRiskPanel(); return true; }
   if(act==='stairs'||act==='shop'){ window._skTalkLocals(); return true; }
   if(act==='garage'){ window._skScoutCandidate(); return true; }
   if(act==='bins'){ window._skSearchBins(); return true; }
@@ -49746,7 +50038,7 @@ window._skAct=function(act){
   if(act==='tocamp'){ window._skToCampingInn(); return true; }
   if(act==='yard'){ window._skOpenYard(); return true; }
   if(act&&act.indexOf('npc:')===0){ window._skTalkNpc(act.slice(4)); return true; }
-  window._skOpenYard(); return true;
+  window._skClose(); return true;
 };
 window._skSearchBins=function(){
   _skEnsure(); const s=G.staryKwartal;
@@ -49888,7 +50180,7 @@ window._skDrawLife=function(){
 window._skHaggle=function(){
   _skEnsure(); const s=G.staryKwartal;
   const pkg=_skPkgById(s._pkg), npc=s._npc;
-  if(!pkg||!npc){ window._skOpenYard(); return; }
+  if(!pkg||!npc){ window._skClose(); return; }
   _skPanel(`<div style="background:#141018;border:2px solid #f1c40f;border-radius:12px;padding:16px;max-width:520px;margin:0 auto;color:#e8e2d8">
     <h3 style="color:#f1c40f;margin-top:0">💬 Targuje się</h3>
     <div style="color:#cfc5b5;font-size:13px;line-height:1.55;font-style:italic;margin-bottom:12px">„Za tyle to ja mam pół osiedla do wyboru. Nie rób ze mnie niepełnosprawnego."</div>
@@ -49900,7 +50192,7 @@ window._skHaggle=function(){
 };
 window._skHoldGround=function(){
   _skEnsure(); const s=G.staryKwartal;
-  const npc=s._npc; if(!npc){ window._skOpenYard(); return; }
+  const npc=s._npc; if(!npc){ window._skClose(); return; }
   /* im bardziej agresywny w negocjacji, tym większa szansa, że odejdzie */
   const walks=(Math.random()*100)<(npc.negotiationAggression||40);
   if(walks){
@@ -49917,7 +50209,7 @@ window._skHoldGround=function(){
 window._skDebtRequest=function(){
   _skEnsure(); const s=G.staryKwartal;
   const pkg=_skPkgById(s._pkg), npc=s._npc;
-  if(!pkg||!npc){ window._skOpenYard(); return; }
+  if(!pkg||!npc){ window._skClose(); return; }
   _skPanel(`<div style="background:#141018;border:2px solid #e6a86a;border-radius:12px;padding:16px;max-width:520px;margin:0 auto;color:#e8e2d8">
     <h3 style="color:#e6a86a;margin-top:0">🪙 Próbuje długu</h3>
     <div style="color:#cfc5b5;font-size:13px;line-height:1.55;font-style:italic;margin-bottom:12px">„Daj teraz to oddam Ci wieczorem. Przecież widujemy się na tej samej dzielni."</div>
@@ -49930,7 +50222,7 @@ window._skDebtRequest=function(){
 window._skDebtChoice=function(kind){
   _skEnsure(); const s=G.staryKwartal;
   const pkg=_skPkgById(s._pkg), npc=s._npc;
-  if(!pkg||!npc){ window._skOpenYard(); return; }
+  if(!pkg||!npc){ window._skClose(); return; }
   if(kind==='agree'){
     s.stock[pkg.id]=Math.max(0,(s.stock[pkg.id]||0)-1);
     s.streetDeals=(s.streetDeals||0)+1;
@@ -49994,8 +50286,11 @@ window._skZajazdRest=function(){
 };
 window._skZajazdPerform=function(){
   _skEnsure(); const s=G.staryKwartal;
+  /* v2.3.122 (PDF): cooldown 5 h między występami przy ognisku. */
+  { const cd=_skCooldownCheck('zPerform',300); if(!cd.ok){ if(typeof showMsg==='function') showMsg('🎤 Grałeś tu niedawno. Kolejny set przy ognisku za '+_skFmtLeft(cd.leftMin)+'.','i',4600); return; } }
   if((G.energy||0)<10){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii (potrzeba 10).','r',3200); return; }
   G.energy=Math.max(0,(G.energy||0)-10);
+  _skCooldownStamp('zPerform');
   s.performances=(s.performances||0)+1;
   const skill=(typeof getSkillLvl==='function')?(getSkillLvl('raper')||0):0;
   const roll=Math.random()*100+skill*6+(s.localTrust||0)*0.4;
@@ -50036,6 +50331,14 @@ window._skZajazdPerform=function(){
 };
 window._skZajazdParty=function(){
   _skEnsure();
+  /* v2.3.122 (PDF): dostępna 2×/dobę, tylko 20:00–03:00, z godzinną przerwą między jedną a drugą. */
+  if(!_skInHourWindow(20,3)){ if(typeof showMsg==='function') showMsg('🎉 Domówka przy Zajeździe rozkręca się dopiero wieczorem — wpadnij między 20:00 a 03:00.','i',5000); return; }
+  { const now=_skNowMin(); const win=7*60; let arr=G.staryKwartal._cd.zParty.filter(t=>typeof t==='number'&&(now-t)<win); G.staryKwartal._cd.zParty=arr;
+    const last=arr.length?Math.max(...arr):-999999; const sinceLast=now-last;
+    if(arr.length>=2){ if(typeof showMsg==='function') showMsg('🎉 Byłeś już dziś na dwóch domówkach przy Zajeździe. To limit na tę noc — reszta jutro.','i',5200); return; }
+    if(sinceLast<60){ if(typeof showMsg==='function') showMsg('🎉 Dopiero co skończyła się jedna domówka. Następna za '+_skFmtLeft(60-sinceLast)+'.','i',4600); return; }
+    arr.push(now); G.staryKwartal._cd.zParty=arr;
+  }
   _skPanel(`<div style="background:#141810;border:2px solid #9b59b6;border-radius:12px;padding:16px;max-width:540px;margin:0 auto;color:#e2e8d8">
     <h3 style="color:#c39bd3;margin-top:0">🎉 Domówka przy Zajeździe</h3>
     <div style="color:#cfc5b5;font-size:12.5px;line-height:1.5;margin-bottom:10px">Muzyka, alkohol, ognisko i ludzie, którzy rozmawiają za cicho jak na imprezę.</div>
@@ -50077,8 +50380,11 @@ window._skZajazdPartyChoice=function(kind){
 };
 window._skZajazdGrill=function(){
   _skEnsure(); const s=G.staryKwartal;
+  /* v2.3.122 (PDF): cooldown między spotkaniami przy grillu (przerwa 2 h — luźny, częstszy niż występy). */
+  { const cd=_skCooldownCheck('zGrill',120); if(!cd.ok){ if(typeof showMsg==='function') showMsg('🍖 Dopiero co siedziałeś przy grillu. Następne spotkanie za '+_skFmtLeft(cd.leftMin)+'.','i',4200); return; } }
   if((G.energy||0)<5){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii.','r',3000); return; }
   G.energy=Math.max(0,(G.energy||0)-5);
+  _skCooldownStamp('zGrill');
   G.stress=(typeof clampStat==='function')?clampStat('stress',(G.stress||0)+6):Math.min(100,(G.stress||0)+6);
   s.localTrust=Math.min(100,(s.localTrust||0)+1);
   s.legalCommunityTrust=Math.min(100,(s.legalCommunityTrust||0)+1);
@@ -50366,25 +50672,37 @@ window._fountainAbort=function(){
 /* ─── PATROLE (fizyczne, widoczne) + EVENTY ULICZNE + STRZELANINA ─── */
 
 /* Sprite policjanta (granatowy mundur, czapka, odblask) */
-function _drawCop(sx,sy,walk){
-  const t=Date.now()/260; const bob=walk?Math.abs(Math.sin(t+sx*0.05))*1.4:Math.sin(t*0.4)*0.5;
-  X.save(); X.translate(sx,sy-bob);
-  X.fillStyle='rgba(0,0,0,0.22)'; X.beginPath(); X.ellipse(0,15,7,3,0,0,Math.PI*2); X.fill();
-  X.fillStyle='#0e1424'; X.fillRect(-4,4,3,11); X.fillRect(1,4,3,11);           /* nogi */
-  X.fillStyle='#16233f'; X.beginPath(); X.roundRect(-6,-6,12,12,2); X.fill();    /* mundur granat */
-  X.fillStyle='#f4d24a'; X.fillRect(-6,-1,12,1.5);                               /* odblaskowy pas */
-  X.fillStyle='#0a0f1a'; X.fillRect(-5,-5,3,3);                                  /* naramiennik */
-  X.strokeStyle='#d8a878'; X.lineWidth=2.2; X.lineCap='round';                   /* ręce */
-  X.beginPath(); X.moveTo(-5,-2); X.lineTo(-7,5); X.moveTo(5,-2); X.lineTo(7,5); X.stroke();
-  X.fillStyle='#d8a878'; X.beginPath(); X.arc(0,-12,5,0,Math.PI*2); X.fill();     /* głowa */
-  X.fillStyle='#16233f'; X.fillRect(-6,-16,12,4);                                /* czapka */
-  X.fillStyle='#0a0f1a'; X.fillRect(-6,-13,12,2);                                /* daszek */
-  X.fillStyle='#f4d24a'; X.fillRect(-1.5,-15,3,2);                               /* emblemat */
+/* v2.3.122 (PDF): policjant pieszy = WIELKOŚĆ zwykłego NPC (nie „paradujące dziecko"). Sylwetka ~44 px
+   wysokości (jak przechodnie), z drobnymi różnicami szerokości (chudy/gruby) i wysokości per posterunkowy.
+   seed = stały identyfikator patrolującego (nie sx — inaczej wariacja migałaby co klatkę przy ruchu). */
+function _drawCop(sx,sy,walk,seed){
+  const _s=(typeof seed==='number')?seed:0;
+  const _r1=(Math.sin(_s*12.9898)*43758.5453); const r1=_r1-Math.floor(_r1);      /* 0..1 stały */
+  const _r2=(Math.sin(_s*78.233+1.7)*12543.19); const r2=_r2-Math.floor(_r2);
+  const widthMul=0.9+0.34*r1;    /* chudy..gruby */
+  const heightMul=0.96+0.10*r2;  /* niewielkie różnice wzrostu */
+  const t=Date.now()/260; const bob=walk?Math.abs(Math.sin(t+_s*0.7))*2:Math.sin(t*0.4)*0.7;
+  const arm=walk?Math.sin(t+_s*0.7)*2.4:0;
+  X.save(); X.translate(sx,sy-bob); X.scale(widthMul,heightMul);
+  const BW=8; /* pół-szerokość korpusu (×2 = 16 ≈ zwykły NPC) */
+  X.fillStyle='rgba(0,0,0,0.24)'; X.beginPath(); X.ellipse(0,22,10,3.5,0,0,Math.PI*2); X.fill();     /* cień */
+  X.fillStyle='#0e1424'; X.fillRect(-5,6,4,15); X.fillRect(1,6,4,15);            /* nogi */
+  X.fillStyle='#05070c'; X.fillRect(-6,20,5,3); X.fillRect(1,20,5,3);            /* buty */
+  X.fillStyle='#16233f'; X.beginPath(); X.roundRect(-BW,-9,BW*2,17,3); X.fill(); /* mundur granat */
+  X.fillStyle='#f4d24a'; X.fillRect(-BW,1,BW*2,2);                               /* odblaskowy pas */
+  X.fillStyle='#0a0f1a'; X.fillRect(-BW+1,-8,4,4);                               /* naramiennik */
+  X.strokeStyle='#d8a878'; X.lineWidth=3; X.lineCap='round';                     /* ręce */
+  X.beginPath(); X.moveTo(-BW,-4); X.lineTo(-BW-2,7+arm); X.moveTo(BW,-4); X.lineTo(BW+2,7-arm); X.stroke();
+  X.fillStyle='#d8a878'; X.beginPath(); X.arc(0,-16,6.5,0,Math.PI*2); X.fill();  /* głowa (wielkość NPC) */
+  X.fillStyle='#16233f'; X.fillRect(-7,-22,14,5);                               /* czapka */
+  X.fillStyle='#0a0f1a'; X.fillRect(-7,-18,14,2.5);                             /* daszek */
+  X.fillStyle='#f4d24a'; X.fillRect(-2,-21,4,2.5);                              /* emblemat */
   X.restore();
 }
-/* Radiowóz z pulsującym kogutem */
-function _drawPatrolCar(sx,sy,dir){
-  const t=Date.now(); const on=window._reduceFlashing?1:(Math.floor(t/280)%2);
+/* Radiowóz. v2.3.122 (PDF T1): kogut (syrena) świeci TYLKO w trybie uprzywilejowanym (emergency).
+   Bez zgłoszenia radiowóz jedzie jak zwykłe auto — kogut wygaszony. */
+function _drawPatrolCar(sx,sy,dir,emergency){
+  const t=Date.now(); const flash=window._reduceFlashing?1:(Math.floor(t/280)%2);
   X.save(); X.translate(sx,sy); if(dir<0) X.scale(-1,1);
   X.fillStyle='rgba(0,0,0,0.30)'; X.beginPath(); X.ellipse(0,11,28,6,0,0,Math.PI*2); X.fill();
   X.fillStyle='#12233f'; X.beginPath(); X.roundRect(-26,-6,52,17,4); X.fill();    /* nadwozie granat */
@@ -50392,26 +50710,30 @@ function _drawPatrolCar(sx,sy,dir){
   X.fillStyle='#0a1220'; X.fillRect(-6,-4,16,7);                                  /* okna */
   X.fillStyle='#8fb0e0'; X.fillRect(-6,-4,16,2);
   X.fillStyle='#1a1a1e'; X.beginPath(); X.arc(-16,11,5,0,Math.PI*2); X.arc(16,11,5,0,Math.PI*2); X.fill(); /* koła */
-  /* kogut */
-  X.fillStyle=on?'#e8352a':'#3a86ff'; X.fillRect(-8,-11,7,4);
-  X.fillStyle=on?'#3a86ff':'#e8352a'; X.fillRect(1,-11,7,4);
-  X.save(); X.globalCompositeOperation='lighter'; X.fillStyle=window._reduceFlashing?'rgba(120,120,150,0.22)':(on?'rgba(232,53,42,0.4)':'rgba(58,134,255,0.4)'); X.beginPath(); X.arc(0,-9,16,0,Math.PI*2); X.fill(); X.restore();
+  /* kogut — belka na dachu; ŚWIECI tylko w emergency */
+  if(emergency){
+    X.fillStyle=flash?'#e8352a':'#3a86ff'; X.fillRect(-8,-11,7,4);
+    X.fillStyle=flash?'#3a86ff':'#e8352a'; X.fillRect(1,-11,7,4);
+    X.save(); X.globalCompositeOperation='lighter'; X.fillStyle=window._reduceFlashing?'rgba(120,120,150,0.22)':(flash?'rgba(232,53,42,0.4)':'rgba(58,134,255,0.4)'); X.beginPath(); X.arc(0,-9,16,0,Math.PI*2); X.fill(); X.restore();
+  } else {
+    /* belka wygaszona (ciemna) — brak syreny gdy radiowóz jedzie normalnie */
+    X.fillStyle='#5a1418'; X.fillRect(-8,-11,7,4);
+    X.fillStyle='#16304a'; X.fillRect(1,-11,7,4);
+  }
   X.fillStyle='#fff'; X.font='bold 5px Arial'; X.textAlign='center'; X.fillText('POLICJA',0,3); X.textAlign='left';
   X.restore();
 }
+window._drawPatrolCar=_drawPatrolCar;
 window._drawCityPolice=function(){
   if(currentRoom!=='ulica') return;                 /* pełna obecność tylko w głównym mieście */
   if(_paused || G._dying) return;
   _policeEnsure(); const pres=_policeTimeMult()*_policeWeekendMult();
   const t=Date.now()/1000;
-  /* radiowóz cruise po drodze H1 (wy~470) */
-  const carX=((t*36)%(4200))-100;
-  _drawPatrolCar(wx2sx(carX), wy2sy(470), 1);
-  if(pres>=1.0){ const car2=4200-((t*30)%(4200)); _drawPatrolCar(wx2sx(car2), wy2sy(1980), -1); } /* drugi w szczycie */
-  /* piesze patrole (pary) na chodnikach */
+  /* v2.3.122 (PDF T1): radiowozy jeżdżą teraz w systemie ruchu (cityCars) — tutaj tylko PIESZE patrole.
+     Każdy posterunkowy ma stały seed (wielkość/sylwetka jak zwykły NPC, z drobnymi różnicami). */
   const walkX1=800+((t*20)%1700);
-  _drawCop(wx2sx(walkX1), wy2sy(360), true); _drawCop(wx2sx(walkX1+22), wy2sy(366), true);
-  if(pres>=0.9){ const walkX2=2600-((t*16)%1600); _drawCop(wx2sx(walkX2), wy2sy(2864), true); _drawCop(wx2sx(walkX2+22), wy2sy(2870), true); }
+  _drawCop(wx2sx(walkX1), wy2sy(360), true, 1); _drawCop(wx2sx(walkX1+22), wy2sy(366), true, 2);
+  if(pres>=0.9){ const walkX2=2600-((t*16)%1600); _drawCop(wx2sx(walkX2), wy2sy(2864), true, 3); _drawCop(wx2sx(walkX2+22), wy2sy(2870), true, 4); }
 };
 
 /* Nova Cura — log incydentów miejskich (§27,39) */
@@ -51421,6 +51743,9 @@ window._enterDistrictPlace=(districtId,placeId)=>{
     /* v2.3.54 MODUŁ POJAZDÓW SPECJALNYCH — komis Gravel Lot Motors (Korek → tanie kampery używane). */
     case 'underground_gravellot':
       if(typeof closeOverlay==='function') closeOverlay();
+      /* v2.3.122 (PDF): Gravel Lot Motors (Korek + personel) czynne 08:00–22:00; poza tym zamknięte. */
+      { const _h=Math.floor((typeof gameMin!=='undefined'?gameMin:360)/60)%24;
+        if(_h<8||_h>=22){ if(typeof showMsg==='function') showMsg('🚐 Gravel Lot Motors zamknięte. Korek i jego ludzie pracują od 08:00 do 22:00 — wróć w godzinach otwarcia.','i',5200); return; } }
       if(typeof window._korekDialog==='function') window._korekDialog();
       return;
     case 'underground_lab':
@@ -51439,6 +51764,12 @@ window._enterDistrictPlace=(districtId,placeId)=>{
       if(typeof renderTrapStashModal==='function'){renderTrapStashModal();return;}
       /* Fallback inline render */
       window._renderTrapStashInline&&window._renderTrapStashInline();
+      return;
+    case 'camper_safe_view': /* v2.3.122 (PDF T13): sejf */
+      if(typeof closeOverlay==='function') closeOverlay();
+      if(window._camperHasStash&&window._camperHasStash()){ window._renderTrapStashInline&&window._renderTrapStashInline(); }
+      else if(typeof gameConfirm==='function'){ gameConfirm('🔒 Zamontować Stash (sejf) w kamperze?\n\nOsobny magazyn na 500 pozycji, obok Stacji pakowania.\nKoszt: '+((window._CAMPER_STASH_PRICE||8000)).toLocaleString('pl')+' zł.', ()=>{ window._camperBuyStash&&window._camperBuyStash(); }); }
+      else { window._camperBuyStash&&window._camperBuyStash(); }
       return;
     case 'kamper_drying_view':
       /* v2.1.496 USER FEEDBACK — suszarnia (etap 4 grow loop dla marihuany). */
@@ -60234,10 +60565,16 @@ window._vehStatusPanel=function(){
     </div>`;
   };
   const body = owned.length ? owned.map(section).join('') : '<div style="color:#8a939a;font-size:13px;text-align:center;padding:20px">Nie masz jeszcze żadnego pojazdu.</div>';
+  /* v2.3.122 (PDF: „Wróć w Stanie pojazdów"): analogicznie do panelu Ubezpieczenie — powrót do głównego
+     serwisu Garage 77 zamiast wyłącznie zamknięcia panelu. Garage 77 = overlay renderWarsztat. */
+  const backJs = closeJs + "if(typeof renderWarsztat==='function'){renderWarsztat();if(typeof openOverlay==='function')openOverlay();}";
   panel.innerHTML=`<div id="mg-job-content" style="max-width:460px;margin:0 auto">
     <div style="text-align:center;font-size:18px;font-weight:800;color:#95a5a6;margin-bottom:10px">🚗 Stan pojazdów</div>
     ${body}
-    <button class="cbtn" style="width:100%;color:#e07070;border-color:#5a1a1a" onclick="${closeJs}">← Zamknij</button></div>`;
+    <div style="display:flex;gap:6px">
+      <button class="cbtn" style="flex:1" onclick="${backJs}">↩ Wróć</button>
+      <button class="cbtn" style="flex:1;color:#e07070;border-color:#5a1a1a" onclick="${closeJs}">← Zamknij</button>
+    </div></div>`;
 };
 /* §42 poważne uszkodzenie kampera → zaplecze zablokowane (kaskada destroyed), condition 0. */
 window._handleCamperSevereDamage=function(){
@@ -72506,6 +72843,26 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.123',date:'2026-07-23',cats:['feature'],title:'🚔🅿️🚐 Ruch uliczny z policją na zasadach · magazyn kampera (skrzynia + sejf) · sen w kamperze, mapa Slumsów i mnóstwo drobnych usprawnień',
+ items:[
+  {t:'change',d:'🚔 Radiowozy jeżdżą teraz po mieście jak każdy inny pojazd — trzymają się pasa, zatrzymują na czerwonym i ustawiają w kolejce razem z resztą ruchu. Inne auta nie wyprzedzają radiowozu na tym samym pasie, tylko jadą za nim.'},
+  {t:'change',d:'🚨 Syrenę (koguty) radiowóz włącza tylko wtedy, gdy pędzi na zgłoszenie — dopiero w tym trybie uprzywilejowanym wolno mu łamać zasady i przejechać na czerwonym. Na co dzień jedzie spokojnie, bez migających świateł.'},
+  {t:'fix',d:'👮 Piesze patrole policji mają teraz normalną, ludzką posturę — wcześniej wyglądały jak wychudzone dzieci, o połowę mniejsze od pozostałych przechodniów. Każda postać w mieście jest podobnej wielkości, z drobnymi różnicami wzrostu i tuszy.'},
+  {t:'change',d:'🚗 Auto, które odbija w bok, żeby Cię ominąć na jezdni, wraca teraz płynnie na swój pierwotny pas, gdy tylko Cię wyminie.'},
+  {t:'change',d:'🤵 Porada Menadżera Kamila: poprawiliśmy literówkę i dorzuciliśmy nowe wskazówki — o usługach S9 Agency, ćwiczeniu freestyle, lokalnym mini-barze Cypher Club (po odblokowaniu Underground), celowaniu w coraz większe sceny oraz prostym wyjaśnieniu, jak działa awans na scenie (im więcej fanów, tym większe koncerty).'},
+  {t:'new',d:'🗺️ Będąc na Starym Kwartale (Slumsy) możesz teraz wcisnąć „M", żeby zobaczyć osobną mapę podwórka z zaznaczoną Twoją pozycją — tak jak zwykłą mapę dzielnicy.'},
+  {t:'change',d:'🚐 Komis Gravel Lot Motors ma godziny pracy: Korek i jego ludzie przyjmują od 08:00 do 22:00. W nocy obiekt jest zamknięty.'},
+  {t:'fix',d:'🏚️ Po wyjściu z interakcji na Starym Kwartale wracasz teraz na chodzalne podwórko, zamiast oglądać za każdym razem to samo menu „Stary Kwartał". Sprawdzenie ryzyka okolicy znajdziesz przy punkcie obserwacyjnym, a szukanie klienta i lokalne okazje — w Nielegalnym Froncie (zejście do piwnicy).'},
+  {t:'change',d:'🎤 Występy i domówki na Starym Kwartale i przy Zajeździe mają teraz rozsądne przerwy: mały występ na podwórku co 6 godzin, przy ognisku co 5 godzin, domówka w bloku tylko wieczorem (21:00–02:00), a domówka przy Zajeździe dwa razy na dobę między 20:00 a 03:00. Nie zagrasz już koncertu po koncercie bez końca.'},
+  {t:'change',d:'🛏 „Zdrzemnij się" w kamperze to teraz prawdziwy, niespokojny sen — czas płynie tak jak podczas spania w mieszkaniu, a Ty budzisz się z regeneracją, a nie krótką drzemką w miejscu.'},
+  {t:'change',d:'📦 Magazyn w kamperze to teraz zwykła drewniana skrzynia z limitem 100 sztuk (surowce i gotowy towar liczone razem). Na górze panelu widać licznik „Limit: X/100", żebyś wiedział, ile miejsca zostało.'},
+  {t:'new',d:'🔒 W Doposażeniu kampera (panel pod „L") możesz dokupić Stash — solidny sejf obok stacji pakowania, który mieści dodatkowe 500 sztuk, liczonych osobno od skrzyni. Towar przekładasz między skrzynią a sejfem jednym kliknięciem.'},
+  {t:'change',d:'⚓ Swoją jednostkę pływającą zacumujesz tylko w pobliżu portu (do ok. 20 metrów). Gdy odpłyniesz dalej, gra podpowie, żeby rzucić kotwicę i wejść na pokład — a kiedy wrócisz do steru, ruszasz dokładnie z tego miejsca, w którym stanąłeś.'},
+  {t:'fix',d:'🛡️ W panelu „Stan pojazdów" w Garage 77 doszedł przycisk „Wróć" — cofniesz się do głównego menu serwisu zamiast zamykać całe okno.'},
+  {t:'change',d:'🅿️ Parkując na parkingu, Twój pojazd ustawia się teraz równolegle do pozostałych aut w wolnym miejscu, zamiast stać w poprzek.'},
+ ]
+ },
  {
  ver:'v2.3.122',date:'2026-07-19',cats:['feature'],title:'🏚️📱⚓ Stary Kwartał — nowe podwórko w Underground · rozmowy SMS z prawdziwymi odpowiedziami · większa Marina ze sztormami',
  items:[
@@ -89356,6 +89713,18 @@ function drawCityLife(){
     const dirSign=Math.sign(car.baseSpd) || 1;
     const baseAbs=Math.abs(car.baseSpd);
     let targetSpd=car.baseSpd;
+    if(typeof car._laneY!=='number') car._laneY=car.wy; /* v2.3.122 (PDF T3a): pas bazowy — do powrotu po ominięciu gracza */
+    /* v2.3.122 (PDF T1/T3e): radiowóz w trybie uprzywilejowanym (emergency) — na zgłoszenie. Wtedy jedzie
+       szybciej, kogut świeci i wolno mu łamać zasady (czerwone światło). Bez zgłoszenia = jak zwykłe auto. */
+    if(car.police){
+      const _nowP=Date.now();
+      if(car.emergency){ if(!car._emgUntil||_nowP>=car._emgUntil){ car.emergency=false; car._emgUntil=0; } }
+      else if(!car._emgCdUntil||_nowP>=car._emgCdUntil){
+        if(Math.random()<0.0006){ car.emergency=true; car._emgUntil=_nowP+(9000+Math.random()*8000); car._emgCdUntil=car._emgUntil+(20000+Math.random()*30000); }
+      }
+      if(car.emergency) targetSpd=car.baseSpd*1.5;
+    }
+    const _carEmergency=!!(car.police&&car.emergency);
     // 1. Sprawdź sygnalizator — czy zbliża się do skrzyżowania na czerwonym/żółtym
     // F+ 2026-05-12: stopLine pozycjonowany tak, by PRZÓD auta (nie lewy róg!) stał 24px PRZED pasem zebra (±146).
     // car.wx to lewy róg auta. Dla auta jadącego w prawo: przód=car.wx+aw, więc stopLine=ix-170-aw.
@@ -89364,7 +89733,7 @@ function drawCityLife(){
     // zatrzymywały się NA pasie zebra (przód wystawał o aw=52px).
     const carW = car.shape==='bus'?92:car.shape==='suv'?56:car.shape==='sports'?60:52;
     let _activeStopLine = null;
-    if(carsMustStop){
+    if(carsMustStop && !_carEmergency){ /* v2.3.122 (PDF T3e): uprzywilejowany radiowóz może przejechać na czerwonym */
       for(const ix of intersWx){
         const stopLine = dirSign>0 ? (ix - 170 - carW) : (ix + 170);
         const distToStop=dirSign>0?(stopLine-car.wx):(car.wx-stopLine);
@@ -89511,6 +89880,10 @@ function drawCityLife(){
         car.wy+=car._swerve*0.5;
         car._swerve*=0.86;
         if(Math.abs(car._swerve)<0.05 || (car._swerveT&&Date.now()-car._swerveT>2200)) car._swerve=0;
+      } else if(Math.abs(car.wy-car._laneY)>0.3){
+        /* v2.3.122 (PDF T3a): po wyminięciu gracza auto płynnie wraca na swój pierwotny pas. */
+        car.wy += (car._laneY-car.wy)*0.10;
+        if(Math.abs(car.wy-car._laneY)<0.3) car.wy=car._laneY;
       }
       const _collide = car.wx < P.wx+P.w && car.wx+_carAW > P.wx && car.wy < P.wy+P.h && car.wy+_carAH > P.wy;
       if(_collide){
@@ -89547,6 +89920,8 @@ function drawCityLife(){
     // Math.round zapobiega rozpikselizowaniu (gdy auto powoli hamuje, wx jest float)
     const sx=Math.round(wx2sx(car.wx)),sy=Math.round(wy2sy(car.wy));
     if(sx<-80||sx>1360) continue;
+    /* v2.3.122 (PDF T1): radiowóz rysowany jako patrol (kogut tylko w emergency), w ruchu jak zwykłe auto. */
+    if(car.police){ if(typeof _drawPatrolCar==='function') _drawPatrolCar(sx+26, sy+8, dirSign, car.emergency); continue; }
     const shape=car.shape||'sedan';
     // Per-shape dimensions
     const aw=shape==='bus'?92:shape==='suv'?56:shape==='sports'?60:52;
