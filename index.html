@@ -1922,6 +1922,10 @@ document.addEventListener('keydown', e => {
     if(typeof window._vehStateEnsure==='function') window._vehStateEnsure();
     const _cOwn = G.camper && G.camper.owned;
     const _kst=(G._vehState&&G._vehState.camper)||{};
+    /* v2.3.126 (PDF Uspr v2.3.124 U8): [K] gdy gracz jest W WNĘTRZU zaplecza (pokój „kamper") → przesiadka za kierownicę bez wychodzenia. */
+    if(!_busyMG && _cOwn && typeof currentRoom!=='undefined' && currentRoom==='kamper' && typeof window._camperDriveFromInside==='function'){
+      window._camperDriveFromInside(); return;
+    }
     if(!_busyMG && _cOwn && _carRoom(currentRoom)){
       if(G._inCamper){
         /* v2.3.108 PDF#9: siedzisz w kamperze → cykl silnika/wyjścia (§18): odpal → jazda → zgaś → wysiądź. */
@@ -3555,7 +3559,7 @@ const ROOMS = {
       {id:'kamper_cook',  wx:410, wy:140, w:160,h:110, act:'kamper_cook_basic',          prompt:'[E] 🚬 Roluj jointa',    lbl:'Rolowanie'},
       {id:'kamper_pack',  wx:600, wy:140, w:140,h:110, act:'kamper_pack_view',           prompt:'[E] 📦 Pakuj produkty',  lbl:'Pakowanie'},
       /* v2.3.122 (PDF T13): sejf „Stash" po prawej, obok Stacji pakowania. Prompt/rysunek zależny od zakupu. */
-      {id:'kamper_safe',  wx:770, wy:140, w:120,h:110, act:'camper_safe_view',            prompt:'[E] 🔒 Stash (sejf)',    lbl:'Stash'},
+      {id:'kamper_safe',  wx:770, wy:140, w:120,h:110, act:'kamper_safe_view',            prompt:'[E] 🔒 Stash (sejf)',    lbl:'Stash'},
       {id:'kamper_bed',   wx:30,  wy:300, w:200,h:90,  act:'camper_sleep',                prompt:'[E] 🛏 Zdrzemnij się',   lbl:'Łóżko'},
       {id:'kamper_pot_0', wx:380, wy:305, w:56, h:80,  act:'grow_pot:kamper:0', actRadius:64, prompt:'[E] Doniczka 1',     lbl:''}, /* v2.1.782 starter grow Tier 0 */
       {id:'kamper_pot_1', wx:560, wy:305, w:56, h:80,  act:'grow_pot:kamper:1', actRadius:64, prompt:'[E] Doniczka 2',     lbl:''},
@@ -13432,7 +13436,7 @@ function _drawVehicleInsidePrompt(kind, sx, sy){
    PRIORYTET auta: gdy _inCar → return (brak podwójnego pojazdu, #8 overlap-safe). Ruch/kolizja = E4c (tu tylko render). */
 function drawPlayerCamper(){
   /* E4d: ZAPARKOWANY kamper — rysuj na G._camperParkedAt + marker 🚐 + „[K] Wsiądź" gdy gracz blisko (analog parked-car drawPlayerCar). */
-  if(G.camper && G.camper.owned && _carRoom(currentRoom) && G._camperParkedAt && !G._inCamper && G._camperParkedAt.room===currentRoom){
+  if(G.camper && G.camper.owned && _carRoom(currentRoom) && G._camperParkedAt && !G._inCamper && G._camperParkedAt.room===currentRoom && !(typeof window._vehInRepair==='function' && window._vehInRepair('camper'))){/* v2.3.126 (PDF Uspr v2.3.124 B3): kamper znika z mapy na czas naprawy w Garage 77 (analog auta) */
     const _psx=wx2sx(G._camperParkedAt.wx)+P.w/2, _psy=wy2sy(G._camperParkedAt.wy)+P.h/2;
     const _wm=(typeof window._camperDriveParams==='function')?((window._camperDriveParams().widthMul)||1.3):1.3;
     X.save(); X.translate(_psx,_psy);
@@ -14590,6 +14594,7 @@ function updatePlayer(){
   /* PDF „Marina Coast" §4: powolny ruch podczas pływania (przed obliczeniem nx/ny). */
   if(currentRoom==='coast' && G.marina && G.marina.swimming && G.marina.swimming.isSwimming){ dx*=0.55; dy*=0.55; }
   P.moving=dx!==0||dy!==0;
+  P._driveSpeed=(G._inCar||G._inCamper)?Math.hypot(dx,dy):0; /* v2.3.126 (PDF Uspr v2.3.124 U13): prędkość jazdy — do skalowania kary za potrącenie patrolu */
   if(P.moving){anim++; if(!G._tutStat)G._tutStat={}; if(anim%10===0) G._tutStat.moved=(G._tutStat.moved||0)+1; window._hungerMoveAcc=(window._hungerMoveAcc||0)+1;} /* v1.9.48: throttle 1 inkrement co 10 klatek (audyt tutorial: ~60fps × 30 = 0.5s; po fixie ~5s). v2.1.926 (PDF l.39): _hungerMoveAcc = klatki ruchu od ost. ticku decay (idle = wolniejszy głód). */
   const room=ROOMS[currentRoom];
   let nx=clamp(P.wx+dx,0,room.wT*T-P.w);
@@ -15189,7 +15194,7 @@ function handleAct(act,objId){
        panelu = wygladalo na zepsute). Realny dispatch to bezposrednie wywolania ponizej —
        pokrywaja wszystkie 11 stacji kamper/lab/plantacja. Usuwam wadliwy forward. */
     if(act==='kamper_stash_view' && typeof window._renderTrapStashInline==='function') window._renderTrapStashInline();
-    else if(act==='camper_safe_view'){ /* v2.3.122 (PDF T13): sejf — kupiony → podgląd (sekcja sejfu); niekupiony → wybór modelu (v2.3.125) */
+    else if(act==='kamper_safe_view'){ /* v2.3.126 (PDF Uspr v2.3.124 B2): act był 'camper_safe_view' (z C) — NIE wpadał do bloku kamper_/lab_ (z K) → interakcja MARTWA (brak reakcji na [E]). Ujednolicono do 'kamper_safe_view'. Kupiony → podgląd (sekcja sejfu); niekupiony → wybór modelu (v2.3.125) */
       if(window._camperHasStash&&window._camperHasStash()){ if(typeof window._renderTrapStashInline==='function') window._renderTrapStashInline(); }
       else if(typeof window._camperStashBuyPanel==='function'){ window._camperStashBuyPanel(); }
       else { window._camperBuyStash&&window._camperBuyStash('standard'); }
@@ -20861,7 +20866,7 @@ window._renderPotPanel=function(site,idx){
     :`<div style="text-align:center;font-size:54px;margin:6px 0;opacity:.4">🪴</div>
       <div style="color:#888;font-size:12px;text-align:center;margin-bottom:6px">Pusta doniczka</div>
       <div style="font-size:11px;color:#8a9;text-align:center;margin-bottom:10px">Posadź nasionko → rośnie <b>~${_growDays} ${_growDays===1?'dzień':'dni'}</b> (codziennie podlewaj 💧 + nawóź 🧪) → ścinaj mokre topy.</div>
-      <button class="cbtn" style="width:100%;font-size:12px;padding:9px" onclick="window._growPlant('${site}',${idx})" ${(G.grow.inv.seeds<1||G.grow.inv.soil<1)?'disabled':''}>🌱 Posadź (−1 nasionko, −1 ziemia)</button>`;
+      <button class="cbtn" style="width:100%;font-size:12px;padding:9px" onclick="window._growPlant('${site}',${idx})" ${(G.grow.inv.seeds<1||G.grow.inv.soil<1)?'disabled':''}>Posadź (−1 nasionko, −1 ziemia)</button>`;
   _mc.innerHTML=`<div style="background:#051508;border:2px solid ${_accent};border-radius:12px;padding:16px;max-width:380px;margin:0 auto;color:#fff;max-height:90vh;overflow-y:auto">
     <h2 style="color:#7ec87e;margin-top:0;text-align:center;font-size:18px">Doniczka ${idx+1}</h2>
     <div style="text-align:center;color:${_accent};font-size:12px;margin-bottom:8px">${_siteName}${_tier==='low'?' — niższy plon (starter)':''}</div>
@@ -20870,9 +20875,9 @@ window._renderPotPanel=function(site,idx){
     <div style="background:#0a1a08;border:1px solid #1e4d20;border-radius:8px;padding:10px;margin-top:14px">
       <div style="color:#52be80;font-weight:700;font-size:12px;margin-bottom:6px">🛒 Zaopatrzenie ogrodnicze</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px">
-        <button class="cbtn" style="font-size:10px;padding:6px" onclick="window._growBuy('seeds')" ${(G.money||0)<GROW_PRICES.seed?'disabled':''}>🌱 Nasiono<br><span style="font-size:9px">${GROW_PRICES.seed} zł (${G.grow.inv.seeds||0})</span></button>
-        <button class="cbtn" style="font-size:10px;padding:6px" onclick="window._growBuy('soil')" ${(G.money||0)<GROW_PRICES.soil?'disabled':''}>🪨 Ziemia<br><span style="font-size:9px">${GROW_PRICES.soil} zł (${G.grow.inv.soil||0})</span></button>
-        <button class="cbtn" style="font-size:10px;padding:6px" onclick="window._growBuy('fert')" ${(G.money||0)<GROW_PRICES.fert?'disabled':''}>🧪 Nawóz<br><span style="font-size:9px">${GROW_PRICES.fert} zł (${G.grow.inv.fert||0})</span></button>
+        <button class="cbtn" style="font-size:10px;padding:6px" onclick="window._growBuy('seeds')" ${(G.money||0)<GROW_PRICES.seed?'disabled':''}>Nasiono<br><span style="font-size:9px">${GROW_PRICES.seed} zł (${G.grow.inv.seeds||0})</span></button>
+        <button class="cbtn" style="font-size:10px;padding:6px" onclick="window._growBuy('soil')" ${(G.money||0)<GROW_PRICES.soil?'disabled':''}>Ziemia<br><span style="font-size:9px">${GROW_PRICES.soil} zł (${G.grow.inv.soil||0})</span></button>
+        <button class="cbtn" style="font-size:10px;padding:6px" onclick="window._growBuy('fert')" ${(G.money||0)<GROW_PRICES.fert?'disabled':''}>Nawóz<br><span style="font-size:9px">${GROW_PRICES.fert} zł (${G.grow.inv.fert||0})</span></button>
       </div>
     </div>
     <div style="font-size:10px;color:#8a9;text-align:center;margin-top:8px">Po zbiorze: mokre topy → 🌬 Suszarnia → 📦 Pakowanie → 🚬 Roluj jointa (wszystko w Kamperze).</div>
@@ -29969,6 +29974,7 @@ function rollNpcRobberyAgainstPlayer(loc, hour){
   if((G.drip||0)>100) score+=0.08;                                                     /* drogie ubrania */
   const hasProtection=Array.isArray(G.crew)&&G.crew.some(c=>c.role==='guard'||c.role==='ochrona'||c.role==='bodyguard');
   if(hasProtection) score-=0.20;                                                       /* ochrona / zaufana ekipa */
+  score*=0.70; /* v2.3.126 (PDF Uspr v2.3.124 U5): „Okradziono Cię!" występowało zbyt często → dodatkowa redukcja szansy o 30% względem poprzednich ustawień. */
   score=Math.max(0,Math.min(0.85,score));
   if(Math.random()>=score) return false;
   G._theft.robbedDay=G.day;
@@ -41689,7 +41695,7 @@ function renderHospital(){
   if(typeof window._addictionSysEnsure==='function') window._addictionSysEnsure();
   const _AS=G.addictionSystem||{};
   const _catRow=(key,label,em)=>{ const u=(_AS[key]&&_AS[key].useLevel)||0; const risk=window._novaCatRisk(u); return `<span>${em} ${label}: <b style="color:${col(u,false)}">${risk}</b></span>`; };
-  const _catRiskHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:14px;background:#0d1620;border:1px solid #24384a;border-radius:8px;padding:10px 12px;font-size:12.5px">
+  const _catRiskHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:14px;background:#0d1620;border:1px solid #24384a;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#cdd"><!-- v2.3.126 (PDF Uspr v2.3.124 U12): jawny jasny kolor — bez niego etykiety kategorii dziedziczyły czarny z body i były nieczytelne na ciemnym tle -->
       <div style="width:100%;font-weight:800;color:#9fd0f5;margin-bottom:2px;letter-spacing:.3px">💊 Uzależnienia i stabilizacja</div>
       ${_catRow('alcohol','Alkohol','🍷')}
       ${_catRow('stimulants','Pobudzające','⚡')}
@@ -41700,7 +41706,7 @@ function renderHospital(){
     </div>`;
   document.getElementById('ov-content').innerHTML=`
     <h2>🏥 Nova Cura</h2><p class="sub">Centrum medyczne i terapeutyczne. Recepcja: Nurse Kai kieruje Cię do właściwej ścieżki.</p>
-    <div style="display:flex;flex-wrap:wrap;gap:8px 16px;margin-bottom:14px;background:#0d1620;border:1px solid #1a2a3a;border-radius:8px;padding:10px 12px;font-size:13px">
+    <div style="display:flex;flex-wrap:wrap;gap:8px 16px;margin-bottom:14px;background:#0d1620;border:1px solid #1a2a3a;border-radius:8px;padding:10px 12px;font-size:13px;color:#cdd"><!-- v2.3.126 (PDF Uspr v2.3.124 U12): jawny jasny kolor etykiet (Zdrowie/Nastrój/Napięcie/…) — inaczej czarny z body, nieczytelny -->
       <span>❤️ Zdrowie: <b style="color:${col(G.health,true)}">${Math.floor(G.health||0)}/${maxH}</b></span>
       <span>🙂 Nastrój: <b style="color:${col(mood,true)}">${mood}/100</b></span>
       <span>😰 Napięcie: <b style="color:${col(tension,false)}">${tension}/100</b></span>
@@ -42566,7 +42572,7 @@ window.renderCamperPanel=function(){
     <div style="display:flex;flex-direction:column;gap:6px">
       <button class="cbtn" style="width:100%" onclick="window._camperInteriorStatus&&window._camperInteriorStatus()">🔎 Sprawdź stan zaplecza</button>
       <button class="cbtn" style="width:100%" onclick="window._camperSwitchActive&&window._camperSwitchActive()">🔁 Zmień aktywny kamper</button>
-      <button class="cbtn" style="width:100%;border-color:#9b59b6;color:#d8c0ee" ${destroyed?'disabled':''} onclick="window._enterCamper&&window._enterCamper()">🚐 Jedź kamperem (lub klawisz K przy pojeździe)</button>
+      <button class="cbtn" style="width:100%;border-color:#9b59b6;color:#d8c0ee" ${destroyed?'disabled':''} onclick="window._camperDriveBtn&&window._camperDriveBtn()">🚐 Jedź kamperem (lub klawisz K przy pojeździe)</button>
       <button class="cbtn" style="width:100%" onclick="window._camperShowOnMap&&window._camperShowOnMap()">Pokaż na mapie</button>
     </div>
   </div>${back}`;
@@ -42605,6 +42611,33 @@ window._enterCamper=function(){
   if(typeof window._subtleMsg==='function') window._subtleMsg('🚐 '+_en); else if(typeof showMsg==='function') showMsg('🚐 '+_en,'i',3000);
   if(typeof phoneOpen==='function' && phoneOpen() && typeof togglePhone==='function') togglePhone(); /* zamknij telefon, by gracz widział jazdę */
   return true;
+};
+/* v2.3.126 (PDF Uspr v2.3.124 U7/U8): prowadzenie kampera PROSTO Z WNĘTRZA zaplecza (pokój „kamper"),
+   bez wychodzenia na ulicę i ponownego wsiadania — gracz „przesiada się do fotela kierowcy". Wraca do
+   lokacji, w której kamper stoi (G._camperParkedAt), i od razu go prowadzi. Komunikat subtelny (NIE zielone
+   okno): „Wsiadasz za kierownicę pojazdu". */
+window._camperDriveFromInside=function(){
+  window._camperEnsure(); const c=G.camper;
+  if(!c||!c.owned){ if(typeof showMsg==='function') showMsg('🚐 Nie masz kampera.','r'); return false; }
+  if(G._inCamper){ if(typeof showMsg==='function') showMsg('🚐 Już jedziesz kamperem.','i'); return false; }
+  if(typeof currentRoom==='undefined'||currentRoom!=='kamper'){ return false; } /* tylko z wnętrza; poza wnętrzem jest _enterCamper */
+  if(c.destroyed){ if(typeof showMsg==='function') showMsg('🚐 Kamper jest zniszczony — najpierw napraw go w warsztacie albo skasuj (Metal Valley Yard).','r',4500); return false; }
+  const park=G._camperParkedAt;
+  if(!park||!park.room){ if(typeof showMsg==='function') showMsg('🚐 Kamper nie ma pozycji na mapie — sprawdź „Pokaż na mapie" w panelu Kamper.','r',4500); return false; }
+  const room=park.room, wx=park.wx, wy=park.wy;
+  G._camperParkedAt=null; G._inCamper=true;                     /* przesiadka do fotela kierowcy */
+  if(typeof window._vehOnEnter==='function') window._vehOnEnter('camper'); /* reset stanu silnika (analog K z ulicy) */
+  if(typeof closeOverlay==='function') closeOverlay();
+  if(typeof closePhone==='function') closePhone();
+  if(typeof changeRoom==='function') changeRoom(room, wx, wy);   /* wróć do lokacji, w której stoi kamper, już jako kierowca */
+  if(typeof window._subtleMsg==='function') window._subtleMsg('🚐 Wsiadasz za kierownicę pojazdu');
+  else if(typeof showMsg==='function') showMsg('🚐 Wsiadasz za kierownicę pojazdu','i',3000);
+  return true;
+};
+/* Dyspozytor przycisku „Jedź kamperem": z wnętrza zaplecza → prowadzenie z wnętrza (U7); z ulicy/dzielnicy → zwykłe wsiadanie. */
+window._camperDriveBtn=function(){
+  if(typeof currentRoom!=='undefined' && currentRoom==='kamper') return window._camperDriveFromInside&&window._camperDriveFromInside();
+  return window._enterCamper&&window._enterCamper();
 };
 /* E4e: „Pokaż na mapie" — fizyczna pozycja kampera (po E4d kamper MA sprite/pozycję na mapie). */
 window._camperShowOnMap=function(){
@@ -49039,8 +49072,8 @@ window._skOpenSubMap=function(){
   const hudEl=document.getElementById('hud'); const hudBottom=hudEl?Math.round(hudEl.getBoundingClientRect().bottom)+6:66;
   o.style.cssText=`position:fixed;top:${hudBottom}px;left:0;right:0;bottom:0;background:rgba(0,0,0,.93);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:60;padding:14px;font-family:inherit`;
   o.innerHTML=`
-    <div style="color:#d8c89a;font-size:17px;font-weight:900;letter-spacing:1px;margin-bottom:8px">🗺 STARY KWARTAŁ — mapa terenu</div>
-    <div style="color:#9a8f80;font-size:11px;margin-bottom:8px">Podwórko Slumsów w Underground District · <span style="color:#f1c40f">📍 = Ty</span> · ESC / M = zamknij</div>
+    <div style="color:#d8c89a;font-size:17px;font-weight:900;letter-spacing:1px;margin-bottom:8px">🗺 MAPA: STARY KWARTAŁ</div><!-- v2.3.126 (PDF Uspr v2.3.124 U4): ten sam schemat tytułu co inne mapy („🗺 MAPA: NAZWA"), bez emoji bezpośrednio przy nazwie -->
+    <div style="color:#9a8f80;font-size:11px;margin-bottom:8px">Podwórko Slumsów w Underground District · <span style="color:#f1c40f;font-weight:800">TY</span> = Twoja pozycja · ESC / M = zamknij</div>
     <div style="position:relative;border:2px solid #6a5a3a;border-radius:8px;overflow:hidden;box-shadow:0 0 30px rgba(0,0,0,.8)"><canvas id="sk-submap-canvas" width="${cw}" height="${ch}" style="display:block;background:#141018"></canvas></div>
     <button id="sk-submap-close" style="margin-top:12px;background:#1a1520;border:1px solid #6a5a3a;color:#d8c89a;padding:7px 22px;border-radius:6px;cursor:pointer;font-family:inherit;font-weight:700">← Zamknij mapę</button>`;
   document.body.appendChild(o);
@@ -49063,11 +49096,26 @@ window._skOpenSubMap=function(){
     else { cx.fillRect(x,y,w,h); cx.strokeRect(x,y,w,h); }
     if(ob.lbl){ cx.fillStyle='#e8e2d8'; cx.font='9px system-ui,Arial'; cx.textAlign='center'; cx.fillText(ob.lbl, x+w/2, y+h+9); }
   });
-  /* gracz */
+  /* gracz — v2.3.126 (PDF Uspr v2.3.124 U4): podświetlony znacznik z napisem „TY" nad kropką gracza,
+     analogicznie do pełnej mapy miasta/dzielnic (zamiast emoji 📍). Ten sam schemat na każdej mapie. */
   if(typeof P!=='undefined'){
     const px=(P.wx+(P.w||24)/2)*scale, py=(P.wy+(P.h||44)/2)*scale;
-    cx.fillStyle='#f1c40f'; cx.beginPath(); cx.arc(px,py,6,0,Math.PI*2); cx.fill();
-    cx.font='14px system-ui,Arial'; cx.textAlign='center'; cx.fillText('📍', px, py-8);
+    /* poświata */
+    const _pg=cx.createRadialGradient(px,py,1,px,py,15);
+    _pg.addColorStop(0,'rgba(241,196,15,.6)'); _pg.addColorStop(1,'rgba(241,196,15,0)');
+    cx.fillStyle=_pg; cx.beginPath(); cx.arc(px,py,15,0,Math.PI*2); cx.fill();
+    /* kropka gracza (biała obwódka jak markery pełnej mapy) */
+    cx.fillStyle='#f1c40f'; cx.strokeStyle='#fff'; cx.lineWidth=2;
+    cx.beginPath(); cx.arc(px,py,6,0,Math.PI*2); cx.fill(); cx.stroke();
+    /* etykieta „TY" nad kropką */
+    cx.font='900 12px system-ui,Arial'; cx.textAlign='center'; cx.textBaseline='middle';
+    const _tw=cx.measureText('TY').width, _pw=_tw+14, _ph=17, _ly=py-21;
+    cx.fillStyle='#f1c40f';
+    if(cx.roundRect){ cx.beginPath(); cx.roundRect(px-_pw/2,_ly-_ph/2,_pw,_ph,5); cx.fill(); }
+    else cx.fillRect(px-_pw/2,_ly-_ph/2,_pw,_ph);
+    cx.beginPath(); cx.moveTo(px-4,_ly+_ph/2-1); cx.lineTo(px+4,_ly+_ph/2-1); cx.lineTo(px,_ly+_ph/2+4); cx.closePath(); cx.fill(); /* dzióbek */
+    cx.fillStyle='#1a1205'; cx.fillText('TY', px, _ly);
+    cx.textBaseline='alphabetic';
   }
   cx.textAlign='left';
   document.getElementById('sk-submap-close').onclick=()=>window._skCloseSubMap();
@@ -51948,29 +51996,33 @@ function _drawCop(sx,sy,walk,seed){
 /* Radiowóz. v2.3.122 (PDF T1): kogut (syrena) świeci TYLKO w trybie uprzywilejowanym (emergency).
    Bez zgłoszenia radiowóz jedzie jak zwykłe auto — kogut wygaszony. */
 function _drawPatrolCar(sx,sy,dir,emergency){
+  /* v2.3.126 (PDF Uspr v2.3.124 U10): gabaryt radiowozu przyrównany do pozostałych aut NPC w ruchu
+     (nadwozie 56×23 + wystające koła ≈ sedan/SUV). Wcześniej był wyraźnie mniejszy (52×17, płaski). */
   const t=Date.now(); const flash=window._reduceFlashing?1:(Math.floor(t/280)%2);
   X.save(); X.translate(sx,sy); if(dir<0) X.scale(-1,1);
-  X.fillStyle='rgba(0,0,0,0.30)'; X.beginPath(); X.ellipse(0,11,28,6,0,0,Math.PI*2); X.fill();
-  X.fillStyle='#12233f'; X.beginPath(); X.roundRect(-26,-6,52,17,4); X.fill();    /* nadwozie granat */
-  X.fillStyle='#e8edf2'; X.fillRect(-8,-6,20,17);                                 /* biały pas drzwi */
-  X.fillStyle='#0a1220'; X.fillRect(-6,-4,16,7);                                  /* okna */
-  X.fillStyle='#8fb0e0'; X.fillRect(-6,-4,16,2);
-  X.fillStyle='#1a1a1e'; X.beginPath(); X.arc(-16,11,5,0,Math.PI*2); X.arc(16,11,5,0,Math.PI*2); X.fill(); /* koła */
+  X.fillStyle='rgba(0,0,0,0.30)'; X.beginPath(); X.ellipse(0,14,30,7,0,0,Math.PI*2); X.fill();     /* cień */
+  X.fillStyle='#15151a'; X.fillRect(-24,-13,9,6); X.fillRect(15,-13,9,6); X.fillRect(-24,10,9,6); X.fillRect(15,10,9,6); /* koła (4 rogi) */
+  X.fillStyle='#12233f'; X.beginPath(); X.roundRect(-28,-11,56,23,5); X.fill();  /* nadwozie granat (56×23) */
+  X.fillStyle='#e8edf2'; X.fillRect(-9,-11,22,23);                               /* biały pas drzwi */
+  X.fillStyle='#0a1220'; X.fillRect(-7,-7,16,14);                                /* kabina/okna */
+  X.fillStyle='#8fb0e0'; X.fillRect(-7,-7,16,3);
   /* kogut — belka na dachu; ŚWIECI tylko w emergency */
   if(emergency){
-    X.fillStyle=flash?'#e8352a':'#3a86ff'; X.fillRect(-8,-11,7,4);
-    X.fillStyle=flash?'#3a86ff':'#e8352a'; X.fillRect(1,-11,7,4);
-    X.save(); X.globalCompositeOperation='lighter'; X.fillStyle=window._reduceFlashing?'rgba(120,120,150,0.22)':(flash?'rgba(232,53,42,0.4)':'rgba(58,134,255,0.4)'); X.beginPath(); X.arc(0,-9,16,0,Math.PI*2); X.fill(); X.restore();
+    X.fillStyle=flash?'#e8352a':'#3a86ff'; X.fillRect(-9,-15,8,4);
+    X.fillStyle=flash?'#3a86ff':'#e8352a'; X.fillRect(1,-15,8,4);
+    X.save(); X.globalCompositeOperation='lighter'; X.fillStyle=window._reduceFlashing?'rgba(120,120,150,0.22)':(flash?'rgba(232,53,42,0.4)':'rgba(58,134,255,0.4)'); X.beginPath(); X.arc(0,-13,18,0,Math.PI*2); X.fill(); X.restore();
   } else {
     /* belka wygaszona (ciemna) — brak syreny gdy radiowóz jedzie normalnie */
-    X.fillStyle='#5a1418'; X.fillRect(-8,-11,7,4);
-    X.fillStyle='#16304a'; X.fillRect(1,-11,7,4);
+    X.fillStyle='#5a1418'; X.fillRect(-9,-15,8,4);
+    X.fillStyle='#16304a'; X.fillRect(1,-15,8,4);
   }
-  X.fillStyle='#fff'; X.font='bold 5px Arial'; X.textAlign='center'; X.fillText('POLICJA',0,3); X.textAlign='left';
+  X.fillStyle='#fff'; X.font='bold 6px Arial'; X.textAlign='center'; X.fillText('POLICJA',0,4); X.textAlign='left';
   X.restore();
 }
 window._drawPatrolCar=_drawPatrolCar;
+window._cityCops=[];
 window._drawCityPolice=function(){
+  window._cityCops=[];
   if(currentRoom!=='ulica') return;                 /* pełna obecność tylko w głównym mieście */
   if(_paused || G._dying) return;
   _policeEnsure(); const pres=_policeTimeMult()*_policeWeekendMult();
@@ -51978,8 +52030,52 @@ window._drawCityPolice=function(){
   /* v2.3.122 (PDF T1): radiowozy jeżdżą teraz w systemie ruchu (cityCars) — tutaj tylko PIESZE patrole.
      Każdy posterunkowy ma stały seed (wielkość/sylwetka jak zwykły NPC, z drobnymi różnicami). */
   const walkX1=800+((t*20)%1700);
-  _drawCop(wx2sx(walkX1), wy2sy(360), true, 1); _drawCop(wx2sx(walkX1+22), wy2sy(366), true, 2);
-  if(pres>=0.9){ const walkX2=2600-((t*16)%1600); _drawCop(wx2sx(walkX2), wy2sy(2864), true, 3); _drawCop(wx2sx(walkX2+22), wy2sy(2870), true, 4); }
+  const cops=[{wx:walkX1,wy:360,seed:1},{wx:walkX1+22,wy:366,seed:2}];
+  if(pres>=0.9){ const walkX2=2600-((t*16)%1600); cops.push({wx:walkX2,wy:2864,seed:3},{wx:walkX2+22,wy:2870,seed:4}); }
+  for(const c of cops){
+    _drawCop(wx2sx(c.wx), wy2sy(c.wy), true, c.seed);
+    /* v2.3.126 (PDF Uspr v2.3.124 U13): patrole są teraz KOLIZYJNE — bbox jak zwykły NPC (16×44, wyśrodkowany na (wx,wy)). */
+    window._cityCops.push({wx:c.wx-8, wy:c.wy-22, w:16, h:44});
+  }
+  /* U13: potrącenie pieszego patrolu jadącym pojazdem → kara (bez wzywania służb — są na miejscu). */
+  if((G._inCar||G._inCamper) && typeof _carRoom==='function' && _carRoom(currentRoom) && (P._driveSpeed||0)>0.5
+     && (typeof window._vehEngineOn!=='function' || window._vehEngineOn(G._inCar?'car':'camper'))){
+    for(const cb of window._cityCops){
+      if(P.wx < cb.wx+cb.w && P.wx+P.w > cb.wx && P.wy < cb.wy+cb.h && P.wy+P.h > cb.wy){
+        if(typeof window._policeHitPatrol==='function') window._policeHitPatrol(G._inCar?'car':'camper', P._driveSpeed||0);
+        break;
+      }
+    }
+  }
+};
+/* v2.3.126 (PDF Uspr v2.3.124 U13): potrącenie pieszego patrolu policji jadącym pojazdem.
+   Gracz NIE wzywa służb (są na miejscu) i odpowiada karnie: zakaz prowadzenia pojazdów 5 dni gry
+   + losowa grzywna do 15 tys. zł, skalowana prędkością wjazdu. */
+window._policeHitPatrol=function(kind, speed){
+  _policeEnsure(); if(typeof window._vehTrafficEnsure==='function') window._vehTrafficEnsure();
+  const now=Date.now();
+  if(now-(window._copHitClock||0) < 6000) return; window._copHitClock=now;
+  const spd=Math.min(1, Math.max(0, (speed||0)/8));          /* normalizacja prędkości uderzenia (8 px/klatkę ≈ pełny gaz) */
+  const fine=Math.round(4000 + spd*11000);                   /* 4 000 … 15 000 zł wg prędkości */
+  /* zakaz prowadzenia 5 dni gry (nie skracaj istniejącego dłuższego) */
+  G.traffic.drivingBanUntilDay=Math.max(G.traffic.drivingBanUntilDay||0, (G.day||0)+5);
+  /* grzywna */
+  if(typeof window._vehIssueFine==='function') window._vehIssueFine('Potrącenie pieszego patrolu policji', fine);
+  else if(typeof window._policeIssueStreetFine==='function') window._policeIssueStreetFine('Potrącenie pieszego patrolu policji', fine, fine);
+  /* konsekwencje: heat + zniesławienie */
+  if(typeof addDefamation==='function') addDefamation(12);
+  if(typeof window._uwAddStat==='function'){ try{ window._uwAddStat('street_heat',15); }catch(_){} }
+  G.heat=Math.min(100,(G.heat||0)+10);
+  if(G.signalNine && typeof window._s9Effect==='function'){ try{ window._s9Effect({agencyHeat:8, brandTrust:-2}); }catch(_){} }
+  /* służby na miejscu — pojazd zatrzymany, gracz wysiada (i tak nie poprowadzi przez zakaz) */
+  if(kind==='camper'){ G._camperParkedAt={wx:P.wx,wy:P.wy,room:currentRoom}; G._inCamper=false; }
+  else { G._carParkedAt={wx:P.wx,wy:P.wy,room:currentRoom}; G._inCar=false; }
+  _policeCityLog&&_policeCityLog('hit_patrol');
+  const msg='🚔 Potrąciłeś pieszy patrol policji! Funkcjonariusze byli na miejscu — nie musisz nikogo wzywać, ale odpowiadasz karnie: zakaz prowadzenia pojazdów na 5 dni gry oraz grzywna '+fine.toLocaleString('pl')+' zł.';
+  if(typeof showMsg==='function') showMsg(msg,'r',9000);
+  if(typeof addNotif==='function') addNotif('🚔 Potrącenie patrolu policji — zakaz jazdy 5 dni + grzywna '+fine.toLocaleString('pl')+' zł.');
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof saveGameSilent==='function') saveGameSilent();
 };
 
 /* Nova Cura — log incydentów miejskich (§27,39) */
@@ -53015,7 +53111,7 @@ window._enterDistrictPlace=(districtId,placeId)=>{
       /* Fallback inline render */
       window._renderTrapStashInline&&window._renderTrapStashInline();
       return;
-    case 'camper_safe_view': /* v2.3.122 (PDF T13): sejf */
+    case 'kamper_safe_view': /* v2.3.126 (PDF Uspr v2.3.124 B2): ujednolicony klucz (był 'camper_safe_view') — fallback dla _enterDistrictPlace */
       if(typeof closeOverlay==='function') closeOverlay();
       if(window._camperHasStash&&window._camperHasStash()){ window._renderTrapStashInline&&window._renderTrapStashInline(); }
       else if(typeof gameConfirm==='function'){ gameConfirm('🔒 Zamontować Stash (sejf) w kamperze?\n\nOsobny magazyn na 500 pozycji, obok Stacji pakowania.\nKoszt: '+((window._CAMPER_STASH_PRICE||8000)).toLocaleString('pl')+' zł.', ()=>{ window._camperBuyStash&&window._camperBuyStash(); }); }
@@ -62143,7 +62239,46 @@ window._vehRepairCard=function(kind){
   return `<div class="sitem"><h3>${em} ${title}</h3><p>${nm} — 🔧 mechanika: <b style="color:${mCol}">${mechP}%</b> · 🎨 wygląd: <b style="color:${vCol}">${visP}%</b></p>${body}</div>`;/* v2.3.117 (PDF Uspr115 W3): osobno mechanika i wygląd */
 };
 /* wykonaj naprawę wybranego poziomu + re-render warsztatu. */
-window.repairVehicleLevel=function(kind,level){ if(window._vehRepairVehicle(kind,level)){ if(typeof renderWarsztat==='function') renderWarsztat(); } };
+/* v2.3.126 (PDF Uspr v2.3.124 U9): okno potwierdzenia dla napraw czasochłonnych (mech./pełna) —
+   informuje o czasie (X dni) i o tym, że przez ten czas pojazd zostaje w warsztacie (brak jazdy),
+   z dwiema opcjami „Potwierdź" i „Odrzuć" (Odrzuć = powrót do panelu serwisu Garage 77). */
+window._vehRepairConfirm=function(kind,level){
+  const days=(typeof window._vehRepairDays==='function')?window._vehRepairDays(level):0;
+  if(days<=0){ /* natychmiastowa (blacharka) — bez okna */ if(window._vehRepairVehicle(kind,level)){ if(typeof renderWarsztat==='function') renderWarsztat(); } return; }
+  const el=document.getElementById('ov-content');
+  const nm = kind==='camper'?'kamper':'samochód';
+  const lvlLbl = level==='full'?'Pełna naprawa (wszystko)':(level==='mech'?'Naprawa mechaniczna (sprawność)':'Naprawa blacharsko-lakiernicza (wygląd)');
+  const cost=(typeof window._vehRepairCost==='function')?window._vehRepairCost(kind,level):0;
+  const cov=(typeof window._vehInsuranceCoverage==='function')?window._vehInsuranceCoverage(kind):0;
+  const netCost=Math.max(0,Math.round(cost*(1-cov)));
+  if(!el){ /* fallback gdyby overlay nie był dostępny */
+    if(typeof gameConfirm==='function') gameConfirm(`🔧 ${lvlLbl}\n\nSerwis zajmie ${days} ${days===1?'dzień':'dni'} gry — przez ten czas nie poprowadzisz pojazdu.\nKoszt: ${netCost.toLocaleString('pl')} zł.\n\nOddać do naprawy?`, ()=>window._vehRepairConfirmYes(kind,level));
+    return;
+  }
+  el.innerHTML=`
+    <h2>🔧 Potwierdzenie naprawy</h2>
+    <p class="sub">Garage 77 — Warsztat / Serwis Sprzętu</p>
+    <div style="max-width:520px;margin:0 auto;background:#0d1620;border:1px solid #2a3a4a;border-radius:12px;padding:20px;color:#cdd;line-height:1.6;font-size:13.5px">
+      <div style="font-size:15px;font-weight:800;color:#f1c40f;margin-bottom:10px">${lvlLbl}</div>
+      <p style="margin:6px 0">Serwis przyjmie Twój <b>${nm}</b> na <b style="color:#f39c12">${days} ${days===1?'dzień':'dni'} gry</b>. Przez ten czas pojazd zostaje w warsztacie — <b>nie poprowadzisz go</b>, dopóki diagnostyka i naprawa się nie zakończą. Odbierzesz go dopiero po zakończeniu usługi.</p>
+      <p style="margin:6px 0">Koszt usługi: <b style="color:#7ec87e">${netCost.toLocaleString('pl')} zł</b>${cov>0?` <span style="color:#7ec8e3">(ubezpieczenie pokrywa ${Math.round(cov*100)}%)</span>`:''}.</p>
+      <p style="margin:10px 0 16px 0;color:#e8e2d8">Czy oddajesz pojazd do naprawy na ten czas i za tę stawkę?</p>
+      <div style="display:flex;gap:12px;justify-content:center">
+        <button class="bbtn" style="border-color:#27ae60;color:#7ec87e;font-weight:700;padding:10px 22px" onclick="window._vehRepairConfirmYes('${kind}','${level}')">✓ Potwierdź</button>
+        <button class="bbtn" style="border-color:#e74c3c;color:#e07070;font-weight:700;padding:10px 22px" onclick="if(typeof renderWarsztat==='function')renderWarsztat()">✗ Odrzuć</button>
+      </div>
+    </div>`;
+  if(typeof openOverlay==='function') openOverlay();
+};
+window._vehRepairConfirmYes=function(kind,level){
+  if(window._vehRepairVehicle(kind,level)){ if(typeof renderWarsztat==='function') renderWarsztat(); }
+};
+window.repairVehicleLevel=function(kind,level){
+  const days=(typeof window._vehRepairDays==='function')?window._vehRepairDays(level):0;
+  /* naprawy czasochłonne (mech./pełna) → okno potwierdzenia; natychmiastowa (blacharka) → od razu */
+  if(days>0 && typeof window._vehRepairConfirm==='function'){ window._vehRepairConfirm(kind,level); return; }
+  if(window._vehRepairVehicle(kind,level)){ if(typeof renderWarsztat==='function') renderWarsztat(); }
+};
 
 /* ═══ TIER E: POŻAR + EKSPLOZJA + WRAK (§17-21) ═══ */
 /* §17 czy pojazd na 0% ma się zapalić (szansa wg układu paliwowego/silnika/źródła). */
@@ -64980,7 +65115,7 @@ const SMS_CONTACTS={
   manager:   {name:'Menadżer (Kamil)',         em:'🤵', color:'#c8a520', physical:true},
   label:     {name:'Label A&R',                em:'🏢', color:'#bdc3c7', physical:false},
   sponsor:   {name:'Sponsor odzieżowy',        em:'💼', color:'#e91e8c', physical:false},
-  bank:      {name:'mBank Trap',               em:'🏦', color:'#f39c12', physical:false},
+  bank:      {name:'Northcrest Bank',           em:'🏦', color:'#f39c12', physical:false},
   system:    {name:'TrapSimulator',            em:'📱', color:'#7ec8e3', physical:false},
   trapinfo:  {name:'TrapInfo',                  em:'🛈', color:'#7ec8e3', physical:false}, /* U8 (v2.3.44 PDF): systemowy nadawca info (np. adopcja psa) — nie Marcin; tylko treść do potwierdzenia, brak odpowiedzi */
   fan:       {name:'Fan nr 1',                 em:'❤️', color:'#e74c3c', physical:true},
@@ -65863,7 +65998,7 @@ window._smsCheckTriggers=function(){
   if(haters>=100) _smsTriggerOnce('haters_100','system','📱 TrapSimulator: 100+ hejterów. Pamiętaj — hejt = zasięg. Możesz zignorować lub uruchomić PR Campaign (Telefon → Social Media).');
   if(haters>=1000) _smsTriggerOnce('haters_1k','manager','🤵 Yo, mamy 1000+ hejterów na Twoim koncie. Pora pomyśleć o profesjonalnym PR. Wbij koło Szpitala (chodnik H1) — pogadamy o damage control.',{replySet:'manager_haters_1000_pr'});
   // — Bank
-  if(G.money>=50000) _smsTriggerOnce('money_50k','bank','mBank Trap: masz 50k+ na koncie. Czas na lokatę terminową? Wpadnij do aplikacji Bank 🏦');
+  if(G.money>=50000) _smsTriggerOnce('money_50k','bank','Northcrest Bank: masz 50k+ na koncie. Czas na lokatę terminową? Wpadnij do aplikacji Bank 🏦');
   // — Rep uliczna
   if(G.streetRep>=50) _smsTriggerOnce('rep_50','wiktor',`Pojechałeś po dzielnicy! Rep 50+. Zniżki w Drip District czekają — wpadnij 👔`,{replySet:'wiktor_street_rep_50'});
   // — Drip
@@ -66411,7 +66546,7 @@ window.renderSMSConversation=function(contactId){
           return `${_replyCounter}`+window._smsRichButtons('crew',_rids);
         }
         /* system / bank — automaty, gracz nie buduje "przyjaźni" */
-        /* v2.3.122 (PDF Uspr v2.3.121): „TrapInfo" to systemowy nadawca informacyjny — jak mBank Trap.
+        /* v2.3.122 (PDF Uspr v2.3.121): „TrapInfo" to systemowy nadawca informacyjny — jak Northcrest Bank.
            Do jego wiadomości nie buduje się relacji, więc zamiast Dzięki/Zadzwoń/Ignoruj jest wyłącznie
            potwierdzenie przeczytania. Dotyczy WSZYSTKICH obecnych i przyszłych wiadomości TrapInfo. */
         if(contactId==='system'||contactId==='bank'||contactId==='trapinfo'){
@@ -66690,7 +66825,7 @@ window._smsQuickReply=function(contactId,type){
   _smsReply(contactId,r.text);
   /* v1.9.82: mark target msg as replied */
   if(conv[targetMsgIdx]) conv[targetMsgIdx]._replied=true;
-  /* v2.3.122: nadawcy systemowi (TrapInfo, mBank Trap, system) to komunikaty informacyjne —
+  /* v2.3.122: nadawcy systemowi (TrapInfo, Northcrest Bank, system) to komunikaty informacyjne —
      potwierdzenie przeczytania NIE buduje z nimi relacji. */
   const _sysSender=(contactId==='trapinfo'||contactId==='bank'||contactId==='system');
   if(typeof addFriendship==='function' && r.friendDelta!==0 && !_sysSender) addFriendship(contactId,r.friendDelta);
@@ -66714,7 +66849,10 @@ window._smsQuickReply=function(contactId,type){
       },400);
     }
   }
-  if(typeof showMsg==='function' && r.note) showMsg(`💬 ${r.note}`,'f',3500);
+  /* v2.3.126 (PDF Uspr v2.3.124 U1/U2): nadawcy systemowi (TrapInfo, Northcrest Bank, system) to komunikaty
+     informacyjne — po „OK" NIE pokazujemy okienka „+1 przyjaźń" (nie buduje się z nimi relacji). Zwykły neutralny
+     ślad przeczytania zamiast noty o przyjaźni. */
+  if(typeof showMsg==='function' && r.note){ if(_sysSender) showMsg('💬 ✓ Przeczytano','f',2200); else showMsg(`💬 ${r.note}`,'f',3500); }
   if(typeof saveGameSilent==='function') saveGameSilent();
 };
 /* ═══ v2.3.98 (PDF #2/#3): kontekstowe odpowiedzi SMS dla Fanów i Kamila (Stary kumpel) ═══
@@ -72814,7 +72952,7 @@ function openFullMap(districtId){
     updatePlayerMarker();
     /* v2.1.65 Amper: ZAPARKOWANE AUTO na pełnej mapie — duży żółty marker z etykietą "TWOJE AUTO".
        v2.3.113: tylko na mapie dzielnicy, w której auto naprawdę stoi (inaczej marker w złym miejscu na innej mapie). */
-    if(G.car && G._carParkedAt && !G._inCar && (typeof _carParkRoom!=='function' || _carParkRoom()===_md)){
+    if(G.car && G._carParkedAt && !G._inCar && (typeof _carParkRoom!=='function' || _carParkRoom()===_md) && !(typeof window._vehInRepair==='function' && window._vehInRepair('car'))){/* v2.3.126 (B3): auto w naprawie nie pojawia się na pełnej mapie */
       const acx=G._carParkedAt.wx*scale, acy=G._carParkedAt.wy*scale;
       const carHalo=document.createElement('div');
       carHalo.style.cssText=`position:absolute;left:${acx}px;top:${acy}px;width:44px;height:44px;border-radius:50%;background:radial-gradient(circle,rgba(241,196,15,.7) 0%,rgba(241,196,15,0) 70%);transform:translate(-50%,-50%);pointer-events:none;animation:fmapHalo 1.4s ease-in-out infinite;z-index:4`;
@@ -72829,7 +72967,7 @@ function openFullMap(districtId){
     }
     /* v2.3.117 (PDF Uspr115 W9): ZAPARKOWANY KAMPER na pełnej mapie — analogiczny marker do auta, na mapie dzielnicy w której naprawdę stoi.
        Podświetlenie 3s po „Pokaż na mapie" (G._camperPing, W10). */
-    if(G.camper && G.camper.owned && G._camperParkedAt && !G._inCamper && G._camperParkedAt.room===_md){
+    if(G.camper && G.camper.owned && G._camperParkedAt && !G._inCamper && G._camperParkedAt.room===_md && !(typeof window._vehInRepair==='function' && window._vehInRepair('camper'))){/* v2.3.126 (B3): kamper w naprawie nie pojawia się na pełnej mapie */
       const kcx=G._camperParkedAt.wx*scale, kcy=G._camperParkedAt.wy*scale;
       const _kping=(G._camperPing && (Date.now()-G._camperPing)<3000);
       const kHalo=document.createElement('div');
@@ -74099,6 +74237,24 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.126',date:'2026-07-24',cats:['feature','fix'],title:'🚦🔧 Nowe zasady ruchu w Business District, dopracowany serwis Garage 77, sejf w kamperze i pęk poprawek jakości',
+ items:[
+  {t:'fix',d:'🚦 Ruch w Business District działa teraz jak w głównym mieście: jezdnia ma dwa pasy, każdy prowadzi w przeciwną stronę, a auta trzymają się swojego pasa i nie wyprzedzają się nawzajem. Dorysowaliśmy przerywaną linię na środku jezdni i poszerzyliśmy przejścia dla pieszych.'},
+  {t:'fix',d:'🔒 Sejf (Stash) w kamperze znów się otwiera — podejdź i użyj interakcji. Wcześniej po zakupie nie dało się do niego w żaden sposób zajrzeć; teraz masz normalny wgląd do jego zawartości, tak samo jak do skrzyni.'},
+  {t:'fix',d:'🔧 Naprawa w Garage 77 dopracowana. Gdy oddajesz auto albo kamper na naprawę, która trwa jakiś czas, pojazd znika z mapy (jest w warsztacie) aż do odbioru. Przy wyborze „Pełna naprawa" pojawia się okno z informacją, ile dni gry potrwa serwis i że przez ten czas nie poprowadzisz pojazdu — z opcjami „Potwierdź" i „Odrzuć".'},
+  {t:'change',d:'💬 Wiadomości od TrapInfo i banku to komunikaty systemowe, więc po kliknięciu „OK" nie wyskakuje już okienko „+1 przyjaźń" — z automatem informacyjnym nie budujesz relacji.'},
+  {t:'change',d:'🏦 Bank w telefonie nazywa się teraz Northcrest Bank.'},
+  {t:'fix',d:'🗺 Mapa Starego Kwartału dostała taki sam znacznik Twojej pozycji („TY") co pozostałe mapy w grze i wpisuje się w ich wspólny styl.'},
+  {t:'change',d:'🛡️ Zdarzenie „Okradziono Cię!" pojawia się teraz rzadziej — wielu graczom wypadało zbyt często.'},
+  {t:'change',d:'🪴 Uporządkowaliśmy panel doniczki w kamperze: przy pozycjach Nasiono, Ziemia i Nawóz oraz przy przycisku „Posadź" nie ma już drobnych ikonek — został sam czytelny tekst.'},
+  {t:'feature',d:'🚐 Kamper możesz teraz poprowadzić prosto z jego wnętrza — przyciskiem „Jedź kamperem" w panelu Kampera albo klawiszem [K] — bez wychodzenia na zewnątrz i ponownego wsiadania. Po prostu przesiadasz się za kierownicę.'},
+  {t:'change',d:'🚔 Radiowozy w ruchu ulicznym mają teraz taki sam rozmiar jak pozostałe auta — wcześniej były wyraźnie mniejsze od reszty.'},
+  {t:'change',d:'🚗 Auta stojące w korku i na czerwonym świetle trzymają teraz nieco większy odstęp od pojazdu przed nimi.'},
+  {t:'fix',d:'🏥 W centrum medycznym Nova Cura poprawiliśmy czytelność — nazwy kategorii (Zdrowie, Nastrój, Napięcie, Przemęczenie, Ryzyko uzależnień, Alkohol, Pobudzające, Imprezowe, Uspokajające, Opioidowe, Objawy odstawienia) są teraz w jasnym, czytelnym kolorze zamiast ciemnego.'},
+  {t:'feature',d:'🚔 Pieszy patrol policji można teraz potrącić autem — tak samo jak innych przechodniów. Nie musisz wtedy wzywać służb (są na miejscu), ale odpowiadasz za to: zakaz prowadzenia pojazdów na 5 dni gry oraz grzywna (do 15 000 zł), tym wyższa, im szybciej w nich wjechałeś.'}
+ ]
+ },
  {
  ver:'v2.3.125',date:'2026-07-24',cats:['fix'],title:'🛠️ Poprawki wyglądu: wnętrze The Vesper House, porządek w Business District, wybór sejfu w kamperze i odbiór auta z warsztatu',
  items:[
@@ -83335,10 +83491,10 @@ const PATCH_NOTES = [
  {
  ver:'v1.9.9',date:'2026-05-14',cats:['feature','gameplay'],title:'💬 SMS-y w telefonie — postacie piszą do Ciebie',
  items:[
- {t:'feature',d:'Nowa apka 💬 Wiadomości w telefonie (top-level shortcut z licznikiem nieprzeczytanych). NPC piszą do Ciebie SMS na podstawie postępu w grze — Kamil reaguje na zarobki/freestyle, Producent na pierwsze tracki, Marcin na koncerty, Wiktor na rep uliczną, Sponsorzy na sławę i drip, A&R Major Label przy 3 trackach, mBank przy 50k zł, fani przy 1k/10k/100k followersów.'},
+ {t:'feature',d:'Nowa apka 💬 Wiadomości w telefonie (top-level shortcut z licznikiem nieprzeczytanych). NPC piszą do Ciebie SMS na podstawie postępu w grze — Kamil reaguje na zarobki/freestyle, Producent na pierwsze tracki, Marcin na koncerty, Wiktor na rep uliczną, Sponsorzy na sławę i drip, A&R Major Label przy 3 trackach, Northcrest Bank przy 50k zł, fani przy 1k/10k/100k followersów.'},
  {t:'feature',d:'Konwersacje z chat-style bubbles (Ty po prawej z niebieskim tłem, NPC po lewej z ciemnym). Powiadomienie przychodzi do 🔔 oraz licznik unread na ikonie SMS. Klikasz konwersację → markuje jako przeczytane → możesz odpowiedzieć quick reply (👍 Dzięki / 🚶 Wpadnę / ⏳ Później).'},
  {t:'feature',d:'21 różnych SMS-ów wyzwalanych przez kamienie milowe: 100 zł, 1 tys. zł, 50 tys. zł, pierwszy freestyle, pierwszy utwór, 3 utwory, pierwszy koncert, 5 koncertów, sława 25/50/75, fani 1 tys./10 tys./100 tys., reputacja 50, drip 100, Prestiż 1, 5. krok fabuły oraz kontrakt z wytwórnią. Każda wiadomość przychodzi tylko raz na całą rozgrywkę.'},
- {t:'feature',d:'11 kontaktów: Wiktor (Drip District 👔), Marcin (Organizator 🎤), Producent 🎚️, Kamil (Stary kumpel 👊), Zbyszek (Kebab 🌮), Menadżer 🤵, Label A&R 🏢, Sponsor 💼, mBank 🏦, TrapSimulator 📱, Fan nr 1 ❤️. Każdy z własnym kolorem akcentu w UI.'},
+ {t:'feature',d:'11 kontaktów: Wiktor (Drip District 👔), Marcin (Organizator 🎤), Producent 🎚️, Kamil (Stary kumpel 👊), Zbyszek (Kebab 🌮), Menadżer 🤵, Label A&R 🏢, Sponsor 💼, Northcrest Bank 🏦, TrapSimulator 📱, Fan nr 1 ❤️. Każdy z własnym kolorem akcentu w UI.'},
  {t:'change',d:'Gra zapisuje się automatycznie po otwarciu konwersacji, dzięki czemu licznik nieprzeczytanych wiadomości nie znika po odświeżeniu. Stare zapisy bez wiadomości wczytują się bez problemu.'},
  ]
  },
@@ -90234,19 +90390,34 @@ function drawDistrictRoadFurniture(room){
   const L=(typeof getTrafficLight==='function')?getTrafficLight():{cars:'green',peds:'red'};
   const half=(typeof DISTRICT_ROAD_HALF!=='undefined'&&DISTRICT_ROAD_HALF[room])||32; /* pół szerokości jezdni (per dzielnica) */
   /* ── pasy dla pieszych po obu stronach skrzyżowania ── */
+  /* v2.3.126 (PDF Uspr v2.3.124 B1): SZERSZE przejścia dla pieszych (48 px zamiast 32 — były „zbyt wąskie"). */
   const zebra=(cx)=>{
     X.save();
     X.fillStyle='rgba(18,18,18,0.34)';
-    X.fillRect(wx2sx(cx-16), wy2sy(roadY-half), 32, half*2);
+    X.fillRect(wx2sx(cx-24), wy2sy(roadY-half), 48, half*2);
     X.fillStyle='#c8c4be';
-    for(let y=roadY-half+5; y<roadY+half-4; y+=14){
-      X.fillRect(wx2sx(cx-13), wy2sy(y), 26, 7);
+    for(let y=roadY-half+5; y<roadY+half-4; y+=13){
+      X.fillRect(wx2sx(cx-21), wy2sy(y), 42, 7);
     }
     X.restore();
   };
   /* v2.3.125: przejścia wyrównane do OSI chodników pionowych (ix±72 = środki chodników 648/792),
      a nie ix±118 (który lądował poza chodnikami na jezdni/marmurze). Teraz zebra idzie krawężnik-krawężnik. */
   zebra(ix-72); zebra(ix+72);
+  /* v2.3.126 (PDF Uspr v2.3.124 B1): OŚ JEZDNI — linia przerywana rozdzielająca dwa pasy kierunkowe (jak w mieście).
+     Kreski pomijają skrzyżowanie i przejścia dla pieszych. */
+  {
+    X.save();
+    X.fillStyle='rgba(232,228,210,0.55)';
+    const _cyS=wy2sy(roadY);
+    for(let x=40; x<roomW-40; x+=46){
+      if(Math.abs(x-ix)<80) continue;
+      if(Math.abs(x-(ix-72))<28 || Math.abs(x-(ix+72))<28) continue;
+      const _sx=wx2sx(x); if(_sx<-40||_sx>1340) continue;
+      X.fillRect(_sx, _cyS-1.5, 24, 3);
+    }
+    X.restore();
+  }
   /* ── studzienki kanalizacyjne na jezdni ── */
   X.save();
   for(let x=140; x<roomW-100; x+=330){
@@ -90365,11 +90536,21 @@ function initDistrictLife(room){
       hairCol: hairCols2[Math.floor(Math.random()*hairCols2.length)],
       elegant: beach?false:elegant });
   }
-  const carLane=520; const exoticCols=['#c8a520','#1c2833','#7d3c98','#b03a2e','#d4ac0d','#ecf0f1'];
+  /* v2.3.126 (PDF Uspr v2.3.124 B1): ruch w dzielnicach jak w głównym mieście — DWA PASY KIERUNKOWE.
+     Pas górny jedzie w jedną stronę, dolny w przeciwną (kierunek przypisany do pasa, NIE losowy). Auta trzymają
+     swój pas i kolejkują za poprzednikiem — BEZ wyprzedzania. Pasy liczone od osi jezdni (DISTRICT_ROAD_Y)
+     i jej szerokości (DISTRICT_ROAD_HALF), więc mieszczą się na poszerzonej jezdni (Business half=96). */
+  const _roadCY=(typeof DISTRICT_ROAD_Y!=='undefined' && DISTRICT_ROAD_Y[room]!=null)?DISTRICT_ROAD_Y[room]:520;
+  const _roadHalf=(typeof DISTRICT_ROAD_HALF!=='undefined' && DISTRICT_ROAD_HALF[room])||32;
+  const _laneOff=Math.max(14, Math.round(_roadHalf/2));  /* odsunięcie środka pasa od osi jezdni */
+  const _lanes=[{y:_roadCY-_laneOff, dir:1}, {y:_roadCY+_laneOff, dir:-1}]; /* górny → prawo, dolny → lewo */
+  const exoticCols=['#c8a520','#1c2833','#7d3c98','#b03a2e','#d4ac0d','#ecf0f1'];
   const stdCols=(typeof CAR_COLORS!=='undefined')?CAR_COLORS:['#2471a3','#707b7c','#1e8449','#c0392b'];
   for(let i=0;i<cfg.cars;i++){
     const lux=Math.random()<cfg.luxCarPct;
-    districtCars.push({ x:Math.random()*roomW, y:carLane+(i%2)*28-14, dx:(Math.random()>.5?1:-1)*(1.3+Math.random()*0.8), /* v2.3.105 (user: auta delikatnie na chodnik): pasy ±14 zamiast ±20 → sprite mieści się w jezdni y488-552, nie muska chodnika */
+    const lane=_lanes[i%2];
+    const _spd=(1.3+Math.random()*0.8)*lane.dir;
+    districtCars.push({ x:Math.random()*roomW, y:lane.y, dx:_spd, baseDx:_spd, _laneY:lane.y, _laneDir:lane.dir,
       body:lux?cfg.luxBody[Math.floor(Math.random()*cfg.luxBody.length)]:cfg.carBody[Math.floor(Math.random()*cfg.carBody.length)],
       color:lux?exoticCols[Math.floor(Math.random()*exoticCols.length)]:stdCols[i%stdCols.length], lux });
   }
@@ -90463,12 +90644,13 @@ function drawDistrictLife(){
         if(!o._isPlayer && Math.sign(o.baseDx||o.dx)!==_dSign) continue;
         const oLen=o._len||(o.body==='sports'?60:o.body==='suv'?56:o.body==='luxury'?58:52);
         const gap=_dSign>0?(o.x-(c.x+_cw)):(c.x-(o.x+oLen));
-        if(gap>0 && gap<70){
+        /* v2.3.126 (PDF Uspr v2.3.124 U11): większy odstęp na postoju — próg zatrzymania 26→50 px (+24 ≈ 0,75 m), okno reakcji 70→94. */
+        if(gap>0 && gap<94){
           const _nowDd=Date.now();
           if(!c._distractedUntil && Math.random()<0.00035) c._distractedUntil=_nowDd+1400;
           if(c._distractedUntil && _nowDd<c._distractedUntil) break;
           if(c._distractedUntil && _nowDd>=c._distractedUntil) c._distractedUntil=0;
-          _dSpd=(gap<26)?0:_dSign*Math.abs(o.dx||0)*((gap-26)/44);
+          _dSpd=(gap<50)?0:_dSign*Math.abs(o.dx||0)*((gap-50)/44);
           break;
         }
       }
@@ -90484,6 +90666,7 @@ function drawDistrictLife(){
       }
     }
     if(c._swerve){ c.y+=c._swerve*0.5; c._swerve*=0.86; if(Math.abs(c._swerve)<0.05||(c._swerveT&&Date.now()-c._swerveT>2200)) c._swerve=0; }
+    else if(typeof c._laneY==='number'){ c.y += (c._laneY - c.y)*0.06; } /* v2.3.126 (B1): po ominięciu pieszego auto wraca łagodnie na SWÓJ pas (bez dryfu między pasami) */
     if(!c._crashedAt) c.dx=c.dx+(_dSpd-c.dx)*0.14;   /* płynne hamowanie/rozpędzanie */
     c.x+=c.dx*_dDriverMult; if(c.x<-80) c.x=roomW+60; else if(c.x>roomW+80) c.x=-60;
     /* v2.3.115 (PDF Uspr): system kolizyjny pojazdów TAKŻE w dzielnicach (Underground/Business) — auto potrąca GRACZA (utrata HP/odrzut/stun) analogicznie do głównego miasta; a gdy gracz JEDZIE, wjazd w auto niszczy jego pojazd. */
@@ -91080,7 +91263,9 @@ function drawCityLife(){
       // Min stop distance: 50px dla aut + dodatkowe 20px gdy bus
       const _ownLen = car.shape==='bus'?92:52;
       const _otherLen = other.shape==='bus'?92:52;
-      const _stopDist = Math.max(50, (_ownLen+_otherLen)/2 + 10);
+      /* v2.3.126 (PDF Uspr v2.3.124 U11): większy odstęp na postoju (korek/światła) — +24 px ≈ 0,75 m
+         (skala gry: 32 px = 1 m). Auta trzymają wyraźniejszy dystans za poprzednikiem. */
+      const _stopDist = Math.max(50, (_ownLen+_otherLen)/2 + 10) + 24;
       const _matchDist = _stopDist + 25;
       const _maxDist = _stopDist + 60;
       if(distToOther>0 && distToOther<_maxDist){
@@ -93810,7 +93995,7 @@ function drawMiniMap(){
   }
   /* v2.1.65 Amper: ZAPARKOWANE AUTO — pulsujący żółty marker. Widoczne gdy gracz wysiadł (na parkingu lub poza). */
   /* v2.1.246: marker powiększony 2× (PLAN_NOC Faza 16 — user "na minimapie nie widać gdzie stoi"). Halo 6-8→11-15, kółko 3→6, litera 4px→8px bold, dodany czarny obrys + zewnętrzny żółty ring dla maksymalnej widoczności. */
-  if(G.car && G._carParkedAt && !G._inCar){
+  if(G.car && G._carParkedAt && !G._inCar && !(typeof window._vehInRepair==='function' && window._vehInRepair('car'))){/* v2.3.126 (B3): auto w naprawie znika także z minimapy */
     const acx=clamp(mpx(G._carParkedAt.wx),mx+3,mx+mw-3);
     const acy=clamp(mpy(G._carParkedAt.wy),my+3,my+mh-3);
     const _pulse=0.6+Math.sin(Date.now()/350)*0.4;
