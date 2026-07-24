@@ -3457,6 +3457,9 @@ const ROOMS = {
       {id:'surf_coast',       wx:1000, wy:1620, w:140,h:130, act:'coast_surf',       prompt:'[E] 🏄 Surf Shop',     lbl:'Surf'},
       /* PDF „Marina Coast" §3: oznaczone wejście do wody (tryb pływania). Cienki obiekt (h<60) = wykrywany przez getNear (actRadius), nie blokuje ruchu (brak solid). */
       {id:'swim_entry', wx:360, wy:1062, w:260, h:34, act:'coast_swimentry', prompt:'[E] 🏊 Wejdź do wody', lbl:'Kąpielisko', actRadius:120},
+      /* SUNSET PALMS §2: florydzka altana plażowa przy promenadzie — na piasku tuż pod linią brzegu (shore y1056),
+         między Mariną (x1180-1320) a SPA (x1700), poza strefą cumowania łodzi. Wejście → walkable interior sunset_palms. */
+      {id:'sunset_coast', wx:1420, wy:1130, w:210, h:150, act:'coast_sunset', prompt:'[E] 🌅 SUNSET PALMS', lbl:'Sunset Palms'},
     ]
   },
 
@@ -3628,6 +3631,29 @@ const ROOMS = {
   },
   /* STARY KWARTAŁ (PDF „Slumsy Underground") — podwórko między blokami. map:null, obiekty dynamiczne (_skSyncObjects). */
   stary_kwartal: { wT:24, hT:16, map:null, objects:[] },
+  /* SUNSET PALMS §2-3: walkable interior florydzkiej altany plażowej (26×14 kafli). Obiekty = strefy menu §5 + 5 NPC.
+     Zone id `spz_*` / NPC `npc_sp_*` → _drawSunsetSprite; act `sunset:<sub>` → _sunsetAct. Brak solid = strefy nie blokują ruchu. */
+  sunset_palms: {
+    wT:26, hT:15, map:null,
+    objects:[
+      {id:'spz_games',    wx:90,   wy:110, w:200, h:120, act:'sunset:games',   prompt:'[E] 🏖 Gry zręcznościowe', lbl:'Gry plażowe'},
+      {id:'npc_sp_remy',  wx:150,  wy:245, w:36,  h:58,  act:'sunset:remy',    prompt:'[E] 🏄 Remy „Wave" Carter', lbl:'Remy'},
+      {id:'spz_social',   wx:345,  wy:110, w:200, h:110, act:'sunset:social',  prompt:'[E] 🧠 Gry społeczne i strategiczne', lbl:'Stoliki'},
+      {id:'spz_bar',      wx:600,  wy:110, w:200, h:110, act:'sunset:bar',     prompt:'[E] 🍹 Zamów napój / Cooler Rush', lbl:'Bar'},
+      {id:'spz_stage',    wx:860,  wy:110, w:200, h:130, act:'sunset:perform', prompt:'[E] 🎤 Mała scena — zagraj występ', lbl:'Scena'},
+      {id:'npc_sp_naomi', wx:960,  wy:250, w:36,  h:58,  act:'sunset:naomi',   prompt:'[E] 👙 Naomi Kade', lbl:'Naomi'},
+      {id:'spz_lounge',   wx:90,   wy:320, w:200, h:120, act:'sunset:rest',    prompt:'[E] 🌴 Leżaki i palmy — odpocznij', lbl:'Leżaki'},
+      {id:'npc_sp_dani',  wx:150,  wy:462, w:36,  h:58,  act:'sunset:dani',    prompt:'[E] 📸 Dani Solis', lbl:'Dani'},
+      {id:'spz_photo',    wx:345,  wy:320, w:200, h:120, act:'sunset:content', prompt:'[E] 📱 Pomost fotograficzny — content', lbl:'Pomost'},
+      {id:'spz_mixer',    wx:600,  wy:320, w:200, h:130, act:'sunset:mixer',   prompt:'[E] 🍸 Strefa ogniska — Sunset Mixer', lbl:'Ognisko'},
+      {id:'npc_sp_ellis', wx:775,  wy:470, w:36,  h:58,  act:'sunset:ellis',   prompt:'[E] ⛵ Ellis Shore', lbl:'Ellis'},
+      {id:'spz_leads',    wx:860,  wy:320, w:200, h:120, act:'sunset:leads',   prompt:'[E] 💼 Sprawdź aktywne okazje', lbl:'Okazje'},
+      {id:'npc_sp_sierra',wx:1085, wy:470, w:36,  h:58,  act:'sunset:host',    prompt:'[E] 🌅 Sierra „Sunny" Bell', lbl:'Sierra'},
+      {id:'spz_menu',     wx:585,  wy:495, w:130, h:84,  act:'sunset:menu',    prompt:'[E] 📋 Tablica aktywności', lbl:'Altana'},
+      {id:'spz_results',  wx:90,   wy:560, w:200, h:100, act:'sunset:results', prompt:'[E] 🏆 Moje wyniki SUNSET PALMS', lbl:'Wyniki'},
+      {id:'spz_exit',     wx:340,  wy:560, w:70,  h:56,  act:'sunset:exit',    prompt:'[E] 🚪 Wyjście na promenadę', lbl:'Wyjście'},
+    ]
+  },
 
   // KASYNO ROYAL — interior z slotami, ruletką, stołem blackjack, kantorem
   casino: {
@@ -4085,6 +4111,8 @@ function drawSprite(id,sx,sy,w,h){
   /* v2.3.125 (user: „w Vesper House same szare kwadraty z tekstem"): strefy i NPC hotelu miały puste ID → drawGeneric
      rysował szary box `#1a2030` z surowym id. Dedykowany renderer rysuje meble/markery i sylwetki NPC. */
   if(id&&(id.indexOf('vesper_')===0||id.indexOf('npc_v_')===0)){ if(typeof window._drawVesperSprite==='function'){ window._drawVesperSprite(id,sx,sy,w,h); X.restore(); return; } }
+  /* SUNSET PALMS: strefy `spz_*` i NPC `npc_sp_*` → dedykowany renderer (meble plażowe + sylwetki). */
+  if(id&&(id.indexOf('spz_')===0||id.indexOf('npc_sp_')===0)){ if(typeof window._drawSunsetSprite==='function'){ window._drawSunsetSprite(id,sx,sy,w,h); X.restore(); return; } }
   switch(id){
     case 'bed':          drawBed(sx,sy,w,h);break;
     case 'fridge':       drawFridge(sx,sy,w,h);break;
@@ -4217,6 +4245,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'spa_coast':               drawCoastBuilding(sx,sy,w,h,'💆','SPA','#e8c8b8');break;
     case 'photoshoot_coast':        drawCoastBuilding(sx,sy,w,h,'📸','Photoshoot','#c89a78');break;
     case 'surf_coast':              drawCoastBuilding(sx,sy,w,h,'🏄','Surf Shop','#80b8c8');break;
+    case 'sunset_coast':            drawSunsetPavilion(sx,sy,w,h);break;                  /* SUNSET PALMS §3: florydzka altana plażowa */
     case 'swim_entry':              drawMarinaSwimEntry(sx,sy,w,h);break;
     /* v2.1.386 Faza D' Business new map: korporacyjne wieżowce */
     case 'exit_business':           drawBusinessExitGate(sx,sy,w,h);break;
@@ -5401,6 +5430,7 @@ function drawRoomDecorations(){
   else if(currentRoom==='boat_deck') drawBoatDeck();
   else if(currentRoom==='police_cell') drawPoliceCell();
   else if(currentRoom==='vesper_house'){ if(typeof drawVesperHouse==='function') drawVesperHouse(); }
+  else if(currentRoom==='sunset_palms'){ if(typeof drawSunsetPalms==='function') drawSunsetPalms(); }
   else if(currentRoom==='stary_kwartal'){ if(typeof drawStaryKwartal==='function') drawStaryKwartal(); if(typeof window._skDrawLife==='function') window._skDrawLife(); }
   /* v2.1.402 Faza AQ.12 Etap 2 (user explicit "(...) widac w mieszkaniu"): rysuj psa w salonie mieszkania jeśli owned. */
   if(G.dog && G.dog.owned && (currentRoom==='mieszkanie' || currentRoom==='mieszkanie_premium' || currentRoom==='mieszkanie_lux')) {
@@ -14830,6 +14860,7 @@ const PLACE_HOURS={
   'striptiz':        {o:20, c:4,  name:'Velvet Room'}, /* v2.1.919 PDF: nocny klub 20:00-04:00 (overnight); U7 v2.3.44 nazwa własna Velvet Room */
   'business_eclipse': {o:20, c:6, name:'Eclipse Noir'}, /* PDF new/4 §59 openHours: klub nocny 20:00-06:00; v2.3.116 przeniesiony do Business District */
   'business_aureum': {o:8, c:20, name:'Aureum Green Club'}, /* PDF Business/golf: pole golfowe czynne w dzień 8-20 */
+  'coast_sunset': {o:9, c:2, name:'SUNSET PALMS'}, /* SUNSET PALMS §4: altana plażowa 09:00-02:00 (overnight) */
   'underground_prostytutki': {o:21, c:5, name:'Nocny zaułek'}, /* v2.1.920 PDF l.57: 21:00-05:00 (overnight; user 2026-07-02: było do 03:00) */
   // Drip district / butiki
   'shop:lv':         {o:10, c:20, name:'Luvio'},
@@ -15162,6 +15193,8 @@ function handleAct(act,objId){
     else if(typeof window._policeDetentionOpt==='function') window._policeDetentionOpt(_po);
   } else if(act&&act.indexOf('vesper:')===0){
     if(typeof window._vesperAct==='function') window._vesperAct(act.slice(7));
+  } else if(act&&act.indexOf('sunset:')===0){
+    if(typeof window._sunsetAct==='function') window._sunsetAct(act.slice(7));
   } else if(act&&act.indexOf('sk:')===0){
     if(typeof window._skAct==='function') window._skAct(act.slice(3));
   } else if(act==='marina_disembark'){
@@ -29435,6 +29468,8 @@ function nextPeriod(){
     /* PDF „Marina Coast" §29: tygodniowe utrzymanie jednostek + portu (co 7 dni) i dzienny tick (wygasanie wynajmu, wyciszanie plotek). */
     if(typeof window._marinaDailyTick==='function') window._marinaDailyTick();
     if(typeof window._marinaWeeklyTick==='function') window._marinaWeeklyTick();
+    /* SUNSET PALMS §35/§22: dzienny tick — wypłata odroczonych referrali + przypomnienia SMS Sierry (gdy gracz nie odwiedza). */
+    if(typeof window._spDailyTick==='function') window._spDailyTick();
     /* v2.3.109 (PDF13 TIER 13.7): integracje kariera/S9/sponsor (jednorazowe boosty przy progach jakości/prestiżu). */
     if(typeof window._studioApplyIntegrations==='function') window._studioApplyIntegrations();
     // ── Merch — dzienne sprzedaże, trendy, marketing ──
@@ -51768,6 +51803,1554 @@ window._vesperOnEclipseExit=function(){ try{ window._vesperMaybeAfterOffer(); }c
 
 /* THE VESPER HOUSE MODULE END */
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   SUNSET PALMS MODULE START (do not duplicate)
+   PDF „Moduł „SUNSET PALMS", czyli florydzka altana plażowa…" (§1-§49).
+   Pod-lokacja Marina Coast (budynek `sunset_coast` na coast @ plaża/promenada).
+   Walkable interior `sunset_palms`: 10 stref + 5 NPC + 8 minigier + networking + leady.
+   Rdzeń modułu: krótkie minigry (zręczność/pamięć/rytm/strategia/social), których wynik
+   ZWIĘKSZA szansę networkingu, ale go NIE gwarantuje (§20). Lokacja WSPIERA karierę
+   muzyczną — NIE może być łatwiejszym źródłem dochodu niż muzyka (§25/§48-25).
+   MAPOWANIE OSI PDF→gra: money=G.money · fame=G.fame · fans=G.fans · heat=G.heat ·
+     mood=G.stress(HIGH=dobry nastrój, project_stress_is_mood) · fatigue=100−G.energy ·
+     mediaRisk=G.mediaRisk||G.defamation · intoxication=G.eclipseNoir.nightlife.intoxication ·
+     professionalism/riskReading/networkDepth → moduł-lokalne (beachReputation/socialReading/coastConnections).
+   Stan: G.sunsetPalms (§6). SMS gospodyni: nadawca 'sierra'.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const _spClamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,(typeof v==='number'&&isFinite(v))?v:lo));
+const _spRound=(v)=>Math.round(_spClamp(v,-1e9,1e9));
+const _spRandInt=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+function _spDay(){ return (typeof G!=='undefined'&&typeof G.day==='number')?G.day:0; }
+function _spGameMin(){ return (typeof gameMin==='number')?gameMin:(typeof G!=='undefined'&&G.gameMin)||0; }
+function _spHour(){ return Math.floor(_spGameMin()/60)%24; }
+/* weekday: 0=Pon..6=Niedz (deterministyczne z G.day) */
+function _spWeekday(){ return ((_spDay()%7)+7)%7; }
+const _SP_WD=['Poniedziałek','Wtorek','Środa','Czwartek','Piątek','Sobota','Niedziela'];
+
+/* ── osie gracza ── */
+function _spMood(d){ if(typeof G!=='undefined') G.stress=_spClamp((G.stress||50)+d,0,100); }
+function _spFatigueAdd(d){ if(typeof G!=='undefined') G.energy=_spClamp((G.energy||100)-d,0,100); } /* fatigue rośnie = energia spada */
+function _spFatigue(){ return _spClamp(100-((typeof G!=='undefined'&&G.energy)||100),0,100); }
+function _spMediaRisk(){ if(typeof G==='undefined') return 0; return (typeof G.mediaRisk==='number'&&isFinite(G.mediaRisk))?_spClamp(G.mediaRisk,0,100):_spClamp(G.defamation||0,0,100); }
+function _spIntox(){ try{ return _spClamp((G.eclipseNoir&&G.eclipseNoir.nightlife&&G.eclipseNoir.nightlife.intoxication)||0,0,100); }catch(e){ return 0; } }
+function _spFame(){ return (typeof G!=='undefined'&&G.fame)||0; }
+function _spFans(){ return (typeof G!=='undefined'&&G.fans)||0; }
+function _spHeat(){ return (typeof G!=='undefined'&&G.heat)||0; }
+function _spMoney(){ return (typeof G!=='undefined'&&G.money)||0; }
+/* professionalism proxy (0-20): reputacja plażowa + zaufanie biznesowe + odrobina sławy */
+function _spProf(){ const v=window._spEnsure(); return _spClamp(2+(v.beachReputation||0)*0.4+(v.localBusinessTrust||0)*0.5+_spFame()*0.02,0,20); }
+/* stage skill proxy (0-20): dla występów — sława + reputacja + doświadczenie sceniczne */
+function _spStageSkill(){ const v=window._spEnsure(); let s=1+_spFame()*0.04+(v.beachReputation||0)*0.3; try{ if(G.careers&&G.careers.musician&&typeof G.careers.musician.level==='number') s+=G.careers.musician.level*0.4; }catch(e){} return _spClamp(s,0,20); }
+
+/* ── toast + panel (mg-job) helpers ── */
+function _spMsg(t,kind,ms){ if(typeof showMsg==='function') showMsg(t,kind||'g',ms||4000); }
+function _spPanel(html){ if(typeof window._ensureMgJob==='function') window._ensureMgJob(); const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content'); if(mgJob&&mgContent){ mgContent.innerHTML=html; mgJob.classList.add('on'); mgJob.style.display=''; } }
+function _spClose(){ window._spBarStopTimer&&window._spBarStopTimer(); const mgJob=document.getElementById('mg-job'); if(mgJob){ mgJob.classList.remove('on'); const c=document.getElementById('mg-job-content'); if(c) c.innerHTML=''; } }
+window._spClose=_spClose;
+function _spSave(){ if(typeof saveGameSilent==='function'){ try{ saveGameSilent(); }catch(e){} } }
+
+/* ═══ §6: STAN MODUŁU — save-safe ensure na WSZYSTKICH ścieżkach (nowa gra ORAZ load) ═══ */
+window._spEnsure=function(){
+  if(typeof G==='undefined') return {};
+  if(!G.sunsetPalms||typeof G.sunsetPalms!=='object'){
+    G.sunsetPalms={ visited:false,
+      activitiesToday:0,lastActivityDay:-1, scoredGamesToday:0,lastScoredGameDay:-1,
+      networkingIntroductionsToday:0,lastNetworkingDay:-1,
+      totalVisits:0,totalGamesPlayed:0,totalGamesWon:0,
+      dexterityScore:0,socialReading:0,memorySkill:0,pitchSkill:0,
+      beachReputation:0,coastConnections:0,localBusinessTrust:0,
+      sunsetTokens:0,
+      lastMajorDealDay:-99,lastVipSpawnDay:-99,lastHostMessageDay:-99,
+      unlockedContacts:[],activeLeads:[],
+      bannedUntilDay:null,sierraUnlocked:false,
+      gameHistory:{},bestScores:{},cooldowns:{},eventCooldowns:{},
+      npcRelations:{sierra:0,remy:0,naomi:0,ellis:0,dani:0},
+      lastMixerDay:-99,lastPerformanceDay:-99,lastSpecialSaturdayWeek:-99,
+      scandalSignals:0,networkingTriggerBonus:0,vipSpawnBonus:0,
+      pendingReferrals:[],leadsCompleted:0,leadsFailed:0,
+      connectionsMade:0,mixersAttended:0 };
+  }
+  const v=G.sunsetPalms;
+  ['visited','sierraUnlocked','tokenGamePass','tokenTableBonus','tokenContentBoost'].forEach(k=>{ if(typeof v[k]!=='boolean') v[k]=false; });
+  [['activitiesToday',0],['lastActivityDay',-1],['scoredGamesToday',0],['lastScoredGameDay',-1],
+   ['networkingIntroductionsToday',0],['lastNetworkingDay',-1],['totalVisits',0],['totalGamesPlayed',0],['totalGamesWon',0],
+   ['dexterityScore',0],['socialReading',0],['memorySkill',0],['pitchSkill',0],
+   ['beachReputation',0],['coastConnections',0],['localBusinessTrust',0],['sunsetTokens',0],
+   ['lastMajorDealDay',-99],['lastVipSpawnDay',-99],['lastHostMessageDay',-99],
+   ['lastMixerDay',-99],['lastPerformanceDay',-99],['lastSpecialSaturdayWeek',-99],
+   ['scandalSignals',0],['networkingTriggerBonus',0],['vipSpawnBonus',0],
+   ['leadsCompleted',0],['leadsFailed',0],['connectionsMade',0],['mixersAttended',0]
+  ].forEach(([k,d])=>{ if(typeof v[k]!=='number'||!isFinite(v[k])) v[k]=d; });
+  if(v.bannedUntilDay!==null && (typeof v.bannedUntilDay!=='number'||!isFinite(v.bannedUntilDay))) v.bannedUntilDay=null;
+  ['unlockedContacts','activeLeads','pendingReferrals'].forEach(k=>{ if(!Array.isArray(v[k])) v[k]=[]; });
+  ['gameHistory','bestScores','cooldowns','eventCooldowns','npcRelations'].forEach(k=>{ if(!v[k]||typeof v[k]!=='object') v[k]={}; });
+  ['sierra','remy','naomi','ellis','dani'].forEach(id=>{ if(typeof v.npcRelations[id]!=='number') v.npcRelations[id]=0; });
+  v.sunsetTokens=_spClamp(v.sunsetTokens,0,12);
+  ['dexterityScore','socialReading','memorySkill','pitchSkill','beachReputation','coastConnections','localBusinessTrust'].forEach(k=>{ v[k]=_spClamp(v[k],0,999); });
+  return v;
+};
+
+/* ═══ §7: RESET DZIENNYCH LICZNIKÓW ═══ */
+function _spResetDailyIfNeeded(){
+  const v=window._spEnsure(); const d=_spDay();
+  if(v.lastActivityDay!==d){ v.activitiesToday=0; v.lastActivityDay=d; }
+  if(v.lastScoredGameDay!==d){ v.scoredGamesToday=0; v.lastScoredGameDay=d; }
+  if(v.lastNetworkingDay!==d){ v.networkingIntroductionsToday=0; v.lastNetworkingDay=d; }
+}
+window._spResetDailyIfNeeded=_spResetDailyIfNeeded;
+
+/* ═══ §7: LIMITY AKTYWNOŚCI ═══ */
+window._spCanStart=function(activityType){
+  _spResetDailyIfNeeded();
+  const v=window._spEnsure();
+  if(v.bannedUntilDay!==null && v.bannedUntilDay>_spDay()){ _spMsg(`⛔ Masz zakaz wstępu do SUNSET PALMS do dnia ${v.bannedUntilDay}.`,'r',5000); return false; }
+  /* §9: token „dodatkowa minigra" — jednorazowa przepustka omija limit punktowanych ORAZ globalny 4/dzień. */
+  if(activityType==='scored_game' && v.tokenGamePass===true) return true;
+  if(v.activitiesToday>=4){ _spMsg('🌅 Na dziś wykorzystałeś limit aktywności w SUNSET PALMS. Wróć jutro.','i',4500); return false; }
+  if(activityType==='scored_game' && v.scoredGamesToday>=2){ _spMsg('🎯 Na dziś wykorzystałeś 2 punktowane minigry — kolejne dają już mniejsze nagrody, ale wciąż możesz grać dla rekordu. (Za 🎟️ Sunset Token możesz odblokować dodatkową pełną minigrę.)','i',5500); return false; }
+  if(activityType==='networking_intro' && v.networkingIntroductionsToday>=1){ _spMsg('🤝 Kolejne jakościowe przedstawienie będzie dostępne jutro.','i',4500); return false; }
+  return true;
+};
+/* rejestruje wykorzystanie aktywności (po realnym rozpoczęciu) */
+function _spConsumeActivity(activityType){
+  _spResetDailyIfNeeded(); const v=window._spEnsure();
+  if(activityType==='scored_game' && v.tokenGamePass===true){ v.tokenGamePass=false; v.scoredGamesToday=_spClamp(v.scoredGamesToday+1,0,99); return; } /* §9: przepustka tokenowa — nie liczy do 4/dzień */
+  v.activitiesToday=_spClamp(v.activitiesToday+1,0,99);
+  if(activityType==='scored_game') v.scoredGamesToday=_spClamp(v.scoredGamesToday+1,0,99);
+  if(activityType==='networking_intro') v.networkingIntroductionsToday=_spClamp(v.networkingIntroductionsToday+1,0,99);
+}
+
+/* ═══ cooldowny systemowe (§7) — klucz→dzień do którego zablokowane ═══ */
+function _spSetCooldown(key,days){ const v=window._spEnsure(); v.cooldowns[key]=_spDay()+Math.max(0,days); }
+function _spOnCooldown(key){ const v=window._spEnsure(); const u=v.cooldowns[key]; return (typeof u==='number'&&u>_spDay()); }
+function _spCooldownLeft(key){ const v=window._spEnsure(); const u=v.cooldowns[key]; return (typeof u==='number')?Math.max(0,u-_spDay()):0; }
+
+/* ═══ §9: SUNSET TOKENS (cap 12) ═══ */
+window._spTokens=function(){ return window._spEnsure().sunsetTokens; };
+function _spAddTokens(n){ const v=window._spEnsure(); const before=v.sunsetTokens; v.sunsetTokens=_spClamp(v.sunsetTokens+n,0,12); return v.sunsetTokens-before; }
+function _spSpendTokens(n){ const v=window._spEnsure(); if(v.sunsetTokens<n) return false; v.sunsetTokens=_spClamp(v.sunsetTokens-n,0,12); return true; }
+window._spSpendTokens=_spSpendTokens;
+
+/* ═══ §8: MALEJĄCE NAGRODY POWTÓRZEŃ (recent completions w oknie 4 dni) ═══ */
+function _spGameCompletionsWithinDays(gameId,days){ const v=window._spEnsure(); const arr=v.gameHistory[gameId]||[]; const d=_spDay(); return arr.filter(dd=>d-dd<days).length; }
+window._spRepeatMult=function(gameId){
+  const n=_spGameCompletionsWithinDays(gameId,4);
+  if(n===0) return 1.0; if(n===1) return 0.75; if(n===2) return 0.50; return 0.25;
+};
+function _spRecordCompletion(gameId){ const v=window._spEnsure(); if(!Array.isArray(v.gameHistory[gameId])) v.gameHistory[gameId]=[]; v.gameHistory[gameId].push(_spDay()); if(v.gameHistory[gameId].length>40) v.gameHistory[gameId]=v.gameHistory[gameId].slice(-40); }
+
+/* ═══ §19: PROGI WYNIKU ═══ */
+window._spScoreTier=function(score){
+  const s=_spClamp(score,0,100);
+  if(s<30) return {tier:'nieudana',emoji:'💤',color:'#8a8a8a',rank:0};
+  if(s<50) return {tier:'przeciętnie',emoji:'🙂',color:'#c8b060',rank:1};
+  if(s<70) return {tier:'poprawnie',emoji:'👍',color:'#6ac8a0',rank:2};
+  if(s<85) return {tier:'dobry wynik',emoji:'🔥',color:'#5ab0e0',rank:3};
+  if(s<95) return {tier:'bardzo dobry',emoji:'⭐',color:'#e0a848',rank:4};
+  return {tier:'wynik wyjątkowy',emoji:'🌟',color:'#f0c860',rank:5};
+};
+
+/* ═══ §20: SZANSA WYWOŁANIA NETWORKINGU ═══ */
+window._spNetworkChance=function(finalScore){
+  const v=window._spEnsure();
+  if(v.networkingIntroductionsToday>=1) return 0;
+  let chance=5;
+  chance += _spClamp(finalScore,0,100)*0.25;
+  chance += (v.beachReputation||0)*2;
+  chance += _spFame()*0.10;
+  chance += (v.networkingTriggerBonus||0);
+  return _spClamp(_spRound(chance),0,55);
+};
+
+/* ═══ §4: HARMONOGRAM I OKNA CZASOWE ═══ */
+const _SP_SCHEDULE={ openHour:9, closeHour:2 /* 02:00 następnego dnia */ };
+window._spIsOpen=function(){ const h=_spHour(); return (h>=9)||(h<2); };
+function _spInWindow(startH,endH){ const h=_spHour(); if(startH<=endH) return h>=startH&&h<endH; return h>=startH||h<endH; }
+window._spWindow=function(){ const h=_spHour();
+  if(_spInWindow(9,12)) return 'morning';
+  if(_spInWindow(12,16)) return 'beach';
+  if(_spInWindow(16,20)) return 'socialPeak';
+  if(_spInWindow(20,22)) return 'evening';
+  if(_spInWindow(22,26)) return 'nightlife';
+  return 'closed';
+};
+/* §39: modyfikator ruchu/eventów od pogody */
+function _spWeatherFactor(){ const w=(typeof G!=='undefined'&&G.weather)||0;
+  if(w===5) return {mult:0.15,name:'Burza',beachClosed:true};      /* burza — zamknięcie strefy plażowej */
+  if(w===2) return {mult:0.6,name:'Deszcz',beachClosed:false};      /* deszcz — mniej plażowiczów, więcej pod altaną */
+  if(w===1) return {mult:0.8,name:'Pochmurno',beachClosed:false};
+  if(w===4) return {mult:0.7,name:'Mgła',beachClosed:false};
+  if(w===3) return {mult:0.5,name:'Chłodno',beachClosed:false};     /* chłodny dzień — mniej turystów */
+  return {mult:1.0,name:'Słońce',beachClosed:false};
+}
+window._spWeatherFactor=_spWeatherFactor;
+
+/* ═══ REUŻYWALNY PASEK CZASOWY (timing) — animowany marker + STOP; testowalny ═══ */
+window._spBarStopTimer=function(){ if(window._spBar&&window._spBar.timer){ clearInterval(window._spBar.timer); window._spBar.timer=null; } };
+window._spStartTimingBar=function(cfg){
+  window._spBarStopTimer();
+  const B={pos:_spRandInt(0,30),dir:1,targetCenter:cfg.targetCenter, bandHalf:cfg.bandHalf, onStop:cfg.onStop, done:false};
+  window._spBar=B; const color=cfg.color||'#f0a848';
+  const bandL=_spClamp(cfg.targetCenter-cfg.bandHalf,0,100), bandW=Math.min(100,cfg.bandHalf*2);
+  _spPanel(`<div style="background:linear-gradient(160deg,#0f2436,#12304a);border:2px solid ${color};border-radius:14px;padding:18px;max-width:520px;margin:0 auto;color:#eaf4ff;max-height:84vh;overflow-y:auto;text-align:center">
+    <h2 style="margin:0 0 4px;color:${color}">${cfg.title||'⏱️ Timing'}</h2>
+    <div style="font-size:12px;color:#a8c8e0;margin-bottom:14px">${cfg.sub||'Zatrzymaj wskaźnik w polu celu.'}</div>
+    <div style="position:relative;height:34px;background:#08161f;border-radius:10px;border:1px solid #2a4a66;overflow:hidden;margin-bottom:16px">
+      <div style="position:absolute;top:0;left:${bandL}%;width:${bandW}%;height:100%;background:rgba(126,220,150,0.30);border-left:2px solid #7edc96;border-right:2px solid #7edc96"></div>
+      <div id="sp-bar-marker" style="position:absolute;top:-3px;left:${B.pos}%;width:4px;height:40px;background:${color};box-shadow:0 0 8px ${color};transform:translateX(-2px)"></div>
+    </div>
+    <button class="cbtn" style="font-size:15px;padding:10px 26px;color:#0f2436;background:${color};border-color:${color};font-weight:800" onclick="window._spBarStop()">🎯 STOP</button>
+  </div>`);
+  const step=cfg.step||2.4, speed=cfg.speed||24;
+  B.timer=setInterval(()=>{ B.pos+=B.dir*step; if(B.pos>=100){B.pos=100;B.dir=-1;} if(B.pos<=0){B.pos=0;B.dir=1;} const m=document.getElementById('sp-bar-marker'); if(m) m.style.left=B.pos+'%'; }, speed);
+};
+window._spBarForce=function(pos){ if(window._spBar) window._spBar.pos=_spClamp(pos,0,100); };
+window._spBarStop=function(){
+  const B=window._spBar; if(!B||B.done) return; B.done=true; window._spBarStopTimer();
+  const dist=Math.abs(B.pos-B.targetCenter); const bh=B.bandHalf||14; let quality;
+  if(dist<=bh*0.30) quality=100; else if(dist<=bh) quality=Math.round(88-(dist/bh)*23); else quality=Math.max(0,Math.round(62-(dist-bh)*1.3));
+  const cb=B.onStop; if(typeof cb==='function') cb(_spClamp(quality,0,100));
+};
+
+/* ═══ UNIWERSALNY WYNIK MINIGRY (§19) ═══ */
+window._spResolveGame=function(gameId, rawScore, opts){
+  opts=opts||{}; const v=window._spEnsure();
+  const finalScore=_spClamp(Math.round(rawScore),0,100);
+  const mult=window._spRepeatMult(gameId);
+  v.totalGamesPlayed=_spClamp(v.totalGamesPlayed+1,0,1e6);
+  if(finalScore>=50) v.totalGamesWon=_spClamp(v.totalGamesWon+1,0,1e6);
+  _spRecordCompletion(gameId);
+  if(!v.bestScores[gameId]||finalScore>v.bestScores[gameId]) v.bestScores[gameId]=finalScore;
+  const gains=opts.skillGains||{};
+  Object.keys(gains).forEach(k=>{ if(typeof v[k]==='number'){ const g=(finalScore>=50? gains[k]*mult : gains[k]*0.4*mult); v[k]=_spClamp(v[k]+g,0,999); } });
+  if(finalScore>=65) v.beachReputation=_spClamp(v.beachReputation+(finalScore>=85?2:1)*mult,0,999);
+  if(finalScore>=40) _spMood(Math.round((finalScore>=85?8:4)*mult)); else _spMood(-2);
+  _spFatigueAdd(opts.fatigue||3);
+  let tokenGain=0;
+  if(finalScore>=95) tokenGain=_spAddTokens(2); else if(finalScore>=65) tokenGain=_spAddTokens(1);
+  /* §25: drobny, okazjonalny cash — nigdy nie farmowalny (malejący + losowy + mały) */
+  let cash=0;
+  if(finalScore>=70 && Math.random()<0.5){ cash=Math.round(_spRandInt(60,180)*mult); if(cash>0&&typeof G!=='undefined') G.money=(G.money||0)+cash; }
+  const chance=window._spNetworkChance(finalScore);
+  let npcResult=null;
+  if(!opts.noNetworking && finalScore>=40 && Math.random()*100<chance){ npcResult=window._spTriggerNetworking(gameId,finalScore); }
+  _spSave();
+  return {finalScore,mult,tokenGain,cash,chance,npcResult,tier:window._spScoreTier(finalScore)};
+};
+
+/* panel wyniku minigry */
+window._spShowGameResult=function(title,res,extraNote){
+  const t=res.tier;
+  const rows=[];
+  if(res.tokenGain>0) rows.push(`🎟️ Sunset Tokens: +${res.tokenGain} (masz ${window._spTokens()}/12)`);
+  if(res.cash>0) rows.push(`💰 Napiwek/drobne: +${res.cash} zł`);
+  if(res.mult<1) rows.push(`↩️ Powtórka w krótkim czasie — nagroda ×${res.mult.toFixed(2)}`);
+  if(res.npcResult&&res.npcResult.msg) rows.push(`🤝 ${res.npcResult.msg}`);
+  else if(res.finalScore>=40) rows.push(`📈 Szansa na kontakt: ${res.chance}%${res.chance>0?' — tym razem bez podejścia':''}`);
+  _spPanel(`<div style="background:linear-gradient(160deg,#12283a,#163a52);border:2px solid ${t.color};border-radius:14px;padding:20px;max-width:520px;margin:0 auto;color:#eaf4ff;max-height:84vh;overflow-y:auto;text-align:center">
+    <div style="font-size:44px;margin-bottom:2px">${t.emoji}</div>
+    <h2 style="margin:0 0 2px;color:${t.color}">${title}</h2>
+    <div style="font-size:22px;font-weight:800;color:${t.color};margin:6px 0">${res.finalScore}/100</div>
+    <div style="font-size:13px;color:#bcd8ec;margin-bottom:12px;text-transform:capitalize">${t.tier}</div>
+    ${extraNote?`<div style="font-size:12px;color:#cfe4f2;background:#0c1c28;border-radius:8px;padding:10px;margin-bottom:10px">${extraNote}</div>`:''}
+    <div style="text-align:left;font-size:12.5px;color:#dceaf6;background:#0c1c28;border-radius:8px;padding:11px;margin-bottom:14px;line-height:1.7">${rows.length?rows.join('<br>'):'Wynik zapisany w statystykach.'}</div>
+    <div style="display:flex;gap:8px;justify-content:center">
+      <button class="cbtn" style="color:#7edc96;border-color:#3a8a5a" onclick="window._sunsetMenu()">🌅 Menu SUNSET PALMS</button>
+      <button class="cbtn" style="color:#ccc" onclick="window._spClose()">Zamknij</button>
+    </div>
+  </div>`);
+};
+
+/* ═══════════════ §11-18: MINIGRY ═══════════════ */
+/* Każda: gate _spCanStart('scored_game') → _spConsumeActivity → mechanika → _spResolveGame → wynik. */
+
+/* §11: PALM TOSS (zręcznościowa — rzut obręczami; timing siły+kierunku; seria) */
+window._spGamePalmToss=function(){
+  if(!window._spCanStart('scored_game')) return; _spConsumeActivity('scored_game');
+  window._spPalmTossThrow(1,[]);
+};
+window._spPalmTossThrow=function(n,qs){
+  window._spStartTimingBar({ title:`🥏 Palm Toss — rzut ${n}/2`, color:'#ff9e7a', step:2.6, speed:22,
+    sub:'Zatrzymaj wskaźnik na pastelowym celu. Dwa celne rzuty z rzędu = mnożnik serii.',
+    targetCenter:_spRandInt(34,66), bandHalf:12,
+    onStop:(q)=>{ qs.push(q);
+      if(n<2){ setTimeout(()=>window._spPalmTossThrow(n+1,qs),320); return; }
+      const v=window._spEnsure(); const acc=(qs[0]+qs[1])/2; const streak=(qs[0]>=85&&qs[1]>=85)?1:0;
+      const finalScore=_spClamp(Math.round(acc+streak*8+(v.dexterityScore||0)*0.6),0,100);
+      const res=window._spResolveGame('palm_toss',finalScore,{skillGains:{dexterityScore:0.6},fatigue:3});
+      let note=`Celność: ${Math.round(acc)}${streak?' · seria perfekcyjna!':''}.`;
+      if(finalScore>=85) note+=' Remy Carter: „Dobra ręka. Z Tobą da się zrobić coś więcej niż zdjęcie przy palmie."';
+      window._spShowGameResult('Palm Toss',res,note);
+    }});
+};
+
+/* §12: COAST SHUFFLE (zręcznościowo-strategiczna — shuffleboard; wybór stylu + timing) */
+window._spGameCoastShuffle=function(){
+  if(!window._spCanStart('scored_game')) return; _spConsumeActivity('scored_game');
+  const B=(lbl,c,col)=>`<button class="cbtn" style="text-align:left;color:${col};border-color:${col}" onclick="window._spCoastShuffleChoice('${c}')">${lbl}</button>`;
+  _spPanel(`<div style="background:linear-gradient(160deg,#0f2e2a,#124038);border:2px solid #7ec8b0;border-radius:14px;padding:18px;max-width:520px;margin:0 auto;color:#e8f6f0;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 4px;color:#7ec8b0">🥌 Coast Shuffle</h2>
+    <div style="font-size:12px;color:#a8d8c8;margin-bottom:12px">Przesuwasz krążek po plażowym stole. Wybierz styl gry — potem ustaw siłę pchnięcia.</div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      ${B('🛡️ Zagraj bezpiecznie (pewne punkty)','safe','#7edc96')}
+      ${B('🎯 Celuj w środek (solidnie)','center','#7ec8e0')}
+      ${B('💎 Zaryzykuj pole premium (wysoka wariancja)','premium','#e0b060')}
+      ${B('💥 Wybij krążek NPC (agresja)','knockout','#e08080')}
+      <button class="cbtn" style="color:#ccc" onclick="window._sunsetMenu()">← Wróć</button>
+    </div>
+  </div>`);
+};
+window._spCoastShuffleChoice=function(choice){
+  window._spStartTimingBar({title:'🥌 Coast Shuffle — siła pchnięcia', color:'#7ec8b0', sub:'Zatrzymaj wskaźnik na środku — im celniej, tym lepsze pchnięcie.',
+    targetCenter:50, bandHalf:16,
+    onStop:(q)=>{ let score=q; const v=window._spEnsure();
+      if(choice==='safe') score+=8; else if(choice==='center') score+=4;
+      else if(choice==='premium') score+=_spRandInt(-12,18); else if(choice==='knockout') score+=_spRandInt(-15,15);
+      score+=(v.dexterityScore||0)*3; score=_spClamp(Math.round(score),0,100); /* §12: dexterityScore*3 (1:1 z PDF) */
+      let note='';
+      if(choice==='safe'||choice==='center'){ note='Gra techniczna: +respect, +opanowanie.'; v.socialReading=_spClamp(v.socialReading+0.2,0,999); }
+      else if(choice==='knockout'){ note='Gra agresywna: +pewność siebie, ale dumny NPC może się obrazić.'; if(Math.random()<0.4){ v.beachReputation=_spClamp(v.beachReputation-0.5,0,999); note+=' Ktoś odszedł od stołu bez słowa.'; } }
+      else { note='Gra ryzykowna: +social buzz, +hazardowy vibe.'; if(typeof G!=='undefined'&&typeof G.socialBuzz==='number') G.socialBuzz=_spClamp((G.socialBuzz||0)+2,0,1e9); }
+      const res=window._spResolveGame('coast_shuffle',score,{skillGains:{dexterityScore:0.5},fatigue:4});
+      window._spShowGameResult('Coast Shuffle',res,note);
+    }});
+};
+
+/* §13: WAVE RALLY (rytmiczno-zręcznościowa — odbijanie piłki w rytm; integracja z rytmem/sceną) */
+window._spGameWaveRally=function(){
+  if(!window._spCanStart('scored_game')) return; _spConsumeActivity('scored_game');
+  window._spWaveRallyRound(1,{hits:0,perfect:0});
+};
+window._spWaveRallyRound=function(n,st){
+  const total=6;
+  window._spStartTimingBar({title:`🏓 Wave Rally — wymiana ${n}/${total}`, color:'#6ab8e0', step:2.8+n*0.16, speed:20,
+    sub:'Odbij lekką piłkę w rytm — trafiaj w zielone pole. Tempo rośnie.',
+    targetCenter:_spRandInt(38,62), bandHalf:15,
+    onStop:(q)=>{ if(q>=60) st.hits++; if(q>=90) st.perfect++;
+      if(n<total){ setTimeout(()=>window._spWaveRallyRound(n+1,st),240); return; }
+      /* getWaveRallyRhythmBonus proxy: rytm sceniczny + pewność */
+      const rhythmBonus=_spStageSkill()*1.2;
+      let finalScore=_spClamp(Math.round((st.hits/total)*100 + rhythmBonus + st.perfect*2),0,100);
+      let note=`Trafienia: ${st.hits}/${total}${st.perfect>0?` · perfekcyjne: ${st.perfect}`:''}.`;
+      if(st.perfect>=4) note+=' Perfekcyjna seria — NPC zapamiętał Cię jako osobę opanowaną i kontaktową.';
+      const res=window._spResolveGame('wave_rally',finalScore,{skillGains:{dexterityScore:0.5},fatigue:5});
+      window._spShowGameResult('Wave Rally',res,note);
+    }});
+};
+
+/* §14: FRISBEE ARC (celnościowa — kierunek+moment; wiatr, dystans, zmęczenie) */
+window._spGameFrisbeeArc=function(){
+  if(!window._spCanStart('scored_game')) return; _spConsumeActivity('scored_game');
+  const wind=(G.weather===1||G.weather===5)?_spRandInt(9,22):_spRandInt(0,10);
+  window._spFrisbeeStage(wind,1,{});
+};
+window._spFrisbeeStage=function(wind,stage,acc){
+  const isDir=(stage===2);
+  window._spStartTimingBar({title:`🥏 Frisbee Arc — ${isDir?'kierunek':'moment wyrzutu'}`, color:'#f0c060', step:isDir?3.0:2.5,
+    sub:`💨 Wiatr: ${wind}. ${isDir?'Ustaw kierunek na cel na piasku.':'Zatrzymaj wskaźnik w polu.'}`,
+    targetCenter:_spRandInt(36,64), bandHalf:13,
+    onStop:(q)=>{ if(stage===1){ acc.timing=q; window._spFrisbeeStage(wind,2,acc); return; }
+      acc.direction=q; const v=window._spEnsure();
+      let score=acc.timing+acc.direction; score-=wind*2; score-=_spFatigue()*0.05; score+=(v.dexterityScore||0)*2;
+      score=_spClamp(Math.round(score/2),0,100);
+      const res=window._spResolveGame('frisbee_arc',score,{skillGains:{dexterityScore:0.6},fatigue:4});
+      window._spShowGameResult('Frisbee Arc',res, wind>=14?'Silny wiatr znosił dysk — celność ważniejsza niż siła.':'');
+    }});
+};
+
+/* §15: GUEST MAP (pamięciowo-networkingowa — zapamiętaj gości i połącz z informacją) */
+const SP_GUEST_POOL=[
+  {name:'Naomi Kade',  prof:'założycielka marki plażowej', need:'szuka artysty do kampanii',        q:'Kto szuka artysty do kampanii?'},
+  {name:'Ellis Shore', prof:'organizuje wynajem jednostek', need:'szuka twórcy lifestyle na wodę',    q:'Kto organizuje wydarzenia na wodzie?'},
+  {name:'Dani Solis',  prof:'fotografka lifestyle',         need:'potrzebuje dostępu do ciekawych lokacji', q:'Kto potrzebuje dostępu do lokacji?'},
+  {name:'Marco Reef',  prof:'właściciel plażowego baru',    need:'szuka DJ-a na weekend',              q:'Kto szuka DJ-a na weekend?'},
+  {name:'Lena Frost',  prof:'trenerka jogi i wellness',     need:'szuka miejsca na retreat',           q:'Kto szuka miejsca na retreat?'},
+  {name:'Theo Vance',  prof:'inwestor sezonowy',            need:'szuka okazji sezonowej',             q:'Kto szuka okazji sezonowej?'},
+  {name:'Priya Anand', prof:'menedżerka eventów',           need:'szuka wykonawców na lato',           q:'Kto szuka wykonawców na lato?'},
+];
+window._spGameGuestMap=function(){
+  if(!window._spCanStart('scored_game')) return; _spConsumeActivity('scored_game');
+  const idxs=[...Array(SP_GUEST_POOL.length).keys()].sort(()=>Math.random()-0.5).slice(0,4);
+  const people=idxs.map(i=>SP_GUEST_POOL[i]);
+  const qpeople=[...people].sort(()=>Math.random()-0.5).slice(0,3);
+  G._spGuestMap={people,qpeople,qi:0,correct:0};
+  const rows=people.map(p=>`<div style="background:#0c1c28;border-radius:8px;padding:9px;margin-top:6px;font-size:12px"><b style="color:#f0c860">${p.name}</b> — ${p.prof}<br><span style="color:#a8c8e0">${p.need}</span></div>`).join('');
+  _spPanel(`<div style="background:linear-gradient(160deg,#122436,#163348);border:2px solid #7ec8e0;border-radius:14px;padding:18px;max-width:520px;margin:0 auto;color:#eaf4ff;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 4px;color:#7ec8e0">🗺️ Guest Map</h2>
+    <div style="font-size:12px;color:#a8c8e0;margin-bottom:6px">Sierra przedstawia Ci kilka osób. Zapamiętaj, kto czego szuka — potem połączysz osoby z informacjami.</div>
+    ${rows}
+    <button class="cbtn" style="width:100%;margin-top:12px;color:#7edc96;border-color:#3a8a5a" onclick="window._spGuestMapQuiz()">✅ Gotowe — pytania</button>
+  </div>`);
+};
+window._spGuestMapQuiz=function(){
+  const st=G._spGuestMap; if(!st) return;
+  if(st.qi>=st.qpeople.length){
+    const v=window._spEnsure(); const finalScore=_spClamp(Math.round((st.correct/st.qpeople.length)*100),0,100);
+    let note=`Poprawne skojarzenia: ${st.correct}/${st.qpeople.length}.`;
+    if(finalScore>=100){ v.coastConnections=_spClamp(v.coastConnections+1,0,999); note+=' Perfekcyjnie — sam połączyłeś ludzi, którzy się szukali. Bonus relacji.'; }
+    else if(finalScore<40){ note+=' NPC uznali Cię za rozproszonego.'; }
+    const res=window._spResolveGame('guest_map',finalScore,{skillGains:{memorySkill:0.8,coastConnections:0.3},fatigue:2});
+    window._spShowGameResult('Guest Map',res,note); G._spGuestMap=null; return;
+  }
+  const person=st.qpeople[st.qi]; const opts=[...st.people].sort(()=>Math.random()-0.5);
+  const btns=opts.map(p=>`<button class="cbtn" style="text-align:left;color:#eaf4ff;border-color:#3a6a8a" onclick="window._spGuestMapAnswer('${p.name.replace(/'/g,'')}')">${p.name}</button>`).join('');
+  _spPanel(`<div style="background:linear-gradient(160deg,#122436,#163348);border:2px solid #7ec8e0;border-radius:14px;padding:18px;max-width:520px;margin:0 auto;color:#eaf4ff;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 4px;color:#7ec8e0">🗺️ Guest Map — pytanie ${st.qi+1}/${st.qpeople.length}</h2>
+    <div style="font-size:14px;color:#f0d890;margin:8px 0 12px">${person.q}</div>
+    <div style="display:flex;flex-direction:column;gap:7px">${btns}</div>
+  </div>`);
+};
+window._spGuestMapAnswer=function(name){
+  const st=G._spGuestMap; if(!st) return; const person=st.qpeople[st.qi];
+  if(name===person.name.replace(/'/g,'')) st.correct++;
+  st.qi++; window._spGuestMapQuiz();
+};
+
+/* §16: SUNSET READ (społeczno-analityczna — rozpoznaj intencję NPC; zmienne osobowości) */
+const SP_READ_SCENES=[
+  {scene:'NPC często zerka na telefon i odpowiada krótko.', options:['jest znudzony','czeka na ważną wiadomość','próbuje zakończyć rozmowę','testuje Cię']},
+  {scene:'NPC pyta o liczbę fanów, ale ani słowa o muzyce.', options:['jest fanem','interesuje go zasięg','chce współpracy artystycznej','szuka konfliktu']},
+  {scene:'NPC chwali Twój wygląd i od razu proponuje szybki deal.', options:['jest szczery','chce coś sprzedać','testuje Twoją naiwność','szuka partnera na dłużej']},
+  {scene:'NPC słucha uważnie, dopytuje o szczegóły i nie przerywa.', options:['jest znudzony','realnie rozważa współpracę','zbiera haki na Ciebie','tylko udaje zainteresowanie']},
+  {scene:'NPC śmieje się z każdego żartu i unika konkretów.', options:['świetnie się bawi','unika zobowiązań','jest pod wpływem','chce zrobić dobre wrażenie']},
+];
+window._spGameSunsetRead=function(){
+  if(!window._spCanStart('scored_game')) return; _spConsumeActivity('scored_game');
+  const idxs=[...Array(SP_READ_SCENES.length).keys()].sort(()=>Math.random()-0.5).slice(0,3);
+  G._spRead={scenes:idxs.map(i=>SP_READ_SCENES[i]), truth:idxs.map(()=>_spRandInt(0,3)), qi:0, scores:[]};
+  window._spSunsetReadRound();
+};
+window._spSunsetReadRound=function(){
+  const st=G._spRead; if(!st) return;
+  if(st.qi>=st.scenes.length){
+    const finalScore=_spClamp(Math.round(st.scores.reduce((a,b)=>a+b,0)/st.scores.length),0,100);
+    let note='';
+    if(finalScore>=70) note='Dobrze czytasz ludzi — mniejsze ryzyko wejścia w niekorzystny układ.';
+    else if(finalScore<40) note='Trudno Ci odczytać intencje — uważaj na podejrzane leady.';
+    const res=window._spResolveGame('sunset_read',finalScore,{skillGains:{socialReading:0.9},fatigue:2});
+    window._spShowGameResult('Sunset Read',res,note); G._spRead=null; return;
+  }
+  const sc=st.scenes[st.qi];
+  const btns=sc.options.map((o,i)=>`<button class="cbtn" style="text-align:left;color:#eaf4ff;border-color:#6a4a8a" onclick="window._spSunsetReadAnswer(${i})">${o}</button>`).join('');
+  _spPanel(`<div style="background:linear-gradient(160deg,#241636,#301c48);border:2px solid #b088d0;border-radius:14px;padding:18px;max-width:520px;margin:0 auto;color:#f0e8fa;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 4px;color:#c8a0e0">🔮 Sunset Read — scena ${st.qi+1}/${st.scenes.length}</h2>
+    <div style="font-size:13px;color:#d8c8ea;background:#160a24;border-radius:8px;padding:11px;margin:8px 0 12px;font-style:italic">${sc.scene}</div>
+    <div style="font-size:12px;color:#b8a8c8;margin-bottom:8px">Co NPC naprawdę myśli?</div>
+    <div style="display:flex;flex-direction:column;gap:7px">${btns}</div>
+  </div>`);
+};
+window._spSunsetReadAnswer=function(choice){
+  const st=G._spRead; if(!st) return; const v=window._spEnsure();
+  const truth=st.truth[st.qi];
+  let score=(choice===truth)?70:25;
+  score+=(v.socialReading||0)*5; score+=(v.socialReading||0)*2; /* riskReading proxy = socialReading */
+  st.scores.push(_spClamp(score,0,100)); st.qi++; window._spSunsetReadRound();
+};
+
+/* §17: PALM PITCH (biznesowo-strategiczna — zbuduj propozycję: hook + wartość + oferta) */
+const SP_PITCH_HOOKS={reach:'Zasięg i rozpoznawalność',authenticity:'Autentyczność uliczna',music:'Muzyka i event',lifestyle:'Styl życia Marina Coast',community:'Wspólna społeczność'};
+const SP_PITCH_VALUES={promotion:'Promocja',content:'Content',performance:'Występ',sales:'Sprzedaż',newAudience:'Dotarcie do nowych odbiorców'};
+const SP_PITCH_OFFERS={oneoff:'Jednorazowa współpraca',series:'Seria materiałów',sponsoredEvent:'Event sponsorowany',ambassador:'Ambasador marki',seasonalProduct:'Wspólny produkt sezonowy'};
+window._spGamePalmPitch=function(){
+  if(!window._spCanStart('scored_game')) return; _spConsumeActivity('scored_game');
+  const targets=[{id:'naomi',name:'Naomi Kade',want:{hook:'authenticity',value:'content',offer:'ambassador'}},
+                 {id:'ellis',name:'Ellis Shore',want:{hook:'lifestyle',value:'sales',offer:'sponsoredEvent'}},
+                 {id:'dani',name:'Dani Solis',want:{hook:'community',value:'content',offer:'series'}}];
+  G._spPitch={npc:targets[_spRandInt(0,targets.length-1)],hook:null,value:null,offer:null};
+  window._spPitchRender();
+};
+window._spPitchRender=function(){
+  const p=G._spPitch; if(!p) return;
+  const grp=(obj,cur,fn)=>Object.keys(obj).map(k=>`<button class="cbtn" style="font-size:11px;padding:5px 8px;color:${cur===k?'#7edc96':'#c8d8e0'};border-color:${cur===k?'#27ae60':'#3a5a6a'}" onclick="window._spPitchSet('${fn}','${k}')">${obj[k]}</button>`).join(' ');
+  const ready=p.hook&&p.value&&p.offer;
+  _spPanel(`<div style="background:linear-gradient(160deg,#0e2836,#123a48);border:2px solid #f0c060;border-radius:14px;padding:18px;max-width:540px;margin:0 auto;color:#eaf4ff;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 4px;color:#f0c060">💼 Palm Pitch → ${p.npc.name}</h2>
+    <div style="font-size:12px;color:#a8c8e0;margin-bottom:10px">Zbuduj propozycję z trzech elementów. Trafna kombinacja pod tego NPC = wyższy wynik.</div>
+    <div style="background:#0a1c26;border-radius:8px;padding:9px;margin-bottom:8px"><div style="font-size:11px;color:#8ab0c8;margin-bottom:4px">1. Hook</div>${grp(SP_PITCH_HOOKS,p.hook,'hook')}</div>
+    <div style="background:#0a1c26;border-radius:8px;padding:9px;margin-bottom:8px"><div style="font-size:11px;color:#8ab0c8;margin-bottom:4px">2. Wartość</div>${grp(SP_PITCH_VALUES,p.value,'value')}</div>
+    <div style="background:#0a1c26;border-radius:8px;padding:9px;margin-bottom:12px"><div style="font-size:11px;color:#8ab0c8;margin-bottom:4px">3. Propozycja</div>${grp(SP_PITCH_OFFERS,p.offer,'offer')}</div>
+    <button class="cbtn" style="width:100%;color:${ready?'#7edc96':'#67788a'};border-color:${ready?'#27ae60':'#3a4a5a'}" ${ready?'':'disabled'} onclick="window._spPitchResolve()">📣 Złóż propozycję</button>
+  </div>`);
+};
+window._spPitchSet=function(field,val){ if(G._spPitch){ G._spPitch[field]=val; window._spPitchRender(); } };
+window._spPitchResolve=function(){
+  const p=G._spPitch; if(!p||!p.hook||!p.value||!p.offer) return; const v=window._spEnsure();
+  let match=0; if(p.hook===p.npc.want.hook) match+=8; if(p.value===p.npc.want.value) match+=8; if(p.offer===p.npc.want.offer) match+=8;
+  let score=30 + (v.pitchSkill||0)*6 + (v.localBusinessTrust||0)*4 + _spFame()*0.15 + match;
+  if(p.value==='promotion' && _spFans()<5000) score-=15;
+  if(p.offer==='ambassador' && _spMediaRisk()>50) score-=20;
+  score=_spClamp(Math.round(score),0,100);
+  const res=window._spResolveGame('palm_pitch',score,{skillGains:{pitchSkill:0.9,localBusinessTrust:0.2},fatigue:3});
+  let note=`Dopasowanie do ${p.npc.name}: ${match}/24.`;
+  if(score>=70 && Math.random()<0.55 && typeof window._spTryGenerateLead==='function'){ const lead=window._spTryGenerateLead(p.npc.id,'pitch'); if(lead) note+=' Propozycja zainteresowała — pojawił się nowy lead (Aktywne okazje).'; }
+  else if(score<40){ note+=' NPC uznał pitch za desperacki.'; if(Math.random()<0.4) v.beachReputation=_spClamp(v.beachReputation-0.5,0,999); }
+  window._spShowGameResult('Palm Pitch',res,note); G._spPitch=null;
+};
+
+/* §18: COOLER RUSH (pamięciowo-zręcznościowa — zapamiętaj i wydaj sekwencję napojów) */
+window._spGameCoolerRush=function(){
+  if(!window._spCanStart('scored_game')) return; _spConsumeActivity('scored_game');
+  const drinks=['🍹','🧃','🥤','🍸','🧋']; const len=_spRandInt(3,5); const seq=[];
+  for(let i=0;i<len;i++) seq.push(drinks[_spRandInt(0,drinks.length-1)]);
+  G._spCooler={seq,drinks,input:[],showing:true};
+  _spPanel(`<div style="background:linear-gradient(160deg,#2a1830,#3a2040);border:2px solid #e878a8;border-radius:14px;padding:18px;max-width:520px;margin:0 auto;color:#f6e8f0;max-height:84vh;overflow-y:auto;text-align:center">
+    <h2 style="margin:0 0 4px;color:#e878a8">🍹 Cooler Rush</h2>
+    <div style="font-size:12px;color:#d8a8c0;margin-bottom:12px">Zapamiętaj kolejność zamówień, potem wydaj napoje w tej samej kolejności.</div>
+    <div style="font-size:38px;letter-spacing:8px;background:#160a18;border-radius:10px;padding:16px;margin-bottom:14px">${seq.join(' ')}</div>
+    <button class="cbtn" style="color:#7edc96;border-color:#3a8a5a" onclick="window._spCoolerInput()">✅ Zapamiętane — wydaję</button>
+  </div>`);
+};
+window._spCoolerInput=function(){
+  const st=G._spCooler; if(!st) return; st.showing=false;
+  const btns=st.drinks.map(d=>`<button class="cbtn" style="font-size:26px;padding:8px 12px" onclick="window._spCoolerTap('${d}')">${d}</button>`).join(' ');
+  _spPanel(`<div style="background:linear-gradient(160deg,#2a1830,#3a2040);border:2px solid #e878a8;border-radius:14px;padding:18px;max-width:520px;margin:0 auto;color:#f6e8f0;max-height:84vh;overflow-y:auto;text-align:center">
+    <h2 style="margin:0 0 4px;color:#e878a8">🍹 Cooler Rush — wydaj</h2>
+    <div style="font-size:12px;color:#d8a8c0;margin-bottom:10px">Wciśnij napoje w kolejności zamówień (${st.input.length}/${st.seq.length}).</div>
+    <div style="font-size:30px;letter-spacing:6px;min-height:40px;background:#160a18;border-radius:10px;padding:10px;margin-bottom:14px">${st.input.join(' ')||'—'}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">${btns}</div>
+  </div>`);
+};
+window._spCoolerTap=function(d){
+  const st=G._spCooler; if(!st||st.showing) return; st.input.push(d);
+  if(st.input.length>=st.seq.length){
+    let correct=0; for(let i=0;i<st.seq.length;i++){ if(st.input[i]===st.seq[i]) correct++; else break; }
+    const finalScore=_spClamp(Math.round((correct/st.seq.length)*100),0,100);
+    let note=`Poprawna sekwencja: ${correct}/${st.seq.length}.`;
+    if(finalScore>=85) note+=' Barman kiwa głową — gospodarz może Cię komuś przedstawić.';
+    else if(finalScore<40){ note+=' Pomyłka przy barze — skarga i żart NPC.'; _spMood(-2); }
+    const res=window._spResolveGame('cooler_rush',finalScore,{skillGains:{memorySkill:0.7,dexterityScore:0.2},fatigue:3});
+    window._spShowGameResult('Cooler Rush',res,note); G._spCooler=null; return;
+  }
+  window._spCoolerInput();
+};
+
+/* ═══════════════ §21-26, §29, §35: NPC + NETWORKING ═══════════════ */
+const SP_NPCS=[
+  {id:'sierra',name:'Sierra „Sunny" Bell',role:'gospodyni SUNSET PALMS',tag:'host',emoji:'🌅',baseSpawnWeight:0},
+  {id:'remy', name:'Remy „Wave" Carter', role:'prowadzący gry plażowe',tag:'games',emoji:'🏄',baseSpawnWeight:12},
+  {id:'naomi',name:'Naomi Kade',         role:'założycielka marki plażowej',tag:'brand_founder',emoji:'👙',baseSpawnWeight:14},
+  {id:'ellis',name:'Ellis Shore',        role:'przedsiębiorca z mariny',tag:'entrepreneur',emoji:'⛵',baseSpawnWeight:14},
+  {id:'dani', name:'Dani Solis',         role:'fotografka lifestyle',tag:'photographer',emoji:'📸',baseSpawnWeight:14},
+];
+function _spNpc(id){ return SP_NPCS.find(n=>n.id===id)||null; }
+function _spUnlockContact(id){ const v=window._spEnsure(); if(!v.unlockedContacts.includes(id)) v.unlockedContacts.push(id); }
+function _spRelation(id,d){ const v=window._spEnsure(); if(typeof v.npcRelations[id]!=='number') v.npcRelations[id]=0; v.npcRelations[id]=_spClamp(v.npcRelations[id]+d,-20,100); }
+
+/* §29: ocena potrzeb kariery gracza (steruje ważeniem NPC) */
+function _spEvaluatePlayerNeeds(){
+  const v=window._spEnsure();
+  return {
+    needsVisualContent: (_spFame()>=5 || _spFans()>=3000) && (v.coastConnections<3),
+    needsBusinessLead:  (v.activeLeads.length<2),
+    needsSponsor:       (_spFans()>=5000 && v.leadsCompleted<3),
+  };
+}
+/* §29: ważony dobór NPC (nie czysto losowy) */
+window._spSelectNetworkingNpc=function(){
+  const v=window._spEnsure(); const needs=_spEvaluatePlayerNeeds();
+  const pool=SP_NPCS.filter(n=>n.baseSpawnWeight>0);
+  let total=0; const weights=pool.map(npc=>{
+    let w=npc.baseSpawnWeight;
+    if(needs.needsVisualContent && npc.tag==='photographer') w+=20;
+    if(needs.needsBusinessLead && npc.tag==='entrepreneur') w+=18;
+    if(needs.needsSponsor && npc.tag==='brand_founder') w+=16;
+    const recent=v.cooldowns['npc_seen_'+npc.id];
+    if(typeof recent==='number' && recent>_spDay()) w-=30;
+    w=Math.max(w,0.5); total+=w; return w;
+  });
+  let r=Math.random()*total;
+  for(let i=0;i<pool.length;i++){ r-=weights[i]; if(r<=0) return pool[i]; }
+  return pool[pool.length-1];
+};
+
+/* §20: realne wywołanie networkingu po dobrym wyniku minigry */
+window._spTriggerNetworking=function(gameId,finalScore){
+  _spResetDailyIfNeeded(); const v=window._spEnsure();
+  if(v.networkingIntroductionsToday>=1) return null;
+  const npc=window._spSelectNetworkingNpc(); if(!npc) return null;
+  v.networkingIntroductionsToday=_spClamp(v.networkingIntroductionsToday+1,0,9);
+  const firstTime=!v.unlockedContacts.includes(npc.id);
+  _spUnlockContact(npc.id); _spRelation(npc.id,1);
+  v.coastConnections=_spClamp(v.coastConnections+1,0,999);
+  v.cooldowns['npc_seen_'+npc.id]=_spDay()+_spRandInt(2,4); /* §7: networking z tym samym NPC 2-4 dni */
+  /* wysokiej klasy wynik + odpowiedni NPC → szansa na lead (max 1 wartościowy kontakt / dzień) */
+  let leadNote='';
+  if(finalScore>=70 && npc.tag!=='games' && Math.random()<0.5 && typeof window._spTryGenerateLead==='function'){
+    const lead=window._spTryGenerateLead(npc.id,'networking');
+    if(lead) leadNote=' Zostawił temat do rozważenia (Aktywne okazje).';
+  }
+  const line=window._spNpcReaction(npc.id,finalScore);
+  return {npcId:npc.id, msg:`${npc.emoji} ${npc.name} podchodzi i zaczyna rozmowę.${firstTime?' Nowy kontakt!':''}${leadNote}`, dialog:line};
+};
+window._spNpcReaction=function(id,score){
+  const good=score>=70;
+  const L={
+    remy:  good?'„Wygrana pokazuje refleks, a porażka pokazuje charakter. Biznesowo ta druga informacja bywa droższa."':'„Spokojnie, jeszcze się rozkręcisz. Wróć jutro, pokażę Ci trick."',
+    naomi: good?'„Nie szukam kogoś, kto założy koszulkę i napisze `kocham tę markę`. Szukam kogoś, komu ludzie uwierzą, kiedy niczego nie mówi."':'„Widziałam już wielu, którzy błyszczą minutę. Pokaż, że zostajesz."',
+    ellis: good?'„Każdy chce wejść na łódź, kiedy świeci słońce. Ja patrzę, kto zostaje, kiedy trzeba zapłacić za paliwo i pogodę (śmieje się)."':'„Content na wodzie kosztuje. Najpierw pokaż, że dowozisz na lądzie."',
+    dani:  good?'„Plaża jest turbo łatwa do sfotografowania, ale człowiek na plaży? Niekoniecznie. Ty się nadajesz."':'„Masz potencjał na kadr, ale jeszcze nie na historię. Popracujmy."',
+    naomi_alt:'',
+  };
+  return L[id]||'';
+};
+
+/* §22: kontakt z Sierrą — odblokowanie po kilku wizytach + gier + reputacji */
+window._spCanUnlockSierra=function(){
+  const v=window._spEnsure();
+  return (v.totalVisits>=2 && v.totalGamesPlayed>=3 && v.beachReputation>=2);
+};
+window._spMaybeUnlockSierra=function(){
+  const v=window._spEnsure();
+  if(v.sierraUnlocked) return false;
+  if(window._spCanUnlockSierra()){
+    v.sierraUnlocked=true; _spUnlockContact('sierra');
+    _spSave();
+    if(typeof window._spSendSierraSms==='function'){
+      window._spSendSierraSms('sierra_unlock','Widziałam, że wracasz. To fajnie — jednorazowi goście zwykle chcą tylko zdjęcie z palmą. W piątek robimy Sunset Mixer. Jeśli wpadniesz, nie zaczynaj rozmowy od liczby obserwujących. Ludzie z pieniędzmi też czasem lubią poudawać ludzi.');
+    }
+    _spMsg('🌅 Sierra „Sunny" Bell zapisała Twój numer. Odblokowano kontakt z gospodynią SUNSET PALMS.','g',5500);
+    return true;
+  }
+  return false;
+};
+
+/* §22: SMS gospodyni (nadawca 'sierra' — rejestrowany w SMS_CONTACTS przez patch) */
+window._spSendSierraSms=function(triggerId,text){
+  const v=window._spEnsure();
+  if(typeof window._smsTriggerOnce==='function' && triggerId){ return window._smsTriggerOnce(triggerId,'sierra',text,{bypass:true}); }
+  if(typeof window._smsSend==='function'){ return window._smsSend('sierra',text,{bypass:true}); }
+  return false;
+};
+/* przypomnienia co 3-5 dni, TYLKO gdy gracz nie odwiedza (wołane z daily hooka) */
+window._spSierraReminderTick=function(){
+  const v=window._spEnsure();
+  if(!v.sierraUnlocked) return;
+  const d=_spDay(); const gap=d-(v.lastHostMessageDay||-99); const sinceVisit=d-(typeof v.lastVisitDay==='number'?v.lastVisitDay:-99);
+  if(gap>=_spRandInt(3,5) && sinceVisit>=3){
+    const pool=[
+      'Zachód słońca dzisiaj wygląda drożej niż większość kampanii reklamowych. Wpadnij — mamy wolny stolik i kilka osób, które nie lubią formalnych spotkań.',
+      'Naomi pytała, czy ten artysta od Coast Shuffle jeszcze żyje, czy już utknął w studiu na stałe. Jakby co — to jest zaproszenie. Bardzo źle sformułowane, ale zaproszenie.',
+      'Robi się sezon. Ludzie, których warto poznać, kręcą się tu popołudniami. Zajrzyj, zanim wszyscy się rozjadą.',
+    ];
+    if(window._spSendSierraSms(null,pool[_spRandInt(0,pool.length-1)])){ v.lastHostMessageDay=d; }
+  }
+};
+
+/* §35: łączenie dwóch NPC (gracz przedstawia ich sobie) */
+window._spConnectNpcs=function(aId,bId){
+  const v=window._spEnsure();
+  const compat=_spNpcNeedsCompatible(aId,bId);
+  if(!compat){ v.localBusinessTrust=_spClamp(v.localBusinessTrust-1,0,999); _spMsg('🤝 Niewłaściwe przedstawienie — ich potrzeby się nie pokrywają. Trochę wtopy.','r',4500); _spSave(); return false; }
+  _spRelation(aId,1); _spRelation(bId,1);
+  v.localBusinessTrust=_spClamp(v.localBusinessTrust+2,0,999);
+  v.connectionsMade=_spClamp(v.connectionsMade+1,0,1e6);
+  /* §35: odroczona nagroda (referral) po 2-5 dniach */
+  v.pendingReferrals.push({fromId:aId,toId:bId,payDay:_spDay()+_spRandInt(2,5),value:_spRandInt(2500,6000)});
+  _spMsg(`🤝 Przedstawiłeś ${_spNpc(aId)?.name||aId} i ${_spNpc(bId)?.name||bId}. Zaufanie lokalne rośnie — dobry ruch może się opłacić za kilka dni.`,'g',5000);
+  _spSave(); return true;
+};
+function _spNpcNeedsCompatible(aId,bId){
+  /* uproszczona macierz zgodności potrzeb: fotograf↔przedsiębiorca/marka, marka↔przedsiębiorca */
+  const pair=[aId,bId].sort().join('_');
+  const ok=['dani_ellis','dani_naomi','ellis_naomi','naomi_remy','ellis_remy','dani_remy'];
+  return ok.includes(pair);
+}
+/* panel łączenia NPC — dostępny z zaplecza Sierry po odblokowaniu 2+ kontaktów */
+window._spConnectPanel=function(){
+  const v=window._spEnsure();
+  const known=SP_NPCS.filter(n=>n.tag!=='host' && v.unlockedContacts.includes(n.id));
+  if(known.length<2){ _spMsg('🤝 Poznaj najpierw co najmniej dwie osoby, żeby móc je sobie przedstawić.','i',4500); return; }
+  const pairs=[]; for(let i=0;i<known.length;i++) for(let j=i+1;j<known.length;j++){ if(_spNpcNeedsCompatible(known[i].id,known[j].id)) pairs.push([known[i],known[j]]); }
+  const rows = pairs.length ? pairs.map(pr=>`<button class="cbtn" style="width:100%;text-align:left;margin-top:6px;color:#7edc96;border-color:#3a8a5a" onclick="window._spConnectNpcs('${pr[0].id}','${pr[1].id}');window._spConnectPanel()">${pr[0].emoji} ${pr[0].name} ↔ ${pr[1].emoji} ${pr[1].name}</button>`).join('')
+    : '<div style="color:#8aa8bc;font-size:12px;padding:8px">Na razie nie widzisz oczywistego połączenia. Poznaj więcej osób.</div>';
+  _spPanel(`<div style="background:linear-gradient(160deg,#0f2836,#123a48);border:2px solid #7edc96;border-radius:14px;padding:18px;max-width:520px;margin:0 auto;color:#eaf4ff;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 4px;color:#7edc96">🤝 Przedstaw ludzi sobie</h2>
+    <div style="font-size:12px;color:#a8c8e0;margin-bottom:8px">Jeśli ich potrzeby się pokrywają, zyskasz zaufanie i po kilku dniach możesz dostać płatny lead.</div>
+    ${rows}
+    <button class="cbtn" style="width:100%;margin-top:10px;color:#ccc" onclick="window._sunsetMenu()">← Wróć</button>
+  </div>`);
+};
+
+/* ═══════════════ §30-35, §43: OKAZJE BIZNESOWE (LEADY) ═══════════════ */
+const SP_LEAD_TYPES={
+  beach_brand_campaign:      {name:'Kampania marki plażowej',        size:'big',   src:'naomi', base:18000, fameReq:8,  fansReq:5000,  profReq:2, legit:85, complexity:30, risk:15},
+  marina_content_day:        {name:'Dzień nagraniowy na jednostce',  size:'big',   src:'ellis', base:14000, fameReq:6,  fansReq:3000,  profReq:2, legit:80, complexity:35, risk:18},
+  sunset_private_performance:{name:'Prywatny występ dla zamkniętej grupy', size:'small', src:'sierra', base:4000, fameReq:3, fansReq:0, profReq:1, legit:90, complexity:15, risk:8},
+  seasonal_merch_popup:      {name:'Stoisko z merchem przy promenadzie', size:'small', src:'naomi', base:3500, fameReq:4, fansReq:1500, profReq:1, legit:88, complexity:20, risk:10},
+  sponsored_beach_event:     {name:'Wydarzenie sponsorowane',        size:'big',   src:'ellis', base:16000, fameReq:10, fansReq:8000,  profReq:3, legit:78, complexity:40, risk:22},
+  creator_photo_package:     {name:'Pakiet lifestyle content',       size:'small', src:'dani',  base:3000,  fameReq:2,  fansReq:0,     profReq:1, legit:92, complexity:15, risk:6},
+  coast_drink_collaboration: {name:'Współpraca przy napoju',         size:'small', src:'naomi', base:5000,  fameReq:5,  fansReq:4000,  profReq:2, legit:84, complexity:22, risk:12},
+  marina_vip_introduction:   {name:'Przedstawienie wartościowemu NPC', size:'vip', src:'sierra', base:0,    fameReq:8,  fansReq:0,     profReq:2, legit:95, complexity:25, risk:10},
+  summer_event_partnership:  {name:'Udział w letnim cyklu wydarzeń', size:'big',   src:'ellis', base:22000, fameReq:12, fansReq:10000, profReq:3, legit:80, complexity:45, risk:20},
+};
+function _spLeadCooldownKey(size){ return 'lead_'+size; }
+function _spLeadSizeCooldown(size){ if(size==='small') return _spRandInt(2,3); if(size==='vip') return _spRandInt(5,8); return _spRandInt(6,9); }
+
+/* §30-31: generacja leadu (respektuje cooldowny wg rozmiaru + max 1 wartościowy/dzień) */
+window._spTryGenerateLead=function(npcId,origin){
+  const v=window._spEnsure();
+  if(v.activeLeads.length>=3) return null;
+  /* typy pasujące do NPC */
+  const types=Object.keys(SP_LEAD_TYPES).filter(t=>SP_LEAD_TYPES[t].src===npcId);
+  const pool=types.length?types:Object.keys(SP_LEAD_TYPES);
+  const typeId=pool[_spRandInt(0,pool.length-1)]; const def=SP_LEAD_TYPES[typeId];
+  if(_spOnCooldown(_spLeadCooldownKey(def.size))) return null;
+  /* max 1 duży/vip lead na dzień */
+  if((def.size==='big'||def.size==='vip') && v.lastMajorDealDay===_spDay()) return null;
+  if(v.activeLeads.some(l=>l.type===typeId)) return null;
+  const lead={ id:'spl_'+_spDay()+'_'+_spRound(_spGameMin())+'_'+_spRandInt(100,999),
+    sourceNpcId:def.src, type:typeId, name:def.name, size:def.size,
+    offerValue:def.base, requiredFame:def.fameReq, requiredFans:def.fansReq, requiredProfessionalism:def.profReq,
+    legitimacy:def.legit, complexity:def.complexity, reputationRisk:def.risk,
+    expiresOnDay:_spDay()+(def.size==='small'?4:6), status:'offered', hiddenFlags:[] };
+  v.activeLeads.push(lead);
+  _spSetCooldown(_spLeadCooldownKey(def.size), _spLeadSizeCooldown(def.size));
+  if(def.size==='big'||def.size==='vip') v.lastMajorDealDay=_spDay();
+  _spUnlockContact(def.src);
+  _spSave(); return lead;
+};
+/* §32: ocena szans/jakości propozycji */
+window._spEvaluateLead=function(lead){
+  const v=window._spEnsure(); let score=50;
+  score+=(v.socialReading||0)*4;           /* riskReading proxy */
+  score+=_spProf()*3;                       /* professionalism proxy */
+  score+=(lead.legitimacy||0)*0.20;
+  score-=(lead.complexity||0)*0.15;
+  score-=(lead.reputationRisk||0)*0.20;
+  if(_spHeat()>=60) score-=15;
+  if(_spMediaRisk()>=60) score-=10;
+  return _spClamp(Math.round(score),0,100);
+};
+function _spLeadReqOk(lead){ return _spFame()>=(lead.requiredFame||0) && _spFans()>=(lead.requiredFans||0) && _spProf()>=(lead.requiredProfessionalism||0); }
+
+/* §30: panel aktywnych okazji */
+window._spLeadsPanel=function(){
+  const v=window._spEnsure();
+  /* czyść wygasłe */
+  v.activeLeads=v.activeLeads.filter(l=>{ if(l.expiresOnDay<_spDay()){ return false; } return true; });
+  const rows = v.activeLeads.length ? v.activeLeads.map(l=>{
+    const q=window._spEvaluateLead(l); const npc=_spNpc(l.sourceNpcId);
+    return `<div style="background:#0c1c28;border-radius:10px;padding:11px;margin-top:8px;font-size:12px;border:1px solid #2a4a5a">
+      <b style="color:#f0c860">${l.name}</b> <span style="color:#8aa8bc">(${npc?npc.name:l.sourceNpcId})</span><br>
+      <span style="color:#bcd8ec">💰 ${(l.offerValue||0).toLocaleString('pl')} zł · rozmiar: ${l.size==='big'?'duży':l.size==='vip'?'VIP':'mały'} · wygasa dz. ${l.expiresOnDay}</span><br>
+      <span style="color:#9ac0d8">Legalność ${l.legitimacy} · złożoność ${l.complexity} · ryzyko rep. ${l.reputationRisk} · Twoja ocena szans: <b style="color:${q>=60?'#7edc96':q>=40?'#e0c060':'#e08080'}">${q}/100</b></span><br>
+      ${_spLeadReqOk(l)?'':'<span style="color:#e08080;font-size:11px">⚠️ Nie spełniasz wymagań (sława/fani/profesjonalizm).</span><br>'}
+      <button class="cbtn" style="margin-top:6px;font-size:11px;padding:5px 9px;color:#7ec8e0;border-color:#3a6a8a" onclick="window._spLeadDetail('${l.id}')">📋 Rozważ propozycję</button>
+    </div>`;
+  }).join('') : '<div style="color:#8aa8bc;font-size:12px;padding:10px">Brak aktywnych okazji. Graj, poznawaj ludzi i wracaj — leady pojawiają się po dobrym networkingu.</div>';
+  _spPanel(`<div style="background:linear-gradient(160deg,#0f2436,#123246);border:2px solid #7ec8e0;border-radius:14px;padding:18px;max-width:560px;margin:0 auto;color:#eaf4ff;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 4px;color:#7ec8e0">💼 Aktywne okazje biznesowe</h2>
+    <div style="font-size:11px;color:#a8c8e0;margin-bottom:4px">Leady dają zarobek, ale też ryzyko reputacyjne i finansowe. Przyjęcie i niedowiezienie obniża zaufanie.</div>
+    ${rows}
+    <button class="cbtn" style="width:100%;margin-top:12px;color:#ccc" onclick="window._sunsetMenu()">← Wróć</button>
+  </div>`);
+};
+window._spLeadDetail=function(id){
+  const v=window._spEnsure(); const l=v.activeLeads.find(x=>x.id===id); if(!l){ window._spLeadsPanel(); return; }
+  const q=window._spEvaluateLead(l); const npc=_spNpc(l.sourceNpcId);
+  let desc='';
+  if(l.type==='beach_brand_campaign') desc='„Sunset Drop" — Naomi przygotowuje sezonową kolekcję plażową. Chce, żebyś pojawił się w krótkiej kampanii na Marina Coast i zagrał jeden zamknięty występ. Wymaga publikacji materiału na FrameUp i ViewGrid.';
+  else if(l.type==='marina_content_day') desc='„Deck Session" — Ellis proponuje nagranie krótkiego live-setu na pokładzie jednostki przy zachodzie słońca. Koszt organizacyjny ~6000 zł, przychód niepewny (pogoda, jakość, zasięg).';
+  else desc='Konkretna okazja od lokalnego NPC. Sprawdź wymagania i ryzyko.';
+  const btn=(lbl,fn,col)=>`<button class="cbtn" style="text-align:left;color:${col};border-color:${col}" onclick="${fn}">${lbl}</button>`;
+  _spPanel(`<div style="background:linear-gradient(160deg,#0f2436,#123246);border:2px solid #f0c060;border-radius:14px;padding:18px;max-width:540px;margin:0 auto;color:#eaf4ff;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 4px;color:#f0c060">📋 ${l.name}</h2>
+    <div style="font-size:12px;color:#cfe4f2;background:#0a1c26;border-radius:8px;padding:10px;margin:8px 0;font-style:italic">${desc}</div>
+    <div style="font-size:12px;color:#bcd8ec;margin-bottom:10px">💰 Stawka: <b>${(l.offerValue||0).toLocaleString('pl')} zł</b> · Ocena szans: <b style="color:${q>=60?'#7edc96':'#e0c060'}">${q}/100</b><br>Wymagania: sława ${l.requiredFame} · fani ${l.requiredFans.toLocaleString('pl')} · profesjonalizm ${l.requiredProfessionalism}</div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      ${btn('✅ Przyjmij warunki','window._spAcceptLead(\''+l.id+'\')','#7edc96')}
+      ${btn('💬 Negocjuj większą stawkę','window._spNegotiateLead(\''+l.id+'\')','#e0c060')}
+      ${btn('🎨 Zaproponuj własny koncept','window._spCounterLead(\''+l.id+'\')','#7ec8e0')}
+      ${btn('✖️ Odmów','window._spDeclineLead(\''+l.id+'\')','#c88')}
+    </div>
+  </div>`);
+};
+/* §33-34: realizacja leadu (przyjęcie → próba dowiezienia) */
+window._spAcceptLead=function(id){
+  const v=window._spEnsure(); const l=v.activeLeads.find(x=>x.id===id); if(!l) return;
+  if(!_spLeadReqOk(l)){ _spMsg('⚠️ Nie spełniasz wymagań tej propozycji (sława/fani/profesjonalizm). NPC nie potraktuje tego poważnie.','r',5000); return; }
+  if(!window._spCanStart('special')) return;
+  _spConsumeActivity('special');
+  const q=window._spEvaluateLead(l);
+  const roll=q + _spRandInt(-18,18);
+  const success = roll>=45;
+  /* koszt organizacyjny dla Deck Session */
+  let orgCost=0; if(l.type==='marina_content_day'){ orgCost=6000; if(_spMoney()<orgCost){ _spMsg('💰 Brakuje 6000 zł na koszt organizacyjny (Deck Session).','r',4000); return; } G.money-=orgCost; }
+  if(success){
+    let payout=l.offerValue;
+    if(l.type==='marina_content_day') payout=_spRandInt(10000,28000);       /* §34: przychód zmienny */
+    else payout=Math.round(l.offerValue*(0.75+Math.random()*0.35));
+    if(l.type==='marina_vip_introduction') payout=0;                        /* VIP intro = kontakt, nie kasa */
+    if(payout>0 && typeof G!=='undefined') G.money=(G.money||0)+payout;
+    v.leadsCompleted=_spClamp(v.leadsCompleted+1,0,1e6);
+    v.localBusinessTrust=_spClamp(v.localBusinessTrust+2,0,999);
+    v.coastConnections=_spClamp(v.coastConnections+1,0,999);
+    _spRelation(l.sourceNpcId,2);
+    if(typeof G!=='undefined'&&typeof G.socialBuzz==='number') G.socialBuzz=_spClamp((G.socialBuzz||0)+4,0,1e9);
+    _spFatigueAdd(l.size==='big'?12:6);
+    if(l.type==='beach_brand_campaign'||l.type==='sponsored_beach_event'){ if(typeof G!=='undefined'){ G.fans=(G.fans||0)+_spRandInt(200,800); } } /* lifestyleAudience */
+    l.status='completed';
+    _spMsg(`✅ Dowiozłeś: ${l.name}. ${payout>0?('+'+payout.toLocaleString('pl')+' zł. '):''}Reputacja i kontakty rosną.`,'g',6000);
+  } else {
+    /* §43: niewywiązanie — kary + SMS */
+    window._spFailLead(l);
+  }
+  v.activeLeads=v.activeLeads.filter(x=>x.id!==id);
+  _spSave();
+  window._spLeadsPanel();
+};
+window._spNegotiateLead=function(id){
+  const v=window._spEnsure(); const l=v.activeLeads.find(x=>x.id===id); if(!l) return;
+  const chance=35+_spProf()*2+(v.localBusinessTrust||0)*2;
+  if(Math.random()*100<chance){ const bump=Math.round(l.offerValue*(0.10+Math.random()*0.20)); l.offerValue+=bump; _spMsg(`💬 Wynegocjowałeś wyższą stawkę: +${bump.toLocaleString('pl')} zł.`,'g',4500); }
+  else { l.reputationRisk=_spClamp(l.reputationRisk+5,0,100); _spRelation(l.sourceNpcId,-1); _spMsg('💬 NPC nie ustąpił i lekko się usztywnił. Warunki bez zmian, trochę chłodniej.','i',4500); }
+  _spSave(); window._spLeadDetail(id);
+};
+window._spCounterLead=function(id){
+  const v=window._spEnsure(); const l=v.activeLeads.find(x=>x.id===id); if(!l) return;
+  /* własny koncept — wyższy upside gdy autentyczność (reputacja/social) wysoka, inaczej ryzyko „sztuczności" */
+  const auth=(v.beachReputation||0)+(v.socialReading||0);
+  if(auth>=6){ l.offerValue=Math.round(l.offerValue*1.15); l.legitimacy=_spClamp(l.legitimacy+5,0,100); _spMsg('🎨 Twój koncept trafił — NPC podniósł wartość i zaufanie.','g',4500); }
+  else { l.reputationRisk=_spClamp(l.reputationRisk+10,0,100); _spMsg('🎨 Koncept zabrzmiał zbyt „na siłę" — wzrosło ryzyko odbioru jako sztuczny.','i',4500); }
+  _spSave(); window._spLeadDetail(id);
+};
+window._spDeclineLead=function(id){
+  const v=window._spEnsure(); v.activeLeads=v.activeLeads.filter(x=>x.id!==id);
+  _spMsg('✖️ Odmówiłeś. Bez urazy — na Coast odmowa jest OK, cisza po „tak" już nie.','f',3800);
+  _spSave(); window._spLeadsPanel();
+};
+/* §43: system niewywiązania z leadu */
+window._spFailLead=function(lead){
+  const v=window._spEnsure();
+  lead.status='failed'; v.leadsFailed=_spClamp(v.leadsFailed+1,0,1e6);
+  v.localBusinessTrust=_spClamp(v.localBusinessTrust-2,0,999);
+  _spRelation(lead.sourceNpcId,-2);
+  _spSetCooldown('lead_'+lead.size,_spRandInt(8,14));
+  if(lead.sourceNpcId==='naomi' && typeof window._spSendSierraSms==='function'){
+    /* SMS w imieniu Naomi (przez wątek Sierry — jedyny kontakt SMS modułu) */
+    if(typeof window._smsSend==='function') window._smsSend('sierra','Sierra: Naomi prosiła, żeby przekazać — „Nie mam problemu z odmową. Mam problem z potwierdzeniem, a potem ciszą. Na Coast ludzie wyglądają luźno, ale kalendarze nadal mają terminy."',{bypass:true});
+  }
+  _spMsg(`⚠️ Nie dowiozłeś: ${lead.name}. Spadło zaufanie lokalne i relacja z ${_spNpc(lead.sourceNpcId)?.name||'NPC'}.`,'r',6000);
+};
+/* odroczone referrale (§35) — payout po kilku dniach (wołane z daily hooka) */
+window._spReferralTick=function(){
+  const v=window._spEnsure(); const d=_spDay();
+  const due=v.pendingReferrals.filter(r=>r.payDay<=d);
+  if(!due.length) return;
+  v.pendingReferrals=v.pendingReferrals.filter(r=>r.payDay>d);
+  due.forEach(r=>{ if(typeof G!=='undefined') G.money=(G.money||0)+r.value; v.localBusinessTrust=_spClamp(v.localBusinessTrust+1,0,999);
+    if(typeof window._smsSend==='function') window._smsSend('sierra',`Sierra: ${_spNpc(r.fromId)?.name||'Znajomy'} mówi, że przedstawienie się opłaciło — dowieźli materiał. Dobry ruch. Wpadła dla Ciebie działka: +${r.value.toLocaleString('pl')} zł. Ma kolejny temat, tym razem od razu płatny.`,{bypass:true});
+  });
+  _spSave();
+};
+
+/* ═══════════════ §27-28: SUNSET MIXER ═══════════════ */
+window._spIsMixerDay=function(){ const wd=_spWeekday(); return wd===4||wd===5||wd===6; };
+window._spInMixerTime=function(){ const wd=_spWeekday(); const h=_spHour();
+  if(wd===4) return h>=18&&h<22;   /* piątek 18-22 */
+  if(wd===5) return h>=17&&h<23;   /* sobota 17-23 */
+  if(wd===6) return h>=16&&h<20;   /* niedziela 16-20 */
+  return false; };
+window._spCanEnterMixer=function(){
+  const v=window._spEnsure();
+  return window._spIsMixerDay() && window._spInMixerTime() && v.activitiesToday<4 && _spFatigue()<85 && _spIntox()<60;
+};
+window._spMixerPanel=function(){
+  const v=window._spEnsure();
+  if(v.lastMixerDay===_spDay()){ _spMsg('🍸 W Sunset Mixerze można wziąć udział raz dziennie. Wróć innego dnia.','i',4500); return; }
+  if(!window._spIsMixerDay()){ _spMsg(`🍸 Sunset Mixer odbywa się w piątki, soboty i niedziele. Dziś jest ${_SP_WD[_spWeekday()]}.`,'i',5000); return; }
+  if(!window._spInMixerTime()){ _spMsg('🍸 Mixer jest teraz zamknięty. Pt 18-22, Sob 17-23, Nd 16-20.','i',5000); return; }
+  if(_spFatigue()>=85){ _spMsg('😴 Jesteś zbyt zmęczony na Mixer. Odpocznij najpierw.','r',4500); return; }
+  if(_spIntox()>=60){ _spMsg('🍸 Jesteś zbyt „pod wpływem" na sensowny networking. Innym razem.','r',4500); return; }
+  const tokens=window._spTokens();
+  const btn=(lbl,fn,col)=>`<button class="cbtn" style="text-align:left;color:${col};border-color:${col}" onclick="${fn}">${lbl}</button>`;
+  _spPanel(`<div style="background:linear-gradient(160deg,#2a1a2e,#3a2038);border:2px solid #f0a0c0;border-radius:14px;padding:18px;max-width:520px;margin:0 auto;color:#f6e8f0;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 4px;color:#f0a0c0">🍸 Sunset Mixer <span style="font-size:12px;color:#c8a0b8">(${_SP_WD[_spWeekday()]})</span></h2>
+    <div style="font-size:12px;color:#d8b0c8;margin-bottom:10px">Luźny networking przy zachodzie słońca. Wybierz sposób wejścia.</div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      ${btn('🎟️ Zwykłe wejście — 600 zł','window._spEnterMixer(\'std\')','#e8c0d0')}
+      ${btn('📖 Wejście z rezerwacją — 1000 zł','window._spEnterMixer(\'res\')','#e8c0d0')}
+      ${btn('🥂 Stolik networkingowy — 2500 zł','window._spEnterMixer(\'table\')','#f0c060')}
+      ${tokens>=2?btn('🎟️ Wejście za 2 Sunset Tokens — 0 zł','window._spEnterMixer(\'token\')','#7edc96'):''}
+      <button class="cbtn" style="color:#ccc" onclick="window._sunsetMenu()">← Wróć</button>
+    </div>
+  </div>`);
+};
+window._spEnterMixer=function(mode){
+  const v=window._spEnsure();
+  let cost=0,tableBonus=0,resBonus=0;
+  if(mode==='std') cost=600; else if(mode==='res'){ cost=1000; resBonus=6; } else if(mode==='table'){ cost=2500; tableBonus=14; }
+  else if(mode==='token'){ if(!_spSpendTokens(2)){ _spMsg('🎟️ Brakuje 2 Sunset Tokens.','r',3500); return; } }
+  if(cost>0){ if(_spMoney()<cost){ _spMsg(`💰 Brakuje ${(cost-_spMoney()).toLocaleString('pl')} zł na wejście.`,'r',4000); return; } G.money-=cost; }
+  if(!window._spCanStart('special')){ return; }
+  _spConsumeActivity('special'); v.lastMixerDay=_spDay(); v.mixersAttended=_spClamp(v.mixersAttended+1,0,1e6);
+  /* §9: token „lepszy stolik" wykupiony wcześniej → dodatkowy bonus szansy kontaktu (jednorazowy). */
+  let tokTable=0; if(v.tokenTableBonus===true){ tokTable=12; v.tokenTableBonus=false; }
+  v.networkingTriggerBonus=_spClamp((v.networkingTriggerBonus||0)+resBonus+tableBonus+tokTable,0,60);
+  /* wybór stylu obecności */
+  const btn=(lbl,fn)=>`<button class="cbtn" style="text-align:left;color:#e8c0d0;border-color:#a06080" onclick="${fn}">${lbl}</button>`;
+  _spPanel(`<div style="background:linear-gradient(160deg,#2a1a2e,#3a2038);border:2px solid #f0a0c0;border-radius:14px;padding:18px;max-width:520px;margin:0 auto;color:#f6e8f0;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 4px;color:#f0a0c0">🍸 Sunset Mixer — styl obecności</h2>
+    <div style="font-size:12px;color:#d8b0c8;margin-bottom:10px">Jak się zachowujesz na mikserze?</div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      ${btn('👀 Obserwuj ludzi (+czytanie ludzi)','window._spMixerStyle(\'observe\')')}
+      ${btn('💬 Wchodź od razu w rozmowy (+pewność, ryzyko niezręczności)','window._spMixerStyle(\'talk\')')}
+      ${btn('🎮 Zagraj w minigrę (+szansa networkingu)','window._spMixerStyle(\'game\')')}
+      ${btn('🎤 Pokaż się jako artysta (+rozpoznanie, ryzyko autopromocji)','window._spMixerStyle(\'artist\')')}
+      ${btn('🛋️ Odpocznij i poczekaj (+nastrój, mniejsza szansa kontaktu)','window._spMixerStyle(\'rest\')')}
+    </div>
+  </div>`);
+};
+window._spMixerStyle=function(style){
+  const v=window._spEnsure();
+  if(style==='game'){ /* jedna minigra w ramach miksera → potem podsumowanie */
+    v.networkingTriggerBonus=_spClamp((v.networkingTriggerBonus||0)+10,0,60);
+    const games=[window._spGamePalmToss,window._spGameCoastShuffle,window._spGameSunsetRead,window._spGameGuestMap];
+    /* minigra już liczy się jako scored — mixer sam nie dubluje scored limitu */
+    (games[_spRandInt(0,games.length-1)])(); return;
+  }
+  if(style==='observe'){ v.socialReading=_spClamp(v.socialReading+0.6,0,999); v.networkingTriggerBonus=_spClamp((v.networkingTriggerBonus||0)+4,0,60); }
+  else if(style==='talk'){ if(typeof G!=='undefined'&&typeof G.socialBuzz==='number') G.socialBuzz+=2; if(Math.random()<0.3){ _spMood(-3); } v.networkingTriggerBonus=_spClamp((v.networkingTriggerBonus||0)+6,0,60); }
+  else if(style==='artist'){ if(_spMediaRisk()>50&&Math.random()<0.4){ v.scandalSignals=_spClamp(v.scandalSignals+1,0,50); } v.networkingTriggerBonus=_spClamp((v.networkingTriggerBonus||0)+8,0,60); }
+  else if(style==='rest'){ _spMood(8); _spFatigueAdd(-6); }
+  /* rozmowa ambientowa + szansa networkingu + możliwy lead */
+  const chance=window._spNetworkChance(55);
+  let net=null; if(Math.random()*100<chance) net=window._spTriggerNetworking('mixer',60);
+  let lead=null; if(!net && Math.random()<0.35){ const src=['naomi','ellis','dani'][_spRandInt(0,2)]; lead=window._spTryGenerateLead(src,'mixer'); }
+  v.networkingTriggerBonus=0; /* reset bonusu po mikserze */
+  const parts=['🍸 Mixer przebiegł spokojnie.'];
+  if(net&&net.dialog) parts.push(net.msg+'<br><i>'+net.dialog+'</i>');
+  else parts.push('Kilka luźnych rozmów, dobra atmosfera.');
+  if(lead) parts.push('Ktoś zostawił temat do rozważenia (Aktywne okazje).');
+  _spSave();
+  _spPanel(`<div style="background:linear-gradient(160deg,#2a1a2e,#3a2038);border:2px solid #f0a0c0;border-radius:14px;padding:18px;max-width:520px;margin:0 auto;color:#f6e8f0;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 6px;color:#f0a0c0">🍸 Sunset Mixer — podsumowanie</h2>
+    <div style="font-size:12.5px;color:#e8d8e2;background:#180a1a;border-radius:8px;padding:11px;line-height:1.7">${parts.join('<br>')}</div>
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:14px">
+      <button class="cbtn" style="color:#7edc96;border-color:#3a8a5a" onclick="window._sunsetMenu()">🌅 Menu</button>
+      <button class="cbtn" style="color:#ccc" onclick="window._spClose()">Zamknij</button>
+    </div>
+  </div>`);
+};
+
+/* ═══════════════ §36: MAŁE WYSTĘPY W ALTANIE ═══════════════ */
+function _spHasSingle(){ try{ if(typeof G==='undefined') return false;
+  if(Array.isArray(G.releasedTracks)&&G.releasedTracks.length>0) return true;
+  if(Array.isArray(G.tracks)&&G.tracks.some(t=>t&&(t.released||t.published))) return true;
+  if(Array.isArray(G.songs)&&G.songs.length>0) return true;
+  if((G.singlesReleased||0)>0||(G.tracksReleased||0)>0) return true;
+  if((G.fame||0)>=3) return true; /* fallback: ktoś kto zdobył trochę sławy ma za sobą publikacje */
+  return false; }catch(e){ return false; } }
+window._spPerform=function(){
+  const v=window._spEnsure();
+  if(!_spHasSingle()){ _spMsg('🎤 Aby zagrać występ, musisz mieć opublikowany co najmniej jeden singiel.','i',5000); return; }
+  if(v.bannedUntilDay!==null && v.bannedUntilDay>_spDay()){ _spMsg('⛔ Masz aktywny ban z Marina Coast/SUNSET PALMS.','r',4500); return; }
+  if(_spOnCooldown('performance')){ _spMsg(`🎤 Występ dostępny ponownie za ${_spCooldownLeft('performance')} dni (cooldown 3 dni).`,'i',5000); return; }
+  const tokens=window._spTokens();
+  _spPanel(`<div style="background:linear-gradient(160deg,#1a2a3a,#20384a);border:2px solid #f0c060;border-radius:14px;padding:18px;max-width:520px;margin:0 auto;color:#eaf4ff;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 4px;color:#f0c060">🎤 Krótki występ w altanie</h2>
+    <div style="font-size:12px;color:#a8c8e0;margin-bottom:10px">Zagraj 1-3 utwory dla plażowej publiczności. Cooldown 3 dni, jeden występ na wizytę.</div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <button class="cbtn" style="color:#f0c060;border-color:#c0902a" onclick="window._spDoPerform('cash')">🎤 Zagraj występ — 1000 zł</button>
+      ${tokens>=2?'<button class="cbtn" style="color:#7edc96;border-color:#3a8a5a" onclick="window._spDoPerform(\'token\')">🎟️ Zagraj występ — 2 Sunset Tokens</button>':''}
+      <button class="cbtn" style="color:#ccc" onclick="window._sunsetMenu()">← Wróć</button>
+    </div>
+  </div>`);
+};
+window._spDoPerform=function(mode){
+  const v=window._spEnsure();
+  if(mode==='cash'){ if(_spMoney()<1000){ _spMsg('💰 Brakuje 1000 zł na organizację występu.','r',4000); return; } G.money-=1000; }
+  else { if(!_spSpendTokens(2)){ _spMsg('🎟️ Brakuje 2 Sunset Tokens.','r',3500); return; } }
+  if(!window._spCanStart('special')){ return; }
+  _spConsumeActivity('special'); _spSetCooldown('performance',3); v.lastPerformanceDay=_spDay();
+  let result=35;
+  result+=_spStageSkill()*5;                 /* liveSkill proxy */
+  result+=_spStageSkill()*2;                  /* stageConfidence proxy */
+  result+=((G&&G.stress)||50)*0.10;           /* mood */
+  result-=_spFatigue()*0.08;
+  result-=_spIntox()*0.15;
+  result+=(v.beachReputation||0)*2;
+  result=_spClamp(Math.round(result),0,100);
+  const tier=window._spScoreTier(result);
+  let effects=[];
+  if(result<40){ _spMood(-4); effects.push('Słaby odbiór — mało reakcji, spadek nastroju.'); }
+  else if(result<65){ if(typeof G.socialBuzz==='number') G.socialBuzz=_spClamp((G.socialBuzz||0)+3,0,1e9); effects.push('Poprawny występ — trochę social buzz.'); }
+  else { v.beachReputation=_spClamp(v.beachReputation+2,0,999); if(typeof G!=='undefined'){ G.fans=(G.fans||0)+_spRandInt(50,200); } if(typeof G.socialBuzz==='number') G.socialBuzz=_spClamp((G.socialBuzz||0)+6,0,1e9); effects.push('Dobry występ — +zaufanie fanów, +reputacja plażowa, +szansa networkingu.'); }
+  _spFatigueAdd(10);
+  let net=null; if(result>=85){ const c=window._spNetworkChance(result); if(Math.random()*100<c+15){ net=window._spTriggerNetworking('performance',result); if(net) effects.push('Wartościowy NPC poprosił o kontakt.'); } }
+  _spSave();
+  _spPanel(`<div style="background:linear-gradient(160deg,#1a2a3a,#20384a);border:2px solid ${tier.color};border-radius:14px;padding:18px;max-width:520px;margin:0 auto;color:#eaf4ff;max-height:84vh;overflow-y:auto;text-align:center">
+    <div style="font-size:40px">${tier.emoji}</div>
+    <h2 style="margin:2px 0;color:${tier.color}">Występ: ${result}/100</h2>
+    <div style="font-size:12px;color:#bcd8ec;text-transform:capitalize;margin-bottom:10px">${tier.tier}</div>
+    <div style="text-align:left;font-size:12.5px;color:#dceaf6;background:#0c1c28;border-radius:8px;padding:11px;line-height:1.7">${effects.join('<br>')||'Zagrałeś krótki set.'}${net&&net.dialog?'<br><i>'+net.dialog+'</i>':''}</div>
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:14px"><button class="cbtn" style="color:#7edc96;border-color:#3a8a5a" onclick="window._sunsetMenu()">🌅 Menu</button><button class="cbtn" style="color:#ccc" onclick="window._spClose()">Zamknij</button></div>
+  </div>`);
+};
+
+/* ═══════════════ §37-38: IMPREZY PLAŻOWICZÓW + COOLDOWNY ═══════════════ */
+const SP_EVENTS={
+  beach_day_social:     {name:'Beach Day Social',      cd:1, desc:'Luźne gry i rozmowy w dzień.',        days:[0,1,2,3,4,5,6], hours:[12,17]},
+  palm_lights_party:    {name:'Palm Lights Party',     cd:7, desc:'Sobotni wieczór — muzyka i większy social buzz.', days:[5], hours:[20,26]},
+  coast_brunch:         {name:'Coast Brunch',          cd:7, desc:'Niedziela — spokojniejsi biznesowi NPC.', days:[6], hours:[10,15]},
+  creators_on_the_coast:{name:'Creators on the Coast', cd:5, desc:'Fotografowie, twórcy, DJ-e, modelki i marki.', days:[3,4], hours:[16,22]},
+  marina_founders_table:{name:'Marina Founders Table', cd:9, desc:'Rzadki event biznesowy — poważne kontakty.', days:[6], hours:[12,18]},
+  open_deck_evening:    {name:'Open Deck Evening',     cd:3, desc:'Małe występy artystów i DJ-ów.', days:[3,4,5], hours:[18,24]},
+};
+window._spCurrentEvent=function(){
+  const v=window._spEnsure(); const wd=_spWeekday(); const h=_spHour(); const wf=_spWeatherFactor();
+  if(v.currentEvent && v.currentEvent.day===_spDay()) return v.currentEvent.id?SP_EVENTS[v.currentEvent.id]:null;
+  /* §38: wyklucz jeśli burza (beachClosed), bardzo wysoki heat, świeży duży lead */
+  if(wf.beachClosed || _spHeat()>=80){ v.currentEvent={day:_spDay(),id:null}; return null; }
+  const candidates=Object.keys(SP_EVENTS).filter(id=>{ const e=SP_EVENTS[id];
+    if(!e.days.includes(wd)) return false;
+    if(!(h>=e.hours[0] && h<e.hours[1]) && !(e.hours[1]>24 && (h>=e.hours[0]||h<(e.hours[1]-24)))) return false;
+    const last=v.eventCooldowns[id]; if(typeof last==='number' && _spDay()-last<e.cd) return false;
+    return true; });
+  if(!candidates.length){ v.currentEvent={day:_spDay(),id:null}; return null; }
+  const id=candidates[_spRandInt(0,candidates.length-1)];
+  v.eventCooldowns[id]=_spDay(); v.currentEvent={day:_spDay(),id:id};
+  return SP_EVENTS[id];
+};
+
+/* ═══════════════ §41: REAKCJE NA SŁAWĘ GRACZA ═══════════════ */
+window._spApplyFame=function(){
+  const v=window._spEnsure(); const fans=_spFans();
+  v.networkingTriggerBonus=_spClamp(v.networkingTriggerBonus,0,60);
+  if(fans>=20000){ v.networkingTriggerBonus=_spClamp(v.networkingTriggerBonus+3,0,60); if(typeof G!=='undefined'&&typeof G.mediaRisk==='number') G.mediaRisk=_spClamp((G.mediaRisk||0)+0.5,0,100); }
+  if(fans>=50000){ v.vipSpawnBonus=_spClamp((v.vipSpawnBonus||0)+5,0,50); if(typeof G!=='undefined'&&typeof G.paparazziRisk==='number') G.paparazziRisk=(G.paparazziRisk||0)+1; }
+};
+window._spFameTier=function(){ const f=_spFans();
+  if(f<5000) return 'Traktują Cię jak zwykłego uczestnika.';
+  if(f<10000) return 'Sporadyczne rozpoznania.';
+  if(f<20000) return 'Częstsze zdjęcia i pytania o muzykę.';
+  if(f<50000) return 'Biznesowi NPC rozpoznają potencjał zasięgu.';
+  return 'Pojawiają się paparazzi, VIP-y i ryzyko skupiska fanów.';
+};
+
+/* ═══════════════ §42: NEGATYWNE WYDARZENIA ═══════════════ */
+window._spMaybeNegativeEvent=function(){
+  const v=window._spEnsure();
+  let base=3;
+  base+=_spHeat()*0.05; base+=_spMediaRisk()*0.05; base+=_spIntox()*0.06; base+=(v.scandalSignals||0)*1.2;
+  if(v.activeLeads.length>=3) base+=6; /* bierze za dużo leadów */
+  const chance=_spClamp(Math.round(base),0,45);
+  if(Math.random()*100>=chance) return null;
+  const pool=[
+    {t:'📸 Ktoś nagrał niekorzystną scenę — plotka rusza.',fn:()=>{ v.scandalSignals=_spClamp(v.scandalSignals+1,0,50); if(typeof G.mediaRisk==='number')G.mediaRisk=_spClamp((G.mediaRisk||0)+2,0,100); }},
+    {t:'🗣️ Twój pitch odebrano jako desperacki.',fn:()=>{ v.beachReputation=_spClamp(v.beachReputation-1,0,999); _spMood(-3); }},
+    {t:'🍸 Awantura przy barze w Twoim towarzystwie.',fn:()=>{ if(typeof G!=='undefined')G.heat=_spClamp((G.heat||0)+3,0,100); _spMood(-2); }},
+    {t:'🤝 Wyciek prywatnej rozmowy — trochę nieufności.',fn:()=>{ v.localBusinessTrust=_spClamp(v.localBusinessTrust-1,0,999); }},
+    {t:'🚔 Skarga na hałas — pod altaną pojawia się patrol.',fn:()=>{ if(typeof G!=='undefined')G.heat=_spClamp((G.heat||0)+4,0,100); }},
+  ];
+  /* eskalacja: przy skrajnych warunkach → ban */
+  if((_spIntox()>=70 && Math.random()<0.4) || (v.scandalSignals>=6 && Math.random()<0.3)){
+    window._spBan(_spRandInt(2,4),'nietrzeźwość i awantura'); return {banned:true};
+  }
+  const ev=pool[_spRandInt(0,pool.length-1)]; ev.fn(); _spSave();
+  _spMsg('⚠️ '+ev.t,'i',5000);
+  return {msg:ev.t};
+};
+
+/* ═══════════════ §46: BAN Z SUNSET PALMS ═══════════════ */
+window._spBan=function(days,reason){
+  const v=window._spEnsure();
+  v.bannedUntilDay=_spDay()+Math.max(1,days);
+  v.beachReputation=_spClamp(v.beachReputation-3,0,999);
+  v.localBusinessTrust=_spClamp(v.localBusinessTrust-2,0,999);
+  _spSave();
+  _spMsg(`⛔ Zakaz wejścia do SUNSET PALMS: ${days} dni. Powód: ${reason}.`,'r',7000);
+};
+
+/* ═══════════════ §45: OPCJONALNA INTEGRACJA Z NIELEGALNYM FRONTEM (rzadka, dyskretna, black-box) ═══════════════ */
+window._spShadowUnlocked=function(){
+  const introOk = !!(G && G.underworldIntro && G.underworldIntro.state && G.underworldIntro.state!=='none') || !!(G && G.underworld && G.underworld.introCompleted);
+  const trustOk = (typeof (G&&G.kantarTrust)==='number' && G.kantarTrust>=4);
+  return introOk && trustOk && _spHeat()<65;
+};
+window._spMaybeShadowSignal=function(){
+  const v=window._spEnsure();
+  if(!window._spShadowUnlocked()) return null;
+  if(_spOnCooldown('shadow_signal')) return null;
+  if(Math.random()>=0.12) return null;
+  _spSetCooldown('shadow_signal',_spRandInt(6,10));
+  const pool=[
+    'Ktoś przy stoliku szuka „neutralnego miejsca na rozmowę". Bez szczegółów. Zostawił kontakt.',
+    'Marina generuje cichą informację o wartościowym aktywie. Kantar może wiedzieć więcej.',
+    'Znajomy NPC został skomentowany przez Kantara — „ostrożnie z tym leadem".',
+  ];
+  const txt=pool[_spRandInt(0,pool.length-1)];
+  _spMsg('🕶️ '+txt,'i',6500);
+  return {msg:txt};
+};
+
+/* ═══════════════ §47: PANEL WYNIKÓW ═══════════════ */
+const _SP_GAME_NAMES={palm_toss:'Palm Toss',coast_shuffle:'Coast Shuffle',wave_rally:'Wave Rally',frisbee_arc:'Frisbee Arc',guest_map:'Guest Map',sunset_read:'Sunset Read',palm_pitch:'Palm Pitch',cooler_rush:'Cooler Rush'};
+window._spResultsPanel=function(){
+  const v=window._spEnsure();
+  const best=Object.keys(v.bestScores||{}).map(k=>`${_SP_GAME_NAMES[k]||k} — ${v.bestScores[k]}`).join('<br>')||'—';
+  const contacts=v.unlockedContacts.length?v.unlockedContacts.map(id=>_spNpc(id)?_spNpc(id).name:id).join(', '):'—';
+  const leads=v.activeLeads.length?v.activeLeads.map(l=>l.name).join(', '):'—';
+  _spPanel(`<div style="background:linear-gradient(160deg,#0f2436,#123246);border:2px solid #f0c060;border-radius:14px;padding:18px;max-width:560px;margin:0 auto;color:#eaf4ff;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 8px;color:#f0c060">🏆 SUNSET PALMS — wyniki</h2>
+    <div style="font-size:12.5px;color:#cfe4f2;background:#0a1c26;border-radius:8px;padding:11px;line-height:1.8">
+      Wizyty: <b>${v.totalVisits}</b> · Minigry: <b>${v.totalGamesPlayed}</b> · Wygrane: <b>${v.totalGamesWon}</b><br>
+      🎟️ Sunset Tokens: <b>${v.sunsetTokens}/12</b><br><br>
+      <b style="color:#7ec8e0">Najlepsze wyniki:</b><br>${best}<br><br>
+      <b style="color:#7ec8e0">Statystyki:</b><br>
+      Zręczność: ${Math.round(v.dexterityScore)} · Czytanie ludzi: ${Math.round(v.socialReading)} · Pamięć: ${Math.round(v.memorySkill)} · Pitch: ${Math.round(v.pitchSkill)}<br>
+      Reputacja plażowa: ${Math.round(v.beachReputation)} · Kontakty Coast: ${Math.round(v.coastConnections)} · Zaufanie lokalne: ${Math.round(v.localBusinessTrust)}<br><br>
+      <b style="color:#7ec8e0">Kontakty:</b> ${contacts}<br>
+      <b style="color:#7ec8e0">Aktywne leady:</b> ${leads}<br>
+      <b style="color:#7ec8e0">Dowiezione/nietrafione:</b> ${v.leadsCompleted}/${v.leadsFailed}
+    </div>
+    <button class="cbtn" style="width:100%;margin-top:12px;color:#ccc" onclick="window._sunsetMenu()">← Wróć</button>
+  </div>`);
+};
+
+/* ═══════════════ §44: LIFESTYLE CONTENT (FrameUp / ViewGrid) ═══════════════ */
+window._spContentPanel=function(){
+  /* content liczy się jako zwykła aktywność (bez sub-limitu); _spCanStart sprawdza ban + globalny 4/dzień. */
+  if(!window._spCanStart('activity')) return;
+  const v=window._spEnsure();
+  _spResetDailyIfNeeded();
+  if(v.activitiesToday>=4){ _spMsg('🌅 Na dziś wykorzystałeś limit aktywności w SUNSET PALMS.','i',4500); return; }
+  _spPanel(`<div style="background:linear-gradient(160deg,#12283a,#163a52);border:2px solid #7ec8e0;border-radius:14px;padding:18px;max-width:520px;margin:0 auto;color:#eaf4ff;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 4px;color:#7ec8e0">📱 Nagraj lifestyle content</h2>
+    <div style="font-size:12px;color:#a8c8e0;margin-bottom:10px">Krótki materiał na FrameUp/ViewGrid z altany o zachodzie. Buduje publiczność, ale zbyt sztuczny wizerunek ma swoje ryzyko.</div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <button class="cbtn" style="color:#7ec8e0;border-color:#3a6a8a" onclick="window._spDoContent('story')">📸 Klip/relacja (drobny zasięg, bezpieczne)</button>
+      <button class="cbtn" style="color:#f0c060;border-color:#c0902a" onclick="window._spDoContent('vlog')">🎬 Lifestyle vlog (większy zasięg, +ryzyko sztuczności)</button>
+      <button class="cbtn" style="color:#ccc" onclick="window._sunsetMenu()">← Wróć</button>
+    </div>
+  </div>`);
+};
+window._spDoContent=function(kind){
+  const v=window._spEnsure(); _spResetDailyIfNeeded();
+  if(v.activitiesToday>=4){ _spMsg('🌅 Limit aktywności wykorzystany.','i',4000); return; }
+  _spConsumeActivity('activity');
+  const wf=_spWeatherFactor();
+  let fansGain,buzz,risk;
+  if(kind==='vlog'){ fansGain=Math.round(_spRandInt(120,360)*wf.mult); buzz=6; risk=(_spMediaRisk()>40?2:1); _spFatigueAdd(5); }
+  else { fansGain=Math.round(_spRandInt(40,140)*wf.mult); buzz=3; risk=0; _spFatigueAdd(2); }
+  /* §9: token „dekoracja do lifestyle content" → większy zasięg jednorazowo. */
+  let deco=false; if(v.tokenContentBoost===true){ deco=true; v.tokenContentBoost=false; fansGain=Math.round(fansGain*1.6); buzz+=3; }
+  if(typeof G!=='undefined'){ G.fans=(G.fans||0)+fansGain; if(typeof G.socialBuzz==='number') G.socialBuzz=_spClamp((G.socialBuzz||0)+buzz,0,1e9); if(risk&&typeof G.mediaRisk==='number') G.mediaRisk=_spClamp((G.mediaRisk||0)+risk,0,100); }
+  v.beachReputation=_spClamp(v.beachReputation+0.5,0,999);
+  _spSave();
+  _spMsg(`📱 Materiał poszedł na FrameUp i ViewGrid. +${fansGain} fanów${deco?' (dekoracja: większy zasięg)':''}${wf.mult<1?` (pogoda: ${wf.name})`:''}.`,'g',5000);
+  window._sunsetMenu();
+};
+
+/* ═══════════════ §5: BAR + ODPOCZYNEK ═══════════════ */
+window._spBarOrder=function(){
+  const v=window._spEnsure();
+  if(_spMoney()<120){ _spMsg('💰 Brakuje 120 zł na kolorowy koktajl.','r',3500); return; }
+  G.money-=120; _spMood(6); _spFatigueAdd(-3);
+  if(_spIntox()>0){ /* orzeźwiający mocktail — bez dodatkowego upicia */ }
+  _spSave();
+  _spMsg('🍹 Zamawiasz pastelowy mocktail przy barze. Chwila luzu, lepszy nastrój.','g',4000);
+};
+window._spRest=function(){
+  const v=window._spEnsure();
+  _spMood(8); if(typeof G!=='undefined'){ G.energy=_spClamp((G.energy||100)+10,0,100); }
+  _spSave();
+  _spMsg('🌴 Odpoczywasz na leżaku pod palmą. Szum fal, spokój, wraca energia.','g',4200);
+};
+
+/* ═══════════════ §9: WYKORZYSTANIE SUNSET TOKENS (6 zastosowań) ═══════════════ */
+window._spTokensPanel=function(){
+  const v=window._spEnsure(); const t=v.sunsetTokens;
+  const opt=(cost,lbl,fn,note)=>{ const can=t>=cost; return `<button class="cbtn" style="text-align:left;width:100%;margin-top:6px;color:${can?'#f0c860':'#67788a'};border-color:${can?'#c0902a':'#3a4a5a'}" ${can?'':'disabled'} onclick="${fn}">${lbl} <span style="color:#8aa8bc;font-size:11px">— ${cost} 🎟️</span><br><span style="color:#a8c0b0;font-size:10.5px">${note}</span></button>`; };
+  _spPanel(`<div style="background:linear-gradient(160deg,#12283a,#183a48);border:2px solid #f0c860;border-radius:14px;padding:18px;max-width:540px;margin:0 auto;color:#eaf4ff;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 4px;color:#f0c860">🎟️ Sunset Tokens — masz ${t}/12</h2>
+    <div style="font-size:11.5px;color:#a8c8e0;margin-bottom:8px">To nie jest zwykła waluta — nie kupisz jej za pieniądze. Zdobywasz ją za dobre wyniki i wydarzenia. Na co ją przeznaczysz?</div>
+    ${opt(1,'🎮 Dodatkowa minigra','window._spTokenExtraGame()','Odblokuj jedną pełną punktowaną minigrę ponad dzienny limit.')}
+    ${opt(2,'🤝 Przedstawienie przez gospodynię','window._spTokenIntro()','Poproś Sierrę o kontakt z wartościowym NPC już teraz.')}
+    ${opt(1,'🥂 Rezerwacja lepszego stolika','window._spTokenTable()','Lepszy stolik na najbliższym Sunset Mixerze (większa szansa kontaktu).')}
+    ${opt(1,'🎨 Dekoracja do lifestyle content','window._spTokenContentDeco()','Twój najbliższy materiał zyska większy zasięg.')}
+    ${opt(2,'🎤 Odblokuj mały występ (mimo cooldownu)','window._spTokenPerform()','Zagraj występ, nawet jeśli trwa cooldown.')}
+    <button class="cbtn" style="width:100%;margin-top:10px;color:#ccc" onclick="window._sunsetMenu()">← Wróć</button>
+  </div>`);
+};
+window._spTokenExtraGame=function(){ const v=window._spEnsure(); if(!_spSpendTokens(1)){ _spMsg('🎟️ Za mało tokenów.','r',3000); return; } v.tokenGamePass=true; _spSave(); _spMsg('🎮 Odblokowano dodatkową minigrę — następna punktowana gra nie liczy się do dziennego limitu.','g',4500); window._spGamesHub(); };
+window._spTokenIntro=function(){ const v=window._spEnsure(); if(v.networkingIntroductionsToday>=1){ _spMsg('🤝 Dziś miałeś już jakościowe przedstawienie — wróć jutro.','i',4000); return; } if(v.sunsetTokens<2){ _spMsg('🎟️ Za mało tokenów (potrzeba 2).','r',3000); return; } if(!_spSpendTokens(2)){ return; } const net=window._spTriggerNetworking('token_intro',80); _spSave(); if(net&&net.dialog){ _spPanel(`<div style="background:linear-gradient(160deg,#12283a,#183a48);border:2px solid #7edc96;border-radius:14px;padding:18px;max-width:520px;margin:0 auto;color:#eaf4ff"><h2 style="margin:0 0 6px;color:#7edc96">🤝 Sierra przedstawia Cię komuś</h2><div style="font-size:12.5px;color:#dceaf6;background:#0c1c28;border-radius:8px;padding:11px">${net.msg}<br><i>${net.dialog}</i></div><button class="cbtn" style="width:100%;margin-top:12px;color:#ccc" onclick="window._sunsetMenu()">← Wróć</button></div>`); } else { _spMsg('🤝 Sierra rozejrzała się, ale nikt wartościowy nie jest teraz wolny. Token wróci lepiej innym razem.','i',4500); _spAddTokens(2); window._spTokensPanel(); } };
+window._spTokenTable=function(){ const v=window._spEnsure(); if(!_spSpendTokens(1)){ _spMsg('🎟️ Za mało tokenów.','r',3000); return; } v.tokenTableBonus=true; _spSave(); _spMsg('🥂 Zarezerwowano lepszy stolik — na najbliższym Sunset Mixerze masz większą szansę na kontakt.','g',4500); window._spTokensPanel(); };
+window._spTokenContentDeco=function(){ const v=window._spEnsure(); if(!_spSpendTokens(1)){ _spMsg('🎟️ Za mało tokenów.','r',3000); return; } v.tokenContentBoost=true; _spSave(); _spMsg('🎨 Wykupiłeś dekoracje — Twój najbliższy lifestyle content zyska większy zasięg.','g',4500); window._spTokensPanel(); };
+window._spTokenPerform=function(){ const v=window._spEnsure(); if(v.sunsetTokens<2){ _spMsg('🎟️ Za mało tokenów (potrzeba 2).','r',3000); return; } if(!_spSpendTokens(2)){ return; } v.cooldowns['performance']=0; _spSave(); _spMsg('🎤 Odblokowano występ — cooldown zdjęty.','g',4000); window._spPerform(); };
+
+/* ═══════════════ §2 + §5: WEJŚCIE Z MAPY / MENU / ROUTER ═══════════════ */
+window._openSunsetPalms=function(){
+  const v=window._spEnsure();
+  if(v.bannedUntilDay!==null && v.bannedUntilDay>_spDay()){ _spMsg(`⛔ Masz zakaz wstępu do SUNSET PALMS do dnia ${v.bannedUntilDay}.`,'r',6000); return; }
+  _spResetDailyIfNeeded();
+  v.visited=true; v.totalVisits=_spClamp(v.totalVisits+1,0,1e6); v.lastVisitDay=_spDay();
+  if(typeof G!=='undefined'){ if(!G.visitedRooms)G.visitedRooms={}; G.visitedRooms.sunset_palms=true; }
+  window._spApplyFame();
+  if(typeof closeOverlay==='function') closeOverlay();
+  _spClose();
+  _spMsg('🌅 Wchodzisz do SUNSET PALMS. Ciepły wiatr od morza, pastelowe światła, ludzie grają i śmieją się bez garniturów.','g',4800);
+  if(typeof changeRoom==='function') changeRoom('sunset_palms',630,650);
+  else if(typeof startRoomFade==='function') startRoomFade('sunset_palms',630,650);
+  window._spMaybeUnlockSierra();
+  _spSave();
+  setTimeout(()=>{ if(typeof currentRoom!=='undefined'&&currentRoom==='sunset_palms'){ try{ window._spCurrentEvent(); window._spMaybeNegativeEvent(); window._spMaybeShadowSignal(); }catch(e){} } },1400);
+};
+window._sunsetExit=function(){
+  window._spBarStopTimer&&window._spBarStopTimer();
+  if(typeof startRoomFade==='function') startRoomFade('coast',1520,1330);
+  else if(typeof changeRoom==='function') changeRoom('coast',1520,1330);
+};
+/* router obiektów wnętrza: sunset:<sub> → funkcja */
+window._sunsetAct=function(sub){
+  window._spEnsure();
+  switch(sub){
+    case 'menu':    return window._sunsetMenu();
+    case 'host':    return window._spHost();
+    case 'remy':    return window._spRemy();
+    case 'naomi':   return window._spNaomi();
+    case 'ellis':   return window._spEllis();
+    case 'dani':    return window._spDani();
+    case 'games':   return window._spGamesHub();
+    case 'social':  return window._spSocialHub();
+    case 'bar':     return window._spBarHub();
+    case 'perform': return window._spPerform();
+    case 'rest':    return window._spRest();
+    case 'content': return window._spContentPanel();
+    case 'mixer':   return window._spMixerPanel();
+    case 'leads':   return window._spLeadsPanel();
+    case 'results': return window._spResultsPanel();
+    case 'exit':    return window._sunsetExit();
+    default: return;
+  }
+};
+
+/* §5: MENU GŁÓWNE LOKACJI */
+window._sunsetMenu=function(){
+  const v=window._spEnsure(); _spResetDailyIfNeeded();
+  const ev=window._spCurrentEvent(); const wf=_spWeatherFactor(); const win=window._spWindow();
+  const winName={morning:'Poranek',beach:'Południe (plaża)',socialPeak:'Popołudnie (szczyt)',evening:'Wieczór',nightlife:'Noc',closed:'Zamknięte'}[win]||'—';
+  const B=(lbl,fn,col)=>`<button class="cbtn" style="text-align:left;font-size:12.5px;color:${col||'#eaf4ff'};border-color:#3a6a8a" onclick="${fn}">${lbl}</button>`;
+  const mixerOn=window._spCanEnterMixer();
+  _spPanel(`<div style="background:linear-gradient(160deg,#12314a,#1a4664 55%,#8a3a4a);border:2px solid #f0a860;border-radius:16px;padding:18px;max-width:560px;margin:0 auto;color:#f4ecdc;max-height:86vh;overflow-y:auto">
+    <div style="text-align:center;margin-bottom:6px"><div style="font-size:26px;font-weight:800;letter-spacing:2px;color:#ffd9a0;text-shadow:0 0 12px #ff9a5a">🌅 SUNSET PALMS</div>
+      <div style="font-size:11px;color:#e8c0a0">Plażowa altana · gry towarzyskie · networking przy zachodzie słońca</div></div>
+    <div style="font-size:11.5px;color:#d8e4ee;background:rgba(8,20,30,.55);border-radius:8px;padding:9px;margin-bottom:10px">
+      🕐 ${winName} · ${_SP_WD[_spWeekday()]} · ${wf.name}${wf.beachClosed?' (strefa plażowa zamknięta)':''}<br>
+      📋 Dzisiejsze aktywności: <b>${v.activitiesToday}/4</b> · 🎯 Punktowane minigry: <b>${v.scoredGamesToday}/2</b> · 🤝 Networking: <b>${v.networkingIntroductionsToday}/1</b> · 🎟️ Tokens: <b>${v.sunsetTokens}/12</b>
+      ${ev?`<br>🎉 Dziś: <b style="color:#ffd9a0">${ev.name}</b> — ${ev.desc}`:''}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${B('🏖 Gry zręcznościowe','window._spGamesHub()')}
+      ${B('🧠 Gry społeczne i strategiczne','window._spSocialHub()')}
+      ${B('🤝 Poznaj lokalnych NPC','window._spHost()')}
+      ${B(mixerOn?'🍸 Sunset Mixer <span style="color:#7edc96">(dostępny)</span>':'🍸 Sunset Mixer','window._spMixerPanel()','#f0a0c0')}
+      ${B('🎤 Zagraj krótki występ','window._spPerform()')}
+      ${B('🍹 Zamów napój','window._spBarHub()')}
+      ${B('🌴 Odpocznij przy altanie','window._spRest()')}
+      ${B('📱 Nagraj lifestyle content','window._spContentPanel()')}
+      ${B('💼 Sprawdź aktywne okazje','window._spLeadsPanel()','#f0c060')}
+      ${B(`🎟️ Wykorzystaj Sunset Tokens (${v.sunsetTokens}/12)`,'window._spTokensPanel()','#f0c860')}
+      ${B('🏆 Moje wyniki SUNSET PALMS','window._spResultsPanel()')}
+      <button class="cbtn" style="color:#ccc" onclick="window._spClose()">← Zamknij (chodź po altanie)</button>
+    </div>
+  </div>`);
+};
+
+/* podhub gier zręcznościowych (§10-14) */
+window._spGamesHub=function(){
+  const v=window._spEnsure();
+  const B=(lbl,fn)=>`<button class="cbtn" style="text-align:left;color:#ff9e7a;border-color:#c06a4a" onclick="${fn}">${lbl}</button>`;
+  _spPanel(`<div style="background:linear-gradient(160deg,#1a3040,#24485c);border:2px solid #ff9e7a;border-radius:14px;padding:18px;max-width:520px;margin:0 auto;color:#eaf4ff;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 4px;color:#ff9e7a">🏖 Gry zręcznościowe</h2>
+    <div style="font-size:11.5px;color:#a8c8e0;margin-bottom:10px">Refleks, timing, celność i rytm. Punktowane minigry (${v.scoredGamesToday}/2 dziś na pełną nagrodę).</div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      ${B('🥏 Palm Toss — rzut obręczami','window._spGamePalmToss()')}
+      ${B('🥌 Coast Shuffle — shuffleboard','window._spGameCoastShuffle()')}
+      ${B('🏓 Wave Rally — rytmiczne odbijanie','window._spGameWaveRally()')}
+      ${B('🥏 Frisbee Arc — celność z wiatrem','window._spGameFrisbeeArc()')}
+      <button class="cbtn" style="color:#ccc" onclick="window._sunsetMenu()">← Wróć</button>
+    </div>
+  </div>`);
+};
+/* podhub gier społecznych/strategicznych (§15-18) */
+window._spSocialHub=function(){
+  const v=window._spEnsure();
+  const B=(lbl,fn)=>`<button class="cbtn" style="text-align:left;color:#7ec8e0;border-color:#3a6a8a" onclick="${fn}">${lbl}</button>`;
+  _spPanel(`<div style="background:linear-gradient(160deg,#152a3a,#1e3e52);border:2px solid #7ec8e0;border-radius:14px;padding:18px;max-width:520px;margin:0 auto;color:#eaf4ff;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 4px;color:#7ec8e0">🧠 Gry społeczne i strategiczne</h2>
+    <div style="font-size:11.5px;color:#a8c8e0;margin-bottom:10px">Pamięć, czytanie ludzi, argumenty i kojarzenie informacji.</div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      ${B('🗺️ Guest Map — zapamiętaj gości','window._spGameGuestMap()')}
+      ${B('🔮 Sunset Read — rozpoznaj intencje','window._spGameSunsetRead()')}
+      ${B('💼 Palm Pitch — zbuduj propozycję','window._spGamePalmPitch()')}
+      ${B('🍹 Cooler Rush — sekwencja przy barze','window._spGameCoolerRush()')}
+      <button class="cbtn" style="color:#ccc" onclick="window._sunsetMenu()">← Wróć</button>
+    </div>
+  </div>`);
+};
+window._spBarHub=function(){
+  const v=window._spEnsure();
+  _spPanel(`<div style="background:linear-gradient(160deg,#2a1830,#3a2040);border:2px solid #f0a0c0;border-radius:14px;padding:18px;max-width:500px;margin:0 auto;color:#f6e8f0;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 4px;color:#f0a0c0">🍹 Pastelowy bar</h2>
+    <div style="font-size:11.5px;color:#d8a8c0;margin-bottom:10px">Kolorowe napoje przy altanie.</div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <button class="cbtn" style="color:#f0a0c0;border-color:#a06080" onclick="window._spBarOrder()">🍹 Zamów mocktail — 120 zł (+nastrój)</button>
+      <button class="cbtn" style="color:#e878a8;border-color:#a05070" onclick="window._spGameCoolerRush()">🎮 Pomóż przy barze — Cooler Rush</button>
+      <button class="cbtn" style="color:#ccc" onclick="window._sunsetMenu()">← Wróć</button>
+    </div>
+  </div>`);
+};
+
+/* ═══════════════ §21-26: PANELE NPC ═══════════════ */
+/* §21-22: Sierra „Sunny" Bell — gospodyni + główny kontakt */
+window._spHost=function(){
+  const v=window._spEnsure();
+  const shadow=window._spShadowUnlocked();
+  const knownCount=SP_NPCS.filter(n=>n.tag!=='host'&&v.unlockedContacts.includes(n.id)).length;
+  const first=!v.sierraUnlocked;
+  const quote=first
+    ? '„Tu każdy mówi, że przyszedł odpocząć. Po pięciu minutach połowa próbuje coś sprzedać, druga połowa próbuje coś dostać. Zagraj, pogadaj, pokaż, że potrafisz być człowiekiem, zanim zaczniesz być marką."'
+    : '„Dobrze Cię widzieć. Zagraj, pokaż się, a ja rozejrzę się, kogo warto Ci przedstawić."';
+  _spPanel(`<div style="background:linear-gradient(160deg,#2a1e2e,#3a2838);border:2px solid #f0a860;border-radius:14px;padding:18px;max-width:540px;margin:0 auto;color:#f4ecdc;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 4px;color:#ffd9a0">🌅 Sierra „Sunny" Bell — gospodyni</h2>
+    <div style="font-size:12px;color:#e0c8b0;font-style:italic;background:rgba(8,6,10,.5);border-radius:8px;padding:11px;margin-bottom:10px">${quote}</div>
+    <div style="font-size:11px;color:#c8b0a0;background:rgba(8,6,10,.5);border-radius:6px;padding:8px;margin-bottom:12px">Reputacja plażowa: <b>${Math.round(v.beachReputation)}</b> · Zaufanie lokalne: <b>${Math.round(v.localBusinessTrust)}</b> · Kontakt z Sierrą: <b>${v.sierraUnlocked?'aktywny':'zablokowany (wróć po kilku wizytach i grach)'}</b></div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <button class="cbtn" style="color:#ff9e7a;border-color:#c06a4a" onclick="window._spGamesHub()">🏖 Zagraj w gry plażowe</button>
+      <button class="cbtn" style="color:#f0c060;border-color:#c0902a" onclick="window._spLeadsPanel()">💼 Aktywne okazje</button>
+      <button class="cbtn" style="color:#f0a0c0;border-color:#a06080" onclick="window._spMixerPanel()">🍸 Sunset Mixer</button>
+      ${knownCount>=2?'<button class="cbtn" style="color:#7edc96;border-color:#3a8a5a" onclick="window._spConnectPanel()">🤝 Przedstaw ludzi sobie</button>':''}
+      <button class="cbtn" style="color:#7ec8e0;border-color:#3a6a8a" onclick="window._spResultsPanel()">🏆 Moje wyniki</button>
+      ${shadow?'<button class="cbtn" style="color:#a878c8;border-color:#5a3a7a" onclick="window._spShadowPanel()">🕶️ „Coś dyskretnego"</button>':''}
+      <button class="cbtn" style="color:#ccc" onclick="window._sunsetMenu()">← Wróć</button>
+    </div>
+  </div>`);
+};
+window._spShadowPanel=function(){
+  if(!window._spShadowUnlocked()){ _spMsg('🕶️ Nic takiego tu nie ma.','f',3000); return; }
+  const r=window._spMaybeShadowSignal();
+  _spPanel(`<div style="background:linear-gradient(160deg,#1a1424,#241a30);border:2px solid #a878c8;border-radius:14px;padding:18px;max-width:520px;margin:0 auto;color:#e8dcf0;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 4px;color:#c8a0e0">🕶️ Dyskretna warstwa</h2>
+    <div style="font-size:12px;color:#c8b8d8;background:#120a1a;border-radius:8px;padding:11px;margin-bottom:10px">${r&&r.msg?r.msg:'Na razie cisza. SUNSET PALMS zostaje przede wszystkim legalną lokacją — żadnych interesów na terenie altany. Zbyt nachalny ruch kończy się banem i utratą kontaktów.'}</div>
+    <button class="cbtn" style="width:100%;color:#ccc" onclick="window._spHost()">← Wróć</button>
+  </div>`);
+};
+/* §23: Remy „Wave" Carter — prowadzący gry */
+window._spRemy=function(){
+  const v=window._spEnsure(); _spUnlockContact('remy');
+  _spPanel(`<div style="background:linear-gradient(160deg,#12303a,#1a4650);border:2px solid #6ac8d0;border-radius:14px;padding:18px;max-width:520px;margin:0 auto;color:#eaf6f8;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 4px;color:#7ee0e8">🏄 Remy „Wave" Carter</h2>
+    <div style="font-size:12px;color:#bcdce0;font-style:italic;background:#0a1e22;border-radius:8px;padding:11px;margin-bottom:10px">„Wygrana pokazuje refleks, a porażka pokazuje charakter. Biznesowo ta druga informacja bywa droższa. Zagrasz?"</div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <button class="cbtn" style="color:#ff9e7a;border-color:#c06a4a" onclick="window._spGamePalmToss()">🥏 Palm Toss</button>
+      <button class="cbtn" style="color:#7ec8b0;border-color:#3a8a6a" onclick="window._spGameCoastShuffle()">🥌 Coast Shuffle</button>
+      <button class="cbtn" style="color:#6ab8e0;border-color:#3a6a8a" onclick="window._spGameWaveRally()">🏓 Wave Rally</button>
+      <button class="cbtn" style="color:#f0c060;border-color:#c0902a" onclick="window._spGameFrisbeeArc()">🥏 Frisbee Arc</button>
+      <button class="cbtn" style="color:#ccc" onclick="window._sunsetMenu()">← Wróć</button>
+    </div>
+  </div>`);
+};
+/* §24: Naomi Kade — marka lifestyle */
+window._spNaomi=function(){
+  const v=window._spEnsure(); _spUnlockContact('naomi');
+  _spPanel(`<div style="background:linear-gradient(160deg,#2a1a24,#3a2432);border:2px solid #e88aa8;border-radius:14px;padding:18px;max-width:520px;margin:0 auto;color:#f6e8ee;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 4px;color:#f0a0c0">👙 Naomi Kade — marka plażowa</h2>
+    <div style="font-size:12px;color:#d8b8c8;font-style:italic;background:#180a12;border-radius:8px;padding:11px;margin-bottom:10px">„Nie szukam kogoś, kto założy koszulkę i napisze »kocham tę markę«. Szukam kogoś, komu ludzie uwierzą, kiedy niczego nie mówi."</div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <button class="cbtn" style="color:#f0c060;border-color:#c0902a" onclick="window._spGamePalmPitch()">💼 Złóż propozycję (Palm Pitch)</button>
+      <button class="cbtn" style="color:#7ec8e0;border-color:#3a6a8a" onclick="window._spLeadsPanel()">💼 Zobacz okazje</button>
+      <button class="cbtn" style="color:#ccc" onclick="window._sunsetMenu()">← Wróć</button>
+    </div>
+  </div>`);
+};
+/* §25: Ellis Shore — marina/eventy wodne */
+window._spEllis=function(){
+  const v=window._spEnsure(); _spUnlockContact('ellis');
+  _spPanel(`<div style="background:linear-gradient(160deg,#12283a,#1a3c50);border:2px solid #6ab0d8;border-radius:14px;padding:18px;max-width:520px;margin:0 auto;color:#eaf4fa;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 4px;color:#7ec0e8">⛵ Ellis Shore — marina i eventy wodne</h2>
+    <div style="font-size:12px;color:#bcd8ea;font-style:italic;background:#0a1c28;border-radius:8px;padding:11px;margin-bottom:10px">„Każdy chce wejść na łódź, kiedy świeci słońce. Ja patrzę na to, kto zostaje, kiedy trzeba zapłacić za paliwo, ludzi i pogodę (śmieje się)."</div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <button class="cbtn" style="color:#f0c060;border-color:#c0902a" onclick="var l=window._spTryGenerateLead('ellis','npc'); window._spLeadsPanel(); if(!l) window._spMsg('⛵ Ellis: na razie nic konkretnego — wróć, jak zrobisz trochę szumu.','i',4000);">⛵ Zapytaj o dzień contentowy na łodzi</button>
+      <button class="cbtn" style="color:#7ec8e0;border-color:#3a6a8a" onclick="window._spLeadsPanel()">💼 Zobacz okazje</button>
+      <button class="cbtn" style="color:#ccc" onclick="window._sunsetMenu()">← Wróć</button>
+    </div>
+  </div>`);
+};
+/* §26: Dani Solis — fotografka/lifestyle */
+window._spDani=function(){
+  const v=window._spEnsure(); _spUnlockContact('dani');
+  _spPanel(`<div style="background:linear-gradient(160deg,#1c1e2e,#26283c);border:2px solid #a0a8e0;border-radius:14px;padding:18px;max-width:520px;margin:0 auto;color:#eceafa;max-height:84vh;overflow-y:auto">
+    <h2 style="margin:0 0 4px;color:#b0b8f0">📸 Dani Solis — fotografka lifestyle</h2>
+    <div style="font-size:12px;color:#c8c8e8;font-style:italic;background:#0e0e18;border-radius:8px;padding:11px;margin-bottom:10px">„Plaża jest turbo łatwa do sfotografowania, ale człowiek na plaży? Niekoniecznie."</div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <button class="cbtn" style="color:#7ec8e0;border-color:#3a6a8a" onclick="window._spContentPanel()">📱 Zrób sesję / content</button>
+      <button class="cbtn" style="color:#f0c060;border-color:#c0902a" onclick="var l=window._spTryGenerateLead('dani','npc'); window._spLeadsPanel(); if(!l) window._spMsg('📸 Dani: mam pełen kalendarz — złap mnie po dobrej rundzie networkingu.','i',4000);">📸 Zapytaj o pakiet lifestyle</button>
+      <button class="cbtn" style="color:#ccc" onclick="window._sunsetMenu()">← Wróć</button>
+    </div>
+  </div>`);
+};
+
+/* ═══════════════ DAILY TICK (wołany z nextPeriod przez patch) ═══════════════ */
+window._spDailyTick=function(){
+  try{ const v=window._spEnsure(); _spResetDailyIfNeeded();
+    window._spReferralTick(); window._spSierraReminderTick();
+  }catch(e){}
+};
+
+/* ═══════════════ §4: SYNCHRONIZACJA OBIEKTÓW WNĘTRZA (gating stref) ═══════════════ */
+window._spSyncObjects=function(){
+  if(typeof ROOMS==='undefined'||!ROOMS.sunset_palms) return;
+  const v=window._spEnsure();
+  const wf=_spWeatherFactor();
+  ROOMS.sunset_palms.objects.forEach(o=>{
+    if(o.id==='npc_sp_sierra'){ o._hidden=false; } /* Sierra zawsze obecna, ale kontakt SMS gated */
+    if(o.id==='spz_mixer'){ /* strefa ogniska/miksera zawsze widoczna; okno czasowe sprawdza panel */ }
+  });
+};
+
+/* ═══════════════ §3: RYSOWANIE — FASADA NA MAPIE COAST ═══════════════ */
+function drawSunsetPavilion(sx,sy,w,h){
+  const t=Date.now()/1000; const isDay=(typeof G!=='undefined'&&G.timeOfDay<2);
+  X.fillStyle='rgba(0,0,0,.35)'; X.fillRect(sx+5,sy+8,w,h); /* cień */
+  /* piasek pod altaną */
+  X.fillStyle='#e8d6a8'; X.fillRect(sx-6,sy+h-10,w+12,16);
+  /* podłoga tarasu (jasne drewno) */
+  const gg=X.createLinearGradient(sx,sy,sx,sy+h); gg.addColorStop(0,'#f2e6cc'); gg.addColorStop(1,'#d8c098'); X.fillStyle=gg; X.fillRect(sx,sy+h*0.30,w,h*0.70);
+  /* słupy + białe balustrady */
+  X.fillStyle='#f6f2ea'; for(const cx of [sx+8,sx+w*0.5-4,sx+w-16]) X.fillRect(cx,sy+h*0.30,8,h*0.68);
+  X.strokeStyle='#f6f2ea'; X.lineWidth=3; X.strokeRect(sx+6,sy+h*0.62,w-14,h*0.30);
+  /* dach dwuspadowy — pastelowy turkus */
+  X.fillStyle='#5ec8c0'; X.beginPath(); X.moveTo(sx-6,sy+h*0.34); X.lineTo(sx+w*0.5,sy+h*0.04); X.lineTo(sx+w+6,sy+h*0.34); X.closePath(); X.fill();
+  X.fillStyle='#3fa8a0'; X.beginPath(); X.moveTo(sx-6,sy+h*0.34); X.lineTo(sx+w*0.5,sy+h*0.04); X.lineTo(sx+w*0.5,sy+h*0.10); X.lineTo(sx-2,sy+h*0.34); X.closePath(); X.fill();
+  X.fillStyle='#f0a860'; X.fillRect(sx-6,sy+h*0.33,w+12,4); /* koralowy gzyms */
+  /* girlandy świetlne */
+  for(let i=0;i<7;i++){ const lx=sx+8+i*((w-16)/6), ly=sy+h*0.36+Math.sin(i*1.1)*3; X.fillStyle=['#ffd97a','#ff9a7a','#7ad0ff','#ff7ab0'][i%4]; X.beginPath(); X.arc(lx,ly,2.4+(isDay?0:0.6*Math.sin(t*3+i)),0,Math.PI*2); X.fill(); }
+  /* bar z kolorowymi napojami */
+  X.fillStyle='#c88a5a'; X.fillRect(sx+w*0.12,sy+h*0.6,w*0.3,h*0.26);
+  const bc=['#ff7a7a','#ffd97a','#7ad0ff','#b07aff']; for(let i=0;i<4;i++){ X.fillStyle=bc[i]; X.fillRect(sx+w*0.14+i*(w*0.06),sy+h*0.56,4,h*0.06); }
+  /* deska surfingowa oparta */
+  X.save(); X.translate(sx+w*0.86,sy+h*0.58); X.rotate(-0.35); X.fillStyle='#ff8a5a'; X.fillRect(-6,0,12,h*0.34); X.fillStyle='#fff'; X.fillRect(-1,4,2,h*0.30); X.restore();
+  /* palma z boku */
+  X.fillStyle='#6a4a28'; X.fillRect(sx-2,sy+h*0.30,6,h*0.30); X.fillStyle='#3a9a5a';
+  for(let a=-2;a<=2;a++){ X.beginPath(); X.ellipse(sx+1,sy+h*0.30,16,4,a*0.4,0,Math.PI*2); X.fill(); }
+  /* neon SUNSET PALMS */
+  X.fillStyle='rgba(255,215,150,0.98)'; X.font='bold '+Math.max(9,Math.round(w*0.085))+'px sans-serif'; X.textAlign='center';
+  X.shadowColor='rgba(255,140,90,0.85)'; X.shadowBlur=isDay?4:12; X.fillText('SUNSET', sx+w*0.5, sy+h*0.22);
+  X.font='bold '+Math.max(7,Math.round(w*0.06))+'px sans-serif'; X.fillStyle='rgba(255,180,120,0.95)'; X.fillText('PALMS', sx+w*0.5, sy+h*0.30); X.shadowBlur=0;
+  X.textAlign='left';
+  /* wieczorna różowo-pomarańczowa poświata */
+  if(!isDay){ const glow=X.createRadialGradient(sx+w*0.5,sy+h*0.5,10,sx+w*0.5,sy+h*0.5,w*0.7); glow.addColorStop(0,'rgba(255,150,90,0.14)'); glow.addColorStop(1,'rgba(255,150,90,0)'); X.fillStyle=glow; X.fillRect(sx-20,sy-20,w+40,h+40); }
+}
+window.drawSunsetPavilion=drawSunsetPavilion;
+
+/* ═══════════════ §3: RYSOWANIE — WNĘTRZE (walkable) ═══════════════ */
+function drawSunsetPalms(){
+  const room=(typeof ROOMS!=='undefined')?ROOMS.sunset_palms:null; if(!room) return;
+  if(typeof window._spSyncObjects==='function') window._spSyncObjects();
+  const W=room.wT*48, H=room.hT*48; const t=Date.now()/1000;
+  const isDay=(typeof G!=='undefined'&&G.timeOfDay<2); const win=(typeof window._spWindow==='function')?window._spWindow():'socialPeak';
+  const evening=(win==='evening'||win==='nightlife');
+  /* niebo/woda u góry (widok na morze) */
+  const skyH=H*0.20; const sky=X.createLinearGradient(wx2sx(0),wy2sy(0),wx2sx(0),wy2sy(skyH));
+  if(evening){ sky.addColorStop(0,'#ff9a6a'); sky.addColorStop(0.5,'#f07a8a'); sky.addColorStop(1,'#7a5a9a'); }
+  else { sky.addColorStop(0,'#7ec8e8'); sky.addColorStop(1,'#bfe8e0'); }
+  X.fillStyle=sky; X.fillRect(wx2sx(0),wy2sy(0),W,skyH);
+  /* słońce/zachód */
+  const sunx=wx2sx(W*0.72), suny=wy2sy(skyH*0.55);
+  X.fillStyle=evening?'rgba(255,180,120,0.95)':'rgba(255,240,200,0.9)'; X.beginPath(); X.arc(sunx,suny,evening?26:20,0,Math.PI*2); X.fill();
+  /* morze (pas pod niebem) */
+  const seaTop=skyH, seaBot=H*0.28; X.fillStyle=evening?'#5a6a9a':'#3a9ac8'; X.fillRect(wx2sx(0),wy2sy(seaTop),W,(seaBot-seaTop));
+  X.strokeStyle='rgba(255,255,255,0.25)'; X.lineWidth=1; for(let yy=seaTop+8; yy<seaBot; yy+=10){ X.beginPath(); for(let xx=0;xx<=W;xx+=16){ const y2=wy2sy(yy+Math.sin(xx*0.05+t)*2); if(xx===0)X.moveTo(wx2sx(xx),y2); else X.lineTo(wx2sx(xx),y2);} X.stroke(); }
+  /* taras — jasne drewno */
+  const deck=X.createLinearGradient(wx2sx(0),wy2sy(seaBot),wx2sx(0),wy2sy(H)); deck.addColorStop(0,'#e6d2a6'); deck.addColorStop(1,'#d0b483'); X.fillStyle=deck; X.fillRect(wx2sx(0),wy2sy(seaBot),W,H-seaBot);
+  X.strokeStyle='rgba(120,90,50,0.28)'; X.lineWidth=1; for(let x=0;x<=W;x+=44){ X.beginPath(); X.moveTo(wx2sx(x),wy2sy(seaBot)); X.lineTo(wx2sx(x),wy2sy(H)); X.stroke(); }
+  /* biała balustrada wzdłuż morza */
+  X.fillStyle='#f6f2ea'; X.fillRect(wx2sx(0),wy2sy(seaBot-6),W,7); for(let x=20;x<W;x+=60){ X.fillRect(wx2sx(x),wy2sy(seaBot-6),5,20); }
+  /* girlandy świetlne u góry tarasu */
+  for(let i=0;i<Math.floor(W/70);i++){ const lx=wx2sx(30+i*70), ly=wy2sy(seaBot+14+Math.sin(i*1.2)*4); X.fillStyle=['#ffd97a','#ff9a7a','#7ad0ff','#ff7ab0','#b0ff9a'][i%5]; X.beginPath(); X.arc(lx,ly,3+(evening?0.8*Math.sin(t*3+i):0),0,Math.PI*2); X.fill(); if(evening){ X.fillStyle=X.fillStyle; } }
+  /* wentylatory sufitowe (wolno obracające) */
+  for(const fx of [W*0.3,W*0.7]){ const cx=wx2sx(fx), cy=wy2sy(seaBot+40); X.strokeStyle='#8a7a5a'; X.lineWidth=2; X.beginPath(); X.moveTo(cx,wy2sy(seaBot+8)); X.lineTo(cx,cy); X.stroke(); const a=t*0.6; X.strokeStyle='rgba(90,70,50,0.6)'; X.lineWidth=5; for(let k=0;k<4;k++){ const ang=a+k*Math.PI/2; X.beginPath(); X.moveTo(cx,cy); X.lineTo(cx+Math.cos(ang)*22,cy+Math.sin(ang)*7); X.stroke(); } X.fillStyle='#6a5a3a'; X.beginPath(); X.arc(cx,cy,3,0,Math.PI*2); X.fill(); }
+  /* palmy w rogach tarasu */
+  for(const px of [40,W-40]){ const bx=wx2sx(px), by=wy2sy(H-60); X.fillStyle='#6a4a28'; X.fillRect(bx-3,by,6,54); X.fillStyle='#3a9a5a'; for(let a=-2;a<=2;a++){ X.beginPath(); X.ellipse(bx,by,20,5,a*0.4,0,Math.PI*2); X.fill(); } }
+  /* City Pulse §40: ambient plażowicze — kilka spacerujących sylwetek (deterministyczne, bez migotania) */
+  const wf=(typeof _spWeatherFactor==='function')?_spWeatherFactor():{mult:1}; const nAmb=Math.max(1,Math.round(4*wf.mult));
+  for(let i=0;i<nAmb;i++){ const ph=i*1.7; const ax=wx2sx((0.15+0.7*((0.5+0.5*Math.sin(t*0.3+ph))))*W); const ay=wy2sy(seaBot+70+((i*53)%Math.max(1,(H-seaBot-120)))); const col=['#c86a6a','#6a8ac8','#6ac89a','#c8b06a'][i%4]; X.fillStyle='rgba(0,0,0,.18)'; X.beginPath(); X.ellipse(ax,ay+14,7,3,0,0,Math.PI*2); X.fill(); X.fillStyle=col; X.fillRect(ax-4,ay-4,8,16); X.fillStyle='#e8c4a0'; X.beginPath(); X.arc(ax,ay-8,4,0,Math.PI*2); X.fill(); }
+}
+window.drawSunsetPalms=drawSunsetPalms;
+
+/* ═══════════════ §3: SPRITE'Y STREF + NPC (rysowane NA tle) ═══════════════ */
+window._drawSunsetSprite=function(id,sx,sy,w,h){
+  const t=Date.now()/1000;
+  const label=(txt,col)=>{ X.fillStyle=col||'rgba(20,40,55,0.92)'; X.font='bold 10px "Segoe UI",Arial'; X.textAlign='center'; X.fillText(txt,sx+w/2,sy+h-3); X.textAlign='left'; };
+  const base=(fill)=>{ X.fillStyle='rgba(0,0,0,0.25)'; X.fillRect(sx+3,sy+5,w,h); X.fillStyle=fill; X.fillRect(sx,sy,w,h); X.fillStyle='rgba(255,255,255,0.35)'; X.fillRect(sx,sy,w,2); };
+  /* ── NPC — kolorowe sylwetki plażowe ── */
+  if(id.indexOf('npc_sp_')===0){
+    const who=id.replace('npc_sp_','');
+    const P={ sierra:{cl:'#f0a860',ha:'#5a3a24',sk:'#e8c4a0'}, remy:{cl:'#2ab0a0',ha:'#2a1c12',sk:'#d8a878'},
+              naomi:{cl:'#e86aa0',ha:'#3a2418',sk:'#e8c8a8'}, ellis:{cl:'#3a6a9a',ha:'#2a2018',sk:'#d8b088'},
+              dani:{cl:'#6a6ac8',ha:'#241a10',sk:'#e0b890'} }[who]||{cl:'#6a8ac8',ha:'#2a1c12',sk:'#e0b890'};
+    const cx=sx+w/2, bob=Math.sin(t*1.3+sx*0.02)*1.3;
+    X.fillStyle='rgba(0,0,0,.28)'; X.beginPath(); X.ellipse(cx,sy+h-2,w*0.42,4,0,0,Math.PI*2); X.fill();
+    X.fillStyle='#3a3020'; X.fillRect(cx-7,sy+h*0.60,5,h*0.36); X.fillRect(cx+2,sy+h*0.60,5,h*0.36);
+    X.fillStyle=P.cl; X.beginPath(); X.moveTo(cx-10,sy+h*0.28+bob); X.lineTo(cx+10,sy+h*0.28+bob); X.lineTo(cx+8,sy+h*0.66); X.lineTo(cx-8,sy+h*0.66); X.closePath(); X.fill();
+    X.fillStyle=P.cl; X.fillRect(cx-13,sy+h*0.31+bob,4,h*0.24); X.fillRect(cx+9,sy+h*0.31+bob,4,h*0.24);
+    X.fillStyle=P.sk; X.fillRect(cx-13,sy+h*0.53+bob,4,4); X.fillRect(cx+9,sy+h*0.53+bob,4,4);
+    X.fillStyle=P.sk; X.beginPath(); X.arc(cx,sy+h*0.18+bob,h*0.13,0,Math.PI*2); X.fill();
+    X.fillStyle=P.ha; X.beginPath(); X.arc(cx,sy+h*0.16+bob,h*0.145,Math.PI*1.02,Math.PI*1.98); X.fill();
+    X.fillStyle='#15151c'; X.fillRect(cx-3,sy+h*0.17+bob,1.6,2); X.fillRect(cx+1.4,sy+h*0.17+bob,1.6,2);
+    return;
+  }
+  switch(id){
+    case 'spz_games': { /* stojak z obręczami / cele */
+      base('#d8b483'); X.fillStyle='#c07a4a'; X.fillRect(sx+8,sy+h*0.5,w-16,h*0.4);
+      const cc=['#ff9a7a','#7ad0ff','#ffd97a']; for(let i=0;i<3;i++){ X.strokeStyle=cc[i]; X.lineWidth=3; X.beginPath(); X.arc(sx+w*0.25+i*(w*0.25),sy+h*0.36,10,0,Math.PI*2); X.stroke(); }
+      X.lineWidth=1; label('🏖 Gry plażowe'); return; }
+    case 'spz_social': { /* stoliki networkingowe */
+      base('#c8b088'); for(const dx of [sx+w*0.22,sx+w*0.62]){ X.fillStyle='#8a6a4a'; X.beginPath(); X.ellipse(dx+w*0.08,sy+h*0.5,w*0.13,h*0.14,0,0,Math.PI*2); X.fill(); X.fillStyle='#f0e0c0'; X.beginPath(); X.ellipse(dx+w*0.08,sy+h*0.5,w*0.10,h*0.10,0,0,Math.PI*2); X.fill(); }
+      label('🧠 Stoliki'); return; }
+    case 'spz_bar': { /* pastelowy bar */
+      base('#c88a5a'); X.fillStyle='#a86a3a'; X.fillRect(sx+6,sy+h*0.5,w-12,h*0.4);
+      const bc=['#ff7a7a','#ffd97a','#7ad0ff','#b07aff','#7aff9a']; for(let i=0;i<5;i++){ X.fillStyle=bc[i]; X.fillRect(sx+10+i*((w-20)/5),sy+h*0.24,5,h*0.24); }
+      label('🍹 Bar'); return; }
+    case 'spz_stage': { /* mała scena */
+      base('#8a5a7a'); X.fillStyle='#5a3a5a'; X.fillRect(sx+6,sy+h*0.45,w-12,h*0.45);
+      X.fillStyle='rgba(255,220,140,'+(0.4+0.3*Math.sin(t*2))+')'; X.beginPath(); X.arc(sx+w*0.5,sy+h*0.3,7,0,Math.PI*2); X.fill(); /* reflektor */
+      X.fillStyle='#2a1a2a'; X.fillRect(sx+w*0.46,sy+h*0.5,w*0.06,h*0.3); /* mikrofon stojak */
+      label('🎤 Scena','rgba(255,220,180,0.95)'); return; }
+    case 'spz_lounge': { /* leżaki i palmy */
+      base('#e0cc9a'); for(const dx of [sx+w*0.12,sx+w*0.55]){ X.save(); X.translate(dx,sy+h*0.5); X.rotate(-0.15); X.fillStyle='#ff9a7a'; X.fillRect(0,0,w*0.3,7); X.fillStyle='#e8e2d0'; X.fillRect(0,-h*0.16,4,h*0.2); X.restore(); }
+      label('🌴 Leżaki'); return; }
+    case 'spz_photo': { /* pomost fotograficzny */
+      base('#b89a6a'); X.fillStyle='#8a6a4a'; for(let i=0;i<4;i++) X.fillRect(sx+8+i*((w-16)/4),sy+h*0.4,(w-16)/4-4,h*0.5);
+      X.fillStyle='#2a2a30'; X.fillRect(sx+w*0.4,sy+h*0.2,w*0.2,h*0.16); X.fillStyle='#7ad0ff'; X.fillRect(sx+w*0.44,sy+h*0.23,w*0.12,h*0.10); /* aparat */
+      label('📱 Pomost'); return; }
+    case 'spz_mixer': { /* strefa ogniska / mixer */
+      base('#7a4a3a'); const fl=0.5+0.5*Math.sin(t*4); X.fillStyle=`rgba(255,${120+fl*80},60,0.9)`; X.beginPath(); X.moveTo(sx+w*0.5,sy+h*0.3); X.lineTo(sx+w*0.4,sy+h*0.66); X.lineTo(sx+w*0.6,sy+h*0.66); X.closePath(); X.fill();
+      X.fillStyle=`rgba(255,220,120,${0.6+fl*0.3})`; X.beginPath(); X.moveTo(sx+w*0.5,sy+h*0.42); X.lineTo(sx+w*0.45,sy+h*0.64); X.lineTo(sx+w*0.55,sy+h*0.64); X.closePath(); X.fill();
+      X.strokeStyle='#4a2a1a'; X.lineWidth=3; X.beginPath(); X.moveTo(sx+w*0.36,sy+h*0.7); X.lineTo(sx+w*0.64,sy+h*0.66); X.stroke(); X.lineWidth=1;
+      label('🍸 Ognisko / Mixer','rgba(255,220,180,0.95)'); return; }
+    case 'spz_leads': { /* tablica okazji */
+      base('#4a6a5a'); X.fillStyle='#e8dcc0'; X.fillRect(sx+w*0.16,sy+h*0.18,w*0.68,h*0.5); X.fillStyle='rgba(80,60,40,0.5)'; for(let r=0;r<3;r++) X.fillRect(sx+w*0.2,sy+h*0.26+r*h*0.12,w*0.6,3);
+      label('💼 Okazje'); return; }
+    case 'spz_results': { /* tablica wyników */
+      base('#3a5a6a'); X.fillStyle='#0a1a22'; X.fillRect(sx+w*0.14,sy+h*0.16,w*0.72,h*0.54); X.fillStyle='#7edc96'; X.font='bold 12px Arial'; X.textAlign='center'; X.fillText('🏆',sx+w*0.5,sy+h*0.5); X.textAlign='left';
+      label('🏆 Wyniki'); return; }
+    case 'spz_menu': { /* tablica aktywności / altana */
+      base('#c0964a'); X.fillStyle='#f2e6cc'; X.fillRect(sx+w*0.14,sy+h*0.16,w*0.72,h*0.5); X.fillStyle='#c07a4a'; X.font='bold 11px Arial'; X.textAlign='center'; X.fillText('SUNSET',sx+w*0.5,sy+h*0.42); X.textAlign='left';
+      label('📋 Altana'); return; }
+    case 'spz_exit': { /* wyjście na promenadę */
+      base('#5a4a3a'); X.fillStyle='#2a2018'; X.fillRect(sx+w*0.24,sy+h*0.2,w*0.52,h*0.7); X.fillStyle='#f0c060'; X.beginPath(); X.arc(sx+w*0.66,sy+h*0.55,2,0,Math.PI*2); X.fill();
+      label('🚪 Wyjście'); return; }
+  }
+  base('#c8b088'); label('');
+};
+
+/* Nadawca SMS 'sierra' rejestrowany bezpośrednio w obiekcie SMS_CONTACTS (patrz edycja SMS_CONTACTS). */
+/* ═══════════════════════════════════════════════════════════════════════════
+   SUNSET PALMS MODULE END
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 
 
 /* ═══ DOŁEK JAKO CHODZALNA CELA (user: „fizyczne, nie panel") ═══
@@ -53004,6 +54587,10 @@ window._enterDistrictPlace=(districtId,placeId)=>{
     case 'business_vesper':
       if(typeof closeOverlay==='function') closeOverlay();
       if(typeof window._openVesperHouse==='function') window._openVesperHouse();
+      return;
+    case 'coast_sunset':
+      if(typeof closeOverlay==='function') closeOverlay();
+      if(typeof window._openSunsetPalms==='function') window._openSunsetPalms();
       return;
     case 'business_aureum':
       if(typeof closeOverlay==='function') closeOverlay();
@@ -65127,6 +66714,7 @@ const SMS_CONTACTS={
   kantar:    {name:'Numer zastrzeżony',         em:'📵', color:'#9b59b6', physical:true}, /* v2.3.38 moduł „Numer zastrzeżony" — nadawca SMS (broker Kantar w Velvet Room); name→„Kantar” po ukończeniu questa (mutowane w TIER 8) */
   knox:      {name:'Knox „Towline” Mercer',     em:'🛻', color:'#e67e22', physical:false}, /* nowy PDF Fizyczne kolizje: holownik/wraki, usługi powtarzalne (menu w renderSMSConversation) */
   nolan:     {name:'Captain Nolan Reed',        em:'⚓', color:'#00b4d8', physical:false}, /* PDF Marina Coast §6/§25: kapitan portowy — cumowanie, paliwo, serwis, eventy, ostrzeżenia */
+  sierra:    {name:'Sierra „Sunny” Bell',        em:'🌅', color:'#f0a860', physical:true}, /* SUNSET PALMS §21-22: gospodyni altany — przypomnienia, leady, referrale */
 };
 function _ensureSMS(){
   if(!G.sms||typeof G.sms!=='object') G.sms={conversations:{},unread:0,_triggeredEvents:{}};
@@ -74237,6 +75825,15 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.127',date:'2026-07-24',cats:['feature'],title:'🌅 SUNSET PALMS — florydzka altana plażowa w Marina Coast: minigry, imprezy i networking przy zachodzie słońca',
+ items:[
+  {t:'feature',d:'🌅 W Marina Coast, tuż przy plaży i promenadzie, otwarła się SUNSET PALMS — otwarta altana w pastelowym, florydzkim stylu: jasne drewno, palmy, girlandy świetlne, mały bar z kolorowymi napojami i widok na wodę. W dzień pełno tu plażowiczów i gier, a przy zachodzie słońca miejsce zmienia się w luźną strefę imprez, małych występów i rozmów. Wejdź w nią prosto z plaży i pochodź po całym tarasie.'},
+  {t:'feature',d:'🎮 Sercem miejsca jest osiem krótkich minigier na różne umiejętności: rzut obręczami, plażowy shuffleboard, rytmiczne odbijanie piłki, celne frisbee z wiatrem, gra pamięciowa z gośćmi, czytanie intencji rozmówcy, budowanie propozycji biznesowej i szybka pomoc przy barze. Dobry wynik nie daje od razu pieniędzy — zwiększa szansę, że zainteresują się Tobą lokalni ludzie. Powtarzanie tej samej gry w krótkim czasie daje coraz mniejsze nagrody.'},
+  {t:'feature',d:'🤝 Poznasz gospodynię altany i kilka ważnych osób z okolicy. Z czasem odblokujesz kontakty, dostaniesz zaproszenia na weekendowy Sunset Mixer, zagrasz krótki występ dla plażowej publiczności, nagrasz lifestyle content i będziesz mógł przedstawiać poznane osoby sobie nawzajem — trafne przedstawienie potrafi się opłacić po kilku dniach.'},
+  {t:'feature',d:'💼 Pojawiają się realne okazje biznesowe: kampanie, dni nagraniowe na wodzie, stoiska z merchem czy sezonowe współprace. Każda ma swoje wymagania, stawkę i ryzyko — możesz przyjąć warunki, negocjować, zaproponować własny koncept albo odmówić. Jeśli przyjmiesz zlecenie i go nie dowieziesz, spada Twoje zaufanie w okolicy. Dzienne limity i pogoda sprawiają, że altana wspiera karierę i buduje kontakty, ale nie zastępuje muzyki.'}
+ ]
+ },
  {
  ver:'v2.3.126',date:'2026-07-24',cats:['feature','fix'],title:'🚦🔧 Nowe zasady ruchu w Business District, dopracowany serwis Garage 77, sejf w kamperze i pęk poprawek jakości',
  items:[
