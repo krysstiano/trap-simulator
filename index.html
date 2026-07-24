@@ -3467,7 +3467,7 @@ const ROOMS = {
          = na poziomej jezdni biznesu (rzędy 8-11 = y384-576). Przeniesiony do wolnej strefy marble bottom-left
          (cols 2-9 = x140-460 < steakhouse x480 i chodnik V x624; y632-762 = rzędy 13-15 marble, poniżej chodnika
          H y624, brak kolizji vs wieżowce/steakhouse). Powiększony. */
-      {id:'parking', wx:140, wy:632, w:320, h:130, act:'parking:info', prompt:'[E] 🅿️ Parking', lbl:'Parking'},
+      {id:'parking', wx:120, wy:632, w:300, h:130, act:'parking:info', prompt:'[E] 🅿️ Parking', lbl:'Parking'},/* v2.3.125 (user: „parking nachodzi na Steakhouse"): 140→120,w320→300 → prawa krawędź 420 (było 460), 36px luka do Steakhouse (456) */
       /* 5 places Business */
       /* v2.3.103 (user: „budynki Business nachodzą na chodnik"): wy200→176 → dół budynku kończy się na krawędzi chodnika poziomego (row7 y336), nie na nim.
          v2.3.107 (user: „DALEJ nachodzą — PR Agency, Bank VIP, Steakhouse"): poprawka wy (2.3.103) ruszyła tylko PION; budynki dalej nachodziły na chodniki PIONOWE (kol.13 x624-672 zach. / kol.16 x768-816 wsch. wokół jezdni x672-768). Bank VIP+Steakhouse (prawa krawędź 640→ chodnik zach.) przesunięte w lewo; PR Agency (lewa krawędź 780→ chodnik wsch.) w prawo. */
@@ -3476,12 +3476,18 @@ const ROOMS = {
       {id:'pragency_business', wx:820, wy:176, w:160,h:160, act:'business_pragency', prompt:'[E] 📰 PR Agency',          lbl:'PR'},/* v2.3.107: 780→820 (lewa krawędź 820>816=poza chodnikiem wsch.) */
       {id:'forbes_business',   wx:1080,wy:176, w:160,h:160, act:'business_forbes',   prompt:'[E] 📊 Fortuno Studio',      lbl:'Fortuno'},
       {id:'steakhouse_business',wx:456,wy:624, w:160,h:160, act:'business_steakhouse',prompt:'[E] 🥩 Steakhouse',        lbl:'Steakhouse'},/* v2.3.107: 480→456 (prawa krawędź 616<624) */
-      /* v2.3.116 (user): Eclipse Noir PRZENIESIONY z Underground do Business District. Pozycja @970,620
-         zweryfikowana bezkolizyjnie (90px margines od wszystkich obiektów Business, poza jezdniami). Godziny 20-06. */
-      {id:'eclipse_business',  wx:970, wy:620, w:160,h:150, act:'business_eclipse',   prompt:'[E] 🌑 Eclipse Noir (noc)',   lbl:'Eclipse Noir'},
-      /* v2.3.116 (PDF Business/golf): Aureum Green Club — prywatne pole golfowe. Pozycja @1216,696 bezkolizyjna (80px margines). Dzień 8-20. */
+      /* v2.3.116 (user): Eclipse Noir PRZENIESIONY z Underground do Business District. Godziny 20-06.
+         v2.3.125 (user: „wszystko w tym rogu na siebie nachodzi"): 970→830 — Eclipse przesunięty w lewo (tuż za
+         wschodnim chodnikiem pionowym x816), żeby zrobić czyste miejsce na Vesper między Eclipse a Aureum. wy620→626
+         (było 4px na chodniku poziomym row12 y576-624). Bryła 830-990 × 626-776. */
+      {id:'eclipse_business',  wx:830, wy:626, w:160,h:150, act:'business_eclipse',   prompt:'[E] 🌑 Eclipse Noir (noc)',   lbl:'Eclipse Noir'},
+      /* v2.3.116 (PDF Business/golf): Aureum Green Club — prywatne pole golfowe. Pozycja @1216,696. Dzień 8-20. */
       {id:'aureum_business',   wx:1216,wy:696, w:170,h:160, act:'business_aureum',    prompt:'[E] ⛳ Aureum Green Club',    lbl:'Aureum Green'},
-      {id:'vesper_business',   wx:976, wy:812, w:150,h:140, act:'business_vesper',    prompt:'[E] 🏨 The Vesper House',      lbl:'Vesper House'}, /* PDF Vesper House §2: hotel butikowy pod Eclipse Noir (bezkolizyjnie, min 42px margines) */
+      /* PDF Vesper House §2: hotel butikowy PRZY Eclipse Noir. v2.3.125 (user: „Vesper wystawał poza mapę,
+         wciśnięty pod Eclipse"): 976,812 (bryła kończyła się na y952, 88px w ciemnym borderze/poza mapą hT=20=960)
+         → 1024,660: Vesper stoi TERAZ obok Eclipse (34px luka) i przed Aureum (42px luka), w pełni na marmurze
+         (1024-1174 × 660-800), zero nachodzenia, zero borderu. */
+      {id:'vesper_business',   wx:1024,wy:660, w:150,h:140, act:'business_vesper',    prompt:'[E] 🏨 The Vesper House',      lbl:'Vesper House'},
     ]
   },
 
@@ -4072,6 +4078,9 @@ function drawSprite(id,sx,sy,w,h){
   if(id&&id.indexOf('_mrn_')===0){ if(typeof window._drawMarinaSprite==='function') window._drawMarinaSprite(id,sx,sy,w,h); X.restore(); return; }
   if(id&&id.indexOf('_pol_')===0){ if(typeof window._drawCellStation==='function') window._drawCellStation(id,sx,sy,w,h); X.restore(); return; }
   if(id&&id.indexOf('_sk_')===0){ if(typeof window._drawSkZone==='function') window._drawSkZone(id,sx,sy,w,h); X.restore(); return; }
+  /* v2.3.125 (user: „w Vesper House same szare kwadraty z tekstem"): strefy i NPC hotelu miały puste ID → drawGeneric
+     rysował szary box `#1a2030` z surowym id. Dedykowany renderer rysuje meble/markery i sylwetki NPC. */
+  if(id&&(id.indexOf('vesper_')===0||id.indexOf('npc_v_')===0)){ if(typeof window._drawVesperSprite==='function'){ window._drawVesperSprite(id,sx,sy,w,h); X.restore(); return; } }
   switch(id){
     case 'bed':          drawBed(sx,sy,w,h);break;
     case 'fridge':       drawFridge(sx,sy,w,h);break;
@@ -4088,6 +4097,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'exit_casino':
     case 'uf_exit':
     case 'cp_exit':
+    case 'exit_vesper': /* v2.3.125: wyjście z Vesper House */
     case 'exit_h':      drawDoor(sx,sy,w,h);break;
     case 'uf_start':    drawTournamentStartMarker(sx,sy,w,h,'#e84393');break; /* v2.3.99 (PDF #4) */
     case 'cp_start':    drawTournamentStartMarker(sx,sy,w,h,'#00b894');break; /* v2.3.99 (PDF #5) */
@@ -10206,17 +10216,23 @@ function drawGrowPot(sx,sy,w,h,id){
   if(pot.sickness){ X.font=`${Math.round(h*0.13)}px Arial`;X.textAlign='center';X.fillText('🤒',cx+w*0.3,sy+h*0.5);X.textAlign='left'; }
 }
 function drawStashSafe(sx,sy,w,h){
+  /* v2.3.125: wygląd zależny od modelu (standard=stalowy / wzmocniony=jaśniejsza stal / bankowy=grafit+złoto). */
+  const _m=(typeof window._camperStashModel==='function')?window._camperStashModel():null;
+  const _skin={standard:{body:'#2a3540',door:'#1a2530',spoke:'#c8a520',lbl:'📦 STASH',lc:'#52be80'},
+               reinforced:{body:'#36434e',door:'#232f38',spoke:'#b8c4d0',lbl:'🗄️ STASH+',lc:'#9ec8e0'},
+               vault:{body:'#2e2716',door:'#1c1810',spoke:'#e8c860',lbl:'🏦 SEJF',lc:'#e8c860'}}[_m?_m.id:'standard']
+             ||{body:'#2a3540',door:'#1a2530',spoke:'#c8a520',lbl:'📦 STASH',lc:'#52be80'};
   /* Metalowy sejf z elektronicznym keypadem */
   X.fillStyle='rgba(0,0,0,.5)';X.fillRect(sx+4,sy+6,w,h);
-  X.fillStyle='#2a3540';X.fillRect(sx,sy,w,h);
+  X.fillStyle=_skin.body;X.fillRect(sx,sy,w,h);
   /* Drzwi sejfu */
-  X.fillStyle='#1a2530';X.fillRect(sx+4,sy+4,w-8,h-8);
+  X.fillStyle=_skin.door;X.fillRect(sx+4,sy+4,w-8,h-8);
   /* Klamka koła */
   const cx=sx+w*0.32,cy=sy+h*0.55,r=Math.min(w,h)*0.18;
   X.fillStyle='#5a6570';X.beginPath();X.arc(cx,cy,r,0,Math.PI*2);X.fill();
   X.fillStyle='#3a4550';X.beginPath();X.arc(cx,cy,r*0.65,0,Math.PI*2);X.fill();
   /* Szprychy */
-  X.strokeStyle='#c8a520';X.lineWidth=2;
+  X.strokeStyle=_skin.spoke;X.lineWidth=2;
   for(let i=0;i<6;i++){
     const a=i*Math.PI/3;
     X.beginPath();X.moveTo(cx+Math.cos(a)*r*0.3,cy+Math.sin(a)*r*0.3);
@@ -10232,8 +10248,8 @@ function drawStashSafe(sx,sy,w,h){
   const pulse=Math.sin(Date.now()/400)*0.4+0.6;
   X.fillStyle=`rgba(39,174,96,${pulse})`;X.beginPath();X.arc(sx+w*0.85,sy+h*0.15,3,0,Math.PI*2);X.fill();
   /* Label */
-  X.font='bold 9px Arial';X.fillStyle='#52be80';X.textAlign='center';
-  X.fillText('📦 STASH',sx+w/2,sy+h*0.92);
+  X.font='bold 9px Arial';X.fillStyle=_skin.lc;X.textAlign='center';
+  X.fillText(_skin.lbl,sx+w/2,sy+h*0.92);
   X.textAlign='left';
 }
 /* v2.3.122 (PDF T12): drewniana SKRZYNIA — domyślny magazyn kampera (zamiast sejfu). */
@@ -11296,13 +11312,9 @@ function drawBusinessDecorations(){
     X.font='bold 10px Arial';
     X.fillStyle='#f4d35e';X.fillText('★ ELITE',sx+8,sy+13);
   }
-  /* Czerwony dywan przed głównym wejściem */
-  const sx=wx2sx(620),sy=wy2sy(720);
-  if(sx>-50&&sx<1330){
-    X.fillStyle='#7a1010';X.fillRect(sx,sy,120,20);
-    X.fillStyle='#c8a520';X.fillRect(sx,sy,3,20);
-    X.fillStyle='#c8a520';X.fillRect(sx+117,sy,3,20);
-  }
+  /* v2.3.125 (user: „czerwony dywan wisi w powietrzu obok Steakhouse"): usunięty — leżał @620,720 na gołym
+     marmurze, bez żadnego wejścia pod spodem (relikt starego układu). Prestiżowe wejścia (Eclipse/Vesper) mają
+     własne fasady rysowane per-budynek. */
 }
 
 function drawUndergroundBuilding(sx,sy,w,h,emoji,name,bgColor){
@@ -15177,10 +15189,10 @@ function handleAct(act,objId){
        panelu = wygladalo na zepsute). Realny dispatch to bezposrednie wywolania ponizej —
        pokrywaja wszystkie 11 stacji kamper/lab/plantacja. Usuwam wadliwy forward. */
     if(act==='kamper_stash_view' && typeof window._renderTrapStashInline==='function') window._renderTrapStashInline();
-    else if(act==='camper_safe_view'){ /* v2.3.122 (PDF T13): sejf — kupiony → podgląd (sekcja sejfu); niekupiony → Doposażenie */
+    else if(act==='camper_safe_view'){ /* v2.3.122 (PDF T13): sejf — kupiony → podgląd (sekcja sejfu); niekupiony → wybór modelu (v2.3.125) */
       if(window._camperHasStash&&window._camperHasStash()){ if(typeof window._renderTrapStashInline==='function') window._renderTrapStashInline(); }
-      else if(typeof gameConfirm==='function'){ gameConfirm('🔒 Zamontować Stash (sejf) w kamperze?\n\nOsobny magazyn na 500 pozycji, obok Stacji pakowania.\nKoszt: '+((window._CAMPER_STASH_PRICE||8000)).toLocaleString('pl')+' zł.', ()=>{ window._camperBuyStash&&window._camperBuyStash(); }); }
-      else { window._camperBuyStash&&window._camperBuyStash(); }
+      else if(typeof window._camperStashBuyPanel==='function'){ window._camperStashBuyPanel(); }
+      else { window._camperBuyStash&&window._camperBuyStash('standard'); }
     }
     else if(act==='kamper_drying_view' && typeof window._renderDryingRack==='function') window._renderDryingRack();
     else if(act==='kamper_pack_view' && typeof window._renderPackingStation==='function') window._renderPackingStation();
@@ -42535,16 +42547,20 @@ window.renderCamperPanel=function(){
       </div>
     </div>
     ${workSection}
-    ${(()=>{ /* v2.3.122 (PDF T13): Doposażenie — dokup Stash (sejf, +500 miejsc osobno od skrzyni). */
+    ${(()=>{ /* v2.3.122 (PDF T13) + v2.3.125 (wybór modelu): Doposażenie — Stash (sejf) w 3 modelach o różnej pojemności. */
       window._camperSafeEnsure&&window._camperSafeEnsure();
       const bought=window._camperHasStash&&window._camperHasStash();
-      const price=(window._CAMPER_STASH_PRICE||8000);
+      const cur=window._camperStashModel&&window._camperStashModel();
+      const models=(typeof CAMPER_STASH_MODELS!=='undefined')?CAMPER_STASH_MODELS:[];
+      const top=models[models.length-1];
+      const canUpgrade=bought&&cur&&top&&cur.id!==top.id;
       return `<div style="background:#12100a;border:1px solid ${bought?'#7a6a3a':'#5a4a20'};border-radius:8px;padding:10px;margin-bottom:10px">
         <div style="color:#d8c89a;font-weight:700;font-size:12.5px;margin-bottom:4px">🛠️ Doposażenie</div>
         ${bought
-          ? `<div style="color:#9aa;font-size:11px;line-height:1.5">🔒 <b>Stash (sejf)</b> zamontowany obok Stacji pakowania — dodatkowe <b>500</b> miejsc, osobno od skrzyni. Zarządzasz nim w podglądzie stashu (📦 Sprawdź stash we wnętrzu).</div>`
-          : `<div style="color:#9aa;font-size:11px;line-height:1.5;margin-bottom:6px">🔒 <b>Stash (sejf)</b> — osobny magazyn na <b>500</b> pozycji, montowany obok Stacji pakowania. Nie sumuje się ze skrzynią.</div>
-             <button class="cbtn" style="width:100%;border-color:#c8a520;color:#e8d08a" ${(G.money||0)<price?'disabled':''} onclick="window._camperBuyStash&&window._camperBuyStash()">${(G.money||0)<price?'Brak gotówki':'Dokup Stash — '+price.toLocaleString('pl')+' zł'}</button>`}
+          ? `<div style="color:#9aa;font-size:11px;line-height:1.5;margin-bottom:${canUpgrade?'6px':'0'}">${cur.emoji} <b>${cur.name}</b> zamontowany — <b>${cur.cap}</b> miejsc, osobno od skrzyni. Zarządzasz nim w podglądzie stashu.</div>
+             ${canUpgrade?`<button class="cbtn" style="width:100%;border-color:#c8a520;color:#e8d08a" onclick="window._camperStashBuyPanel&&window._camperStashBuyPanel()">⬆️ Wymień na większy model</button>`:''}`
+          : `<div style="color:#9aa;font-size:11px;line-height:1.5;margin-bottom:6px">🔒 <b>Stash (sejf)</b> — osobny magazyn na towar, montowany obok Stacji pakowania (nie sumuje się ze skrzynią). Dostępne <b>${models.length}</b> modele o różnej pojemności.</div>
+             <button class="cbtn" style="width:100%;border-color:#c8a520;color:#e8d08a" onclick="window._camperStashBuyPanel&&window._camperStashBuyPanel()">🔒 Wybierz model Stashu…</button>`}
       </div>`;
     })()}
     <div style="display:flex;flex-direction:column;gap:6px">
@@ -44983,11 +44999,27 @@ window._trapChestBlocked=function(){
   }
   return false;
 };
-window._camperSafeCap=function(){ return 500; };
+/* v2.3.125 (user: „w kamperze nie da się wybrać modelu sejfu, jest tylko jeden standardowy"): katalog modeli Stashu.
+   Różna pojemność / cena / wygląd. Wybierasz przy zakupie, później możesz wymienić na większy (dopłata różnicy).
+   Save-safe: stare zapisy mają camperStashBought=true bez modelu → migrują do 'standard' (500, jak dawniej). */
+const CAMPER_STASH_MODELS=[
+  {id:'standard',  emoji:'🔒', name:'Stash Standardowy', cap:500,  price:8000,  color:'#8a7a3a', desc:'Solidna skrytka obok Stacji pakowania — 500 pozycji.'},
+  {id:'reinforced',emoji:'🗄️', name:'Stash Wzmocniony',  cap:1200, price:20000, color:'#8a9aa8', desc:'Grubsza stal i zamek szyfrowy — 1200 pozycji.'},
+  {id:'vault',     emoji:'🏦', name:'Sejf Bankowy',      cap:3000, price:45000, color:'#c8a848', desc:'Skarbcowy sejf z ryglem — 3000 pozycji, maksymalna dyskrecja.'},
+];
+window.CAMPER_STASH_MODELS=CAMPER_STASH_MODELS;
+window._camperStashModelById=function(id){ return CAMPER_STASH_MODELS.find(m=>m.id===id)||null; };
+window._camperStashModel=function(){ /* aktualnie zamontowany model (null jeśli brak; default 'standard' dla starych zapisów) */
+  if(typeof G==='undefined'||!G.camperStashBought) return null;
+  return window._camperStashModelById(G.camperStashModel)||CAMPER_STASH_MODELS[0];
+};
+window._camperSafeCap=function(){ const m=window._camperStashModel(); return m?m.cap:500; };
 window._camperHasStash=function(){ return !!(typeof G!=='undefined' && G.camperStashBought); };
 window._camperSafeEnsure=function(){
   if(typeof G==='undefined') return null;
   if(typeof G.camperStashBought!=='boolean') G.camperStashBought=false;
+  /* migracja modelu: stare zapisy (kupiony stash bez modelu) → 'standard' (zachowuje 500 miejsc jak dawniej) */
+  if(G.camperStashBought && !window._camperStashModelById(G.camperStashModel)) G.camperStashModel='standard';
   if(!G.camperSafe || typeof G.camperSafe!=='object') G.camperSafe={products:{}};
   if(!G.camperSafe.products || typeof G.camperSafe.products!=='object') G.camperSafe.products={};
   return G.camperSafe;
@@ -44999,22 +45031,74 @@ window._camperSafeTotal=function(){
   return n;
 };
 window._camperSafeFull=function(){ return window._camperSafeTotal()>=window._camperSafeCap(); };
-/* cena Doposażenia (sejf) — decyzja projektowa: znaczący, ale osiągalny early-mid game */
+/* cena Doposażenia (sejf) — legacy alias (model 'standard'); zakup obsługuje teraz _camperBuyStash(modelId). */
 window._CAMPER_STASH_PRICE=8000;
-window._camperBuyStash=function(){
+window._camperBuyStash=function(modelId){
   if(typeof G==='undefined') return false;
   if(typeof window._camperEnsure==='function') window._camperEnsure();
   window._camperSafeEnsure();
   if(!(G.camper&&G.camper.owned)){ if(typeof showMsg==='function') showMsg('🚐 Najpierw kup kampera — Stash montujemy w jego wnętrzu.','r',4500); return false; }
-  if(G.camperStashBought){ if(typeof showMsg==='function') showMsg('🔒 Stash (sejf) jest już zamontowany w kamperze.','i',3800); return false; }
-  const price=window._CAMPER_STASH_PRICE;
-  if((G.money||0)<price){ if(typeof showMsg==='function') showMsg('💸 Brak '+(price-(G.money||0)).toLocaleString('pl')+' zł na Stash (koszt '+price.toLocaleString('pl')+' zł).','r',4500); return false; }
-  G.money-=price; G.camperStashBought=true; window._camperSafeEnsure();
-  if(typeof showMsg==='function') showMsg('🔒 Zamontowano Stash (sejf) obok Stacji pakowania — dodatkowe 500 miejsc, liczonych OSOBNO od skrzyni.','g',6000);
+  const model=window._camperStashModelById(modelId) || (modelId?null:CAMPER_STASH_MODELS[0]); /* brak arg = domyślny standard (kompat. starych wywołań) */
+  if(!model){ if(typeof showMsg==='function') showMsg('🔒 Nieznany model sejfu.','r',3000); return false; }
+  const cur=window._camperStashModel();
+  if(cur){
+    if(cur.id===model.id){ if(typeof showMsg==='function') showMsg('🔒 Model '+model.emoji+' '+model.name+' jest już zamontowany.','i',3800); return false; }
+    if(model.cap<=cur.cap){ if(typeof showMsg==='function') showMsg('🔒 Masz już większy sejf ('+cur.name+', '+cur.cap+' miejsc) — mniejszy się nie opłaca.','i',4500); return false; }
+    const diff=Math.max(0, model.price-cur.price);
+    if((G.money||0)<diff){ if(typeof showMsg==='function') showMsg('💸 Brak '+(diff-(G.money||0)).toLocaleString('pl')+' zł na wymianę na '+model.name+' (dopłata '+diff.toLocaleString('pl')+' zł).','r',5000); return false; }
+    G.money-=diff; G.camperStashModel=model.id;
+    if(typeof showMsg==='function') showMsg('⬆️ Wymieniono sejf na '+model.emoji+' '+model.name+' — teraz '+model.cap+' miejsc (dopłata '+diff.toLocaleString('pl')+' zł).','g',6500);
+  } else {
+    if((G.money||0)<model.price){ if(typeof showMsg==='function') showMsg('💸 Brak '+(model.price-(G.money||0)).toLocaleString('pl')+' zł na '+model.name+' (koszt '+model.price.toLocaleString('pl')+' zł).','r',5000); return false; }
+    G.money-=model.price; G.camperStashBought=true; G.camperStashModel=model.id;
+    if(typeof showMsg==='function') showMsg('🔒 Zamontowano '+model.emoji+' '+model.name+' obok Stacji pakowania — '+model.cap+' miejsc, liczonych OSOBNO od skrzyni.','g',6500);
+  }
+  window._camperSafeEnsure();
   if(typeof updateHUD==='function') updateHUD();
   if(typeof renderCamperPanel==='function') renderCamperPanel();
   if(typeof saveGameSilent==='function') saveGameSilent();
   return true;
+};
+/* panel wyboru modelu Stashu (na #mg-job) — zakup albo wymiana na większy. */
+window._camperStashBuyPanel=function(){
+  if(typeof window._camperSafeEnsure==='function') window._camperSafeEnsure();
+  const _mg=document.getElementById('mg-job'), _mc=document.getElementById('mg-job-content');
+  if(!_mg||!_mc){ window._camperBuyStash&&window._camperBuyStash('standard'); return; }
+  if(typeof G!=='undefined' && !(G.camper&&G.camper.owned)){ if(typeof showMsg==='function') showMsg('🚐 Najpierw kup kampera — Stash montujemy w jego wnętrzu.','r',4500); return; }
+  const cur=window._camperStashModel(); const money=(typeof G!=='undefined'&&G.money)||0;
+  const cards=CAMPER_STASH_MODELS.map(m=>{
+    let tag='', btn='';
+    if(cur && cur.id===m.id){ tag='<span style="color:#7ec87e;font-size:10px">✔ zamontowany</span>';
+      btn='<button class="cbtn" disabled style="width:100%">Masz ten model</button>'; }
+    else if(cur && m.cap<=cur.cap){ tag='<span style="color:#8a8a8a;font-size:10px">mniejszy niż obecny</span>';
+      btn='<button class="cbtn" disabled style="width:100%">—</button>'; }
+    else if(cur){ const diff=Math.max(0,m.price-cur.price); const dis=money<diff?'disabled':'';
+      btn=`<button class="cbtn" ${dis} style="width:100%;border-color:#c8a520;color:#e8d08a" onclick="window._camperStashPick('${m.id}')">${money<diff?'Brak gotówki':'Wymień — dopłata '+diff.toLocaleString('pl')+' zł'}</button>`; }
+    else { const dis=money<m.price?'disabled':'';
+      btn=`<button class="cbtn" ${dis} style="width:100%;border-color:#c8a520;color:#e8d08a" onclick="window._camperStashPick('${m.id}')">${money<m.price?'Brak gotówki':'Kup — '+m.price.toLocaleString('pl')+' zł'}</button>`; }
+    return `<div style="background:#12100a;border:1px solid ${m.color};border-radius:8px;padding:10px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+        <span style="color:#e8d08a;font-weight:700;font-size:13px">${m.emoji} ${m.name} ${tag}</span>
+        <span style="color:#cdd;font-size:12px"><b>${m.cap}</b> miejsc · ${m.price.toLocaleString('pl')} zł</span>
+      </div>
+      <div style="color:#9aa;font-size:11px;line-height:1.5;margin-bottom:6px">${m.desc}</div>
+      ${btn}
+    </div>`;
+  }).join('');
+  _mg.classList.add('on'); _mg.style.display='';
+  _mc.innerHTML=`<div style="max-width:520px;margin:0 auto;color:#e8e2d8">
+    <h2 style="color:#e8d08a;margin:0 0 4px;text-align:center">🔒 Stash — wybierz model sejfu</h2>
+    <div style="color:#9aa;font-size:11px;margin-bottom:10px;text-align:center">Osobny magazyn obok Stacji pakowania (nie sumuje się ze skrzynią 100). Później możesz wymienić na większy, dopłacając różnicę.</div>
+    ${cards}
+    <button class="cbtn" style="width:100%;margin-top:4px" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">Zamknij</button>
+  </div>`;
+};
+window._camperStashPick=function(id){
+  if(window._camperBuyStash && window._camperBuyStash(id)){
+    const _mg=document.getElementById('mg-job'), _mc=document.getElementById('mg-job-content');
+    if(_mg) _mg.classList.remove('on'); if(_mc) _mc.innerHTML='';
+    if(typeof renderCamperPanel==='function') renderCamperPanel();
+  } else if(typeof window._camperStashBuyPanel==='function'){ window._camperStashBuyPanel(); }
 };
 /* przełożenie 1 pozycji między skrzynią (trapInv) a sejfem (camperSafe). dir: 'toSafe'|'toChest' */
 window._camperStashMove=function(dir, bucket, key){
@@ -45066,9 +45150,10 @@ window._renderTrapStashInline=function(){
     ${(()=>{const prods=[['joint','🚬 Joint'],['shard','💠 Shard'],['powder','⚪ Proszek'],['mix','🌟 Mix'],['lsd','🧪 LSD'],['ecstasy','💊 Ecstasy']].filter(p=>(G.trapInv?.products?.[p[0]]||0)>0);return prods.length?`<h3 style="color:#7ec8e3;font-size:13px;margin:12px 0 4px 0">⭐ Jakość partii (→ cena sprzedaży)</h3><div style="font-size:10px;color:#9aa;margin-bottom:4px">Lepsze wykonanie produkcji = wyższy grade = wyższa cena u dealera i na ulicy.</div><div style="display:flex;flex-direction:column;gap:3px">${prods.map(p=>{const q=window._trapQMult?_trapQMult(p[0]):1;const pc=Math.round((q-1)*100);return `<div style="display:flex;justify-content:space-between;font-size:11px;background:#10141a;padding:5px 8px;border-radius:4px"><span>${p[1]}</span><span><strong>${window._trapGradeLabel?_trapGradeLabel(_trapGrade(p[0])):''}</strong> <span style="color:${pc>=0?'#27ae60':'#e74c3c'}">${pc>=0?'+':''}${pc}% ceny</span></span></div>`;}).join('')}</div>`:'';})()}
     ${(()=>{
       if(!_hasSafe){
-        return `<div style="margin:12px 0;padding:9px 11px;background:#12100a;border:1px dashed #7a6a3a;border-radius:6px;font-size:11px;color:#c8b88a">🔒 <b>Sejf (Stash)</b> niezamontowany. Dokup go w <b>Doposażeniu</b> (panel Kamper [L]) — dodatkowe <b>500</b> miejsc, liczonych osobno od skrzyni.</div>`;
+        return `<div style="margin:12px 0;padding:9px 11px;background:#12100a;border:1px dashed #7a6a3a;border-radius:6px;font-size:11px;color:#c8b88a">🔒 <b>Sejf (Stash)</b> niezamontowany. Dokup go w <b>Doposażeniu</b> (panel Kamper [L]) — do wyboru <b>3 modele</b> (od 500 do 3000 miejsc), liczonych osobno od skrzyni.</div>`;
       }
-      const safeTot=window._camperSafeTotal();
+      const safeTot=window._camperSafeTotal(); const safeCap=window._camperSafeCap();
+      const curM=window._camperStashModel&&window._camperStashModel();
       const chestV=(b,k)=> b==='products'?((G.trapInv&&G.trapInv.products&&G.trapInv.products[k])||0):((G.trapInv&&G.trapInv[k])||0);
       const safeV=(b,k)=> b==='products'?((G.camperSafe&&G.camperSafe.products&&G.camperSafe.products[k])||0):((G.camperSafe&&G.camperSafe[k])||0);
       const rows=_STASH_ITEMS.filter(it=>chestV(it[0],it[1])>0||safeV(it[0],it[1])>0).map(it=>{
@@ -45081,8 +45166,8 @@ window._renderTrapStashInline=function(){
           <span style="color:#c8b88a;margin-left:4px">🔒 ${sv}</span>
         </div>`;
       }).join('');
-      return `<h3 style="color:#c8b88a;font-size:13px;margin:14px 0 4px 0">🔒 Sejf (Stash) <span style="font-size:11px;color:${safeTot>=500?'#e07070':'#9ab'};font-weight:600">(${safeTot}/500)</span></h3>
-        <div style="font-size:10px;color:#9aa;margin-bottom:5px">Osobny magazyn 500 pozycji, obok Stacji pakowania. Przekładaj towar między skrzynią (📦) a sejfem (🔒).</div>
+      return `<h3 style="color:#c8b88a;font-size:13px;margin:14px 0 4px 0">${curM?curM.emoji:'🔒'} ${curM?curM.name:'Sejf (Stash)'} <span style="font-size:11px;color:${safeTot>=safeCap?'#e07070':'#9ab'};font-weight:600">(${safeTot}/${safeCap})</span></h3>
+        <div style="font-size:10px;color:#9aa;margin-bottom:5px">Osobny magazyn ${safeCap} pozycji, obok Stacji pakowania. Przekładaj towar między skrzynią (📦) a sejfem (🔒).</div>
         ${rows||'<div style="font-size:11px;color:#778;padding:6px">Sejf pusty. Przełóż tu nadmiar ze skrzyni.</div>'}`;
     })()}
     <h3 style="color:#bb8fce;font-size:13px;margin:12px 0 4px 0">💊 Weź działkę na własny użytek</h3>
@@ -51119,38 +51204,118 @@ function drawVesperHouse(){
   /* ściany + złote listwy */
   X.fillStyle='#0e0906'; X.fillRect(wx2sx(0),wy2sy(0),W,16); X.fillRect(wx2sx(0),wy2sy(0),16,H); X.fillRect(wx2sx(W-16),wy2sy(0),16,H); X.fillRect(wx2sx(0),wy2sy(H-16),W,16);
   X.fillStyle='#b8933a'; X.fillRect(wx2sx(0),wy2sy(16),W,3); X.fillRect(wx2sx(0),wy2sy(H-19),W,3);
-  /* recepcja (lada, góra-środek) */
-  const rx=wx2sx(500),ry=wy2sy(150);
-  X.fillStyle='#2a1a10'; X.fillRect(rx,ry,300,64);
-  X.fillStyle='#3a2418'; X.fillRect(rx,ry,300,12);
-  X.fillStyle='#d8b048'; X.fillRect(rx+8,ry+4,284,3);
-  X.fillStyle='rgba(230,200,120,0.85)'; X.font='bold 13px sans-serif'; X.textAlign='center'; X.fillText('THE VESPER HOUSE', rx+150, ry+40);
+  /* v2.3.125: recepcja/bar/winda rysowane teraz jako sprite'y stref (_drawVesperSprite) NA tym tle — usunięte stąd,
+     żeby uniknąć podwójnego rysowania i „wystających" reliktów. Tło zostaje klimatem (podłoga/dywan/ściany/żyrandol/lustro/rośliny). */
   /* żyrandol (górny środek) — miękkie światło */
   const cx=wx2sx(W/2), cy=wy2sy(70);
   const glow=X.createRadialGradient(cx,cy,4,cx,cy,90);
   glow.addColorStop(0,`rgba(240,210,140,${0.22+0.05*Math.sin(t*1.5)})`); glow.addColorStop(1,'rgba(240,210,140,0)');
   X.fillStyle=glow; X.beginPath(); X.arc(cx,cy,90,0,Math.PI*2); X.fill();
   X.fillStyle='#d8b048'; for(let i=0;i<6;i++){ const a=i/6*Math.PI*2; X.beginPath(); X.arc(cx+Math.cos(a)*26,cy+Math.sin(a)*12,4,0,Math.PI*2); X.fill(); }
-  /* bar (prawy) — przygaszony, butelki + lustro */
-  const bx=wx2sx(1050),by=wy2sy(150);
-  X.fillStyle='#1c120c'; X.fillRect(bx,by,180,110);
-  X.fillStyle='#0a0604'; X.fillRect(bx+6,by+8,168,40); /* lustro/półka za barem */
-  const bottleCols=['#8a2a4a','#b8933a','#3a5a7a','#7a3a8a','#c8c0d0'];
-  for(let i=0;i<8;i++){ X.fillStyle=bottleCols[i%bottleCols.length]; X.fillRect(bx+14+i*20,by+12,8,30); }
-  X.fillStyle='#2a1a10'; X.fillRect(bx,by+96,180,14);
-  X.fillStyle='rgba(230,200,120,0.7)'; X.font='10px sans-serif'; X.textAlign='center'; X.fillText('VESPER BAR', bx+90, by+72);
-  /* lustro (lewa ściana) */
+  /* lustro (lewa ściana) — dekoracja klimatyczna (bez strefy) */
   X.fillStyle='rgba(120,140,160,0.10)'; X.fillRect(wx2sx(30),wy2sy(300),20,150);
   X.strokeStyle='#8a6a2a'; X.lineWidth=3; X.strokeRect(wx2sx(30),wy2sy(300),20,150);
-  /* winda / piętro prywatne (prawa krawędź) — złote drzwi */
-  const ex=wx2sx(1180),ey=wy2sy(300);
-  X.fillStyle='#2a2018'; X.fillRect(ex,ey,90,110);
-  X.fillStyle='#c8a038'; X.fillRect(ex+8,ey+8,34,94); X.fillStyle='#a88028'; X.fillRect(ex+48,ey+8,34,94);
-  X.fillStyle='rgba(230,200,120,0.5)'; X.font='9px sans-serif'; X.fillText('▲', ex+45, ey+56);
   /* rośliny w rogach */
   X.fillStyle='#1a3a1a'; X.beginPath(); X.arc(wx2sx(60),wy2sy(60),16,0,Math.PI*2); X.fill(); X.beginPath(); X.arc(wx2sx(W-60),wy2sy(60),16,0,Math.PI*2); X.fill();
 }
 window.drawVesperHouse=drawVesperHouse;
+/* v2.3.125 (user: „w Vesper House same szare kwadraty z tekstem zamiast wyglądu"): każda strefa/NPC hotelu dostaje
+   dedykowany sprite (meble/marker + sylwetka), rysowany NA tle drawVesperHouse. Zamiast drawGeneric (szary box + id). */
+window._drawVesperSprite=function(id,sx,sy,w,h){
+  const t=Date.now()/1000;
+  const GOLD='#c8a848', GOLD2='#d8b860', WOOD='#2a1a10', WOOD2='#3a2418', DARK='#160d09', BORD='#4a1424';
+  /* mała złota etykieta strefy pod meblem */
+  const label=(txt)=>{ X.fillStyle='rgba(214,184,100,0.92)'; X.font='bold 10px "Segoe UI",Arial'; X.textAlign='center';
+    X.fillText(txt, sx+w/2, sy+h-3); X.textAlign='left'; };
+  /* rama mebla (ciemne drewno + złota listwa) */
+  const frame=(fill)=>{ X.fillStyle='rgba(0,0,0,0.35)'; X.fillRect(sx+3,sy+5,w,h); X.fillStyle=fill||WOOD; X.fillRect(sx,sy,w,h);
+    X.fillStyle=GOLD; X.fillRect(sx,sy,w,2); X.fillStyle='rgba(200,168,72,0.5)'; X.fillRect(sx,sy+h-2,w,2); };
+
+  /* ── NPC (goście / personel) — eleganckie sylwetki ── */
+  if(id.indexOf('npc_v_')===0){
+    const who=id.replace('npc_v_','');
+    const P={ evelyn:{cl:'#6a2038',ha:'#3a2418',sk:'#e8c4a0'}, dorian:{cl:'#1c2740',ha:'#171410',sk:'#d8b088'},
+              iris:{cl:'#5a2a6a',ha:'#4a2a10',sk:'#e8c8a8'}, guest1:{cl:'#2a3a4a',ha:'#2a1c12',sk:'#e0b890'},
+              guest2:{cl:'#3a2a24',ha:'#3a2a18',sk:'#d0a878'} }[who]||{cl:'#3a3a4a',ha:'#2a1c12',sk:'#e0b890'};
+    const cx=sx+w/2, bob=Math.sin(t*1.4+sx*0.02)*1.2;
+    X.fillStyle='rgba(0,0,0,.35)'; X.beginPath(); X.ellipse(cx,sy+h-2,w*0.42,4,0,0,Math.PI*2); X.fill();
+    X.fillStyle='#14141a'; X.fillRect(cx-7,sy+h*0.60,5,h*0.36); X.fillRect(cx+2,sy+h*0.60,5,h*0.36); /* nogi */
+    X.fillStyle=P.cl; X.beginPath(); X.moveTo(cx-10,sy+h*0.28+bob); X.lineTo(cx+10,sy+h*0.28+bob); X.lineTo(cx+8,sy+h*0.66); X.lineTo(cx-8,sy+h*0.66); X.closePath(); X.fill(); /* tułów */
+    X.fillStyle=GOLD; X.fillRect(cx-0.8,sy+h*0.31+bob,1.6,h*0.30); /* złoty akcent */
+    X.fillStyle=P.cl; X.fillRect(cx-13,sy+h*0.31+bob,4,h*0.24); X.fillRect(cx+9,sy+h*0.31+bob,4,h*0.24); /* ręce */
+    X.fillStyle=P.sk; X.fillRect(cx-13,sy+h*0.53+bob,4,4); X.fillRect(cx+9,sy+h*0.53+bob,4,4); /* dłonie */
+    X.fillStyle=P.sk; X.beginPath(); X.arc(cx,sy+h*0.18+bob,h*0.13,0,Math.PI*2); X.fill(); /* głowa */
+    X.fillStyle=P.ha; X.beginPath(); X.arc(cx,sy+h*0.16+bob,h*0.145,Math.PI*1.02,Math.PI*1.98); X.fill(); /* włosy */
+    X.fillStyle='#15151c'; X.fillRect(cx-3,sy+h*0.17+bob,1.6,2); X.fillRect(cx+1.4,sy+h*0.17+bob,1.6,2); /* oczy */
+    return;
+  }
+
+  switch(id){
+    case 'vesper_reception': { /* lada recepcji */
+      frame(WOOD2); X.fillStyle=WOOD; X.fillRect(sx+6,sy+10,w-12,h-16);
+      X.fillStyle=GOLD2; X.fillRect(sx+8,sy+6,w-16,3);
+      X.fillStyle='#0a0604'; X.fillRect(sx+w*0.62,sy+12,w*0.3,h*0.42); /* monitor */
+      X.fillStyle='rgba(120,180,220,0.5)'; X.fillRect(sx+w*0.63,sy+14,w*0.28,h*0.34);
+      X.fillStyle='rgba(230,200,120,0.9)'; X.font='bold 12px "Segoe UI",Arial'; X.textAlign='center';
+      X.fillText('THE VESPER HOUSE', sx+w*0.34, sy+h*0.5); X.textAlign='left';
+      label('🛎️ Recepcja'); return; }
+    case 'vesper_rooms': { /* ściana z kluczami / drzwi pokoi */
+      frame(WOOD2);
+      for(let i=0;i<4;i++){ const dx=sx+10+i*((w-20)/4); X.fillStyle=WOOD; X.fillRect(dx,sy+8,(w-20)/4-4,h*0.5);
+        X.fillStyle=GOLD; X.beginPath(); X.arc(dx+(w-20)/8-2,sy+8+h*0.25,1.6,0,Math.PI*2); X.fill(); }
+      X.fillStyle='rgba(200,168,72,0.35)'; X.fillRect(sx+8,sy+h*0.62,w-16,2);
+      label('🛏️ Pokoje'); return; }
+    case 'vesper_bar': { /* bar z butelkami + lustro */
+      frame('#1c120c'); X.fillStyle='#0a0604'; X.fillRect(sx+6,sy+8,w-12,h*0.34); /* lustro za barem */
+      const bc=['#8a2a4a',GOLD,'#3a5a7a','#7a3a8a','#c8c0d0'];
+      for(let i=0;i<7;i++){ X.fillStyle=bc[i%bc.length]; X.fillRect(sx+12+i*((w-24)/7),sy+12,7,h*0.28); }
+      X.fillStyle=WOOD2; X.fillRect(sx,sy+h*0.6,w,h*0.18); /* blat */
+      label('🍸 Vesper Bar'); return; }
+    case 'vesper_meet': { /* lounge — kanapy + stolik */
+      X.fillStyle='rgba(0,0,0,0.3)'; X.fillRect(sx+3,sy+5,w,h);
+      X.fillStyle=BORD; X.fillRect(sx+6,sy+h*0.18,w*0.34,h*0.5); X.fillRect(sx+w*0.6,sy+h*0.18,w*0.34,h*0.5); /* 2 kanapy */
+      X.fillStyle='#7a2038'; X.fillRect(sx+6,sy+h*0.16,w*0.34,4); X.fillRect(sx+w*0.6,sy+h*0.16,w*0.34,4);
+      X.fillStyle=WOOD2; X.beginPath(); X.ellipse(sx+w/2,sy+h*0.5,w*0.13,h*0.12,0,0,Math.PI*2); X.fill(); /* stolik */
+      X.fillStyle=GOLD; X.beginPath(); X.ellipse(sx+w/2,sy+h*0.5,w*0.13,h*0.12,0,0,Math.PI*2); X.stroke();
+      label('🥂 Spotkania'); return; }
+    case 'vesper_party': { /* strefa imprez — velvet + szampan + poświata */
+      const pulse=0.5+0.5*Math.sin(t*2.2);
+      frame('#2a1428'); X.fillStyle=`rgba(200,150,210,${0.25+pulse*0.2})`; X.fillRect(sx+6,sy+8,w-12,h*0.4);
+      X.fillStyle=GOLD; X.fillRect(sx+w*0.42,sy+h*0.44,w*0.16,h*0.34); /* wiaderko */
+      X.fillStyle='#1a1a20'; X.fillRect(sx+w*0.46,sy+h*0.34,w*0.08,h*0.14); /* butelka */
+      X.fillStyle=`rgba(255,220,140,${0.4+pulse*0.3})`; X.beginPath(); X.arc(sx+w/2,sy+h*0.3,4,0,Math.PI*2); X.fill();
+      label('🎉 Party'); return; }
+    case 'vesper_privatefloor': { /* winda / piętro prywatne — złote drzwi */
+      frame('#241a12'); X.fillStyle=GOLD; X.fillRect(sx+8,sy+8,w*0.4-4,h-24); X.fillStyle='#a88028'; X.fillRect(sx+w*0.5,sy+8,w*0.4-4,h-24);
+      X.fillStyle='#160d09'; X.fillRect(sx+w*0.48,sy+8,3,h-24); /* szczelina */
+      X.fillStyle='rgba(230,200,120,0.8)'; X.font='bold 12px "Segoe UI",Arial'; X.textAlign='center';
+      X.fillText('▲', sx+w/2, sy+h*0.46); X.textAlign='left';
+      label('👑 Piętro'); return; }
+    case 'vesper_corridor': { /* korytarz — drzwi + dywan */
+      frame(WOOD2); X.fillStyle=BORD; X.fillRect(sx+w*0.4,sy+6,w*0.2,h-12); /* dywan */
+      for(const dx of [sx+8, sx+w-8-w*0.16]){ X.fillStyle=WOOD; X.fillRect(dx,sy+10,w*0.16,h*0.6);
+        X.fillStyle=GOLD; X.beginPath(); X.arc(dx+w*0.13,sy+10+h*0.3,1.5,0,Math.PI*2); X.fill(); }
+      label('🚪 Korytarze'); return; }
+    case 'vesper_staff': { /* drzwi personelu */
+      frame('#20242a'); X.fillStyle='#2c3038'; X.fillRect(sx+8,sy+8,w-16,h-16);
+      X.fillStyle=GOLD; X.fillRect(sx+w*0.5-1,sy+h*0.42,2,10);
+      X.fillStyle='rgba(200,168,72,0.85)'; X.font='bold 9px "Segoe UI",Arial'; X.textAlign='center';
+      X.fillText('STAFF', sx+w/2, sy+h*0.4); X.textAlign='left';
+      label('🚪 Staff'); return; }
+    case 'vesper_framedm': { /* terminal DM / telefon */
+      frame('#181820'); X.fillStyle='#0a0a12'; X.fillRect(sx+w*0.28,sy+8,w*0.44,h*0.6);
+      X.fillStyle='rgba(120,180,220,0.55)'; X.fillRect(sx+w*0.3,sy+10,w*0.4,h*0.5);
+      X.fillStyle=GOLD; X.font='bold 12px "Segoe UI Emoji",Arial'; X.textAlign='center'; X.fillText('📩', sx+w/2, sy+h*0.42); X.textAlign='left';
+      label('📩 DM'); return; }
+    case 'vesper_history': { /* pulpit z księgą rezerwacji */
+      frame(WOOD2); X.fillStyle='#e8dcc0'; X.fillRect(sx+w*0.22,sy+10,w*0.56,h*0.5); /* księga */
+      X.strokeStyle=GOLD; X.lineWidth=1; X.strokeRect(sx+w*0.22,sy+10,w*0.56,h*0.5);
+      X.fillStyle='rgba(80,60,40,0.5)'; for(let r=0;r<3;r++) X.fillRect(sx+w*0.26,sy+16+r*6,w*0.48,2);
+      label('📖 Historia'); return; }
+  }
+  /* fallback — subtelny panel zamiast szarego boxa */
+  frame(WOOD2); X.fillStyle='rgba(200,168,72,0.4)'; X.fillRect(sx+6,sy+6,w-12,h-12);
+};
 /* PDF Vesper House §2: fasada budynku na mapie Business — butikowy hotel, ciemna bryła, złote detale, okna w ciepłym świetle, markiza. */
 function drawVesperHotel(sx,sy,w,h){
   const t=Date.now()/1000;
@@ -61817,8 +61982,12 @@ window._vehRepairCost=function(kind,level){
 window._vehRepairDays=function(level){ return level==='basic'?0:(level==='mech'?1:2); };
 window._vehInRepair=function(kind){ const t=G.traffic; return !!(t&&t._repair&&t._repair.kind===kind); };
 /* v2.3.117 (PDF Uspr115 W2): po odbiorze z Garage 77 pojazd STAWIANY fizycznie przed obiektem (nie w miejscu ostatniego parkowania).
-   Garage 77 = warsztat @ wx3200/wy2208 (miasto/ulica); punkt „przed bramą" = wy2360 (tuż pod budynkiem, jak przy holowaniu Knoxa). */
-window._VEH_GARAGE77_FRONT={wx:3200,wy:2360,room:'ulica'};
+   Garage 77 = warsztat @ wx3200/wy2208, w148/h155 (miasto/ulica).
+   v2.3.125 (user: „pojazd po naprawie ląduje wciśnięty między budynki, nie da się tam wejść"): stary punkt wy2360
+   był DOKŁADNIE na dolnej krawędzi warsztatu (2363), w 37px szczelinie między warsztatem a rzędem budynków
+   dekoracyjnych (3190-3340 @ y2400-2600) → pojazd zablokowany. Nowy punkt = przed wejściem (N), na wolnym pasie
+   chodnika między jezdnią H2 (koniec y2112) a budynkiem (y2208) — zweryfikowany bezkolizyjnie sondą (_probe_garage). */
+window._VEH_GARAGE77_FRONT={wx:3254,wy:2140,room:'ulica'};
 window._vehParkAtGarage77=function(kind){
   const p={wx:window._VEH_GARAGE77_FRONT.wx,wy:window._VEH_GARAGE77_FRONT.wy,room:'ulica'};
   if(kind==='camper'){ G._camperParkedAt={wx:p.wx,wy:p.wy,room:p.room}; G._inCamper=false; }
@@ -61884,8 +62053,9 @@ window._vehCallTow=function(kind,destination){
   const k=G._knox; if(k){ k.towsCalled=(k.towsCalled||0)+1; k.trust=Math.min(100,(k.trust||0)+1); k.relationship=Math.min(100,(k.relationship||0)+1); k.lastTowDay=(G.day||0); }
   if(destination==='metal_valley'){ const r=window._vehScrapTotalLoss(kind); if(typeof showMsg==='function') showMsg('🚚 Knox odholował wrak do Metal Valley Yard (−'+cost.toLocaleString('pl')+' zł). Rozliczenie w Metal Valley.','g',6500); }
   else { /* do warsztatu: przestaw zaparkowany pojazd pod Garage 77 i odblokuj naprawę mimo unieruchomienia */
-    if(kind==='car'){ G._carParkedAt={wx:3200,wy:2360,room:'ulica'}; G._inCar=false; }
-    else { G._camperParkedAt={wx:3200,wy:2360,room:'ulica'}; G._inCamper=false; }
+    const _gf=window._VEH_GARAGE77_FRONT||{wx:3254,wy:2140,room:'ulica'};
+    if(kind==='car'){ G._carParkedAt={wx:_gf.wx,wy:_gf.wy,room:'ulica'}; G._inCar=false; }
+    else { G._camperParkedAt={wx:_gf.wx,wy:_gf.wy,room:'ulica'}; G._inCamper=false; }
     if(typeof showMsg==='function') showMsg('🚚 Knox odholował pojazd pod Garage 77 (−'+cost.toLocaleString('pl')+' zł). Wejdź do warsztatu, żeby naprawić.','g',6500);
   }
   if(typeof updateHUD==='function') updateHUD(); if(typeof saveGameSilent==='function') saveGameSilent();
@@ -73929,6 +74099,17 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.125',date:'2026-07-24',cats:['fix'],title:'🛠️ Poprawki wyglądu: wnętrze The Vesper House, porządek w Business District, wybór sejfu w kamperze i odbiór auta z warsztatu',
+ items:[
+  {t:'fix',d:'🏨 Wnętrze The Vesper House pokazywało tylko szare prostokąty z podpisami zamiast prawdziwego wystroju. Teraz recepcja, bar, pokoje, strefa spotkań i imprez, winda na Piętro Prywatne, korytarze oraz wejście dla personelu mają swój wygląd, a obsługa i goście to widoczne postacie.'},
+  {t:'fix',d:'🏙️ W Business District, w okolicy Steakhouse, Eclipse Noir i The Vesper House, budynki nachodziły na siebie i wystawały poza mapę, a parking zachodził na Steakhouse. Poprawiliśmy rozmieszczenie — parking, Steakhouse, Eclipse Noir, Vesper House i klub golfowy stoją teraz równo, z odstępami, każdy w całości na swoim miejscu.'},
+  {t:'fix',d:'🚦 Przejścia dla pieszych, znaki (stop, ustąp pierwszeństwa), latarnie i sygnalizacja w Business District stały na środku jezdni. Teraz przejścia prowadzą od chodnika do chodnika, a znaki, latarnie i światła stoją na chodnikach — tak jak w głównym mieście. To samo ustawiliśmy w dzielnicy Underground.'},
+  {t:'fix',d:'🧹 Zniknął czerwony dywan, który wisiał w powietrzu obok Steakhouse, w miejscu bez żadnego wejścia.'},
+  {t:'new',d:'🔒 W kamperze montujesz teraz Stash (sejf) w jednym z trzech modeli do wyboru: Standardowy (500 miejsc), Wzmocniony (1200) i Sejf Bankowy (3000). Wcześniej dostępny był tylko jeden standardowy. Kupiony sejf możesz później wymienić na większy, dopłacając różnicę — a każdy model wygląda inaczej we wnętrzu.'},
+  {t:'fix',d:'🔧 Auto lub kamper odebrany po naprawie w Garage 77 pojawiał się w ciasnej szczelinie między budynkami, gdzie nie dało się do niego podejść. Teraz pojazd stoi przed warsztatem, w wolnym miejscu, do którego łatwo dojść.'}
+ ]
+ },
  {
  ver:'v2.3.124',date:'2026-07-24',cats:['feature'],title:'🏨 Nowe miejsce: The Vesper House — butikowy hotel przy Eclipse Noir',
  items:[
@@ -90039,6 +90220,11 @@ function drawTrafficLights(){
    Underground i Business mają tę samą siatkę dróg, więc jedna współrzędna wystarcza obu. */
 const DISTRICT_INTERSECTION_X=720;
 const DISTRICT_ROAD_Y={underground:520, business:480};
+/* v2.3.125 (user: „znaki/latarnie/sygnalizacja/przejścia stoją na ŚRODKU jezdni Business"): pół-szerokość jezdni
+   RÓŻNI się między dzielnicami. Underground rysuje wąski asfalt y488-552 (half=32), ale Business ma jezdnię z kafli
+   rzędy 8-11 = y384-576 → half=96. Furnitura pozycjonowana jako roadY±(half+Δ) MUSI znać właściwą szerokość, inaczej
+   znaki/latarnie lądują w jezdni zamiast na chodnikach, a przejścia nie sięgają krawężników. */
+const DISTRICT_ROAD_HALF={underground:32, business:96};
 /* Elementy drogowe w dzielnicach — pasy dla pieszych, sygnalizacja, znaki, studzienki.
    Rysowane analogicznie do głównego miasta, żeby ruch wyglądał tak samo wiarygodnie. */
 function drawDistrictRoadFurniture(room){
@@ -90046,7 +90232,7 @@ function drawDistrictRoadFurniture(room){
   const ix=DISTRICT_INTERSECTION_X;
   const roomW=((ROOMS[room]&&ROOMS[room].wT)||30)*T;
   const L=(typeof getTrafficLight==='function')?getTrafficLight():{cars:'green',peds:'red'};
-  const half=32;                                   /* pół szerokości jezdni */
+  const half=(typeof DISTRICT_ROAD_HALF!=='undefined'&&DISTRICT_ROAD_HALF[room])||32; /* pół szerokości jezdni (per dzielnica) */
   /* ── pasy dla pieszych po obu stronach skrzyżowania ── */
   const zebra=(cx)=>{
     X.save();
@@ -90058,7 +90244,9 @@ function drawDistrictRoadFurniture(room){
     }
     X.restore();
   };
-  zebra(ix-118); zebra(ix+118);
+  /* v2.3.125: przejścia wyrównane do OSI chodników pionowych (ix±72 = środki chodników 648/792),
+     a nie ix±118 (który lądował poza chodnikami na jezdni/marmurze). Teraz zebra idzie krawężnik-krawężnik. */
+  zebra(ix-72); zebra(ix+72);
   /* ── studzienki kanalizacyjne na jezdni ── */
   X.save();
   for(let x=140; x<roomW-100; x+=330){
