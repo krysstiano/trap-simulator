@@ -3604,6 +3604,8 @@ const ROOMS = {
     wT:24, hT:13, map:null,
     objects:[
       {id:'exit_plantacja',   wx:500, wy:560, w:62, h:62,  act:'goto:underground:1240:660', prompt:'[E] ⬅ Wyjdź z plantacji', lbl:'Wyjście'},
+      /* v2.3.128 (PDF SUBTERRA §11): terminal obiektu — rozwój poziomów, doposażenie, materiały i cykle. */
+      {id:'subterra_terminal',wx:660, wy:120, w:96, h:88,  act:'subterra:terminal', prompt:'[E] 🌱 Terminal SUBTERRA', lbl:'SUBTERRA'},
       {id:'plantation_pot_0', wx:90,  wy:250, w:56, h:80,  act:'grow_pot:plantation:0', actRadius:64, prompt:'[E] Doniczka 1', lbl:''},
       {id:'plantation_pot_1', wx:330, wy:250, w:56, h:80,  act:'grow_pot:plantation:1', actRadius:64, prompt:'[E] Doniczka 2', lbl:''},
       {id:'plantation_pot_2', wx:570, wy:250, w:56, h:80,  act:'grow_pot:plantation:2', actRadius:64, prompt:'[E] Doniczka 3', lbl:''},
@@ -4153,6 +4155,12 @@ function drawSprite(id,sx,sy,w,h){
   if(id&&(id.indexOf('spz_')===0||id.indexOf('npc_sp_')===0)){ if(typeof window._drawSunsetSprite==='function'){ window._drawSunsetSprite(id,sx,sy,w,h); X.restore(); return; } }
   /* v2.3.128 (PDF VANTAGE WORKS §7): strefy holu mają własne sprite'y — bez tego renderują się jako szare boxy. */
   if(id&&(id.indexOf('vw_')===0||id==='npc_eve_rook')){ if(typeof window._drawVantageSprite==='function'){ window._drawVantageSprite(id,sx,sy,w,h); X.restore(); return; } }
+  /* Terminal SUBTERRA — własny sprite, żeby nie renderował się jako szary box (lekcja v2.3.125). */
+  if(id==='subterra_terminal'){ X.fillStyle='#16241a'; X.fillRect(sx,sy,w,h); X.strokeStyle='#2f7a45'; X.lineWidth=2; X.strokeRect(sx+1,sy+1,w-2,h-2);
+    X.fillStyle='#0a140d'; X.fillRect(sx+10,sy+10,w-20,h-34);
+    X.fillStyle='#57d38a'; X.font='9px "Segoe UI",Arial'; X.textAlign='center';
+    X.fillText('SUBTERRA',sx+w/2,sy+26); X.fillText('T'+(((G.subterra&&G.subterra.tier)||1)),sx+w/2,sy+42);
+    X.fillStyle='#2f7a45'; X.fillRect(sx+12,sy+h-20,w-24,8); X.textAlign='left'; X.restore(); return; }
   switch(id){
     case 'bed':          drawBed(sx,sy,w,h);break;
     case 'fridge':       drawFridge(sx,sy,w,h);break;
@@ -29521,6 +29529,8 @@ function nextPeriod(){
     if(typeof window._vwDailyTick==='function') window._vwDailyTick();
     /* Gigi 2.0: dobowy reset licznika zleceń i rotacja ofert. */
     if(typeof window._ggDailyTick==='function') window._ggDailyTick();
+    /* SUBTERRA: kończenie renowacji i przypomnienie o gotowym cyklu. */
+    if(typeof window._sbDailyTick==='function') window._sbDailyTick();
     /* v2.3.109 (PDF13 TIER 13.7): integracje kariera/S9/sponsor (jednorazowe boosty przy progach jakości/prestiżu). */
     if(typeof window._studioApplyIntegrations==='function') window._studioApplyIntegrations();
     // ── Merch — dzienne sprzedaże, trendy, marketing ──
@@ -56861,6 +56871,582 @@ window._ggDailyTick=function(){
    GIGI 2.0 MODULE END
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   SUBTERRA MODULE START — PDF „SUBTERRA, system rozwoju obiektu uprawowego" (§0-19).
+   Obiekt uprawowy przestaje być liczbą poziomu: ma trzy poziomy (T1-T3), osiem etapów
+   renowacji, niezależny moduł doposażenia (6 kategorii × 3 klasy), materiały jednocyklowe,
+   cykle rozliczane deterministycznie, terminal SUBTERRA i podgląd SiteView przed zakupem.
+   ⚠️ NOTA ZAKRESU (PDF §0): katalog opisuje EFEKT W GRZE i model opakowania — nie ujawnia
+   składu, dawkowania ani realnego zastosowania czegokolwiek (§7.6 pkt 33).
+   ⚠️ SAVE-SAFE: nadbudowa nad istniejącym `G.lab.tier` — kto miał rozwinięte laboratorium,
+   dostaje odpowiadający poziom obiektu (reguła #1).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* §7.1 Poziomy obiektu */
+const SB_TIERS=[
+ {t:1,name:'Adaptowana piwnica uprawowa',      career:5,  potential:100,qualityCap:65,stability:45,slots:2,loadLimit:40, upkeep:120, benefit:'Pierwszy stały obiekt i dostęp do terminala SUBTERRA.', cost:'Niska stabilność, mało miejsca, wysokie zużycie ręczne i ograniczona tolerancja obciążenia.'},
+ {t:2,name:'Ukryty obiekt uprawy kontrolowanej',career:8, potential:145,qualityCap:78,stability:62,slots:5,loadLimit:70, upkeep:2100,benefit:'Kontrolowany podział stref, niższa losowość i szersza konfiguracja.', cost:'Koszt stały 2 100 zł/cykl, dłuższy przestój oraz większa presja skali.'},
+ {t:3,name:'Podziemny kompleks uprawy i obróbki pozbiorczej',career:12,potential:215,qualityCap:92,stability:78,slots:9,loadLimit:110,upkeep:6200,benefit:'Dwa równoległe sloty procesu i pełna strefa obróbki.', cost:'Koszt stały 6 200 zł/cykl, wysoka obsługowość i bolesna ekonomia przy niewykorzystaniu.'},
+];
+/* §7.2 Etapy renowacji — odblokowane poziomem kariery, ale dostępne także później (§7.3 pkt 24) */
+const SB_STAGES=[
+ {id:'L5', career:5, name:'Przejęcie obiektu',            price:16800, days:0, upkeep:120, tierTo:1, eff:{},                                   desc:'T1, dostęp do SUBTERRA, potencjał 100, 2 sloty.', con:'Brak refundacji po aktywacji.'},
+ {id:'L6', career:6, name:'Modernizacja zasilania I',     price:7200,  days:1, upkeep:180, eff:{loadLimit:12,failure:-2},                      desc:'Limit obciążenia +12; ryzyko awarii −2 pp.', con:'Koszt stały +180 zł/cykl.'},
+ {id:'L7', career:7, name:'Uszczelnienie i podział stref',price:12800, days:2, upkeep:0,   eff:{stability:5,slots:1,failChance:-3},            desc:'Stabilność +5; 1 slot; ryzyko niepowodzenia −3 pp.', con:'Obiekt zamknięty podczas prac; presja skali +4.'},
+ {id:'L8', career:8, name:'Rdzeń kontroli środowiska',    price:48000, days:4, upkeep:320, tierTo:2, eff:{},                                   desc:'Awans T2; potencjał 145; limit jakości 78; 5 slotów.', con:'Serwis +320 zł/cykl. Brak bonusu do szybkości.'},
+ {id:'L9', career:9, name:'Magazyn techniczny',           price:22000, days:2, upkeep:0,   eff:{materialLoss:-0.10,storage:2},                 desc:'Straty materiałów −10%; 2 miejsca magazynowe.', con:'Potencjał bazowy bez zmian.'},
+ {id:'L10',career:10,name:'Węzeł automatyki',             price:27000, days:3, upkeep:0,   eff:{automation:12,forecast:8,slots:1},             desc:'Automatyzacja +12; pewność prognozy +8; 1 slot integracyjny.', con:'Najwyższy koszt stały i wzrost presji skali +8.'},
+ {id:'L11',career:11,name:'Strefa obróbki pozbiorczej',   price:35000, days:3, upkeep:0,   eff:{qualityLoss:-5,finalize:-0.08},                desc:'Utrata jakości po cyklu −5; czas finalizacji −8%.', con:'Sens dopiero przy realnym wykorzystaniu.'},
+ {id:'L12',career:12,name:'Rozbudowa podziemna',          price:110000,days:6, upkeep:0,   tierTo:3, eff:{},                                   desc:'Awans T3; potencjał 215; limit jakości 92; 9 slotów; 2 procesy.', con:'Największa presja skali.'},
+];
+/* §7.5 Doposażenie — 6 kategorii × 3 klasy (C/M/A). load = obciążenie, sl = zajmowane sloty. */
+const SB_GEAR=[
+ {id:'lumacrate_c1', cat:'LIGHT',  cls:'C', name:'LumaCrate C1',  price:2800,  cycle:160, load:10, sl:1, minTier:1, look:'Kasetowy moduł startowy; matowa obudowa i dwie szyny.', eff:{time:-0.04,quality:1},                pro:'Tani, małe wymagania, szybka instalacja.', con:'Ciepło systemowe +7; szybkie zużycie.'},
+ {id:'lumenrail_m2', cat:'LIGHT',  cls:'M', name:'LumenRail M2',  price:8900,  cycle:360, load:18, sl:1, minTier:2, look:'Modułowe listwy w prowadnicach.',                        eff:{time:-0.09,quality:4,stability:2},    pro:'Dobry środek gry, łatwy serwis sekcyjny.', con:'Utrata 2% efektu przy kondycji poniżej 40.'},
+ {id:'heliomesh_a3', cat:'LIGHT',  cls:'A', name:'HelioMesh A3',  price:24500, cycle:640, load:25, sl:2, minTier:3, look:'Adaptacyjna siatka sufitowa, zielono-białe segmenty.',   eff:{time:-0.14,quality:7},                pro:'Najwyższa kontrola i czytelna zmiana wizualna.', con:'Ryzyko +4 pp bez PowerSpine; drogi serwis.'},
+ {id:'airframe_c1',  cat:'CLIMATE',cls:'C', name:'AirFrame C1',   price:3600,  cycle:140, load:8,  sl:1, minTier:1, look:'Kompaktowa skrzynia z niebieskimi wskaźnikami.',          eff:{stability:5,failure:-2},              pro:'Tania ochrona przed skrajnym wynikiem.', con:'Bez bonusu do jakości i szybkości; głośny profil.'},
+ {id:'climanode_m2', cat:'CLIMATE',cls:'M', name:'ClimaNode M2',  price:11800, cycle:420, load:14, sl:1, minTier:2, look:'Dwa moduły ścienne i centralny panel.',                   eff:{stability:11,failure:-6},             pro:'Najlepszy koszt do stabilności.', con:'Serwis co 3 cykle; zaniedbanie podwaja utratę kondycji.'},
+ {id:'atmosync_a3',  cat:'CLIMATE',cls:'A', name:'Atmosync A3',   price:31000, cycle:880, load:22, sl:1, minTier:3, look:'Segmentowy układ węzłów w strefach.',                     eff:{stability:18,quality:3,failure:-10},  pro:'Silna ochrona jakości i przewidywalności.', con:'W T2 działa na 75% efektu; wysoki koszt stały.'},
+ {id:'flowbench_c1', cat:'FLOW',   cls:'C', name:'FlowBench C1',  price:2100,  cycle:90,  load:6,  sl:1, minTier:1, look:'Stół wspomagający ręczną obsługę z kodami kolorów.',      eff:{automation:6,stability:2},            pro:'Mały koszt i niski próg wejścia.', con:'Nie skraca cyklu; zajmuje przestrzeń roboczą.'},
+ {id:'dosepilot_m2', cat:'FLOW',   cls:'M', name:'DosePilot M2',  price:9400,  cycle:310, load:8,  sl:1, minTier:2, look:'Sterownik dystrybucji z czterema kanałami interfejsu.',   eff:{automation:15,time:-0.02,stability:7},pro:'Redukuje losowość i pracę ręczną.', con:'Awaria przy serwisie zaległym ponad cykl.'},
+ {id:'loopcore_a3',  cat:'FLOW',   cls:'A', name:'LoopCore A3',   price:27600, cycle:720, load:16, sl:2, minTier:3, look:'Centralny pierścień dystrybucyjny prowadzony przez strefy.',eff:{automation:28,time:-0.04,quality:2},pro:'Najwyższa spójność między dwiema strefami.', con:'Naprawa kosztowna; awaria dotyka wszystkich stref.'},
+ {id:'fieldsense_c1',cat:'SENSOR', cls:'C', name:'FieldSense C1', price:1900,  cycle:70,  load:4,  sl:1, minTier:1, look:'Zestaw czujników i mały ekran.',                           eff:{forecast:8},                          pro:'Pokazuje szerszy kontekst bez zwiększania wyniku.', con:'Brak bezpośredniego bonusu produkcyjnego.'},
+ {id:'cropwatch_m2', cat:'SENSOR', cls:'M', name:'CropWatch M2',  price:7600,  cycle:240, load:6,  sl:1, minTier:1, look:'Konsola trendów, alerty i historia cykli.',                eff:{forecast:16,failure:-4},              pro:'Wczesne ostrzeżenia i lepsze planowanie serwisu.', con:'Możliwe fałszywe alarmy przy kondycji poniżej 35.'},
+ {id:'sentinel_a3',  cat:'SENSOR', cls:'A', name:'SentinelGrid A3',price:21800,cycle:560, load:9,  sl:1, minTier:2, look:'Sieć wskaźników strefowych i ekran predykcyjny.',          eff:{forecast:26,failure:-6,quality:2},    pro:'Najlepsze wyjaśnienia prognozy i ryzyka.', con:'Nie zwiększa potencjału; kosztowne aktualizacje.'},
+ {id:'finishbench_c1',cat:'FINISH',cls:'C', name:'FinishBench C1',price:3200,  cycle:120, load:6,  sl:1, minTier:1, look:'Modułowy blat i pojemniki systemowe.',                     eff:{qualityLoss:-3},                      pro:'Tani sposób ochrony wyniku.', con:'Wymaga pracy ręcznej; brak skrócenia finalizacji.'},
+ {id:'curevault_m2', cat:'FINISH', cls:'M', name:'CureVault M2',  price:12700, cycle:380, load:10, sl:1, minTier:2, look:'Komora finalizacji z bursztynowym panelem.',               eff:{retention:6,finalize:-0.10},          pro:'Chroni jakość i obrót kapitału.', con:'Pojedyncza pojemność; serwis blokuje slot.'},
+ {id:'sortline_a3',  cat:'FINISH', cls:'A', name:'SortLine Prisma A3',price:34000,cycle:920,load:15,sl:2, minTier:3, look:'Zamknięta linia klasyfikacji z trzema wyjściami.',        eff:{retention:9,finalize:-0.18,value:0.05},pro:'Duża przewaga jakościowa późnej gry.', con:'Sens dopiero przy dużym wykorzystaniu.'},
+ {id:'loadguard_c1', cat:'INFRA',  cls:'C', name:'LoadGuard C1',  price:2400,  cycle:80,  load:0,  sl:1, minTier:1, look:'Skrzynia ochronna z żółtym wskaźnikiem.',                  eff:{loadLimit:12,failure:-3},             pro:'Odblokowuje bezpieczniejsze konfiguracje.', con:'Nie daje bezpośredniego wzrostu wyniku.'},
+ {id:'backupcell_m2',cat:'INFRA',  cls:'M', name:'BackupCell M2', price:10600, cycle:300, load:0,  sl:1, minTier:1, look:'Moduł ciągłości z ekranem rezerwy.',                       eff:{abortLoss:-0.50,catastrophe:-5},      pro:'Chroni kapitał w toku.', con:'Koszt stały nawet gdy nic się nie dzieje.'},
+ {id:'powerspine_a3',cat:'INFRA',  cls:'A', name:'PowerSpine A3', price:28000, cycle:760, load:0,  sl:2, minTier:2, look:'Centralna magistrala wizualna w podłodze i ścianach.',     eff:{loadLimit:35,noAdapterPenalty:true},  pro:'Pozwala budować konfiguracje klasy A bez przeciążenia.', con:'Brak premii samodzielnej; wysoki koszt wejścia.'},
+];
+/* §7.6 Materiały jednocyklowe — jedna baza + maksymalnie jeden dodatek */
+const SB_BASES=[
+ {id:'rootline',   name:'Rootline Base',      price:480,  eff:{stability:4},                       con:'Bez bonusu do jakości i czasu.',                    role:'Uniwersalny wybór startowy.'},
+ {id:'greenframe', name:'GreenFrame Balance', price:850,  eff:{quality:3,stability:6,time:0.02},   con:'Czas cyklu +2%.',                                   role:'Dla konfiguracji jakościowej.'},
+ {id:'primeblend', name:'PrimeBlend Vector',  price:1650, eff:{potential:0.07,quality:4,stability:3,risk:2}, con:'Ryzyko +2 pp; wymaga pewności prognozy min. 60.', role:'Wysoki koszt i warunek danych.', reqForecast:60},
+];
+const SB_ADDONS=[
+ {id:'cyclerush',  name:'CycleRush',    price:1250, eff:{time:-0.06,quality:-2,risk:4},   con:'Jakość −2; ryzyko +4 pp; nie łączy się z drugim przyspieszaczem.', role:'Szybki obrót kosztem stabilności.'},
+ {id:'yieldvector',name:'YieldVector',  price:1400, eff:{potential:0.09,time:0.02,risk:3},con:'Czas +2%; ryzyko +3 pp.',                                        role:'Większy wynik, wolniejszy obrót.'},
+ {id:'guardmatrix',name:'GuardMatrix',  price:1100, eff:{failure:-5,stability:3,time:0.02},con:'Czas +2%; brak bonusu potencjału.',                             role:'Bezpieczny cykl po kosztownym zakupie.'},
+ {id:'purefinish', name:'PureFinish',   price:920,  eff:{quality:5,retention:2,potential:-0.03}, con:'Potencjał −3%.',                                         role:'Ochrona jakości zamiast skali.'},
+ {id:'stressbuffer',name:'StressBuffer',price:760,  eff:{conditionPenalty:-0.40},          con:'Nie naprawia sprzętu i nie usuwa awarii.',                       role:'Awaryjne wsparcie, nie substytut serwisu.'},
+];
+/* §7.3 pkt 28 — nazwa obiektu WYLICZANA z poziomu, nie edytowana ręcznie */
+window.deriveFacilityDisplayName=function(tier){
+  const t=SB_TIERS.find(x=>x.t===tier); return t?t.name:'Obiekt uprawowy';
+};
+window._sbTier=function(t){ return SB_TIERS.find(x=>x.t===t)||SB_TIERS[0]; };
+window._sbGear=function(id){ return SB_GEAR.find(g=>g.id===id)||null; };
+window._sbStage=function(id){ return SB_STAGES.find(s=>s.id===id)||null; };
+
+/* ── §8 Stan i model danych (schemaVersion, save-safe) ─────────────────────── */
+window._sbEnsure=function(){
+  if(!G.subterra||typeof G.subterra!=='object') G.subterra={};
+  const s=G.subterra;
+  if(s.schemaVersion==null) s.schemaVersion=1;
+  if(s.state==null) s.state='LOCKED';        /* LOCKED | DISCOVERED | OWNED | RENOVATING */
+  if(s.owned==null) s.owned=false;
+  if(s.tier==null) s.tier=1;
+  if(!Array.isArray(s.stages)) s.stages=[];
+  if(!Array.isArray(s.gear)) s.gear=[];
+  if(s.cycle===undefined) s.cycle=null;
+  if(s.renovation===undefined) s.renovation=null;
+  if(!Array.isArray(s.history)) s.history=[];
+  if(!s.materials||typeof s.materials!=='object') s.materials={base:null,addon:null};
+  if(!s.stock||typeof s.stock!=='object') s.stock={};
+  if(s.storage==null) s.storage=4;
+  if(s.techRank==null) s.techRank=0;         /* §7.5 ranga techniczna z instalacji i serwisów */
+  if(s.installs==null) s.installs=0;
+  if(s.services==null) s.services=0;
+  if(s.debt==null) s.debt=0;
+  if(!Array.isArray(s.commands)) s.commands=[];  /* §8 idempotencja komend */
+  if(s.lastCycleDay==null) s.lastCycleDay=-99;
+  /* ⚠️ MIGRACJA (reguła #1): rozwinięte laboratorium = odpowiadający poziom obiektu */
+  if(!s._migrated){
+    s._migrated=true;
+    const labTier=((G.lab&&G.lab.tier)||0);
+    if(labTier>=1){
+      s.owned=true; s.state='OWNED';
+      s.tier=Math.max(1,Math.min(3,labTier));
+      s.stages=['L5']; if(s.tier>=2) s.stages.push('L6','L7','L8'); if(s.tier>=3) s.stages.push('L9','L10','L11','L12');
+      s.history.push({day:G.day||1,type:'migracja',text:'Dotychczasowe zaplecze uprawowe zostało opisane jako '+window.deriveFacilityDisplayName(s.tier)+'.'});
+    }
+  }
+  return s;
+};
+window._sbName=function(){ return window.deriveFacilityDisplayName(window._sbEnsure().tier); };
+/* §4 Odblokowanie: L5 usuwa BLOKADĘ ZAKUPU — nie daje obiektu (§4 pkt 19) */
+window._sbVisible=function(){ return ((G.trap&&G.trap.level)||1)>=5 || window._sbEnsure().owned; };
+window._sbCanBuy=function(){ const s=window._sbEnsure(); return !s.owned && ((G.trap&&G.trap.level)||1)>=5; };
+
+/* §7.1 Zagregowane statystyki obiektu — baza z poziomu + etapy + sprzęt (najlepszy w kategorii) */
+window._sbBestInCat=function(cat){
+  const s=window._sbEnsure();
+  const owned=s.gear.filter(g=>{ const d=window._sbGear(g.defId); return d&&d.cat===cat&&g.installed&&g.condition>0; });
+  if(!owned.length) return null;
+  /* §7.5: najlepszy AKTYWNY efekt w kategorii zastępuje słabszy — efekty się nie sumują */
+  return owned.sort((a,b)=>{ const A=window._sbGear(a.defId),B=window._sbGear(b.defId);
+    return ({C:0,M:1,A:2})[B.cls]-({C:0,M:1,A:2})[A.cls]; })[0];
+};
+window._sbGearEff=function(inst){
+  const d=window._sbGear(inst.defId); if(!d) return {};
+  const s=window._sbEnsure(); const out={};
+  /* §7.5 kondycja: <40 spada efekt, <20 rośnie awaryjność, 0 = wyłączone */
+  let mult=1;
+  if(inst.condition<=0) return {};
+  if(inst.condition<40) mult=0.75;
+  if(inst.condition<20) mult=0.55;
+  /* kompatybilność: Atmosync A3 w T2 działa na 75% (§7.5 tabela) */
+  if(d.id==='atmosync_a3'&&s.tier===2) mult*=0.75;
+  for(const k in d.eff){ const v=d.eff[k];
+    out[k]=(typeof v==='number')?v*mult:v; }
+  return out;
+};
+window._sbStats=function(){
+  const s=window._sbEnsure(); const t=window._sbTier(s.tier);
+  const st={potential:t.potential,qualityCap:t.qualityCap,stability:t.stability,slots:t.slots,
+    loadLimit:t.loadLimit,upkeep:t.upkeep,time:0,quality:0,automation:0,forecast:0,failure:0,
+    qualityLoss:0,finalize:0,retention:0,value:0,materialLoss:0,abortLoss:0,catastrophe:0,storage:s.storage};
+  s.stages.forEach(id=>{ const stg=window._sbStage(id); if(!stg) return;
+    st.upkeep+=stg.upkeep||0;
+    for(const k in (stg.eff||{})){ st[k]=(st[k]||0)+stg.eff[k]; } });
+  ['LIGHT','CLIMATE','FLOW','SENSOR','FINISH','INFRA'].forEach(cat=>{
+    const best=window._sbBestInCat(cat); if(!best) return;
+    const e=window._sbGearEff(best);
+    for(const k in e){ if(k==='noAdapterPenalty'){ st.noAdapterPenalty=true; continue; } st[k]=(st[k]||0)+e[k]; }
+    st.upkeep+=(window._sbGear(best.defId)||{}).cycle||0;
+  });
+  /* §7.6 pkt 31 — twarde limity modyfikatorów */
+  st.time=Math.max(-0.35,st.time);
+  st.potentialBonus=Math.min(0.30,st.potentialBonus||0);
+  st.load=s.gear.filter(g=>g.installed).reduce((n,g)=>n+((window._sbGear(g.defId)||{}).load||0),0);
+  st.slotsUsed=s.gear.filter(g=>g.installed).reduce((n,g)=>n+((window._sbGear(g.defId)||{}).sl||0),0);
+  return st;
+};
+/* §8 Idempotencja komend — druga komenda z tym samym identyfikatorem nic nie robi (§17 pkt 72) */
+window._sbCommand=function(cmdId,fn){
+  const s=window._sbEnsure();
+  if(cmdId && s.commands.indexOf(cmdId)>=0) return {ok:false,msg:'Ta operacja została już wykonana.',duplicate:true};
+  const r=fn();
+  if(r&&r.ok&&cmdId){ s.commands.push(cmdId); if(s.commands.length>80) s.commands.splice(0,40); }
+  return r;
+};
+/* §4/§7.2 Zakup obiektu i etapy renowacji */
+window._sbBuyFacility=function(cmdId){
+  return window._sbCommand(cmdId,()=>{
+    const s=window._sbEnsure(); const stg=window._sbStage('L5');
+    if(s.owned) return {ok:false,msg:'Obiekt jest już Twój.'};
+    if(((G.trap&&G.trap.level)||1)<5) return {ok:false,msg:'Zakup otwiera się na 5. poziomie kariery Trap.'};
+    if((G.money||0)<stg.price) return {ok:false,msg:'Brakuje '+(stg.price-(G.money||0)).toLocaleString('pl')+' zł.'};
+    G.money-=stg.price; s.owned=true; s.state='OWNED'; s.tier=1; s.stages=['L5'];
+    s.history.push({day:G.day||1,type:'zakup',text:'Przejęcie obiektu — '+window.deriveFacilityDisplayName(1)+'.'});
+    return {ok:true,msg:'Obiekt przejęty: '+window.deriveFacilityDisplayName(1)+'.'};
+  });
+};
+window._sbStageAvailable=function(id){
+  const s=window._sbEnsure(); const stg=window._sbStage(id); if(!stg) return {ok:false,why:'Brak etapu.'};
+  if(s.stages.indexOf(id)>=0) return {ok:false,why:'Etap już wykonany.'};
+  if(!s.owned&&id!=='L5') return {ok:false,why:'Najpierw przejmij obiekt.'};
+  if(((G.trap&&G.trap.level)||1)<stg.career) return {ok:false,why:'Wymaga '+stg.career+'. poziomu kariery Trap.'};
+  /* §7.3 pkt 25 — awans T2 wymaga L6 i L7; awans T3 wymaga L9-L11 */
+  if(id==='L8'&&!(s.stages.indexOf('L6')>=0&&s.stages.indexOf('L7')>=0)) return {ok:false,why:'Awans wymaga wcześniej etapów L6 i L7.'};
+  if(id==='L12'&&!(s.stages.indexOf('L9')>=0&&s.stages.indexOf('L10')>=0&&s.stages.indexOf('L11')>=0)) return {ok:false,why:'Awans wymaga wcześniej etapów L9, L10 i L11.'};
+  return {ok:true};
+};
+window._sbBuyStage=function(id,cmdId){
+  return window._sbCommand(cmdId,()=>{
+    const s=window._sbEnsure(); const stg=window._sbStage(id);
+    const av=window._sbStageAvailable(id); if(!av.ok) return {ok:false,msg:av.why};
+    if((G.money||0)<stg.price) return {ok:false,msg:'Brakuje '+(stg.price-(G.money||0)).toLocaleString('pl')+' zł.'};
+    G.money-=stg.price;
+    /* §7.3 pkt 26 — renowacja kupiona w trakcie cyklu trafia do KOLEJKI */
+    if(s.cycle&&s.cycle.status==='running'){
+      s.renovation={stageId:id,queued:true,startDay:null,endDay:null};
+      s.history.push({day:G.day||1,type:'renowacja',text:'Etap '+id+' czeka na zakończenie bieżącego cyklu.'});
+      return {ok:true,msg:'Etap '+stg.name+' opłacony — prace ruszą po rozliczeniu cyklu.'};
+    }
+    return window._sbStartRenovation(id);
+  });
+};
+window._sbStartRenovation=function(id){
+  const s=window._sbEnsure(); const stg=window._sbStage(id);
+  if(stg.days>0){
+    s.renovation={stageId:id,queued:false,startDay:G.day||1,endDay:(G.day||1)+stg.days};
+    s.state='RENOVATING';
+    return {ok:true,msg:'Prace ruszyły: '+stg.name+'. Obiekt zamknięty na '+stg.days+' '+(stg.days===1?'dzień':'dni')+'.'};
+  }
+  return window._sbFinishRenovation(id);
+};
+window._sbFinishRenovation=function(id){
+  const s=window._sbEnsure(); const stg=window._sbStage(id); if(!stg) return {ok:false,msg:'Brak etapu.'};
+  if(s.stages.indexOf(id)<0) s.stages.push(id);
+  if(stg.tierTo){ s.tier=stg.tierTo; }
+  s.renovation=null; s.state='OWNED';
+  s.history.push({day:G.day||1,type:'renowacja',text:'Zakończono: '+stg.name+(stg.tierTo?(' → '+window.deriveFacilityDisplayName(stg.tierTo)):'')});
+  return {ok:true,msg:'Zakończono etap: '+stg.name+'.'+(stg.tierTo?(' Obiekt to teraz '+window.deriveFacilityDisplayName(stg.tierTo)+'.'):'')};
+};
+/* §7.5 Instalacja sprzętu: sloty, obciążenie, adapter */
+window._sbInstall=function(defId,useAdapter,cmdId){
+  return window._sbCommand(cmdId,()=>{
+    const s=window._sbEnsure(); const d=window._sbGear(defId);
+    if(!d) return {ok:false,msg:'Brak modelu.'};
+    if(!s.owned) return {ok:false,msg:'Najpierw przejmij obiekt.'};
+    if(s.state==='RENOVATING') return {ok:false,msg:'Trwa przestój — nie można instalować sprzętu.'};
+    const st=window._sbStats();
+    if(st.slotsUsed+d.sl>st.slots) return {ok:false,msg:'Brak wolnych slotów ('+st.slotsUsed+'/'+st.slots+').'};
+    let adapter=false;
+    if(s.tier<d.minTier){
+      if(st.noAdapterPenalty){ adapter=false; }
+      else if(!useAdapter) return {ok:false,msg:'Ten model wymaga wyższego poziomu obiektu albo płatnego adaptera.'};
+      else adapter=true;
+    }
+    const load=st.load+d.load;
+    if(load>st.loadLimit) return {ok:false,msg:'Przekroczony limit obciążenia ('+load+'/'+st.loadLimit+'). Rozbuduj infrastrukturę.'};
+    const price=d.price+(adapter?Math.round(d.price*0.12):0);
+    if((G.money||0)<price) return {ok:false,msg:'Brakuje '+(price-(G.money||0)).toLocaleString('pl')+' zł.'};
+    G.money-=price;
+    s.gear.push({instId:'g'+(G.day||1)+'_'+s.gear.length,defId:defId,condition:100,installed:true,
+      adapter:adapter,cycles:0,lastServiceCycle:0});
+    s.installs++; window._sbUpdateRank();
+    return {ok:true,msg:'Zainstalowano: '+d.name+(adapter?' (z adapterem: +5% kosztu energii, +3 pp ryzyka)':'')+'.'};
+  });
+};
+window._sbUpdateRank=function(){
+  const s=window._sbEnsure();
+  /* §7.5 ranga techniczna z liczby instalacji i serwisów — NIE z kariery Trap */
+  s.techRank=Math.min(5,Math.floor((s.installs+s.services)/3));
+  return s.techRank;
+};
+window._sbService=function(instId,cmdId){
+  return window._sbCommand(cmdId,()=>{
+    const s=window._sbEnsure(); const g=s.gear.find(x=>x.instId===instId); if(!g) return {ok:false,msg:'Brak urządzenia.'};
+    const d=window._sbGear(g.defId);
+    const cost=Math.round(d.price*0.10*(100-g.condition)/60+400);
+    if((G.money||0)<cost) return {ok:false,msg:'Serwis kosztuje '+cost.toLocaleString('pl')+' zł.'};
+    G.money-=cost; g.condition=100; g.lastServiceCycle=g.cycles;
+    s.services++; window._sbUpdateRank();
+    return {ok:true,msg:'Serwis wykonany: '+d.name+' — kondycja 100%.'};
+  });
+};
+window._sbSell=function(instId,cmdId){
+  return window._sbCommand(cmdId,()=>{
+    const s=window._sbEnsure(); const i=s.gear.findIndex(x=>x.instId===instId); if(i<0) return {ok:false,msg:'Brak urządzenia.'};
+    const g=s.gear[i]; const d=window._sbGear(g.defId);
+    /* §7.5: demontaż 8% ceny bazowej; odsprzedaż = cena × 45% × kondycja/100 */
+    const fee=Math.round(d.price*0.08);
+    const gain=Math.round(d.price*0.45*(g.condition/100));
+    if((G.money||0)<fee) return {ok:false,msg:'Demontaż kosztuje '+fee.toLocaleString('pl')+' zł.'};
+    G.money-=fee; G.money+=gain; s.gear.splice(i,1);
+    return {ok:true,msg:'Zdemontowano '+d.name+': −'+fee.toLocaleString('pl')+' zł demontaż, +'+gain.toLocaleString('pl')+' zł odsprzedaż.'};
+  });
+};
+/* §7.6 Materiały — jedna baza + maksymalnie jeden dodatek, przypisywane PRZED cyklem */
+window._sbSetMaterials=function(baseId,addonId){
+  const s=window._sbEnsure();
+  if(s.cycle&&s.cycle.status==='running') return {ok:false,msg:'Baza i dodatek są przypisywane przed rozpoczęciem cyklu.'};
+  const b=SB_BASES.find(x=>x.id===baseId);
+  if(baseId&&!b) return {ok:false,msg:'Nieznana baza.'};
+  const a=addonId?SB_ADDONS.find(x=>x.id===addonId):null;
+  if(addonId&&!a) return {ok:false,msg:'Nieznany dodatek.'};
+  if(b&&b.reqForecast){ const st=window._sbStats(); if((st.forecast||0)<b.reqForecast)
+    return {ok:false,msg:b.name+' wymaga pewności prognozy co najmniej '+b.reqForecast+'.'}; }
+  s.materials={base:baseId||null,addon:addonId||null};
+  return {ok:true,msg:'Ustawiono materiały na najbliższy cykl.'};
+};
+/* §7 Cykl — deterministyczny: ten sam seed i snapshot dają ten sam wynik (§17 pkt 78) */
+window._sbCycleSnapshot=function(){
+  const s=window._sbEnsure(); const st=window._sbStats();
+  return {tier:s.tier,stages:s.stages.slice(),gear:s.gear.map(g=>g.defId+':'+Math.round(g.condition)),
+    base:s.materials.base,addon:s.materials.addon,stats:{potential:st.potential,quality:st.quality,
+    stability:st.stability,time:st.time,failure:st.failure,forecast:st.forecast,automation:st.automation}};
+};
+window._sbRng=function(seed){ let x=(seed>>>0)||1; return ()=>{ x^=x<<13;x>>>=0;x^=x>>17;x^=x<<5;x>>>=0; return x/4294967296; }; };
+window._sbCycleDays=function(){
+  const st=window._sbStats(); const s=window._sbEnsure();
+  let base=6-Math.floor(s.tier/2);
+  let mod=st.time;
+  const b=SB_BASES.find(x=>x.id===s.materials.base); if(b&&b.eff.time) mod+=b.eff.time;
+  const a=SB_ADDONS.find(x=>x.id===s.materials.addon); if(a&&a.eff.time) mod+=a.eff.time;
+  mod=Math.max(-0.35,mod);                    /* §7.6 pkt 31 cap 35% */
+  return Math.max(1,Math.round(base*(1+mod)));
+};
+window._sbStartCycle=function(seed,cmdId){
+  return window._sbCommand(cmdId,()=>{
+    const s=window._sbEnsure();
+    if(!s.owned) return {ok:false,msg:'Nie masz jeszcze obiektu.'};
+    if(s.state==='RENOVATING') return {ok:false,msg:'Trwa przestój — nie można rozpocząć nowego cyklu.'};
+    if(s.cycle&&s.cycle.status==='running') return {ok:false,msg:'Cykl już trwa.'};
+    if(!s.materials.base) return {ok:false,msg:'Wybierz bazę materiałową przed startem.'};
+    const b=SB_BASES.find(x=>x.id===s.materials.base);
+    const a=SB_ADDONS.find(x=>x.id===s.materials.addon);
+    const st=window._sbStats();
+    const cost=(b?b.price:0)+(a?a.price:0)+st.upkeep;
+    if((G.money||0)<cost) return {ok:false,msg:'Start cyklu kosztuje '+cost.toLocaleString('pl')+' zł (materiały + koszt stały).'};
+    G.money-=cost;
+    const days=window._sbCycleDays();
+    s.cycle={status:'running',startDay:G.day||1,endDay:(G.day||1)+days,
+      seed:(seed!=null?seed:Math.floor(Math.random()*1e9)),snapshot:window._sbCycleSnapshot(),cost:cost};
+    return {ok:true,msg:'Cykl uruchomiony. Rozliczenie za '+days+' '+(days===1?'dzień':'dni')+' (koszt '+cost.toLocaleString('pl')+' zł).'};
+  });
+};
+/* §7.7 SiteView / preview — NIE zmienia portfela, ekwipunku ani stanu (§17 pkt 79) */
+window._sbPreview=function(seed){
+  const s=window._sbEnsure();
+  const snap=window._sbCycleSnapshot();
+  return window._sbResolve(snap,(seed!=null?seed:12345),true);
+};
+window._sbResolve=function(snapshot,seed,preview){
+  const s=window._sbEnsure(); const t=window._sbTier(snapshot.tier);
+  const rnd=window._sbRng(seed);
+  const b=SB_BASES.find(x=>x.id===snapshot.base);
+  const a=SB_ADDONS.find(x=>x.id===snapshot.addon);
+  const st=snapshot.stats;
+  let potentialBonus=0, quality=0, stability=st.stability, risk=0;
+  [b,a].forEach(m=>{ if(!m) return;
+    if(m.eff.potential) potentialBonus+=m.eff.potential;
+    if(m.eff.quality) quality+=m.eff.quality;
+    if(m.eff.stability) stability+=m.eff.stability;
+    if(m.eff.risk) risk+=m.eff.risk; });
+  potentialBonus=Math.min(0.30,potentialBonus);        /* §7.6 pkt 31 cap potencjału */
+  const potential=Math.round(st.potential*(1+potentialBonus));
+  const qualityCap=t.qualityCap;
+  const failure=Math.max(0,18 - stability*0.18 + risk - (st.failure||0));
+  const roll=rnd();
+  let outcome='ok';
+  if(roll*100<failure*0.35) outcome='catastrophe';
+  else if(roll*100<failure) outcome='failure';
+  else if(roll>0.90) outcome='excellent';
+  const qBase=Math.round(35+stability*0.35+quality+(st.quality||0)+rnd()*12);
+  const finalQuality=Math.max(5,Math.min(qualityCap,outcome==='catastrophe'?Math.round(qBase*0.35):
+    (outcome==='failure'?Math.round(qBase*0.65):(outcome==='excellent'?Math.min(qualityCap,qBase+8):qBase))));
+  const yieldIdx=Math.round(potential*(outcome==='catastrophe'?0.25:(outcome==='failure'?0.6:(outcome==='excellent'?1.15:1)))*(0.85+rnd()*0.3));
+  const value=Math.round(yieldIdx*finalQuality*0.9*(1+(st.value||0)));
+  const events=[];
+  if(outcome==='catastrophe') events.push('Awaria zatrzymała cykl na wczesnym etapie.');
+  else if(outcome==='failure') events.push('Wynik poniżej założeń — warunki wymknęły się spod kontroli.');
+  else if(outcome==='excellent') events.push('Cykl przebiegł wzorowo.');
+  if((st.forecast||0)>=16) events.push('Prognoza była zgodna z wynikiem.');
+  return {outcome:outcome,quality:finalQuality,yieldIndex:yieldIdx,value:value,
+    failureChance:Math.round(failure),potential:potential,events:events,preview:!!preview,seed:seed};
+};
+window._sbFinishCycle=function(cmdId){
+  return window._sbCommand(cmdId,()=>{
+    const s=window._sbEnsure();
+    if(!s.cycle||s.cycle.status!=='running') return {ok:false,msg:'Żaden cykl nie trwa.'};
+    if((G.day||1)<s.cycle.endDay) return {ok:false,msg:'Cykl kończy się w dniu '+s.cycle.endDay+'.'};
+    const res=window._sbResolve(s.cycle.snapshot,s.cycle.seed,false);
+    G.money+=res.value;
+    /* zużycie sprzętu i kondycja */
+    const a=SB_ADDONS.find(x=>x.id===s.materials.addon);
+    const condMult=1+((a&&a.eff.conditionPenalty)||0);
+    s.gear.forEach(g=>{ g.cycles++;
+      const d=window._sbGear(g.defId);
+      let wear=(d.cls==='A'?7:(d.cls==='M'?5:4))*condMult;
+      if(res.outcome==='catastrophe') wear*=1.8;
+      g.condition=Math.max(0,Math.round(g.condition-wear)); });
+    s.cycle.status='done'; s.cycle.result=res;
+    s.history.push({day:G.day||1,type:'cykl',text:'Cykl rozliczony: jakość '+res.quality+', wartość '+res.value.toLocaleString('pl')+' zł ('+res.outcome+').',result:res});
+    if(s.history.length>50) s.history.splice(0,s.history.length-50);
+    s.lastCycleDay=G.day||1;
+    const prev=s.cycle; s.cycle=null;
+    /* §7.3 pkt 26 — renowacja z kolejki startuje po rozliczeniu */
+    if(s.renovation&&s.renovation.queued) window._sbStartRenovation(s.renovation.stageId);
+    if(typeof updateHUD==='function') updateHUD();
+    return {ok:true,msg:'Cykl rozliczony: jakość '+res.quality+', wartość '+res.value.toLocaleString('pl')+' zł.',result:res,cost:prev.cost};
+  });
+};
+window._sbAbortCycle=function(cmdId){
+  return window._sbCommand(cmdId,()=>{
+    const s=window._sbEnsure();
+    if(!s.cycle||s.cycle.status!=='running') return {ok:false,msg:'Żaden cykl nie trwa.'};
+    const st=window._sbStats();
+    const lossMult=1+(st.abortLoss||0);      /* BackupCell M2: strata przy przerwaniu −50% */
+    const loss=Math.round(s.cycle.cost*0.6*lossMult);
+    s.cycle=null;
+    s.history.push({day:G.day||1,type:'cykl',text:'Cykl przerwany — strata '+loss.toLocaleString('pl')+' zł.'});
+    return {ok:true,msg:'Cykl przerwany. Strata: '+loss.toLocaleString('pl')+' zł.'};
+  });
+};
+/* Dobowy tick: kończenie renowacji, przypomnienie o gotowym cyklu */
+window._sbDailyTick=function(){
+  const s=window._sbEnsure(); if(!s.owned) return [];
+  const msgs=[];
+  if(s.renovation&&!s.renovation.queued&&s.renovation.endDay&&(G.day||1)>=s.renovation.endDay){
+    const r=window._sbFinishRenovation(s.renovation.stageId);
+    if(r.ok) msgs.push('🏗 SUBTERRA: '+r.msg);
+  }
+  if(s.cycle&&s.cycle.status==='running'&&(G.day||1)>=s.cycle.endDay)
+    msgs.push('🌱 SUBTERRA: cykl gotowy do rozliczenia w terminalu.');
+  if(msgs.length&&typeof addNotif==='function') msgs.forEach(m=>addNotif(m));
+  return msgs;
+};
+
+/* ═══ §11 Terminal SUBTERRA ═══ */
+window._sbTab='status';
+window._sbSetTab=function(t){ window._sbTab=t; window._sbTerminal(); };
+window._sbTerminal=function(){
+  const s=window._sbEnsure(); const st=window._sbStats();
+  if(typeof openOverlay==='function') openOverlay();
+  const tab=window._sbTab;
+  let body='';
+  if(!s.owned){
+    body=`<div style="background:#0d1810;border:1px solid #1e3a24;border-radius:10px;padding:12px;font-size:13px;color:#cdd;line-height:1.7">
+      Obiekt jest zamknięty i wystawiony na sprzedaż.<br>
+      Poziom kariery Trap ${((G.trap&&G.trap.level)||1)} / 5 — próg jedynie usuwa blokadę zakupu, nie daje obiektu.<br>
+      Cena przejęcia: <b>${SB_STAGES[0].price.toLocaleString('pl')} zł</b><br>
+      Po przejęciu: <b>${SB_TIERS[0].name}</b> — potencjał ${SB_TIERS[0].potential}, limit jakości ${SB_TIERS[0].qualityCap}, ${SB_TIERS[0].slots} sloty.</div>
+      <button class="bbtn" style="width:100%;margin-top:10px" onclick="window._sbBuyBtn()" ${window._sbCanBuy()&&(G.money||0)>=SB_STAGES[0].price?'':'disabled'}>Przejmij obiekt</button>
+      <button class="cbtn" style="width:100%;margin-top:6px" onclick="window._sbSiteView()">🔍 SiteView — podgląd przed zakupem</button>`;
+  } else if(tab==='status'){
+    const cyc=s.cycle;
+    body=`<div style="background:#0d1810;border:1px solid #1e3a24;border-radius:10px;padding:12px;font-size:12px;color:#cdd;line-height:1.8">
+      Obiekt: <b style="color:#7ec87e">${window._sbName()}</b> (poziom ${s.tier})<br>
+      Potencjał: <b>${st.potential}</b> · limit jakości: <b>${st.qualityCap}</b> · stabilność: <b>${st.stability}</b><br>
+      Sloty: <b>${st.slotsUsed} / ${st.slots}</b> · obciążenie: <b style="color:${st.load>st.loadLimit?'#e74c3c':'#cdd'}">${st.load} / ${st.loadLimit}</b><br>
+      Automatyzacja: <b>${st.automation}</b> · pewność prognozy: <b>${st.forecast}</b><br>
+      Koszt stały cyklu: <b>${st.upkeep.toLocaleString('pl')} zł</b> · ranga techniczna: <b>${s.techRank}</b><br>
+      Stan: <b>${s.state==='RENOVATING'?('PRZESTÓJ do dnia '+(s.renovation?s.renovation.endDay:'?')):(cyc?'CYKL W TOKU':'GOTOWY')}</b>
+      ${cyc?('<br>Cykl kończy się w dniu <b>'+cyc.endDay+'</b>'):''}</div>
+      ${s.renovation&&s.renovation.queued?`<div style="background:#1e1a10;border-left:3px solid #e8a020;border-radius:6px;padding:9px 11px;margin-top:9px;font-size:12px;color:#f0d0a0">🏗 Etap ${s.renovation.stageId} czeka w kolejce — ruszy po rozliczeniu cyklu.</div>`:''}
+      <div style="display:flex;flex-direction:column;gap:5px;margin-top:10px">
+        ${!cyc&&s.state!=='RENOVATING'?`<button class="bbtn" onclick="window._sbStartBtn()">▶️ Rozpocznij cykl</button>`:''}
+        ${cyc&&(G.day||1)>=cyc.endDay?`<button class="bbtn" onclick="window._sbFinishBtn()">📦 Rozlicz cykl</button>`:''}
+        ${cyc?`<button class="cbtn" onclick="window._sbAbortBtn()">✖ Przerwij cykl (z jawną stratą)</button>`:''}
+        <button class="cbtn" onclick="window._sbSiteView()">🔍 SiteView — podgląd prognozy</button>
+      </div>`;
+  } else if(tab==='stages'){
+    body=`<div class="shopgrid">${SB_STAGES.map(stg=>{
+      const done=s.stages.indexOf(stg.id)>=0; const av=window._sbStageAvailable(stg.id);
+      return `<div class="sitem" style="border-color:${done?'#27ae60':'#1a2535'}">
+        <h3 style="font-size:12px">${stg.id} — ${stg.name}</h3>
+        <p style="font-size:11px">${stg.desc}</p>
+        <p style="font-size:10px;color:#e8a020">${stg.con}</p>
+        <p style="font-size:10px;color:#9ab">Przestój: ${stg.days} ${stg.days===1?'dzień':'dni'}${stg.upkeep?(' · koszt stały +'+stg.upkeep+' zł/cykl'):''}</p>
+        <div class="pr" style="font-size:12px">${stg.price.toLocaleString('pl')} zł</div>
+        ${done?'<div class="owned">✅ Wykonany</div>':(!av.ok?`<p style="font-size:10px;color:#e74c3c">🔒 ${av.why}</p>`:'')}
+        ${!done?`<button class="bbtn" style="font-size:11px;padding:5px" onclick="window._sbStageBtn('${stg.id}')" ${(!av.ok||(G.money||0)<stg.price)?'disabled':''}>Kup etap</button>`:''}</div>`;
+    }).join('')}</div>`;
+  } else if(tab==='gear'){
+    body=`${s.gear.length?`<h3 style="color:#7ec87e;margin:6px 0;font-size:13px">Zainstalowane</h3><div class="shopgrid">${s.gear.map(g=>{const d=window._sbGear(g.defId);
+      return `<div class="sitem"><h3 style="font-size:12px">${d.name}</h3>
+        <div style="font-size:9px;color:#6a8caa;text-transform:uppercase;margin:-3px 0 3px">${d.cat} · klasa ${d.cls}${g.adapter?' · adapter':''}</div>
+        <p style="font-size:10px;color:${g.condition>=40?'#7ec87e':(g.condition>=20?'#e8a020':'#e74c3c')}">Kondycja: ${g.condition}%${g.condition<=0?' — POZA SERWISEM':(g.condition<20?' — rośnie awaryjność':(g.condition<40?' — spada efekt':''))}</p>
+        <p style="font-size:10px;color:#9ab">Koszt cyklu: ${d.cycle} zł · obciążenie ${d.load} · sloty ${d.sl}</p>
+        <div style="display:flex;gap:4px;margin-top:4px">
+          <button class="cbtn" style="flex:1;font-size:10px;padding:4px" onclick="window._sbServiceBtn('${g.instId}')">🔧 Serwis</button>
+          <button class="cbtn" style="flex:1;font-size:10px;padding:4px;color:#e07a5a" onclick="window._sbSellBtn('${g.instId}')">💰 Demontaż</button>
+        </div></div>`;}).join('')}</div>`:''}
+      <h3 style="color:#7ec8e3;margin:12px 0 6px;font-size:13px">Katalog</h3>
+      <div class="shopgrid">${SB_GEAR.map(d=>{
+        const need=s.tier<d.minTier;
+        return `<div class="sitem"><h3 style="font-size:12px">${d.name}</h3>
+        <div style="font-size:9px;color:#6a8caa;text-transform:uppercase;margin:-3px 0 3px">${d.cat} · klasa ${d.cls}</div>
+        <p style="font-size:11px">${d.look}</p>
+        <p style="font-size:10px;color:#27ae60">${window._sbEffText(d)}</p>
+        <p style="font-size:10px;color:#9ab">${d.pro}</p>
+        <p style="font-size:10px;color:#e8a020">${d.con}</p>
+        <p style="font-size:10px;color:#8fb8d8">Obciążenie ${d.load} · sloty ${d.sl} · koszt cyklu ${d.cycle} zł${need?' · wymaga poziomu T'+d.minTier+' albo adaptera':''}</p>
+        <div class="pr" style="font-size:12px">${d.price.toLocaleString('pl')} zł</div>
+        <div style="display:flex;gap:4px">
+          <button class="bbtn" style="flex:1;font-size:11px;padding:5px" onclick="window._sbInstallBtn('${d.id}',false)" ${(G.money||0)<d.price?'disabled':''}>Zainstaluj</button>
+          ${need?`<button class="cbtn" style="flex:1;font-size:11px;padding:5px" onclick="window._sbInstallBtn('${d.id}',true)">+ adapter</button>`:''}
+        </div></div>`;}).join('')}</div>`;
+  } else if(tab==='materials'){
+    body=`<div style="font-size:11px;color:#9ab;margin-bottom:8px">Jedna baza i maksymalnie jeden dodatek na cykl. Katalog opisuje efekt w grze i model opakowania.</div>
+      <h3 style="color:#7ec8e3;margin:6px 0;font-size:13px">Baza</h3>
+      <div class="shopgrid">${SB_BASES.map(b=>`<div class="sitem" style="border-color:${s.materials.base===b.id?'#27ae60':'#1a2535'}">
+        <h3 style="font-size:12px">${b.name}</h3><p style="font-size:11px;color:#9ab">${b.role}</p>
+        <p style="font-size:10px;color:#27ae60">${window._sbEffText(b)}</p>
+        <p style="font-size:10px;color:#e8a020">${b.con}</p>
+        <div class="pr" style="font-size:12px">${b.price.toLocaleString('pl')} zł / cykl</div>
+        <button class="bbtn" style="font-size:11px;padding:5px" onclick="window._sbMatBtn('${b.id}',null)">Wybierz</button></div>`).join('')}</div>
+      <h3 style="color:#7ec8e3;margin:12px 0 6px;font-size:13px">Dodatek (opcjonalny)</h3>
+      <div class="shopgrid">${SB_ADDONS.map(a=>`<div class="sitem" style="border-color:${s.materials.addon===a.id?'#27ae60':'#1a2535'}">
+        <h3 style="font-size:12px">${a.name}</h3><p style="font-size:11px;color:#9ab">${a.role}</p>
+        <p style="font-size:10px;color:#27ae60">${window._sbEffText(a)}</p>
+        <p style="font-size:10px;color:#e8a020">${a.con}</p>
+        <div class="pr" style="font-size:12px">${a.price.toLocaleString('pl')} zł / cykl</div>
+        <button class="bbtn" style="font-size:11px;padding:5px" onclick="window._sbMatBtn(null,'${a.id}')">Wybierz</button></div>`).join('')}</div>
+      <button class="cbtn" style="width:100%;margin-top:8px" onclick="window._sbMatBtn(null,null)">Wyczyść dodatek</button>`;
+  } else {
+    body=`<div style="font-size:12px;color:#cdd;line-height:1.7">${s.history.slice().reverse().slice(0,20).map(h=>
+      `<div style="background:#0a1220;border-radius:6px;padding:7px;margin-bottom:5px">Dzień ${h.day} · <b>${h.type}</b><br><span style="color:#9ab">${h.text}</span></div>`).join('')||'Brak wpisów.'}</div>`;
+  }
+  const tb=(id,lab)=>`<button class="cbtn" style="font-size:11px;padding:6px 9px;margin:2px;border-color:${window._sbTab===id?'#7ec87e':'#2a3a50'}" onclick="window._sbSetTab('${id}')">${lab}</button>`;
+  document.getElementById('ov-content').innerHTML=`
+    <h2>🌱 SUBTERRA</h2>
+    <p class="sub">${s.owned?window._sbName():'Terminal obiektu uprawowego'}</p>
+    ${s.owned?`<div style="margin-bottom:10px">${tb('status','Status')}${tb('stages','Rozwój obiektu')}${tb('gear','Doposażenie')}${tb('materials','Materiały')}${tb('history','Historia')}</div>`:''}
+    ${body}
+    <div class="res" id="sb-res">Gotówka: ${(G.money||0).toLocaleString('pl')} zł</div>
+    <button class="cbtn" onclick="closeOverlay()">← Wróć</button>`;
+};
+window._sbEffText=function(d){
+  const e=d.eff||{}; const p=[];
+  if(e.time) p.push('czas '+(e.time>0?'+':'')+Math.round(e.time*100)+'%');
+  if(e.quality) p.push('jakość '+(e.quality>0?'+':'')+e.quality);
+  if(e.stability) p.push('stabilność +'+e.stability);
+  if(e.automation) p.push('automatyzacja +'+e.automation);
+  if(e.forecast) p.push('pewność prognozy +'+e.forecast);
+  if(e.failure) p.push('ryzyko awarii '+e.failure+' pp');
+  if(e.risk) p.push('ryzyko +'+e.risk+' pp');
+  if(e.potential) p.push('potencjał '+(e.potential>0?'+':'')+Math.round(e.potential*100)+'%');
+  if(e.qualityLoss) p.push('utrata jakości po cyklu '+e.qualityLoss);
+  if(e.retention) p.push('retencja jakości +'+e.retention);
+  if(e.finalize) p.push('finalizacja '+Math.round(e.finalize*100)+'%');
+  if(e.value) p.push('wartość sprzedaży +'+Math.round(e.value*100)+'%');
+  if(e.loadLimit) p.push('limit obciążenia +'+e.loadLimit);
+  if(e.abortLoss) p.push('strata przy przerwaniu '+Math.round(e.abortLoss*100)+'%');
+  if(e.catastrophe) p.push('awaria katastroficzna '+e.catastrophe+' pp');
+  if(e.conditionPenalty) p.push('kara za kondycję mniejsza o '+Math.abs(Math.round(e.conditionPenalty*100))+'%');
+  if(e.noAdapterPenalty) p.push('kara adaptera usunięta');
+  return p.join(' · ')||'brak bezpośrednich modyfikatorów';
+};
+/* §7.7 SiteView — izolowana sesja podglądu; nie rusza portfela ani stanu */
+window._sbSiteView=function(){
+  const s=window._sbEnsure();
+  const before={money:G.money,gear:s.gear.length,rev:JSON.stringify(s.materials)};
+  const p=s.owned?window._sbPreview(777):null;
+  const after={money:G.money,gear:s.gear.length,rev:JSON.stringify(s.materials)};
+  const clean=(before.money===after.money&&before.gear===after.gear&&before.rev===after.rev);
+  if(typeof openOverlay==='function') openOverlay();
+  document.getElementById('ov-content').innerHTML=`
+    <h2>🔍 SUBTERRA SiteView</h2>
+    <p class="sub">Izolowana sesja podglądu — nie zmienia gotówki, sprzętu ani konfiguracji.</p>
+    ${p?`<div style="background:#0d1810;border:1px solid #1e3a24;border-radius:10px;padding:12px;font-size:13px;color:#cdd;line-height:1.8">
+      Prognoza dla obecnej konfiguracji:<br>
+      Przewidywana jakość: <b>${p.quality}</b> (limit ${window._sbStats().qualityCap})<br>
+      Indeks uzysku: <b>${p.yieldIndex}</b><br>
+      Szacowana wartość: <b>${p.value.toLocaleString('pl')} zł</b><br>
+      Ryzyko niepowodzenia: <b style="color:${p.failureChance>25?'#e74c3c':'#7ec87e'}">${p.failureChance}%</b><br>
+      Czas cyklu: <b>${window._sbCycleDays()} dni</b><br>
+      ${p.events.map(e=>'· '+e).join('<br>')}</div>`
+     :`<div style="background:#0d1810;border:1px solid #1e3a24;border-radius:10px;padding:12px;font-size:13px;color:#cdd;line-height:1.8">
+      Obiekt: <b>${SB_TIERS[0].name}</b><br>Potencjał ${SB_TIERS[0].potential} · limit jakości ${SB_TIERS[0].qualityCap} · stabilność ${SB_TIERS[0].stability}<br>
+      ${SB_TIERS[0].benefit}<br><span style="color:#e8a020">${SB_TIERS[0].cost}</span></div>`}
+    <div style="margin-top:9px;font-size:11px;color:${clean?'#7ec87e':'#e74c3c'}">${clean?'Podgląd nie zmienił żadnych danych.':'⚠️ Podgląd zmienił stan — to błąd.'}</div>
+    <button class="cbtn" style="width:100%;margin-top:9px" onclick="window._sbTerminal()">← Wróć do terminala</button>`;
+};
+/* Przyciski terminala */
+window._sbRes=function(m){ const e=document.getElementById('sb-res'); if(e) e.textContent=m; };
+window._sbBuyBtn=function(){ const r=window._sbBuyFacility('buy_'+(G.day||1)); window._sbTerminal(); window._sbRes(r.msg); };
+window._sbStageBtn=function(id){ const r=window._sbBuyStage(id,'stage_'+id); window._sbTerminal(); window._sbRes(r.msg); };
+window._sbInstallBtn=function(id,ad){ const r=window._sbInstall(id,ad,null); window._sbTerminal(); window._sbRes(r.msg); };
+window._sbServiceBtn=function(i){ const r=window._sbService(i,null); window._sbTerminal(); window._sbRes(r.msg); };
+window._sbSellBtn=function(i){ const r=window._sbSell(i,null); window._sbTerminal(); window._sbRes(r.msg); };
+window._sbMatBtn=function(b,a){ const s=window._sbEnsure();
+  const r=window._sbSetMaterials(b!=null?b:s.materials.base,a!=null?a:(b!=null?s.materials.addon:null));
+  window._sbTerminal(); window._sbRes(r.msg); };
+window._sbStartBtn=function(){ const r=window._sbStartCycle(null,null); window._sbTerminal(); window._sbRes(r.msg); };
+window._sbFinishBtn=function(){ const r=window._sbFinishCycle(null); window._sbTerminal(); window._sbRes(r.msg); };
+window._sbAbortBtn=function(){ const r=window._sbAbortCycle(null); window._sbTerminal(); window._sbRes(r.msg); };
+/* ═══════════════════════════════════════════════════════════════════════════
+   SUBTERRA MODULE END
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+
 
 
 
@@ -58197,6 +58783,7 @@ window._enterDistrictPlace=(districtId,placeId)=>{
       if(typeof window._korekDialog==='function') window._korekDialog();
       return;
     /* v2.3.128 (PDF VANTAGE WORKS §7): punkty interakcji w holu głównym. */
+    case 'subterra:terminal': if(typeof closeOverlay==='function') closeOverlay(); if(typeof window._sbTerminal==='function') window._sbTerminal(); return;
     case 'vantage:eve':        if(typeof window._vwEveDialog==='function') window._vwEveDialog('intro'); return;
     case 'vantage:sales':
     case 'vantage:board':      if(typeof window._vwMarketPanel==='function') window._vwMarketPanel('units'); return;
@@ -79366,8 +79953,14 @@ window._s9AfterDeal=function(npcId,priceTier){
 };
 const PATCH_NOTES = [
  {
- ver:'v2.3.128',date:'2026-07-28',cats:['feature'],title:'🏢 VANTAGE WORKS, 🧰 Gigi 2.0, 👑 Urban Crown i nowe marki samochodów',
+ ver:'v2.3.128',date:'2026-07-28',cats:['feature'],title:'🏢 VANTAGE WORKS, 🌱 SUBTERRA, 🧰 Gigi 2.0, 👑 Urban Crown i nowe marki samochodów',
  items:[
+  {t:'feature',d:'🌱 Uprawa dostała własny system rozwoju obiektu — SUBTERRA. Zamiast jednej liczby poziomu masz trzy realne obiekty: adaptowaną piwnicę, ukryty obiekt kontrolowany i podziemny kompleks z obróbką. Każdy ma swój potencjał, limit jakości, stabilność, liczbę slotów i koszt utrzymania, a nazwa zmienia się sama wraz z rozbudową.'},
+  {t:'new',d:'🏗 Osiem etapów rozbudowy, każdy z ceną, czasem przestoju, konkretną korzyścią i uczciwie opisanym kosztem. Awans na wyższy obiekt wymaga wcześniejszych etapów, a prace kupione w trakcie cyklu czekają w kolejce i ruszają po rozliczeniu.'},
+  {t:'new',d:'🔧 Doposażenie jest osobnym systemem: 18 modeli w sześciu kategoriach i trzech klasach. Każdy zajmuje sloty i obciążenie, ma kondycję, wymaga serwisu i traci na wartości. Lepszy model w kategorii zastępuje słabszy zamiast sumować efekty, a sprzęt spoza poziomu obiektu wymaga dopłaty za adapter.'},
+  {t:'new',d:'🧪 Przed każdym cyklem wybierasz jedną bazę i najwyżej jeden dodatek. Każdy ma jasny plus i jasny minus — szybszy obrót kosztem jakości, większy wynik kosztem czasu albo bezpieczeństwo zamiast skali. Skrócenie cyklu i dodatkowy potencjał mają twarde limity.'},
+  {t:'new',d:'🔍 Terminal SUBTERRA w plantacji pokazuje status obiektu, rozwój, sprzęt, materiały i historię. Podgląd SiteView wylicza prognozę jakości, uzysku, wartości i ryzyka dla obecnej konfiguracji — bez ruszania gotówki i sprzętu.'},
+  {t:'fix',d:'💾 Jeśli masz już rozwinięte zaplecze uprawowe, zostaje ono opisane odpowiadającym poziomem obiektu — nic nie znika.'},
   {t:'feature',d:'🧰 Gigi to teraz żywa miejska tablica zleceń. Codziennie czeka od sześciu do dziesięciu ofert dobranych pod Twoje odblokowane dzielnice, porę dnia, sezon, pogodę, pojazd i ocenę wykonawcy. Doszły 42 zupełnie nowe zlecenia: kurier miejski, przeprowadzka, wyprowadzanie psów, montaż sceny, szatnia, stoisko z merchem, mystery shopper, sprzątanie plaży, backstage runner, valet i wiele innych.'},
   {t:'new',d:'⭐ Masz własną ocenę wykonawcy od 0 do 5 i pięć poziomów: od Nowego po Pierwszy wybór. Po każdym zleceniu dostajesz ocenę za terminowość, dokładność, kontakt z klientem i stan powierzonych rzeczy, wypłatę zależną od wyniku, czasem napiwek i krótki komentarz. Ty też oceniasz pracodawcę.'},
   {t:'new',d:'🤝 Reputacja jest osobna u każdego zleceniodawcy — dobra passa w jednym miejscu nie otwiera wszystkiego. Ta sama praca u tego samego pracodawcy wraca po dniu lub dwóch, premium po kilku dniach, a zlecenie spartaczone potrafi zamknąć drzwi na kilka dni.'},
