@@ -2138,6 +2138,17 @@ function getDripFameBonus(){
 /* v2.1.892 (user: „chcę móc nosić luksusy"): noszone przedmioty luksusowe (G._wornLux) dają AKTYWNY bonus do
    efektywnego dripu (clout z flexowania) — połowa dripu przedmiotu, łącznie max +40. Osobne od dripu-z-zakupu
    (ten zostaje permanentnie) → brak double-count, save-safe. Max 3 noszone naraz. */
+/* v2.3.128 (PDF Urban Crown §8.2): typ wydarzenia koncertowego — decyduje, które premie stroju działają.
+   'formal' = gale i eventy formalne, 'event' = duże wydarzenia, 'night' = występy nocne/klubowe. */
+function _concertOccasionKind(){
+  try{
+    if(G._concertVenueKind) return G._concertVenueKind;
+    const h=(typeof getHour==='function')?getHour():Math.floor((G.gameMin||720)/60);
+    if(G.eclipseNoir&&G.eclipseNoir._performingNow) return 'night';
+    if(h>=22||h<5) return 'night';
+  }catch(e){}
+  return null;
+}
 function getWornLuxDrip(){
   if(!Array.isArray(G._wornLux)||G._wornLux.length===0||typeof LUXURY_CATALOG==='undefined') return 0;
   let s=0;
@@ -2163,7 +2174,7 @@ function getOwnMerchDrip(){
 }
 // v1.8.98: Autopromocja 4 "Personal brand" — Drip działa ×1.5 dla wszystkich akcji
 function getEffectiveDrip(){
-  const base=(G.drip||0)+getWornLuxDrip()+getOwnMerchDrip(); /* v2.1.892: +clout luksusów; v2.1.939: +drip własnego merchu */
+  const base=(G.drip||0)+getWornLuxDrip()+getOwnMerchDrip()+((typeof window._ucWardrobeDrip==='function')?window._ucWardrobeDrip():0); /* v2.1.892: +clout luksusów; v2.1.939: +drip własnego merchu; v2.3.128 (PDF Urban Crown 5.2): +Drip aktywnej stylizacji (strój+obuwie+dodatek+plecak) */
   const mult=(typeof getRaperST==='function' && getRaperST('autopromocja')>=4)?1.5:1;
   return base*mult;
 }
@@ -2281,9 +2292,9 @@ function getPracaBonus(key){
   let bonus = 1 + _sk(key)*0.20 + _pu(key)*0.30 + evoBonus;
   /* Sport/sport_pro outfit aplikuje do prac fizycznych (construction, kurier, carwash). */
   if(G.outfit?.top && ['construction','kurier','carwash'].includes(key)){
-    if(G.outfit.top==='sport_pro') bonus*=1.05;
-    else if(G.outfit.top==='sport') bonus*=1.03;
-    else if(G.outfit.top==='work_black') bonus*=1.04; /* v2.1.889 (PDF l.85): odzież robocza — praktyczna do prac fizycznych */
+    /* v2.3.128 (PDF Urban Crown §5.3): premia do prac fizycznych z aktywnej stylizacji (strój + obuwie),
+       z limitem kategorii. Zastępuje 3 twarde ify per identyfikator stroju. */
+    if(typeof window._ucStat==='function') bonus*=(1+window._ucStat('physWork'));
   }
   /* Holiday bonus: niektóre święta dają morał-boost do prac. */
   if(G.activeHoliday){
@@ -28587,7 +28598,9 @@ function tickDecay(){
      - Ostrzeżenie JEDNORAZOWE na początku zimnej pogody (gdy gracz wychodzi na ulicę bez kurtki)
      - Każdy frost damage tworzy widoczny addNotif + showMsg co 4 hit (~2min) zamiast tylko gdy HP<50 i 30% szans */
   if(currentRoom==='ulica' && (G.weather===3||G.weather===4||G.weather===5)){
-    const _hasWarm = G.outfit && (G.outfit.top==='zimowa' || G.outfit.top==='jeansowa');
+    /* v2.3.128 (PDF Urban Crown §5.3/§8.3): ochrona przed mrozem z aktywnej stylizacji (NorthArc, denim, warstwy). */
+    const _ucFrost = (typeof window._ucWeatherMod==='function')?window._ucWeatherMod('frost'):0;
+    const _hasWarm = _ucFrost<0;
     /* Ostrzeżenie raz przy wejściu w zimną pogodę bez kurtki */
     if(!G._frostWarned && !_hasWarm){
       G._frostWarned = true;
@@ -28597,9 +28610,9 @@ function tickDecay(){
     G._frostTick = (G._frostTick||0)+1;
     if(G._frostTick >= 5){ // co 5 ticków decay (30s)
       G._frostTick = 0;
-      const winterCoatMult = (G.outfit && (G.outfit.top==='zimowa')) ? 0.15 : 1.0;
-      const jeansowaMult = (G.outfit && (G.outfit.top==='jeansowa')) ? 0.5 : 1.0;
-      const frostDmg = Math.ceil(1 * winterCoatMult * jeansowaMult);
+      /* Sumaryczna redukcja z katalogu: Polar Shell -85%, Alpine Black -95%, Copper Rivet -50%,
+         Ash Denim -30%, City Layer -45%, Stormguard -70% (PDF §4.7/§4.2). */
+      const frostDmg = Math.max(0, Math.ceil(1 * (1 + _ucFrost)));
       if(frostDmg > 0){
         G.health = clampStat('health', G.health-frostDmg);
         /* Widoczny licznik hitów mrozu — każdy hit notif, showMsg co 4 hit (anti-spam, ~2 min) */
@@ -39080,7 +39093,7 @@ function openShopOverlay(id){
     case 'spozywczy':   renderFoodShop();break;
     case 'mediamarkt':  renderVoltHouse();break;
     case 'muzyczny':    renderMusicShop();break;
-    case 'ubrania':     renderClothingShop();break;
+    case 'ubrania':     (typeof window.renderUrbanCrown==='function'?window.renderUrbanCrown():renderClothingShop());break;/* PDF Urban Crown 9: nowy panel sklepu */
     case 'fryzjer':     window._barberLock=null; renderBarber();break;/* v2.3.97: reset przypiętego podglądu przy świeżym wejściu do fryzjera */
     case 'szpital':     renderHospital();break;
     case 'restauracja': renderRestauracja();break;
@@ -40674,7 +40687,7 @@ function renderWardrobeChange(){
   ];
   G._ownedOutfits=G._ownedOutfits||[];
   const owned=allOutfits.filter(o=>o.id==='default'||G._ownedOutfits.includes(o.id)||G.outfit.top===o.id);
-  const outfitNames={default:'Podstawowy 👕',polo:'Polo 🧵',street:'Streetwear 🧥',jeansowa:'Jeansowa 🥾',zimowa:'Zimowa 🧣',suit:'Garnitur 👔',smoking:'Smoking 🎩',sport:'Sportowy 🏋',sport_pro:'Treningowy PRO 🥋',music:'Muzyczny 🎤',designer_concert:'Designerski 🌟',luxury:'Luxury 💎',tracksuit:'Dresik 🥋',leather_jacket:'Kurtka skórzana 🧥',designer_hoodie:'Designer hoodie 👕',everyday:'Codzienny 👚',work_black:'Robocza czerń 🖤',own_merch:'Własny merch 🏷️'}; /* v2.1.148 hotfix: 3 nowe outfity; v2.1.889: odzież zwykła; v2.1.939: własny merch */
+  const outfitNames=new Proxy({own_merch:'Własny merch 🏷️',crown_of_hh:'Korona Hip-Hopu 👑'},{get:(t,k)=>t[k]||((typeof window._ucName==='function')?window._ucName(String(k)):String(k))});/* v2.3.128 (PDF Urban Crown §2.1): nazwy strojów z jednego źródła — marka + model. */ /* v2.1.148 hotfix: 3 nowe outfity; v2.1.889: odzież zwykła; v2.1.939: własny merch */
   const activeId = G.outfit.top || 'default';
   const palette = _renderColorPalette(activeId);
   // F5.4 E4: sekcje
@@ -40832,7 +40845,7 @@ function renderClothingShop(){
   const CAT_ORDER=[['codzienne','👕 Codzienne'],['streetwear','🧥 Streetwear'],['scena','🎤 Scena / Koncerty'],['formalne','👔 Formalne'],['sport','🏋 Sport / Trening'],['praca','🦺 Praca / Utility'],['pogoda','🧣 Pogoda']];
   const _outItem=o=>`<div class="sitem"><h3>${window._shopIco(o.emoji)} ${o.name}</h3><p>${o.desc}</p><p style="color:#27ae60;font-size:11px;margin-bottom:6px">Bonus: ${o.bonus}</p><div class="pr">${o.price===0?'Gratisowe':o.price+' zł'}</div>${G.outfit.top===o.id?'<div class="owned">✅ Aktualny</div>':''}<button class="bbtn" onclick="buyOutfit('${o.id}','${o.name}',${o.price})" ${G.outfit.top===o.id||G.money<o.price?'disabled':''}>Kup i załóż</button></div>`;
   const _catSections=CAT_ORDER.map(([cat,label])=>{const items=outfits.filter(o=>(OUTFIT_CATS[o.id]||'codzienne')===cat);if(!items.length)return '';return `<h3 style="color:#9fd0f5;margin:16px 0 6px;font-size:14px;border-bottom:1px solid #2a3a50;padding-bottom:4px">${label}</h3><div class="shopgrid">${items.map(_outItem).join('')}</div>`;}).join('');
-  const outfitNames={default:'Podstawowy 👕',polo:'Polo 🧵',street:'Streetwear 🧥',jeansowa:'Jeansowa 🥾',zimowa:'Zimowa 🧣',suit:'Garnitur 👔',smoking:'Smoking 🎩',sport:'Sportowy 🏋',sport_pro:'Treningowy PRO 🥋',music:'Muzyczny 🎤',designer_concert:'Designerski 🌟',luxury:'Luxury 💎',tracksuit:'Dresik 🥋',leather_jacket:'Kurtka skórzana 🧥',designer_hoodie:'Designer hoodie 👕',everyday:'Codzienny 👚',work_black:'Robocza czerń 🖤',own_merch:'Własny merch 🏷️'}; /* v2.1.148 hotfix: 3 nowe outfity; v2.1.889: odzież zwykła; v2.1.939: własny merch */
+  const outfitNames=new Proxy({own_merch:'Własny merch 🏷️',crown_of_hh:'Korona Hip-Hopu 👑'},{get:(t,k)=>t[k]||((typeof window._ucName==='function')?window._ucName(String(k)):String(k))});/* v2.3.128 (PDF Urban Crown §2.1): nazwy strojów z jednego źródła — marka + model. */ /* v2.1.148 hotfix: 3 nowe outfity; v2.1.889: odzież zwykła; v2.1.939: własny merch */
   /* v2.1.663 (user): plecaki powiększające ekwipunek (baza INV_BASE_CAP mała). Kupno = trwały upgrade (trzymasz największy). */
   const backpacks=[
     {id:'bp_small',name:'Mały plecak',emoji:'🎒',cap:6,price:2500,desc:'Codzienny plecak — trochę więcej miejsca na drobiazgi.'},
@@ -44087,23 +44100,12 @@ window.buyOutfit=(id,name,price)=>{
   const outfitColors={default:null,street:'#1a1a2a',suit:'#2a3050',sport:'#1a5030',music:'#4a0a5a',luxury:'#3a1a0a',polo:'#3a8a5a',jeansowa:'#2a4a7a',zimowa:'#3a3a4a',smoking:'#000000',designer_concert:'#1a0a3a',tracksuit:'#1a3a4a',leather_jacket:'#1a0a0a',designer_hoodie:'#2a1a3a',everyday:'#6a6a6a',work_black:'#0a0a0a',own_merch:'#202830'}; /* v2.1.148 hotfix: 3 nowe outfity colors; v2.1.889: odzież zwykła; v2.1.939: własny merch */
   P.cloth=outfitColors[id]||G.cloth;
   if(firstTime){
-    // F3-FIX: DRIP_MASTER skill — bonus sławy z outfitów (max +25% przy lvl 5)
-    const _dripMult=getDripFameBonus();
-    /* v2.1.99: Prestige fameMult przez addFame() (Wave 1 K6 outfit first-buy bypass fix — 5 outfitów) */
-    if(id==='luxury'){const f=Math.round(10*_dripMult); if(typeof addFame==='function')addFame(f);else G.fame=clamp(G.fame+f,0,500);notify(`💎 Luxury drip! +${f} sława (pierwszy zakup)`);}
-    else if(id==='suit'){const f=Math.round(5*_dripMult); if(typeof addFame==='function')addFame(f);else G.fame=clamp(G.fame+f,0,500);notify(`👔 Garnitur założony! +${f} sława (pierwszy zakup)`);}
-    else if(id==='street'){const r=Math.round(3*_dripMult); G.streetRep=clamp(G.streetRep+r,0,100);notify(`🧥 Streetwear! +${r} rep uliczna (pierwszy zakup)`);}
-    // F5.4 E3: nowe ubrania z bonusami pierwszego zakupu
-    else if(id==='polo'){const f=Math.round(1*_dripMult); if(typeof addFame==='function')addFame(f);else G.fame=clamp(G.fame+f,0,500);notify(`🧵 Polo założone! +${f} sława (pierwszy zakup)`);}
-    else if(id==='jeansowa'){const r=Math.round(2*_dripMult); G.streetRep=clamp(G.streetRep+r,0,100);notify(`🥾 Kurtka jeansowa! +${r} rep uliczna (pierwszy zakup)`);}
-    else if(id==='smoking'){const f=Math.round(15*_dripMult); if(typeof addFame==='function')addFame(f);else G.fame=clamp(G.fame+f,0,500);notify(`🎩 Smoking założony! +${f} sława (pierwszy zakup)`);}
-    else if(id==='designer_concert'){const f=Math.round(5*_dripMult); if(typeof addFame==='function')addFame(f);else G.fame=clamp(G.fame+f,0,500);notify(`🌟 Designerski koncertowy! +${f} sława (pierwszy zakup)`);}
-    /* v2.1.148: 3 nowe outfity first-buy bonuses */
-    else if(id==='tracksuit'){const r=Math.round(2*_dripMult); G.streetRep=clamp(G.streetRep+r,0,100);notify(`🥋 Dresik! +${r} rep uliczna (pierwszy zakup)`);}
-    else if(id==='leather_jacket'){const f=Math.round(5*_dripMult); if(typeof addFame==='function')addFame(f);else G.fame=clamp(G.fame+f,0,500);const r=Math.round(2*_dripMult); G.streetRep=clamp(G.streetRep+r,0,100);notify(`🧥 Kurtka skórzana! +${f} sława + +${r} rep (pierwszy zakup)`);}
-    else if(id==='designer_hoodie'){const f=Math.round(8*_dripMult); if(typeof addFame==='function')addFame(f);else G.fame=clamp(G.fame+f,0,500);G.drip=Math.min(200,(G.drip||0)+10);notify(`👕 Designer hoodie! +${f} sława + +10 drip (pierwszy zakup)`);}
-    /* v2.1.889 (PDF l.85): odzież zwykła — Robocza czerń daje +3 rep (flat, nie-drip); Codzienny ciuch = 0 bonusu (czysty tani ubiór zamienny). */
-    else if(id==='work_black'){G.streetRep=clamp(G.streetRep+3,0,100);notify('🖤 Robocza czerń! +3 rep uliczna (pierwszy zakup). Dyskretny, praktyczny look.');}
+    /* v2.3.128 (PDF Urban Crown §5.2 „Drip nie jest sławą" + §1.2 anti-exploit):
+       przebranie się NIE podnosi już trwałej sławy. Zamiast tego działa system trzech premii:
+       aktywna podczas noszenia (Drip, prezentacja, mnożniki), jednorazowa za pierwszy publiczny
+       debiut (reputacja / szum w sieci — flaga debutClaimed, max 1 szum dziennie) oraz kontekstowa.
+       Premia debiutu przyznawana jest w _ucEquip → _ucClaimDebut (kryterium 11). */
+    if(typeof window._ucClaimDebut==='function'){ const _m=window._ucClaimDebut(id); if(_m&&typeof notify==='function') notify(_m); }
   }
   /* v2.1.331 Faza H iter2: immediate achievement check po założeniu outfitu (first_outfit, drip_50/100/200 jeśli drip wzrósł). */
   if(typeof checkAchievements==='function') checkAchievements();
@@ -44111,7 +44113,7 @@ window.buyOutfit=(id,name,price)=>{
   if(window._clothShop==='ubrania'){ if(typeof _5pdfEnsure==='function')_5pdfEnsure(); G._sponsorRel.purchasedWiktor=true; if(typeof window._sponsorCheckFollowup==='function') window._sponsorCheckFollowup(); }
   /* v2.1.928 (Vegan): komunikat sukcesu USTAWIANY PO re-renderze — wcześniej re-render budował świeży pusty #shop-res i kasował „✅ Założono" (gracz nie widział potwierdzenia → „nic się nie stało"). */
   const _resMsg=firstTime?`✅ Kupiono i założono: ${name}`:`✅ Założono: ${name}`;
-  (window._clothShop==='pepco'&&typeof renderPepcoShop==='function'?renderPepcoShop():renderClothingShop());
+  (window._clothShop==='pepco'&&typeof renderPepcoShop==='function'?renderPepcoShop():(typeof window.renderUrbanCrown==='function'?window.renderUrbanCrown():renderClothingShop()));
   const _r=document.getElementById('shop-res');if(_r)_r.textContent=_resMsg;
 };
 window.buyHaircut=(id,price)=>{
@@ -44582,23 +44584,13 @@ function startConcertMG(name,cost,fameReq,earnMin,earnMax){
     const _setlistQMult=(function(){const _ts=(G.studioTracks||[]).filter(t=>t&&!t.isDemo).map(t=>t.masterQ||t.quality||50);if(!_ts.length)return 1.0;_ts.sort((a,b)=>b-a);const _top=_ts.slice(0,3);return 0.9+(_top.reduce((a,q)=>a+q,0)/_top.length/100)*0.2;})();
     earn=Math.floor(earn*_setlistQMult);
     /* v2.1.83 Amper: NERF mnożników koncertów — max stack ×9 → ~×3-4 (faktycznie po wszystkich nerfach: outfit ×1.05-1.10 × scena ×1.15-1.25 × drip ×1.10 × management ×1.2 × holiday ×1.5-2.0 = ~3.5-4.5×). v2.1.122 BUFF Sylwester ×2.0/Majówka ×1.5 + outfit do match UI = max stack ~5-6. v2.1.123: docs poprawione. */
-    if(G.outfit.top==='music') earn=Math.floor(earn*1.05);
-    /* v2.1.102: BUFF kod do match UI (Wave 5 W51/W52) — UI obiecuje designer_concert +15%, smoking +10%. v2.1.83 zrobił nerf BEZ aktualizacji UI. Decyzja: BUFF kod żeby pasował do obietnicy UI (NIE zamiatać pod dywan). */
-    else if(G.outfit.top==='designer_concert') earn=Math.floor(earn*1.10); // v2.1.229 nerf 1.15→1.10 (concert balance refactor)
-    else if(G.outfit.top==='smoking') earn=Math.floor(earn*1.10); // BUFF v2.1.102 (matching UI "+10%")
-    else if(G.outfit.top==='suit') earn=Math.floor(earn*1.05);
-    /* v2.1.102: Wave 7 W70 — Sport/Luxury/Zimowa/Jeansowa outfits brakowały case'ów concert mult. ZAIMPLEMENTUJ (NIE zamiatać). */
-    else if(G.outfit.top==='sport') earn=Math.floor(earn*1.03); // mały bonus — sport casual na koncercie
-    else if(G.outfit.top==='sport_pro') earn=Math.floor(earn*1.05);
-    else if(G.outfit.top==='luxury') earn=Math.floor(earn*1.08); // v2.1.229 nerf 1.12→1.08 (concert balance refactor)
-    else if(G.outfit.top==='zimowa') earn=Math.floor(earn*1.02); // zimowa — odrobinka jeśli koncert w mrozie
-    else if(G.outfit.top==='jeansowa') earn=Math.floor(earn*1.04); // street vibe
-    /* v2.1.148: 3 nowe outfity koncert bonusy */
-    else if(G.outfit.top==='tracksuit') earn=Math.floor(earn*1.02); // casual
-    else if(G.outfit.top==='leather_jacket') earn=Math.floor(earn*1.06); // rock vibe
-    else if(G.outfit.top==='designer_hoodie') earn=Math.floor(earn*1.08); // premium streetwear
-    /* v2.1.229: Crown of Hip-Hop +10% (nerf z 1.20 — concert balance refactor). Tier 4 GOAT mult ×1.10 osobno (L24294). */
-    else if(G.outfit.top==='crown_of_hh') earn=Math.floor(earn*1.10);
+    /* v2.3.128 (PDF Urban Crown §5.3/§8.2): premia koncertowa liczona z KATALOGU (strój + obuwie + dodatek),
+       z globalnym limitem stackowania kategorii (kryterium 15) i respektowaniem typu wydarzenia — strój
+       formalny/eventowy nie podbija zwykłego koncertu klubowego. Wcześniej 20 twardych ifów per identyfikator. */
+    const _ucKind=(typeof _concertOccasionKind==='function')?_concertOccasionKind():null;
+    if(typeof window._ucStat==='function'){ const _m=window._ucStat('concert',{kind:_ucKind}); if(_m) earn=Math.floor(earn*(1+_m)); }
+    /* Crown of Hip-Hop nie należy do Urban Crown (nagroda fabularna) — zostaje osobno. */
+    if(G.outfit&&G.outfit.top==='crown_of_hh') earn=Math.floor(earn*1.10);
     if(G.managementDeal) earn=Math.floor(earn*Math.min(1.2,G.managementBonus||1)); // cap 1.2
     const scenaBonus=getRaperST('scena');
     /* v2.1.229: nerf scena ST earn mult (concert balance). Scena 6/7/8 skill nodes daja INNE typy bonusów (fame/fanów/follower), nie multiplier earn. */
@@ -53453,6 +53445,980 @@ window._drawSunsetSprite=function(id,sx,sy,w,h){
    SUNSET PALMS MODULE END
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   URBAN CROWN MODULE START — PDF „Rozszerzony katalog odzieżowy, system stylizacji
+   i moduł podglądu CrownFit Studio" (§1-13).
+   Urban Crown przestaje być listą „bonusów pod nazwą ubrania": 13 marek, 63 produkty
+   z profilem wizualnym, Drip oddzielony od sławy, trzy typy premii, dopasowanie okazji
+   oraz CrownFit Studio (podgląd postaci przed zakupem).
+   ⚠️ REGUŁA #1: istniejące identyfikatory (default/polo/street/… oraz bp_small…bp_xxl)
+   ZOSTAJĄ — zmienia się nazwa wyświetlana, opis i logika premii (PDF §3, kryterium 2).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── §2 Architektura marek (13) ─────────────────────────────────────────────── */
+const UC_BRANDS={
+  baseline:  {id:'baseline',  name:'BaseLine Division', segment:'Podstawowe i tanie ubrania codzienne', visual:'Proste kroje, bawełna, neutralne barwy',            use:'Start gry, tanie zamienniki'},
+  crown:     {id:'crown',     name:'Crown District',    segment:'Casual i smart casual',                visual:'Czyste linie, kołnierzyki, dzianiny, spokojna elegancja', use:'Spotkania, restauracje, codzienny prestiż'},
+  oldline:   {id:'oldline',   name:'Oldline Denim Co.', segment:'Denim i klasyczne warstwy',            visual:'Sprany jeans, metalowe guziki, vintage',            use:'Streetwear, chłód, koncerty plenerowe'},
+  deadsignal:{id:'deadsignal',name:'DeadSignal',        segment:'Nowoczesny streetwear',                visual:'Duże grafiki, techniczne szwy, warstwowość',        use:'Rep uliczna, Drip, social media'},
+  blackwire: {id:'blackwire', name:'Blackwire',         segment:'Skóra, rock i nocny charakter',        visual:'Czerń, skóra, metal, cięższa sylwetka',             use:'Koncerty, kluby, wizerunek'},
+  mirage:    {id:'mirage',    name:'Mirage Society',    segment:'Luksusowy streetwear',                 visual:'Monogramy, wysokojakościowe materiały, stonowany przepych', use:'Wysoki Drip, sponsorzy, premium'},
+  signalroom:{id:'signalroom',name:'SignalRoom',        segment:'Funkcjonalna odzież sceniczna',        visual:'Widoczność z daleka, ruch sceniczny, elementy odblaskowe', use:'Koncerty i materiały wideo'},
+  neonparish:{id:'neonparish',name:'Neon Parish',       segment:'Eksperymentalne stroje sceniczne',     visual:'Asymetria, geometria, neonowe akcenty',             use:'Duże koncerty, viralowy wygląd'},
+  blackframe:{id:'blackframe',name:'Blackframe Atelier',segment:'Formalna i wieczorowa odzież',         visual:'Precyzyjne kroje, ciemne tkaniny, minimalizm',      use:'Gale, biznes, premium eventy'},
+  motion:    {id:'motion',    name:'Motion Dept.',      segment:'Sport i regeneracja',                  visual:'Elastyczne tkaniny, oddychające panele',            use:'Trening, bieganie, aktywność'},
+  fieldunit: {id:'fieldunit', name:'Field Unit',        segment:'Praca i utility',                      visual:'Wytrzymałe materiały, kieszenie, matowe barwy',     use:'Gigi, magazyn, technika, ochrona'},
+  northarc:  {id:'northarc',  name:'NorthArc',          segment:'Pogoda i warstwy ochronne',            visual:'Puch, membrany, kaptury, warstwowanie',             use:'Mróz, deszcz, teren'},
+  carrygrid: {id:'carrygrid', name:'CarryGrid',         segment:'Plecaki i transport osobisty',         visual:'Modułowe kieszenie, miejska funkcjonalność',        use:'Pojemność ekwipunku'},
+};
+
+/* ── §4 Katalog. `st` = statystyki (jedno źródło premii, PDF §5.2 — Drip ≠ sława).
+   drip/pres = punkty; concert/gym/... = ułamek (0.08 = +8%); repDebut/buzzDebut = premia
+   JEDNORAZOWA za pierwszy publiczny debiut (§5.1, flaga firstPublicDebutClaimed).
+   `vis` = profil wizualny (§4.10/§7.3): sylwetka, materiał, paleta, detale — CrownFit
+   Studio rysuje z niego postać, walidator (§7.6) odrzuca produkt bez profilu. ── */
+const UC_CATALOG=[
+/* 4.1 Codzienne i smart casual */
+{id:'default',       brand:'baseline',  model:'Zero Set',        cat:'daily',  slot:'outfit', price:0,    look:'Grafitowy T-shirt, proste jeansy, neutralne sneakersy',                req:{},                  st:{},                                             vis:{sil:'slim',mat:'bawełna',pal:['#3a3f46','#2a3446','#d8d8d0'],det:['prosty krój','neutralne barwy'],hood:false,hat:false,bag:'ok'}},
+{id:'everyday',      brand:'baseline',  model:'Transit Set',     cat:'daily',  slot:'outfit', price:50,   look:'Luźna koszulka, ciemne spodnie, tani miejski look',                    req:{},                  st:{},                                             vis:{sil:'loose',mat:'bawełna',pal:['#6a6a6a','#22262c','#4a4a4a'],det:['luźny krój','tani miejski look'],hood:false,hat:false,bag:'ok'}},
+{id:'polo',          brand:'crown',     model:'Mercer Polo',     cat:'daily',  slot:'outfit', price:120,  look:'Polo, zwężane chinosy, czyste buty',                                   req:{},                  st:{pres:1},                                       vis:{sil:'slim',mat:'dzianina piqué',pal:['#3a8a5a','#2c3444','#e8e4dc'],det:['kołnierzyk','zwężane chinosy'],hood:false,hat:true,bag:'ok'}},
+{id:'uc_sunday_knit',brand:'crown',     model:'Sunday Knit',     cat:'daily',  slot:'outfit', price:260,  look:'Lekki sweter, koszula, spodnie materiałowe',                           req:{level:2},           st:{pres:2,meetings:0.02},                         vis:{sil:'slim',mat:'wełna',pal:['#8a7a5a','#f0ece4','#3a3a44'],det:['sweter na koszuli','miękka dzianina'],hood:false,hat:true,bag:'ok'}},
+{id:'uc_layer_set',  brand:'baseline',  model:'Layer Set',       cat:'daily',  slot:'outfit', price:180,  look:'Longsleeve, kamizelka, proste spodnie cargo',                          req:{},                  st:{cold:0.15},                                    vis:{sil:'layered',mat:'bawełna + softshell',pal:['#4a5058','#2e343c','#5a6068'],det:['kamizelka','warstwa longsleeve'],hood:false,hat:true,bag:'ok'}},
+{id:'uc_gallery_casual',brand:'crown',  model:'Gallery Casual',  cat:'daily',  slot:'outfit', price:650,  look:'Minimalistyczna kurtka, golf, dopasowane spodnie',                     req:{fame:5},            st:{pres:4,drip:3},                                vis:{sil:'slim',mat:'gabardyna',pal:['#2a2e36','#1c2028','#c8c4bc'],det:['golf','minimalistyczna kurtka'],hood:false,hat:false,bag:'ok'}},
+{id:'uc_parkline',   brand:'crown',     model:'Parkline',        cat:'daily',  slot:'outfit', price:900,  look:'Jasna kurtka, dzianina, premium casual',                               req:{apt:true},          st:{pres:5,drip:4,networking:0.03},                vis:{sil:'relaxed',mat:'bawełna premium',pal:['#d8d0c0','#b8ac98','#3a3a40'],det:['jasna kurtka','premium casual'],hood:false,hat:true,bag:'ok'}},
+/* 4.2 Streetwear i premium streetwear */
+{id:'street',        brand:'deadsignal',model:'Entry Set',       cat:'street', slot:'outfit', price:150,  look:'Oversize T-shirt, spodnie cargo, kontrastowe akcenty',                 req:{},                  st:{drip:2,repDebut:3},                            vis:{sil:'oversized',mat:'bawełna',pal:['#1a1a2a','#2a2a3e','#e04a3a'],det:['oversize','kontrastowe akcenty','cargo'],hood:false,hat:true,bag:'ok'}},
+{id:'jeansowa',      brand:'oldline',   model:'Copper Rivet',    cat:'street', slot:'outfit', price:280,  look:'Sprana kurtka jeansowa, czarne spodnie, mosiężne detale',              req:{},                  st:{rep:2,concert:0.04,weather:{frost:-0.50}},     vis:{sil:'relaxed',mat:'denim',pal:['#2a4a7a','#18181c','#b8863a'],det:['sprany denim','mosiężne nity'],hood:false,hat:true,bag:'ok'}},
+{id:'tracksuit',     brand:'motion',    model:'Relay Leisure',   cat:'street', slot:'outfit', price:200,  look:'Dres o czystej, miejskiej sylwetce',                                   req:{},                  st:{rep:2,gym:0.03,concert:0.02},                  vis:{sil:'relaxed',mat:'dresówka',pal:['#1a3a4a','#14202c','#d0d4d8'],det:['lampasy','miejska sylwetka'],hood:true,hat:true,bag:'ok'}},
+{id:'leather_jacket',brand:'blackwire', model:'Rider 77',        cat:'street', slot:'outfit', price:600,  look:'Czarna kurtka skórzana, cięższe buty, metalowe zamki',                 req:{fame:10},           st:{pres:5,rep:2,concert:0.06},                    vis:{sil:'heavy',mat:'skóra',pal:['#141014','#0a0a0c','#8a8a92'],det:['metalowe zamki','cięższa sylwetka'],hood:false,hat:true,bag:'limited'}},
+{id:'designer_hoodie',brand:'deadsignal',model:'Static Monogram',cat:'street', slot:'outfit', price:1500, look:'Bluza premium z tonalnym monogramem i luźnymi spodniami',              req:{fame:15},           st:{drip:10,concert:0.08,pres:4},                  vis:{sil:'oversized',mat:'ciężka bawełna',pal:['#2a1a3a','#1a1424','#6a5a8a'],det:['tonalny monogram','szeroki kaptur','cargo'],hood:true,hat:false,bag:'limited'}},
+{id:'uc_signal_fade',brand:'deadsignal',model:'Signal Fade',     cat:'street', slot:'outfit', price:950,  look:'Warstwowy streetwear z gradientowym nadrukiem',                        req:{rep:8},             st:{drip:7,rep:4,content:0.04},                    vis:{sil:'layered',mat:'bawełna + nylon',pal:['#3a2a5a','#7a3a6a','#e0a040'],det:['gradientowy nadruk','warstwowość'],hood:true,hat:true,bag:'ok'}},
+{id:'uc_night_transit',brand:'deadsignal',model:'Night Transit', cat:'street', slot:'outfit', price:1250, look:'Czarny techniczny set z odblaskowymi lamówkami',                       req:{eclipse:true},      st:{drip:8,concert:0.03,gig:{night:0.05}},         vis:{sil:'technical',mat:'nylon techniczny',pal:['#0e0e12','#16161c','#8ad8e8'],det:['odblaskowe lamówki','techniczne szwy'],hood:true,hat:true,bag:'ok'}},
+{id:'uc_ash_denim',  brand:'oldline',   model:'Ash Denim',       cat:'street', slot:'outfit', price:720,  look:'Szary denim, szeroki krój, vintage sneakersy',                         req:{level:4},           st:{drip:5,rep:3,weather:{frost:-0.30}},           vis:{sil:'loose',mat:'denim',pal:['#6a6a72','#4a4a52','#d8d4cc'],det:['szeroki krój','vintage wash'],hood:false,hat:true,bag:'ok'}},
+{id:'luxury',        brand:'mirage',    model:'Crown Static',    cat:'street', slot:'outfit', price:1200, look:'Luksusowy monogram, ciężka bluza, dopracowane detale',                 req:{fame:20},           st:{drip:12,concert:0.08,buzzDebut:10},            vis:{sil:'oversized',mat:'ciężka bawełna premium',pal:['#3a1a0a','#241008','#c8a520'],det:['luksusowy monogram','dopracowane detale'],hood:true,hat:false,bag:'limited'}},
+{id:'uc_quiet_money',brand:'mirage',    model:'Quiet Money',     cat:'street', slot:'outfit', price:3800, look:'Stonowany, luksusowy komplet bez dużych logotypów',                    req:{fame:40},           st:{drip:18,pres:4,networking:0.06,networkingKind:'premium'}, vis:{sil:'relaxed',mat:'kaszmir',pal:['#8a8074','#6a6058','#2a2620'],det:['bez logotypów','stonowany przepych'],hood:false,hat:false,bag:'ok'}},
+{id:'uc_skyline_coat',brand:'mirage',   model:'Skyline Coat',    cat:'street', slot:'outfit', price:7500, look:'Długi płaszcz street-luxury, szerokie ramiona, satynowe wnętrze',      req:{fame:60},           st:{drip:24,pres:8,sponsors:0.05},                 vis:{sil:'long',mat:'wełna + satyna',pal:['#22222a','#14141a','#8a7a4a'],det:['długi płaszcz','szerokie ramiona','satynowe wnętrze'],hood:false,hat:true,bag:'blocked'}},
+/* 4.3 Scena, koncerty i wideo */
+{id:'music',         brand:'signalroom',model:'Live Standard',   cat:'stage',  slot:'outfit', price:250,  look:'Lekka kurtka sceniczna i spodnie umożliwiające swobodny ruch',        req:{song:true},         st:{concert:0.05},                                 vis:{sil:'slim',mat:'lekki technical',pal:['#4a0a5a','#2a0636','#e8e0f0'],det:['swobodny ruch','lekka kurtka sceniczna'],hood:false,hat:true,bag:'ok'}},
+{id:'uc_redline',    brand:'signalroom',model:'Redline',         cat:'stage',  slot:'outfit', price:750,  look:'Czerwono-czarny set z mocną linią ramion',                             req:{level:3},           st:{concert:0.07,stage:4},                         vis:{sil:'structured',mat:'technical twill',pal:['#c02a2a','#16161a','#e8e8ec'],det:['mocna linia ramion','czerwono-czarny kontrast'],hood:false,hat:true,bag:'limited'}},
+{id:'uc_blackout',   brand:'signalroom',model:'Blackout',        cat:'stage',  slot:'outfit', price:1100, look:'Matowa czerń, subtelne pasy odblaskowe, look klubowy',                 req:{eclipse:true},      st:{concert:0.08,drip:6,gig:{night:0.05}},         vis:{sil:'slim',mat:'matowy nylon',pal:['#101014','#0a0a0e','#5a6a7a'],det:['subtelne pasy odblaskowe','look klubowy'],hood:false,hat:true,bag:'ok'}},
+{id:'designer_concert',brand:'neonparish',model:'Prism Rig',     cat:'stage',  slot:'outfit', price:2000, look:'Geometryczne panele, asymetryczna kurtka, mocny kontrast',             req:{fame:20},           st:{concert:0.10,pres:5,drip:10},                  vis:{sil:'asymmetric',mat:'panele kompozytowe',pal:['#1a0a3a','#3a1a7a','#40e0d0'],det:['geometryczne panele','asymetria'],hood:false,hat:false,bag:'blocked'}},
+{id:'uc_afterglow',  brand:'neonparish',model:'Afterglow',       cat:'stage',  slot:'outfit', price:4800, look:'Opalizujące elementy zmieniające wygląd w świetle sceny',              req:{fame:35},           st:{concert:0.13,drip:18,viewgrid:0.08},           vis:{sil:'asymmetric',mat:'tkanina opalizująca',pal:['#7a3aa0','#3a7ac0','#e0d0f0'],det:['opalizacja','zmienny połysk'],hood:false,hat:false,bag:'blocked'}},
+{id:'uc_voltage_crown',brand:'neonparish',model:'Voltage Crown', cat:'stage',  slot:'outfit', price:11000,look:'Flagowy strój z podświetlanymi liniami i wysokim kołnierzem',          req:{level:10,fame:50},  st:{concert:0.17,stage:12,drip:28},                vis:{sil:'structured',mat:'kompozyt + LED',pal:['#0a0a1a','#2a2aff','#f0f0ff'],det:['podświetlane linie','wysoki kołnierz'],hood:false,hat:false,bag:'blocked'}},
+{id:'uc_headliner',  brand:'blackwire', model:'Headliner',       cat:'stage',  slot:'outfit', price:6500, look:'Skóra, metal, długi panel tylny i ciężka sylwetka sceniczna',          req:{rep:40,fame:30},    st:{concert:0.14,rep:10,drip:20},                  vis:{sil:'heavy',mat:'skóra + metal',pal:['#0e0a0e','#1c1418','#b0a090'],det:['długi panel tylny','ciężka sylwetka'],hood:false,hat:false,bag:'blocked'}},
+{id:'uc_gold_room',  brand:'mirage',    model:'Gold Room',       cat:'stage',  slot:'outfit', price:18000,look:'Luksusowa stylizacja do klipów i eventów premium',                     req:{fame:75,fans:50000},st:{drip:30,sponsors:0.08,content:0.10},           vis:{sil:'long',mat:'jedwab + złota nić',pal:['#2a1e0a','#c8a520','#f0e0b0'],det:['złote detale','stylizacja klipowa'],hood:false,hat:false,bag:'blocked'}},
+/* 4.4 Formalne i wieczorowe */
+{id:'suit',          brand:'blackframe',model:'Regent',          cat:'formal', slot:'outfit', price:400,  look:'Klasyczny ciemny garnitur, biała koszula, smukły krój',                req:{},                  st:{pres:5,meetings:0.05,concert:0.05,concertKind:'formal'}, vis:{sil:'tailored',mat:'wełna',pal:['#2a3050','#181c30','#f0f0f0'],det:['smukły krój','biała koszula'],hood:false,hat:false,bag:'limited'}},
+{id:'uc_slate',      brand:'blackframe',model:'Slate',           cat:'formal', slot:'outfit', price:850,  look:'Grafitowy garnitur smart business bez krawata',                        req:{district:'business'},st:{pres:7,business:0.06},                        vis:{sil:'tailored',mat:'wełna czesankowa',pal:['#3a3e46','#2a2e36','#e8e8ec'],det:['bez krawata','smart business'],hood:false,hat:false,bag:'limited'}},
+{id:'smoking',       brand:'blackframe',model:'Midnight Cut',    cat:'formal', slot:'outfit', price:1500, look:'Czarny smoking, satynowe klapy, minimalistyczna mucha',                req:{fame:15},           st:{pres:12,concert:0.10,concertKind:'event',buzzDebut:15}, vis:{sil:'tailored',mat:'wełna + satyna',pal:['#000000','#0e0e12','#f4f4f4'],det:['satynowe klapy','mucha'],hood:false,hat:false,bag:'blocked'}},
+{id:'uc_ivory_line', brand:'blackframe',model:'Ivory Line',      cat:'formal', slot:'outfit', price:2800, look:'Jasny wieczorowy zestaw do gali i letnich eventów',                    req:{apt:true},          st:{pres:14,drip:10,sponsors:0.06},                vis:{sil:'tailored',mat:'len premium',pal:['#f0ece0','#d8d0bc','#2a2a2e'],det:['jasny wieczorowy krój','letnia gala'],hood:false,hat:false,bag:'blocked'}},
+{id:'uc_executive',  brand:'blackframe',model:'Executive',       cat:'formal', slot:'outfit', price:5500, look:'Precyzyjny granatowy garnitur biznesowy z dyskretnymi detalami',       req:{vantage:true},      st:{pres:18,negotiation:0.09,drip:5},              vis:{sil:'tailored',mat:'wełna super 120',pal:['#1a2440','#121a2e','#c8ccd4'],det:['dyskretne detale','precyzyjny krój'],hood:false,hat:false,bag:'limited'}},
+{id:'uc_obsidian_gala',brand:'blackframe',model:'Obsidian Gala', cat:'formal', slot:'outfit', price:12000,look:'Flagowy smoking premium z własnym profilem sylwetki',                  req:{fame:60,fans:40000},st:{pres:25,drip:18,gala:0.10},                    vis:{sil:'tailored',mat:'jedwab + wełna',pal:['#08080c','#16161e','#d0c088'],det:['własny profil sylwetki','flagowy smoking'],hood:false,hat:false,bag:'blocked'}},
+/* 4.5 Sport i trening */
+{id:'sport',         brand:'motion',    model:'Core Training',   cat:'sport',  slot:'outfit', price:150,  look:'Oddychający T-shirt, szorty lub legginsy, proste buty treningowe',     req:{},                  st:{gym:0.20,concert:0.03,physWork:0.03},                        vis:{sil:'athletic',mat:'poliester oddychający',pal:['#1a5030','#123a24','#e0e4e0'],det:['oddychające panele','proste buty'],hood:false,hat:true,bag:'ok'}},
+{id:'uc_relay_run',  brand:'motion',    model:'Relay Run',       cat:'sport',  slot:'outfit', price:320,  look:'Lekki komplet biegowy z panelami wentylacyjnymi',                      req:{level:2},           st:{cardio:0.12,runEnergy:-0.08},                  vis:{sil:'athletic',mat:'mesh',pal:['#2a6a8a','#1a4a64','#f0f040'],det:['panele wentylacyjne','lekki komplet'],hood:false,hat:true,bag:'ok'}},
+{id:'uc_strength_grid',brand:'motion',  model:'Strength Grid',   cat:'sport',  slot:'outfit', price:420,  look:'Wzmocniony zestaw do siłowni i treningu siłowego',                     req:{gymSeen:true},      st:{strength:0.15,recovery:0.05},                  vis:{sil:'athletic',mat:'wzmocniona dzianina',pal:['#2a2a30','#1a1a1e','#c04a2a'],det:['wzmocnione szwy','krata gridowa'],hood:false,hat:true,bag:'ok'}},
+{id:'sport_pro',     brand:'motion',    model:'Apex Training',   cat:'sport',  slot:'outfit', price:700,  look:'Profesjonalny komplet wielodyscyplinarny',                             req:{level:5},           st:{gym:0.25,sessions:{str:1,cardio:1},concert:0.05,physWork:0.05}, vis:{sil:'athletic',mat:'kompresja techniczna',pal:['#1a2a4a','#0e1a30','#40c0a0'],det:['komplet wielodyscyplinarny','kompresja'],hood:false,hat:true,bag:'ok'}},
+{id:'uc_coast_perf', brand:'motion',    model:'Coast Performance',cat:'sport', slot:'outfit', price:1100, look:'Sportowy set outdoor do Marina Coast i parku',                         req:{district:'coast'},  st:{cardio:0.18,beach:0.08,drip:6},                vis:{sil:'athletic',mat:'quick-dry',pal:['#e8a040','#2aa0c0','#f0f0e8'],det:['outdoor','szybkoschnący'],hood:false,hat:true,bag:'ok'}},
+{id:'uc_pro_circuit',brand:'motion',    model:'Pro Circuit',     cat:'sport',  slot:'outfit', price:2800, look:'Flagowy techniczny zestaw dla rozwiniętego gracza',                    req:{forma:70,level:10}, st:{gym:0.30,trainFatigue:-0.10,recovery:0.10},    vis:{sil:'athletic',mat:'kompozyt techniczny',pal:['#101418','#1e2a34','#00e0c0'],det:['flagowy technical','panele kompozytowe'],hood:false,hat:true,bag:'ok'}},
+/* 4.6 Praca i utility */
+{id:'work_black',    brand:'fieldunit', model:'Nightshift',      cat:'utility',slot:'outfit', price:90,   look:'Czarny zestaw roboczy, wzmocnione kolana i kieszenie',                 req:{},                  st:{physWork:0.04,rep:3},                          vis:{sil:'workwear',mat:'ripstop',pal:['#0a0a0a','#161616','#3a3a3a'],det:['wzmocnione kolana','duże kieszenie'],hood:false,hat:true,bag:'ok'}},
+{id:'uc_warehouse',  brand:'fieldunit', model:'Warehouse',       cat:'utility',slot:'outfit', price:220,  look:'Kamizelka techniczna, rękawice, spodnie robocze',                      req:{gigsPhys:3},        st:{gig:{warehouse:0.07},fatigue:-0.05},           vis:{sil:'workwear',mat:'poliester wzmocniony',pal:['#d8a020','#2a2a2e','#5a5a60'],det:['kamizelka odblaskowa','rękawice'],hood:false,hat:true,bag:'ok'}},
+{id:'uc_event_crew', brand:'fieldunit', model:'Event Crew',      cat:'utility',slot:'outfit', price:350,  look:'Czarny techniczny set z identyfikatorem i pasem narzędziowym',        req:{gigsEvent:2},       st:{gig:{event:0.08,stagebuild:0.05},dressCode:['event']}, vis:{sil:'workwear',mat:'technical twill',pal:['#0e0e0e','#1a1a1e','#c8c8c8'],det:['identyfikator','pas narzędziowy'],hood:false,hat:true,bag:'ok'}},
+{id:'uc_road_service',brand:'fieldunit',model:'Road Service',    cat:'utility',slot:'outfit', price:480,  look:'Odblaskowe elementy, kurtka techniczna, rękawice',                     req:{vehicle:true},      st:{gig:{driver:0.08,courier:0.06},weather:{rain:-0.20}}, vis:{sil:'workwear',mat:'softshell',pal:['#e05a10','#1a1a20','#f0f0a0'],det:['odblaski','kurtka techniczna'],hood:true,hat:true,bag:'ok'}},
+{id:'uc_exec_security',brand:'fieldunit',model:'Executive Security',cat:'utility',slot:'outfit',price:1200,look:'Dyskretna czerń premium do ochrony i valet',                          req:{gigRating:4.0},     st:{gig:{vip:0.10,valet:0.04},pres:7,dressCode:['vip','valet']}, vis:{sil:'tailored',mat:'wełna techniczna',pal:['#0a0a0e','#14141a','#2a2a34'],det:['dyskretna czerń','premium'],hood:false,hat:false,bag:'limited'}},
+/* 4.7 Pogoda i sezon */
+{id:'zimowa',        brand:'northarc',  model:'Polar Shell',     cat:'weather',slot:'outfit', price:450,  look:'Gruba puchówka z wysokim kapturem i matową powłoką',                   req:{},season:'zima',    st:{weather:{frost:-0.85},concert:0.02},           vis:{sil:'puffer',mat:'puch',pal:['#3a3a4a','#22222c','#8a8a96'],det:['wysoki kaptur','matowa powłoka'],hood:true,hat:false,bag:'limited'}},
+{id:'uc_rainline',   brand:'northarc',  model:'Rainline',        cat:'weather',slot:'outfit', price:380,  look:'Lekka kurtka przeciwdeszczowa z uszczelnionymi szwami',                req:{},season:'deszcz',  st:{weather:{rain:-0.70},gig:{outdoor:0.05}},      vis:{sil:'shell',mat:'membrana',pal:['#2a5a6a','#1a3a48','#d0e0e8'],det:['uszczelnione szwy','lekka membrana'],hood:true,hat:false,bag:'ok'}},
+{id:'uc_city_layer', brand:'northarc',  model:'City Layer',      cat:'weather',slot:'outfit', price:620,  look:'Przejściowa kurtka z wypinaną warstwą',                                req:{level:3},           st:{weather:{frost:-0.45},drip:4},                 vis:{sil:'layered',mat:'softshell',pal:['#3a4048','#262c34','#a0a8b0'],det:['wypinana warstwa','przejściowa'],hood:true,hat:true,bag:'ok'}},
+{id:'uc_stormguard', brand:'northarc',  model:'Stormguard',      cat:'weather',slot:'outfit', price:1600, look:'Techniczny płaszcz terenowy i wodoodporne spodnie',                    req:{level:6},           st:{weather:{rain:-0.90,frost:-0.70},terrain:0.08}, vis:{sil:'long',mat:'membrana 3-warstwowa',pal:['#2a3a30','#1a2620','#c0c8b8'],det:['płaszcz terenowy','wodoodporne spodnie'],hood:true,hat:false,bag:'limited'}},
+{id:'uc_alpine_black',brand:'northarc', model:'Alpine Black',    cat:'weather',slot:'outfit', price:3200, look:'Premium zimowy look w pełnej czerni',                                  req:{apt:true,fame:25},  st:{weather:{frost:-0.95},drip:14,pres:5},         vis:{sil:'puffer',mat:'puch premium',pal:['#0a0a0c','#141418','#3a3a42'],det:['pełna czerń','premium puch'],hood:true,hat:false,bag:'limited'}},
+/* 4.8 Obuwie i dodatki */
+{id:'uc_clean_low',  brand:'baseline',  model:'Clean Low',       cat:'shoes',  slot:'footwear',price:90,  look:'Proste jasne sneakersy',                                               req:{},                  st:{pres:1},                                       vis:{sil:'low',mat:'skóra syntetyczna',pal:['#e8e8e0','#d0d0c8','#f8f8f4'],det:['proste jasne sneakersy']}},
+{id:'uc_circuit_high',brand:'deadsignal',model:'Circuit High',   cat:'shoes',  slot:'footwear',price:650, look:'Wysokie sneakersy z kontrastowym panelem',                             req:{rep:5},             st:{drip:5,rep:2},                                 vis:{sil:'high',mat:'nylon + zamsz',pal:['#1a1a24','#e04a3a','#f0f0f0'],det:['wysoka cholewka','kontrastowy panel']}},
+{id:'uc_steel_toe',  brand:'blackwire', model:'Steel Toe',       cat:'shoes',  slot:'footwear',price:750, look:'Ciężkie czarne buty z metalowymi detalami',                            req:{level:4},           st:{rep:4,physWork:0.04},                          vis:{sil:'boot',mat:'skóra licowa',pal:['#0e0e0e','#1a1a1a','#8a8a92'],det:['metalowe detale','ciężka podeszwa']}},
+{id:'uc_mercer_loafer',brand:'crown',   model:'Mercer Loafer',   cat:'shoes',  slot:'footwear',price:520, look:'Minimalistyczne półbuty smart casual',                                 req:{apt:true},          st:{pres:5,meetings:0.03},                         vis:{sil:'loafer',mat:'skóra',pal:['#4a3428','#2e2018','#d8c8b0'],det:['minimalistyczne półbuty']}},
+{id:'uc_formal_oxford',brand:'blackframe',model:'Formal Oxford', cat:'shoes',  slot:'footwear',price:900, look:'Formalne czarne buty o czystej linii',                                 req:{fame:10},           st:{pres:6,dressCode:['gala']},                    vis:{sil:'oxford',mat:'skóra polerowana',pal:['#0a0a0a','#141414','#2a2a2a'],det:['czysta linia','formalne']}},
+{id:'uc_signal_cap', brand:'deadsignal',model:'Signal Cap',      cat:'acc',    slot:'accessory',price:220,look:'Czapka z małym haftem i technicznym zapięciem',                        req:{},                  st:{drip:2,rep:1},                                 vis:{sil:'cap',mat:'bawełna techniczna',pal:['#1a1a22','#2a2a34','#8ad8e8'],det:['mały haft','techniczne zapięcie'],headwear:true}},
+{id:'uc_monogram_scarf',brand:'mirage', model:'Monogram Scarf',  cat:'acc',    slot:'accessory',price:1800,look:'Jedwabny szal z tonalnym wzorem',                                     req:{fame:30},           st:{drip:8,pres:4},                                vis:{sil:'scarf',mat:'jedwab',pal:['#6a4a2a','#c8a520','#3a2a18'],det:['tonalny wzór','jedwab']}},
+{id:'uc_minimal_watch',brand:'blackframe',model:'Minimal Watch', cat:'acc',    slot:'accessory',price:4500,look:'Dyskretny zegarek formalny',                                          req:{district:'business'},st:{pres:6,networking:0.03,networkingKind:'premium'}, vis:{sil:'watch',mat:'stal',pal:['#c0c4c8','#2a2a2e','#f0f0f4'],det:['dyskretny','formalny']}},
+/* 4.9 Plecaki i torby — pojemność podana jako CAŁKOWITA liczba miejsc (baza + plecak) */
+{id:'bp_small',      brand:'carrygrid', model:'Metro 12',        cat:'bag',    slot:'bag',    price:2500, look:'Kompaktowy miejski plecak z jedną kieszenią frontową',                 req:{},                  st:{capacity:12},                                  vis:{sil:'daypack',mat:'cordura',pal:['#2a3038','#1a1e24','#5a6068'],det:['jedna kieszeń frontowa']}},
+{id:'bp_med',        brand:'carrygrid', model:'Transit 20',      cat:'bag',    slot:'bag',    price:9000, look:'Średni plecak o sztywnej konstrukcji i bocznych kieszeniach',          req:{level:4},           st:{capacity:20},                                  vis:{sil:'daypack',mat:'cordura',pal:['#22262e','#161a20','#6a7078'],det:['sztywna konstrukcja','boczne kieszenie']}},
+{id:'bp_large',      brand:'carrygrid', model:'Range 30',        cat:'bag',    slot:'bag',    price:30000,look:'Duży plecak turystyczny, pasy kompresyjne, ciemna tkanina',            req:{level:7},           st:{capacity:30},                                  vis:{sil:'hiking',mat:'ripstop',pal:['#1a1e1a','#12160f','#4a5040'],det:['pasy kompresyjne','ciemna tkanina']}},
+{id:'bp_xxl',        brand:'carrygrid', model:'Atlas 50',        cat:'bag',    slot:'bag',    price:90000,look:'Największy plecak wyprawowy z modułowymi kieszeniami',                 req:{level:12},          st:{capacity:50},                                  vis:{sil:'expedition',mat:'cordura 1000D',pal:['#181c22','#0e1116','#7a8088'],det:['modułowe kieszenie','wyprawowy']}},
+{id:'uc_studio_sling',brand:'carrygrid',model:'Studio Sling',    cat:'bag',    slot:'bag',    price:5500, look:'Torba przez ramię na drobny sprzęt twórcy',                            req:{gigsCreative:1},    st:{capacity:15,gig:{creative:0.04}},              vis:{sil:'sling',mat:'nylon',pal:['#2a2a30','#1a1a1e','#c8a520'],det:['przez ramię','sprzęt twórcy']}},
+{id:'uc_event_case', brand:'carrygrid', model:'Event Case',      cat:'bag',    slot:'bag',    price:14000,look:'Miękka torba techniczna do pracy eventowej',                           req:{gigsEvent:5},       st:{capacity:22,gig:{event:0.06}},                 vis:{sil:'duffel',mat:'nylon techniczny',pal:['#101014','#1c1c22','#5a5a64'],det:['miękka torba','praca eventowa']}},
+{id:'uc_exec_weekender',brand:'carrygrid',model:'Executive Weekender',cat:'bag',slot:'bag',   price:28000,look:'Skórzano-tekstylna torba premium na krótkie wyjazdy',                  req:{district:'business'},st:{capacity:26,pres:5},                          vis:{sil:'weekender',mat:'skóra + tkanina',pal:['#3a2a1e','#241a12','#c8b090'],det:['skóra i tkanina','premium']}},
+];
+
+/* ── §3 Migracja: stara nazwa → nowa. Identyfikatory NIE zmieniają się (kryterium 2). ── */
+const UC_LEGACY_NAMES={
+  'default':'Podstawowy','polo':'Koszulka polo','everyday':'Codzienny ciuch','street':'Streetwear',
+  'jeansowa':'Kurtka jeansowa','luxury':'Luxury drip','tracksuit':'Dresik','leather_jacket':'Kurtka skórzana',
+  'designer_hoodie':'Designer hoodie','music':'Outfit muzyczny','designer_concert':'Designerski koncertowy',
+  'suit':'Garnitur','smoking':'Smoking','sport':'Strój sportowy','sport_pro':'Strój treningowy PRO',
+  'work_black':'Robocza czerń','zimowa':'Kurtka zimowa','bp_small':'Mały plecak','bp_med':'Średni plecak',
+  'bp_large':'Duży plecak','bp_xxl':'Plecak wyprawowy XXL',
+};
+window._ucItem=function(id){ return UC_CATALOG.find(i=>i.id===id)||null; };
+window._ucBrandOf=function(id){ const it=window._ucItem(id); return it?UC_BRANDS[it.brand]:null; };
+/* §2.1 — nazwa = marka + model. Jedno źródło dla sklepu, garderoby, ekwipunku i podglądu. */
+window._ucName=function(id){
+  const it=window._ucItem(id); if(!it) return (typeof outfitDisplayFallback==='function')?outfitDisplayFallback(id):id;
+  const b=UC_BRANDS[it.brand]; return (b?b.name+' — ':'')+it.model;
+};
+window._ucShortName=function(id){ const it=window._ucItem(id); return it?it.model:id; };
+
+/* ── Stan modułu (lazy ensure, save-safe — kryterium 1) ─────────────────────── */
+window._ucEnsure=function(){
+  if(!G.urbanCrown||typeof G.urbanCrown!=='object') G.urbanCrown={};
+  const u=G.urbanCrown;
+  if(u.schemaVersion==null) u.schemaVersion=1;
+  if(!Array.isArray(u.ownedFootwear)) u.ownedFootwear=[];
+  if(!Array.isArray(u.ownedAccessories)) u.ownedAccessories=[];
+  if(!Array.isArray(u.ownedBags)) u.ownedBags=[];
+  if(!Array.isArray(u.wishlist)) u.wishlist=[];
+  if(u.footwear===undefined) u.footwear=null;
+  if(u.accessory===undefined) u.accessory=null;
+  if(u.bag===undefined) u.bag=null;
+  if(!u.colors||typeof u.colors!=='object') u.colors={};
+  if(!u.debutClaimed||typeof u.debutClaimed!=='object') u.debutClaimed={};      /* §3.1 firstPublicDebutClaimed */
+  if(!u.purchaseClaimed||typeof u.purchaseClaimed!=='object') u.purchaseClaimed={};
+  if(!u.gigStats||typeof u.gigStats!=='object') u.gigStats={phys:0,event:0,creative:0,rating:0};
+  if(u.lastBuzzDay==null) u.lastBuzzDay=0;      /* §9.2 — social buzz max raz dziennie */
+  if(u.lastStylePostDay==null) u.lastStylePostDay=-99; /* §8.5 — post stylizacyjny co 2 dni */
+  if(u.condition==null) u.condition='clean';    /* §8.3 MVP: clean | dirty | soaked */
+  if(!u.drop||typeof u.drop!=='object') u.drop={brandId:null,day:-99,itemIds:[]};
+  if(!u.seasonal||typeof u.seasonal!=='object') u.seasonal={day:-99,itemIds:[]};
+  /* Migracja legacy plecaka: G.backpack (liczba = bonus pojemności) → lista posiadanych + aktywny.
+     Zachowuje DOKŁADNIE dotychczasową pojemność (kryterium 1 i 10: liczy się tylko aktywny). */
+  if(!u._bagMigrated){
+    const legacy=(typeof G.backpack==='number')?G.backpack:0;
+    if(legacy>0){
+      UC_CATALOG.filter(i=>i.slot==='bag').forEach(b=>{ const bonus=b.st.capacity-INV_BASE_CAP;
+        if(bonus<=legacy && !u.ownedBags.includes(b.id)) u.ownedBags.push(b.id); });
+      let best=null; u.ownedBags.forEach(id=>{ const it=window._ucItem(id);
+        if(it && (!best || it.st.capacity>window._ucItem(best).st.capacity)) best=id; });
+      if(best && !u.bag) u.bag=best;
+    }
+    u._bagMigrated=true;
+  }
+  /* Stroje kupione przed modułem: oznacz premię pierwszego zakupu jako pobraną (kryterium 11 —
+     jednorazowa sława/buzz nie może zostać przyznana drugi raz). */
+  if(!u._legacyClaimSet){
+    (G._ownedOutfits||[]).forEach(id=>{ u.purchaseClaimed[id]=true; u.debutClaimed[id]=true; });
+    u._legacyClaimSet=true;
+  }
+  return u;
+};
+
+/* ── Wymagania (§4 kolumna „Wymaganie"). Lokacje z PDF mapowane na realne bramki gry:
+   Residential District → własne mieszkanie ponad startowe · Club District / Eclipse Noir →
+   odwiedzony Eclipse Noir · Business District / Marina Coast → odblokowana dzielnica ·
+   VANTAGE WORKS → posiadany lokal w Vantage Works · Drip District → próg sławy (sklep leży
+   w Drip District, więc sama lokacja nie jest bramką). ── */
+window._ucReqMet=function(id){
+  const it=window._ucItem(id); if(!it) return true; const r=it.req||{};
+  const u=window._ucEnsure();
+  if(r.level && (G.level||0)<r.level) return false;
+  if(r.fame && (G.fame||0)<r.fame) return false;
+  if(r.fans && (G.fans||0)<r.fans) return false;
+  if(r.rep && (G.streetRep||0)<r.rep) return false;
+  if(r.forma && (G.forma||0)<r.forma) return false;
+  if(r.song && !(Array.isArray(G.songs)&&G.songs.length>0)) return false;
+  if(r.gymSeen && !(G._visitedRooms&&G._visitedRooms.includes&&G._visitedRooms.includes('silownia'))&&(G.level||0)<3) return false;
+  if(r.district && !(Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes(r.district))) return false;
+  if(r.apt && !(G.apartment&&G.apartment!=='basic')&&!((G._ownedApts||[]).length>0)) return false;
+  if(r.eclipse && !(G.eclipseNoir&&G.eclipseNoir.visited)) return false;
+  if(r.vantage && !(G.vantage&&G.vantage.owned)) return false;
+  if(r.vehicle && !(G.car||(G.camper&&G.camper.owned))) return false;
+  if(r.gigsPhys && (u.gigStats.phys||0)<r.gigsPhys) return false;
+  if(r.gigsEvent && (u.gigStats.event||0)<r.gigsEvent) return false;
+  if(r.gigsCreative && (u.gigStats.creative||0)<r.gigsCreative) return false;
+  if(r.gigRating && (u.gigStats.rating||0)<r.gigRating) return false;
+  return true;
+};
+window._ucReqText=function(id){
+  const it=window._ucItem(id); if(!it) return ''; const r=it.req||{}; const p=[];
+  if(r.level) p.push('poziom '+r.level);
+  if(r.fame) p.push(r.fame+' sławy');
+  if(r.fans) p.push(r.fans.toLocaleString('pl')+' fanów');
+  if(r.rep) p.push(r.rep+' reputacji ulicznej');
+  if(r.forma) p.push('forma '+r.forma);
+  if(r.song) p.push('1 nagrany utwór');
+  if(r.gymSeen) p.push('odblokowana siłownia');
+  if(r.district) p.push(({business:'Business District',coast:'Marina Coast',underground:'Underground'})[r.district]||r.district);
+  if(r.apt) p.push('własne mieszkanie');
+  if(r.eclipse) p.push('Eclipse Noir');
+  if(r.vantage) p.push('lokal w Vantage Works');
+  if(r.vehicle) p.push('własny pojazd');
+  if(r.gigsPhys) p.push(r.gigsPhys+' zlecenia fizyczne');
+  if(r.gigsEvent) p.push(r.gigsEvent+' zlecenia eventowe');
+  if(r.gigsCreative) p.push(r.gigsCreative+' zlecenie kreatywne');
+  if(r.gigRating) p.push('ocena zleceń '+r.gigRating.toFixed(1));
+  return p.join(' · ');
+};
+
+/* ── Posiadanie / zakładanie ────────────────────────────────────────────────── */
+window._ucOwned=function(id){
+  const it=window._ucItem(id); if(!it) return false; const u=window._ucEnsure();
+  if(it.slot==='outfit') return id==='default'||(G._ownedOutfits||[]).includes(id)||(G.outfit&&G.outfit.top===id);
+  if(it.slot==='footwear') return u.ownedFootwear.includes(id);
+  if(it.slot==='accessory') return u.ownedAccessories.includes(id);
+  if(it.slot==='bag') return u.ownedBags.includes(id);
+  return false;
+};
+window._ucEquipped=function(id){
+  const it=window._ucItem(id); if(!it) return false; const u=window._ucEnsure();
+  if(it.slot==='outfit') return !!(G.outfit&&G.outfit.top===id);
+  if(it.slot==='footwear') return u.footwear===id;
+  if(it.slot==='accessory') return u.accessory===id;
+  if(it.slot==='bag') return u.bag===id;
+  return false;
+};
+/* §5.3 — jeden aktywny element w danej warstwie. */
+window._ucActiveLook=function(){
+  const u=window._ucEnsure();
+  return { outfit:(G.outfit&&G.outfit.top)||'default', footwear:u.footwear, accessory:u.accessory, bag:u.bag };
+};
+window._ucActiveItems=function(){
+  const l=window._ucActiveLook();
+  return [l.outfit,l.footwear,l.accessory,l.bag].map(window._ucItem).filter(Boolean);
+};
+
+/* ── §5.2 Drip ≠ sława. Aktywny wynik stylu liczony z AKTUALNIE założonych elementów
+   (kryterium 12), z harmonią kolorów, dopasowaniem okazji i karą za stan odzieży. ── */
+window._ucColorHarmony=function(items){
+  if(items.length<2) return 0;
+  const brands=new Set(items.map(i=>i.brand));
+  let h=0;
+  if(brands.size===1) h+=3;                    /* pełny total look jednej marki */
+  else if(brands.size<=2) h+=1;
+  const seg=new Set(items.map(i=>i.cat));
+  if(seg.size<=2) h+=2;                        /* spójny kierunek stylizacji */
+  return h;
+};
+window._ucConditionPenalty=function(){
+  const u=window._ucEnsure();
+  return u.condition==='soaked'?6:(u.condition==='dirty'?3:0); /* §8.3 MVP: czysty/zabrudzony/przemoczony */
+};
+window._ucStyleScore=function(occasion){
+  const items=window._ucActiveItems();
+  let drip=0, pres=0;
+  items.forEach(i=>{ drip+=(i.st.drip||0); pres+=(i.st.pres||0); });
+  drip+=window._ucColorHarmony(items);
+  if(occasion){ const m=window._ucOccasionMatch(occasion); drip+=m.dripDelta; pres+=m.presDelta; }
+  drip-=window._ucConditionPenalty();
+  return { drip:Math.max(0,Math.min(100,Math.round(drip))), presentation:Math.max(0,Math.min(100,Math.round(pres))) };
+};
+/* Drip modułu doliczany do globalnego licznika Drip gracza (HUD 💎) — bez dublowania
+   z dripem z luksusów i własnego merchu. */
+window._ucWardrobeDrip=function(){ return window._ucStyleScore().drip; };
+
+/* ── §5.4 Dopasowanie okazji ────────────────────────────────────────────────── */
+const UC_OCCASIONS={
+  concert_club:{label:'Koncert klubowy', tags:['stage','street','black','movement'], miss:'Mniejszy stage presence i chłodniejsze reakcje publiczności.'},
+  gala:        {label:'Gala / sponsor',  tags:['formal','premium','clean'],          miss:'Spadek prezentacji i zainteresowania sponsorów.'},
+  gig_phys:    {label:'Zlecenie fizyczne',tags:['utility','durable','work'],         miss:'Większy koszt energii i ryzyko skargi.'},
+  training:    {label:'Trening',         tags:['sport','breathable'],                miss:'Brak bonusów treningowych.'},
+  frost:       {label:'Mróz',            tags:['winter','insulated'],                miss:'Utrata zdrowia i energii.'},
+  sunset:      {label:'SUNSET PALMS',    tags:['coast','casual','sport','lifestyle'],miss:'Mniejsza szansa miękkiego networkingu.'},
+  vantage:     {label:'VANTAGE WORKS',   tags:['business','clean','formal'],         miss:'Słabsze pierwsze wrażenie w rozmowach.'},
+};
+const UC_CAT_TAGS={ daily:['casual','clean','lifestyle'], street:['street','black','movement','lifestyle'],
+  stage:['stage','movement','black','premium'], formal:['formal','premium','clean','business'],
+  sport:['sport','breathable','movement','coast'], utility:['utility','durable','work'],
+  weather:['winter','insulated','durable'], shoes:['clean'], acc:['clean'], bag:['durable'] };
+window._ucLookTags=function(){
+  const t=new Set();
+  window._ucActiveItems().forEach(i=>{ (UC_CAT_TAGS[i.cat]||[]).forEach(x=>t.add(x));
+    if(i.st.weather&&i.st.weather.frost) t.add('winter'), t.add('insulated');
+    if(i.cat==='sport') t.add('coast'); });
+  return Array.from(t);
+};
+window._ucOccasionMatch=function(occasionId){
+  const occ=UC_OCCASIONS[occasionId];
+  if(!occ) return {score:0,dripDelta:0,presDelta:0,matched:[],label:'',miss:''};
+  const tags=window._ucLookTags();
+  const matched=occ.tags.filter(t=>tags.includes(t));
+  const ratio=matched.length/occ.tags.length;
+  const score=Math.round(ratio*100);
+  return { score, matched, label:occ.label, miss:occ.miss,
+    dripDelta:Math.round((ratio-0.5)*8), presDelta:Math.round((ratio-0.5)*6) };
+};
+
+/* ── §5.1/§5.3 Premie aktywne + limit stackowania kategorii ─────────────────── */
+const UC_CAT_CAP={ concert:0.20, gym:0.35, cardio:0.30, strength:0.25, physWork:0.12, gig:0.15,
+  meetings:0.10, business:0.10, negotiation:0.12, sponsors:0.12, networking:0.10, content:0.14,
+  viewgrid:0.12, gala:0.12, beach:0.12, terrain:0.12, recovery:0.15 };
+/* Sumuje statystykę ze WSZYSTKICH aktywnych warstw i przycina globalnym limitem kategorii
+   (kryterium 15: „mnożniki koncertowe respektują globalny limit stackowania"). */
+window._ucStat=function(key,opts){
+  const items=window._ucActiveItems(); let v=0;
+  items.forEach(i=>{
+    let s=i.st[key];
+    if(key==='concert'){
+      if(!s) return;
+      /* koncertowa premia stroju SCENICZNEGO/formalnego liczy się tylko dla właściwego typu wydarzenia (§8.2) */
+      if(i.st.concertKind && opts && opts.kind && i.st.concertKind!==opts.kind) return;
+      /* premia głównego stroju nie sumuje się z drugim strojem głównym — jest tylko jeden slot outfit */
+    }
+    if(typeof s==='number') v+=s;
+  });
+  const cap=UC_CAT_CAP[key];
+  if(cap!=null) v=Math.max(-cap,Math.min(cap,v));
+  return v;
+};
+/* §5.3 — premie do Gigów przypisane do KONKRETNYCH tagów pracy, nie do wszystkich naraz. */
+window._ucGigBonus=function(tag){
+  if(!tag) return 0; let v=0;
+  window._ucActiveItems().forEach(i=>{ if(i.st.gig && typeof i.st.gig[tag]==='number') v+=i.st.gig[tag]; });
+  return Math.min(UC_CAT_CAP.gig, v);
+};
+/* §5.3 — premie pogodowe działają WYŁĄCZNIE przy aktywnej pogodzie (kryterium 13). */
+window._ucWeatherMod=function(kind){
+  const wActive=(kind==='frost')?(typeof isFrost==='function'?isFrost():(G.weather===4||G.weather===5))
+                                :(G.weather===2||G.weather===3);
+  if(!wActive) return 0;
+  let v=0; window._ucActiveItems().forEach(i=>{ if(i.st.weather&&typeof i.st.weather[kind]==='number') v+=i.st.weather[kind]; });
+  return Math.max(-0.95,v);
+};
+window._ucSessions=function(){
+  let s={str:0,cardio:0};
+  window._ucActiveItems().forEach(i=>{ if(i.st.sessions){ s.str+=(i.st.sessions.str||0); s.cardio+=(i.st.sessions.cardio||0); } });
+  return s;
+};
+window._ucDressCode=function(code){
+  return window._ucActiveItems().some(i=>Array.isArray(i.st.dressCode)&&i.st.dressCode.includes(code));
+};
+
+/* ── §5.1 Premia jednorazowa za PIERWSZY PUBLICZNY DEBIUT stroju.
+   Nie odnawia się przy sprzedaży/odkupieniu (kryterium 11); max 1 buzz dziennie (§9.2). ── */
+window._ucClaimDebut=function(id){
+  const it=window._ucItem(id); if(!it) return null; const u=window._ucEnsure();
+  if(u.debutClaimed[id]) return null;
+  const st=it.st||{}; if(!st.repDebut && !st.buzzDebut && !st.rep) return null;
+  u.debutClaimed[id]=true;
+  const msgs=[];
+  /* streetRep jest parametrem TRWAŁYM, więc premia reputacyjna stroju działa raz — przy debiucie.
+     Inaczej samo przebieranie się w kółko podnosiłoby reputację (§1.2 „premie zbyt łatwe do kumulowania"). */
+  const _repGain=(st.repDebut||0)+(st.rep||0);
+  if(_repGain){ const r=_repGain; G.streetRep=(typeof clamp==='function')?clamp((G.streetRep||0)+r,0,100):Math.min(100,(G.streetRep||0)+r); msgs.push('+'+r+' reputacji ulicznej'); }
+  if(st.buzzDebut){
+    if(u.lastBuzzDay===G.day){ msgs.push('szum wokół stylizacji dziś już był — wróci jutro'); }
+    else { u.lastBuzzDay=G.day; G.socialBuzz=Math.min(100,(G.socialBuzz||0)+st.buzzDebut); msgs.push('+'+st.buzzDebut+' szumu w sieci'); }
+  }
+  return msgs.length?('👑 Debiut: '+window._ucName(id)+' — '+msgs.join(', ')):null;
+};
+
+/* ── §7.6 Walidator kompletności produktu (kryterium 24) ────────────────────── */
+window._ucValidate=function(id){
+  const it=window._ucItem(id); const e=[];
+  if(!it) return {valid:false,errors:['Brak definicji produktu.']};
+  if(!UC_BRANDS[it.brand]) e.push('Brak marki.');
+  if(!(it.model||'').trim()) e.push('Brak nazwy modelu.');
+  if(it.price==null) e.push('Brak ceny.');
+  if(!(it.look||'').trim()) e.push('Brak opisu wyglądu.');
+  if(!it.vis) e.push('Brak profilu wizualnego.');
+  else{
+    if(!it.vis.sil) e.push('Brak sylwetki.');
+    if(!it.vis.mat) e.push('Brak materiału.');
+    if(!Array.isArray(it.vis.pal)||it.vis.pal.length<2) e.push('Brak palety kolorów.');
+    if(!Array.isArray(it.vis.det)||!it.vis.det.length) e.push('Brak detali wizualnych.');
+  }
+  if(!it.slot) e.push('Brak slotu.');
+  if(!it.st) e.push('Brak profilu działania.');
+  return {valid:e.length===0,errors:e};
+};
+
+/* ── §9.1 Rotujące kolekcje. Deterministyczne z dnia gry — te same oferty w danym dniu,
+   bez losowania przy każdym otwarciu panelu. Kryterium 21: rotacja NIGDY nie usuwa
+   produktów już posiadanych (rdzeń zawsze widoczny, rotacja tylko wyróżnia). ── */
+window._ucSeededPick=function(seed,arr,n){
+  const out=[]; const pool=arr.slice(); let s=seed>>>0;
+  for(let k=0;k<n&&pool.length;k++){ s=(s*1103515245+12345)>>>0; out.push(pool.splice(s%pool.length,1)[0]); }
+  return out;
+};
+window._ucRotation=function(){
+  const u=window._ucEnsure(); const day=G.day||1;
+  /* Brand Drop — 2-4 produkty jednej marki, odświeżane co 5-9 dni (§9.1/§9.2 min. 5 dni) */
+  if(day-u.drop.day>=Math.max(5,5+((day*7)%5))||!u.drop.brandId){
+    const brands=Object.keys(UC_BRANDS).filter(b=>b!=='carrygrid');
+    const bid=window._ucSeededPick(day*31,brands,1)[0];
+    const pool=UC_CATALOG.filter(i=>i.brand===bid);
+    u.drop={brandId:bid,day:day,itemIds:window._ucSeededPick(day*17,pool,Math.min(pool.length,2+(day%3))).map(i=>i.id)};
+  }
+  /* Seasonal — co 7 dni: kurtki i kolekcje sezonowe */
+  if(day-u.seasonal.day>=7){
+    const pool=UC_CATALOG.filter(i=>i.cat==='weather'||i.cat==='daily');
+    u.seasonal={day:day,itemIds:window._ucSeededPick(day*53,pool,3).map(i=>i.id)};
+  }
+  /* Clearance — starsze pozycje z małym rabatem (losowo, deterministycznie z dnia) */
+  const clearPool=UC_CATALOG.filter(i=>i.price>0&&i.price<=1200&&i.slot==='outfit');
+  const clearance=window._ucSeededPick(day*97,clearPool,2).map(i=>i.id);
+  /* Event Capsule — aktywna, gdy trwa event w powiązanej lokacji */
+  const capsule=[];
+  if(G.eclipseNoir&&G.eclipseNoir.visited) capsule.push('uc_blackout');
+  if(G.sunsetPalms||(Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes('coast'))) capsule.push('uc_coast_perf');
+  return { drop:u.drop, seasonal:u.seasonal.itemIds, clearance, capsule };
+};
+window._ucClearanceDiscount=function(id){
+  const r=window._ucRotation(); return r.clearance.includes(id)?0.10:0; /* mały rabat (§9.1) */
+};
+
+/* ── §9.3 Zakup — transakcja atomowa, bez duplikatów (kryteria 8 i 11) ─────── */
+window._ucPrice=function(id){
+  const it=window._ucItem(id); if(!it) return 0;
+  const rep=(typeof window.getStreetRepShopDiscount==='function')?window.getStreetRepShopDiscount():0;
+  const neg=(typeof applyOutfitDiscount==='function')?applyOutfitDiscount(it.price)/(it.price||1):1;
+  const base=it.price*(it.price?neg:1)*(1-rep)*(1-window._ucClearanceDiscount(id));
+  return Math.max(0,Math.floor(base));
+};
+window._ucCartPrice=function(ids){ return ids.filter(id=>!window._ucOwned(id)).reduce((s,id)=>s+window._ucPrice(id),0); };
+window._ucBuy=function(ids,opts){
+  const u=window._ucEnsure(); opts=opts||{};
+  const list=(Array.isArray(ids)?ids:[ids]).filter(id=>window._ucItem(id));
+  const toBuy=list.filter(id=>!window._ucOwned(id));
+  if(!toBuy.length && !opts.equipOnly) return {ok:false,msg:'Masz już wszystkie wybrane elementy.'};
+  const missing=toBuy.filter(id=>!window._ucReqMet(id));
+  if(missing.length) return {ok:false,msg:'Nie spełniasz wymagań: '+missing.map(window._ucName).join(', ')+'.'};
+  const total=window._ucCartPrice(toBuy);
+  if((G.money||0)<total) return {ok:false,msg:'Brak środków — potrzeba '+total.toLocaleString('pl')+' zł.'};
+  /* transakcja atomowa: snapshot → zmiany → rollback przy błędzie */
+  const snap={money:G.money,outfits:(G._ownedOutfits||[]).slice(),shoes:u.ownedFootwear.slice(),
+              acc:u.ownedAccessories.slice(),bags:u.ownedBags.slice()};
+  try{
+    G.money-=total;
+    toBuy.forEach(id=>{
+      const it=window._ucItem(id);
+      if(it.slot==='outfit'){ G._ownedOutfits=G._ownedOutfits||[]; if(!G._ownedOutfits.includes(id)) G._ownedOutfits.push(id); }
+      else if(it.slot==='footwear'){ if(!u.ownedFootwear.includes(id)) u.ownedFootwear.push(id); }
+      else if(it.slot==='accessory'){ if(!u.ownedAccessories.includes(id)) u.ownedAccessories.push(id); }
+      else if(it.slot==='bag'){ if(!u.ownedBags.includes(id)) u.ownedBags.push(id); }
+      u.purchaseClaimed[id]=true;
+    });
+  }catch(e){
+    G.money=snap.money; G._ownedOutfits=snap.outfits; u.ownedFootwear=snap.shoes;
+    u.ownedAccessories=snap.acc; u.ownedBags=snap.bags;
+    return {ok:false,msg:'Transakcja przerwana — nic nie zostało pobrane.'};
+  }
+  /* założenie po zakupie (opcjonalne) */
+  if(opts.wear!==false) list.forEach(id=>window._ucEquip(id,true));
+  /* lista życzeń: kupione pozycje znikają z listy */
+  u.wishlist=u.wishlist.filter(w=>!list.includes(w));
+  if(typeof checkAchievements==='function') checkAchievements();
+  return {ok:true,msg:'✅ Kupiono: '+toBuy.map(window._ucName).join(', ')+(total?(' — '+total.toLocaleString('pl')+' zł'):''),spent:total};
+};
+window._ucEquip=function(id,silent){
+  const it=window._ucItem(id); if(!it) return false;
+  if(!window._ucOwned(id)) return false;
+  const u=window._ucEnsure();
+  if(it.slot==='outfit'){ if(typeof window.buyOutfit==='function'){ window.buyOutfit(id,window._ucName(id),it.price); return true; } if(!G.outfit)G.outfit={}; G.outfit.top=id; }
+  else if(it.slot==='footwear') u.footwear=id;
+  else if(it.slot==='accessory') u.accessory=id;
+  else if(it.slot==='bag'){ u.bag=id; G.backpack=Math.max(0,it.st.capacity-INV_BASE_CAP); }
+  if(!silent && typeof notify==='function') notify('👗 Założono: '+window._ucName(id));
+  const d=window._ucClaimDebut(id); if(d && typeof notify==='function') notify(d);
+  if(typeof updateHUD==='function') updateHUD();
+  return true;
+};
+window._ucUnequip=function(slot){
+  const u=window._ucEnsure();
+  if(slot==='footwear') u.footwear=null;
+  else if(slot==='accessory') u.accessory=null;
+  else if(slot==='bag'){ u.bag=null; G.backpack=0; }
+  if(typeof updateHUD==='function') updateHUD();
+};
+window._ucWishToggle=function(id){
+  const u=window._ucEnsure(); const i=u.wishlist.indexOf(id);
+  if(i>=0) u.wishlist.splice(i,1); else u.wishlist.push(id); /* kryterium 22: zapisujemy definicję, nie sesję */
+  if(typeof window._ucRefresh==='function') window._ucRefresh();
+};
+
+/* ═══ CrownFit Studio — §6. Warstwa WYŁĄCZNIE prezentacyjna: nie przyznaje ubrania,
+   nie zmienia trwałego ekwipunku i nie zapisuje symulowanej konfiguracji, dopóki gracz
+   nie potwierdzi zakupu (kryteria 6, 7, 20, 23). ═══ */
+const CFS_POSES=[{id:'idle',label:'Idle',use:'Ogólna sylwetka i kolory.'},
+  {id:'walk',label:'Spacer',use:'Zachowanie warstw podczas ruchu.'},
+  {id:'concert',label:'Poza koncertowa',use:'Czytelność sylwetki i efekt sceniczny.'},
+  {id:'training',label:'Trening',use:'Elastyczność i przyleganie warstw.'},
+  {id:'formal',label:'Formalna',use:'Krój, kołnierz, rękawy i dodatki.'},
+  {id:'work',label:'Praca',use:'Kieszenie, rękawice i warstwy robocze.'}];
+const CFS_CONTEXTS=[{id:'studio',label:'Neutralne studio',bg:['#20242c','#12151b'],light:'#ffffff',note:'Najbardziej wiarygodne kolory.'},
+  {id:'street_day',label:'Ulica — dzień',bg:['#2a3a4a','#16202c'],light:'#e8f0ff',note:'Podgląd codziennego wyglądu.'},
+  {id:'street_night',label:'Ulica — noc',bg:['#0e1020','#05060e'],light:'#7a8aff',note:'Streetwear i widoczność detali.'},
+  {id:'stage',label:'Scena',bg:['#2a0a3a','#0a0416'],light:'#ff70d0',note:'Premia stage presence i widoczność.'},
+  {id:'gala',label:'Gala',bg:['#2e2418','#140f08'],light:'#ffd890',note:'Dopasowanie formalne.'},
+  {id:'weather',label:'Mróz / deszcz',bg:['#1a2630','#0a1218'],light:'#bfe0f0',note:'Ochrona i wygląd odzieży pogodowej.'},
+  {id:'training',label:'Trening',bg:['#16281e','#08120c'],light:'#a0f0c0',note:'Sportowy kontekst użycia.'}];
+const CFS_DIRS=[{id:'front',label:'Przód'},{id:'front_right',label:'Przód 3/4'},{id:'right',label:'Prawy profil'},
+  {id:'back_right',label:'Tył 3/4'},{id:'back',label:'Tył'},{id:'back_left',label:'Tył 3/4 L'},
+  {id:'left',label:'Lewy profil'},{id:'front_left',label:'Przód 3/4 L'}];
+
+window._cfsSession=null;
+window._cfsOpen=function(itemId,fromPanel){
+  const it=window._ucItem(itemId);
+  const l=window._ucActiveLook();
+  /* §6.9 — sesja tymczasowa; snapshot stanu sprzed otwarcia podglądu */
+  window._cfsSession={
+    sessionId:'cfs_'+(G.day||0)+'_'+(window._cfsSeq=(window._cfsSeq||0)+1),
+    storeId:'urban_crown',
+    snapshot:{outfit:l.outfit,footwear:l.footwear,accessory:l.accessory,bag:l.bag,money:G.money},
+    sel:{ outfit:(it&&it.slot==='outfit')?itemId:l.outfit,
+          footwear:(it&&it.slot==='footwear')?itemId:l.footwear,
+          accessory:(it&&it.slot==='accessory')?itemId:l.accessory,
+          bag:(it&&it.slot==='bag')?itemId:l.bag },
+    colors:{}, pose:'idle', ctx:'studio', dir:'front_right', zoom:1,
+    cart:[], purchaseConfirmed:false, compare:false, from:fromPanel||'shop'
+  };
+  if(it && !window._ucOwned(itemId)) window._cfsSession.cart.push(itemId);
+  window._cfsRender();
+};
+window._cfsClose=function(){
+  /* Wyjście bez zakupu przywraca dokładnie stan sprzed otwarcia (kryterium 6). */
+  const s=window._cfsSession;
+  if(s && !s.purchaseConfirmed){
+    const u=window._ucEnsure();
+    if(G.outfit) G.outfit.top=s.snapshot.outfit;
+    u.footwear=s.snapshot.footwear; u.accessory=s.snapshot.accessory; u.bag=s.snapshot.bag;
+  }
+  window._cfsSession=null;
+  if(typeof window.renderUrbanCrown==='function') window.renderUrbanCrown();
+};
+window._cfsSet=function(slot,id){ const s=window._cfsSession; if(!s) return;
+  s.sel[slot]=(s.sel[slot]===id)?null:id;
+  if(s.sel[slot] && !window._ucOwned(s.sel[slot]) && !s.cart.includes(s.sel[slot])) s.cart.push(s.sel[slot]);
+  s.cart=s.cart.filter(cid=>Object.values(s.sel).includes(cid));
+  window._cfsRender(); };
+window._cfsSetColor=function(idx){ const s=window._cfsSession; if(!s) return;
+  /* kryterium 7: zmiana koloru w podglądzie NIE przyznaje wariantu graczowi — tylko sesja */
+  s.colors[s.sel.outfit]=idx; window._cfsRender(); };
+window._cfsPose=function(p){ if(window._cfsSession){ window._cfsSession.pose=p; window._cfsRender(); } };
+window._cfsCtx=function(c){ if(window._cfsSession){ window._cfsSession.ctx=c; window._cfsRender(); } };
+window._cfsDir=function(d){ if(window._cfsSession){ window._cfsSession.dir=d; window._cfsRender(); } };
+window._cfsStep=function(delta){ const s=window._cfsSession; if(!s) return;
+  const i=CFS_DIRS.findIndex(x=>x.id===s.dir); s.dir=CFS_DIRS[(i+delta+CFS_DIRS.length)%CFS_DIRS.length].id; window._cfsRender(); };
+window._cfsReset=function(){ const s=window._cfsSession; if(!s) return; s.dir='front_right'; s.pose='idle'; s.ctx='studio'; s.zoom=1; window._cfsRender(); };
+window._cfsZoom=function(d){ const s=window._cfsSession; if(!s) return; s.zoom=Math.max(0.7,Math.min(1.8,s.zoom+d)); window._cfsRender(); };
+window._cfsToggleCompare=function(){ const s=window._cfsSession; if(!s) return; s.compare=!s.compare; window._cfsRender(); };
+
+/* §7.5 — walidacja kompatybilności: konflikt POKAZUJE ostrzeżenie, nie usuwa przedmiotu (kryterium 18). */
+window._cfsConflicts=function(sel){
+  const c=[]; const o=window._ucItem(sel.outfit); const a=window._ucItem(sel.accessory);
+  if(o && o.vis){
+    if(o.vis.bag==='blocked' && sel.bag) c.push('Wybrany strój ('+window._ucShortName(sel.outfit)+') nie obsługuje plecaka — pasy kolidują z sylwetką.');
+    else if(o.vis.bag==='limited' && sel.bag) c.push('Plecak przy tym stroju leży gorzej — dopuszczalny, ale obniża formalne dopasowanie.');
+    if(o.vis.hood && a && a.vis && a.vis.headwear) c.push('Kaptur i czapka nachodzą na siebie — czapka ukryje tylną warstwę włosów.');
+    if(o.vis.hat===false && a && a.vis && a.vis.headwear) c.push('Ten strój nie ma profilu kompatybilności z nakryciem głowy.');
+  }
+  return c;
+};
+/* §6.8 — elementy nieposiadane są oznaczane jako symulowane. */
+window._cfsSimulated=function(sel){ return Object.values(sel).filter(Boolean).filter(id=>!window._ucOwned(id)); };
+
+/* ── §7.1/§7.2 Renderer podglądu: warstwowa postać 2D, 8 kierunków, pozy i konteksty.
+   Kolejność warstw zgodna z avatarRenderLayers z PDF. Brak dedykowanego assetu NIE blokuje
+   sklepu — sylwetka jest budowana proceduralnie z profilu wizualnego (kryterium 19). ── */
+window._cfsPalette=function(id,colorIdx){
+  const it=window._ucItem(id); if(!it||!it.vis||!it.vis.pal) return null;
+  const p=it.vis.pal.slice();
+  if(colorIdx){ /* wariant koloru = rotacja palety (sesja podglądu, nie własność gracza) */
+    for(let k=0;k<colorIdx;k++) p.push(p.shift());
+  }
+  return p;
+};
+window._cfsDrawAvatar=function(cv,sel,dir,pose,ctxId,zoom,colors){
+  const cx=cv.getContext('2d'); const W=cv.width, H=cv.height;
+  const ctxDef=CFS_CONTEXTS.find(c=>c.id===ctxId)||CFS_CONTEXTS[0];
+  /* Tło kontekstu (§6.6) */
+  const g=cx.createLinearGradient(0,0,0,H); g.addColorStop(0,ctxDef.bg[0]); g.addColorStop(1,ctxDef.bg[1]);
+  cx.fillStyle=g; cx.fillRect(0,0,W,H);
+  if(ctxId==='stage'){ cx.fillStyle='rgba(255,112,208,.12)'; cx.beginPath(); cx.moveTo(W/2,0); cx.lineTo(W,H); cx.lineTo(0,H); cx.closePath(); cx.fill(); }
+  if(ctxId==='street_night'){ for(let i=0;i<14;i++){ cx.fillStyle='rgba(122,138,255,'+(0.05+((i*37)%9)/60)+')'; cx.fillRect((i*53)%W,(i*71)%H,3,3);} }
+  if(ctxId==='weather'){ cx.strokeStyle='rgba(191,224,240,.25)'; cx.lineWidth=1;
+    for(let i=0;i<40;i++){ const x=(i*29)%W, y=(i*47)%H; cx.beginPath(); cx.moveTo(x,y); cx.lineTo(x-3,y+9); cx.stroke(); } }
+  /* podłoga */
+  cx.fillStyle='rgba(0,0,0,.30)'; cx.beginPath(); cx.ellipse(W/2,H-46,52,13,0,0,Math.PI*2); cx.fill();
+
+  const out=window._ucItem(sel.outfit), sho=window._ucItem(sel.footwear),
+        acc=window._ucItem(sel.accessory), bag=window._ucItem(sel.bag);
+  const pal=window._cfsPalette(sel.outfit,(colors||{})[sel.outfit])||['#2a5080','#1a2a3a','#d0d0d0'];
+  const top=pal[0], bottom=pal[1]||pal[0], accent=pal[2]||'#d0d0d0';
+  const shoePal=sho?window._cfsPalette(sel.footwear):null;
+  const shoeCol=(shoePal&&shoePal[0])||'#0a0a0a';
+  const sil=(out&&out.vis&&out.vis.sil)||'slim';
+  const skin=(typeof SKIN_COLS!=='undefined'&&SKIN_COLS[P&&P.skin])||'#e8b48a';
+  const hair=(typeof G!=='undefined'&&G.hairColor)||'#2a1a10';
+  const back=(dir==='back'||dir==='back_left'||dir==='back_right');
+  const side=(dir==='left'||dir==='right');
+  const dirSign=(dir==='left'||dir==='back_right'||dir==='front_left')?-1:1;
+  const quarter=(dir==='front_right'||dir==='front_left'||dir==='back_right'||dir==='back_left');
+
+  cx.save();
+  cx.translate(W/2,H/2+30); const z=(zoom||1)*1.15; cx.scale(z*(side?0.88:1),z); cx.translate(0,-110);
+  const x=0, y=0;
+  /* szerokość ramion/tułowia zależna od sylwetki (§4.10 silhouette) */
+  const wMap={slim:20,loose:24,relaxed:23,oversized:29,layered:25,heavy:27,puffer:32,long:24,shell:25,
+              structured:26,asymmetric:25,tailored:20,athletic:19,workwear:24,technical:23};
+  let bw=wMap[sil]||22; if(side) bw*=0.62;
+  const legSpread=(pose==='training')?7:(pose==='walk'?4:2);
+  const armSwing=(pose==='walk')?6:0;
+
+  /* backpack_back — pasy i korpus plecaka za postacią (§7.2) */
+  if(bag && !back){ const bp=window._cfsPalette(sel.bag)||['#2a3038','#1a1e24']; cx.fillStyle=bp[1]||bp[0];
+    cx.fillRect(x-bw-5,y+30,7,44); cx.fillRect(x+bw-2,y+30,7,44); }
+  if(bag && back){ const bp=window._cfsPalette(sel.bag)||['#2a3038','#1a1e24'];
+    cx.fillStyle=bp[0]; cx.beginPath(); cx.roundRect?cx.roundRect(x-bw+2,y+26,bw*2-4,54,7):cx.rect(x-bw+2,y+26,bw*2-4,54); cx.fill();
+    cx.fillStyle=bp[2]||'#888'; cx.fillRect(x-8,y+42,16,10); }
+
+  /* lower_body_clothing */
+  cx.fillStyle=bottom;
+  const legTop=y+72, legH=(sil==='long')?46:56;
+  cx.fillRect(x-13-legSpread/2,legTop,12,legH); cx.fillRect(x+1+legSpread/2,legTop,12,legH);
+  /* footwear */
+  cx.fillStyle=shoeCol;
+  const shY=legTop+legH-2, shH=(sho&&sho.vis&&sho.vis.sil==='boot')?15:(sho&&sho.vis&&sho.vis.sil==='high'?14:11);
+  cx.fillRect(x-15-legSpread/2,shY,15,shH); cx.fillRect(x+1+legSpread/2,shY,15,shH);
+  if(shoePal&&shoePal[2]){ cx.fillStyle=shoePal[2]; cx.fillRect(x-15-legSpread/2,shY+shH-3,15,3); cx.fillRect(x+1+legSpread/2,shY+shH-3,15,3); }
+
+  /* upper_body_clothing — tułów o sylwetce z profilu */
+  cx.fillStyle=top;
+  if(sil==='long'){ cx.fillRect(x-bw,y+26,bw*2,74); }
+  else if(sil==='puffer'){ cx.fillRect(x-bw,y+26,bw*2,50);
+    cx.fillStyle='rgba(255,255,255,.05)'; for(let i=0;i<4;i++) cx.fillRect(x-bw,y+30+i*11,bw*2,2); cx.fillStyle=top; }
+  else if(sil==='asymmetric'){ cx.beginPath(); cx.moveTo(x-bw,y+26); cx.lineTo(x+bw,y+30); cx.lineTo(x+bw-4,y+78); cx.lineTo(x-bw+2,y+72); cx.closePath(); cx.fill(); }
+  else if(sil==='tailored'){ cx.beginPath(); cx.moveTo(x-bw,y+26); cx.lineTo(x+bw,y+26); cx.lineTo(x+bw-4,y+80); cx.lineTo(x-bw+4,y+80); cx.closePath(); cx.fill(); }
+  else cx.fillRect(x-bw,y+26,bw*2,(sil==='oversized'||sil==='heavy')?54:48);
+  /* outerwear — akcenty marki (nadruk, zamki, odblaski, klapy) */
+  if(!back){
+    cx.fillStyle=accent;
+    if(sil==='tailored'){ cx.fillRect(x-3,y+28,6,44); cx.fillRect(x-bw+4,y+28,4,30); cx.fillRect(x+bw-8,y+28,4,30); }
+    else if(sil==='technical'||sil==='shell'||sil==='workwear'){ cx.fillRect(x-bw+2,y+52,bw*2-4,4); cx.fillRect(x-bw+2,y+62,bw*2-4,2); }
+    else if(sil==='oversized'||sil==='loose'){ cx.fillRect(x-9,y+42,18,14); }
+    else if(sil==='asymmetric'||sil==='structured'){ cx.fillRect(x-bw+3,y+34,7,36); cx.fillRect(x+bw-10,y+40,7,26); }
+    else if(sil==='heavy'){ cx.fillRect(x-2,y+28,3,44); cx.fillRect(x-bw+5,y+34,3,22); }
+    else cx.fillRect(x-bw+4,y+30,bw*2-8,3);
+  }
+  /* ramiona */
+  cx.fillStyle=top;
+  const armY=y+30+armSwing, armY2=y+30-armSwing;
+  if(pose==='concert'){ cx.fillRect(x-bw-9,y+2,9,32); cx.fillRect(x+bw,armY2,9,40); }
+  else if(pose==='work'){ cx.fillRect(x-bw-9,armY,9,40); cx.fillRect(x+bw,y+30,20,8); }
+  else if(pose==='training'){ cx.fillRect(x-bw-11,y+24,9,34); cx.fillRect(x+bw+2,y+24,9,34); }
+  else { cx.fillRect(x-bw-8,armY,9,42); cx.fillRect(x+bw-1,armY2,9,42); }
+  /* dłonie */
+  cx.fillStyle=skin;
+  if(pose==='concert'){ cx.fillRect(x-bw-9,y-6,9,10); cx.fillRect(x+bw,armY2+40,9,9); }
+  else { cx.fillRect(x-bw-8,armY+42,9,9); cx.fillRect(x+bw-1,armY2+42,9,9); }
+
+  /* head + hair_back/front + headwear (§7.5 kaptur/czapka/włosy) */
+  const headY=y+2;
+  if(!back){ cx.fillStyle=hair; cx.fillRect(x-13,headY-2,26,12); }
+  cx.fillStyle=skin; cx.beginPath(); cx.ellipse(x,headY+10,12,13,0,0,Math.PI*2); cx.fill();
+  if(back){ cx.fillStyle=hair; cx.beginPath(); cx.ellipse(x,headY+8,12,12,0,0,Math.PI*2); cx.fill(); }
+  else{
+    cx.fillStyle='#1a1a1a';
+    if(side){ cx.fillRect(x+dirSign*4,headY+8,2,2); }
+    else { cx.fillRect(x-5,headY+8,2,2); cx.fillRect(x+3,headY+8,2,2); }
+    cx.fillStyle='rgba(0,0,0,.35)'; cx.fillRect(x-3,headY+15,6,1);
+    cx.fillStyle=hair; cx.fillRect(x-13,headY-3,26,8);
+  }
+  const hooded=out&&out.vis&&out.vis.hood;
+  if(hooded){ cx.fillStyle=top; cx.beginPath(); cx.ellipse(x,headY+6,17,15,0,Math.PI,0); cx.fill();
+    cx.fillStyle='rgba(0,0,0,.35)'; cx.beginPath(); cx.ellipse(x,headY+9,12,11,0,Math.PI,0); cx.fill(); }
+  if(acc && acc.vis && acc.vis.headwear && !hooded){ const ap=window._cfsPalette(sel.accessory)||['#1a1a22'];
+    cx.fillStyle=ap[0]; cx.fillRect(x-13,headY-4,26,10); cx.fillStyle=ap[2]||ap[1]||'#8ad8e8'; cx.fillRect(x-14,headY+5,28,3);
+    if(!back) cx.fillRect(x-13,headY+6,20,3); }
+  /* accessory — szal / zegarek */
+  if(acc && acc.vis && acc.vis.sil==='scarf'){ const ap=window._cfsPalette(sel.accessory)||['#c8a520'];
+    cx.fillStyle=ap[1]||ap[0]; cx.fillRect(x-14,y+24,28,7); cx.fillRect(x+4,y+30,7,22); }
+  if(acc && acc.vis && acc.vis.sil==='watch'){ const ap=window._cfsPalette(sel.accessory)||['#c0c4c8'];
+    cx.fillStyle=ap[0]; cx.fillRect(x+bw-1,armY2+38,9,4); }
+  /* backpack_front — pasy z przodu */
+  if(bag && !back){ const bp=window._cfsPalette(sel.bag)||['#2a3038','#1a1e24'];
+    cx.fillStyle=bp[2]||bp[1]||'#5a6068'; cx.fillRect(x-bw-4,y+50,6,3); cx.fillRect(x+bw-2,y+50,6,3); }
+  /* effects — kontekst sceny/gali podświetla sylwetkę */
+  if(ctxId==='stage'||ctxId==='gala'){ cx.fillStyle=(ctxId==='stage')?'rgba(255,112,208,.16)':'rgba(255,216,144,.14)';
+    cx.beginPath(); cx.ellipse(x,y+50,bw+16,64,0,0,Math.PI*2); cx.fill(); }
+  cx.restore();
+
+  /* podpis kierunku + kontekstu */
+  cx.fillStyle='rgba(255,255,255,.42)'; cx.font='11px system-ui,sans-serif'; cx.textAlign='center';
+  cx.fillText((CFS_DIRS.find(d=>d.id===dir)||{}).label+' · '+ctxDef.label,W/2,H-14);
+  cx.textAlign='left';
+};
+
+/* §6.7 — porównanie przed/po. Zwraca listę wierszy „było → jest". */
+window._cfsCompareRows=function(sel){
+  const cur=window._ucActiveLook();
+  const calc=(look)=>{
+    const items=[look.outfit,look.footwear,look.accessory,look.bag].map(window._ucItem).filter(Boolean);
+    const g=(k)=>items.reduce((s,i)=>s+(typeof i.st[k]==='number'?i.st[k]:0),0);
+    const gig=(t)=>items.reduce((s,i)=>s+((i.st.gig&&i.st.gig[t])||0),0);
+    const w=(k)=>items.reduce((s,i)=>s+((i.st.weather&&i.st.weather[k])||0),0);
+    const cap=items.filter(i=>i.slot==='bag').reduce((s,i)=>Math.max(s,i.st.capacity||0),INV_BASE_CAP);
+    return {drip:g('drip')+window._ucColorHarmony(items),pres:g('pres'),concert:g('concert'),
+            networking:g('networking'),gym:g('gym'),cardio:g('cardio'),frost:w('frost'),rain:w('rain'),
+            cap:cap,rep:g('rep'),gigEvent:gig('event')};
+  };
+  const a=calc(cur), b=calc(sel);
+  const pct=(v)=>((v>0?'+':'')+Math.round(v*100)+'%');
+  const rows=[
+    ['Drip',a.drip,b.drip,'pt'],['Prezentacja',a.pres,b.pres,'pt'],['Reputacja uliczna',a.rep,b.rep,'pt'],
+    ['Koncerty',a.concert,b.concert,'%'],['Networking',a.networking,b.networking,'%'],
+    ['Trening',a.gym,b.gym,'%'],['Cardio',a.cardio,b.cardio,'%'],
+    ['Ochrona przed mrozem',a.frost,b.frost,'%'],['Ochrona przed deszczem',a.rain,b.rain,'%'],
+    ['Ekwipunek',a.cap,b.cap,'miejsc'],
+  ];
+  return rows.map(([label,av,bv,unit])=>{
+    const fmt=(v)=>unit==='%'?pct(v):(unit==='pt'?String(Math.round(v)):String(Math.round(v))+' '+unit);
+    return {label, from:fmt(av), to:fmt(bv), changed:Math.abs(av-bv)>1e-9};
+  });
+};
+
+/* ═══ §6.3 CrownFit Studio — ekran podglądu ═══ */
+window._cfsRender=function(){
+  const s=window._cfsSession; if(!s) return;
+  const host=document.getElementById('ov-content'); if(!host) return;
+  const sel=s.sel;
+  const conflicts=window._cfsConflicts(sel);
+  const sim=window._cfsSimulated(sel);
+  const total=window._ucCartPrice(s.cart);
+  const mainIt=window._ucItem(sel.outfit);
+  const palLen=(mainIt&&mainIt.vis&&mainIt.vis.pal)?mainIt.vis.pal.length:0;
+  const pickBtns=(slot,cats)=>UC_CATALOG.filter(i=>cats.includes(i.cat)).map(i=>{
+    const on=sel[slot]===i.id, owned=window._ucOwned(i.id), ok=window._ucReqMet(i.id);
+    return `<button class="cbtn" style="font-size:11px;padding:5px 8px;margin:2px;border-color:${on?'#e91e8c':'#2a3a50'};color:${on?'#ffd0ec':(ok?'#cdd':'#667')}" onclick="window._cfsSet('${slot}','${i.id}')">${window._ucShortName(i.id)}${owned?'':(ok?' · '+window._ucPrice(i.id).toLocaleString('pl')+' zł':' 🔒')}</button>`;
+  }).join('');
+  const rows=window._cfsCompareRows(sel);
+
+  host.innerHTML=`
+    <h2>🪞 CrownFit Studio</h2>
+    <p class="sub">Przymierz stylizację przed zakupem. Podgląd nie zmienia Twojego ekwipunku ani stroju.</p>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
+      <div style="flex:0 0 280px">
+        <canvas id="cfs-canvas" width="270" height="370" style="width:270px;height:370px;border-radius:12px;border:1px solid #2a3a50;display:block"></canvas>
+        <div style="display:flex;gap:5px;margin-top:7px;flex-wrap:wrap">
+          <button class="cbtn" style="flex:1;font-size:12px;padding:6px" onclick="window._cfsStep(-1)">◀ A</button>
+          <button class="cbtn" style="flex:1;font-size:12px;padding:6px" onclick="window._cfsStep(1)">D ▶</button>
+          <button class="cbtn" style="flex:1;font-size:12px;padding:6px" onclick="window._cfsZoom(0.15)">🔍 +</button>
+          <button class="cbtn" style="flex:1;font-size:12px;padding:6px" onclick="window._cfsZoom(-0.15)">🔍 −</button>
+          <button class="cbtn" style="flex:1;font-size:12px;padding:6px" onclick="window._cfsReset()">R reset</button>
+        </div>
+        <div style="font-size:10px;color:#667;margin-top:5px;text-align:center">Widoki: ${CFS_DIRS.map(d=>`<span style="color:${s.dir===d.id?'#e91e8c':'#667'};cursor:pointer" onclick="window._cfsDir('${d.id}')">${d.label}</span>`).join(' · ')}</div>
+      </div>
+      <div style="flex:1;min-width:280px">
+        <div style="background:#12101c;border:1px solid #2a1f3a;border-radius:10px;padding:11px;margin-bottom:10px">
+          <div style="font-size:15px;font-weight:800;color:#f0c8e8">${window._ucName(sel.outfit)}</div>
+          <div style="font-size:11px;color:#9a8aa8;margin:3px 0 6px">${(mainIt&&mainIt.look)||''}</div>
+          <div style="font-size:11px;color:#8fb8d8">${mainIt?('Sylwetka: '+mainIt.vis.sil+' · Materiał: '+mainIt.vis.mat+' · '+mainIt.vis.det.join(', ')):''}</div>
+        </div>
+        ${conflicts.length?`<div style="background:#2a1410;border-left:3px solid #e0703a;border-radius:6px;padding:8px 10px;margin-bottom:9px;font-size:11px;color:#f0c0a0">⚠️ ${conflicts.join('<br>⚠️ ')}</div>`:''}
+        ${sim.length?`<div style="background:#101c2a;border-left:3px solid #3a90e0;border-radius:6px;padding:8px 10px;margin-bottom:9px;font-size:11px;color:#a0c8f0">👁 Symulowane (jeszcze nieposiadane): ${sim.map(window._ucShortName).join(', ')}</div>`:''}
+        <div style="font-size:11px;color:#8a9;margin:8px 0 3px;font-weight:700">🎨 Kolor (tylko podgląd)</div>
+        <div>${Array.from({length:palLen}).map((_,i)=>`<button class="cbtn" style="width:26px;height:26px;padding:0;margin:2px;background:${(window._cfsPalette(sel.outfit,i)||['#333'])[0]};border-color:${(s.colors[sel.outfit]||0)===i?'#fff':'#333'}" onclick="window._cfsSetColor(${i})"></button>`).join('')}</div>
+        <div style="font-size:11px;color:#8a9;margin:9px 0 3px;font-weight:700">👟 Obuwie</div><div>${pickBtns('footwear',['shoes'])}</div>
+        <div style="font-size:11px;color:#8a9;margin:9px 0 3px;font-weight:700">🧢 Dodatki</div><div>${pickBtns('accessory',['acc'])}</div>
+        <div style="font-size:11px;color:#8a9;margin:9px 0 3px;font-weight:700">🎒 Plecak</div><div>${pickBtns('bag',['bag'])}</div>
+        <div style="font-size:11px;color:#8a9;margin:9px 0 3px;font-weight:700">🕺 Poza i animacja</div>
+        <div>${CFS_POSES.map(p=>`<button class="cbtn" style="font-size:11px;padding:5px 8px;margin:2px;border-color:${s.pose===p.id?'#e91e8c':'#2a3a50'}" title="${p.use}" onclick="window._cfsPose('${p.id}')">${p.label}</button>`).join('')}</div>
+        <div style="font-size:11px;color:#8a9;margin:9px 0 3px;font-weight:700">💡 Kontekst</div>
+        <div>${CFS_CONTEXTS.map(c=>`<button class="cbtn" style="font-size:11px;padding:5px 8px;margin:2px;border-color:${s.ctx===c.id?'#e91e8c':'#2a3a50'}" title="${c.note}" onclick="window._cfsCtx('${c.id}')">${c.label}</button>`).join('')}</div>
+      </div>
+    </div>
+    <div style="margin-top:12px;background:#0a1220;border:1px solid #1a2a3a;border-radius:10px;padding:11px">
+      <div style="font-weight:800;color:#7ec8e3;font-size:13px;margin-bottom:6px">📊 Porównanie stylizacji — teraz → po zmianie</div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:2px 12px;font-size:12px">
+        ${rows.map(r=>`<div style="color:${r.changed?'#cdd':'#667'}">${r.label}</div><div style="color:${r.changed?'#7ec87e':'#667'};font-variant-numeric:tabular-nums">${r.from} → <b>${r.to}</b></div>`).join('')}
+      </div>
+    </div>
+    <div style="margin-top:11px;display:flex;gap:7px;flex-wrap:wrap">
+      <button class="bbtn" style="flex:1;min-width:150px" onclick="window._cfsBuy()" ${s.cart.length===0?'disabled':''}>🛒 Kup i załóż${total?(' — '+total.toLocaleString('pl')+' zł'):''}</button>
+      <button class="cbtn" style="flex:1;min-width:130px" onclick="window._cfsWish()">⭐ Do listy życzeń</button>
+      <button class="cbtn" style="flex:1;min-width:110px" onclick="window._cfsClose()">← Wyjdź bez zmian</button>
+    </div>
+    <div class="res" id="cfs-res">Obracaj postać, zmieniaj kontekst i porównaj wynik przed zakupem.</div>
+  `;
+  const cv=document.getElementById('cfs-canvas');
+  if(cv) window._cfsDrawAvatar(cv,sel,s.dir,s.pose,s.ctx,s.zoom,s.colors);
+};
+window._cfsBuy=function(){
+  const s=window._cfsSession; if(!s) return;
+  const r=window._ucBuy(s.cart,{wear:true});
+  const res=document.getElementById('cfs-res');
+  if(!r.ok){ if(res) res.textContent=r.msg; return; }
+  s.purchaseConfirmed=true;
+  /* po potwierdzeniu zakupu wybrana stylizacja staje się realna */
+  const u=window._ucEnsure();
+  if(s.sel.footwear&&window._ucOwned(s.sel.footwear)) u.footwear=s.sel.footwear;
+  if(s.sel.accessory&&window._ucOwned(s.sel.accessory)) u.accessory=s.sel.accessory;
+  if(s.sel.bag&&window._ucOwned(s.sel.bag)) window._ucEquip(s.sel.bag,true);
+  if(typeof notify==='function') notify(r.msg);
+  window._cfsSession=null;
+  if(typeof window.renderUrbanCrown==='function') window.renderUrbanCrown();
+  const r2=document.getElementById('shop-res'); if(r2) r2.textContent=r.msg;
+};
+window._cfsWish=function(){
+  const s=window._cfsSession; if(!s) return; const u=window._ucEnsure();
+  Object.values(s.sel).filter(Boolean).filter(id=>!window._ucOwned(id)).forEach(id=>{ if(!u.wishlist.includes(id)) u.wishlist.push(id); });
+  const res=document.getElementById('cfs-res'); if(res) res.textContent='⭐ Dodano do listy życzeń.';
+};
+
+/* ═══ §9 Panel Urban Crown ═══ */
+const UC_SECTIONS=[['daily','👕 Kolekcje codzienne'],['street','🧥 Streetwear'],['stage','🎤 Scena i koncerty'],
+  ['formal','👔 Formalne'],['sport','🏋 Sport'],['utility','🦺 Praca i utility'],['weather','🧣 Pogoda'],
+  ['shoes','👟 Obuwie i dodatki'],['acc','💍 Dodatki'],['bag','🎒 Plecaki i torby']];
+window._ucTab='daily';
+window._ucSetTab=function(t){ window._ucTab=t; window.renderUrbanCrown(); };
+window._ucRefresh=function(){ if(document.getElementById('uc-panel')) window.renderUrbanCrown(); };
+
+/* Opis premii produktu — jedno źródło dla karty sklepu, garderoby i ekwipunku. */
+window._ucBonusText=function(id){
+  const bon=[];
+  const it=window._ucItem(id); if(!it) return '';
+  const st=it.st||{};
+  if(st.drip) bon.push('+'+st.drip+' Drip');
+  if(st.pres) bon.push('+'+st.pres+' prezentacji');
+  if(st.rep) bon.push('+'+st.rep+' reputacji');
+  if(st.repDebut) bon.push('+'+st.repDebut+' reputacji za pierwszy debiut');
+  if(st.buzzDebut) bon.push('+'+st.buzzDebut+' szumu jednorazowo');
+  if(st.concert) bon.push('+'+Math.round(st.concert*100)+'% koncerty'+(st.concertKind?(' '+({formal:'formalne',event:'eventowe',night:'nocne'})[st.concertKind]):''));
+  if(st.stage) bon.push('+'+st.stage+' obecności scenicznej');
+  if(st.gym) bon.push('+'+Math.round(st.gym*100)+'% przyrost treningowy');
+  if(st.cardio) bon.push('+'+Math.round(st.cardio*100)+'% cardio');
+  if(st.strength) bon.push('+'+Math.round(st.strength*100)+'% siła');
+  if(st.sessions) bon.push('+'+st.sessions.str+' sesja siły, +'+st.sessions.cardio+' cardio');
+  if(st.physWork) bon.push('+'+Math.round(st.physWork*100)+'% prace fizyczne');
+  if(st.meetings) bon.push('+'+Math.round(st.meetings*100)+'% spotkania');
+  if(st.business) bon.push('+'+Math.round(st.business*100)+'% biznes');
+  if(st.negotiation) bon.push('+'+Math.round(st.negotiation*100)+'% negocjacje');
+  if(st.sponsors) bon.push('+'+Math.round(st.sponsors*100)+'% sponsorzy');
+  if(st.networking) bon.push('+'+Math.round(st.networking*100)+'% '+(st.networkingKind==='premium'?'networking premium':'networking'));
+  if(st.content) bon.push('+'+Math.round(st.content*100)+'% content');
+  if(st.viewgrid) bon.push('+'+Math.round(st.viewgrid*100)+'% ViewGrid');
+  if(st.gala) bon.push('+'+Math.round(st.gala*100)+'% gale i networking premium');
+  if(st.beach) bon.push('+'+Math.round(st.beach*100)+'% aktywności plażowe');
+  if(st.terrain) bon.push('+'+Math.round(st.terrain*100)+'% teren');
+  if(st.recovery) bon.push('+'+Math.round(st.recovery*100)+'% regeneracja');
+  if(st.fatigue) bon.push(Math.round(st.fatigue*100)+'% zmęczenia');
+  if(st.trainFatigue) bon.push(Math.round(st.trainFatigue*100)+'% zmęczenia z treningu');
+  if(st.runEnergy) bon.push(Math.round(st.runEnergy*100)+'% kosztu energii biegu');
+  if(st.cold) bon.push('+'+Math.round(st.cold*100)+'% odporności na chłód');
+  if(st.weather&&st.weather.frost) bon.push(Math.round(st.weather.frost*100)+'% utraty zdrowia w mrozie');
+  if(st.weather&&st.weather.rain) bon.push(Math.round(st.weather.rain*100)+'% kary deszczu');
+  if(st.gig) Object.keys(st.gig).forEach(t=>bon.push('+'+Math.round(st.gig[t]*100)+'% zlecenia: '+({night:'nocne',warehouse:'magazyn',event:'eventowe',stagebuild:'montaż sceny',driver:'kierowca',courier:'kurier',vip:'ochrona VIP',valet:'valet',outdoor:'plenerowe',creative:'kreatywne'})[t]||t));
+  if(st.dressCode) bon.push('spełnia wymagany dress code');
+  if(st.capacity) bon.push('ekwipunek '+st.capacity+' miejsc');
+  /* PDF §4.1: pozycje typu Transit Set mają jawnie „Brak" — opis premii i tak MUSI istnieć (kryterium 3). */
+  return bon.length?bon.join(' · '):'Bez premii — czysty strój zamienny.';
+};
+window._ucCard=function(id,rot){
+  const it=window._ucItem(id); if(!it) return '';
+  const owned=window._ucOwned(id), on=window._ucEquipped(id), ok=window._ucReqMet(id);
+  const price=window._ucPrice(id), disc=window._ucClearanceDiscount(id)>0;
+  const u=window._ucEnsure(); const wished=u.wishlist.includes(id);
+  const b=UC_BRANDS[it.brand];
+  const bon=(window._ucBonusText(id)||'').split(' · ').filter(Boolean);
+  const st=it.st||{};
+  const tag=rot?`<span style="font-size:9px;background:${rot.color};color:#0a0a12;border-radius:4px;padding:1px 5px;margin-left:5px;font-weight:800">${rot.label}</span>`:'';
+  return `<div class="sitem" style="border-color:${on?'#e91e8c':'#1a2535'}">
+    <h3 style="font-size:13px">${window._ucShortName(id)}${tag}</h3>
+    <div style="font-size:9px;color:#8a7a9a;letter-spacing:.5px;text-transform:uppercase;margin:-3px 0 4px">${b?b.name:''}</div>
+    <p style="font-size:11px">${it.look}</p>
+    ${bon.length?`<p style="color:#27ae60;font-size:10px;margin-bottom:5px">${bon.join(' · ')}</p>`:'<p style="color:#667;font-size:10px;margin-bottom:5px">Bez premii — czysty strój zamienny.</p>'}
+    ${it.season?`<p style="font-size:10px;color:#8fb8d8;margin-bottom:4px">🗓 Sezon: ${it.season} — premie pogodowe działają tylko przy tej aurze.</p>`:''}
+    ${(!ok)?`<p style="font-size:10px;color:#e74c3c;margin-bottom:4px">🔒 ${window._ucReqText(id)}</p>`:''}
+    <div class="pr" style="font-size:13px">${it.price===0?'Gratis':price.toLocaleString('pl')+' zł'}${disc?' <span style="font-size:10px;color:#e8a020">wyprzedaż −10%</span>':''}</div>
+    ${on?'<div class="owned">✅ Noszone</div>':owned?'<div style="color:#c8a520;font-size:10px">📦 W garderobie</div>':''}
+    <div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap">
+      <button class="cbtn" style="flex:1;font-size:11px;padding:5px" onclick="window._cfsOpen('${id}')">🪞 Przymierz</button>
+      ${owned?`<button class="bbtn" style="flex:1;font-size:11px;padding:5px" onclick="window._ucEquipBtn('${id}')" ${on?'disabled':''}>${on?'Noszone':'Załóż'}</button>`
+             :`<button class="bbtn" style="flex:1;font-size:11px;padding:5px" onclick="window._ucBuyBtn('${id}')" ${(!ok||G.money<price)?'disabled':''}>Kup</button>`}
+      <button class="cbtn" style="font-size:11px;padding:5px 7px;color:${wished?'#f0c040':'#667'}" title="Lista życzeń" onclick="window._ucWishToggle('${id}')">⭐</button>
+    </div></div>`;
+};
+window._ucBuyBtn=function(id){ const r=window._ucBuy([id],{wear:true});
+  window.renderUrbanCrown(); const el=document.getElementById('shop-res'); if(el) el.textContent=r.msg; };
+window._ucEquipBtn=function(id){ window._ucEquip(id);
+  window.renderUrbanCrown(); const el=document.getElementById('shop-res'); if(el) el.textContent='✅ Założono: '+window._ucName(id); };
+
+window.renderUrbanCrown=function(){
+  window._clothShop='ubrania';
+  if(!G.outfit||typeof G.outfit!=='object') G.outfit={top:'default'};
+  const u=window._ucEnsure(); const rot=window._ucRotation();
+  const score=window._ucStyleScore();
+  const l=window._ucActiveLook();
+  const capNow=(window._ucItem(l.bag)&&window._ucItem(l.bag).st.capacity)||INV_BASE_CAP;
+  const rotOf=(id)=>{
+    if(rot.drop.itemIds.includes(id)) return {label:'DROP',color:'#e91e8c'};
+    if(rot.capsule.includes(id)) return {label:'EVENT',color:'#8a6ae0'};
+    if(rot.seasonal.includes(id)) return {label:'SEZON',color:'#40b0e0'};
+    if(rot.clearance.includes(id)) return {label:'−10%',color:'#e8a020'};
+    return null;
+  };
+  const tab=window._ucTab;
+  let body='';
+  if(tab==='wishlist'){
+    body=u.wishlist.length?`<div class="shopgrid">${u.wishlist.map(id=>window._ucCard(id,rotOf(id))).join('')}</div>`
+      :'<p style="color:#667;font-size:13px;padding:14px 0">Lista życzeń jest pusta. Dodaj produkty gwiazdką ⭐ na karcie albo w CrownFit Studio.</p>';
+  } else if(tab==='wardrobe'){
+    const mine=UC_CATALOG.filter(i=>window._ucOwned(i.id));
+    body=`<div class="shopgrid">${mine.map(i=>window._ucCard(i.id,rotOf(i.id))).join('')}</div>`;
+  } else if(tab==='drops'){
+    const b=UC_BRANDS[rot.drop.brandId];
+    body=`<div style="background:#1a0e1e;border-left:3px solid #e91e8c;border-radius:8px;padding:10px 12px;margin-bottom:10px">
+        <div style="font-weight:800;color:#f0a8d8">🔥 Brand Drop: ${b?b.name:''}</div>
+        <div style="font-size:11px;color:#a898b0;margin-top:3px">${b?b.segment+' — '+b.visual:''}</div></div>
+      <div class="shopgrid">${rot.drop.itemIds.map(id=>window._ucCard(id,{label:'DROP',color:'#e91e8c'})).join('')}</div>
+      <h3 style="color:#8a6ae0;margin:16px 0 6px;font-size:14px">🎟 Kapsuła eventowa</h3>
+      <div class="shopgrid">${rot.capsule.length?rot.capsule.map(id=>window._ucCard(id,{label:'EVENT',color:'#8a6ae0'})).join(''):'<p style="color:#667;font-size:12px">Brak aktywnego eventu — kapsuła pojawi się przy wydarzeniu w Eclipse Noir albo Marina Coast.</p>'}</div>
+      <h3 style="color:#40b0e0;margin:16px 0 6px;font-size:14px">🗓 Kolekcja sezonowa</h3>
+      <div class="shopgrid">${rot.seasonal.map(id=>window._ucCard(id,{label:'SEZON',color:'#40b0e0'})).join('')}</div>
+      <h3 style="color:#e8a020;margin:16px 0 6px;font-size:14px">🏷 Wyprzedaż</h3>
+      <div class="shopgrid">${rot.clearance.map(id=>window._ucCard(id,{label:'−10%',color:'#e8a020'})).join('')}</div>`;
+  } else {
+    const items=UC_CATALOG.filter(i=>i.cat===tab);
+    body=`<div class="shopgrid">${items.map(i=>window._ucCard(i.id,rotOf(i.id))).join('')}</div>`;
+  }
+  const tabBtn=(id,label)=>`<button class="cbtn" style="font-size:11px;padding:6px 9px;margin:2px;border-color:${window._ucTab===id?'#e91e8c':'#2a3a50'};color:${window._ucTab===id?'#ffd0ec':'#cdd'}" onclick="window._ucSetTab('${id}')">${label}</button>`;
+
+  document.getElementById('ov-content').innerHTML=`
+    <div id="uc-panel">
+    <h2>👑 URBAN CROWN</h2>
+    <p class="sub">Miejski dom mody. Marki, kolekcje i podgląd stylizacji przed zakupem.</p>
+    <div style="background:#12101c;border:1px solid #2a1f3a;border-radius:10px;padding:10px 12px;margin-bottom:11px;font-size:12px;color:#cdd">
+      Aktualny strój: <b style="color:#f0c8e8">${window._ucName(l.outfit)}</b><br>
+      Aktywny Drip: <b style="color:#c8a520">${score.drip}</b> · Prezentacja: <b style="color:#7ec8e3">${score.presentation}</b><br>
+      Obuwie: <b>${l.footwear?window._ucShortName(l.footwear):'brak'}</b> · Dodatek: <b>${l.accessory?window._ucShortName(l.accessory):'brak'}</b><br>
+      Plecak: <b>${l.bag?window._ucShortName(l.bag):'brak'}</b> — ekwipunek ${capNow} miejsc
+    </div>
+    <div style="margin-bottom:10px">${UC_SECTIONS.map(([c,lab])=>tabBtn(c,lab)).join('')}${tabBtn('drops','🔥 Nowości i dropy')}${tabBtn('wishlist','⭐ Lista życzeń')}${tabBtn('wardrobe','🚪 Moja garderoba')}</div>
+    ${body}
+    <div class="res" id="shop-res">Wybierz produkt albo otwórz CrownFit Studio.</div>
+    <button class="cbtn" onclick="closeOverlay()">← Wróć</button>
+    </div>`;
+};
+/* ── Synchronizacja ze starą tablicą OUTFIT_CATALOG (ekwipunek, garderoba, sklep Lumpeks).
+   Jedno źródło nazw i premii: wpisy migrowane dostają nową nazwę/opis, a 31 nowych strojów
+   zostaje DOPISANYCH, żeby były widoczne także poza panelem Urban Crown (kryterium 3 i 4). ── */
+(function(){
+  if(typeof OUTFIT_CATALOG==='undefined') return;
+  const EMO={daily:'👕',street:'🧥',stage:'🎤',formal:'👔',sport:'🏋',utility:'🦺',weather:'🧣'};
+  UC_CATALOG.filter(i=>i.slot==='outfit').forEach(i=>{
+    const bonus=window._ucBonusText(i.id)||'Brak';
+    const name=window._ucName(i.id);
+    const old=OUTFIT_CATALOG.find(o=>o.id===i.id);
+    if(old){ old.name=name; old.desc=i.look; old.bonus=bonus; old.price=i.price; }
+    else OUTFIT_CATALOG.push({id:i.id,name:name,desc:i.look,price:i.price,emoji:EMO[i.cat]||'👕',bonus:bonus});
+  });
+})();
+/* ═══════════════════════════════════════════════════════════════════════════
+   URBAN CROWN MODULE END
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+
+
 
 
 /* ═══ DOŁEK JAKO CHODZALNA CELA (user: „fizyczne, nie panel") ═══
@@ -59525,7 +60491,7 @@ function startBenchPressMG(weight,equip){
   // Check daily limit (siła osobno od cardio)
   if(!G._gymSets||G._gymSets.day!==G.day) G._gymSets={day:G.day,count:0,cardio:0,strength:0};
   if(typeof G._gymSets.strength!=='number') G._gymSets.strength=0;
-  const gymMax=(G.outfit&&G.outfit.top==='sport_pro')?3:2;
+  const gymMax=2+((typeof window._ucSessions==='function')?window._ucSessions().str:0);
   if(G._gymSets.strength>=gymMax){
     notify('💪 Dzienny limit ławki/wyciągu osiągnięty ('+gymMax+' sesje). Wróć jutro!','r');closeMG();
     return;
@@ -59916,7 +60882,7 @@ function startBikeMG(){
   if(!G._gymSets||G._gymSets.day!==G.day) G._gymSets={day:G.day,count:0,cardio:0,strength:0};
   const el=document.getElementById('mg-job'); if(!el) return;
   el.style.display='flex'; el.classList.add('on');
-  const cardioMax=(G.outfit&&G.outfit.top==='sport_pro')?3:2;
+  const cardioMax=2+((typeof window._ucSessions==='function')?window._ucSessions().cardio:0);
   if((G._gymSets.cardio||0)>=cardioMax){
     el.innerHTML=`<div style="text-align:center;padding:20px"><div style="font-size:36px;margin-bottom:12px">😴</div><h2 style="color:#e74c3c">Dzienny limit cardio!</h2><p style="color:#aaa">Już wyćwiczyłeś ${cardioMax} sesje cardio dzisiaj (bieżnia/rowerek). Wróć jutro!</p><button onclick="closeMG()" class="cbtn">Wyjdź</button></div>`;
     window._jobMgCleanup=()=>{el.classList.remove('on');el.style.display='none';el.innerHTML='<div id="mg-job-content"></div>';};
@@ -59979,7 +60945,7 @@ function startTreadmillMG(speed){
     el.style.display='flex';el.classList.add('on');
     // v2.1.971: dźwięk wejścia w interakcję z bieżnią (custom SFX, no-op gdy brak URL).
     if(typeof playSfxSample==='function') playSfxSample('treadmill_enter',{vol:0.6});
-    const cardioMax=(G.outfit&&G.outfit.top==='sport_pro')?3:2;
+    const cardioMax=2+((typeof window._ucSessions==='function')?window._ucSessions().cardio:0);
     if((G._gymSets.cardio||0)>=cardioMax){
       el.innerHTML=`<div style="text-align:center;padding:20px"><div style="font-size:36px;margin-bottom:12px">😴</div><h2 style="color:#e74c3c">Dzienny limit osiągnięty!</h2><p style="color:#aaa">Już wyćwiczyłeś ${cardioMax} sesje cardio (bieżnia) dzisiaj. Wróć jutro!</p><button onclick="closeMG()" class="cbtn">Wyjdź</button></div>`;
       return;
@@ -60009,7 +60975,7 @@ function startTreadmillMG(speed){
   // v2.1.971: gracz kliknął tryb (wybrał tempo) → losowy z 2 dźwięków wyboru (custom SFX, no-op gdy brak URL).
   if(typeof playSfxSample==='function') playSfxSample('treadmill_mode',{vol:0.6});
   // Check daily limit before starting (cardio osobno od strength) — sport_pro daje +1 sesja
-  const _cardioMax=(G.outfit&&G.outfit.top==='sport_pro')?3:2;
+  const _cardioMax=2+((typeof window._ucSessions==='function')?window._ucSessions().cardio:0);
   if((G._gymSets.cardio||0)>=_cardioMax){
     notify(`🏃 Dzienny limit bieżni osiągnięty (${_cardioMax} sesje). Wróć jutro!`,'r');closeMG();return;
   }
@@ -75928,8 +76894,15 @@ window._s9AfterDeal=function(npcId,priceTier){
 };
 const PATCH_NOTES = [
  {
- ver:'v2.3.128',date:'2026-07-28',cats:['feature'],title:'🚗 Nowe marki samochodów — cały salon dostał własny, spójny rynek motoryzacyjny',
+ ver:'v2.3.128',date:'2026-07-28',cats:['feature'],title:'👑 Urban Crown i CrownFit Studio — nowe marki ubrań, przymierzalnia i nowe marki samochodów',
  items:[
+  {t:'feature',d:'👑 Sklep z ubraniami zmienił się w URBAN CROWN — miejski dom mody z 13 markami. BaseLine Division to tanie ubrania startowe, DeadSignal i Oldline Denim robią streetwear, Blackwire skórę i klimat nocnych klubów, Mirage Society luksus, SignalRoom i Neon Parish stroje sceniczne, Blackframe Atelier garnitury i smokingi, Motion Dept. sport, Field Unit odzież roboczą, NorthArc kurtki pogodowe, a CarryGrid plecaki i torby.'},
+  {t:'feature',d:'🧥 Oferta urosła z 17 do 48 strojów, doszła też zupełnie nowa sekcja: 5 par butów, 3 dodatki (czapka, szal, zegarek) oraz 3 nowe torby. Każdy produkt ma markę, opis wyglądu, materiał, sylwetkę i czytelną listę tego, co daje w grze.'},
+  {t:'feature',d:'🪞 Nowość: CROWNFIT STUDIO — przymierzalnia. Zanim wydasz kasę, obejrzysz swoją postać w wybranym stroju z ośmiu stron, w sześciu pozach i siedmiu kontekstach (studio, ulica w dzień i w nocy, scena, gala, mróz i deszcz, trening). Podmienisz buty, dodatek i plecak, sprawdzisz kolory i zobaczysz porównanie teraz kontra po zmianie. Wyjście bez zakupu niczego nie zmienia.'},
+  {t:'change',d:'💎 Drip przestał być drugą sławą. Ubrania budują teraz Drip i prezentację, a jednorazowe premie (reputacja uliczna, szum w sieci) dostajesz raz — przy pierwszym publicznym debiucie stroju, maksymalnie jeden szum dziennie. Koniec z podbijaniem sławy samym przebieraniem się.'},
+  {t:'change',d:'🎭 Strój musi pasować do sytuacji. Smoking pomaga na gali i dużym evencie, ale nie na nocnym występie w klubie. Zestaw roboczy działa na zleceniach fizycznych, sportowy na treningu, a kurtki pogodowe wyłącznie przy odpowiedniej aurze. Premie do zleceń są przypisane do konkretnych rodzajów pracy, a mnożniki koncertowe mają wspólny limit.'},
+  {t:'new',d:'🔥 Sklep dostał rotujące kolekcje: Brand Drop jednej marki, kolekcja sezonowa, kapsuła eventowa i wyprzedaż z rabatem. Doszła też lista życzeń i zakładka Moja garderoba. Rotacja nigdy nie zabiera produktów, które już masz.'},
+  {t:'fix',d:'💾 Twoje ubrania, plecaki i postęp zostają nietknięte. Stare stroje mają po prostu nowe nazwy, a plecak kupiony wcześniej zachowuje dokładnie tę samą pojemność.'},
   {t:'feature',d:'🚗 Wszystkie 45 samochodów osobowych ma teraz nazwy z własnego świata gry zamiast dawnych przeróbek prawdziwych marek. Za autami stoi 17 producentów, każdy z własnym charakterem: Rovan to rozsądne auta miejskie i rodzinne, Nahara stawia na niezawodność, Vahl na sportowe premium, Ardent na luksus reprezentacyjny, Vantori na egzotyczne supersamochody, a Aethon buduje hipersamochody w minimalnych seriach.'},
   {t:'feature',d:'🏷️ Karta w salonie pokazuje teraz markę nad nazwą modelu, pełny opis auta oraz czytelną linię z bonusem prędkości i sławy. Dzięki temu od razu widzisz, czym różnią się modele w tej samej klasie i do czego dany producent został stworzony.'},
   {t:'change',d:'🚐 Kampery przeniosły się do osobnej zakładki w salonie. Wcześniej ich nagłówek wisiał nad listą klas samochodów osobowych i mylił — teraz wybierasz świadomie: samochody osobowe albo mobilne zaplecze.'},
