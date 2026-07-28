@@ -29519,6 +29519,8 @@ function nextPeriod(){
     if(typeof window._spDailyTick==='function') window._spDailyTick();
     /* VANTAGE WORKS: dobowe rozliczenie firmy — dostawy wyposażenia, zlecenia legalne, partie, dystrybucja, kontrole i tydzień. */
     if(typeof window._vwDailyTick==='function') window._vwDailyTick();
+    /* Gigi 2.0: dobowy reset licznika zleceń i rotacja ofert. */
+    if(typeof window._ggDailyTick==='function') window._ggDailyTick();
     /* v2.3.109 (PDF13 TIER 13.7): integracje kariera/S9/sponsor (jednorazowe boosty przy progach jakości/prestiżu). */
     if(typeof window._studioApplyIntegrations==='function') window._studioApplyIntegrations();
     // ── Merch — dzienne sprzedaże, trendy, marketing ──
@@ -56137,6 +56139,729 @@ window._vwCoffee=function(){
    VANTAGE WORKS MODULE END
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   GIGI 2.0 MODULE START — PDF „Moduł Gigi 2.0" (§1-65).
+   Panel Gigi zmienia się w dynamiczną miejską tablicę krótkich zleceń: codzienna rotacja
+   6-10 ofert, limity, cooldowny, reputacja wykonawcy i osobna relacja z każdym pracodawcą,
+   dynamiczne stawki, oferty last minute, zmęczenie, konflikty harmonogramu i losowe sytuacje.
+   Minigry oparte na WSPÓLNYCH SZABLONACH — to rekomendacja samego PDF (§64: „wykorzystanie
+   wspólnych szablonów mechanicznych", wniosek końcowy: „wspólne szablony minigier").
+   ⚠️ Zasada §2: Gigi mają pomagać przetrwać i dorobić — nie mogą być szybszą drogą do majątku
+   niż muzyka i firma. Stąd limit 4/dzień, cooldowny i realny koszt energii.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* §51 Pracodawcy przypisani do dzielnic i lokacji */
+const GG_EMPLOYERS={
+  city_logistics:   {id:'city_logistics',   name:'Northline Logistics',      district:'city'},
+  market_retail:    {id:'market_retail',    name:'Supermarket Fresh Point',  district:'city'},
+  move_crew:        {id:'move_crew',        name:'Ekipa przeprowadzkowa Wilk',district:'city'},
+  clean_service:    {id:'clean_service',    name:'ClearShift Serwis',        district:'city'},
+  food_truck:       {id:'food_truck',       name:'Food truck Brzeg',         district:'city'},
+  pet_care:         {id:'pet_care',         name:'Psia Ekipa',               district:'city'},
+  sunset_palms:     {id:'sunset_palms',     name:'SUNSET PALMS Staffing',    district:'coast'},
+  marina_rent:      {id:'marina_rent',      name:'Marina Rentals',           district:'coast'},
+  eclipse_noir:     {id:'eclipse_noir',     name:'Eclipse Noir Crew',        district:'business'},
+  aureum_green:     {id:'aureum_green',     name:'Aureum Green Obsługa',     district:'business'},
+  stage_crew:       {id:'stage_crew',       name:'Ekipa sceniczna Marcina',  district:'city'},
+  artist_merch:     {id:'artist_merch',     name:'Merch Team',               district:'city'},
+  vesper_house:     {id:'vesper_house',     name:'Vesper House Staffing',    district:'business'},
+  vantage_works:    {id:'vantage_works',    name:'VANTAGE WORKS Facility',   district:'underground'},
+  research_agency:  {id:'research_agency',  name:'Agencja Badawcza Punkt',   district:'city'},
+  media_studio:     {id:'media_studio',     name:'Studio Podcastowe Kanał',  district:'city'},
+  city_services:    {id:'city_services',    name:'Usługi Miejskie',          district:'city'},
+  bike_share:       {id:'bike_share',       name:'Miejski Rower',            district:'city'},
+  conference:       {id:'conference',       name:'Centrum Konferencyjne',    district:'business'},
+  photo_crew:       {id:'photo_crew',       name:'Ekipa Fotograficzna',      district:'city'},
+  drip_district:    {id:'drip_district',    name:'Urban Crown Concierge',    district:'city'},
+  location_scout:   {id:'location_scout',   name:'Location Scout Biuro',     district:'city'},
+};
+/* §64 Wspólne szablony minigier — 6 mechanik, parametryzowanych per zlecenie. */
+const GG_TEMPLATES={
+  sort:  {name:'sortowanie',    desc:'Dopasuj element do właściwej kategorii, zanim skończy się czas.'},
+  route: {name:'planowanie trasy',desc:'Ustal kolejność punktów i reaguj na zdarzenia po drodze.'},
+  memory:{name:'pamięć',        desc:'Zapamiętaj zestaw i odtwórz go bez pomyłki.'},
+  timing:{name:'timing',        desc:'Zatrzymaj wskaźnik w polu trafienia — im celniej, tym lepszy wynik.'},
+  judge: {name:'ocena sytuacji',desc:'Oceń przypadek i podejmij właściwą decyzję.'},
+  react: {name:'refleks',       desc:'Reaguj na zgłoszenia w kolejce, zanim zdążą się spiętrzyć.'},
+};
+/* §7-§48 Katalog 42 nowych zleceń. tags = filtry §3, tpl = szablon minigry,
+   pay = widełki §6, en = koszt energii, dur = godziny (§55), emp = pracodawca. */
+const GG_JOBS=[
+ {id:'gg_courier',      name:'Kurier miejski',            em:'🚴', tpl:'route', pay:[140,280], en:7, dur:2, diff:'Średnia',  emp:'city_logistics', tags:['fast','vehicle'],      desc:'Dostarcz kilka przesyłek przed upływem czasu. Wybieraj kolejność punktów i reaguj na opóźnienia w mieście.'},
+ {id:'gg_shelves',      name:'Sklep — wykładanie towaru', em:'🧺', tpl:'sort',  pay:[110,210], en:6, dur:2, diff:'Łatwa',    emp:'market_retail',  tags:['fast','physical'],     desc:'Układaj produkty na właściwych półkach zgodnie z kategorią, ceną i oznaczeniem. Pomyłki obniżają ocenę zmiany.'},
+ {id:'gg_moving',       name:'Pomoc przy przeprowadzce',  em:'📦', tpl:'timing',pay:[200,420], en:9, dur:4, diff:'Trudna',   emp:'move_crew',      tags:['physical'],            desc:'Przenoś meble i kartony, pilnując równowagi, trasy oraz ograniczonej energii.'},
+ {id:'gg_apartment',    name:'Sprzątanie apartamentu',    em:'🧽', tpl:'sort',  pay:[150,300], en:7, dur:3, diff:'Średnia',  emp:'clean_service',  tags:['physical'],            desc:'Znajdź zabrudzenia i wykonuj czynności w odpowiedniej kolejności.'},
+ {id:'gg_dishes',       name:'Zmywak po evencie',         em:'🍽', tpl:'sort',  pay:[120,240], en:8, dur:3, diff:'Średnia',  emp:'stage_crew',     tags:['physical','event'],    desc:'Sortuj naczynia, pilnuj kolejności i nie dopuść do przepełnienia zlewu.'},
+ {id:'gg_foodtruck',    name:'Food truck — wydawka',      em:'🌮', tpl:'memory',pay:[160,320], en:7, dur:3, diff:'Średnia',  emp:'food_truck',     tags:['fast','event'],        desc:'Zapamiętuj zamówienia, przygotowuj składniki i wydawaj je we właściwej kolejności.'},
+ {id:'gg_dogs',         name:'Wyprowadzanie psów',        em:'🐕', tpl:'react', pay:[100,230], en:5, dur:2, diff:'Łatwa',    emp:'pet_care',       tags:['fast'],                desc:'Pilnuj trasy, nastroju psa i reakcji na inne zwierzęta oraz przechodniów.'},
+ {id:'gg_beach_clean',  name:'Plaża — sprzątanie',        em:'🏖', tpl:'sort',  pay:[120,260], en:6, dur:2, diff:'Łatwa',    emp:'sunset_palms',   tags:['physical','district'], district:'coast', desc:'Zbieraj odpady i sortuj je przed rozpoczęciem największego ruchu.'},
+ {id:'gg_beach_rent',   name:'Obsługa wypożyczalni plażowej',em:'🏄',tpl:'react',pay:[160,310],en:6, dur:3, diff:'Średnia',  emp:'marina_rent',    tags:['district'],            district:'coast', desc:'Dobieraj sprzęt do potrzeb klientów, pilnuj czasu zwrotu i stanu wyposażenia.'},
+ {id:'gg_loungers',     name:'Leżaki i strefa plażowa',   em:'⛱', tpl:'timing',pay:[130,260], en:7, dur:3, diff:'Średnia',  emp:'sunset_palms',   tags:['physical','district'], district:'coast', desc:'Ustaw leżaki, parasole i stoliki zgodnie z planem, nie blokując przejść.'},
+ {id:'gg_cloakroom',    name:'Szatnia klubowa',           em:'🧥', tpl:'react', pay:[150,300], en:6, dur:4, diff:'Średnia',  emp:'eclipse_noir',   tags:['night','event'],       night:true, desc:'Przyjmuj i wydawaj okrycia bez pomyłek, gdy kolejka rośnie.'},
+ {id:'gg_valet',        name:'Valet — parking',           em:'🅿️', tpl:'route', pay:[250,500], en:7, dur:4, diff:'Trudna',   emp:'aureum_green',   tags:['vehicle','night'],     reqVehicle:true, desc:'Odbieraj pojazdy gości i ustawiaj je w wyznaczonych miejscach.'},
+ {id:'gg_stage_build',  name:'Montaż sceny',              em:'🏗', tpl:'timing',pay:[220,450], en:9, dur:4, diff:'Trudna',   emp:'stage_crew',     tags:['physical','event'],    desc:'Układaj elementy sceny, przewody i barierki zgodnie z planem.'},
+ {id:'gg_backstage',    name:'Backstage runner',          em:'🎫', tpl:'react', pay:[180,400], en:7, dur:3, diff:'Średnia',  emp:'stage_crew',     tags:['event','fast'],        desc:'Realizuj krótkie polecenia ekipy technicznej i artystów, wracając na czas.'},
+ {id:'gg_merch_stand',  name:'Stoisko z merchem',         em:'👕', tpl:'react', pay:[180,360], en:6, dur:3, diff:'Średnia',  emp:'artist_merch',   tags:['event'],               desc:'Obsługuj fanów, dobieraj rozmiary, licz resztę i pilnuj stanu stoiska.'},
+ {id:'gg_catering',     name:'Catering backstage',        em:'🥪', tpl:'memory',pay:[180,360], en:7, dur:3, diff:'Średnia',  emp:'stage_crew',     tags:['event'],               desc:'Przygotuj właściwe zestawy dla ekipy, artystów i gości z wymaganiami.'},
+ {id:'gg_bellboy',      name:'Hotel — bagażowy',          em:'🛎', tpl:'route', pay:[160,340], en:7, dur:3, diff:'Średnia',  emp:'vesper_house',   tags:['district'],            district:'business', desc:'Dostarczaj bagaże do właściwych pokoi, obsługuj windę i kolejność zgłoszeń.'},
+ {id:'gg_hotel_room',   name:'Hotel — przygotowanie pokoju',em:'🛏',tpl:'memory',pay:[160,320],en:7, dur:3, diff:'Średnia',  emp:'vesper_house',   tags:['district'],            district:'business', desc:'Przygotuj pokój zgodnie ze standardem i specjalnymi wymaganiami gościa.'},
+ {id:'gg_inventory',    name:'Inwentaryzacja biurowa',    em:'📋', tpl:'sort',  pay:[180,390], en:5, dur:3, diff:'Trudna',   emp:'vantage_works',   tags:['creative'],           desc:'Porównuj rzeczywiste stany sprzętu z listą i oznaczaj niezgodności.'},
+ {id:'gg_office_clear', name:'Przygotowanie biura po najemcy',em:'🧹',tpl:'sort',pay:[220,440],en:9, dur:4, diff:'Trudna',   emp:'vantage_works',   tags:['physical'],           desc:'Sortuj pozostawione wyposażenie na rzeczy do magazynu, recyklingu i utylizacji.'},
+ {id:'gg_mystery',      name:'Mystery shopper',           em:'🕵', tpl:'judge', pay:[180,380], en:4, dur:2, diff:'Trudna',   emp:'research_agency',tags:['creative'],            desc:'Odwiedź lokal, zapamiętaj zachowanie obsługi i odpowiedz na pytania z ankiety.'},
+ {id:'gg_surveyor',     name:'Ankieter terenowy',         em:'📝', tpl:'judge', pay:[120,260], en:5, dur:3, diff:'Średnia',  emp:'research_agency',tags:['fast'],                desc:'Dobieraj właściwych przechodniów i przeprowadzaj krótkie rozmowy.'},
+ {id:'gg_reception',    name:'Recepcja zastępcza',        em:'☎️', tpl:'judge', pay:[180,360], en:5, dur:4, diff:'Średnia',  emp:'vantage_works',   tags:['creative'],           desc:'Odbieraj telefony, kieruj gości i zapisuj krótkie informacje bez pomyłek.'},
+ {id:'gg_podcast',      name:'Podcast — asystent nagrania',em:'🎙',tpl:'react', pay:[220,420], en:5, dur:3, diff:'Trudna',   emp:'media_studio',   tags:['creative'],            desc:'Pilnuj poziomów, kolejności segmentów i sygnałów prowadzącego.'},
+ {id:'gg_voice',        name:'Lektor reklamowy',          em:'🔊', tpl:'timing',pay:[250,500], en:4, dur:2, diff:'Trudna',   emp:'media_studio',   tags:['creative'],            desc:'Powtarzaj tekst zgodnie z rytmem i oznaczoną emocją.'},
+ {id:'gg_edit',         name:'Montaż krótkiego materiału',em:'🎞', tpl:'judge', pay:[240,520], en:5, dur:3, diff:'Trudna',   emp:'media_studio',   tags:['creative'],            desc:'Wybierz najlepsze ujęcia i ułóż je w odpowiedniej kolejności.'},
+ {id:'gg_moderator',    name:'Moderator transmisji',      em:'💬', tpl:'judge', pay:[160,340], en:4, dur:2, diff:'Średnia',  emp:'media_studio',   tags:['creative','night'],    desc:'Rozpoznawaj spam, zwykłe pytania i agresywne komentarze pod transmisją.'},
+ {id:'gg_tech_driver',  name:'Kierowca techniczny',       em:'🚚', tpl:'route', pay:[300,650], en:8, dur:5, diff:'Trudna',   emp:'stage_crew',     tags:['vehicle','event'],     reqVehicle:true, desc:'Dostarcz sprzęt eventowy na miejsce i pilnuj terminów odbioru.'},
+ {id:'gg_club_night',   name:'Nocne sprzątanie klubu',    em:'🧴', tpl:'sort',  pay:[220,440], en:9, dur:4, diff:'Średnia',  emp:'eclipse_noir',   tags:['night','physical'],    night:true, desc:'Oczyść sektory klubu, znajdź pozostawione przedmioty i zgłoś usterki.'},
+ {id:'gg_apart_service',name:'Serwis apartamentów',       em:'🏨', tpl:'react', pay:[180,380], en:7, dur:3, diff:'Średnia',  emp:'clean_service',  tags:['physical'],            desc:'Sprawdź lokal po gościach, uzupełnij wyposażenie i przygotuj go na kolejny wynajem.'},
+ {id:'gg_bikes',        name:'Miejski rower — relokacja', em:'🚲', tpl:'route', pay:[140,300], en:7, dur:3, diff:'Średnia',  emp:'bike_share',     tags:['physical','fast'],     desc:'Przenieś rowery pomiędzy przepełnionymi i pustymi stacjami.'},
+ {id:'gg_snow',         name:'Odśnieżanie i sól',         em:'❄️', tpl:'timing',pay:[180,360], en:9, dur:3, diff:'Średnia',  emp:'city_services',  tags:['seasonal','physical'], season:'zima', desc:'Oczyść wyznaczone przejścia i rozprowadź sól przed godzinami szczytu.'},
+ {id:'gg_leaves',       name:'Jesienne liście',           em:'🍂', tpl:'sort',  pay:[100,220], en:6, dur:2, diff:'Łatwa',    emp:'city_services',  tags:['seasonal','physical'], season:'jesień', desc:'Oczyść teren, grupuj liście i pilnuj pojemności worków.'},
+ {id:'gg_decor',        name:'Dekorowanie wydarzenia',    em:'🎈', tpl:'timing',pay:[180,400], en:6, dur:3, diff:'Średnia',  emp:'stage_crew',     tags:['event','creative'],    desc:'Ustaw elementy dekoracji zgodnie z motywem, kolorystyką i planem sceny.'},
+ {id:'gg_tickets',      name:'Kontrola wejściówek',       em:'🎟', tpl:'judge', pay:[170,340], en:6, dur:3, diff:'Średnia',  emp:'eclipse_noir',   tags:['event','night'],       desc:'Weryfikuj bilety, identyfikuj duplikaty i kieruj gości do właściwych stref.'},
+ {id:'gg_conference',   name:'Pomoc techniczna na konferencji',em:'💻',tpl:'react',pay:[250,520],en:6,dur:4, diff:'Trudna',   emp:'conference',     tags:['creative','district'], district:'business', desc:'Reaguj na problemy z ekranem, prezentacją i harmonogramem wystąpień.'},
+ {id:'gg_merch_wh',     name:'Obsługa magazynu merchu artysty',em:'🏷',tpl:'sort',pay:[180,380],en:7,dur:3, diff:'Średnia',  emp:'artist_merch',   tags:['physical'],            desc:'Dobieraj odpowiedni produkt, rozmiar i wariant, a następnie kompletuj wysyłki.'},
+ {id:'gg_photo_runner', name:'Runner fotograficzny',      em:'📷', tpl:'react', pay:[180,360], en:5, dur:3, diff:'Średnia',  emp:'photo_crew',     tags:['creative'],            desc:'Przynoś właściwe obiekty, ustawiaj tło i reaguj na polecenia fotografa.'},
+ {id:'gg_info_point',   name:'Miejski event — punkt informacyjny',em:'ℹ️',tpl:'judge',pay:[150,310],en:5,dur:3,diff:'Średnia',emp:'city_services', tags:['event','fast'],        desc:'Kieruj uczestników do scen, toalet, wejść i punktów medycznych.'},
+ {id:'gg_vip_host',     name:'Opiekun gościa specjalnego',em:'🤵', tpl:'judge', pay:[450,850], en:8, dur:5, diff:'Trudna',   emp:'vesper_house',   tags:['premium','night'],     premium:true, reqRating:4.2, desc:'Pilnuj harmonogramu zaproszonego gościa i dbaj, żeby pojawił się we właściwym miejscu o właściwej porze.'},
+ {id:'gg_personal_shop',name:'Personal shopper',          em:'🛍', tpl:'judge', pay:[400,800], en:6, dur:4, diff:'Trudna',   emp:'drip_district',  tags:['premium','creative'],  premium:true, reqRating:4.0, desc:'Znajdź przedmioty odpowiadające budżetowi, stylowi i wymaganiom klienta.'},
+ {id:'gg_location',     name:'Asystent lokalizacyjny',    em:'🗺', tpl:'judge', pay:[400,900], en:7, dur:5, diff:'Trudna',   emp:'location_scout', tags:['premium','creative'],  premium:true, reqRating:4.2, desc:'Sprawdź kilka miejsc i wybierz najlepsze dla klipu, reklamy albo sesji.'},
+];
+/* §56 Losowe sytuacje niezwiązane z minigrą — jedna na zlecenie */
+const GG_EVENTS=[
+ {id:'lost',    text:'Znajdujesz zgubę klienta i oddajesz ją bez pytania.',            rep:+0.06, pay:0.03},
+ {id:'rain',    text:'Zaczyna padać — robota idzie wolniej, ale nikt nie narzeka.',    rep:0,     pay:0,    fatigue:2},
+ {id:'rude',    text:'Klient jest opryskliwy bez powodu. Kończysz spokojnie.',         rep:+0.03, pay:0},
+ {id:'extra',   text:'Zleceniodawca prosi o drobną dodatkową przysługę.',              rep:+0.04, pay:0.05, fatigue:1},
+ {id:'recog',   text:'Ktoś Cię rozpoznaje z sieci. Robi się nieco dziwnie.',           rep:0,     pay:0,    fans:12},
+ {id:'contact', text:'Poznajesz kogoś z branży. Wymieniacie się kontaktem.',           rep:+0.05, pay:0,    contact:true},
+ {id:'break',   text:'Sprzęt się psuje w połowie zmiany. Trzeba improwizować.',        rep:-0.04, pay:-0.05},
+ {id:'late',    text:'Poprzednia zmiana nie zeszła na czas — zaczynasz z opóźnieniem.',rep:-0.03, pay:0,    fatigue:1},
+];
+
+/* ── §4 Stan modułu (save-safe lazy ensure) ─────────────────────────────────── */
+window._ggEnsure=function(){
+  if(!G.gigs||typeof G.gigs!=='object') G.gigs={};
+  const g=G.gigs;
+  if(g.jobsCompletedToday==null) g.jobsCompletedToday=0;
+  if(g.lastGigDay==null) g.lastGigDay=null;
+  if(g.contractorRating==null) g.contractorRating=3.0;
+  ['reliability','punctuality','accuracy','customerService','physicalWork'].forEach(k=>{ if(g[k]==null) g[k]=0; });
+  if(!Array.isArray(g.completedGigIds)) g.completedGigIds=[];
+  if(!Array.isArray(g.failedGigIds)) g.failedGigIds=[];
+  if(!g.employerRelations||typeof g.employerRelations!=='object') g.employerRelations={};
+  if(!Array.isArray(g.activeOffers)) g.activeOffers=[];
+  if(g.offerRefreshDay==null) g.offerRefreshDay=null;
+  if(g.premiumGigsUnlocked==null) g.premiumGigsUnlocked=false;
+  if(!g.temporaryBans||typeof g.temporaryBans!=='object') g.temporaryBans={};
+  if(!Array.isArray(g.history)) g.history=[];
+  if(g.lastMinuteDay==null) g.lastMinuteDay=-99;
+  if(g.lastMinuteOffer===undefined) g.lastMinuteOffer=null;
+  if(g.emergencyUsedDay==null) g.emergencyUsedDay=-99;
+  if(!g.employerRatings||typeof g.employerRatings!=='object') g.employerRatings={};
+  if(g.lastGigDay!==(G.day||1)){ g.lastGigDay=G.day||1; g.jobsCompletedToday=0; }
+  return g;
+};
+window._ggJob=function(id){ return GG_JOBS.find(j=>j.id===id)||null; };
+window._ggEmployer=function(id){ return GG_EMPLOYERS[id]||null; };
+window._ggRel=function(empId){
+  const g=window._ggEnsure();
+  if(!g.employerRelations[empId]) g.employerRelations[empId]={relationship:0,completed:0,failed:0,cooldownUntilDay:null};
+  return g.employerRelations[empId];
+};
+/* §49 Poziomy wykonawcy */
+window._ggLevel=function(){
+  const r=window._ggEnsure().contractorRating;
+  if(r>=4.6) return {n:4,name:'Pierwszy wybór',access:'najlepsze oferty, VIP-y i polecenia'};
+  if(r>=4.2) return {n:3,name:'Polecany',access:'zlecenia eventowe i część premium'};
+  if(r>=3.6) return {n:2,name:'Sprawdzony',access:'trudniejsze i dzielnicowe oferty'};
+  if(r>=3.0) return {n:1,name:'Znany z aplikacji',access:'większość zwykłych gigów'};
+  return {n:0,name:'Nowy',access:'łatwe zlecenia'};
+};
+/* §2 Dostępność zlecenia: dzielnice, pora, sezon, pogoda, pojazd, ocena, cooldowny */
+window._ggEligible=function(job,ctx){
+  const g=window._ggEnsure(); ctx=ctx||{};
+  const rel=window._ggRel(job.emp);
+  const day=G.day||1;
+  if(rel.cooldownUntilDay&&day<rel.cooldownUntilDay) return {ok:false,why:'Pracodawca ma przerwę do dnia '+rel.cooldownUntilDay+'.'};
+  if(g.temporaryBans[job.emp]&&day<g.temporaryBans[job.emp]) return {ok:false,why:'Ten pracodawca Cię teraz nie zatrudni.'};
+  const lastDone=(g.history.filter(h=>h.jobId===job.id).slice(-1)[0]||{}).day;
+  const cd=job.premium?4:1;
+  if(lastDone!=null && day-lastDone<cd) return {ok:false,why:'To zlecenie wraca za '+(cd-(day-lastDone))+' dni.'};
+  const lvl=window._ggLevel().n;
+  if(job.premium && (lvl<3 || g.contractorRating<(job.reqRating||4.0))) return {ok:false,why:'Wymaga oceny wykonawcy min. '+(job.reqRating||4.0).toFixed(1)+'.'};
+  if(job.diff==='Trudna' && lvl<2 && !job.premium) return {ok:false,why:'Wymaga poziomu wykonawcy „Sprawdzony".'};
+  if(job.district && !(Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes(job.district))) return {ok:false,why:'Wymaga odblokowanej dzielnicy.'};
+  if(job.reqVehicle && !(G.car||(G.camper&&G.camper.owned))) return {ok:false,why:'Wymaga własnego pojazdu.'};
+  if(job.season){ const s=(typeof getSeason==='function')?getSeason():{id:1};
+    const want=({['wiosna']:0,['lato']:1,['jesień']:2,['zima']:3})[job.season];
+    if(want!=null && s.id!==want) return {ok:false,why:'Zlecenie sezonowe — wraca w innej porze roku.'}; }
+  return {ok:true};
+};
+/* §4 Rotacja: 2-3 łatwe, 2-3 średnie, 1 dzielnicowe, 1 sezonowe/eventowe, opcjonalnie 1 premium */
+window._ggSeed=function(n){ let s=((G.day||1)*7919+n*104729)>>>0; return ()=>{ s=(s*1103515245+12345)>>>0; return s/4294967296; }; };
+window._ggPick=function(pool,n,rnd){ const p=pool.slice(),out=[];
+  while(out.length<n&&p.length) out.push(p.splice(Math.floor(rnd()*p.length),1)[0]);
+  return out; };
+window._ggRefreshOffers=function(force){
+  const g=window._ggEnsure(); const day=G.day||1;
+  if(!force && g.offerRefreshDay===day) return g.activeOffers;
+  const rnd=window._ggSeed(1);
+  const avail=GG_JOBS.filter(j=>window._ggEligible(j).ok);
+  const easy=avail.filter(j=>j.diff==='Łatwa'&&!j.premium);
+  const mid=avail.filter(j=>j.diff==='Średnia'&&!j.premium);
+  const hard=avail.filter(j=>j.diff==='Trudna'&&!j.premium);
+  const dist=avail.filter(j=>j.district);
+  const seasonal=avail.filter(j=>j.season||j.tags.indexOf('event')>=0);
+  const premium=avail.filter(j=>j.premium);
+  const picked=[];
+  const add=(arr)=>arr.forEach(j=>{ if(j&&!picked.some(p=>p.id===j.id)) picked.push(j); });
+  add(window._ggPick(easy,2+Math.floor(rnd()*2),rnd));
+  add(window._ggPick(mid,2+Math.floor(rnd()*2),rnd));
+  add(window._ggPick(hard,1+Math.floor(rnd()*2),rnd));
+  add(window._ggPick(dist,1,rnd));
+  add(window._ggPick(seasonal,1,rnd));
+  if(premium.length && rnd()<0.6) add(window._ggPick(premium,1,rnd));
+  /* trzymamy się widełek 6-10 ofert (§4) */
+  while(picked.length>10) picked.pop();
+  if(picked.length<6) add(window._ggPick(avail.filter(j=>!picked.some(p=>p.id===j.id)),6-picked.length,rnd));
+  g.activeOffers=picked.map(j=>j.id); g.offerRefreshDay=day;
+  /* §53 jedna oferta last minute dziennie */
+  if(g.lastMinuteDay!==day){
+    g.lastMinuteDay=day;
+    const pool=picked.filter(j=>!j.premium);
+    g.lastMinuteOffer=(pool.length&&rnd()<0.45)?{jobId:pool[Math.floor(rnd()*pool.length)].id,
+      reason:['jeden z pracowników nie przyjechał','klient przesunął termin','ekipa nie wyrabia z grafikiem'][Math.floor(rnd()*3)],
+      startInMin:30, taken:false}:null;
+  }
+  return g.activeOffers;
+};
+/* §52 Dynamiczny mnożnik stawki */
+window._ggMarketMult=function(job,opts){
+  const g=window._ggEnsure(); opts=opts||{};
+  let m=1.0;
+  const h=(typeof getHour==='function')?getHour():Math.floor(((G.gameMin||720)%1440)/60);
+  const isNight=!!job.night||h>=22||h<5;
+  const wd=(G.day||1)%7;
+  const badWeather=(G.weather===2||G.weather===3||G.weather===4||G.weather===5);
+  if(isNight) m+=0.15;
+  if(opts.lastMinute) m+=0.20;
+  if(badWeather&&(job.tags.indexOf('physical')>=0||job.tags.indexOf('seasonal')>=0)) m+=0.15;
+  if(wd===5||wd===6) m+=0.10;
+  const er=g.employerRatings[job.emp];
+  if(er!=null&&er<2.5) m+=0.10;
+  if(g.contractorRating>=4.5) m+=0.08;
+  return m;
+};
+/* §6 Wypłata z wyniku */
+window._ggPayout=function(job,score,opts){
+  const g=window._ggEnsure();
+  let mult=0.55;
+  if(score>=40) mult=0.75;
+  if(score>=60) mult=0.90;
+  if(score>=75) mult=1.00;
+  if(score>=90) mult=1.15;
+  if(score>=98) mult=1.25;
+  mult+=g.contractorRating*0.02;
+  const base=job.pay[0]+Math.random()*(job.pay[1]-job.pay[0]);
+  return Math.round(base*mult*window._ggMarketMult(job,opts));
+};
+/* §54 Zmęczenie — Gigi zawsze kosztują */
+window._ggFatigue=function(job,score,opts){
+  let f=job.en;
+  if(score<40) f+=2;
+  if(job.night) f+=3;
+  if((G.energy||100)<30) f+=2;
+  if(opts&&opts.lastMinute) f+=2;
+  if(opts&&opts.emergency) f+=3;
+  return f;
+};
+/* §55 Konflikt harmonogramu — zlecenie zajmuje realny czas gry */
+window._ggConflict=function(job){
+  const h=(typeof getHour==='function')?getHour():Math.floor(((G.gameMin||720)%1440)/60);
+  const end=h+(job.dur||2);
+  const items=[];
+  if(end>=22) items.push('zlecenie skończy się późnym wieczorem');
+  if(G.concertToday||G._concertScheduledDay===(G.day||1)) items.push('masz dziś zaplanowany występ');
+  if(G._studioSessionDay===(G.day||1)) items.push('masz zarezerwowaną sesję w studiu');
+  if(typeof window._spEnsure==='function'){ try{ const sp=window._spEnsure();
+    if(sp.mixerDay===(G.day||1)) items.push('dziś odbywa się Sunset Mixer'); }catch(e){} }
+  if(typeof window._vwEnsure==='function'){ try{ const v=window._vwEnsure();
+    if(v.units.some(u=>u.operations&&u.operations.some(o=>o.status==='in_progress'&&o.deadlineDay===(G.day||1)))) items.push('firma ma dziś termin zlecenia'); }catch(e){} }
+  if(!items.length) return null;
+  return {items:items, risk:items.length>1?'wysokie':'średnie',
+    text:'To zlecenie zajmie około '+(job.dur||2)+' h. '+items.join(', ')+'.'};
+};
+
+/* ═══ §64 Wspólne szablony minigier — jedna implementacja, parametry z definicji zlecenia ═══
+   Każdy szablon renderuje się w panelu #mg-job, zwraca wynik 0-100 i kończy się rozliczeniem. */
+window._ggState=null;
+window._ggStart=function(jobId,opts){
+  const job=window._ggJob(jobId); if(!job) return;
+  const g=window._ggEnsure(); opts=opts||{};
+  const day=G.day||1;
+  /* §5 limity: 4 pełne zlecenia dziennie, piąte tylko jako awaryjne */
+  if(g.jobsCompletedToday>=4 && !opts.emergency){
+    if(typeof showMsg==='function') showMsg('🧰 Masz już 4 zlecenia dzisiaj. Piąte możliwe tylko jako oferta awaryjna — mniej reputacji, więcej energii.','i',5200); return;
+  }
+  if(g.jobsCompletedToday>=5){ if(typeof showMsg==='function') showMsg('🧰 Na dziś koniec. Odpocznij i wróć jutro.','i',4000); return; }
+  if(opts.emergency && g.emergencyUsedDay===day){ if(typeof showMsg==='function') showMsg('🧰 Awaryjne zlecenie już dziś wykorzystane.','i',4000); return; }
+  const el=window._ggEligible(job);
+  if(!el.ok && !opts.lastMinute){ if(typeof showMsg==='function') showMsg('🧰 '+el.why,'r',4500); return; }
+  if((G.energy||0)<job.en){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii ('+Math.floor(G.energy||0)+'/'+job.en+').','r',4000); return; }
+  window._ggState={job:job,opts:opts,score:0,round:0,rounds:6,ok:0,miss:0,timing:null,seq:[],pick:[],points:[],queue:null,item:null,caseObj:null,showing:false,pos:null,done:false,
+    metrics:{punctuality:0,accuracy:0,service:0,care:0}};
+  window._ggRender();
+};
+window._ggPanel=function(){
+  const p=document.getElementById('mg-job'); if(!p) return null;
+  p.style.display=''; p.classList.add('on'); return p;
+};
+window._ggClose=function(){
+  const p=document.getElementById('mg-job'); if(p){ p.classList.remove('on'); p.style.display='none'; }
+  window._ggState=null;
+};
+window._ggRender=function(){
+  const s=window._ggState; if(!s) return; const p=window._ggPanel(); if(!p) return;
+  const c=document.getElementById('mg-job-content')||p;
+  const job=s.job; const tpl=GG_TEMPLATES[job.tpl];
+  const head=`<div style="text-align:center;font-size:17px;font-weight:800;color:#e67e22;margin-bottom:4px">${job.em} ${job.name}</div>
+    <div style="text-align:center;font-size:11px;color:#9ab;margin-bottom:9px">${GG_EMPLOYERS[job.emp].name} · ${tpl.name} · runda ${Math.min(s.round+1,s.rounds)}/${s.rounds}</div>`;
+  let body='';
+  if(job.tpl==='sort'){
+    const cats=window._ggSortCats(job);
+    if(!s.item) s.item=cats[Math.floor(Math.random()*cats.length)];
+    body=`<div style="text-align:center;font-size:13px;color:#cdd;margin-bottom:8px">${tpl.desc}</div>
+      <div style="text-align:center;font-size:34px;margin:8px 0">${s.item.em}</div>
+      <div style="text-align:center;font-size:14px;color:#fff;font-weight:700;margin-bottom:10px">${s.item.name}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center">${cats.map((k,i)=>`<button class="cbtn" style="font-size:12px;padding:7px 10px" onclick="window._ggSortPick(${i})">${k.cat}</button>`).join('')}</div>`;
+  } else if(job.tpl==='route'){
+    if(!s.points.length) s.points=window._ggRoutePoints();
+    body=`<div style="text-align:center;font-size:13px;color:#cdd;margin-bottom:8px">${tpl.desc}</div>
+      <div style="display:flex;flex-direction:column;gap:5px">${s.points.map((pt,i)=>`<button class="cbtn" style="font-size:12px;padding:7px;text-align:left" onclick="window._ggRoutePick(${i})" ${pt.done?'disabled':''}>
+        ${pt.done?'✅':'📍'} ${pt.name} · dystans ${pt.dist} · pilność ${pt.urgency} · opłata ${pt.fee} zł${pt.event?(' · ⚠️ '+pt.event):''}</button>`).join('')}</div>`;
+  } else if(job.tpl==='memory'){
+    if(!s.seq.length) s.seq=window._ggMemorySeq(job);
+    if(s.showing){
+      body=`<div style="text-align:center;font-size:13px;color:#cdd;margin-bottom:10px">Zapamiętaj zestaw:</div>
+        <div style="text-align:center;font-size:30px;letter-spacing:8px">${s.seq.map(x=>x.em).join('')}</div>`;
+    } else {
+      body=`<div style="text-align:center;font-size:13px;color:#cdd;margin-bottom:8px">Odtwórz kolejność (${s.pick.length}/${s.seq.length}):</div>
+        <div style="text-align:center;font-size:24px;letter-spacing:6px;min-height:30px;margin-bottom:8px">${s.pick.map(x=>x.em).join('')||'—'}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center">${window._ggMemoryPool(job).map((x,i)=>`<button class="cbtn" style="font-size:20px;padding:8px 11px" onclick="window._ggMemoryPick(${i})">${x.em}</button>`).join('')}</div>`;
+    }
+  } else if(job.tpl==='timing'){
+    body=`<div style="text-align:center;font-size:13px;color:#cdd;margin-bottom:10px">${tpl.desc}</div>
+      <div id="gg-bar" style="position:relative;height:26px;background:#0a1220;border:1px solid #2a3a50;border-radius:13px;overflow:hidden;margin-bottom:10px">
+        <div style="position:absolute;left:${s.zone||40}%;width:${s.zoneW||20}%;height:100%;background:rgba(46,204,113,.30)"></div>
+        <div id="gg-cursor" style="position:absolute;left:0;top:0;width:4px;height:100%;background:#e67e22"></div>
+      </div>
+      <button class="bbtn" style="width:100%" onclick="window._ggTimingHit()">Zatrzymaj</button>`;
+  } else if(job.tpl==='judge'){
+    if(!s.caseObj) s.caseObj=window._ggJudgeCase(job);
+    body=`<div style="text-align:center;font-size:13px;color:#cdd;margin-bottom:8px">${tpl.desc}</div>
+      <div style="background:#0a1220;border-radius:8px;padding:11px;font-size:13px;color:#cdd;margin-bottom:10px">${s.caseObj.text}</div>
+      <div style="display:flex;flex-direction:column;gap:5px">${s.caseObj.opts.map((o,i)=>`<button class="cbtn" style="font-size:12px;padding:7px" onclick="window._ggJudgePick(${i})">${o.label}</button>`).join('')}</div>`;
+  } else {
+    if(!s.queue) s.queue=window._ggReactQueue(job);
+    body=`<div style="text-align:center;font-size:13px;color:#cdd;margin-bottom:8px">${tpl.desc}</div>
+      <div style="font-size:11px;color:#9ab;text-align:center;margin-bottom:8px">Kolejka: ${s.queue.length} · obsłużone: ${s.ok} · pomyłki: ${s.miss}</div>
+      <div style="display:flex;flex-direction:column;gap:5px">${s.queue.slice(0,4).map((q,i)=>`<button class="cbtn" style="font-size:12px;padding:7px;text-align:left;border-color:${q.urgent?'#e0483a':'#2a3a50'}" onclick="window._ggReactPick(${i})">${q.urgent?'🔴':'⚪'} ${q.text}</button>`).join('')}</div>`;
+  }
+  c.innerHTML=head+body+`<div class="res" id="gg-res" style="margin-top:9px">Wynik: ${Math.round(s.score)}%</div>
+    <button class="cbtn" style="width:100%;margin-top:6px" onclick="window._ggAbort()">Przerwij zlecenie</button>`;
+  if(job.tpl==='timing') window._ggTimingLoop();
+  if(job.tpl==='memory'&&s.showing) setTimeout(()=>{ if(window._ggState){ window._ggState.showing=false; window._ggRender(); } },1400);
+};
+window._ggAbort=function(){
+  const s=window._ggState; if(!s) return;
+  window._ggFinish(Math.max(0,Math.round(s.score*0.4)),{aborted:true});
+};
+/* ── Szablon: sortowanie ── */
+window._ggSortCats=function(job){
+  const sets={
+    gg_shelves:[{cat:'Chłodnia',em:'🥛',name:'Nabiał'},{cat:'Chemia',em:'🧴',name:'Płyn do naczyń'},{cat:'Napoje',em:'🥤',name:'Napój gazowany'},{cat:'Pieczywo',em:'🥖',name:'Bagietka'},{cat:'Elektronika',em:'🔌',name:'Ładowarka'},{cat:'Premium',em:'🍾',name:'Szampan'}],
+    gg_beach_clean:[{cat:'Plastik',em:'🥤',name:'Kubek'},{cat:'Szkło',em:'🍾',name:'Butelka'},{cat:'Papier',em:'📄',name:'Ulotka'},{cat:'Mieszane',em:'🩴',name:'Zgubiony klapek'}],
+    gg_dishes:[{cat:'Szkło',em:'🥂',name:'Kieliszek'},{cat:'Talerze',em:'🍽',name:'Talerz'},{cat:'Sztućce',em:'🍴',name:'Widelec'},{cat:'Garnki',em:'🍲',name:'Garnek'}],
+    gg_leaves:[{cat:'Liście',em:'🍂',name:'Kupka liści'},{cat:'Gałęzie',em:'🪵',name:'Gałąź'},{cat:'Śmieci',em:'🗑',name:'Odpadek'},{cat:'Kompost',em:'🌿',name:'Zielona masa'}],
+    gg_inventory:[{cat:'Zgodne',em:'✅',name:'Pozycja zgodna z listą'},{cat:'Brak',em:'❓',name:'Pozycji brakuje'},{cat:'Nadwyżka',em:'➕',name:'Pozycja spoza listy'},{cat:'Uszkodzone',em:'💥',name:'Sprzęt uszkodzony'}],
+    gg_office_clear:[{cat:'Magazyn',em:'📦',name:'Sprawne wyposażenie'},{cat:'Recykling',em:'♻️',name:'Karton i papier'},{cat:'Utylizacja',em:'🗑',name:'Zniszczony fotel'},{cat:'Do zwrotu',em:'🔑',name:'Rzecz najemcy'}],
+    gg_merch_wh:[{cat:'Koszulki',em:'👕',name:'T-shirt'},{cat:'Bluzy',em:'🧥',name:'Bluza'},{cat:'Czapki',em:'🧢',name:'Czapka'},{cat:'Płyty',em:'💿',name:'Album'}],
+    gg_apartment:[{cat:'Kuchnia',em:'🍳',name:'Zabrudzony blat'},{cat:'Łazienka',em:'🚿',name:'Kabina'},{cat:'Salon',em:'🛋',name:'Kurz na meblach'},{cat:'Podłogi',em:'🧹',name:'Piach przy wejściu'}],
+    gg_club_night:[{cat:'Bar',em:'🍸',name:'Rozlany drink'},{cat:'Parkiet',em:'💃',name:'Szkło na parkiecie'},{cat:'Rzeczy gości',em:'🕶',name:'Zostawione okulary'},{cat:'Usterki',em:'🔧',name:'Luźny kabel'}],
+  };
+  const set=sets[job.id]||sets.gg_shelves;
+  return set.map((x,i)=>({cat:x.cat,em:x.em,name:x.name,idx:i}));
+};
+window._ggSortPick=function(i){
+  const s=window._ggState; if(!s||s.done) return;
+  const cats=window._ggSortCats(s.job);
+  const correct=(cats[i].idx===s.item.idx);
+  if(correct){ s.ok++; s.metrics.accuracy++; } else { s.miss++; }
+  s.round++; s.item=null;
+  window._ggStep();
+};
+/* ── Szablon: trasa ── */
+window._ggRoutePoints=function(){
+  const names=['Osiedle Zachód','Biurowiec Centrum','Kawiarnia Rynek','Magazyn Wschód','Klub przy promenadzie','Apartament nad kanałem','Punkt odbioru Północ'];
+  const evs=[null,null,'korek','zamknięta ulica','klient nie odbiera','błędny adres','deszcz'];
+  const n=4+Math.floor(Math.random()*4);
+  const out=[];
+  for(let i=0;i<n;i++) out.push({name:names[i%names.length],dist:1+Math.floor(Math.random()*5),
+    urgency:1+Math.floor(Math.random()*5),fee:40+Math.floor(Math.random()*90),
+    event:evs[Math.floor(Math.random()*evs.length)],done:false});
+  return out;
+};
+window._ggRoutePick=function(i){
+  const s=window._ggState; if(!s||s.done) return;
+  const pt=s.points[i]; if(!pt||pt.done) return;
+  const remaining=s.points.filter(p=>!p.done);
+  /* dobry wybór = najpilniejszy z najbliższych; zdarzenie po drodze obniża wynik */
+  const best=remaining.slice().sort((a,b)=>(b.urgency*2-b.dist)-(a.urgency*2-a.dist))[0];
+  const good=(pt===best);
+  if(good){ s.ok++; s.metrics.punctuality++; } else { s.miss++; }
+  if(pt.event){ s.metrics.service+=good?1:0; }
+  pt.done=true; s.round++;
+  if(s.points.every(p=>p.done)) s.round=s.rounds;
+  window._ggStep();
+};
+/* ── Szablon: pamięć ── */
+window._ggMemoryPool=function(job){
+  const pools={ gg_foodtruck:[{em:'🌮'},{em:'🥤'},{em:'🍟'},{em:'🌯'},{em:'🥗'},{em:'🍰'}],
+    gg_catering:[{em:'🥪'},{em:'🍵'},{em:'🥤'},{em:'🍎'},{em:'🥗'},{em:'🍫'}],
+    gg_hotel_room:[{em:'🛏'},{em:'🧻'},{em:'🧴'},{em:'☕'},{em:'🌸'},{em:'🧺'}] };
+  return pools[job.id]||pools.gg_foodtruck;
+};
+window._ggMemorySeq=function(job){
+  const pool=window._ggMemoryPool(job); const n=3+Math.floor(Math.random()*3); const out=[];
+  for(let i=0;i<n;i++) out.push(pool[Math.floor(Math.random()*pool.length)]);
+  window._ggState.showing=true;
+  return out;
+};
+window._ggMemoryPick=function(i){
+  const s=window._ggState; if(!s||s.done||s.showing) return;
+  const pool=window._ggMemoryPool(s.job);
+  s.pick.push(pool[i]);
+  if(s.pick.length>=s.seq.length){
+    let good=0; s.seq.forEach((x,k)=>{ if(s.pick[k]&&s.pick[k].em===x.em) good++; });
+    if(good===s.seq.length){ s.ok++; s.metrics.accuracy++; } else { s.miss++; s.metrics.accuracy+=good/s.seq.length; }
+    s.pick=[]; s.seq=[]; s.round++; window._ggStep(); return;
+  }
+  window._ggRender();
+};
+/* ── Szablon: timing ── */
+window._ggTimingLoop=function(){
+  const s=window._ggState; if(!s||s.job.tpl!=='timing') return;
+  if(s._raf) cancelAnimationFrame(s._raf);
+  if(s.pos==null){ s.pos=0; s.dir=1; s.zone=25+Math.random()*45; s.zoneW=Math.max(9,20-s.round*1.6); }
+  const step=()=>{
+    const st=window._ggState; if(!st||st.job.tpl!=='timing'||st.done) return;
+    st.pos+=st.dir*(1.1+st.round*0.22);
+    if(st.pos>=100){ st.pos=100; st.dir=-1; } if(st.pos<=0){ st.pos=0; st.dir=1; }
+    const cur=document.getElementById('gg-cursor'); if(cur) cur.style.left=st.pos+'%';
+    st._raf=requestAnimationFrame(step);
+  };
+  s._raf=requestAnimationFrame(step);
+};
+window._ggTimingHit=function(){
+  const s=window._ggState; if(!s||s.done) return;
+  if(s._raf){ cancelAnimationFrame(s._raf); s._raf=null; }
+  const inZone=(s.pos>=s.zone&&s.pos<=s.zone+s.zoneW);
+  const center=s.zone+s.zoneW/2;
+  const precision=Math.max(0,1-Math.abs(s.pos-center)/(s.zoneW||1));
+  if(inZone){ s.ok++; s.metrics.care+=precision; } else { s.miss++; }
+  s.round++; s.pos=null;
+  window._ggStep();
+};
+/* ── Szablon: ocena sytuacji ── */
+window._ggJudgeCase=function(job){
+  const sets={
+    gg_tickets:[{text:'Gość pokazuje bilet z tym samym kodem co poprzednia osoba.',opts:[{label:'Wpuść bez pytania',good:false},{label:'Zatrzymaj i zweryfikuj duplikat',good:true},{label:'Odeślij bez sprawdzenia',good:false}]},
+                {text:'Bilet jest ważny, ale na inną strefę.',opts:[{label:'Skieruj do właściwej strefy',good:true},{label:'Wpuść do strefy VIP',good:false},{label:'Odmów wejścia',good:false}]}],
+    gg_moderator:[{text:'Komentarz: „gdzie kupię wasz merch?"',opts:[{label:'Odpowiedz i przypnij',good:true},{label:'Usuń jako spam',good:false},{label:'Zbanuj',good:false}]},
+                  {text:'Ten sam link wklejony piąty raz w minutę.',opts:[{label:'Usuń i wycisz',good:true},{label:'Zostaw',good:false},{label:'Odpowiedz merytorycznie',good:false}]}],
+    gg_mystery:[{text:'Obsługa przywitała Cię po 30 sekundach, ale nie zaproponowała pomocy.',opts:[{label:'Oceń rzetelnie: częściowo spełnione',good:true},{label:'Oceń maksymalnie',good:false},{label:'Oceń najniżej',good:false}]}],
+    gg_surveyor:[{text:'Przechodzień w biegu, ze słuchawkami, patrzy w telefon.',opts:[{label:'Poszukaj kogoś innego',good:true},{label:'Zatrzymaj i zagadaj',good:false},{label:'Idź obok i mów',good:false}]}],
+    gg_reception:[{text:'Dzwoni klient z pilną sprawą, a przy ladzie czeka gość.',opts:[{label:'Przeproś gościa i odbierz krótko',good:true},{label:'Zignoruj telefon',good:false},{label:'Zostaw gościa na dłużej',good:false}]}],
+    gg_edit:[{text:'Trzy ujęcia: ostre bez emocji, poruszone z emocją, średnie i spójne.',opts:[{label:'Zacznij od spójnego, emocję zostaw na koniec',good:true},{label:'Użyj tylko poruszonego',good:false},{label:'Wrzuć wszystko po kolei',good:false}]}],
+    gg_info_point:[{text:'Uczestnik szuka punktu medycznego, obok stoi kolejka po program.',opts:[{label:'Najpierw pokaż punkt medyczny',good:true},{label:'Odeślij na koniec kolejki',good:false},{label:'Wskaż ogólny kierunek',good:false}]}],
+    gg_vip_host:[{text:'Gość spóźnia się 20 minut, a za 30 ma wejście na scenę.',opts:[{label:'Skróć przejście i uprzedź ekipę',good:true},{label:'Nic nie mów, zdąży',good:false},{label:'Przełóż wejście bez pytania',good:false}]}],
+    gg_personal_shop:[{text:'Budżet 1500 zł, klient chce „coś wyróżniającego, ale nie krzykliwego".',opts:[{label:'Stonowany komplet dobrej marki',good:true},{label:'Duże logo w limitowanej edycji',good:false},{label:'Trzy tanie rzeczy',good:false}]}],
+    gg_location:[{text:'Miejsce ma świetne światło, ale hałas z ulicy i brak zgody administracji.',opts:[{label:'Odrzuć i zaproponuj alternatywę',good:true},{label:'Wybierz mimo wszystko',good:false},{label:'Zostaw decyzję klientowi',good:false}]}],
+  };
+  const set=sets[job.id]||sets.gg_tickets;
+  return set[Math.floor(Math.random()*set.length)];
+};
+window._ggJudgePick=function(i){
+  const s=window._ggState; if(!s||s.done) return;
+  const o=s.caseObj.opts[i];
+  if(o&&o.good){ s.ok++; s.metrics.service++; } else { s.miss++; }
+  s.caseObj=null; s.round++;
+  window._ggStep();
+};
+/* ── Szablon: refleks / kolejka ── */
+window._ggReactQueue=function(job){
+  const base=['zgłoszenie od ekipy','prośba gościa','pilna sprawa techniczna','drobna prośba','zwrot sprzętu','pytanie o kierunek','reklamacja','dostawa do przyjęcia'];
+  const out=[];
+  for(let i=0;i<8;i++) out.push({text:base[i%base.length],urgent:Math.random()<0.4});
+  return out;
+};
+window._ggReactPick=function(i){
+  const s=window._ggState; if(!s||s.done) return;
+  const q=s.queue[i]; if(!q) return;
+  const anyUrgent=s.queue.slice(0,4).some(x=>x.urgent);
+  const good=q.urgent||!anyUrgent;
+  if(good){ s.ok++; s.metrics.punctuality++; } else { s.miss++; }
+  s.queue.splice(i,1); s.round++;
+  if(!s.queue.length) s.round=s.rounds;
+  window._ggStep();
+};
+/* ── Wspólny krok: licz wynik i kończ po rundach ── */
+window._ggStep=function(){
+  const s=window._ggState; if(!s) return;
+  const total=Math.max(1,s.ok+s.miss);
+  s.score=Math.round((s.ok/total)*100);
+  if(s.round>=s.rounds){ window._ggFinish(s.score,s.opts); return; }
+  window._ggRender();
+};
+
+/* ═══ §50 Rozliczenie zlecenia: ocena, wypłata, napiwek, reputacja, relacja z pracodawcą ═══ */
+window._ggFinish=function(score,opts){
+  const s=window._ggState; if(!s) return; s.done=true;
+  if(s._raf){ cancelAnimationFrame(s._raf); s._raf=null; }
+  const job=s.job; const g=window._ggEnsure(); opts=opts||{};
+  const rel=window._ggRel(job.emp);
+  const day=G.day||1;
+  /* §5 stroje i sprzęt: dopasowanie do tagów pracy daje realną przewagę (Urban Crown §8.1) */
+  const outfitBonus=(typeof window._ggGigTagBonus==='function')?window._ggGigTagBonus(job):0;
+  const finalScore=Math.max(0,Math.min(100,Math.round(score*(1+outfitBonus))));
+  /* §50 składowe oceny 1-5 */
+  const m=s.metrics; const denom=Math.max(1,s.ok+s.miss);
+  const stars=(v)=>Math.max(1,Math.min(5,Math.round(1+ (v/denom)*4 )));
+  const rating={punctuality:stars(m.punctuality+ (finalScore/100)*denom*0.5),
+                accuracy:stars(m.accuracy+ (finalScore/100)*denom*0.5),
+                service:stars(m.service+ (finalScore/100)*denom*0.5),
+                care:stars(m.care+ (finalScore/100)*denom*0.5)};
+  let pay=window._ggPayout(job,finalScore,opts);
+  if(opts.aborted) pay=Math.round(pay*0.35);
+  if(opts.emergency) pay=Math.round(pay*1.1);
+  const tip=(finalScore>=85&&!opts.aborted)?Math.round(pay*(0.06+Math.random()*0.10)):0;
+  /* §56 losowa sytuacja poboczna */
+  const ev=(!opts.aborted&&Math.random()<0.55)?GG_EVENTS[Math.floor(Math.random()*GG_EVENTS.length)]:null;
+  let evPay=0;
+  if(ev){ evPay=Math.round(pay*(ev.pay||0));
+    if(ev.fans&&typeof addFans==='function') addFans(ev.fans);
+    if(ev.contact) g.premiumGigsUnlocked=true; }
+  const total=Math.max(0,pay+tip+evPay);
+  if(typeof earn==='function') earn(total,false); else G.money=(G.money||0)+total;
+  /* §54 zmęczenie i energia */
+  const fat=window._ggFatigue(job,finalScore,opts);
+  G.energy=Math.max(0,(G.energy||0)-fat);
+  if(finalScore<40) G.stress=Math.max(0,Math.min(100,(G.stress==null?70:G.stress)-3));
+  /* §49/§50 reputacja wykonawcy — wolno rosnąca, wrażliwa na wpadki */
+  const avg=(rating.punctuality+rating.accuracy+rating.service+rating.care)/4;
+  let delta=(avg-g.contractorRating)*0.14;
+  if(opts.aborted) delta=-0.25;
+  if(opts.emergency) delta*=0.5;                 /* §5 awaryjne daje mniej reputacji */
+  if(ev&&ev.rep) delta+=ev.rep;
+  g.contractorRating=Math.max(0,Math.min(5,+(g.contractorRating+delta).toFixed(2)));
+  g.punctuality+=rating.punctuality; g.accuracy+=rating.accuracy;
+  g.customerService+=rating.service; g.reliability+=(opts.aborted?-1:1);
+  if(job.tags.indexOf('physical')>=0) g.physicalWork+=1;
+  /* §51 relacja z KONKRETNYM pracodawcą + §5 cooldowny i bany */
+  if(opts.aborted||finalScore<30){
+    rel.failed++; rel.relationship=Math.max(-3,rel.relationship-1);
+    g.failedGigIds.push(job.id);
+    if(finalScore<15||opts.aborted){ const ban=3+Math.floor(Math.random()*5);
+      g.temporaryBans[job.emp]=day+ban; }
+  } else {
+    rel.completed++; rel.relationship=Math.min(5,rel.relationship+(finalScore>=80?1:0));
+    g.completedGigIds.push(job.id);
+  }
+  rel.cooldownUntilDay=day+(job.premium?(3+Math.floor(Math.random()*3)):(1+Math.floor(Math.random()*2)));
+  g.jobsCompletedToday++;
+  if(opts.emergency) g.emergencyUsedDay=day;
+  if(opts.lastMinute&&g.lastMinuteOffer) g.lastMinuteOffer.taken=true;
+  const comment=finalScore>=90?'Szybko i bez komplikacji. Może wrócić.':(finalScore>=70?'Solidnie, bez zastrzeżeń.':
+    (finalScore>=45?'Da się pracować, ale było kilka potknięć.':'Sporo poprawek po tej zmianie.'));
+  g.history.push({day:day,jobId:job.id,emp:job.emp,score:finalScore,pay:total,rating:rating,comment:comment,event:ev?ev.id:null});
+  if(g.history.length>60) g.history.splice(0,g.history.length-60);
+  /* §5 premium odblokowuje się dobrymi ocenami */
+  if(g.contractorRating>=4.2) g.premiumGigsUnlocked=true;
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof checkAchievements==='function') checkAchievements();
+  window._ggResultPanel({job:job,score:finalScore,rating:rating,pay:pay,tip:tip,ev:ev,evPay:evPay,total:total,comment:comment,fat:fat,aborted:!!opts.aborted});
+};
+window._ggResultPanel=function(r){
+  const p=window._ggPanel(); if(!p) return;
+  const c=document.getElementById('mg-job-content')||p;
+  const st=(n)=>'★'.repeat(n)+'☆'.repeat(5-n);
+  c.innerHTML=`<div style="text-align:center;font-size:17px;font-weight:800;color:#e67e22;margin-bottom:6px">📋 Ocena zlecenia</div>
+    <div style="text-align:center;font-size:13px;color:#cdd;margin-bottom:9px">${r.job.em} ${r.job.name} · ${GG_EMPLOYERS[r.job.emp].name}</div>
+    <div style="background:#0a1220;border-radius:8px;padding:11px;font-size:13px;color:#cdd;line-height:1.8">
+      Wynik: <b style="color:${r.score>=75?'#7ec87e':(r.score>=45?'#e8a020':'#e74c3c')}">${r.score}%</b><br>
+      Terminowość: <b>${st(r.rating.punctuality)}</b><br>
+      Dokładność: <b>${st(r.rating.accuracy)}</b><br>
+      Kontakt z klientem: <b>${st(r.rating.service)}</b><br>
+      Stan powierzonych przedmiotów: <b>${st(r.rating.care)}</b><br>
+      Wypłata: <b style="color:#2ecc71">${r.pay.toLocaleString('pl')} zł</b>${r.tip?`<br>Napiwek: <b style="color:#2ecc71">${r.tip.toLocaleString('pl')} zł</b>`:''}
+      ${r.evPay?`<br>Dodatkowo: <b style="color:#2ecc71">${r.evPay.toLocaleString('pl')} zł</b>`:''}
+      <br>Energia: <b style="color:#e8a020">−${r.fat}</b>
+    </div>
+    ${r.ev?`<div style="background:#101c2a;border-left:3px solid #3a90e0;border-radius:6px;padding:9px 11px;margin-top:9px;font-size:12px;color:#a0c8f0">${r.ev.text}</div>`:''}
+    <div style="margin-top:9px;font-size:12px;color:#9ab;font-style:italic">„${r.comment}"</div>
+    <div style="margin-top:10px;font-size:12px;color:#8a9;font-weight:700">Oceń pracodawcę:</div>
+    <div style="display:flex;gap:5px;margin-top:5px">${[1,2,3,4,5].map(n=>`<button class="cbtn" style="flex:1;padding:7px" onclick="window._ggRateEmployer('${r.job.emp}',${n})">${n}</button>`).join('')}</div>
+    <div style="font-size:10px;color:#667;margin-top:5px">Powód oceny wpływa na to, jak często dany pracodawca wraca z ofertami.</div>
+    <div class="res" id="gg-res" style="margin-top:9px">Twoja ocena wykonawcy: <b>${window._ggEnsure().contractorRating.toFixed(2)} / 5</b> · poziom: <b>${window._ggLevel().name}</b></div>
+    <button class="bbtn" style="width:100%;margin-top:6px" onclick="window._ggClose();if(typeof renderPhoneApp==='function'){togglePhone(true);renderPhoneApp('gigs');}">Zamknij</button>`;
+};
+window._ggRateEmployer=function(empId,n){
+  const g=window._ggEnsure();
+  const prev=g.employerRatings[empId];
+  g.employerRatings[empId]=(prev==null)?n:+(((prev*2+n)/3).toFixed(2));
+  const el=document.getElementById('gg-res');
+  if(el) el.textContent='Oceniłeś pracodawcę na '+n+'/5. Twoja ocena wykonawcy: '+g.contractorRating.toFixed(2)+' / 5.';
+};
+/* §8.1 Urban Crown: premia za właściwy strój do danego typu pracy */
+window._ggGigTagBonus=function(job){
+  if(typeof window._ucGigBonus!=='function') return 0;
+  const map={gg_stage_build:'stagebuild',gg_backstage:'event',gg_merch_stand:'event',gg_catering:'event',
+    gg_tickets:'event',gg_decor:'event',gg_conference:'event',gg_info_point:'event',
+    gg_office_clear:'warehouse',gg_merch_wh:'warehouse',gg_inventory:'warehouse',gg_moving:'warehouse',
+    gg_tech_driver:'driver',gg_courier:'courier',gg_bikes:'courier',gg_valet:'valet',gg_vip_host:'vip',
+    gg_club_night:'night',gg_cloakroom:'night',gg_beach_clean:'outdoor',gg_leaves:'outdoor',gg_snow:'outdoor',
+    gg_photo_runner:'creative',gg_podcast:'creative',gg_edit:'creative'};
+  const tag=map[job.id]; if(!tag) return 0;
+  return window._ucGigBonus(tag);
+};
+
+/* ═══ §3 Nowy panel telefonu ═══ */
+window._ggFilter='all';
+window._ggSetFilter=function(f){ window._ggFilter=f; if(typeof renderPhoneApp==='function') renderPhoneApp('gigs'); };
+window._ggPanelHTML=function(){
+  const g=window._ggEnsure(); window._ggRefreshOffers();
+  const lvl=window._ggLevel();
+  const offers=g.activeOffers.map(window._ggJob).filter(Boolean);
+  const F=window._ggFilter;
+  const shown=offers.filter(j=>{
+    if(F==='all') return true;
+    if(F==='district') return !!j.district;
+    return j.tags.indexOf(F)>=0 || (F==='premium'&&j.premium) || (F==='night'&&j.night);
+  });
+  const fb=(id,lab)=>`<button class="cbtn" style="font-size:10px;padding:5px 7px;margin:2px;border-color:${F===id?'#e67e22':'#3a2a1a'};color:${F===id?'#f0c090':'#caa'}" onclick="window._ggSetFilter('${id}')">${lab}</button>`;
+  const lm=g.lastMinuteOffer&&!g.lastMinuteOffer.taken?window._ggJob(g.lastMinuteOffer.jobId):null;
+  const card=(j,isLM)=>{
+    const el=window._ggEligible(j);
+    const energyOk=(G.energy||0)>=j.en;
+    const limitOk=g.jobsCompletedToday<4;
+    const can=el.ok&&energyOk&&(limitOk||isLM);
+    const mult=window._ggMarketMult(j,{lastMinute:isLM});
+    const lo=Math.round(j.pay[0]*mult), hi=Math.round(j.pay[1]*mult);
+    const conf=window._ggConflict(j);
+    const rel=window._ggRel(j.emp);
+    return `<div style="background:#0a1220;border-radius:8px;padding:10px;margin-bottom:7px;${can?'':'opacity:.6'};${isLM?'border:1px solid #e0483a':''}">
+      <div style="display:flex;align-items:center;gap:9px">
+        <div style="font-size:24px">${j.em}</div>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:13px;color:#fff">${j.name}${isLM?' <span style="font-size:9px;background:#e0483a;color:#fff;border-radius:3px;padding:1px 4px">LAST MINUTE</span>':''}${j.premium?' <span style="font-size:9px;background:#c8a520;color:#1a1a1a;border-radius:3px;padding:1px 4px">PREMIUM</span>':''}</div>
+          <div style="font-size:10px;color:#8a9">${GG_EMPLOYERS[j.emp].name}${rel.relationship>0?(' · relacja +'+rel.relationship):''}</div>
+          <div style="font-size:11px;color:#9ab;line-height:1.4;margin-top:2px">${j.desc}</div>
+          <div style="font-size:11px;margin-top:4px"><span style="color:#2ecc71;font-weight:700">~${lo}–${hi} zł</span> · <span style="color:${j.diff==='Trudna'?'#e74c3c':(j.diff==='Średnia'?'#f1c40f':'#27ae60')}">${j.diff}</span> · <span style="color:#7ec8e3">⚡ ${j.en}</span> · <span style="color:#9ab">⏱ ${j.dur} h</span></div>
+          ${conf?`<div style="font-size:10px;color:#e8a020;margin-top:3px">⚠️ Konflikt harmonogramu (${conf.risk}): ${conf.items.join(', ')}.</div>`:''}
+          ${!el.ok?`<div style="font-size:10px;color:#e74c3c;margin-top:3px">🔒 ${el.why}</div>`:(!energyOk?`<div style="font-size:10px;color:#e74c3c;margin-top:3px">⚡ Za mało energii (${Math.floor(G.energy||0)}/${j.en})</div>`:'')}
+        </div>
+      </div>
+      <button class="cbtn" style="width:100%;margin-top:7px;padding:7px;${can?'color:#7ec87e;border-color:#27ae60':'color:#caa;border-color:#5a3a2a'}"
+        onclick="${can?`closePhone();window._ggStart('${j.id}',{lastMinute:${!!isLM},emergency:${!limitOk&&!isLM}})`:`showMsg('${(el.ok?(energyOk?'Limit dzienny wyczerpany.':'Za mało energii.'):el.why).replace(/'/g,'')}','i',3800)`}">
+        ${can?(isLM?'Przyjmij (+25% stawki)':'Przyjmij zlecenie'):'Niedostępne'}</button>
+    </div>`;
+  };
+  return `<div class="ph-screen">
+    <div style="background:#1a0e05;border:2px solid #e67e22;border-radius:8px;padding:11px;margin-bottom:9px">
+      <div style="font-size:17px;font-weight:700;color:#e67e22">🧰 GIGI — PRACE DORYWCZE</div>
+      <div style="font-size:11px;color:#caa;margin-top:5px;line-height:1.6">
+        Dostępne oferty: <b style="color:#fff">${offers.length}</b><br>
+        Twoja ocena: <b style="color:#f0c040">${g.contractorRating.toFixed(1)} / 5</b><br>
+        Poziom wykonawcy: <b style="color:#7ec8e3">${lvl.n} — ${lvl.name}</b><br>
+        Energia: <b>${Math.floor(G.energy||0)} / 100</b><br>
+        Dziś wykonane: <b style="color:${g.jobsCompletedToday>=4?'#e74c3c':'#fff'}">${g.jobsCompletedToday}/4</b>
+      </div>
+    </div>
+    <div style="margin-bottom:8px">${fb('all','Wszystkie')}${fb('fast','Szybkie')}${fb('physical','Fizyczne')}${fb('event','Eventowe')}${fb('vehicle','Z pojazdem')}${fb('creative','Kreatywne')}${fb('night','Nocne')}${fb('seasonal','Sezonowe')}${fb('premium','Premium')}${fb('district','Wg dzielnicy')}</div>
+    ${lm?`<div style="font-size:11px;color:#e0483a;font-weight:700;margin:6px 0 4px">⚡ ZLECENIE LAST MINUTE — start za ${g.lastMinuteOffer.startInMin} minut · powód: ${g.lastMinuteOffer.reason}</div>${card(lm,true)}`:''}
+    ${shown.length?shown.map(j=>card(j,false)).join(''):'<div style="color:#8a9;font-size:12px;padding:10px;text-align:center">Brak ofert w tym filtrze. Wróć jutro albo zmień filtr.</div>'}
+    <div style="display:flex;gap:5px;margin-top:8px">
+      <button class="cbtn" style="flex:1;font-size:11px;padding:7px" onclick="window._ggHistoryPanel()">📜 Moja historia</button>
+      <button class="cbtn" style="flex:1;font-size:11px;padding:7px" onclick="window._ggEmployersPanel()">⭐ Oceny zleceniodawców</button>
+    </div>
+    <button class="cbtn" style="width:100%;font-size:11px;padding:7px;margin-top:5px" onclick="window._ggGearPanel()">🎒 Wymagane wyposażenie</button>
+  </div>`;
+};
+window._ggHistoryPanel=function(){
+  const g=window._ggEnsure(); const ph=document.getElementById('ph-content'); if(!ph) return;
+  const h=g.history.slice().reverse().slice(0,20);
+  ph.innerHTML=`<div class="ph-screen">
+    <div style="font-size:16px;font-weight:700;color:#e67e22;margin-bottom:8px">📜 Moja historia</div>
+    ${h.length?h.map(x=>{const j=window._ggJob(x.jobId)||{name:x.jobId,em:'🧰'};
+      return `<div style="background:#0a1220;border-radius:7px;padding:8px;margin-bottom:5px;font-size:11px;color:#cdd">
+        <b>${j.em} ${j.name}</b> · dzień ${x.day}<br>
+        <span style="color:#9ab">${GG_EMPLOYERS[x.emp]?GG_EMPLOYERS[x.emp].name:x.emp}</span> · wynik <b style="color:${x.score>=75?'#7ec87e':'#e8a020'}">${x.score}%</b> · <span style="color:#2ecc71">${x.pay.toLocaleString('pl')} zł</span><br>
+        <i style="color:#8a9">„${x.comment}"</i></div>`;}).join(''):'<div style="color:#8a9;font-size:12px">Jeszcze nic tu nie ma.</div>'}
+    <button class="cbtn" style="width:100%;margin-top:8px" onclick="renderPhoneApp('gigs')">← Wróć</button></div>`;
+};
+window._ggEmployersPanel=function(){
+  const g=window._ggEnsure(); const ph=document.getElementById('ph-content'); if(!ph) return;
+  const ids=Object.keys(GG_EMPLOYERS);
+  ph.innerHTML=`<div class="ph-screen">
+    <div style="font-size:16px;font-weight:700;color:#e67e22;margin-bottom:4px">⭐ Zleceniodawcy</div>
+    <div style="font-size:10px;color:#8a9;margin-bottom:8px">Reputacja jest osobna dla każdego pracodawcy — jedna dobra passa nie otwiera wszystkiego.</div>
+    ${ids.map(id=>{const r=g.employerRelations[id]; const my=g.employerRatings[id];
+      if(!r||(!r.completed&&!r.failed)) return '';
+      return `<div style="background:#0a1220;border-radius:7px;padding:8px;margin-bottom:5px;font-size:11px;color:#cdd">
+        <b>${GG_EMPLOYERS[id].name}</b><br>
+        Relacja: <b style="color:${r.relationship>0?'#7ec87e':(r.relationship<0?'#e74c3c':'#9ab')}">${r.relationship}</b> ·
+        wykonane: <b>${r.completed}</b> · nieudane: <b>${r.failed}</b>${my?(' · Twoja ocena: <b>'+my+'/5</b>'):''}
+        ${r.cooldownUntilDay&&(G.day||1)<r.cooldownUntilDay?`<br><span style="color:#e8a020">Przerwa do dnia ${r.cooldownUntilDay}</span>`:''}
+        ${g.temporaryBans[id]&&(G.day||1)<g.temporaryBans[id]?`<br><span style="color:#e74c3c">Nie zatrudni Cię do dnia ${g.temporaryBans[id]}</span>`:''}</div>`;
+    }).join('')||'<div style="color:#8a9;font-size:12px">Nie pracowałeś jeszcze u nikogo.</div>'}
+    <button class="cbtn" style="width:100%;margin-top:8px" onclick="renderPhoneApp('gigs')">← Wróć</button></div>`;
+};
+window._ggGearPanel=function(){
+  const ph=document.getElementById('ph-content'); if(!ph) return;
+  const rows=GG_JOBS.filter(j=>j.reqVehicle||j.district||j.premium||j.season);
+  ph.innerHTML=`<div class="ph-screen">
+    <div style="font-size:16px;font-weight:700;color:#e67e22;margin-bottom:8px">🎒 Wymagane wyposażenie i dostęp</div>
+    ${rows.map(j=>`<div style="background:#0a1220;border-radius:7px;padding:8px;margin-bottom:5px;font-size:11px;color:#cdd">
+      <b>${j.em} ${j.name}</b><br><span style="color:#9ab">${window._ggReqText(j)}</span></div>`).join('')}
+    <div style="background:#0a1220;border-radius:7px;padding:8px;margin-top:6px;font-size:11px;color:#9ab">
+      Strój z Urban Crown dopasowany do rodzaju pracy podnosi wynik zlecenia: odzież robocza przy pracach fizycznych,
+      zestaw event crew przy scenie, odblaski przy kurierce, dyskretna czerń przy ochronie i valet.</div>
+    <button class="cbtn" style="width:100%;margin-top:8px" onclick="renderPhoneApp('gigs')">← Wróć</button></div>`;
+};
+window._ggReqText=function(j){
+  const p=[];
+  if(j.reqVehicle) p.push('własny pojazd');
+  if(j.district) p.push('dzielnica: '+({business:'Business District',coast:'Marina Coast',underground:'Underground'})[j.district]);
+  if(j.premium) p.push('ocena wykonawcy min. '+(j.reqRating||4.0).toFixed(1));
+  if(j.season) p.push('sezon: '+j.season);
+  if(j.night) p.push('praca nocna');
+  return p.join(' · ')||'brak dodatkowych wymagań';
+};
+/* Dobowy reset licznika i rotacji */
+window._ggDailyTick=function(){
+  const g=window._ggEnsure();
+  g.jobsCompletedToday=0; g.lastGigDay=G.day||1;
+  window._ggRefreshOffers(true);
+};
+/* ═══════════════════════════════════════════════════════════════════════════
+   GIGI 2.0 MODULE END
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+
 
 
 
@@ -68855,7 +69580,9 @@ function renderPhoneApp(app){
       {id:'eventstaff',em:'🍽️',name:'Event-staff — obsługa baru',desc:'Podawaj drinki gościom w kolejności jak w zamówieniu (gra na pamięć/sekwencję). Zła kolejność = skarga. Sprawność popłaca.',pay:'~90–180 zł',diff:'Średnia',diffColor:'#f1c40f',reqLevel:3,energy:6,fn:'startEventStaffMG'},
     ];
     const _lvl=G.level||1;
-    ph.innerHTML=`<div class="ph-screen">
+    /* v2.3.128 (PDF „Gigi 2.0" §3): NAD klasyczną listą dokleja się dynamiczna tablica ofert z rotacją,
+       ocenami, reputacją pracodawców, limitami i cooldownami. Klasyczne gigi zostają jako stała oferta. */
+    ph.innerHTML=(typeof window._ggPanelHTML==='function'?window._ggPanelHTML()+'<div class="ph-screen" style="padding-top:0"><div style="font-size:12px;color:#8a9;font-weight:700;margin:10px 0 4px">🧰 Stała oferta (klasyczne gigi)</div></div>':'')+`<div class="ph-screen">
       <div style="background:#1a0e05;border:2px solid #e67e22;border-radius:8px;padding:12px;margin-bottom:10px">
         <div style="font-size:18px;font-weight:700;color:#e67e22">🧰 Gigi — prace dorywcze</div>
         <div style="font-size:11px;color:#caa;margin-top:4px;line-height:1.5">Szybkie zlecenia na mieście. Nie wymagają kariery — wystarczy energia. Dobre na start i na dorobienie między sesjami w studiu.</div>
@@ -78639,8 +79366,14 @@ window._s9AfterDeal=function(npcId,priceTier){
 };
 const PATCH_NOTES = [
  {
- ver:'v2.3.128',date:'2026-07-28',cats:['feature'],title:'🏢 VANTAGE WORKS, Urban Crown i nowe marki samochodów — trzy duże moduły naraz',
+ ver:'v2.3.128',date:'2026-07-28',cats:['feature'],title:'🏢 VANTAGE WORKS, 🧰 Gigi 2.0, 👑 Urban Crown i nowe marki samochodów',
  items:[
+  {t:'feature',d:'🧰 Gigi to teraz żywa miejska tablica zleceń. Codziennie czeka od sześciu do dziesięciu ofert dobranych pod Twoje odblokowane dzielnice, porę dnia, sezon, pogodę, pojazd i ocenę wykonawcy. Doszły 42 zupełnie nowe zlecenia: kurier miejski, przeprowadzka, wyprowadzanie psów, montaż sceny, szatnia, stoisko z merchem, mystery shopper, sprzątanie plaży, backstage runner, valet i wiele innych.'},
+  {t:'new',d:'⭐ Masz własną ocenę wykonawcy od 0 do 5 i pięć poziomów: od Nowego po Pierwszy wybór. Po każdym zleceniu dostajesz ocenę za terminowość, dokładność, kontakt z klientem i stan powierzonych rzeczy, wypłatę zależną od wyniku, czasem napiwek i krótki komentarz. Ty też oceniasz pracodawcę.'},
+  {t:'new',d:'🤝 Reputacja jest osobna u każdego zleceniodawcy — dobra passa w jednym miejscu nie otwiera wszystkiego. Ta sama praca u tego samego pracodawcy wraca po dniu lub dwóch, premium po kilku dniach, a zlecenie spartaczone potrafi zamknąć drzwi na kilka dni.'},
+  {t:'new',d:'⚡ Raz dziennie może pojawić się zlecenie last minute — wyższa stawka, ale więcej zmęczenia i ryzyka. Stawki reagują też na porę nocną, weekend i trudną pogodę. Każde zlecenie zajmuje realny czas i gra ostrzega, jeśli koliduje z występem, sesją w studiu albo terminem firmy.'},
+  {t:'change',d:'😮‍💨 Gigi mają pomagać przetrwać i dorobić, a nie zastępować karierę. Dziennie zrobisz maksymalnie cztery pełne zlecenia; piąte tylko jako awaryjne — droższe w energii i słabsze reputacyjnie. Zmęczenie rośnie po nocnych zmianach i słabych wynikach, a strój z Urban Crown dopasowany do rodzaju pracy realnie podnosi wynik.'},
+  {t:'fix',d:'🧰 Dotychczasowe gigi (ulotki, magazyn, mechanik, pchli targ, złom, statysta, fotograf, ochroniarz, obsługa baru, praca sezonowa) zostają bez zmian jako stała oferta pod nową tablicą.'},
   {t:'feature',d:'🏢 Dawne „Powierzchnie produkcyjno-biurowe" w Underground zmieniły się w VANTAGE WORKS — prawdziwy rynek nieruchomości. Dziesiąty poziom kariery Trap nie daje już żadnego lokalu za darmo: otwiera tylko drzwi budynku jako kupującemu. Wchodzisz do wielkiego holu z recepcją, makietą kompleksu, tablicą ofert, windami, garażem i zejściem do magazynów.'},
   {t:'feature',d:'👩‍💼 Po budynku oprowadza Eve Rook — doradczyni, która tłumaczy różnice między biurem, lokalem hybrydowym, halą, pełnym piętrem, garażem i komórkami. Do wyboru jest siedem powierzchni: od małego biura za 230 tysięcy po centralę za blisko sześć milionów. Garaż i magazyny kupujesz osobno, a każda komórka ma własny, niezależny stan.'},
   {t:'feature',d:'📄 Kupiony lokal jest PUSTY. Żeby cokolwiek w nim uruchomić, musisz założyć legalną działalność (siedem profili: od produkcji mediów i fulfillmentu po agencję muzyczną), zamówić wyposażenie, zatrudnić ludzi i zacząć realizować zlecenia. Sprzęt jest dostarczany i montowany w konkretnym miejscu, zużywa się i wymaga serwisu.'},
