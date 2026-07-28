@@ -29531,6 +29531,8 @@ function nextPeriod(){
     if(typeof window._ggDailyTick==='function') window._ggDailyTick();
     /* SUBTERRA: kończenie renowacji i przypomnienie o gotowym cyklu. */
     if(typeof window._sbDailyTick==='function') window._sbDailyTick();
+    /* RESPONSE GRID: doba miasta — budżet chaosu, wygasanie śladów i zamknięć, awans warstwy. */
+    if(typeof window._rgDailyTick==='function') window._rgDailyTick();
     /* v2.3.109 (PDF13 TIER 13.7): integracje kariera/S9/sponsor (jednorazowe boosty przy progach jakości/prestiżu). */
     if(typeof window._studioApplyIntegrations==='function') window._studioApplyIntegrations();
     // ── Merch — dzienne sprzedaże, trendy, marketing ──
@@ -57446,6 +57448,609 @@ window._sbAbortBtn=function(){ const r=window._sbAbortCycle(null); window._sbTer
    SUBTERRA MODULE END
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSE GRID MODULE START — PDF „CITY PULSE / RESPONSE GRID" (§0-16).
+   Warstwa incydentów miejskich: jedno zdarzenie = JEDEN incidentId, policja wie tylko to,
+   co zaobserwowała, zgłosił świadek albo zarejestrował monitoring, a jednostki fizycznie
+   dojeżdżają zamiast teleportować się na miejsce.
+   ⚠️ DYREKTYWA WDROŻENIOWA (PDF §16): warstwy uruchamiane po kolei — najpierw ruch,
+   obserwacja i kontrola drogowa, potem pościgi, ratownictwo i pożary. Kolejność pilnuje
+   `RG_STAGES` i `_rgStageActive()`; wyższe warstwy nie ruszają, dopóki niższa nie jest stabilna.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* §14 Etapy wdrożenia — warstwa aktywuje się dopiero, gdy poprzednia jest stabilna */
+const RG_STAGES=[
+ {id:1,name:'Ruch i wykroczenia', scope:'Światła, linie zatrzymania, chodnik, kolizje, obserwacja.', gate:'Stabilne wykrywanie bez fałszywych alarmów.'},
+ {id:2,name:'Incydenty',          scope:'Deduplikacja, świadkowie, dysponowanie, protokół.',        gate:'Jedno incidentId i brak duplikatów jednostek.'},
+ {id:3,name:'Pościgi',            scope:'Ucieczka NPC, wsparcie jednostek, status stolen.',          gate:'Brak zakleszczeń i stabilne zakończenie.'},
+ {id:4,name:'Ratownictwo',        scope:'Ambulans, poszkodowani, transport.',                        gate:'Działające punkty sceny i transport.'},
+ {id:5,name:'Pożary',             scope:'Straż, fazy pożaru, tłum, ewakuacja, naprawy.',             gate:'Wydajność i poprawne następstwa.'},
+ {id:6,name:'Pełne miasto',       scope:'Symulacja tła, korki, media, historia.',                    gate:'Telemetria w granicach.'},
+];
+/* §3.2 Typy zdarzeń */
+const RG_TYPES={
+ traffic_red_light:{group:'traffic',sev:35,pri:'P4',label:'przejazd na czerwonym'},
+ traffic_sidewalk_driving:{group:'traffic',sev:45,pri:'P3',label:'jazda po chodniku'},
+ traffic_wrong_way:{group:'traffic',sev:55,pri:'P3',label:'jazda pod prąd'},
+ traffic_reckless_driving:{group:'traffic',sev:60,pri:'P2',label:'niebezpieczna jazda'},
+ traffic_hit_and_run:{group:'traffic',sev:85,pri:'P1',label:'ucieczka z miejsca zdarzenia'},
+ vehicle_vehicle_collision:{group:'collision',sev:55,pri:'P2',label:'zderzenie pojazdów'},
+ vehicle_pedestrian_collision:{group:'collision',sev:78,pri:'P1',label:'potrącenie pieszego'},
+ vehicle_building_collision:{group:'collision',sev:50,pri:'P3',label:'uderzenie w budynek'},
+ multi_vehicle_accident:{group:'collision',sev:80,pri:'P1',label:'karambol'},
+ vehicle_fire_after_collision:{group:'fire',sev:82,pri:'P1',label:'pożar po kolizji'},
+ vehicle_theft:{group:'crime',sev:65,pri:'P2',label:'kradzież pojazdu'},
+ vehicle_theft_attempt:{group:'crime',sev:45,pri:'P3',label:'próba kradzieży pojazdu'},
+ stolen_vehicle_pursuit:{group:'crime',sev:85,pri:'P1',label:'pościg za skradzionym pojazdem'},
+ public_assault:{group:'crime',sev:70,pri:'P1',label:'napaść'},
+ property_damage:{group:'crime',sev:40,pri:'P3',label:'zniszczenie mienia'},
+ residential_building_fire:{group:'fire',sev:85,pri:'P1',label:'pożar budynku mieszkalnego'},
+ commercial_building_fire:{group:'fire',sev:80,pri:'P1',label:'pożar lokalu'},
+ warehouse_fire:{group:'fire',sev:88,pri:'P1',label:'pożar magazynu'},
+ vehicle_fire:{group:'fire',sev:70,pri:'P1',label:'pożar pojazdu'},
+ park_fire:{group:'fire',sev:60,pri:'P2',label:'pożar w parku'},
+ pedestrian_collapse:{group:'medical',sev:65,pri:'P1',label:'zasłabnięcie przechodnia'},
+ collision_injury:{group:'medical',sev:72,pri:'P1',label:'obrażenia po kolizji'},
+ fire_smoke_exposure:{group:'medical',sev:68,pri:'P1',label:'zatrucie dymem'},
+ workplace_injury:{group:'medical',sev:60,pri:'P2',label:'wypadek przy pracy'},
+ traffic_light_failure:{group:'infra',sev:35,pri:'P3',label:'awaria sygnalizacji'},
+ road_obstruction:{group:'infra',sev:40,pri:'P3',label:'przeszkoda na jezdni'},
+ fallen_tree:{group:'infra',sev:45,pri:'P3',label:'powalone drzewo'},
+ burst_pipe:{group:'infra',sev:50,pri:'P3',label:'awaria wodociągu'},
+ damaged_streetlight:{group:'infra',sev:25,pri:'P4',label:'uszkodzona latarnia'},
+};
+/* §3.3 Typy jednostek — każda służba ma OSOBNY typ (kryterium 16) */
+const RG_UNIT_TYPES={
+ police_patrol_car:{svc:'police',crew:2,caps:['traffic_stop','collision_response','pursuit','scene_security'],speed:2.6,label:'radiowóz'},
+ police_foot:      {svc:'police',crew:1,caps:['traffic_stop','scene_security'],speed:1.2,label:'patrol pieszy'},
+ fire_engine:      {svc:'fire',  crew:4,caps:['fire_suppression','rescue','scene_security'],speed:2.2,label:'wóz strażacki'},
+ ambulance:        {svc:'medical',crew:2,caps:['medical_aid','transport'],speed:2.5,label:'ambulans'},
+ tow_truck:        {svc:'tow',   crew:1,caps:['vehicle_removal'],speed:1.9,label:'laweta'},
+ road_service:     {svc:'road',  crew:2,caps:['infrastructure_repair','road_reopen'],speed:1.8,label:'służby drogowe'},
+};
+/* §2.2 Maszyna stanów */
+const RG_STATUS=['undetected','observed','reported','validated','dispatch_pending','units_assigned',
+  'responders_en_route','on_scene','controlled','documenting','cleanup','resolved','archived'];
+const RG_CANCELABLE=['observed','validated','dispatch_pending'];
+
+window._rgEnsure=function(){
+  if(!G.responseGrid||typeof G.responseGrid!=='object') G.responseGrid={};
+  const r=G.responseGrid;
+  if(r.version==null) r.version=1;
+  if(!Array.isArray(r.incidents)) r.incidents=[];
+  if(!Array.isArray(r.units)) r.units=[];
+  if(!Array.isArray(r.closures)) r.closures=[];
+  if(!Array.isArray(r.history)) r.history=[];
+  if(!Array.isArray(r.traces)) r.traces=[];      /* §10 pamięć miasta do 4 dni */
+  if(r.seq==null) r.seq=4820;
+  if(r.stage==null) r.stage=1;                   /* §14 aktywna warstwa wdrożenia */
+  if(r.chaosBudget==null) r.chaosBudget=100;
+  if(r.lastGenDay==null) r.lastGenDay=-99;
+  if(r.lastGenMin==null) r.lastGenMin=-999;
+  if(!r.telemetry||typeof r.telemetry!=='object') r.telemetry={byType:{},byDistrict:{},dispatchDelay:[],
+    travelTime:[],onSceneDuration:[],duplicateMerges:0,unitStuck:0,fallbacks:0,closureRejections:0,
+    congestionDelta:0,chaosPeak:0,reportFailures:0,saveMismatch:0};
+  if(!r.driverHistory||typeof r.driverHistory!=='object') r.driverHistory={violations:0,collisions:0,hitAndRun:0,lastDay:0};
+  if(!r.units.length) window._rgSpawnUnits();
+  return r;
+};
+window._rgSpawnUnits=function(){
+  const r=G.responseGrid; if(!r) return;
+  const mk=(type,i,x,y)=>({unitId:({police_patrol_car:'POL',police_foot:'FOT',fire_engine:'FIR',ambulance:'AMB',tow_truck:'TOW',road_service:'ROA'})[type]+'-'+i,
+    unitType:type,status:'patrolling',currentIncidentId:null,districtId:'main_city',
+    pos:{x:x,y:y},home:{x:x,y:y},crewCount:RG_UNIT_TYPES[type].crew,condition:100,
+    responseCapabilities:RG_UNIT_TYPES[type].caps.slice(),sirenActive:false,emergencyLightsActive:false,
+    routeRevision:0,availabilityScore:100,stuckTicks:0,eta:0});
+  r.units=[mk('police_patrol_car',12,900,440),mk('police_patrol_car',14,2400,1500),
+    mk('police_foot',3,1400,800),mk('fire_engine',5,600,2200),mk('ambulance',7,3000,900),
+    mk('tow_truck',2,1800,2600),mk('road_service',4,2600,300)];
+};
+/* §14 — warstwa działa tylko, gdy jest odblokowana kolejnością wdrożenia */
+window._rgStageActive=function(n){ return window._rgEnsure().stage>=n; };
+window._rgAdvanceStage=function(){
+  const r=window._rgEnsure();
+  /* warunek przejścia: poprzednia warstwa domknęła co najmniej 3 incydenty bez zakleszczeń */
+  const resolved=r.incidents.filter(i=>i.status==='resolved'||i.status==='archived').length;
+  if(resolved>=r.stage*3 && r.telemetry.unitStuck===0 && r.stage<RG_STAGES.length){ r.stage++; return r.stage; }
+  return r.stage;
+};
+
+/* §2.3 Deduplikacja — jeden wypadek to JEDEN incydent (kryteria 13-14) */
+window._rgQuantize=function(p,cell){ return Math.floor((p.x||0)/cell)+':'+Math.floor((p.y||0)/cell); };
+window._rgNormalizeType=function(t){ return (RG_TYPES[t]||{}).group||'other'; };
+window._rgDedupeKey=function(c){
+  const t=Math.floor(((G.gameMin||0)*60)/20);
+  return window._rgNormalizeType(c.incidentType)+'|'+window._rgQuantize(c.position||{x:0,y:0},18)+'|'
+    +((c.involvedEntityIds||[]).slice().sort().join(','))+'|'+t;
+};
+window._rgFindByKey=function(key){
+  const r=window._rgEnsure();
+  return r.incidents.find(i=>i._dedupeKey===key && i.status!=='resolved' && i.status!=='archived')||null;
+};
+/* §5.3 Reguła wiedzy: generator tła NIE daje policji wiedzy — musi być obserwacja/monitoring/zgłoszenie */
+window._rgRegister=function(candidate){
+  const r=window._rgEnsure();
+  const key=window._rgDedupeKey(candidate);
+  const existing=window._rgFindByKey(key);
+  if(existing){ window._rgMergeObservation(existing,candidate); r.telemetry.duplicateMerges++; return existing; }
+  return window._rgCreate(candidate,key);
+};
+window._rgCreate=function(c,key){
+  const r=window._rgEnsure(); const def=RG_TYPES[c.incidentType]||{sev:40,pri:'P3',label:c.incidentType};
+  r.seq++;
+  const inc={
+    incidentId:'INC-'+String(r.seq).padStart(6,'0'),
+    seed:Math.floor(Math.random()*1e7),
+    incidentType:c.incidentType,
+    status:c.source==='background'?'undetected':(c.source==='witness'?'reported':'observed'),
+    severity:Math.max(1,Math.min(100,Math.round(c.severity!=null?c.severity:def.sev))),
+    priority:c.priority||def.pri,
+    districtId:c.districtId||'main_city', zoneId:c.zoneId||null,
+    position:{x:(c.position&&c.position.x)||0,y:(c.position&&c.position.y)||0},
+    startedAtGameTime:Math.round((G.gameMin||0)*60), reportedAtGameTime:null, resolvedAtGameTime:null,
+    primaryActorId:c.primaryActorId||null,
+    involvedEntityIds:(c.involvedEntityIds||[]).slice(),
+    witnessNpcIds:[], damagedVehicleIds:(c.damagedVehicleIds||[]).slice(), damagedObjectIds:[],
+    injuredNpcIds:(c.injuredNpcIds||[]).slice(),
+    assignedUnitIds:[], roadClosureIds:[], scenePlanId:null, reportId:null,
+    observations:[], evidenceRecords:[], publicAttention:0, mediaAttention:0,
+    simulationLevel:c.simulationLevel||'full', version:1, persistentConsequences:[],
+    _dedupeKey:key, _phase:0, _createdDay:G.day||1, byPlayer:!!c.byPlayer
+  };
+  if(c.source&&c.source!=='background') window._rgMergeObservation(inc,c);
+  r.incidents.push(inc);
+  r.telemetry.byType[inc.incidentType]=(r.telemetry.byType[inc.incidentType]||0)+1;
+  r.telemetry.byDistrict[inc.districtId]=(r.telemetry.byDistrict[inc.districtId]||0)+1;
+  if(r.incidents.length>60) r.incidents=r.incidents.filter(i=>i.status!=='archived').concat(
+    r.incidents.filter(i=>i.status==='archived').slice(-10));
+  return inc;
+};
+window._rgMergeObservation=function(inc,c){
+  const src=c.source||'observation';
+  inc.observations.push({source:src,confidence:c.confidence!=null?c.confidence:70,
+    at:Math.round((G.gameMin||0)*60),sawActor:!!c.sawActor,witnessNpcId:c.witnessNpcId||null});
+  if(c.witnessNpcId&&inc.witnessNpcIds.indexOf(c.witnessNpcId)<0) inc.witnessNpcIds.push(c.witnessNpcId);
+  (c.involvedEntityIds||[]).forEach(e=>{ if(inc.involvedEntityIds.indexOf(e)<0) inc.involvedEntityIds.push(e); });
+  /* wiedza policji powstaje dopiero z obserwacji funkcjonariusza, monitoringu, świadka albo innej jednostki */
+  if(['officer','monitoring','witness','unit'].indexOf(src)>=0 && inc.status==='undetected'){
+    inc.status=(src==='witness')?'reported':'observed';
+    inc.reportedAtGameTime=Math.round((G.gameMin||0)*60);
+  }
+  if(inc.reportedAtGameTime==null&&inc.status!=='undetected') inc.reportedAtGameTime=Math.round((G.gameMin||0)*60);
+};
+/* §5.2 Szansa zgłoszenia świadka */
+window._rgWitnessChance=function(npc,inc){
+  let c=20;
+  c+=(npc.civicResponsibility!=null?npc.civicResponsibility:50)*0.45;
+  c+=inc.severity*0.35;
+  c+=(npc.confidence!=null?npc.confidence:50)*0.10;
+  c-=(npc.fear!=null?npc.fear:30)*0.25;
+  c-=(npc.underworldAffinity!=null?npc.underworldAffinity:10)*0.20;
+  return Math.max(0,Math.min(95,Math.round(c)));
+};
+window._rgAddWitness=function(inc,npc){
+  const chance=window._rgWitnessChance(npc,inc);
+  const called=Math.random()*100<chance;
+  const obs={witnessNpcId:npc.id||('npc_'+Math.floor(Math.random()*900)),incidentId:inc.incidentId,
+    sawPrimaryActor:Math.random()<0.6,sawVehiclePlate:Math.random()<0.25,sawCollision:true,
+    observationConfidence:Math.max(10,Math.min(95,Math.round(30+Math.random()*60))),
+    emotionalState:inc.severity>70?'shocked':'concerned',calledEmergencyServices:called,
+    recordedVideo:Math.random()<0.35,stayedAtScene:Math.random()<0.5};
+  inc.evidenceRecords.push(obs);
+  if(called) window._rgMergeObservation(inc,{source:'witness',witnessNpcId:obs.witnessNpcId,
+    confidence:obs.observationConfidence,sawActor:obs.sawPrimaryActor});
+  inc.publicAttention=Math.min(100,inc.publicAttention+(obs.recordedVideo?9:4));
+  return obs;
+};
+/* §6.1/§6.2 Walidacja, priorytet i plan dysponowania */
+window._rgValidate=function(inc){
+  if(inc.status==='undetected') return false;   /* kryterium 4: policja reaguje tylko na wykryte/zgłoszone */
+  const conf=inc.observations.reduce((m,o)=>Math.max(m,o.confidence||0),0);
+  if(conf<25 && inc.severity<40) return false;  /* niepewne zgłoszenie o drobnym zdarzeniu — brak reakcji */
+  inc.status='validated';
+  return true;
+};
+window._rgDispatchPlan=function(inc){
+  const p={policeUnits:0,fireUnits:0,medicalUnits:0,roadServiceUnits:0,towUnits:0,supervisorRequired:false};
+  const t=inc.incidentType, g=(RG_TYPES[t]||{}).group;
+  if(t==='traffic_red_light') p.policeUnits=inc.severity>=50?1:0;
+  else if(t==='vehicle_pedestrian_collision'){ p.policeUnits=1; p.medicalUnits=1; p.towUnits=inc.damagedVehicleIds.length?1:0; }
+  else if(t==='commercial_building_fire'||t==='residential_building_fire'||t==='warehouse_fire'){
+    p.fireUnits=inc.severity>=70?3:2; p.medicalUnits=1; p.policeUnits=1; p.roadServiceUnits=1;
+    p.supervisorRequired=inc.severity>=75; }
+  else if(g==='fire'){ p.fireUnits=1; p.policeUnits=1; p.medicalUnits=inc.severity>=70?1:0; }
+  else if(g==='medical'){ p.medicalUnits=1; p.policeUnits=inc.severity>=65?1:0; }
+  else if(g==='collision'){ p.policeUnits=1; p.towUnits=1; p.medicalUnits=inc.injuredNpcIds.length?1:0; }
+  else if(g==='crime'){ p.policeUnits=inc.severity>=70?2:1; }
+  else if(g==='infra'){ p.roadServiceUnits=1; p.policeUnits=inc.severity>=45?1:0; }
+  else p.policeUnits=1;
+  return p;
+};
+window._rgFreeUnits=function(svc){
+  const r=window._rgEnsure();
+  return r.units.filter(u=>RG_UNIT_TYPES[u.unitType].svc===svc && !u.currentIncidentId && u.condition>0);
+};
+window._rgDist=function(a,b){ return Math.round(Math.hypot((a.x||0)-(b.x||0),(a.y||0)-(b.y||0))); };
+window._rgAssign=function(inc){
+  const r=window._rgEnsure();
+  if(inc.status!=='validated'&&inc.status!=='dispatch_pending') return {assigned:0};
+  inc.status='dispatch_pending';
+  const plan=window._rgDispatchPlan(inc);
+  const want=[['police',plan.policeUnits],['fire',plan.fireUnits],['medical',plan.medicalUnits],
+    ['tow',plan.towUnits],['road',plan.roadServiceUnits]];
+  let n=0;
+  want.forEach(([svc,cnt])=>{
+    for(let k=0;k<cnt;k++){
+      const free=window._rgFreeUnits(svc).sort((a,b)=>window._rgDist(a.pos,inc.position)-window._rgDist(b.pos,inc.position));
+      const u=free[0]; if(!u) continue;
+      u.currentIncidentId=inc.incidentId; u.status='en_route'; u.routeRevision++;
+      const spd=RG_UNIT_TYPES[u.unitType].speed;
+      const dist=window._rgDist(u.pos,inc.position);
+      /* §6: jednostka NIE teleportuje się — dostaje realny czas dojazdu */
+      u.eta=Math.max(1,Math.round(dist/(spd*90)));
+      u.etaInitial=u.eta; u.enRouteTicks=0;
+      if(inc.priority==='P1'||inc.priority==='P2'){ u.sirenActive=true; u.emergencyLightsActive=true; }
+      if(inc.assignedUnitIds.indexOf(u.unitId)<0) inc.assignedUnitIds.push(u.unitId);
+      n++;
+    }
+  });
+  if(n>0){ inc.status='units_assigned';
+    r.telemetry.dispatchDelay.push(Math.round((G.gameMin||0)*60)-(inc.reportedAtGameTime||0));
+    if(r.telemetry.dispatchDelay.length>50) r.telemetry.dispatchDelay.shift();
+  }
+  return {assigned:n,plan:plan};
+};
+/* §9 Zamknięcia i objazdy — z zabezpieczeniem przed softlockiem (kryteria 20-22, 29) */
+window._rgCloseRoad=function(inc,lanes){
+  const r=window._rgEnsure();
+  /* §12/§13: zamknięcie nie może odciąć wszystkich wyjazdów */
+  const openAfter=6-(r.closures.length+1);
+  if(openAfter<2){ r.telemetry.closureRejections++; return null; }
+  const cl={closureId:'CLS-'+(r.seq++),incidentId:inc.incidentId,position:{x:inc.position.x,y:inc.position.y},
+    lanes:lanes||1,full:(lanes||1)>=2,openedStages:0,createdDay:G.day||1};
+  r.closures.push(cl); inc.roadClosureIds.push(cl.closureId);
+  r.telemetry.congestionDelta+=cl.full?12:5;
+  return cl;
+};
+window._rgReopen=function(closureId){
+  const r=window._rgEnsure(); const cl=r.closures.find(c=>c.closureId===closureId); if(!cl) return false;
+  /* §10 pkt 29: droga otwierana ETAPAMI — najpierw pas, potem pełna przepustowość */
+  cl.openedStages++;
+  if(cl.openedStages>=(cl.full?2:1)){
+    r.closures=r.closures.filter(c=>c.closureId!==closureId);
+    r.telemetry.congestionDelta=Math.max(0,r.telemetry.congestionDelta-(cl.full?12:5));
+    return true;
+  }
+  return false;
+};
+window._rgCongestion=function(){ const r=window._rgEnsure();
+  return Math.min(100,r.closures.reduce((n,c)=>n+(c.full?18:8),0)); };
+
+/* §4 Wykroczenia: linia zatrzymania i strefa konfliktowa (kryteria 1-3) */
+window._rgDriverProfile=function(seed){
+  const rnd=()=>Math.random();
+  return {patience:Math.round(30+rnd()*60),riskTolerance:Math.round(10+rnd()*60),
+    lawAbiding:Math.round(40+rnd()*55),reactionMs:Math.round(280+rnd()*420),
+    speedPreference:Math.round(70+rnd()*50)};
+};
+window._rgRedLightCheck=function(actor,light){
+  /* kryterium 2: wykroczenie WYMAGA przekroczonej linii zatrzymania i wjazdu w strefę konfliktową */
+  if(!light||light.state!=='red') return null;
+  if(!actor||!actor.crossedStopLine||!actor.inConflictZone) return null;
+  return {incidentType:'traffic_red_light',severity:35+(actor.speed>2?15:0),
+    position:{x:actor.x,y:actor.y},primaryActorId:actor.id,involvedEntityIds:[actor.id]};
+};
+window._rgSidewalkCheck=function(actor){
+  /* kryterium 3: tolerancja dla podjazdu i krótkiego najechania */
+  if(!actor||!actor.onSidewalk) return null;
+  const t=actor.sidewalkTicks||0;
+  if(t<12) return null;                          /* krótki kontakt tolerowany */
+  const fast=(actor.speed||0)>1.6;
+  if(t<24&&!fast) return null;
+  return {incidentType:'traffic_sidewalk_driving',severity:40+(fast?20:0)+Math.min(20,t/3),
+    position:{x:actor.x,y:actor.y},primaryActorId:actor.id,involvedEntityIds:[actor.id]};
+};
+/* §5.3 Linia widzenia funkcjonariusza — bez niej nie ma wiedzy policji */
+window._rgOfficerSees=function(unit,pos){
+  if(!unit||unit.condition<=0) return false;
+  const d=window._rgDist(unit.pos,pos);
+  return d<=260;
+};
+window._rgMonitoringSees=function(pos){
+  const r=window._rgEnsure();
+  /* monitoring obejmuje wyznaczone skrzyżowania; może mieć awarię */
+  const cell=window._rgQuantize(pos,320);
+  const hash=cell.split(':').reduce((a,b)=>a+parseInt(b,10)*7,0);
+  const covered=(Math.abs(hash)%3)===0;
+  const broken=(Math.abs(hash)%11)===0;
+  return covered&&!broken;
+};
+/* Wejście dla świata: zgłoś kandydata na incydent i rozstrzygnij wykrycie */
+window._rgReport=function(candidate){
+  const r=window._rgEnsure();
+  if(!RG_TYPES[candidate.incidentType]) return null;
+  const grp=RG_TYPES[candidate.incidentType].group;
+  /* §16 dyrektywa: wyższe warstwy dopiero po uruchomieniu niższych */
+  if(grp==='crime'&&candidate.incidentType==='stolen_vehicle_pursuit'&&!window._rgStageActive(3)) return null;
+  if(grp==='medical'&&!window._rgStageActive(4)) return null;
+  if(grp==='fire'&&!window._rgStageActive(5)) return null;
+  let source=candidate.source||'background';
+  if(source==='background'){
+    /* generator tła inicjuje świat, ale NIE daje policji wiedzy (§5.3) */
+    const seen=r.units.some(u=>RG_UNIT_TYPES[u.unitType].svc==='police'&&window._rgOfficerSees(u,candidate.position||{x:0,y:0}));
+    if(seen) source='officer';
+    else if(window._rgMonitoringSees(candidate.position||{x:0,y:0})) source='monitoring';
+  }
+  const inc=window._rgRegister(Object.assign({},candidate,{source:source}));
+  return inc;
+};
+/* §7 Pościg · §7 kradzież NPC ze statusem stolen (kryteria 8-9) */
+window._rgStartTheft=function(vehicleId,pos,byNpc){
+  if(!window._rgStageActive(3)) return null;
+  const inc=window._rgReport({incidentType:'vehicle_theft',position:pos,
+    primaryActorId:byNpc||'npc_thief',involvedEntityIds:[vehicleId],damagedVehicleIds:[]});
+  if(inc){ inc.persistentConsequences.push({type:'stolen_vehicle',vehicleId:vehicleId,sinceDay:G.day||1});
+    if(!G._stolenVehicles) G._stolenVehicles=[];
+    if(G._stolenVehicles.indexOf(vehicleId)<0) G._stolenVehicles.push(vehicleId); }
+  return inc;
+};
+window._rgEscalateToPursuit=function(inc){
+  if(!window._rgStageActive(3)||!inc) return null;
+  inc.incidentType='stolen_vehicle_pursuit'; inc.priority='P1';
+  inc.severity=Math.min(100,inc.severity+20);
+  /* Pościg zaczyna się dlatego, że KTOŚ zauważył pojazd — dopisujemy obserwację jednostki,
+     zamiast dawać policji wiedzę z powietrza (§5.3), a potem walidujemy zdarzenie krytyczne. */
+  if(inc.status==='undetected') window._rgMergeObservation(inc,{source:'unit',confidence:90,sawActor:true});
+  if(inc.status==='observed'||inc.status==='reported') window._rgValidate(inc);
+  window._rgAssign(inc);
+  return inc;
+};
+/* §8 Pożar: fazy, dozwolone anchory, następstwa (kryteria 17-18) */
+window._rgFireAnchors=function(){
+  return ['apt_basic','apt_premium','apt_penthouse','warehouse','shop','club','office','garage'];
+};
+window._rgStartFire=function(anchorId,pos,type){
+  if(!window._rgStageActive(5)) return null;
+  if(window._rgFireAnchors().indexOf(anchorId)<0) return null;   /* kryterium 17 */
+  const inc=window._rgReport({incidentType:type||'commercial_building_fire',position:pos,
+    primaryActorId:anchorId,involvedEntityIds:[anchorId]});
+  if(inc){ inc._phase=1; inc.persistentConsequences.push({type:'building_damaged',anchorId:anchorId,
+    sinceDay:G.day||1,repairDays:2+Math.floor(inc.severity/25)}); }
+  return inc;
+};
+/* §10 Protokół — na podstawie RZECZYWISTYCH uczestników (kryterium 15) */
+window._rgWriteReport=function(inc){
+  const r=window._rgEnsure();
+  if(!inc.involvedEntityIds.length&&!inc.witnessNpcIds.length&&!inc.primaryActorId){
+    r.telemetry.reportFailures++; return null; }
+  const rep={reportId:'RPT-'+(r.seq++),incidentId:inc.incidentId,day:G.day||1,
+    type:inc.incidentType,label:(RG_TYPES[inc.incidentType]||{}).label,
+    actors:inc.involvedEntityIds.slice(),witnesses:inc.witnessNpcIds.slice(),
+    injured:inc.injuredNpcIds.slice(),damaged:inc.damagedVehicleIds.slice(),
+    severity:inc.severity,priority:inc.priority,
+    units:inc.assignedUnitIds.slice()};
+  inc.reportId=rep.reportId;
+  r.history.push(rep);
+  if(r.history.length>40) r.history.shift();
+  return rep;
+};
+/* §10 Pamięć miasta — ślady do 4 dni (kryterium 25) */
+window._rgAddTrace=function(inc){
+  const r=window._rgEnsure();
+  r.traces.push({incidentId:inc.incidentId,type:inc.incidentType,position:{x:inc.position.x,y:inc.position.y},
+    day:G.day||1,expiresDay:(G.day||1)+4,label:(RG_TYPES[inc.incidentType]||{}).label});
+  if(r.traces.length>40) r.traces.shift();
+};
+window._rgActiveTraces=function(){ const r=window._rgEnsure();
+  return r.traces.filter(t=>(G.day||1)<t.expiresDay); };
+
+/* ═══ Cykl życia — tick świata ═══ */
+window._rgTick=function(){
+  const r=window._rgEnsure(); const now=Math.round((G.gameMin||0)*60);
+  const msgs=[];
+  r.incidents.forEach(inc=>{
+    if(inc.status==='archived') return;
+    switch(inc.status){
+      case 'undetected': {
+        /* świat żyje dalej — wykrycie może przyjść później z patrolu albo monitoringu */
+        const seen=r.units.some(u=>RG_UNIT_TYPES[u.unitType].svc==='police'&&window._rgOfficerSees(u,inc.position));
+        if(seen) window._rgMergeObservation(inc,{source:'officer',confidence:88,sawActor:true});
+        else if(window._rgMonitoringSees(inc.position)) window._rgMergeObservation(inc,{source:'monitoring',confidence:70});
+        break; }
+      case 'observed': case 'reported':
+        if(window._rgValidate(inc)) { /* przechodzi dalej */ }
+        else if(RG_CANCELABLE.indexOf(inc.status)>=0&&(now-(inc.startedAtGameTime||0))>1800){ inc.status='archived'; }
+        break;
+      case 'validated': window._rgAssign(inc); break;
+      case 'dispatch_pending': {
+        const a=window._rgAssign(inc);
+        if(!a.assigned&&(now-(inc.reportedAtGameTime||0))>2400){ inc.status='archived'; }
+        break; }
+      case 'units_assigned': inc.status='responders_en_route'; break;
+      case 'responders_en_route': {
+        let arrived=0,total=0;
+        inc.assignedUnitIds.forEach(id=>{ const u=r.units.find(x=>x.unitId===id); if(!u) return; total++;
+          if(u.eta>0){ const dBefore=window._rgDist(u.pos,inc.position);
+            u.eta--; u.pos={x:Math.round(u.pos.x+(inc.position.x-u.pos.x)*0.35),
+                            y:Math.round(u.pos.y+(inc.position.y-u.pos.y)*0.35)};
+            /* Zakleszczenie mierzymy PRZEKROCZENIEM planowanego czasu dojazdu — sam ruch nie wystarcza,
+               bo jednostka może się przemieszczać i nigdy nie docierać na miejsce. */
+            const dAfter=window._rgDist(u.pos,inc.position);
+            u.enRouteTicks=(u.enRouteTicks||0)+1;
+            /* próg cierpliwości: planowany czas dojazdu, ale nie dłużej niż 10 przebiegów —
+               jednostka krążąca w kółko przy odległym zdarzeniu też musi zostać wykryta. */
+            const plan=Math.min(10,Math.max(3,u.etaInitial||3));
+            if(u.enRouteTicks>plan) u.stuckTicks=(u.stuckTicks||0)+1; else if(dBefore-dAfter>=2) u.stuckTicks=0; }
+          else { u.status='on_scene'; arrived++;
+            /* §12 anti-stuck: jednostka bez postępu dostaje nową trasę, potem fallback */
+          }
+          if(u.status==='en_route'&&u.eta>0&&window._rgDist(u.pos,inc.position)<6){ u.eta=0; }
+        });
+        if(total===0){ inc.status='dispatch_pending'; break; }
+        if(arrived>0){ inc.status='on_scene';
+          r.telemetry.travelTime.push(now-(inc.reportedAtGameTime||now));
+          if(r.telemetry.travelTime.length>50) r.telemetry.travelTime.shift();
+          inc._onSceneAt=now;
+          /* §9 zabezpieczenie sceny: zamknięcie pasa przy poważnych zdarzeniach */
+          if(inc.severity>=55) window._rgCloseRoad(inc,inc.severity>=75?2:1);
+          /* §5 świadkowie na miejscu */
+          const wn=1+Math.floor(Math.random()*3);
+          for(let k=0;k<wn;k++) window._rgAddWitness(inc,{id:'npc_'+Math.floor(Math.random()*900),
+            civicResponsibility:Math.round(Math.random()*100),confidence:Math.round(Math.random()*100),
+            fear:Math.round(Math.random()*70),underworldAffinity:Math.round(Math.random()*40)});
+        }
+        break; }
+      case 'on_scene': {
+        inc._phase++;
+        const need=(RG_TYPES[inc.incidentType]||{}).group==='fire'?4:2;
+        if(inc._phase>=need){ inc.status='controlled'; }
+        break; }
+      case 'controlled': inc.status='documenting'; break;
+      case 'documenting': {
+        window._rgWriteReport(inc);
+        inc.status='cleanup';
+        break; }
+      case 'cleanup': {
+        /* §10: laweta usuwa wraki, służby naprawiają infrastrukturę, droga otwiera się ETAPAMI */
+        let allOpen=true;
+        inc.roadClosureIds.slice().forEach(cid=>{ if(!window._rgReopen(cid)) allOpen=false;
+          else inc.roadClosureIds=inc.roadClosureIds.filter(x=>x!==cid); });
+        if(allOpen){
+          inc.status='resolved'; inc.resolvedAtGameTime=now;
+          if(inc._onSceneAt!=null){ r.telemetry.onSceneDuration.push(now-inc._onSceneAt);
+            if(r.telemetry.onSceneDuration.length>50) r.telemetry.onSceneDuration.shift(); }
+          inc.assignedUnitIds.forEach(id=>{ const u=r.units.find(x=>x.unitId===id); if(!u) return;
+            u.currentIncidentId=null; u.status='returning'; u.sirenActive=false; u.emergencyLightsActive=false; u.eta=0; });
+          window._rgAddTrace(inc);
+          if(inc.severity>=70){ inc.mediaAttention=Math.min(100,inc.mediaAttention+25);
+            msgs.push('📰 '+(RG_TYPES[inc.incidentType]||{}).label+' — zdarzenie trafiło do lokalnych mediów.'); }
+        }
+        break; }
+      case 'resolved': if((G.day||1)-(inc._createdDay||1)>=1) inc.status='archived'; break;
+    }
+  });
+  /* jednostki wracają na pozycje wyjściowe */
+  r.units.forEach(u=>{
+    if(u.status==='returning'){
+      u.pos={x:Math.round(u.pos.x+(u.home.x-u.pos.x)*0.4),y:Math.round(u.pos.y+(u.home.y-u.pos.y)*0.4)};
+      if(window._rgDist(u.pos,u.home)<20){ u.pos={x:u.home.x,y:u.home.y}; u.status='patrolling'; }
+    }
+    /* §12 anti-stuck: brak postępu → reroute, potem fallback z raportem diagnostycznym */
+    if(u.currentIncidentId&&u.status==='en_route'){
+      /* licznik podbija pętla dojazdu; tutaj reagujemy: najpierw nowa trasa, potem fallback z raportem */
+      if(u.stuckTicks===3 && !u._rerouted){ u._rerouted=true; u.routeRevision++;
+        u.eta=Math.max(1,Math.round(u.eta*0.6)); }
+      if(u.stuckTicks>6){ r.telemetry.unitStuck++; r.telemetry.fallbacks++;
+        u.eta=0; u.stuckTicks=0; u._rerouted=false; }
+    } else { u.stuckTicks=0; u._rerouted=false; }
+  });
+  r.telemetry.chaosPeak=Math.max(r.telemetry.chaosPeak,r.incidents.filter(i=>i.status!=='archived'&&i.status!=='resolved').length);
+  if(msgs.length&&typeof addNotif==='function') msgs.slice(0,2).forEach(m=>addNotif(m));
+  return msgs;
+};
+/* §12 Poziomy symulacji: full / simplified / background (kryteria 30-31) */
+window._rgSetSimulationLevel=function(inc,level){
+  if(!inc||['full','simplified','background'].indexOf(level)<0) return false;
+  const prev=inc.simulationLevel; inc.simulationLevel=level;
+  /* przejście nie może zgubić postępu ani przesunąć jednostek skokowo */
+  return prev!==level;
+};
+window._rgMaterialize=function(inc){
+  /* zdarzenie z tła materializuje się w AKTUALNYM stanie — bez cofania fazy */
+  if(!inc) return null;
+  inc.simulationLevel='full';
+  return {status:inc.status,phase:inc._phase,units:inc.assignedUnitIds.length,closures:inc.roadClosureIds.length};
+};
+/* §11 Generator tła — cooldowny i budżet chaosu (kryteria 28-29) */
+window._rgGenerate=function(){
+  const r=window._rgEnsure();
+  const min=(G.gameMin||0);
+  if(min-r.lastGenMin<45) return null;                 /* cooldown */
+  const active=r.incidents.filter(i=>i.status!=='resolved'&&i.status!=='archived').length;
+  if(active>=4) return null;                            /* budżet chaosu */
+  if(r.chaosBudget<10) return null;
+  r.lastGenMin=min;
+  const pool=Object.keys(RG_TYPES).filter(t=>{
+    const g=RG_TYPES[t].group;
+    if(g==='fire'&&!window._rgStageActive(5)) return false;
+    if(g==='medical'&&!window._rgStageActive(4)) return false;
+    if(g==='crime'&&!window._rgStageActive(3)) return false;
+    if(!window._rgStageActive(2)&&g!=='traffic') return false;
+    return true;
+  });
+  if(!pool.length) return null;
+  const t=pool[Math.floor(Math.random()*pool.length)];
+  r.chaosBudget=Math.max(0,r.chaosBudget-RG_TYPES[t].sev/10);
+  return window._rgReport({incidentType:t,source:'background',
+    position:{x:Math.round(400+Math.random()*3400),y:Math.round(300+Math.random()*3000)}});
+};
+window._rgDailyTick=function(){
+  const r=window._rgEnsure();
+  r.chaosBudget=Math.min(100,r.chaosBudget+35);
+  r.traces=r.traces.filter(t=>(G.day||1)<t.expiresDay);
+  r.closures=r.closures.filter(c=>(G.day||1)-c.createdDay<3);
+  window._rgAdvanceStage();
+  /* §11 historia kierowcy — salony reagują (kryterium 34) */
+  const dh=r.driverHistory;
+  if(dh.lastDay!==(G.day||1)){ dh.lastDay=G.day||1; }
+  return [];
+};
+/* §11 Integracje: historia kierowcy wpływa na salony, zdarzenia na Gigi i występy */
+window._rgDriverPenalty=function(){
+  const r=window._rgEnsure(); const d=r.driverHistory;
+  return Math.min(0.25,(d.violations*0.01)+(d.collisions*0.02)+(d.hitAndRun*0.06));
+};
+window._rgNoteDriverEvent=function(kind){
+  const r=window._rgEnsure(); const d=r.driverHistory;
+  if(kind==='violation') d.violations++;
+  else if(kind==='collision') d.collisions++;
+  else if(kind==='hit_and_run') d.hitAndRun++;
+};
+window._rgGigDisruption=function(){
+  const r=window._rgEnsure();
+  const near=r.incidents.filter(i=>['on_scene','responders_en_route','controlled'].indexOf(i.status)>=0);
+  return Math.min(0.30,near.length*0.06+window._rgCongestion()/400);
+};
+/* §13.2 Panel telemetrii developerskiej */
+window._rgTelemetry=function(){
+  const r=window._rgEnsure(); const t=r.telemetry;
+  const avg=(a)=>a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):0;
+  return {incidentsByType:t.byType,incidentsByDistrict:t.byDistrict,
+    averageDispatchDelay:avg(t.dispatchDelay),averageTravelTime:avg(t.travelTime),
+    averageOnSceneDuration:avg(t.onSceneDuration),duplicateMergeCount:t.duplicateMerges,
+    unitStuckCount:t.unitStuck,fallbackActivationCount:t.fallbacks,
+    roadClosureSoftlockRejections:t.closureRejections,averageCongestionDelta:Math.round(t.congestionDelta),
+    activeChaosLoadPeak:t.chaosPeak,reportGenerationFailures:t.reportFailures,
+    saveRestoreIncidentMismatch:t.saveMismatch,stage:r.stage};
+};
+window._rgPanel=function(){
+  const r=window._rgEnsure(); const t=window._rgTelemetry();
+  const active=r.incidents.filter(i=>i.status!=='archived'&&i.status!=='resolved');
+  if(typeof openOverlay==='function') openOverlay();
+  document.getElementById('ov-content').innerHTML=`
+    <h2>🚨 RESPONSE GRID</h2>
+    <p class="sub">Warstwa ${r.stage}/6 — ${RG_STAGES[r.stage-1].name}. ${RG_STAGES[r.stage-1].scope}</p>
+    <div style="background:#0d1420;border:1px solid #1e2c3e;border-radius:10px;padding:11px;font-size:12px;color:#cdd;line-height:1.75">
+      Aktywne zdarzenia: <b>${active.length}</b> · zamknięcia: <b>${r.closures.length}</b> · korki: <b>${window._rgCongestion()}%</b><br>
+      Jednostki: ${r.units.map(u=>u.unitId+(u.currentIncidentId?'*':'')).join(', ')}<br>
+      Ślady w mieście (do 4 dni): <b>${window._rgActiveTraces().length}</b> · protokoły: <b>${r.history.length}</b><br>
+      Budżet chaosu: <b>${Math.round(r.chaosBudget)}</b>
+    </div>
+    ${active.length?`<h3 style="color:#e0483a;margin:12px 0 6px;font-size:13px">Trwające zdarzenia</h3>
+      ${active.map(i=>`<div style="background:#0a1220;border-radius:7px;padding:8px;margin-bottom:5px;font-size:11px;color:#cdd">
+        <b>${i.incidentId}</b> · ${(RG_TYPES[i.incidentType]||{}).label} · ${i.priority}<br>
+        <span style="color:#9ab">status: ${i.status} · waga ${i.severity} · jednostki: ${i.assignedUnitIds.join(', ')||'—'} · świadkowie: ${i.witnessNpcIds.length}</span></div>`).join('')}`:''}
+    ${r.history.length?`<h3 style="color:#7ec8e3;margin:12px 0 6px;font-size:13px">Ostatnie protokoły</h3>
+      ${r.history.slice(-5).reverse().map(h=>`<div style="background:#0a1220;border-radius:7px;padding:8px;margin-bottom:5px;font-size:11px;color:#cdd">
+        <b>${h.reportId}</b> · dzień ${h.day} · ${h.label}<br><span style="color:#9ab">uczestnicy: ${h.actors.length} · świadkowie: ${h.witnesses.length} · jednostki: ${h.units.join(', ')||'—'}</span></div>`).join('')}`:''}
+    <div class="res" id="rg-res">Średni czas dysponowania: ${t.averageDispatchDelay} s · dojazdu: ${t.averageTravelTime} s · scalonych duplikatów: ${t.duplicateMergeCount}</div>
+    <button class="cbtn" onclick="closeOverlay()">← Wróć</button>`;
+};
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSE GRID MODULE END
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+
 
 
 
@@ -79953,8 +80558,14 @@ window._s9AfterDeal=function(npcId,priceTier){
 };
 const PATCH_NOTES = [
  {
- ver:'v2.3.128',date:'2026-07-28',cats:['feature'],title:'🏢 VANTAGE WORKS, 🌱 SUBTERRA, 🧰 Gigi 2.0, 👑 Urban Crown i nowe marki samochodów',
+ ver:'v2.3.128',date:'2026-07-28',cats:['feature'],title:'🚨 Sześć dużych modułów naraz: RESPONSE GRID, VANTAGE WORKS, SUBTERRA, Gigi 2.0, Urban Crown i nowe marki samochodów',
  items:[
+  {t:'feature',d:'🚨 Miasto dostało system zdarzeń i reakcji służb. Wypadek, pożar, kradzież czy zasłabnięcie to teraz jedno zdarzenie z własnym numerem, do którego odnoszą się wszystkie służby — koniec z kilkoma kopiami tego samego wypadku i podwojonymi patrolami.'},
+  {t:'new',d:'👮 Policja wie tylko to, co zobaczyła, co nagrał monitoring albo co zgłosił świadek. Zdarzenie z dala od patroli i kamer po prostu się dzieje i czeka, aż ktoś je zauważy. Świadkowie mają różną pewność, część nagrywa, część dzwoni, a część ucieka.'},
+  {t:'new',d:'🚓 Jednostki nie pojawiają się z powietrza — dostają przydział, ruszają z sygnałami i fizycznie dojeżdżają. Radiowozy, straż, ambulanse, lawety i służby drogowe to osobne typy jednostek z własnymi zadaniami. Przy poważnym zdarzeniu zamykany jest pas albo cała ulica, a droga otwiera się etapami.'},
+  {t:'new',d:'🚦 Przejazd na czerwonym liczy się dopiero po przekroczeniu linii zatrzymania i wjeździe w skrzyżowanie, a krótkie najechanie na chodnik jest tolerowane. Dłuższa i szybka jazda po chodniku już nie. Twoja historia jako kierowcy zostaje w mieście i odbija się na salonach.'},
+  {t:'new',d:'🔥 Pożary mają fazy, zostawiają uszkodzony budynek i wymagają naprawy. Kradzież pojazdu nadaje mu status skradzionego i może przerodzić się w pościg. Ślady po zdarzeniach zostają w mieście do czterech dni, a największe trafiają do lokalnych mediów.'},
+  {t:'change',d:'⚙️ System startuje warstwami: najpierw ruch i wykroczenia, potem incydenty, pościgi, ratownictwo, pożary i pełna symulacja miasta. Generator zdarzeń ma cooldowny i budżet, więc nie zasypuje miasta chaosem i nigdy nie zamyka wszystkich wyjazdów.'},
   {t:'feature',d:'🌱 Uprawa dostała własny system rozwoju obiektu — SUBTERRA. Zamiast jednej liczby poziomu masz trzy realne obiekty: adaptowaną piwnicę, ukryty obiekt kontrolowany i podziemny kompleks z obróbką. Każdy ma swój potencjał, limit jakości, stabilność, liczbę slotów i koszt utrzymania, a nazwa zmienia się sama wraz z rozbudową.'},
   {t:'new',d:'🏗 Osiem etapów rozbudowy, każdy z ceną, czasem przestoju, konkretną korzyścią i uczciwie opisanym kosztem. Awans na wyższy obiekt wymaga wcześniejszych etapów, a prace kupione w trakcie cyklu czekają w kolejce i ruszają po rozliczeniu.'},
   {t:'new',d:'🔧 Doposażenie jest osobnym systemem: 18 modeli w sześciu kategoriach i trzech klasach. Każdy zajmuje sloty i obciążenie, ma kondycję, wymaga serwisu i traci na wartości. Lepszy model w kategorii zastępuje słabszy zamiast sumować efekty, a sprzęt spoza poziomu obiektu wymaga dopłaty za adapter.'},
@@ -96493,6 +97104,12 @@ function drawDistrictLife(){
 function drawCityLife(){
   if(currentRoom!=='ulica') return;
   if(_paused || G._dying) return; // pauza (+ śmierć) zatrzymuje cały ruch w mieście
+  /* v2.3.128 (PDF RESPONSE GRID): cykl życia incydentów miejskich — wykrywanie, dysponowanie,
+     dojazd, scena, protokół i sprzątanie. Odpalany co ~2 s gry, nie co klatkę (wydajność §12). */
+  try{ window._rgAcc=(window._rgAcc||0)+1;
+    if(window._rgAcc>=120){ window._rgAcc=0;
+      if(typeof window._rgTick==='function') window._rgTick();
+      if(typeof window._rgGenerate==='function') window._rgGenerate(); } }catch(e){}
   // Reset any canvas state that might have leaked from previous drawing calls
   X.globalAlpha=1;X.shadowBlur=0;X.shadowColor='transparent';X.setLineDash([]);
 
