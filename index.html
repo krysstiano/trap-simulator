@@ -42996,6 +42996,10 @@ function renderSalon(){
     <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
       <button class="cbtn" style="font-size:12px;padding:7px 11px" onclick="window._avOpenCompare()">⚖️ Porównywarka AutoVista 360</button>
       <button class="cbtn" style="font-size:12px;padding:7px 11px" onclick="window._avOpen(G.car?G.car.name:CAR_CATALOG[0].name)">🔄 Podgląd AutoVista 360</button>
+      <button class="cbtn" style="font-size:12px;padding:7px 11px" onclick="window._crownOpen()">💎 Crownline Auto Gallery</button>
+    </div>
+    <div style="background:#1a1508;border-left:3px solid #e8c56a;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#d8c8a0">
+      💎 Marki premium, luksusowe i egzotyczne mają pełną ekspozycję w <b>Crownline Auto Gallery</b> w dzielnicy biznesowej — tam obejrzysz je w większych detalach. Kupisz je jednak również tutaj, na tych samych warunkach.
     </div>
     <!-- v2.3.102 (PDF #8-27): pozycja „Bagażnik / schowek auta" USUNIĘTA ze sklepu — schowek jest dostępny tylko w POSIADANYM pojeździe (ekwipunek / panel pojazdu), nie w salonie. -->
     ${G.car?`<div style="background:#0a1220;border-radius:10px;padding:12px;margin-bottom:14px">
@@ -58540,7 +58544,12 @@ window._crownCars=function(){
   const ids=window._crownBrandIds();
   return CAR_CATALOG.filter(c=>{ const b=window.getVehicleBrand(c.name); return b&&ids.includes(b.id); });
 };
-/* Marki wyłączne dla Crownline (brak afiliacji do CityDrive) — to one dają salonowi sens. */
+/* Marki, których jedyną afiliacją w danych jest Crownline. UWAGA: modele tych marek
+   NADAL są kupowalne w CityDrive Motors — kryterium odbioru #17 wymaga, by „wymagania
+   progresji i ceny pozostały zgodne z dotychczasową konfiguracją", a Business District
+   otwiera się dopiero przy 300 sławy. Przeniesienie tu np. Kepler Arrow 911 (0 wymagań)
+   albo Vantori Furia (0 wymagań) zabrałoby graczom auta, które dziś mają wcześniej.
+   Dlatego Crownline daje tym markom pełną ekspozycję i opis, a nie wyłączność sprzedaży. */
 window._crownExclusiveBrandIds=function(){
   return Object.values(VEHICLE_BRANDS)
     .filter(b=>Array.isArray(b.dealershipAffinity)&&b.dealershipAffinity.includes('crownline_auto_gallery')
@@ -58571,7 +58580,7 @@ window._crownOpen=function(){
     const spd=car.speed>=2?`×${car.speed.toFixed(2).replace('.',',')}`:`+${Math.round((car.speed-1)*100)}%`;
     return `<div class="sitem" style="border-color:#3a3020">
       <h3 style="color:#e8c56a">${window.carDisplayName(car.name)}</h3>
-      <div style="font-size:10px;color:#a08a5a;letter-spacing:.5px;text-transform:uppercase;margin:-4px 0 5px">${window.getVehicleBrand(car.name).displayName}${window._crownExclusive(car.name)?' · wyłącznie tutaj':''}</div>
+      <div style="font-size:10px;color:#a08a5a;letter-spacing:.5px;text-transform:uppercase;margin:-4px 0 5px">${window.getVehicleBrand(car.name).displayName}${window._crownExclusive(car.name)?' · marka firmowa galerii':''}</div>
       <p style="font-size:12px">${car.desc}</p>
       <p style="font-size:11px;color:#8fb8d8;margin-bottom:5px">Prędkość: <b>${spd}</b> · Sława: <b>${car.fame>0?'+'+car.fame:car.fame}</b></p>
       ${reqStr.length?`<p style="font-size:10px;color:${reqOk?'#7ec87e':'#e08a6a'};margin-bottom:5px">Wymaga: ${reqStr.join(' · ')}</p>`:''}
@@ -58587,7 +58596,8 @@ window._crownOpen=function(){
     <p class="sub">Galeria marek premium, luksusowych i egzotycznych. Ceny i wymagania są takie same jak wszędzie — zmienia się tylko miejsce, w którym te auta stoją.</p>
     <div style="background:#1a1508;border-left:3px solid #e8c56a;border-radius:6px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:#d8c8a0">
       Aktualnie: ${G.car?'🚗 <b>'+window.carDisplayName(G.car.name)+'</b>':'brak samochodu'} · Portfel: <b>${(G.money||0).toLocaleString('pl')} zł</b><br>
-      Marki wyłączne dla tej galerii: <b>${window._crownExclusiveBrandIds().map(i=>VEHICLE_BRANDS[i].displayName).join(', ')}</b>.
+      Marki firmowe galerii: <b>${window._crownExclusiveBrandIds().map(i=>VEHICLE_BRANDS[i].displayName).join(', ')}</b>
+      — tutaj mają pełną ekspozycję i opis. Kupisz je również w CityDrive Motors, na tych samych warunkach.
     </div>
     <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
       <button class="cbtn" style="font-size:12px;padding:7px 11px" onclick="window._avOpenCompare()">⚖️ Porównywarka AutoVista 360</button>
@@ -58608,7 +58618,7 @@ window._crownBrandsInfo=function(){
     <p class="sub">Każda marka ma własny profil rynkowy i charakter.</p>
     ${ids.map(i=>{const b=VEHICLE_BRANDS[i];const n=window._crownCars().filter(c=>window.getVehicleBrand(c.name).id===i).length;
       return `<div style="background:#12100a;border:1px solid #3a3020;border-radius:9px;padding:10px 12px;margin-bottom:8px">
-        <div style="font-weight:800;color:#e8c56a;font-size:14px">${b.displayName}${window._crownExclusiveBrandIds().includes(i)?' <span style="font-size:10px;color:#a08a5a">· wyłącznie w tej galerii</span>':''}</div>
+        <div style="font-weight:800;color:#e8c56a;font-size:14px">${b.displayName}${window._crownExclusiveBrandIds().includes(i)?' <span style="font-size:10px;color:#a08a5a">· marka firmowa galerii</span>':''}</div>
         <div style="font-size:12px;color:#cdd;margin:3px 0">${b.positioning}</div>
         <div style="font-size:11px;color:#8a7a5a">${b.dna}</div>
         <div style="font-size:11px;color:#6a8caa;margin-top:4px">Pochodzenie: ${b.origin} · Modeli w galerii: ${n}</div>
