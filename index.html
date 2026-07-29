@@ -4156,11 +4156,9 @@ function drawSprite(id,sx,sy,w,h){
   /* v2.3.128 (PDF VANTAGE WORKS §7): strefy holu mają własne sprite'y — bez tego renderują się jako szare boxy. */
   if(id&&(id.indexOf('vw_')===0||id==='npc_eve_rook')){ if(typeof window._drawVantageSprite==='function'){ window._drawVantageSprite(id,sx,sy,w,h); X.restore(); return; } }
   /* Terminal SUBTERRA — własny sprite, żeby nie renderował się jako szary box (lekcja v2.3.125). */
-  if(id==='subterra_terminal'){ X.fillStyle='#16241a'; X.fillRect(sx,sy,w,h); X.strokeStyle='#2f7a45'; X.lineWidth=2; X.strokeRect(sx+1,sy+1,w-2,h-2);
-    X.fillStyle='#0a140d'; X.fillRect(sx+10,sy+10,w-20,h-34);
-    X.fillStyle='#57d38a'; X.font='9px "Segoe UI",Arial'; X.textAlign='center';
-    X.fillText('SUBTERRA',sx+w/2,sy+26); X.fillText('T'+(((G.subterra&&G.subterra.tier)||1)),sx+w/2,sy+42);
-    X.fillStyle='#2f7a45'; X.fillRect(sx+12,sy+h-20,w-24,8); X.textAlign='left'; X.restore(); return; }
+  /* v2.3.129 (user: „panel na plantacji… obiekt bez zmian wizualnych"): terminal był płaskim
+     prostokątem z napisem. Dedykowany renderer pokazuje realny stan obiektu (poziom, cykl, remont). */
+  if(id==='subterra_terminal'){ if(typeof window._drawSubterraTerminal==='function') window._drawSubterraTerminal(sx,sy,w,h); X.restore(); return; }
   switch(id){
     case 'bed':          drawBed(sx,sy,w,h);break;
     case 'fridge':       drawFridge(sx,sy,w,h);break;
@@ -10932,6 +10930,11 @@ function drawPlantation(sx,sy,w,h){
   /* Drzwi */
   X.fillStyle='#3a4a35';X.fillRect(sx+w*0.42,sy+h*0.78,w*0.16,h*0.22);
   X.fillStyle='#c8a520';X.fillRect(sx+w*0.55,sy+h*0.88,2,2);
+  /* v2.3.129 (user: „sam obiekt z zewnątrz też nie uległ zmianie wizualnej"; PDF §4 stany
+     obiektu + Rysunek 3): nakładka odzwierciedla realny stan SUBTERRA — nieprzejęty obiekt,
+     przestój remontowy oraz rozbudowę T2/T3 widać z mapy, bez wchodzenia do środka.
+     Rysowana PRZED etykietą, żeby agregat wentylacji nie zasłaniał nazwy obiektu. */
+  if(typeof window._sbDrawExterior==='function') window._sbDrawExterior(sx,sy,w,h);
   /* Label */
   X.fillStyle='#1a2515';X.fillRect(sx+w*0.2,sy+h*0.04,w*0.6,h*0.06);
   X.font='bold 10px Arial';X.fillStyle='#7ec87e';X.textAlign='center';
@@ -11279,6 +11282,8 @@ function drawPlantacjaInteriorDecorations(){
   }
   /* filtr węglowy + wentylacja (prawy górny róg) */
   const fsx=wx2sx(1040), fsy=wy2sy(40); X.fillStyle='#333'; X.fillRect(fsx,fsy,22,70); X.strokeStyle='#555'; X.lineWidth=1; X.strokeRect(fsx,fsy,22,70); for(let i=0;i<5;i++){X.strokeStyle='#444';X.beginPath();X.moveTo(fsx,fsy+10+i*12);X.lineTo(fsx+22,fsy+10+i*12);X.stroke();}
+  /* v2.3.129 (PDF SUBTERRA §2.2 pkt 13 + Rysunek 3): wnętrze zmienia się wraz z poziomem obiektu. */
+  if(typeof window._sbDrawInteriorTier==='function') window._sbDrawInteriorTier();
 }
 function drawKamperInteriorDecorations(){
   /* Floor pattern */
@@ -15244,6 +15249,17 @@ function handleAct(act,objId){
     if(typeof window._vesperAct==='function') window._vesperAct(act.slice(7));
   } else if(act&&act.indexOf('sunset:')===0){
     if(typeof window._sunsetAct==='function') window._sunsetAct(act.slice(7));
+  } else if(act&&act.indexOf('vantage:')===0){
+    /* v2.3.129 BUGFIX (user: „hol VANTAGE — nic nie działa"): 19 punktów holu nie miało tu
+       gałęzi — ich case leżały w switchu _enterDistrictPlace i nie mogły się dopasować. */
+    if(typeof window._vwLobbyAct==='function') window._vwLobbyAct(act.slice(8));
+    else if(typeof showMsg==='function') showMsg('🏢 Hol VANTAGE WORKS jeszcze się ładuje — spróbuj za chwilę.','i',3500);
+  } else if(act&&act.indexOf('subterra:')===0){
+    /* v2.3.129 BUGFIX (user: „panel na plantacji nie funkcjonuje"): terminal SUBTERRA
+       miał case w tym samym martwym switchu → [E] nie otwierało panelu. */
+    if(typeof closeOverlay==='function') closeOverlay();
+    if(typeof window._sbTerminal==='function') window._sbTerminal();
+    else if(typeof showMsg==='function') showMsg('🌱 Terminal SUBTERRA jeszcze się ładuje — spróbuj za chwilę.','i',3500);
   } else if(act&&act.indexOf('sk:')===0){
     if(typeof window._skAct==='function') window._skAct(act.slice(3));
   } else if(act==='marina_disembark'){
@@ -56044,7 +56060,10 @@ window.drawVantageLobby=function(){
   /* duże rośliny w narożach */
   const plant=(x,y)=>{ X.fillStyle='#2a2f2a'; X.fillRect(o+x-11,p+y+16,22,12);
     X.fillStyle='#2f6b3a'; for(let i=0;i<6;i++){ X.beginPath(); X.ellipse(o+x+(i-2.5)*5,p+y+2-Math.abs(i-2.5)*3,5,13,(i-2.5)*0.35,0,Math.PI*2); X.fill(); } };
-  plant(200,150); plant(W-190,150); plant(200,H-120); plant(W-190,H-120);
+  /* v2.3.129 (reguła #8): poprzednie pozycje narożne nachodziły na strefy toalet, sprzedaży
+     i magazynów B2. Nowe leżą w zweryfikowanych szczelinach między strefami (x 210-280 / 1000-1060,
+     dolny pas y>620) — sprawdzone rachunkiem bbox względem wszystkich 19 obiektów holu. */
+  plant(245,300); plant(1030,300); plant(245,660); plant(900,660);
   /* kamery budynkowe */
   X.fillStyle='#15181d';
   [[70,60],[W-80,60],[W/2,52]].forEach(([x,y])=>{ X.fillRect(o+x-7,p+y-5,14,8); X.beginPath(); X.arc(o+x,p+y+4,4,0,Math.PI*2); X.fill();
@@ -56053,89 +56072,234 @@ window.drawVantageLobby=function(){
   X.fillStyle='rgba(126,200,227,.55)'; X.font='bold 11px "Segoe UI",Arial'; X.textAlign='center';
   X.fillText('B2 · B1 · 0 · 1 · 2 · 3 · 4',o+W-105,p+390); X.textAlign='left';
 };
-/* Sprite'y stref holu — każdy punkt ma własny rysunek, nie szary box */
+/* Sprite'y stref holu (§7). v2.3.129 (user: „nie mają te obiekty żadnego wyglądu"):
+   poprzednia wersja rysowała płaski prostokąt z obwódką i napisem — z perspektywy gracza
+   wyglądało to jak placeholder. Teraz każdy punkt to realny mebel/urządzenie: bryła z
+   jaśniejszym blatem (pseudo-3D), cień kontaktowy, detale i punktowe światło. */
 window._drawVantageSprite=function(id,sx,sy,w,h){
   if(typeof X==='undefined') return;
-  const box=(fill,stroke)=>{ X.fillStyle=fill; X.fillRect(sx,sy,w,h); if(stroke){ X.strokeStyle=stroke; X.lineWidth=2; X.strokeRect(sx+1,sy+1,w-2,h-2); } };
-  const label=(t,c)=>{ X.fillStyle=c||'rgba(210,228,244,.85)'; X.font='bold 11px "Segoe UI",Arial'; X.textAlign='center';
-    X.fillText(t,sx+w/2,sy+h-8); X.textAlign='left'; };
+  const R=(x,y,ww,hh,c)=>{ X.fillStyle=c; X.fillRect(x,y,ww,hh); };
+  /* cień kontaktowy pod bryłą — odkleja mebel od posadzki */
+  const shadow=(x,y,ww,hh)=>{ X.save(); X.globalAlpha=.32; X.fillStyle='#05070a';
+    X.beginPath(); X.ellipse(x+ww/2,y+hh,ww*0.52,7,0,0,Math.PI*2); X.fill(); X.restore(); };
+  /* bryła z jaśniejszym blatem: korpus + górna płaszczyzna + krawędź światła */
+  const solid=(x,y,ww,hh,body,top)=>{ R(x,y+6,ww,hh-6,body); R(x,y,ww,8,top);
+    X.fillStyle='rgba(255,255,255,.07)'; X.fillRect(x,y,ww,2); };
+  const glow=(x,y,r,c,a)=>{ X.save(); X.globalCompositeOperation='lighter';
+    const g=X.createRadialGradient(x,y,0,x,y,r); g.addColorStop(0,c); g.addColorStop(1,'rgba(0,0,0,0)');
+    X.globalAlpha=a==null?.5:a; X.fillStyle=g; X.beginPath(); X.arc(x,y,r,0,Math.PI*2); X.fill(); X.restore(); };
+  const label=(t,c)=>{ X.fillStyle=c||'rgba(150,172,196,.62)'; X.font='9px "Segoe UI",Arial'; X.textAlign='center';
+    X.fillText(t,sx+w/2,sy+h-4); X.textAlign='left'; };
+  /* fotel/krzesło w rzucie 3/4 */
+  const chair=(x,y,s,c)=>{ R(x-s*0.5,y-s*0.9,s,s*0.9,c); R(x-s*0.45,y-s*0.2,s*0.9,s*0.3,'rgba(255,255,255,.10)');
+    R(x-s*0.42,y+s*0.1,s*0.12,s*0.3,'#1a1e24'); R(x+s*0.3,y+s*0.1,s*0.12,s*0.3,'#1a1e24'); };
+  const pot=(x,y,s)=>{ R(x-s*0.32,y-s*0.28,s*0.64,s*0.32,'#3a3128');
+    X.fillStyle='#2f6b3a'; for(let i=0;i<5;i++){ X.beginPath();
+      X.ellipse(x+(i-2)*s*0.16,y-s*0.5-Math.abs(i-2)*s*0.10,s*0.14,s*0.36,(i-2)*0.34,0,Math.PI*2); X.fill(); } };
+
   if(id==='npc_eve_rook'){
-    X.fillStyle='#1e2430'; X.fillRect(sx+8,sy+22,20,30);            /* garsonka */
-    X.fillStyle='#e8c49a'; X.beginPath(); X.arc(sx+18,sy+13,9,0,Math.PI*2); X.fill();  /* głowa */
-    X.fillStyle='#3a2a20'; X.fillRect(sx+9,sy+4,18,9);              /* włosy */
-    X.fillStyle='#0f1216'; X.fillRect(sx+10,sy+52,7,6); X.fillRect(sx+19,sy+52,7,6);
-    X.fillStyle='#7ec8e3'; X.fillRect(sx+24,sy+28,6,9);             /* tablet */
+    /* v2.3.129: garsonka #1e2430 zlewała się z ciemną posadzką — Eve była praktycznie
+       niewidoczna. Jaśniejszy granat + obrys + światło konturowe wydzielają sylwetkę. */
+    shadow(sx+4,sy+16,w-8,h-18);
+    glow(sx+18,sy+32,26,'rgba(126,200,227,.35)',.30);
+    R(sx+8,sy+22,20,30,'#33415c');                                   /* garsonka */
+    X.strokeStyle='rgba(160,196,232,.55)'; X.lineWidth=1; X.strokeRect(sx+8.5,sy+22.5,19,29);
+    R(sx+8,sy+22,3,30,'rgba(255,255,255,.16)');                      /* światło konturowe */
+    R(sx+8,sy+22,20,6,'rgba(255,255,255,.18)');                      /* kołnierz */
+    R(sx+10,sy+52,7,6,'#0f1216'); R(sx+19,sy+52,7,6,'#0f1216');      /* buty */
+    X.fillStyle='#e8c49a'; X.beginPath(); X.arc(sx+18,sy+13,9,0,Math.PI*2); X.fill();
+    R(sx+9,sy+4,18,9,'#3a2a20'); R(sx+8,sy+10,5,12,'#3a2a20');       /* włosy */
+    R(sx+24,sy+28,7,10,'#7ec8e3'); R(sx+25,sy+29,5,8,'#0d1a22');     /* tablet */
+    glow(sx+27,sy+33,9,'rgba(126,200,227,.8)',.35);
     return;
   }
   switch(id){
-    case 'vw_reception': box('#2b3038','#4a5460');
-      X.fillStyle='#6d5334'; X.fillRect(sx+10,sy+h-46,w-20,22);      /* lada */
-      X.fillStyle='#12161c'; X.fillRect(sx+w/2-16,sy+h-70,32,20);    /* monitor */
-      X.fillStyle='#7ec8e3'; X.fillRect(sx+w/2-13,sy+h-67,26,14);
-      label('RECEPCJA'); break;
-    case 'vw_sales': box('#242b36','#3f7ea0');
-      X.fillStyle='#0e1218'; X.fillRect(sx+12,sy+12,w-24,h-46);
-      X.fillStyle='#7ec8e3'; X.font='10px "Segoe UI",Arial'; X.textAlign='center';
-      X.fillText('OFERTA',sx+w/2,sy+34); X.fillText('LOKALI',sx+w/2,sy+48); X.textAlign='left';
-      X.fillStyle='#6d5334'; X.fillRect(sx+14,sy+h-34,w-28,14);
-      label('SPRZEDAŻ'); break;
-    case 'vw_model': box('#232830','#5a6472');
-      X.fillStyle='#3a4250'; X.fillRect(sx+18,sy+h-40,w-36,16);       /* podest makiety */
-      X.fillStyle='#8f9aa8'; X.fillRect(sx+w/2-30,sy+22,22,52); X.fillRect(sx+w/2-4,sy+34,20,40); X.fillRect(sx+w/2+20,sy+44,16,30);
-      X.fillStyle='rgba(126,200,227,.35)'; X.fillRect(sx+w/2-30,sy+22,22,6);
-      label('MAKIETA KOMPLEKSU'); break;
-    case 'vw_board': box('#12161c','#2f8fbf');
-      X.fillStyle='#0a0e14'; X.fillRect(sx+8,sy+8,w-16,h-34);
-      X.fillStyle='#57d38a'; X.font='9px "Segoe UI",Arial';
-      for(let i=0;i<4;i++) X.fillText('Lokal '+(i+1)+' · dostępny',sx+16,sy+26+i*15);
-      label('TABLICA LOKALI'); break;
-    case 'vw_wait': box('#262b33','#454e5a');
-      X.fillStyle='#3d4652'; X.fillRect(sx+12,sy+26,w-24,26); X.fillRect(sx+12,sy+18,w-24,10);
-      X.fillStyle='#6d5334'; X.fillRect(sx+w/2-18,sy+h-38,36,10);
-      label('POCZEKALNIA'); break;
-    case 'vw_elevator': case 'vw_freight': box('#1a1e25','#8a93a0');
-      X.fillStyle='#2c323b'; X.fillRect(sx+10,sy+14,(w-24)/2,h-42); X.fillRect(sx+w/2+2,sy+14,(w-24)/2,h-42);
-      X.fillStyle='#e8a020'; X.fillRect(sx+w/2-9,sy+6,18,5);
-      label(id==='vw_freight'?'TOWAROWA':'WINDA'); break;
-    case 'vw_stairs': case 'vw_stairs_tech': box('#232830','#59626e');
-      X.fillStyle='#39414c'; for(let i=0;i<5;i++) X.fillRect(sx+8+i*8,sy+h-22-i*12,w-16-i*12,10);
-      label(id==='vw_stairs'?'SCHODY':'SCHODY TECH.'); break;
-    case 'vw_corridor': box('#20252d','#4a5460');
-      X.fillStyle='#0f1319'; X.fillRect(sx+14,sy+16,26,h-48); X.fillRect(sx+w-40,sy+16,26,h-48);
-      X.fillStyle='#7ec8e3'; X.fillRect(sx+34,sy+34,4,4); X.fillRect(sx+w-20,sy+34,4,4);
-      label('LOKALE POKAZOWE'); break;
-    case 'vw_garage_door': box('#1d222a','#7a838f');
-      X.fillStyle='#2a3038'; for(let i=0;i<5;i++) X.fillRect(sx+10,sy+16+i*11,w-20,8);
-      label('GARAŻ B1'); break;
-    case 'vw_storage_door': box('#1d222a','#8a6ae0');
-      X.fillStyle='#2a3038'; X.fillRect(sx+10,sy+14,w-20,h-38);
-      X.fillStyle='#8a6ae0'; X.fillRect(sx+w/2-12,sy+22,24,6);
-      label('MAGAZYNY B2'); break;
-    case 'vw_access': box('#191d24','#e0483a');
-      X.fillStyle='#0d1117'; X.fillRect(sx+w/2-16,sy+16,32,30);
-      X.fillStyle='#e0483a'; X.fillRect(sx+w/2-6,sy+26,12,4);
-      X.fillStyle='#2c323b'; X.fillRect(sx+10,sy+h-34,w-20,10);
-      label('KONTROLA DOSTĘPU'); break;
-    case 'vw_cafe': box('#2b2620','#8a6a3a');
-      X.fillStyle='#6d5334'; X.fillRect(sx+10,sy+h-38,w-20,14);
-      X.fillStyle='#c8c8cc'; X.fillRect(sx+18,sy+20,16,22);         /* ekspres */
-      X.fillStyle='#3a2a1a'; X.fillRect(sx+42,sy+30,10,12);
-      label('KAWIARNIA','rgba(240,214,170,.9)'); break;
-    case 'vw_admin': box('#242830','#4a5460');
-      X.fillStyle='#3a4250'; X.fillRect(sx+12,sy+18,w-24,h-46);
-      X.fillStyle='#8f9aa8'; for(let i=0;i<3;i++) X.fillRect(sx+18,sy+26+i*16,w-36,8);
-      label('ADMINISTRACJA'); break;
-    case 'vw_toilets': box('#222730','#5a6472');
-      X.fillStyle='#c8ccd4'; X.font='bold 15px "Segoe UI",Arial'; X.textAlign='center';
-      X.fillText('WC',sx+w/2,sy+h/2); X.textAlign='left'; break;
-    case 'vw_service': box('#191d24','#5a6472');
-      X.fillStyle='#e8a020'; X.fillRect(sx+w/2-10,sy+h/2-8,20,16);
-      label('SERWIS'); break;
-    case 'vw_exit': box('#1a2a1e','#57d38a');
-      X.fillStyle='#57d38a'; X.fillRect(sx+w/2-12,sy+10,24,h-30);
-      X.fillStyle='#0d1117'; X.fillRect(sx+w/2+3,sy+h/2-3,5,6);
-      label('WYJŚCIE','rgba(160,240,190,.95)'); break;
-    default: box('#242830','#4a5460'); label(''); break;
+    case 'vw_reception':{                                            /* lada recepcji + panel z podświetleniem */
+      shadow(sx+14,sy+h-34,w-28,10);
+      R(sx+22,sy+8,w-44,34,'#141a22'); R(sx+26,sy+12,w-52,26,'#0b1016');   /* panel ścienny */
+      X.fillStyle='rgba(126,200,227,.5)'; X.font='bold 10px "Segoe UI",Arial'; X.textAlign='center';
+      X.fillText('VANTAGE WORKS',sx+w/2,sy+29); X.textAlign='left';
+      glow(sx+w/2,sy+26,34,'rgba(126,200,227,.55)',.30);
+      solid(sx+14,sy+h-46,w-28,30,'#4a3822','#7d5f37');              /* lada z jasnego drewna */
+      R(sx+14,sy+h-24,w-28,4,'rgba(0,0,0,.35)');
+      R(sx+w/2-18,sy+h-64,36,20,'#12161c'); R(sx+w/2-15,sy+h-61,30,14,'#7ec8e3'); /* monitor */
+      glow(sx+w/2,sy+h-54,16,'rgba(126,200,227,.7)',.35);
+      R(sx+24,sy+h-54,10,9,'#c8ccd4'); R(sx+27,sy+h-57,4,3,'#c8ccd4');/* dzwonek */
+      pot(sx+w-26,sy+h-26,26);
+      label('RECEPCJA'); break; }
+    case 'vw_sales':{                                                /* stanowisko sprzedaży: biurko + 2 krzesła + stojak */
+      shadow(sx+18,sy+h-30,w-36,10);
+      R(sx+18,sy+8,w-70,30,'#0e1218'); R(sx+21,sy+11,w-76,24,'#0a1420');
+      X.fillStyle='#7ec8e3'; X.font='9px "Segoe UI",Arial'; X.textAlign='center';
+      X.fillText('OFERTA LOKALI',sx+(w-52)/2,sy+26); X.textAlign='left';
+      glow(sx+(w-52)/2,sy+23,26,'rgba(126,200,227,.5)',.28);
+      solid(sx+18,sy+h-42,w-58,26,'#4a3822','#7d5f37');              /* biurko */
+      chair(sx+30,sy+h-46,17,'#2b323d'); chair(sx+58,sy+h-46,17,'#2b323d');
+      R(sx+w-34,sy+16,14,h-42,'#232a34');                            /* stojak na ulotki */
+      for(let i=0;i<3;i++) R(sx+w-32,sy+22+i*16,10,10,'#3f7ea0');
+      label('SPRZEDAŻ'); break; }
+    case 'vw_model':{                                                /* makieta kompleksu pod szybą */
+      shadow(sx+16,sy+h-26,w-32,10);
+      solid(sx+16,sy+h-38,w-32,24,'#232a34','#39424f');              /* podest */
+      const bx=sx+30, by=sy+h-40;
+      const bl=[[0,54,20],[24,40,16],[44,66,18],[66,34,22],[92,48,17],[113,28,20],[137,58,16]];
+      for(const [ox,bh,bw] of bl){ if(bx+ox+bw>sx+w-18) continue;
+        R(bx+ox,by-bh,bw,bh,'#8b96a6'); R(bx+ox,by-bh,bw,3,'#c3ccd8');
+        X.fillStyle='rgba(126,200,227,.30)';
+        for(let r=0;r<Math.floor(bh/9);r++) X.fillRect(bx+ox+2,by-bh+7+r*9,bw-4,3); }
+      X.strokeStyle='rgba(180,220,245,.20)'; X.lineWidth=1;          /* szyba ochronna */
+      X.strokeRect(sx+22,sy+10,w-44,h-46);
+      X.fillStyle='rgba(180,220,245,.05)'; X.fillRect(sx+22,sy+10,w-44,h-46);
+      glow(sx+w/2,sy+h-52,42,'rgba(126,200,227,.45)',.26);
+      label('MAKIETA KOMPLEKSU'); break; }
+    case 'vw_board':{                                                /* elektroniczna tablica lokali */
+      shadow(sx+16,sy+h-20,w-32,8);
+      R(sx+8,sy+6,w-16,h-26,'#0a0e14'); R(sx+11,sy+9,w-22,h-32,'#060a10');
+      X.strokeStyle='#2f8fbf'; X.lineWidth=2; X.strokeRect(sx+9,sy+7,w-18,h-28);
+      X.font='8px "Segoe UI",Arial';
+      const st=[['Lokal 1','#57d38a'],['Lokal 2','#57d38a'],['Lokal 3','#e8a020'],['Lokal 4','#57d38a'],['Lokal 5','#e0483a']];
+      st.forEach(([n,c],i)=>{ if(sy+22+i*13>sy+h-24) return;
+        X.fillStyle='#8fb8d8'; X.fillText(n,sx+18,sy+24+i*13);
+        R(sx+w-26,sy+20+i*13,6,6,c); glow(sx+w-23,sy+23+i*13,6,c,.5); });
+      R(sx+14,sy+h-26,w-28,3,'#1d4a63');
+      glow(sx+w/2,sy+h/2,46,'rgba(47,143,191,.35)',.24);
+      label('TABLICA LOKALI'); break; }
+    case 'vw_wait':{                                                 /* poczekalnia: sofa + stolik + lampa */
+      shadow(sx+14,sy+h-24,w-28,10);
+      R(sx+16,sy+22,w-56,14,'#39424f');                              /* oparcie */
+      solid(sx+16,sy+34,w-56,20,'#2f3742','#454f5d');                /* siedzisko */
+      R(sx+16,sy+34,10,20,'#454f5d'); R(sx+w-50,sy+34,10,20,'#454f5d');
+      R(sx+30,sy+27,16,8,'rgba(126,200,227,.16)'); R(sx+58,sy+27,16,8,'rgba(126,200,227,.16)');
+      solid(sx+w/2-16,sy+h-34,42,12,'#4a3822','#7d5f37');            /* stolik */
+      R(sx+w/2-10,sy+h-38,14,4,'#8fb8d8'); R(sx+w/2+6,sy+h-37,10,3,'#c07a6a'); /* prasa */
+      R(sx+w-26,sy+16,4,h-44,'#2a313b'); R(sx+w-34,sy+10,20,10,'#e8d9a8'); /* lampa */
+      glow(sx+w-24,sy+16,26,'rgba(255,225,160,.55)',.30);
+      label('POCZEKALNIA'); break; }
+    case 'vw_elevator': case 'vw_freight':{
+      const freight=(id==='vw_freight');
+      R(sx+4,sy+4,w-8,h-16,'#161a21');                               /* obudowa */
+      X.strokeStyle=freight?'#8a7b53':'#8a93a0'; X.lineWidth=2; X.strokeRect(sx+5,sy+5,w-10,h-18);
+      const dw=(w-26)/2;
+      R(sx+11,sy+16,dw,h-38,'#39424f'); R(sx+w-11-dw,sy+16,dw,h-38,'#39424f');
+      R(sx+11,sy+16,dw,4,'#5b6674'); R(sx+w-11-dw,sy+16,dw,4,'#5b6674');
+      R(sx+w/2-1,sy+16,2,h-38,'#0a0d12');                            /* szczelina drzwi */
+      if(freight){ X.save(); X.beginPath(); X.rect(sx+11,sy+h-32,w-22,10); X.clip();
+        for(let i=-2;i<10;i++){ X.fillStyle=i%2?'#e8a020':'#1a1e25';
+          X.beginPath(); X.moveTo(sx+11+i*14,sy+h-22); X.lineTo(sx+21+i*14,sy+h-32);
+          X.lineTo(sx+31+i*14,sy+h-32); X.lineTo(sx+21+i*14,sy+h-22); X.closePath(); X.fill(); }
+        X.restore(); }
+      R(sx+w/2-14,sy+8,28,6,'#0a0d12');                              /* wyświetlacz piętra */
+      X.fillStyle='#e8a020'; X.font='bold 7px "Segoe UI",Arial'; X.textAlign='center';
+      X.fillText(freight?'B2':'0',sx+w/2,sy+13); X.textAlign='left';
+      glow(sx+w/2,sy+11,12,'rgba(232,160,32,.8)',.35);
+      label(freight?'TOWAROWA':'WINDA'); break; }
+    case 'vw_stairs': case 'vw_stairs_tech':{
+      const tech=(id==='vw_stairs_tech');
+      shadow(sx+10,sy+h-18,w-20,8);
+      const steps=5, sh=Math.floor((h-30)/steps);
+      for(let i=0;i<steps;i++){                                      /* stopnie w perspektywie */
+        const y=sy+h-20-(i+1)*sh, iw=w-20-i*(tech?6:9);
+        R(sx+10,y,iw,sh-2,tech?'#2c333c':'#39414c');
+        R(sx+10,y,iw,2,tech?'#454e59':'#5b6674'); }
+      X.strokeStyle=tech?'#5a6472':'#8a93a0'; X.lineWidth=2;         /* poręcz */
+      X.beginPath(); X.moveTo(sx+12,sy+h-22); X.lineTo(sx+w-16,sy+18); X.stroke();
+      if(tech){ R(sx+w-14,sy+10,5,h-28,'#4a5460'); }                 /* rura techniczna */
+      label(tech?'SCHODY TECH.':'SCHODY'); break; }
+    case 'vw_corridor':{                                             /* korytarz do lokali pokazowych — perspektywa */
+      R(sx+6,sy+6,w-12,h-20,'#0d1117');
+      for(let i=0;i<4;i++){                                          /* zwężające się ramy */
+        const k=i*9; X.strokeStyle=`rgba(126,200,227,${.30-i*0.06})`; X.lineWidth=1.5;
+        X.strokeRect(sx+10+k,sy+10+k*0.6,w-20-k*2,h-26-k*1.2); }
+      R(sx+14,sy+18,20,h-44,'#1c232c'); R(sx+w-34,sy+18,20,h-44,'#1c232c'); /* drzwi lokali */
+      R(sx+30,sy+34,3,3,'#e8a020'); R(sx+w-33,sy+34,3,3,'#e8a020');
+      R(sx+w/2-16,sy+12,32,3,'rgba(220,238,255,.55)');               /* świetlówka sufitowa */
+      glow(sx+w/2,sy+h/2-4,40,'rgba(126,200,227,.40)',.30);
+      label('LOKALE POKAZOWE'); break; }
+    case 'vw_garage_door':{                                          /* brama segmentowa + rampa */
+      R(sx+6,sy+4,w-12,h-22,'#161b22');
+      X.strokeStyle='#7a838f'; X.lineWidth=2; X.strokeRect(sx+7,sy+5,w-14,h-24);
+      for(let i=0;i<5;i++){ const y=sy+10+i*((h-34)/5);
+        R(sx+11,y,w-22,(h-34)/5-3,'#2e353f'); R(sx+11,y,w-22,2,'#454e59'); }
+      R(sx+w/2-14,sy+h-26,28,4,'#8a93a0');                           /* uchwyt */
+      X.fillStyle='#e8a020'; X.beginPath();                          /* strzałka zjazdu */
+      X.moveTo(sx+w/2,sy+h-8); X.lineTo(sx+w/2-9,sy+h-17); X.lineTo(sx+w/2+9,sy+h-17); X.closePath(); X.fill();
+      label('GARAŻ B1'); break; }
+    case 'vw_storage_door':{                                         /* zejście do magazynów B2 + skrzynie */
+      R(sx+6,sy+4,w-12,h-20,'#171c24');
+      X.strokeStyle='#8a6ae0'; X.lineWidth=2; X.strokeRect(sx+7,sy+5,w-14,h-22);
+      for(let i=0;i<3;i++){ const y=sy+10+i*((h-30)/3);              /* schodzące stopnie */
+        R(sx+12+i*7,y,w-24-i*14,(h-30)/3-3,'#262d38'); }
+      R(sx+w-40,sy+h-30,16,14,'#4a3822'); R(sx+w-40,sy+h-30,16,3,'#7d5f37'); /* skrzynia */
+      R(sx+w-22,sy+h-26,12,10,'#4a3822'); R(sx+w-22,sy+h-26,12,3,'#7d5f37');
+      R(sx+w/2-12,sy+8,24,5,'#8a6ae0'); glow(sx+w/2,sy+10,16,'rgba(138,106,224,.8)',.32);
+      label('MAGAZYNY B2'); break; }
+    case 'vw_access':{                                               /* bramka kontroli dostępu + czytnik */
+      shadow(sx+16,sy+h-20,w-32,8);
+      solid(sx+18,sy+24,26,h-46,'#232a34','#39424f');                /* słupki bramki */
+      solid(sx+w-44,sy+24,26,h-46,'#232a34','#39424f');
+      X.fillStyle='rgba(180,220,245,.16)';                           /* szklane skrzydła */
+      X.fillRect(sx+46,sy+30,(w-92)/2-2,h-56); X.fillRect(sx+w/2+2,sy+30,(w-92)/2-2,h-56);
+      R(sx+22,sy+32,18,12,'#0d1117'); R(sx+26,sy+36,10,4,'#e0483a'); /* czytnik kart */
+      glow(sx+31,sy+38,12,'rgba(224,72,58,.85)',.40);
+      R(sx+w-38,sy+32,14,10,'#0d1117'); R(sx+w-35,sy+35,8,4,'#57d38a');
+      label('KONTROLA DOSTĘPU'); break; }
+    case 'vw_cafe':{                                                 /* kawiarnia: bar, ekspres, gablota, stołki */
+      shadow(sx+12,sy+h-24,w-24,10);
+      R(sx+14,sy+10,w-28,20,'#241d16');                              /* półka z tyłu */
+      for(let i=0;i<5;i++) R(sx+20+i*14,sy+14,8,12,i%2?'#6b4a2c':'#3a2a1a');
+      solid(sx+12,sy+h-40,w-24,26,'#4a3822','#7d5f37');              /* bar */
+      R(sx+20,sy+h-58,18,20,'#c8ccd4'); R(sx+23,sy+h-52,12,8,'#2a2f36'); /* ekspres */
+      R(sx+22,sy+h-40,4,4,'#8a6a3a');
+      X.fillStyle='rgba(240,214,170,.85)';                           /* filiżanki */
+      for(let i=0;i<3;i++){ X.beginPath(); X.arc(sx+52+i*11,sy+h-44,3.5,0,Math.PI*2); X.fill(); }
+      R(sx+w-46,sy+h-56,32,18,'rgba(180,220,245,.18)');              /* gablota */
+      R(sx+w-44,sy+h-48,28,8,'#c07a6a');
+      chair(sx+w-34,sy+h-14,14,'#3a2f26'); chair(sx+w-14,sy+h-14,14,'#3a2f26');
+      glow(sx+w/2,sy+h-46,34,'rgba(255,208,140,.45)',.26);
+      label('KAWIARNIA','rgba(240,214,170,.72)'); break; }
+    case 'vw_admin':{                                                /* administracja: biurko, segregatory, lampka */
+      shadow(sx+14,sy+h-22,w-28,9);
+      R(sx+14,sy+8,w-84,h-34,'#2b323d');                             /* regał */
+      for(let r=0;r<3;r++){ R(sx+16,sy+12+r*((h-42)/3),w-88,2,'#454e59');
+        for(let i=0;i<5;i++) R(sx+20+i*12,sy+16+r*((h-42)/3),9,((h-42)/3)-8,i%2?'#5b6674':'#8f9aa8'); }
+      solid(sx+w-72,sy+h-38,58,24,'#4a3822','#7d5f37');              /* biurko */
+      R(sx+w-64,sy+h-44,22,7,'#e6e9ee'); R(sx+w-62,sy+h-42,18,1,'#8f9aa8'); /* papiery */
+      R(sx+w-30,sy+h-56,4,18,'#2a313b'); R(sx+w-36,sy+h-60,16,7,'#e8d9a8'); /* lampka */
+      glow(sx+w-28,sy+h-56,20,'rgba(255,225,160,.55)',.28);
+      label('ADMINISTRACJA'); break; }
+    case 'vw_toilets':{                                              /* dwoje drzwi z piktogramami */
+      R(sx+6,sy+6,w-12,h-22,'#1b2029');
+      const dw=(w-30)/2;
+      [0,1].forEach(i=>{ const x=sx+11+i*(dw+8);
+        R(x,sy+12,dw,h-36,'#2b323d'); R(x,sy+12,dw,3,'#454e59');
+        R(x+dw-7,sy+12+(h-36)/2,3,7,'#8a93a0');                      /* klamka */
+        X.fillStyle='#c8ccd4'; X.font='bold 13px "Segoe UI",Arial'; X.textAlign='center';
+        X.fillText(i?'♀':'♂',x+dw/2,sy+12+(h-36)/2+6); X.textAlign='left'; });
+      R(sx+w/2-10,sy+h-20,20,4,'#3f7ea0');
+      label('TOALETY'); break; }
+    case 'vw_service':{                                              /* zamknięte drzwi serwisowe + klawiatura */
+      R(sx+5,sy+4,w-10,h-16,'#191d24');
+      X.strokeStyle='#5a6472'; X.lineWidth=2; X.strokeRect(sx+6,sy+5,w-12,h-18);
+      R(sx+11,sy+10,w-22,h-30,'#252b34'); R(sx+11,sy+10,w-22,3,'#3d4550');
+      R(sx+w-22,sy+h-34,8,12,'#0d1117');                             /* klamka + zamek */
+      R(sx+16,sy+16,16,12,'#0d1117');                                /* klawiatura kodu */
+      for(let r=0;r<3;r++) for(let c=0;c<3;c++) R(sx+18+c*4,sy+18+r*3,3,2,'#57d38a');
+      R(sx+w/2-11,sy+h-22,22,8,'#e8a020');
+      X.fillStyle='#1a1206'; X.font='bold 6px "Segoe UI",Arial'; X.textAlign='center';
+      X.fillText('SERWIS',sx+w/2,sy+h-16); X.textAlign='left';
+      break; }
+    case 'vw_exit':{                                                 /* szklane drzwi wyjściowe + światło dnia */
+      glow(sx+w/2,sy+h/2,w*0.7,'rgba(150,200,230,.55)',.32);
+      R(sx+6,sy+4,w-12,h-12,'#101820');
+      X.strokeStyle='#57d38a'; X.lineWidth=2; X.strokeRect(sx+7,sy+5,w-14,h-14);
+      R(sx+11,sy+9,(w-26)/2,h-22,'rgba(170,215,240,.30)');           /* szyby */
+      R(sx+w/2+2,sy+9,(w-26)/2,h-22,'rgba(170,215,240,.30)');
+      R(sx+w/2-1,sy+9,2,h-22,'#0a0d12');
+      R(sx+w/2-14,sy+h-9,10,3,'#8a93a0'); R(sx+w/2+4,sy+h-9,10,3,'#8a93a0');
+      X.fillStyle='#57d38a'; X.font='bold 8px "Segoe UI",Arial'; X.textAlign='center';
+      X.fillText('WYJŚCIE',sx+w/2,sy+13); X.textAlign='left';
+      break; }
+    default: solid(sx+4,sy+4,w-8,h-12,'#242830','#39424f'); label(''); break;
   }
 };
 /* Punkt kontroli dostępu i kawiarnia (§7 pkt 15 i 17) */
@@ -56733,6 +56897,38 @@ window._vwWithdrawBtn=function(step){ const u=window._vwActive(); const r=window
   window._vwOpsPanel2('strategy'); const e=document.getElementById('vw-res'); if(e) e.textContent=r.msg; };
 window._vwMediaBtn=function(id){ const r=window._vwMediaResponse(id);
   window._vwOpsPanel2('media'); const e=document.getElementById('vw-res'); if(e) e.textContent=r.msg; };
+
+/* ── §7 Dispatcher punktów holu (act `vantage:<sub>` → [E]).
+   v2.3.129 BUGFIX: wcześniej te akcje leżały jako `case` w switchu _enterDistrictPlace,
+   który dopasowuje wyłącznie klucze `<dzielnica>_<miejsce>` — nie mogły się nigdy wykonać.
+   Wołane z handleAct. ── */
+window._vwLobbyAct=function(sub){
+  const msg=(t,k,d)=>{ if(typeof showMsg==='function') showMsg(t,k||'i',d||4200); };
+  const panel=(tab)=>{ if(typeof window._vwMarketPanel==='function') window._vwMarketPanel(tab); };
+  switch(sub){
+    case 'eve':        if(typeof window._vwEveDialog==='function') window._vwEveDialog('intro'); return;
+    case 'sales':      panel('units'); return;
+    case 'board':      panel('prices'); return;
+    case 'model':      panel('compare'); return;
+    case 'showroom':   panel('units'); return;
+    case 'admin':      panel('terms'); return;
+    case 'garage':     panel('units'); msg('🚗 Garaż B1 kupuje się osobno od lokalu — oferta miejsc i sekcji jest na dole listy.'); return;
+    case 'storage':    panel('units'); msg('📦 Magazyny B2 mają osobny stan każdej komórki — oferta komórek jest na dole listy.'); return;
+    case 'reception':  msg('🛎 Recepcja główna stoi pusta — budynek obsługuje kupujących przez doradcę. Eve Rook jest kilka kroków dalej.'); return;
+    case 'wait':       msg('🛋 Strefa oczekiwania: miękkie fotele, prasa branżowa i ekran z ofertami. Ktoś przed Tobą też ogląda halę.'); return;
+    case 'freight':    msg('🛗 Winda towarowa obsługuje lokale ze strefą załadunku. Bez własnego lokalu nie ruszysz nią wyżej.'); return;
+    case 'stairs_tech':msg('🪜 Schody techniczne prowadzą do części serwisowej. Wstęp tylko dla obsługi budynku.',null,4000); return;
+    case 'toilets':    msg('🚻 Czysto, cicho i pachnie nowym budynkiem.',null,3000); return;
+    case 'service':    msg('🔒 Część serwisowa zamknięta — potrzebna karta obsługi budynku.',null,3200); return;
+    case 'access':     if(typeof window._vwAccessPoint==='function') window._vwAccessPoint(); return;
+    case 'cafe':       if(typeof window._vwCafe==='function') window._vwCafe(); return;
+    case 'elevator':
+    case 'stairs':     if(typeof window._vwElevator==='function') window._vwElevator(); return;
+    /* wyjście: pod fasadę budynku (lab_underground 240..580 / 930..1230), nie w jego środek */
+    case 'exit':       if(typeof changeRoom==='function') changeRoom('underground',410,1258); return;
+    default:           msg('🏢 Ten punkt holu nie ma jeszcze obsługi.','f',3000); return;
+  }
+};
 
 /* ═══════════════════════════════════════════════════════════════════════════
    VANTAGE WORKS MODULE END
@@ -58055,6 +58251,161 @@ window._sbMatBtn=function(b,a){ const s=window._sbEnsure();
 window._sbStartBtn=function(){ const r=window._sbStartCycle(null,null); window._sbTerminal(); window._sbRes(r.msg); };
 window._sbFinishBtn=function(){ const r=window._sbFinishCycle(null); window._sbTerminal(); window._sbRes(r.msg); };
 window._sbAbortBtn=function(){ const r=window._sbAbortCycle(null); window._sbTerminal(); window._sbRes(r.msg); };
+
+/* ═══ WARSTWA WIZUALNA (v2.3.129) ═══
+   PDF §2.2 pkt 13: „Po zakupie zmiana jest widoczna w nazwie obiektu, MODELU WNĘTRZA,
+   terminalu, statystykach i raportach cyklu" + Rysunek 3 „Koncepcyjna ewolucja przestrzeni
+   dla trzech poziomów obiektu". Do v2.3.128 wnętrze i bryła z zewnątrz wyglądały identycznie
+   niezależnie od poziomu — user zgłosił to wprost. Poniżej trzy renderery czytające realny
+   stan G.subterra (tier / owned / renovation / cycle). */
+
+/* Skrót stanu dla warstwy rysującej — bez mutacji (wywoływane co klatkę). */
+window._sbVisState=function(){
+  const s=(G&&G.subterra&&typeof G.subterra==='object')?G.subterra:null;
+  const owned=!!(s&&s.owned);
+  return { owned, tier:owned?Math.max(1,Math.min(3,s.tier||1)):0,
+           renov:!!(s&&s.renovation), cycle:!!(s&&s.cycle),
+           stages:(s&&Array.isArray(s.stages))?s.stages:[] };
+};
+
+/* Terminal obiektu — konsola z realnym stanem (poziom, cykl, przestój). */
+window._drawSubterraTerminal=function(sx,sy,w,h){
+  if(typeof X==='undefined') return;
+  const v=window._sbVisState();
+  const acc=v.renov?'#e8a020':(v.owned?'#57d38a':'#5a6472');
+  X.save(); X.globalAlpha=.32; X.fillStyle='#05070a';
+  X.beginPath(); X.ellipse(sx+w/2,sy+h,w*0.5,6,0,0,Math.PI*2); X.fill(); X.restore();
+  X.fillStyle='#1b2a1f'; X.fillRect(sx+6,sy+8,w-12,h-14);            /* obudowa */
+  X.fillStyle='#243a2a'; X.fillRect(sx+6,sy+8,w-12,6);
+  X.strokeStyle=acc; X.lineWidth=2; X.strokeRect(sx+7,sy+9,w-14,h-16);
+  X.fillStyle='#050b07'; X.fillRect(sx+13,sy+15,w-26,h-40);          /* ekran */
+  /* poświata ekranu */
+  X.save(); X.globalCompositeOperation='lighter';
+  const g=X.createRadialGradient(sx+w/2,sy+h/2-6,2,sx+w/2,sy+h/2-6,w*0.62);
+  g.addColorStop(0,acc); g.addColorStop(1,'rgba(0,0,0,0)');
+  X.globalAlpha=.22; X.fillStyle=g; X.beginPath(); X.arc(sx+w/2,sy+h/2-6,w*0.62,0,Math.PI*2); X.fill(); X.restore();
+  X.fillStyle=acc; X.font='bold 9px "Segoe UI",Arial'; X.textAlign='center';
+  X.fillText('SUBTERRA',sx+w/2,sy+28);
+  X.font='8px "Segoe UI",Arial';
+  X.fillText(v.owned?('POZIOM T'+v.tier):'WOLNY',sx+w/2,sy+41);
+  X.fillText(v.renov?'PRZESTÓJ':(v.cycle?'CYKL TRWA':(v.owned?'GOTOWY':'DO KUPIENIA')),sx+w/2,sy+52);
+  X.textAlign='left';
+  /* pasek postępu: wypełnienie rośnie z poziomem obiektu */
+  X.fillStyle='#0d1a11'; X.fillRect(sx+13,sy+h-22,w-26,7);
+  X.fillStyle=acc; X.fillRect(sx+13,sy+h-22,Math.max(4,(w-26)*(v.owned?v.tier/3:0.06)),7);
+  /* diody stanu */
+  for(let i=0;i<3;i++){ X.fillStyle=(v.owned&&i<v.tier)?acc:'#1e2b22';
+    X.beginPath(); X.arc(sx+16+i*8,sy+h-30,2.4,0,Math.PI*2); X.fill(); }
+};
+
+/* Wnętrze: ewolucja przestrzeni T1→T3 (PDF Rysunek 3). Rysowane PO dekoracjach bazowych. */
+window._sbDrawInteriorTier=function(){
+  if(typeof X==='undefined'||typeof ROOMS==='undefined'||!ROOMS.plantacja) return;
+  const v=window._sbVisState();
+  const W=ROOMS.plantacja.wT*48, H=ROOMS.plantacja.hT*48;
+  const o=wx2sx(0), p=wy2sy(0);
+  const R=(x,y,ww,hh,c)=>{ X.fillStyle=c; X.fillRect(o+x,p+y,ww,hh); };
+  /* T1 = adaptowana piwnica: surowy beton, prowizoryczne kable, wilgoć na ścianie */
+  if(!v.owned||v.tier<=1){
+    X.strokeStyle='rgba(90,80,60,.35)'; X.lineWidth=2;                /* prowizoryczne kable */
+    for(const kx of [200,470,740]){ X.beginPath(); X.moveTo(o+kx,p+16);
+      X.quadraticCurveTo(o+kx+40,p+42,o+kx+80,p+18); X.stroke(); }
+    X.fillStyle='rgba(60,70,50,.20)';                                 /* plamy wilgoci */
+    [[120,120,70,40],[610,90,90,34],[940,400,60,50]].forEach(([x,y,ww,hh])=>{
+      X.beginPath(); X.ellipse(o+x,p+y,ww/2,hh/2,0,0,Math.PI*2); X.fill(); });
+    return;
+  }
+  /* T2 = uszczelniony obiekt kontrolowany: ściany działowe stref, panel sterowania, kanał wentylacji */
+  R(0,16,W,5,'#3c4a42');                                              /* uszczelnienie sufitu */
+  for(const dx of [238,478]){                                          /* ścianki działowe stref */
+    R(dx,26,7,H-46,'#2b3a33'); R(dx,26,7,4,'#4a6055');
+    R(dx-3,H-60,13,10,'#22302a'); }
+  R(60,26,W-120,9,'#2f3f38');                                          /* kanał wentylacyjny */
+  for(let x=80;x<W-100;x+=70) R(x,35,26,4,'#22302a');
+  /* panel sterowania strefami — x200/y40: zweryfikowane wolne pole (poprzednie W-150,60
+     nachodziło na filtr węglowy 1040-1062/40-110, a x155 na słup nośny T3) */
+  R(200,40,84,54,'#1d2a24'); R(204,44,76,34,'#08120c');
+  X.fillStyle='#57d38a'; X.font='7px "Segoe UI",Arial';
+  X.fillText('STREFA A  OK',o+210,p+56); X.fillText('STREFA B  OK',o+210,p+68);
+  for(let i=0;i<4;i++){ X.fillStyle=i<2?'#57d38a':'#2f7a45';
+    X.beginPath(); X.arc(o+210+i*9,p+86,2.6,0,Math.PI*2); X.fill(); }
+  if(v.tier<3) return;
+  /* T3 = podziemny kompleks z obróbką pozbiorczą: stalowe słupy, regały, stanowisko obróbki, monitoring */
+  for(const cx of [155,395,635]){                                      /* stalowe słupy nośne */
+    R(cx-7,26,14,H-56,'#39424c'); R(cx-7,26,4,H-56,'#525d69');
+    R(cx-13,H-34,26,10,'#2b333c'); }
+  /* strefa obróbki 992-1144/120-245: wolne pole na prawo od suszarni (820-980) i pod filtrem */
+  R(992,120,152,125,'#1e2a25');
+  X.strokeStyle='#3f7ea0'; X.lineWidth=2; X.strokeRect(o+992,p+120,152,125);
+  for(let r=0;r<3;r++) R(1000,140+r*34,136,7,'#4a5a52');               /* regały suszarnicze */
+  for(let r=0;r<3;r++) for(let i=0;i<4;i++) R(1004+i*33,132+r*34,22,8,'#3d6b45');
+  X.fillStyle='#8fb8d8'; X.font='7px "Segoe UI",Arial';
+  X.fillText('OBRÓBKA POZBIORCZA',o+998,p+240);
+  R(992,262,152,58,'#1a2620'); R(996,266,144,36,'#08120c');            /* monitoring */
+  X.fillStyle='#57d38a'; X.font='7px "Segoe UI",Arial';
+  X.fillText('MONITORING  ·  9 SLOTÓW',o+1002,p+282);
+  for(let i=0;i<5;i++) R(1002+i*27,290,20,9,'#14301e');
+};
+
+/* Bryła z zewnątrz (mapa Underground): stan i poziom obiektu widoczne bez wchodzenia. */
+window._sbDrawExterior=function(sx,sy,w,h){
+  if(typeof X==='undefined') return;
+  const v=window._sbVisState();
+  if(!v.owned){
+    /* nieprzejęty obiekt: zabite deski, tabliczka, zero światła w środku */
+    X.fillStyle='rgba(20,24,18,.55)'; X.fillRect(sx+w*0.05,sy+h*0.1,w*0.9,h*0.75);
+    X.strokeStyle='#6b5a3a'; X.lineWidth=3;
+    X.beginPath(); X.moveTo(sx+w*0.08,sy+h*0.28); X.lineTo(sx+w*0.92,sy+h*0.46); X.stroke();
+    X.beginPath(); X.moveTo(sx+w*0.08,sy+h*0.58); X.lineTo(sx+w*0.92,sy+h*0.40); X.stroke();
+    X.fillStyle='#c9b98a'; X.fillRect(sx+w*0.30,sy+h*0.66,w*0.40,h*0.15);
+    X.fillStyle='#3a3020'; X.font='bold 7px "Segoe UI",Arial'; X.textAlign='center';
+    X.fillText('DO PRZEJĘCIA',sx+w*0.5,sy+h*0.76); X.textAlign='left';
+    return;
+  }
+  /* remont: taśma ostrzegawcza + rusztowanie */
+  if(v.renov){
+    X.strokeStyle='#8a93a0'; X.lineWidth=2;
+    for(const rx of [0.18,0.5,0.82]){ X.beginPath(); X.moveTo(sx+w*rx,sy+h*0.08); X.lineTo(sx+w*rx,sy+h*0.9); X.stroke(); }
+    X.beginPath(); X.moveTo(sx+w*0.14,sy+h*0.5); X.lineTo(sx+w*0.86,sy+h*0.5); X.stroke();
+    X.save(); X.beginPath(); X.rect(sx,sy+h*0.30,w,12); X.clip();
+    for(let i=-1;i<9;i++){ X.fillStyle=i%2?'#e8a020':'#2a2a20';
+      X.beginPath(); X.moveTo(sx+i*16,sy+h*0.42); X.lineTo(sx+10+i*16,sy+h*0.30);
+      X.lineTo(sx+26+i*16,sy+h*0.30); X.lineTo(sx+16+i*16,sy+h*0.42); X.closePath(); X.fill(); }
+    X.restore();
+  }
+  /* T2+: zaciemnione panele, agregat wentylacji, ogrodzenie */
+  if(v.tier>=2){
+    X.fillStyle='rgba(14,20,16,.62)'; X.fillRect(sx+w*0.05,sy+h*0.10,w*0.9,h*0.55); /* zaciemnienie szyb */
+    X.fillStyle='#2f3a34'; X.fillRect(sx+w*0.72,sy-h*0.06,w*0.24,h*0.20);           /* agregat */
+    X.fillStyle='#1a221e'; X.fillRect(sx+w*0.75,sy-h*0.03,w*0.18,h*0.13);
+    X.strokeStyle='#4a5a52'; X.lineWidth=1;
+    for(let i=0;i<3;i++){ X.beginPath(); X.moveTo(sx+w*0.75,sy+h*(-0.01+i*0.04));
+      X.lineTo(sx+w*0.93,sy+h*(-0.01+i*0.04)); X.stroke(); }
+    X.strokeStyle='rgba(120,132,120,.55)'; X.lineWidth=1;                            /* siatka ogrodzenia */
+    for(let x=0;x<w;x+=9){ X.beginPath(); X.moveTo(sx+x,sy+h*0.86); X.lineTo(sx+x,sy+h); X.stroke(); }
+    X.beginPath(); X.moveTo(sx,sy+h*0.86); X.lineTo(sx+w,sy+h*0.86); X.stroke();
+  }
+  /* T3: nadbudowa techniczna, kominy wentylacyjne, właz zjazdowy, kamera */
+  if(v.tier>=3){
+    X.fillStyle='#37423a'; X.fillRect(sx-w*0.10,sy+h*0.36,w*0.22,h*0.64);            /* przybudówka */
+    X.fillStyle='#232b26'; X.fillRect(sx-w*0.07,sy+h*0.44,w*0.16,h*0.22);
+    for(const cx of [0.22,0.42]){                                                    /* kominy */
+      X.fillStyle='#4a5a52'; X.fillRect(sx+w*cx,sy-h*0.24,w*0.09,h*0.26);
+      X.fillStyle='#2f3a34'; X.fillRect(sx+w*cx-w*0.02,sy-h*0.27,w*0.13,h*0.05); }
+    X.fillStyle='#1a2018'; X.beginPath();                                            /* właz zjazdowy */
+    X.ellipse(sx+w*0.5,sy+h*1.02,w*0.20,h*0.07,0,0,Math.PI*2); X.fill();
+    X.strokeStyle='#6b7a68'; X.lineWidth=2; X.stroke();
+    X.fillStyle='#15181d'; X.fillRect(sx+w*0.86,sy+h*0.06,w*0.10,h*0.06);            /* kamera */
+    X.fillStyle='#e0483a'; X.fillRect(sx+w*0.94,sy+h*0.08,w*0.03,h*0.02);
+  }
+  /* plakietka poziomu — realna informacja bez wchodzenia do środka */
+  const bw=w*0.30, bh=h*0.15, bx=sx+w-bw-3, by=sy+h-bh-3;
+  X.fillStyle=v.renov?'rgba(232,160,32,.90)':'rgba(47,122,69,.92)';
+  X.fillRect(bx,by,bw,bh);
+  X.fillStyle='#0a1410'; X.font='bold 9px "Segoe UI",Arial'; X.textAlign='center';
+  X.fillText('T'+v.tier,bx+bw/2,by+bh*0.78); X.textAlign='left';
+};
+
 /* ═══════════════════════════════════════════════════════════════════════════
    SUBTERRA MODULE END
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -60318,27 +60669,13 @@ window._enterDistrictPlace=(districtId,placeId)=>{
         if(_h<8||_h>=22){ if(typeof showMsg==='function') showMsg('🚐 Gravel Lot Motors zamknięte. Korek i jego ludzie pracują od 08:00 do 22:00 — wróć w godzinach otwarcia.','i',5200); return; } }
       if(typeof window._korekDialog==='function') window._korekDialog();
       return;
-    /* v2.3.128 (PDF VANTAGE WORKS §7): punkty interakcji w holu głównym. */
-    case 'subterra:terminal': if(typeof closeOverlay==='function') closeOverlay(); if(typeof window._sbTerminal==='function') window._sbTerminal(); return;
-    case 'vantage:eve':        if(typeof window._vwEveDialog==='function') window._vwEveDialog('intro'); return;
-    case 'vantage:sales':
-    case 'vantage:board':      if(typeof window._vwMarketPanel==='function') window._vwMarketPanel('units'); return;
-    case 'vantage:model':      if(typeof window._vwMarketPanel==='function') window._vwMarketPanel('compare'); return;
-    case 'vantage:reception':  if(typeof showMsg==='function') showMsg('🛎 Recepcja główna stoi pusta — budynek obsługuje kupujących przez doradcę. Eve Rook jest kilka kroków dalej.','i',4200); return;
-    case 'vantage:wait':       if(typeof showMsg==='function') showMsg('🛋 Strefa oczekiwania: miękkie fotele, prasa branżowa i ekran z ofertami. Ktoś przed Tobą też ogląda halę.','i',4200); return;
-    case 'vantage:elevator':
-    case 'vantage:stairs':     if(typeof window._vwElevator==='function') window._vwElevator(); return;
-    case 'vantage:freight':    if(typeof showMsg==='function') showMsg('🛗 Winda towarowa obsługuje lokale ze strefą załadunku. Bez własnego lokalu nie ruszysz nią wyżej.','i',4200); return;
-    case 'vantage:stairs_tech':if(typeof showMsg==='function') showMsg('🪜 Schody techniczne prowadzą do części serwisowej. Wstęp tylko dla obsługi budynku.','i',4000); return;
-    case 'vantage:showroom':   if(typeof window._vwMarketPanel==='function') window._vwMarketPanel('units'); return;
-    case 'vantage:garage':
-    case 'vantage:storage':    if(typeof window._vwMarketPanel==='function') window._vwMarketPanel('units'); return;
-    case 'vantage:access':     if(typeof window._vwAccessPoint==='function') window._vwAccessPoint(); return;
-    case 'vantage:cafe':       if(typeof window._vwCafe==='function') window._vwCafe(); return;
-    case 'vantage:admin':      if(typeof window._vwMarketPanel==='function') window._vwMarketPanel('terms'); return;
-    case 'vantage:toilets':    if(typeof showMsg==='function') showMsg('🚻 Czysto, cicho i pachnie nowym budynkiem.','i',3000); return;
-    case 'vantage:service':    if(typeof showMsg==='function') showMsg('🔒 Część serwisowa zamknięta — potrzebna karta obsługi budynku.','i',3200); return;
-    case 'vantage:exit':       if(typeof changeRoom==='function') changeRoom('underground',380,1090); return;
+    /* v2.3.129 BUGFIX (user: „hol VANTAGE — nic nie działa, żadna interakcja"): punkty holu
+       `vantage:*` i terminal `subterra:terminal` miały swoje case TUTAJ, w switchu
+       _enterDistrictPlace, który dopasowuje wyłącznie klucze `<dzielnica>_<miejsce>`.
+       Żaden z nich nie mógł się nigdy dopasować → 19 punktów holu i terminal plantacji
+       nie reagowały na [E] (bez błędu, bez komunikatu). Dispatch przeniesiony do
+       handleAct → window._vwLobbyAct / window._sbTerminal. Ta sama klasa błędu co
+       `camper_safe_view` w v2.3.126. */
     case 'underground_lab':
       /* v2.3.128 (PDF VANTAGE WORKS §1): poziom 10 kariery Trap odblokowuje RYNEK powierzchni,
          a nie darmowe zaplecze. Gracz wchodzi jako kupujący; halę dostaje dopiero razem z lokalem. */
@@ -81488,6 +81825,17 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.129',date:'2026-07-29',cats:['beta-tester','fix'],title:'🛠 Hol VANTAGE WORKS znowu reaguje, terminal na plantacji działa, a obiekt uprawowy widać z zewnątrz',
+ items:[
+  {t:'fix',d:'🏢 W holu VANTAGE WORKS żadne miejsce nie reagowało na przycisk akcji — recepcja, lokale pokazowe, poczekalnia, kawiarnia, magazyny B2, administracja, serwis, toalety, windy, schody, garaż i kontrola dostępu były głuche. Wszystkie 19 punktów działa już poprawnie.'},
+  {t:'fix',d:'🌱 Terminal na plantacji nie otwierał panelu obiektu uprawowego. Teraz otwiera pełny terminal: poziom obiektu, rozbudowa, sprzęt, materiały i cykle.'},
+  {t:'change',d:'🛋 Wnętrze holu wygląda jak prawdziwy hol: lada recepcji z podświetlaną tablicą, stanowisko sprzedaży z krzesłami, makieta kompleksu pod szybą, elektroniczna tablica lokali, kanapa z lampą, windy z wyświetlaczem piętra, brama garażu, bramka z czytnikiem kart, kawiarnia z ekspresem i przeszklone drzwi wyjściowe. Wcześniej były to puste prostokąty z napisem.'},
+  {t:'change',d:'🏗 Obiekt uprawowy zmienia wygląd wraz z rozbudową — i to widać już z mapy, bez wchodzenia do środka. Nieprzejęty stoi zabity deskami z tabliczką, po rozbudowie dostaje zaciemnione szyby, agregat wentylacji i ogrodzenie, a na najwyższym poziomie kominy, przybudówkę, właz zjazdowy i kamerę. Na czas prac remontowych pojawia się rusztowanie z taśmą.'},
+  {t:'change',d:'🌿 Wnętrze obiektu też rośnie razem z poziomem: od surowej piwnicy z prowizorycznymi kablami, przez uszczelnione strefy z kanałem wentylacyjnym i panelem sterowania, po podziemny kompleks ze stalowymi słupami, strefą obróbki i monitoringiem.'},
+  {t:'change',d:'🌱 Terminal obiektu pokazuje teraz stan na pierwszy rzut oka: poziom, gotowość, trwający cykl albo przestój remontowy.'},
+ ]
+ },
  {
  ver:'v2.3.128',date:'2026-07-28',cats:['feature'],title:'🚨 Sześć dużych modułów naraz: RESPONSE GRID, VANTAGE WORKS, SUBTERRA, Gigi 2.0, Urban Crown i nowe marki samochodów',
  items:[
