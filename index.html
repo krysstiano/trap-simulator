@@ -54750,7 +54750,10 @@ window._vwBuyUnit=function(defId){
   if(!d) return {ok:false,msg:'Ta powierzchnia nie jest dostępna.'};
   if(!window._vwMarketUnlocked()) return {ok:false,msg:'Rynek powierzchni otwiera się dopiero na 10. poziomie kariery Trap.'};
   if((G.money||0)<d.price) return {ok:false,msg:'Nie masz wystarczających środków — brakuje '+(d.price-(G.money||0)).toLocaleString('pl')+' zł.'};
+  /* §98: kolejny lokal dopiero po przerwie */
+  if(v.units.length){ const g=(typeof window._vwFarmGuard==='function')?window._vwFarmGuard('buyUnit'):null; if(g) return {ok:false,msg:g}; }
   G.money-=d.price;
+  if(typeof window._vwCdSet==='function') window._vwCdSet('buyUnit',3);
   const u=window._vwUnitEnsure({id:'vw_'+defId+'_'+(v.units.length+1),defId:defId});
   u.status=VW_STATES.OWNED_SHELL; u.stage=1;
   v.units.push(u); if(!v.activeUnit) v.activeUnit=u.id;
@@ -54802,6 +54805,7 @@ window._vwCreateFront=function(unitId,frontId){
   if(d && f.officeSlots>d.office) return {ok:false,msg:'Ten lokal ma za mało stanowisk biurowych dla tego profilu.'};
   if(d && f.warehouse>(d.warehouse||0)) return {ok:false,msg:'Ten profil wymaga magazynu na co najmniej '+f.warehouse+' jednostek.'};
   G.money-=cost; u.frontId=frontId; u.status=VW_STATES.LEGAL_FITOUT; u.stage=Math.max(u.stage,2);
+  if(typeof window._vwCdSet==='function') window._vwCdSet('changeFront',14);
   window._vwEnsure().history.push({day:G.day||1,type:'firma',text:'Zarejestrowano działalność: '+f.name+'.'});
   return {ok:true,msg:'Zarejestrowano działalność: '+f.name+'. Teraz doposaż lokal i zatrudnij ludzi.'};
 };
@@ -55062,6 +55066,8 @@ window._vwRunShadowCycle=function(unitId,lineId,investment){
   const slots=(window._vwUnitDef(u.defId)||{}).slots||0;
   const active=u.batches.filter(b=>b.status==='ready').length;
   if(active>=Math.max(1,slots)) return {ok:false,msg:'Wszystkie linie operacyjne są zajęte — rozlicz gotowe partie.'};
+  /* §98/§99: odstęp między liniami operacyjnymi i tygodniowy limit dużych operacji */
+  { const g=(typeof window._vwFarmGuard==='function')?window._vwFarmGuard('newLine',unitId):null; if(g) return {ok:false,msg:g}; }
   const inv=Math.max(5000,Math.min(400000,Math.round(investment||20000)));
   if((G.money||0)<inv) return {ok:false,msg:'Brak środków na tę inwestycję.'};
   G.money-=inv; u.finance.materialCosts+=inv; v.lastShadowCycleDay=G.day||1;
@@ -55077,6 +55083,7 @@ window._vwRunShadowCycle=function(unitId,lineId,investment){
   u.env.contamination=Math.min(100,u.env.contamination+Math.max(1,6-Math.round(u.env.filtration/20)));
   u.workforce.fatigue=Math.min(100,u.workforce.fatigue+6);
   u.compliance.exposure=Math.min(100,u.compliance.exposure+Math.round(line.tier*1.5));
+  if(typeof window._vwCdSet==='function'){ window._vwCdSet('newLine',5); const w=window._vwCdEnsure(); w.weekly.shadowOps++; }
   return {ok:true,msg:'Cykl uruchomiony. Rozliczenie za '+line.cycleDays+' dni.',batch:batch};
 };
 window._vwTickBatches=function(u){
@@ -55106,6 +55113,8 @@ window._vwMarketDemand=function(category,districtId){
 window._vwCreateDistribution=function(unitId,batchId,nodeId,profileId,buyerId,riskTolerance){
   const u=window._vwUnit(unitId); if(!u) return {ok:false,msg:'Brak lokalu.'};
   const b=u.batches.find(x=>x.id===batchId&&x.status==='ready'); if(!b) return {ok:false,msg:'Brak gotowej partii.'};
+  /* §99: limit jednocześnie aktywnych zleceń dystrybucji */
+  { const g=(typeof window._vwFarmGuard==='function')?window._vwFarmGuard('distribution',unitId):null; if(g) return {ok:false,msg:g}; }
   const node=VW_NODES.find(n=>n.id===nodeId); const prof=VW_DIST_PROFILES.find(p=>p.id===profileId);
   const buyer=VW_BUYERS.find(x=>x.id===buyerId);
   if(!node||!prof||!buyer) return {ok:false,msg:'Wybierz węzeł, profil i odbiorcę.'};
@@ -55261,6 +55270,8 @@ window._vwSellUnit=function(unitId){
   const v=window._vwEnsure(); const u=window._vwUnit(unitId); if(!u) return {ok:false,msg:'Brak lokalu.'};
   if(u.status===VW_STATES.CONFISCATED) return {ok:false,msg:'Zajętego obiektu nie można sprzedać.'};
   if(u.batches.some(b=>b.status==='running'||b.status==='ready')) return {ok:false,msg:'Najpierw rozlicz otwarte partie.'};
+  /* §98: lokal można sprzedać najwcześniej 7 dni po zakupie */
+  { const g=(typeof window._vwFarmGuard==='function')?window._vwFarmGuard('sellUnit',unitId):null; if(g) return {ok:false,msg:g}; }
   const d=window._vwUnitDef(u.defId)||{};
   const wearMult=1-(u.maintenance.wear/250);
   const price=Math.round((d.price||0)*0.72*wearMult);
@@ -55520,6 +55531,7 @@ window._vwUnitPanel=function(unitId){
       ${!u.frontId?`<button class="bbtn" onclick="window._vwFrontPanel('${u.id}')">📄 Załóż legalną działalność frontową</button>`:''}
       <button class="cbtn" onclick="window._vwFitoutPanel('${u.id}')">🔧 Doposażenie i zamówienia</button>
       <button class="cbtn" onclick="window._vwStaffPanel('${u.id}')">👥 Personel</button>
+      <button class="cbtn" onclick="window._vwOpsPanel2('shifts')">🗂 Zarządzanie: grafik, finanse, partnerzy, konkurencja, kierunek</button>
       ${u.frontId&&!u.frontOperational?`<button class="bbtn" onclick="window._vwStartServiceBtn('${u.id}')">▶️ Uruchom usługę</button>`:''}
       ${u.frontOperational?`<button class="cbtn" onclick="window._vwOpsPanel('${u.id}')">📦 Zlecenia legalne</button>`:''}
       ${!u.office.computerInstalled?`<button class="cbtn" onclick="window._vwInstallComputer('${u.id}')">🖥 Zainstaluj komputer zarządzający (60 000 zł)</button>`:`<button class="bbtn" onclick="window._axOpen('${u.id}')">🖥 Usiądź przy komputerze — AXIOM OFFICE</button>`}
@@ -55967,6 +55979,18 @@ window._vwDailyTick=function(){
       u.compliance.exposure=Math.min(100,u.compliance.exposure+7);
       msgs.push('👤 Ktoś z zespołu zadaje za dużo pytań. Ekspozycja rośnie.');
     }
+    /* §79 zdarzenie: za duży obrót — niezgodność przepływów */
+    if(typeof window._vwEventTooMuchRevenue==='function'&&!u._tooMuchRevenue){
+      const ev=window._vwEventTooMuchRevenue(u.id);
+      if(ev) msgs.push('📊 '+ev.title+': '+ev.text); }
+    /* §75 konkurencja reaguje na skalę firmy */
+    if(typeof window._vwCompetitionTick==='function'){ const cm=window._vwCompetitionTick(u); if(cm) msgs.push(cm); }
+    /* §93 media reagują na sukcesy i problemy */
+    if(typeof window._vwSocialPost==='function'){
+      if(u.status===VW_STATES.SEALED&&!u._mediaSealed){ u._mediaSealed=true; window._vwSocialPost('sealed',u.id); }
+      else if(u.compliance.lastResult&&u.compliance.lastResult.day===(G.day||1)) window._vwSocialPost('inspection',u.id);
+      else if(u.shadowUnlocked&&u.finance.shadowRevenue>u.finance.legalRevenue*1.4&&Math.random()<0.10) window._vwSocialPost('suspicious',u.id);
+      else if(u.frontOperational&&u.legalRevenueGenerated>0&&!u._mediaDebut){ u._mediaDebut=true; window._vwSocialPost('legal_success',u.id); } }
     /* §77 zdarzenie: pusta hala, pełne rachunki */
     const d=window._vwUnitDef(u.defId)||{};
     if(!u.frontOperational && (d.area||0)>=500 && (G.day||1)-u.purchaseDay>10 && Math.random()<0.12){
@@ -55986,6 +56010,8 @@ window._vwDailyTick=function(){
     G.stress=Math.max(0,Math.min(100,(G.stress==null?70:G.stress)-Math.min(6,p*0.12)));
     if(p>12) G.energy=Math.max(0,(G.energy||100)-2);
   }
+  /* §95 postęp side-storyline liczony z realnego stanu firmy */
+  if(typeof window._vwFrontStageProgress==='function') window._vwFrontStageProgress();
   v.officialInterest=Math.max(0,v.officialInterest-0.6);
   if(msgs.length && typeof addNotif==='function') msgs.slice(0,4).forEach(m=>addNotif(m));
   return msgs;
@@ -56146,6 +56172,567 @@ window._vwCoffee=function(){
   if(typeof updateHUD==='function') updateHUD();
   if(r) r.textContent='☕ Kawa wypita. +12 energii.';
 };
+
+
+/* ── §98 Cooldowny operacyjne + §99 ograniczenie farmienia ─────────────────── */
+const VW_COOLDOWNS={buyUnit:3,changeFront:14,expansion:3,newLine:5,partner:7,distribution:3,
+  financeIntegration:7,inspectionAfterWarning:3,changeManager:5,sellUnit:7};
+const VW_LIMITS={maxMajorShadowOperationsPerWeek:3,maxActiveDistributionJobs:5,maxActiveMajorPartners:3,
+  maxActiveFacilityExpansions:1,maxFinancialIntegrationActionsPerWeek:1,maxUnresolvedInspections:2};
+window._vwCdEnsure=function(){
+  const v=window._vwEnsure();
+  if(!v.cooldowns||typeof v.cooldowns!=='object') v.cooldowns={};
+  if(!v.weekly||typeof v.weekly!=='object') v.weekly={weekStartDay:G.day||1,shadowOps:0,financeActions:0};
+  if((G.day||1)-v.weekly.weekStartDay>=7){ v.weekly={weekStartDay:G.day||1,shadowOps:0,financeActions:0}; }
+  return v;
+};
+window._vwCdLeft=function(key){
+  const v=window._vwCdEnsure(); const until=v.cooldowns[key];
+  return (until==null)?0:Math.max(0,until-(G.day||1));
+};
+window._vwCdSet=function(key,days){ const v=window._vwCdEnsure(); v.cooldowns[key]=(G.day||1)+days; };
+/* §99 — jedna bramka dla wszystkich limitów; zwraca powód po polsku albo null */
+window._vwFarmGuard=function(action,unitId){
+  const v=window._vwCdEnsure(); const u=unitId?window._vwUnit(unitId):window._vwActive();
+  const cd=(k,label)=>{ const l=window._vwCdLeft(k); return l>0?(label+' — jeszcze '+l+' '+(l===1?'dzień':'dni')):null; };
+  if(action==='buyUnit') return cd('buyUnit','Kolejny lokal można kupić dopiero po przerwie');
+  if(action==='sellUnit'){
+    if(u&&(G.day||1)-(u.purchaseDay||0)<VW_COOLDOWNS.sellUnit)
+      return 'Lokal można sprzedać najwcześniej '+VW_COOLDOWNS.sellUnit+' dni po zakupie.';
+    return null; }
+  if(action==='changeFront') return cd('changeFront','Zmiana profilu działalności');
+  if(action==='expansion'){
+    const active=(u&&u.orders||[]).filter(o=>o.status!=='installed'&&o.status!=='cancelled').length;
+    if(active>=VW_LIMITS.maxActiveFacilityExpansions) return 'Jedna duża rozbudowa naraz — poczekaj na zakończenie montażu.';
+    return cd('expansion','Kolejna duża rozbudowa'); }
+  if(action==='newLine'){
+    if(v.weekly.shadowOps>=VW_LIMITS.maxMajorShadowOperationsPerWeek)
+      return 'Tygodniowy limit dużych operacji ('+VW_LIMITS.maxMajorShadowOperationsPerWeek+') wyczerpany.';
+    return cd('newLine','Kolejna linia operacyjna'); }
+  if(action==='distribution'){
+    const jobs=(u&&u.jobs||[]).filter(j=>j.status==='planned').length;
+    if(jobs>=VW_LIMITS.maxActiveDistributionJobs) return 'Za dużo zleceń w drodze (limit '+VW_LIMITS.maxActiveDistributionJobs+').';
+    return null; }
+  if(action==='partner'){
+    if((v.partners||[]).filter(p=>p.active).length>=VW_LIMITS.maxActiveMajorPartners)
+      return 'Masz już maksymalną liczbę dużych partnerów ('+VW_LIMITS.maxActiveMajorPartners+').';
+    return cd('partner','Nowy duży partner'); }
+  if(action==='finance'){
+    if(v.weekly.financeActions>=VW_LIMITS.maxFinancialIntegrationActionsPerWeek)
+      return 'Integracja finansowa to jeden ruch na tydzień.';
+    return cd('financeIntegration','Kolejna zmiana integracji finansowej'); }
+  if(action==='inspection'){
+    const un=(u&&u.compliance.violations||[]).filter(x=>x.level!=='ostrzeżenie').length;
+    if(un>=VW_LIMITS.maxUnresolvedInspections) return 'Za dużo niezamkniętych spraw po kontrolach.';
+    return null; }
+  return null;
+};
+
+/* ── §54 Planowanie zmian ──────────────────────────────────────────────────── */
+window._vwShiftEnsure=function(u){
+  if(!u.shifts||typeof u.shifts!=='object') u.shifts={day:[],evening:[],night:[],overtime:0,vacation:[]};
+  return u.shifts;
+};
+window._vwShiftPlan=function(unitId){
+  const u=window._vwUnit(unitId); if(!u) return null;
+  const sh=window._vwShiftEnsure(u); const d=window._vwUnitDef(u.defId)||{};
+  const cap={day:Math.round((d.staff||8)*0.5),evening:Math.round((d.staff||8)*0.35),night:Math.round((d.staff||8)*0.25)};
+  const assigned=(k)=>u.staff.filter(s=>sh[k].indexOf(s.id)>=0&&!s.absent).length;
+  const total=assigned('day')+assigned('evening')+assigned('night');
+  const avgFatigue=u.staff.length?Math.round(u.staff.reduce((n,s)=>n+(s.fatigue||0),0)/u.staff.length):0;
+  /* za mało ludzi = niższa wydajność, za dużo = koszty i więcej osób z wiedzą (§54) */
+  const understaffed=Math.max(0,(cap.day+cap.evening+cap.night)-total);
+  const errorRisk=Math.max(0,Math.min(100,Math.round(6+understaffed*4+avgFatigue*0.25+sh.overtime*0.4)));
+  return {cap:cap,day:assigned('day'),evening:assigned('evening'),night:assigned('night'),
+    overtime:sh.overtime,avgFatigue:avgFatigue,errorRisk:errorRisk,understaffed:understaffed,
+    knowledgeSpread:u.staff.filter(s=>s.knowledge>30).length};
+};
+window._vwShiftAssign=function(unitId,staffId,shift){
+  const u=window._vwUnit(unitId); if(!u) return {ok:false,msg:'Brak lokalu.'};
+  const sh=window._vwShiftEnsure(u);
+  ['day','evening','night'].forEach(k=>{ sh[k]=sh[k].filter(id=>id!==staffId); });
+  if(shift&&['day','evening','night'].indexOf(shift)>=0) sh[shift].push(staffId);
+  const s=u.staff.find(x=>x.id===staffId);
+  return {ok:true,msg:(s?s.name:'Pracownik')+(shift?(' → zmiana '+({day:'dzienna',evening:'wieczorna',night:'nocna'})[shift]):' zdjęty z grafiku')+'.'};
+};
+window._vwShiftVacation=function(unitId,staffId){
+  const u=window._vwUnit(unitId); if(!u) return {ok:false,msg:'Brak lokalu.'};
+  const s=u.staff.find(x=>x.id===staffId); if(!s) return {ok:false,msg:'Brak pracownika.'};
+  s.absent=!s.absent; s.fatigue=s.absent?Math.max(0,s.fatigue-30):s.fatigue;
+  return {ok:true,msg:s.name+(s.absent?' idzie na urlop — wraca wypoczęty, ale zmiana jest krótsza.':' wraca do pracy.')};
+};
+
+/* ── §61/§62 Integracja finansowa ──────────────────────────────────────────── */
+const VW_INTEGRATION=[
+ {id:'conservative',name:'Konserwatywna', throughput:0.25, risk:2,  fee:0.04, desc:'Mała kwota, niski wzrost ryzyka.'},
+ {id:'standard',    name:'Standardowa',   throughput:0.50, risk:6,  fee:0.07, desc:'Średnia przepustowość.'},
+ {id:'aggressive',  name:'Agresywna',     throughput:0.85, risk:15, fee:0.10, desc:'Duża przepustowość, wysokie ryzyko niezgodności.'},
+ {id:'external',    name:'Zewnętrzny partner',throughput:0.65,risk:9,fee:0.18, desc:'Opłata i utrata części kontroli.'},
+ {id:'hold',        name:'Wstrzymaj',     throughput:0,    risk:0,  fee:0,    desc:'Środki pozostają nieprzypisane i zwiększają presję magazynową.'},
+];
+window._vwFinanceIntegration=function(unitId,optionId,budget,tolerance,ownerStaffId){
+  const u=window._vwUnit(unitId); if(!u) return {ok:false,msg:'Brak lokalu.'};
+  const opt=VW_INTEGRATION.find(o=>o.id===optionId);
+  if(!opt) return {ok:false,msg:'Wybierz poziom integracji.'};
+  const guard=window._vwFarmGuard('finance',unitId);
+  if(guard) return {ok:false,msg:guard};
+  const v=window._vwCdEnsure();
+  const owner=ownerStaffId?u.staff.find(s=>s.id===ownerStaffId):null;
+  if(optionId!=='hold'&&!owner) return {ok:false,msg:'Wskaż osobę odpowiedzialną za obsługę.'};
+  const pool=Math.max(0,Math.round(u.finance.discrepancy));
+  if(optionId==='hold'){
+    u.finance.integrationMode='hold';
+    u.compliance.exposure=Math.min(100,u.compliance.exposure+2);
+    v.weekly.financeActions++; window._vwCdSet('financeIntegration',VW_COOLDOWNS.financeIntegration);
+    return {ok:true,msg:'Wstrzymano integrację. Środki czekają, ale presja rośnie.'};
+  }
+  const cap=Math.max(0,Math.min(pool,Math.round(budget||pool*opt.throughput)));
+  if(cap<=0) return {ok:false,msg:'Nie ma czego integrować — brak niezgodności w księgach.'};
+  const fee=Math.round(cap*opt.fee);
+  if((G.money||0)<fee) return {ok:false,msg:'Obsługa kosztuje '+fee.toLocaleString('pl')+' zł.'};
+  const riskNow=Math.round(opt.risk*(1-(owner?owner.skill:40)/220));
+  if(tolerance!=null&&riskNow>tolerance) return {ok:false,msg:'Ryzyko tej metody ('+riskNow+') przekracza Twój próg ('+tolerance+').'};
+  G.money-=fee; u.finance.integrationCosts+=fee;
+  u.finance.discrepancy=Math.max(0,u.finance.discrepancy-cap);
+  u.compliance.exposure=Math.min(100,u.compliance.exposure+riskNow);
+  u.finance.integrationMode=optionId; u.finance.integrationOwner=ownerStaffId||null;
+  v.weekly.financeActions++; window._vwCdSet('financeIntegration',VW_COOLDOWNS.financeIntegration);
+  return {ok:true,msg:'Zintegrowano '+cap.toLocaleString('pl')+' zł ('+opt.name.toLowerCase()+'). Opłata '+fee.toLocaleString('pl')+' zł, ryzyko +'+riskNow+'.'};
+};
+
+/* ── §72 City Pulse wokół obiektu ──────────────────────────────────────────── */
+const VW_PULSE_PROFILE={basePedestrianDensity:0.65,baseTrafficDensity:0.85,
+  workdayMorningMultiplier:1.25,workdayAfternoonMultiplier:1.15,weekendMultiplier:0.40,
+  deliveryTrafficMultiplier:1.20,employeeTrafficMultiplier:1.10,
+  policePresenceMultiplier:0.85,officialVehicleMultiplier:0.70,objectAttractorMultiplier:1.35};
+window._vwCityPulse=function(){
+  const v=window._vwEnsure(); const p=VW_PULSE_PROFILE;
+  const h=(typeof getHour==='function')?getHour():Math.floor(((G.gameMin||720)%1440)/60);
+  const wd=((G.day||1)%7);
+  const weekend=(wd===5||wd===6);
+  let ped=p.basePedestrianDensity, traf=p.baseTrafficDensity;
+  if(weekend){ ped*=p.weekendMultiplier; traf*=p.weekendMultiplier; }
+  else if(h>=6&&h<11){ ped*=p.workdayMorningMultiplier; traf*=p.workdayMorningMultiplier; }
+  else if(h>=13&&h<18){ ped*=p.workdayAfternoonMultiplier; traf*=p.workdayAfternoonMultiplier; }
+  const staff=v.units.reduce((n,u)=>n+u.staff.length,0);
+  const oper=v.units.filter(u=>u.frontOperational).length;
+  if(oper){ traf*=p.deliveryTrafficMultiplier; ped*=p.employeeTrafficMultiplier; }
+  if(staff>=8) ped*=p.objectAttractorMultiplier;
+  const police=1+(v.officialInterest/100)*(1/p.policePresenceMultiplier-1);
+  /* kto pojawia się wokół budynku wraz z rozwojem firmy (§72) */
+  const actors=[];
+  if(staff>0) actors.push('pracownicy');
+  if(oper) actors.push('kurierzy','dostawcy','klienci','pojazdy dostawcze');
+  if(staff>=5) actors.push('osoby idące do kawiarni');
+  if(v.officialInterest>=35) actors.push('urzędnicy');
+  if(v.units.some(u=>u.security.level>=30)) actors.push('ochroniarze');
+  if(v.units.some(u=>(u.competition&&u.competition.legalPressure>20))) actors.push('konkurenci obserwujący budynek');
+  return {pedestrianDensity:+ped.toFixed(2),trafficDensity:+traf.toFixed(2),
+    policePresence:+police.toFixed(2),officialVehicles:+(p.officialVehicleMultiplier*(1+v.officialInterest/120)).toFixed(2),
+    actors:actors,weekend:weekend};
+};
+
+/* ── §74 Partnerzy biznesowi ───────────────────────────────────────────────── */
+const VW_PARTNER_CATS=[
+ {id:'equipment_supplier',name:'Dostawca wyposażenia', legal:14,shadow:2, perk:'Rabat na zamawiany sprzęt.'},
+ {id:'accountant',        name:'Księgowa',             legal:12,shadow:6, perk:'Wolniejszy przyrost niezgodności finansowej.'},
+ {id:'ops_manager',       name:'Manager operacyjny',   legal:16,shadow:4, perk:'Wyższa przepustowość i mniejsze zmęczenie zespołu.'},
+ {id:'realtor',           name:'Specjalista od nieruchomości',legal:10,shadow:1,perk:'Niższa cena kolejnego lokalu.'},
+ {id:'event_organizer',   name:'Organizator eventów',  legal:13,shadow:3, perk:'Więcej zleceń dla profilu eventowego.'},
+ {id:'security_firm',     name:'Firma ochroniarska',   legal:9, shadow:5, perk:'Wyższy poziom zabezpieczeń obiektu.'},
+ {id:'logistics_broker',  name:'Pośrednik logistyczny',legal:11,shadow:12,perk:'Tańsza i szybsza dystrybucja.'},
+ {id:'investor',          name:'Inwestor',             legal:20,shadow:3, perk:'Zastrzyk kapitału na rozbudowę.'},
+ {id:'serviceman',        name:'Serwisant',            legal:8, shadow:2, perk:'Tańszy serwis i wolniejsze zużycie.'},
+ {id:'warehouse_lead',    name:'Kierownik magazynu',   legal:10,shadow:7, perk:'Mniejsze straty magazynowe.'},
+];
+window._vwPartners=function(){
+  const v=window._vwCdEnsure();
+  if(!Array.isArray(v.partners)) v.partners=[];
+  return v.partners;
+};
+window._vwMeetPartner=function(catId){
+  const v=window._vwCdEnsure(); const cat=VW_PARTNER_CATS.find(c=>c.id===catId);
+  if(!cat) return {ok:false,msg:'Nieznany rodzaj partnera.'};
+  const guard=window._vwFarmGuard('partner');
+  if(guard) return {ok:false,msg:guard};
+  const partners=window._vwPartners();
+  if(partners.some(p=>p.category===catId&&p.active)) return {ok:false,msg:'Masz już partnera w tej kategorii.'};
+  const r=(n)=>Math.floor(Math.random()*n);
+  const p={id:'partner_'+(partners.length+1),category:catId,name:cat.name,
+    trust:10+r(25),reliability:35+r(50),priceLevel:30+r(55),discretion:25+r(60),
+    legalValue:cat.legal,shadowAffinity:cat.shadow,
+    hiddenRisk:(Math.random()<0.3)?['wyciek informacji','zawyżanie faktur','powiązania z konkurencją'][r(3)]:null,
+    cooldownUntilDay:null,active:true,sinceDay:G.day||1,perk:cat.perk};
+  partners.push(p);
+  window._vwCdSet('partner',VW_COOLDOWNS.partner+r(6));
+  return {ok:true,msg:'Nawiązano współpracę: '+cat.name+'. '+cat.perk,partner:p};
+};
+window._vwDropPartner=function(id){
+  const partners=window._vwPartners(); const p=partners.find(x=>x.id===id);
+  if(!p) return {ok:false,msg:'Brak partnera.'};
+  p.active=false; p.cooldownUntilDay=(G.day||1)+10;
+  const u=window._vwActive();
+  if(u&&p.shadowAffinity>=7){ u.compliance.exposure=Math.min(100,u.compliance.exposure+4); }
+  return {ok:true,msg:'Zakończono współpracę z: '+p.name+(p.shadowAffinity>=7?' — ta osoba wie o Tobie sporo.':'')};
+};
+window._vwPartnerBonus=function(kind){
+  return window._vwPartners().filter(p=>p.active).reduce((n,p)=>{
+    const cat=VW_PARTNER_CATS.find(c=>c.id===p.category)||{};
+    if(kind==='legal') return n+(p.legalValue*(p.reliability/100));
+    if(kind==='shadow') return n+(p.shadowAffinity*(p.discretion/100));
+    return n; },0);
+};
+
+/* ── §75 Konkurencja ───────────────────────────────────────────────────────── */
+const VW_COMPETITION_TYPES=[
+ {id:'legal',    name:'Legalna konkurencja',    effect:'Podkrada kontrakty i pracowników.'},
+ {id:'warehouse',name:'Konkurencja magazynowa', effect:'Presja cenowa na stawki.'},
+ {id:'shadow',   name:'Konkurencja półświatka', effect:'Próby przejęcia rynku.'},
+ {id:'partner',  name:'Wrogi partner',          effect:'Sabotuje relacje z innymi.'},
+ {id:'ex_staff', name:'Były pracownik',         effect:'Przeciek albo kradzież.'},
+];
+window._vwCompEnsure=function(u){
+  if(!u.competition||typeof u.competition!=='object')
+    u.competition={legalPressure:0,shadowPressure:0,priceWar:0,staffPoaching:0,sabotageRisk:0,events:[]};
+  return u.competition;
+};
+window._vwCompetition=function(unitId){
+  const u=window._vwUnit(unitId); if(!u) return null;
+  const c=window._vwCompEnsure(u); const d=window._vwUnitDef(u.defId)||{};
+  /* skala firmy wywołuje reakcję konkurencji (§75) */
+  const scale=(u.staff.length*2)+(u.upgrades.length*3)+((d.area||100)/60)+(u.shadowUnlocked?18:0);
+  c.legalPressure=Math.min(100,Math.round(scale*0.55));
+  c.shadowPressure=Math.min(100,Math.round((u.shadowUnlocked?scale*0.5:0)));
+  c.priceWar=Math.min(100,Math.round(scale*0.35));
+  c.staffPoaching=Math.min(100,Math.round(scale*0.30+(u.workforce.tension||0)*0.3));
+  c.sabotageRisk=Math.min(100,Math.round((window._vwPartners().filter(p=>!p.active).length*6)
+    +(u.compliance.exposure*0.2)));
+  return c;
+};
+window._vwCompetitionTick=function(u){
+  const c=window._vwCompetition(u.id); if(!c) return null;
+  const roll=Math.random()*100;
+  if(roll<c.staffPoaching*0.06&&u.staff.length>1){
+    const victim=u.staff[Math.floor(Math.random()*u.staff.length)];
+    u.staff=u.staff.filter(s=>s.id!==victim.id);
+    c.events.push({day:G.day||1,type:'staff_poaching',text:victim.name+' odszedł do konkurencji.'});
+    return '👥 '+victim.name+' przyjął lepszą ofertę od konkurencji.';
+  }
+  if(roll<c.priceWar*0.05){
+    const loss=Math.round(u.finance.legalRevenue*0.05);
+    u.finance.losses+=loss;
+    c.events.push({day:G.day||1,type:'price_war',text:'Wojna cenowa obcięła marżę.'});
+    return '📉 Konkurencja zbiła ceny — marża spadła o '+loss.toLocaleString('pl')+' zł.';
+  }
+  if(roll<c.sabotageRisk*0.04){
+    u.compliance.exposure=Math.min(100,u.compliance.exposure+6);
+    c.events.push({day:G.day||1,type:'sabotage',text:'Ktoś podrzucił informację o firmie.'});
+    return '🕳 Ktoś celowo podrzucił informacje o Twojej firmie.';
+  }
+  return null;
+};
+
+/* ── §79 Zdarzenie „Za duży obrót" ─────────────────────────────────────────── */
+window._vwEventTooMuchRevenue=function(unitId){
+  const u=window._vwUnit(unitId); if(!u||!u.shadowUnlocked) return null;
+  const legal=Math.max(1,u.finance.legalRevenue), shadow=u.finance.shadowRevenue;
+  if(shadow<legal*1.6) return null;
+  u._tooMuchRevenue={day:G.day||1,riskAdd:14};
+  u.compliance.exposure=Math.min(100,u.compliance.exposure+8);
+  return {title:'Za duży obrót',
+    text:'Przychód ukryty rośnie szybciej niż legalna działalność. System wykrył niezgodność przepływów.',
+    riskAdd:14,
+    options:[
+     {id:'slow',    label:'Zwolnij tempo integracji'},
+     {id:'legal',   label:'Zwiększ legalną działalność'},
+     {id:'external',label:'Skorzystaj z zewnętrznego partnera'},
+     {id:'pause',   label:'Wstrzymaj część operacji'},
+     {id:'ignore',  label:'Zignoruj'},
+    ]};
+};
+window._vwResolveTooMuchRevenue=function(unitId,optionId){
+  const u=window._vwUnit(unitId); if(!u) return {ok:false,msg:'Brak lokalu.'};
+  let msg='';
+  if(optionId==='slow'){ u.finance.integrationMode='conservative';
+    u.compliance.exposure=Math.max(0,u.compliance.exposure-6); msg='Tempo integracji zwolnione — mniejsze ryzyko, wolniejszy obieg.'; }
+  else if(optionId==='legal'){ const cost=Math.round(u.finance.shadowRevenue*0.10);
+    if((G.money||0)<cost) return {ok:false,msg:'Podbicie legalnej działalności kosztuje '+cost.toLocaleString('pl')+' zł.'};
+    G.money-=cost; u.finance.legalRevenue+=Math.round(cost*1.4); u.compliance.exposure=Math.max(0,u.compliance.exposure-9);
+    msg='Legalna działalność podbita — proporcje wyglądają zdrowiej.'; }
+  else if(optionId==='external'){ const fee=Math.round(u.finance.discrepancy*0.18);
+    G.money-=fee; u.finance.integrationCosts+=fee; u.finance.discrepancy=Math.round(u.finance.discrepancy*0.45);
+    u.compliance.exposure=Math.min(100,u.compliance.exposure+3);
+    msg='Zewnętrzny partner przejął część obiegu za '+fee.toLocaleString('pl')+' zł — mniej kontroli po Twojej stronie.'; }
+  else if(optionId==='pause'){ u.batches.filter(b=>b.status==='running').forEach(b=>{ b.status='paused'; });
+    u.compliance.exposure=Math.max(0,u.compliance.exposure-11); msg='Część operacji wstrzymana — spokojniej, ale bez przychodu.'; }
+  else { u.compliance.exposure=Math.min(100,u.compliance.exposure+10);
+    window._vwEnsure().officialInterest=Math.min(100,window._vwEnsure().officialInterest+8);
+    msg='Zignorowane. Niezgodność zostaje w papierach i będzie widoczna przy kontroli.'; }
+  u._tooMuchRevenue=null;
+  return {ok:true,msg:msg};
+};
+
+/* ── §93 FrameUp / ViewGrid / ChirpNet · §94 odpowiedź medialna ────────────── */
+window._vwSocialPost=function(kind,unitId){
+  const u=window._vwUnit(unitId)||window._vwActive(); const v=window._vwEnsure();
+  const nick=(G.name||G.nick||'Ty');
+  const posts={
+    legal_success:{platform:'FrameUp',text:'Nowe biuro, nowe ruchy. '+nick+' rozwija własne zaplecze biznesowe.',tone:1},
+    suspicious:{platform:'ChirpNet',text:'Muzyka muzyką, ale skąd nagle pełne piętro produkcyjne?',tone:-1},
+    inspection:{platform:'Blog miejski',text:'Urzędnicy pojawili się dziś w VANTAGE WORKS. Firma artysty twierdzi, że to rutynowa kontrola.',tone:-1},
+    sealed:{platform:'ViewGrid News',text:'Część obiektu powiązanego z '+nick+' została czasowo zamknięta. Dziwny zbieg okoliczności.',tone:-2},
+  };
+  const p=posts[kind]; if(!p) return null;
+  v.mediaTone=Math.max(-100,Math.min(100,v.mediaTone+p.tone*8));
+  if(u) u.compliance.exposure=Math.min(100,u.compliance.exposure+(p.tone<0?3:0));
+  if(p.tone>0&&typeof addFans==='function') addFans(Math.round(40+Math.random()*80));
+  if(p.tone<0&&typeof addDefamation==='function') addDefamation(Math.abs(p.tone)*3);
+  v.pendingMedia=(p.tone<0)?{kind:kind,platform:p.platform,text:p.text,day:G.day||1}:null;
+  if(typeof addNotif==='function') addNotif('📰 '+p.platform+': '+p.text);
+  return p;
+};
+const VW_MEDIA_OPTIONS=[
+ {id:'silence',   label:'Zachowaj ciszę'},
+ {id:'statement', label:'Wydaj profesjonalne oświadczenie'},
+ {id:'blame',     label:'Zrzuć odpowiedzialność na managera operacyjnego'},
+ {id:'showlegal', label:'Przedstaw legalną działalność'},
+ {id:'joke',      label:'Zażartuj'},
+ {id:'attack',    label:'Zaatakuj media'},
+];
+window._vwMediaResponse=function(optionId){
+  const v=window._vwEnsure(); const u=window._vwActive();
+  if(!v.pendingMedia) return {ok:false,msg:'Nic teraz nie wymaga odpowiedzi.'};
+  const opt=VW_MEDIA_OPTIONS.find(o=>o.id===optionId);
+  if(!opt) return {ok:false,msg:'Wybierz odpowiedź.'};
+  /* skuteczność zależy od przygotowania medialnego, managera, zgodności ze stanem firmy i szumu */
+  const mediaTraining=Math.min(30,(G.fame||0)/10);
+  const manager=u?u.staff.filter(s=>s.access>=3).reduce((m,s)=>Math.max(m,s.skill),0):0;
+  const truthful=u?(u.frontOperational?18:-12):-8;
+  const buzz=Math.min(20,(G.socialBuzz||0)/5);
+  let score=30+mediaTraining+manager*0.2+buzz;
+  let toneDelta=0, exposureDelta=0, msg='';
+  if(optionId==='silence'){ toneDelta=-2; exposureDelta=1; msg='Milczenie. Temat sam wygasa, ale zostaje niesmak.'; }
+  else if(optionId==='statement'){ score+=truthful; toneDelta=score>55?10:2; exposureDelta=score>55?-3:0;
+    msg=score>55?'Oświadczenie zabrzmiało wiarygodnie.':'Oświadczenie brzmiało sztywno i nikogo nie przekonało.'; }
+  else if(optionId==='blame'){ toneDelta=6; exposureDelta=-2; msg='Odpowiedzialność spadła na managera. Zespół to zapamiętał.';
+    if(u){ u.workforce.tension=Math.min(100,u.workforce.tension+14);
+      const m=u.staff.find(s=>s.access>=3); if(m) m.loyalty=Math.max(0,m.loyalty-25); } }
+  else if(optionId==='showlegal'){ score+=truthful*1.5; toneDelta=score>60?14:-4; exposureDelta=score>60?-6:2;
+    msg=score>60?'Pokazanie realnej działalności zamknęło temat.':'Pokaz nie wypadł przekonująco — firma wygląda pusto.'; }
+  else if(optionId==='joke'){ toneDelta=(G.socialBuzz||0)>40?9:-6;
+    msg=(G.socialBuzz||0)>40?'Żart chwycił, ludzie to podłapali.':'Żart wypadł nie na miejscu.'; }
+  else { toneDelta=-12; exposureDelta=5; msg='Atak na media podgrzał temat zamiast go wygasić.';
+    if(typeof addDefamation==='function') addDefamation(8); }
+  v.mediaTone=Math.max(-100,Math.min(100,v.mediaTone+toneDelta));
+  if(u) u.compliance.exposure=Math.max(0,Math.min(100,u.compliance.exposure+exposureDelta));
+  v.history.push({day:G.day||1,type:'media',text:opt.label+' — '+msg});
+  v.pendingMedia=null;
+  return {ok:true,msg:msg,toneDelta:toneDelta};
+};
+
+/* ── §95 Rozbudowa side-storyline „Nielegalny Front" (12 etapów) ───────────── */
+const VW_FRONT_STAGES=[
+ /* zakup też oznacza, że gracz był w budynku — inaczej etap 1 blokowałby całą ścieżkę */
+ {n:1, name:'Oględziny VANTAGE WORKS',        check:v=>v.toured||v.viewing.viewedUnitIds.length>0||v.units.length>0},
+ {n:2, name:'Zakup pierwszej powierzchni',    check:v=>v.units.length>0},
+ {n:3, name:'Założenie legalnej firmy',       check:v=>v.units.some(u=>!!u.frontId)},
+ {n:4, name:'Pierwszy legalny obrót',         check:v=>v.units.some(u=>u.legalRevenueGenerated>0)},
+ {n:5, name:'Kontakt Kantara i ukryta konsola',check:v=>v.units.some(u=>u.shadowUnlocked)},
+ {n:6, name:'Instalacja pierwszej linii operacyjnej',check:v=>v.units.some(u=>u.batches.length>0)},
+ {n:7, name:'Utworzenie osobnego magazynu',   check:v=>v.storage.length>0||v.units.some(u=>u.stores.secure.cap>0)},
+ {n:8, name:'Budowa sieci dystrybucji',       check:v=>v.network.buyers.length>0||v.units.some(u=>u.jobs.length>0)},
+ {n:9, name:'Zatrudnienie koordynatora',      check:v=>v.units.some(u=>u.staff.some(s=>s.typeId==='net_coord'))},
+ {n:10,name:'Pierwsza kontrola',              check:v=>v.units.some(u=>!!u.compliance.lastResult)},
+ {n:11,name:'Konflikt z konkurencją',         check:v=>v.units.some(u=>u.competition&&(u.competition.events||[]).length>0)},
+ {n:12,name:'Wybór kierunku rozwoju',         check:v=>!!v.strategy},
+];
+window._vwFrontStageProgress=function(){
+  const v=window._vwEnsure();
+  let reached=0; const list=VW_FRONT_STAGES.map(st=>{
+    let done=false; try{ done=!!st.check(v); }catch(e){ done=false; }
+    if(done&&reached===st.n-1) reached=st.n;
+    return {n:st.n,name:st.name,done:done}; });
+  if(!v.frontStageReached||v.frontStageReached<reached){
+    v.frontStageReached=reached;
+    if(reached>0) v.history.push({day:G.day||1,type:'front',text:'Etap '+reached+': '+VW_FRONT_STAGES[reached-1].name+'.'});
+  }
+  return {reached:reached,stages:list};
+};
+
+/* ── §96 Cztery style rozwoju · §97 wycofanie z ukrytej warstwy ────────────── */
+const VW_STRATEGIES=[
+ {id:'legal_dominance',name:'Legalna dominacja', desc:'Duża firma, legalne kontrakty, niewielka część ukryta.',
+  eff:{legal:0.18,shadow:-0.35,exposure:-0.25}},
+ {id:'dual_system',    name:'Podwójny system',   desc:'Zbalansowana firma legalna i rozwinięty Nielegalny Front.',
+  eff:{legal:0.08,shadow:0.10,exposure:0}},
+ {id:'aggressive_trap',name:'Agresywna ekspansja Trap',desc:'Duża produkcja i sieć, wysoki zysk, wysoka ekspozycja.',
+  eff:{legal:-0.10,shadow:0.30,exposure:0.35}},
+ {id:'withdrawal',     name:'Wycofanie',         desc:'Sprzedaż wyposażenia, zamknięcie ukrytej warstwy, pozostawienie firmy legalnej.',
+  eff:{legal:0.05,shadow:-1,exposure:-0.45}},
+];
+window._vwStrategy=function(id){
+  const v=window._vwEnsure();
+  if(!id) return {current:v.strategy||null,options:VW_STRATEGIES};
+  const st=VW_STRATEGIES.find(x=>x.id===id);
+  if(!st) return {ok:false,msg:'Nieznany kierunek.'};
+  if(v.strategy===id) return {ok:false,msg:'Ten kierunek jest już wybrany.'};
+  if(v.strategyDay&&(G.day||1)-v.strategyDay<7) return {ok:false,msg:'Kierunek rozwoju można zmienić najwcześniej po tygodniu.'};
+  v.strategy=id; v.strategyDay=G.day||1;
+  v.history.push({day:G.day||1,type:'kierunek',text:'Wybrany kierunek rozwoju: '+st.name+'.'});
+  return {ok:true,msg:'Kierunek rozwoju: '+st.name+'. '+st.desc,strategy:st};
+};
+window._vwStrategyMod=function(kind){
+  const v=window._vwEnsure(); const st=VW_STRATEGIES.find(x=>x.id===v.strategy);
+  return st?(st.eff[kind]||0):0;
+};
+/* §97 — wycofanie NIE jest przyciskiem „wyłącz bez konsekwencji" */
+window._vwShadowWithdraw=function(unitId,step){
+  const u=window._vwUnit(unitId); const v=window._vwEnsure();
+  if(!u||!u.shadowUnlocked) return {ok:false,msg:'Ukryta warstwa nie jest aktywna.'};
+  if(!u._withdraw) u._withdraw={step:0,startedDay:G.day||1,cooldownUntilDay:null};
+  const w=u._withdraw;
+  const steps=[
+   {id:'operations',label:'Zakończ aktywne operacje',
+    can:()=>!u.batches.some(b=>b.status==='running'),
+    why:'Najpierw rozlicz albo przerwij trwające cykle.',
+    run:()=>{ u.batches.filter(b=>b.status==='ready').forEach(b=>{ b.status='written_off'; }); return 'Aktywne operacje zamknięte.'; }},
+   {id:'stock',label:'Wyczyść stany ukrytego magazynu',
+    can:()=>true, why:'',
+    run:()=>{ const lost=u.stores.shadow.used; u.stores.shadow.used=0;
+      u.finance.losses+=Math.round(lost*80); return 'Stany wyzerowane. Odpisano '+Math.round(lost*80).toLocaleString('pl')+' zł.'; }},
+   {id:'network',label:'Zamknij ukrytą sieć',
+    can:()=>true, why:'',
+    run:()=>{ v.network.buyers=[]; v.network.capacity=0; v.network.reach=Math.round(v.network.reach*0.4);
+      return 'Sieć zamknięta. Część kontaktów przyjęła to źle.'; }},
+   {id:'contacts',label:'Rozwiąż relacje z kontaktami',
+    can:()=>true, why:'',
+    run:()=>{ let risk=0; window._vwPartners().filter(p=>p.active&&p.shadowAffinity>=7).forEach(p=>{ p.active=false; risk+=5; });
+      u.compliance.exposure=Math.min(100,u.compliance.exposure+risk);
+      return 'Relacje rozwiązane. Ekspozycja chwilowo wzrosła o '+risk+'.'; }},
+   {id:'debts',label:'Spłać zobowiązania',
+    can:()=>(G.money||0)>=Math.round(u.finance.shadowRevenue*0.15),
+    why:'Brakuje środków na spłatę zobowiązań.',
+    run:()=>{ const c=Math.round(u.finance.shadowRevenue*0.15); G.money-=c;
+      return 'Zobowiązania spłacone: '+c.toLocaleString('pl')+' zł.'; }},
+   {id:'cooldown',label:'Odczekaj okres schłodzenia',
+    can:()=>true, why:'',
+    run:()=>{ w.cooldownUntilDay=(G.day||1)+7; return 'Okres schłodzenia rozpoczęty — 7 dni bez ruchów.'; }},
+   {id:'finish',label:'Domknij wycofanie',
+    can:()=>w.cooldownUntilDay&&(G.day||1)>=w.cooldownUntilDay,
+    why:'Okres schłodzenia jeszcze trwa.',
+    run:()=>{ u.shadowUnlocked=false; u.office.shadowConsole=false;
+      u.status=VW_STATES.LEGAL_OPERATIONAL; u.stores.shadow.cap=0; u.stores.shadow.used=0;
+      /* §97: ryzyko reakcji byłych partnerów zostaje */
+      if(Math.random()<0.45){ u.compliance.exposure=Math.min(100,u.compliance.exposure+12);
+        v.history.push({day:G.day||1,type:'wycofanie',text:'Ktoś z dawnych kontaktów nie przyjął tego dobrze.'}); }
+      v.history.push({day:G.day||1,type:'wycofanie',text:'Ukryta warstwa zamknięta. Firma została legalna.'});
+      return 'Ukryta warstwa zamknięta. Firma zostaje legalna — ale ludzie pamiętają.'; }},
+  ];
+  if(step==null) return {ok:true,steps:steps.map((s,i)=>({id:s.id,label:s.label,done:i<w.step,
+    available:i===w.step&&s.can(),why:i===w.step?s.why:''})),current:w.step};
+  const idx=steps.findIndex(s=>s.id===step);
+  if(idx<0) return {ok:false,msg:'Nieznany krok.'};
+  if(idx!==w.step) return {ok:false,msg:'Kroki wycofania wykonuje się po kolei.'};
+  if(!steps[idx].can()) return {ok:false,msg:steps[idx].why||'Ten krok nie jest teraz możliwy.'};
+  const msg=steps[idx].run(); w.step++;
+  return {ok:true,msg:msg,step:w.step,done:w.step>=steps.length};
+};
+
+/* ── Panel uzupełniający: grafik, finanse, partnerzy, konkurencja, kierunek, media ── */
+window._vwOpsPanel2=function(tab){
+  const v=window._vwEnsure(); const u=window._vwActive();
+  if(!u){ if(typeof window._vwMarketPanel==='function') window._vwMarketPanel('units'); return; }
+  window._vwTab2=tab||window._vwTab2||'shifts';
+  const t=window._vwTab2;
+  let body='';
+  if(t==='shifts'){
+    const p=window._vwShiftPlan(u.id); const sh=window._vwShiftEnsure(u);
+    body=`<div style="background:#0a1220;border-radius:8px;padding:11px;font-size:12px;color:#cdd;line-height:1.8">
+      Zmiana dzienna: <b>${p.day} / ${p.cap.day}</b><br>Zmiana wieczorna: <b>${p.evening} / ${p.cap.evening}</b><br>
+      Zmiana nocna: <b>${p.night} / ${p.cap.night}</b><br>Nadgodziny: <b>${p.overtime} h</b><br>
+      Średnie zmęczenie: <b>${p.avgFatigue}%</b><br>Ryzyko błędu: <b style="color:${p.errorRisk>25?'#e74c3c':'#7ec87e'}">${p.errorRisk}%</b><br>
+      Osoby z wiedzą o firmie: <b>${p.knowledgeSpread}</b></div>
+      <div style="font-size:11px;color:#9ab;margin-top:8px">Za mało ludzi obniża wydajność. Za dużo podnosi koszty i liczbę osób, które wiedzą, co się dzieje.</div>
+      ${u.staff.map(s=>`<div style="background:#0a1220;border-radius:7px;padding:8px;margin-top:6px;font-size:11px;color:#cdd">
+        <b>${s.name}</b>${s.absent?' <span style="color:#e8a020">(urlop)</span>':''} · zmęczenie ${Math.round(s.fatigue)}%
+        <div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap">
+          ${['day','evening','night'].map(k=>`<button class="cbtn" style="flex:1;font-size:10px;padding:4px;border-color:${sh[k].indexOf(s.id)>=0?'#7ec8e3':'#2a3a50'}" onclick="window._vwShiftBtn('${s.id}','${k}')">${({day:'Dzienna',evening:'Wieczorna',night:'Nocna'})[k]}</button>`).join('')}
+          <button class="cbtn" style="font-size:10px;padding:4px" onclick="window._vwVacBtn('${s.id}')">${s.absent?'Wróć':'Urlop'}</button>
+        </div></div>`).join('')||'<p style="color:#667;font-size:12px">Brak personelu.</p>'}`;
+  } else if(t==='finance'){
+    body=`<div style="font-size:12px;color:#cdd;line-height:1.7">Niezgodność w księgach: <b>${Math.round(u.finance.discrepancy).toLocaleString('pl')} zł</b> ·
+      metoda: <b>${(VW_INTEGRATION.find(o=>o.id===u.finance.integrationMode)||{}).name||'brak'}</b></div>
+      <div class="shopgrid" style="margin-top:8px">${VW_INTEGRATION.map(o=>`<div class="sitem"><h3 style="font-size:12px">${o.name}</h3>
+        <p style="font-size:11px">${o.desc}</p>
+        <p style="font-size:10px;color:#9ab">Przepustowość ${Math.round(o.throughput*100)}% · ryzyko +${o.risk} · opłata ${Math.round(o.fee*100)}%</p>
+        <button class="bbtn" style="font-size:11px;padding:5px" onclick="window._vwFinBtn('${o.id}')">Wybierz</button></div>`).join('')}</div>
+      <div style="font-size:11px;color:#9ab;margin-top:8px">Osobą odpowiedzialną zostaje pracownik z najwyższym poziomem dostępu.</div>`;
+  } else if(t==='partners'){
+    const ps=window._vwPartners().filter(p=>p.active);
+    body=`${ps.length?ps.map(p=>`<div style="background:#0a1220;border-radius:7px;padding:8px;margin-bottom:5px;font-size:11px;color:#cdd">
+      <b>${p.name}</b> · zaufanie ${p.trust} · rzetelność ${p.reliability} · dyskrecja ${p.discretion}<br>
+      <span style="color:#9ab">${p.perk}</span>${p.hiddenRisk?`<br><span style="color:#e8a020">Coś tu nie gra: ${p.hiddenRisk}</span>`:''}
+      <button class="cbtn" style="width:100%;margin-top:5px;font-size:10px;padding:4px" onclick="window._vwDropBtn('${p.id}')">Zakończ współpracę</button></div>`).join(''):'<p style="color:#667;font-size:12px">Nie masz jeszcze partnerów.</p>'}
+      <h3 style="color:#7ec8e3;margin:12px 0 6px;font-size:13px">Poznaj partnera</h3>
+      <div class="shopgrid">${VW_PARTNER_CATS.filter(c=>!ps.some(p=>p.category===c.id)).map(c=>`<div class="sitem">
+        <h3 style="font-size:12px">${c.name}</h3><p style="font-size:11px">${c.perk}</p>
+        <button class="bbtn" style="font-size:11px;padding:5px" onclick="window._vwPartnerBtn('${c.id}')">Nawiąż kontakt</button></div>`).join('')}</div>`;
+  } else if(t==='competition'){
+    const c=window._vwCompetition(u.id);
+    body=`<div style="background:#0a1220;border-radius:8px;padding:11px;font-size:12px;color:#cdd;line-height:1.8">
+      Presja legalnej konkurencji: <b>${c.legalPressure}</b><br>Presja półświatka: <b>${c.shadowPressure}</b><br>
+      Wojna cenowa: <b>${c.priceWar}</b><br>Podkradanie pracowników: <b>${c.staffPoaching}</b><br>
+      Ryzyko sabotażu: <b style="color:${c.sabotageRisk>40?'#e74c3c':'#cdd'}">${c.sabotageRisk}</b></div>
+      <div style="margin-top:9px;font-size:11px;color:#9ab">${VW_COMPETITION_TYPES.map(x=>'• <b>'+x.name+'</b> — '+x.effect).join('<br>')}</div>
+      ${(c.events||[]).length?`<div style="margin-top:9px;font-size:11px;color:#cdd">${c.events.slice(-5).map(e=>'Dzień '+e.day+': '+e.text).join('<br>')}</div>`:''}`;
+  } else if(t==='strategy'){
+    const st=window._vwStrategy(); const fs=window._vwFrontStageProgress();
+    body=`<div style="font-size:12px;color:#cdd">Etap rozwoju: <b>${fs.reached}/12</b></div>
+      <div style="margin-top:6px;font-size:11px;color:#9ab;line-height:1.7">${fs.stages.map(s=>(s.done?'✅':'⬜')+' '+s.n+'. '+s.name).join('<br>')}</div>
+      <h3 style="color:#7ec8e3;margin:12px 0 6px;font-size:13px">Kierunek rozwoju</h3>
+      <div class="shopgrid">${VW_STRATEGIES.map(x=>`<div class="sitem" style="border-color:${st.current===x.id?'#7ec87e':'#1a2535'}">
+        <h3 style="font-size:12px">${x.name}</h3><p style="font-size:11px">${x.desc}</p>
+        <button class="bbtn" style="font-size:11px;padding:5px" onclick="window._vwStratBtn('${x.id}')">Wybierz</button></div>`).join('')}</div>
+      ${u.shadowUnlocked?`<h3 style="color:#e8a020;margin:12px 0 6px;font-size:13px">Wycofanie z ukrytej działalności</h3>
+        ${window._vwShadowWithdraw(u.id).steps.map(s=>`<div style="background:#0a1220;border-radius:7px;padding:7px;margin-bottom:4px;font-size:11px;color:${s.done?'#7ec87e':'#cdd'}">
+          ${s.done?'✅':'⬜'} ${s.label}${s.available?` <button class="cbtn" style="font-size:10px;padding:3px 7px;margin-left:6px" onclick="window._vwWithdrawBtn('${s.id}')">Wykonaj</button>`:(s.why?` <span style="color:#e8a020">— ${s.why}</span>`:'')}</div>`).join('')}
+        <div style="font-size:10px;color:#9ab;margin-top:5px">To nie jest przycisk „wyłącz bez konsekwencji". Każdy krok kosztuje.</div>`:''}`;
+  } else {
+    const pend=v.pendingMedia;
+    body=pend?`<div style="background:#1a1218;border-left:3px solid #e0483a;border-radius:6px;padding:10px;font-size:12px;color:#f0c0c0">
+        <b>${pend.platform}</b><br>${pend.text}</div>
+      <div style="display:flex;flex-direction:column;gap:5px;margin-top:9px">
+        ${VW_MEDIA_OPTIONS.map(o=>`<button class="cbtn" onclick="window._vwMediaBtn('${o.id}')">${o.label}</button>`).join('')}</div>`
+      :`<p style="color:#667;font-size:12px">Nic teraz nie wymaga odpowiedzi. Nastawienie mediów: <b>${v.mediaTone>0?'przychylne':(v.mediaTone<0?'nieprzychylne':'neutralne')}</b>.</p>`;
+  }
+  const tb=(id,lab)=>`<button class="cbtn" style="font-size:11px;padding:6px 9px;margin:2px;border-color:${t===id?'#7ec8e3':'#2a3a50'}" onclick="window._vwOpsPanel2('${id}')">${lab}</button>`;
+  if(typeof openOverlay==='function') openOverlay();
+  document.getElementById('ov-content').innerHTML=`
+    <h2>🗂 Zarządzanie firmą</h2>
+    <p class="sub">${(window._vwUnitDef(u.defId)||{}).name}</p>
+    <div style="margin-bottom:10px">${tb('shifts','Grafik')}${tb('finance','Integracja finansowa')}${tb('partners','Partnerzy')}${tb('competition','Konkurencja')}${tb('strategy','Kierunek i etapy')}${tb('media','Media')}</div>
+    ${body}
+    <div class="res" id="vw-res">Gotówka: ${(G.money||0).toLocaleString('pl')} zł</div>
+    <button class="cbtn" onclick="window._vwUnitPanel(window._vwEnsure().activeUnit)">← Wróć</button>`;
+};
+window._vwShiftBtn=function(id,k){ const u=window._vwActive(); const r=window._vwShiftAssign(u.id,id,k);
+  window._vwOpsPanel2('shifts'); const e=document.getElementById('vw-res'); if(e) e.textContent=r.msg; };
+window._vwVacBtn=function(id){ const u=window._vwActive(); const r=window._vwShiftVacation(u.id,id);
+  window._vwOpsPanel2('shifts'); const e=document.getElementById('vw-res'); if(e) e.textContent=r.msg; };
+window._vwFinBtn=function(id){ const u=window._vwActive();
+  const owner=(u.staff.slice().sort((a,b)=>b.access-a.access)[0]||{}).id;
+  const r=window._vwFinanceIntegration(u.id,id,null,100,owner);
+  window._vwOpsPanel2('finance'); const e=document.getElementById('vw-res'); if(e) e.textContent=r.msg; };
+window._vwPartnerBtn=function(c){ const r=window._vwMeetPartner(c);
+  window._vwOpsPanel2('partners'); const e=document.getElementById('vw-res'); if(e) e.textContent=r.msg; };
+window._vwDropBtn=function(id){ const r=window._vwDropPartner(id);
+  window._vwOpsPanel2('partners'); const e=document.getElementById('vw-res'); if(e) e.textContent=r.msg; };
+window._vwStratBtn=function(id){ const r=window._vwStrategy(id);
+  window._vwOpsPanel2('strategy'); const e=document.getElementById('vw-res'); if(e) e.textContent=r.msg||''; };
+window._vwWithdrawBtn=function(step){ const u=window._vwActive(); const r=window._vwShadowWithdraw(u.id,step);
+  window._vwOpsPanel2('strategy'); const e=document.getElementById('vw-res'); if(e) e.textContent=r.msg; };
+window._vwMediaBtn=function(id){ const r=window._vwMediaResponse(id);
+  window._vwOpsPanel2('media'); const e=document.getElementById('vw-res'); if(e) e.textContent=r.msg; };
 
 /* ═══════════════════════════════════════════════════════════════════════════
    VANTAGE WORKS MODULE END
@@ -80581,6 +81168,10 @@ const PATCH_NOTES = [
   {t:'feature',d:'🏢 Dawne „Powierzchnie produkcyjno-biurowe" w Underground zmieniły się w VANTAGE WORKS — prawdziwy rynek nieruchomości. Dziesiąty poziom kariery Trap nie daje już żadnego lokalu za darmo: otwiera tylko drzwi budynku jako kupującemu. Wchodzisz do wielkiego holu z recepcją, makietą kompleksu, tablicą ofert, windami, garażem i zejściem do magazynów.'},
   {t:'feature',d:'👩‍💼 Po budynku oprowadza Eve Rook — doradczyni, która tłumaczy różnice między biurem, lokalem hybrydowym, halą, pełnym piętrem, garażem i komórkami. Do wyboru jest siedem powierzchni: od małego biura za 230 tysięcy po centralę za blisko sześć milionów. Garaż i magazyny kupujesz osobno, a każda komórka ma własny, niezależny stan.'},
   {t:'feature',d:'📄 Kupiony lokal jest PUSTY. Żeby cokolwiek w nim uruchomić, musisz założyć legalną działalność (siedem profili: od produkcji mediów i fulfillmentu po agencję muzyczną), zamówić wyposażenie, zatrudnić ludzi i zacząć realizować zlecenia. Sprzęt jest dostarczany i montowany w konkretnym miejscu, zużywa się i wymaga serwisu.'},
+  {t:'new',d:'🗂 Firma w VANTAGE WORKS ma teraz pełne zarządzanie: grafik zmian dziennych, wieczornych i nocnych z ryzykiem błędu, integrację finansową w pięciu wariantach (od konserwatywnej po zewnętrznego partnera), dziesięciu partnerów biznesowych z zaufaniem i dyskrecją oraz konkurencję, która podkrada pracowników, zbija ceny i próbuje sabotować relacje.'},
+  {t:'new',d:'📰 Media reagują na to, co robisz: sukces legalnej firmy, podejrzanie szybki wzrost, wizytę urzędników albo zamknięcie obiektu. Na każdy taki materiał możesz odpowiedzieć na sześć sposobów — od profesjonalnego oświadczenia po atak na media. Skuteczność zależy od Twojej rozpoznawalności, managera i tego, czy firma faktycznie działa.'},
+  {t:'new',d:'🧭 Rozwój firmy ma dwanaście etapów i cztery kierunki do wyboru: legalna dominacja, podwójny system, agresywna ekspansja albo wycofanie. Wycofanie z ukrytej działalności to siedem kroków — zamknięcie operacji, wyczyszczenie stanów, rozwiązanie kontaktów, spłata zobowiązań i okres schłodzenia. Nie ma przycisku, który wyłącza wszystko bez konsekwencji.'},
+  {t:'balance',d:'⏳ Doszły przerwy i limity, żeby firmy nie dało się rozpędzić w jeden dzień: kolejny lokal po trzech dniach, sprzedaż najwcześniej po tygodniu, zmiana profilu po dwóch tygodniach, jedna duża rozbudowa naraz, najwyżej pięć zleceń dystrybucji w drodze i jeden ruch finansowy na tydzień.'},
   {t:'feature',d:'🖥 W gabinecie stoi komputer z systemem AXIOM OFFICE — własny login i hasło, pulpit z obrotem i kosztami, centrum dowodzenia, magazyny, finanse, zgodność i kontrole, bezpieczeństwo, prognozy oraz wpływ na okolicę. Trzy błędne próby logowania blokują dostęp na godzinę.'},
   {t:'new',d:'🏛 Firma podlega realnym kontrolom: administracyjnym, finansowym, pracowniczym, przeciwpożarowym, środowiskowym i magazynowym. Wynik zależy od faktycznego stanu — dokumentacji, zużycia sprzętu, zanieczyszczenia, przeciążenia zespołu i porządku w księgach. Kontrola może skończyć się pochwałą, ostrzeżeniem, karą, czasowym zamknięciem albo zajęciem obiektu, a naruszenia zostają w historii.'},
   {t:'new',d:'👥 Każdy pracownik ma umiejętności, lojalność, zmęczenie, poziom dostępu i własne ryzyko przecieku. Możesz wskazać formalnego reprezentanta i delegować obowiązki — oszczędzasz czas, ale firma zaczyna zależeć od konkretnej osoby. Zwolnienie kogoś, kto wie za dużo, potrafi wrócić do Ciebie później.'},
