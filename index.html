@@ -55333,6 +55333,27 @@ window._vwRunInspection=function(unitId,kindId){
   return {score:score,result:result,fine:fine,text:text,kind:kind};
 };
 /* §68 Prawdopodobieństwo kontroli rośnie z ekspozycją i historią naruszeń */
+/* ── §60 „System finansowy" — cztery pozycje z makiety panelu FINANSE.
+   Liczone z realnego stanu lokalu, bez dokładania nowego przepływu pieniędzy:
+   saldo firmowe to skumulowany wynik działalności, gotówka nieprzypisana to przychód
+   ukryty, który nie przeszedł jeszcze przez legalizację, a dwa wskaźniki 0-100 opisują
+   rozjazd przepływów i wynikające z niego ryzyko kontroli finansowej. ── */
+window._vwCompanyBalance=function(unitId){ return window._vwNetProfit(unitId); };
+window._vwUnassignedCash=function(unitId){
+  const u=window._vwUnit(unitId); if(!u) return 0; const f=u.finance;
+  return Math.max(0,Math.round((f.shadowRevenue||0)-(f.integrationCosts||0)));
+};
+window._vwFlowMismatch=function(unitId){
+  const u=window._vwUnit(unitId); if(!u) return 0; const f=u.finance;
+  const turnover=Math.max(1,(f.legalRevenue||0)+(f.shadowRevenue||0));
+  return Math.max(0,Math.min(100,Math.round((f.discrepancy||0)/turnover*100)));
+};
+window._vwFinancialControlRisk=function(unitId){
+  const u=window._vwUnit(unitId); const v=window._vwEnsure(); if(!u) return 0;
+  const r=window._vwFlowMismatch(unitId)*0.55+window._vwExposure(unitId)*0.20
+    +(v.officialInterest||0)*0.15+(u.compliance.violations.length||0)*2;
+  return Math.max(0,Math.min(100,Math.round(r)));
+};
 window._vwInspectionChance=function(unitId){
   const u=window._vwUnit(unitId); const v=window._vwEnsure(); if(!u||!u.frontId) return 0;
   let c=3+window._vwExposure(unitId)*0.22+u.compliance.violations.length*1.6+v.officialInterest*0.12;
@@ -55929,6 +55950,13 @@ window._axDesk=function(section){
       Dystrybucja: <b>−${money(fi.distributionCosts)}</b><br>Straty: <b>−${money(fi.losses)}</b><br>Kary: <b>−${money(fi.fines)}</b><br>
       <span style="color:#7ec87e">Zysk netto: <b>${money(window._vwNetProfit(u.id))}</b></span><br>
       Niezgodność finansowa: <b style="color:${fi.discrepancy>0?'#e74c3c':'#7ec87e'}">${money(fi.discrepancy)}</b></div>
+      <!-- §60 makieta panelu FINANSE: saldo, gotówka nieprzypisana i dwa wskaźniki 0-100 -->
+      <div style="background:#0a1220;border:1px solid #1a2a3a;border-radius:8px;padding:10px;margin-top:9px;font-size:12px;color:#cdd;line-height:1.85">
+        Saldo firmowe: <b>${money(window._vwCompanyBalance(u.id))}</b><br>
+        Gotówka nieprzypisana: <b>${money(window._vwUnassignedCash(u.id))}</b><br>
+        Niezgodność przepływów: <b style="color:${window._vwFlowMismatch(u.id)>40?'#e74c3c':'#cdd'}">${window._vwFlowMismatch(u.id)} / 100</b><br>
+        Ryzyko kontroli finansowej: <b style="color:${window._vwFinancialControlRisk(u.id)>40?'#e74c3c':'#7ec87e'}">${window._vwFinancialControlRisk(u.id)} / 100</b>
+      </div>
       ${fi.discrepancy>0?`<button class="cbtn" style="margin-top:9px" onclick="window._axCleanBooks()">🧾 Uporządkuj księgi (koszt 20% niezgodności)</button>`:''}`;
   } else if(window._axSection==='compliance'){
     body=`<div style="font-size:12px;color:#cdd;line-height:1.8">
