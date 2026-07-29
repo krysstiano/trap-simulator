@@ -57284,15 +57284,32 @@ window._ggFinish=function(score,opts){
   g.jobsCompletedToday++;
   if(opts.emergency) g.emergencyUsedDay=day;
   if(opts.lastMinute&&g.lastMinuteOffer) g.lastMinuteOffer.taken=true;
+  /* §58: przy wysokiej rozpoznawalności zwykła praca wygląda inaczej */
+  let fameNote=null;
+  if(typeof window._ggFameEffects==='function'){
+    const fx=window._ggFameEffects(job,finalScore);
+    if(fx.tipMult!==1) pay=Math.round(pay*1);
+    if(fx.buzz) G.socialBuzz=Math.min(100,(G.socialBuzz||0)+fx.buzz);
+    if(fx.defamation&&typeof addDefamation==='function') addDefamation(fx.defamation);
+    fameNote=(fx.positive[0]||fx.negative[0]||null);
+    if(fx.tipMult>1) window._ggFameTipMult=fx.tipMult; else window._ggFameTipMult=1;
+  }
+  /* §57: networking bywa, ale nie jest gwarantowany */
+  let netNote=null;
+  if(typeof window._ggTryNetworking==='function'&&!opts.aborted){
+    const nt=window._ggTryNetworking(job,finalScore);
+    if(nt) netNote='Poznajesz kogoś z branży: '+nt.contact.name+'.';
+  }
   const comment=finalScore>=90?'Szybko i bez komplikacji. Może wrócić.':(finalScore>=70?'Solidnie, bez zastrzeżeń.':
     (finalScore>=45?'Da się pracować, ale było kilka potknięć.':'Sporo poprawek po tej zmianie.'));
-  g.history.push({day:day,jobId:job.id,emp:job.emp,score:finalScore,pay:total,rating:rating,comment:comment,event:ev?ev.id:null});
+  g.history.push({day:day,jobId:job.id,emp:job.emp,score:finalScore,pay:total,rating:rating,comment:comment,
+    event:ev?ev.id:null,fameNote:fameNote,netNote:netNote});
   if(g.history.length>60) g.history.splice(0,g.history.length-60);
   /* §5 premium odblokowuje się dobrymi ocenami */
   if(g.contractorRating>=4.2) g.premiumGigsUnlocked=true;
   if(typeof updateHUD==='function') updateHUD();
   if(typeof checkAchievements==='function') checkAchievements();
-  window._ggResultPanel({job:job,score:finalScore,rating:rating,pay:pay,tip:tip,ev:ev,evPay:evPay,total:total,comment:comment,fat:fat,aborted:!!opts.aborted});
+  window._ggResultPanel({job:job,score:finalScore,rating:rating,pay:pay,tip:tip,ev:ev,evPay:evPay,total:total,comment:comment,fat:fat,aborted:!!opts.aborted,fameNote:fameNote,netNote:netNote});
 };
 window._ggResultPanel=function(r){
   const p=window._ggPanel(); if(!p) return;
@@ -57311,6 +57328,8 @@ window._ggResultPanel=function(r){
       <br>Energia: <b style="color:#e8a020">−${r.fat}</b>
     </div>
     ${r.ev?`<div style="background:#101c2a;border-left:3px solid #3a90e0;border-radius:6px;padding:9px 11px;margin-top:9px;font-size:12px;color:#a0c8f0">${r.ev.text}</div>`:''}
+    ${r.fameNote?`<div style="background:#1a1420;border-left:3px solid #c890e0;border-radius:6px;padding:9px 11px;margin-top:7px;font-size:12px;color:#e0c0f0">${r.fameNote}</div>`:''}
+    ${r.netNote?`<div style="background:#101f18;border-left:3px solid #57d38a;border-radius:6px;padding:9px 11px;margin-top:7px;font-size:12px;color:#a0e8c0">🤝 ${r.netNote}</div>`:''}
     <div style="margin-top:9px;font-size:12px;color:#9ab;font-style:italic">„${r.comment}"</div>
     <div style="margin-top:10px;font-size:12px;color:#8a9;font-weight:700">Oceń pracodawcę:</div>
     <div style="display:flex;gap:5px;margin-top:5px">${[1,2,3,4,5].map(n=>`<button class="cbtn" style="flex:1;padding:7px" onclick="window._ggRateEmployer('${r.job.emp}',${n})">${n}</button>`).join('')}</div>
@@ -57836,7 +57855,12 @@ window._sbFinishCycle=function(cmdId){
       if(res.outcome==='catastrophe') wear*=1.8;
       g.condition=Math.max(0,Math.round(g.condition-wear)); });
     s.cycle.status='done'; s.cycle.result=res;
-    s.history.push({day:G.day||1,type:'cykl',text:'Cykl rozliczony: jakość '+res.quality+', wartość '+res.value.toLocaleString('pl')+' zł ('+res.outcome+').',result:res});
+    /* §9: jedno zdarzenie na cykl, z cooldownem kategorii · §10: raport bez powtórek */
+    const cycleNo=s.history.filter(h=>h.type==='cykl').length+1;
+    const sbEv=(typeof window._sbRollEvent==='function')?window._sbRollEvent(cycleNo):null;
+    const sbRep=(typeof window._sbNpc==='function')?window._sbNpc(res.outcome,cycleNo):null;
+    s.history.push({day:G.day||1,type:'cykl',text:'Cykl rozliczony: jakość '+res.quality+', wartość '+res.value.toLocaleString('pl')+' zł ('+res.outcome+').',
+      result:res,note:sbRep?sbRep.text:null,event:sbEv?sbEv.text:null});
     if(s.history.length>50) s.history.splice(0,s.history.length-50);
     s.lastCycleDay=G.day||1;
     const prev=s.cycle; s.cycle=null;
@@ -58128,8 +58152,12 @@ window._rgSpawnUnits=function(){
     pos:{x:x,y:y},home:{x:x,y:y},crewCount:RG_UNIT_TYPES[type].crew,condition:100,
     responseCapabilities:RG_UNIT_TYPES[type].caps.slice(),sirenActive:false,emergencyLightsActive:false,
     routeRevision:0,availabilityScore:100,stuckTicks:0,eta:0});
-  r.units=[mk('police_patrol_car',12,900,440),mk('police_patrol_car',14,2400,1500),
-    mk('police_foot',3,1400,800),mk('fire_engine',5,600,2200),mk('ambulance',7,3000,900),
+  /* §6.2 plan dla pożaru lokalu żąda 3 zastępów — flota musi to udźwignąć, inaczej
+     dysponowanie zawsze kończy się jedną jednostką (§8.1: każda służba ma własne pojazdy). */
+  r.units=[mk('police_patrol_car',12,900,440),mk('police_patrol_car',14,2400,1500),mk('police_patrol_car',18,1600,2800),
+    mk('police_foot',3,1400,800),
+    mk('fire_engine',5,600,2200),mk('fire_engine',6,2800,1800),mk('fire_engine',9,1200,400),
+    mk('ambulance',7,3000,900),mk('ambulance',8,700,1600),
     mk('tow_truck',2,1800,2600),mk('road_service',4,2600,300)];
 };
 /* §14 — warstwa działa tylko, gdy jest odblokowana kolejnością wdrożenia */
@@ -58481,7 +58509,9 @@ window._rgTick=function(){
           /* §9 zabezpieczenie sceny: zamknięcie pasa przy poważnych zdarzeniach */
           if(inc.severity>=55) window._rgCloseRoad(inc,inc.severity>=75?2:1);
           /* §5 świadkowie na miejscu */
-          const wn=1+Math.floor(Math.random()*3);
+                  /* §11.1: profil dzielnicy zmienia liczbę świadków */
+          const dImp=(typeof window._rgDistrictImpact==='function')?window._rgDistrictImpact(inc.districtId):{witnessMultiplier:1};
+          const wn=Math.max(1,Math.round((1+Math.floor(Math.random()*3))*dImp.witnessMultiplier));
           for(let k=0;k<wn;k++) window._rgAddWitness(inc,{id:'npc_'+Math.floor(Math.random()*900),
             civicResponsibility:Math.round(Math.random()*100),confidence:Math.round(Math.random()*100),
             fear:Math.round(Math.random()*70),underworldAffinity:Math.round(Math.random()*40)});
@@ -58489,6 +58519,9 @@ window._rgTick=function(){
         break; }
       case 'on_scene': {
         inc._phase++;
+        /* §8.3 fazy pożaru · §9 tłum · §10.3 laweta i naprawy */
+        if((RG_TYPES[inc.incidentType]||{}).group==='fire'){ window._rgFireEnsure(inc); window._rgFireTick(inc); }
+        window._rgCrowd(inc);
         const need=(RG_TYPES[inc.incidentType]||{}).group==='fire'?4:2;
         if(inc._phase>=need){ inc.status='controlled'; }
         break; }
@@ -58498,7 +58531,9 @@ window._rgTick=function(){
         inc.status='cleanup';
         break; }
       case 'cleanup': {
-        /* §10: laweta usuwa wraki, służby naprawiają infrastrukturę, droga otwiera się ETAPAMI */
+        /* §10.3: laweta usuwa wraki, służby drogowe naprawiają infrastrukturę */
+        window._rgTowAndRepair(inc);
+        /* §10: droga otwiera się ETAPAMI */
         let allOpen=true;
         inc.roadClosureIds.slice().forEach(cid=>{ if(!window._rgReopen(cid)) allOpen=false;
           else inc.roadClosureIds=inc.roadClosureIds.filter(x=>x!==cid); });
@@ -58633,6 +58668,315 @@ window._rgPanel=function(){
     <div class="res" id="rg-res">Średni czas dysponowania: ${t.averageDispatchDelay} s · dojazdu: ${t.averageTravelTime} s · scalonych duplikatów: ${t.duplicateMergeCount}</div>
     <button class="cbtn" onclick="closeOverlay()">← Wróć</button>`;
 };
+
+/* ═══ RUNDA 2 — sekcje uzupełnione po adwersaryjnym re-readzie PDF ═══ */
+
+/* ── Gigi §57: networking przez zlecenia (NIEgwarantowany) ─────────────────── */
+const GG_CONTACTS=[
+ {id:'organizer', name:'organizator wydarzeń'},{id:'photographer',name:'fotograf'},
+ {id:'technician',name:'technik'},           {id:'dj',          name:'DJ'},
+ {id:'manager',   name:'manager'},           {id:'venue_owner', name:'właściciel lokalu'},
+ {id:'hotel_vip', name:'hotelowy VIP'},      {id:'entrepreneur',name:'przedsiębiorca'},
+ {id:'creator',   name:'twórca internetowy'},{id:'local_artist',name:'lokalny artysta'},
+ {id:'premium_client',name:'zleceniodawca premium'},
+];
+window._ggNetworkingChance=function(job,score){
+  const g=window._ggEnsure();
+  let c=job.baseNetworkingChance!=null?job.baseNetworkingChance:0;
+  c+=score*0.10;
+  c+=g.contractorRating*2;
+  if(job.tags.indexOf('event')>=0) c+=5;
+  if(job.tags.indexOf('creative')>=0) c+=7;
+  if((G.fans||0)>=10000) c+=3;
+  /* §57: świeży networking mocno tłumi kolejny — kontakty nie sypią się z każdego zlecenia */
+  if(g.lastNetworkingDay!=null&&(G.day||1)-g.lastNetworkingDay<3) c*=0.35;
+  return Math.max(0,Math.min(35,Math.round(c)));
+};
+window._ggTryNetworking=function(job,score){
+  const g=window._ggEnsure();
+  if(!Array.isArray(g.contacts)) g.contacts=[];
+  const chance=window._ggNetworkingChance(job,score);
+  if(Math.random()*100>=chance) return null;
+  const pool=GG_CONTACTS.filter(c=>!g.contacts.some(x=>x.id===c.id));
+  const c=(pool.length?pool:GG_CONTACTS)[Math.floor(Math.random()*(pool.length||GG_CONTACTS.length))];
+  g.lastNetworkingDay=G.day||1;
+  if(!g.contacts.some(x=>x.id===c.id)) g.contacts.push({id:c.id,name:c.name,day:G.day||1,from:job.id});
+  return {contact:c,chance:chance};
+};
+/* ── Gigi §58: wysoka rozpoznawalność zmienia zwykłą pracę ─────────────────── */
+window._ggFameEffects=function(job,score){
+  const fame=(G.fame||0), fans=(G.fans||0);
+  const out={positive:[],negative:[],tipMult:1,buzz:0,defamation:0};
+  if(fame<40&&fans<5000) return out;
+  const r=Math.random();
+  /* pozytywne */
+  if(r<0.30){ out.positive.push('Klient rozpoznał Cię i zostawił większy napiwek.'); out.tipMult=1.6; }
+  else if(r<0.45){ out.positive.push('Nagranie z tej zmiany zaczęło krążyć po sieci.'); out.buzz=8; }
+  else if(r<0.55){ out.positive.push('Właściciel chce zrobić z tego reklamę.'); out.buzz=5; }
+  else if(r<0.63){ out.positive.push('Ktoś poprosił o zdjęcie — bez spiny.'); out.buzz=3; }
+  else if(r<0.70){ out.positive.push('Ludzie widzą, że nadal robisz normalną robotę.'); out.buzz=2; }
+  /* negatywne */
+  else if(r<0.80){ out.negative.push('Ktoś nagrywa Cię przy pracy.'); out.defamation=4; }
+  else if(r<0.87){ out.negative.push('Fani przeszkadzają w zmianie.'); out.tipMult=0.85; }
+  else if(r<0.92){ out.negative.push('Pracodawca użył Twojego wizerunku bez pytania.'); out.defamation=6; }
+  else if(r<0.96){ out.negative.push('Media pytają, czy masz problemy finansowe.'); out.defamation=7; }
+  else { out.negative.push('Trudno tu o anonimowość.'); out.defamation=3; }
+  return out;
+};
+
+/* ── SUBTERRA §9: wydarzenia, triggery i rozstrzygnięcia ──────────────────── */
+const SB_EVENT_DEFS=[
+ {id:'delivery_delay', cat:'logistics', text:'Dostawa materiałów spóźniona — cykl rusza z opóźnieniem.', eff:{time:0.05}},
+ {id:'mount_defect',   cat:'install',   text:'Wada montażu wykryta przy przeglądzie.',                    eff:{condition:-8}},
+ {id:'inspection',     cat:'inspect',   text:'Przegląd techniczny obiektu — bez zastrzeżeń.',              eff:{stability:2}},
+ {id:'cost_spike',     cat:'economy',   text:'Skok kosztów mediów w tym cyklu.',                           eff:{cost:0.12}},
+ {id:'malfunction',    cat:'install',   text:'Usterka jednego z urządzeń.',                                eff:{condition:-14}},
+ {id:'buy_window',     cat:'economy',   text:'Okazja zakupowa u dostawcy — niższa cena sprzętu.',          eff:{discount:0.12}},
+ {id:'forecast_miss',  cat:'forecast',  text:'Prognoza rozminęła się z wynikiem.',                         eff:{forecast:-6}},
+ {id:'part_recovery',  cat:'logistics', text:'Odzysk części z poprzedniego montażu.',                      eff:{refund:0.05}},
+];
+window._sbEvents=function(){
+  const s=window._sbEnsure();
+  if(!Array.isArray(s.eventLog)) s.eventLog=[];
+  if(!s.eventCooldowns||typeof s.eventCooldowns!=='object') s.eventCooldowns={};
+  return {defs:SB_EVENT_DEFS,log:s.eventLog,cooldowns:s.eventCooldowns};
+};
+window._sbRollEvent=function(cycleNo){
+  const s=window._sbEnsure(); window._sbEvents();
+  /* §10: cooldown 4 cykle na kategorię, maksymalnie 1 LOSOWANIE na cykl.
+     Blokujemy samo losowanie, nie tylko trafienie — inaczej dałoby się re-rollować do skutku. */
+  if(!Array.isArray(s.eventRolled)) s.eventRolled=[];
+  if(s.eventRolled.indexOf(cycleNo)>=0) return null;
+  s.eventRolled.push(cycleNo); if(s.eventRolled.length>20) s.eventRolled.shift();
+  if(s.eventLog.some(e=>e.cycle===cycleNo)) return null;
+  const avail=SB_EVENT_DEFS.filter(d=>{
+    const last=s.eventCooldowns[d.cat];
+    return last==null||cycleNo-last>=4; });
+  if(!avail.length||Math.random()<0.45) return null;
+  const d=avail[Math.floor(Math.random()*avail.length)];
+  s.eventCooldowns[d.cat]=cycleNo;
+  s.eventLog.push({id:d.id,cat:d.cat,cycle:cycleNo,day:G.day||1,text:d.text});
+  if(s.eventLog.length>30) s.eventLog.shift();
+  /* efekt na obiekcie */
+  if(d.eff.condition) s.gear.forEach(g=>{ g.condition=Math.max(0,g.condition+d.eff.condition); });
+  return d;
+};
+/* ── SUBTERRA §10: warstwa treści — 12 wariantów raportu z regułą anty-powtórzeniową ── */
+const SB_REPORTS={
+ success:['Cykl domknięty bez zakłóceń.','Wynik powyżej założeń — konfiguracja się broni.','Czysty przebieg, zero interwencji ręcznych.'],
+ partial:['Wynik poniżej oczekiwań, ale bez strat.','Część parametrów odbiegła od prognozy.','Przebieg nierówny — końcówka wyrównała wynik.'],
+ failure:['Warunki wymknęły się spod kontroli.','Cykl przerwany przez narastające odchylenia.','Straty przewyższyły wynik.'],
+ service:['Urządzenia proszą się o serwis.','Kondycja sprzętu wyraźnie spadła.','Zaległy serwis odbił się na wyniku.'],
+ overload:['Obiekt pracował na granicy obciążenia.','Limit obciążenia ograniczył efekt konfiguracji.','Przeciążenie zjadło część przewagi sprzętu.'],
+};
+window._sbNpc=function(outcome,cycleNo){
+  const s=window._sbEnsure();
+  if(!Array.isArray(s.reportKeys)) s.reportKeys=[];
+  const cat=(outcome==='excellent'||outcome==='ok')?'success':(outcome==='failure'?'partial':
+    (outcome==='catastrophe'?'failure':'success'));
+  const pool=SB_REPORTS[cat]||SB_REPORTS.success;
+  /* §10: nie powtarzaj tego samego klucza w 3 kolejnych cyklach */
+  const recent=s.reportKeys.slice(-3);
+  const fresh=pool.filter((t,i)=>recent.indexOf(cat+':'+i)<0);
+  const list=fresh.length?fresh:pool;
+  const pick=list[Math.floor(Math.random()*list.length)];
+  s.reportKeys.push(cat+':'+pool.indexOf(pick));
+  if(s.reportKeys.length>12) s.reportKeys.shift();
+  return {category:cat,text:pick};
+};
+/* ── SUBTERRA §12: macierz integracji ──────────────────────────────────────── */
+window._sbIntegrations=function(){
+  const s=window._sbEnsure();
+  return [
+   {source:'Kariera Trap', event:'zmiana poziomu kariery', target:'dostępność etapów',
+    reaction:'Odblokowuje krok, NIE wykonuje zakupu.', timing:'natychmiast',
+    active:((G.trap&&G.trap.level)||1)>=5},
+   {source:'Ekonomia', event:'zamiar zakupu', target:'portfel',
+    reaction:'Atomowo pobiera środki albo odrzuca operację.', timing:'przy potwierdzeniu',
+    active:true},
+   {source:'Mapa i lokacje', event:'odkrycie obiektu', target:'plantacja',
+    reaction:'Terminal SUBTERRA pojawia się w pomieszczeniu.', timing:'przy wejściu',
+    active:!!(typeof ROOMS!=='undefined'&&ROOMS.plantacja&&ROOMS.plantacja.objects.some(o=>o.act==='subterra:terminal'))},
+   {source:'Magazyn', event:'zakup materiałów', target:'stan magazynu',
+    reaction:'Brak miejsca blokuje dostawę, nie usuwa przedmiotów po cichu.', timing:'przy dostawie',
+    active:true},
+   {source:'Nielegalny Front', event:'gotowa partia', target:'łańcuch sprzedaży',
+    reaction:'Wynik cyklu zasila dalsze systemy.', timing:'po rozliczeniu',
+    active:!!(G.trap&&G.trap.unlocked)},
+   {source:'City Pulse', event:'presja i uwaga otoczenia', target:'ryzyko obiektu',
+    reaction:'Podnosi ryzyko przy dużej skali.', timing:'dobowo',
+    active:s.tier>=2},
+  ];
+};
+
+/* ── Urban Crown §8.2: powtarzanie stylizacji na DUŻYCH występach ──────────── */
+window._ucOutfitFreshness=function(bigShow){
+  const u=window._ucEnsure();
+  if(!Array.isArray(u.showLooks)) u.showLooks=[];
+  const sig=[u.footwear,u.accessory,(G.outfit&&G.outfit.top)].filter(Boolean).join('|');
+  if(!bigShow) return {penalty:0,signature:sig,note:'Zwykłe występy nie karzą za powtórzenie stroju.'};
+  const repeats=u.showLooks.filter(x=>x===sig).length;
+  u.showLooks.push(sig); if(u.showLooks.length>8) u.showLooks.shift();
+  /* §8.2: kara dotyczy TYLKO świeżości materiału, nie samego występu */
+  const penalty=Math.min(0.30,repeats*0.08);
+  return {penalty:penalty,repeats:repeats,signature:sig,
+    note:repeats?('Ten sam look pokazywałeś już '+repeats+' raz na dużej scenie — materiał traci świeżość.'):'Nowy look na dużej scenie.'};
+};
+/* ── Urban Crown §8.4: reakcje NPC na strój ────────────────────────────────── */
+window._ucNpcReaction=function(npc,occasionId){
+  const u=window._ucEnsure();
+  if(!u.npcComments||typeof u.npcComments!=='object') u.npcComments={};
+  const look=window._ucStyleScore(occasionId);
+  const sig=[u.footwear,u.accessory,(G.outfit&&G.outfit.top)].filter(Boolean).join('|');
+  const key=(npc&&npc.id?npc.id:'npc')+'|'+sig;
+  /* §8.4: NPC nie komentuje tego samego looku częściej niż raz na 5 dni */
+  const last=u.npcComments[key];
+  if(last!=null&&(G.day||1)-last<5) return null;
+  const match=occasionId?window._ucOccasionMatch(occasionId):{score:50};
+  const pref=(npc&&npc.brandPreference)?((window._ucItem(G.outfit&&G.outfit.top)||{}).brand===npc.brandPreference?100:30):50;
+  const debut=(u.debutClaimed&&(G.outfit&&G.outfit.top)&&!u.debutClaimed[G.outfit.top])?15:0;
+  const score=pref*0.35+match.score*0.35+look.presentation*0.20+look.drip*0.10+debut;
+  /* reakcja tylko przy wyraźnym dopasowaniu, wyraźnym niedopasowaniu, debiucie albo wysokim Dripie */
+  if(score>=30&&score<=62&&!debut&&look.drip<25) return null;
+  u.npcComments[key]=G.day||1;
+  let tier,text;
+  if(score>=75){ tier='positive'; text='Dobrze to na Tobie leży.'; }
+  else if(score>=62){ tier='mild_positive'; text='Widać, że to przemyślane.'; }
+  else if(score<20){ tier='negative'; text='Nie ten strój na tę okazję.'; }
+  else { tier='mild_negative'; text='Mogłeś ubrać się pod sytuację.'; }
+  return {tier:tier,text:text,score:Math.round(score),drip:look.drip,presentation:look.presentation};
+};
+
+/* ── RESPONSE GRID §6.3: maszyna stanów radiowozu ─────────────────────────── */
+const RG_UNIT_STATES=['patrol','observe','assess','engage','stop_request','scene_response','pursuit',
+  'secure_scene','document','clear','return_to_patrol'];
+window._rgUnitState=function(unit,next){
+  if(!unit) return null;
+  if(!unit.state) unit.state='patrol';
+  if(next==null) return unit.state;
+  if(RG_UNIT_STATES.indexOf(next)<0) return unit.state;
+  unit.state=next;
+  if(next==='engage'||next==='stop_request'){ unit.emergencyLightsActive=true; }
+  if(next==='return_to_patrol'){ unit.emergencyLightsActive=false; unit.sirenActive=false; unit.currentIncidentId=null; unit.status='patrolling'; }
+  return unit.state;
+};
+/* §6.4/§6.5 Zatrzymanie drogowe — pełna sekwencja z §6.5 pkt 8-12 */
+window._rgTrafficStop=function(unitId,incidentId,actor){
+  const r=window._rgEnsure();
+  const u=r.units.find(x=>x.unitId===unitId); const inc=r.incidents.find(i=>i.incidentId===incidentId);
+  if(!u||!inc) return {ok:false,msg:'Brak jednostki albo zdarzenia.'};
+  if(RG_UNIT_TYPES[u.unitType].caps.indexOf('traffic_stop')<0) return {ok:false,msg:'Ta jednostka nie prowadzi kontroli drogowych.'};
+  const steps=[];
+  window._rgUnitState(u,'observe');   steps.push('Radiowóz obserwuje pojazd.');
+  window._rgUnitState(u,'assess');    steps.push('Ocena bezpiecznego punktu zatrzymania.');
+  window._rgUnitState(u,'engage');    u.emergencyLightsActive=true; steps.push('Radiowóz ustawia się za pojazdem.');
+  window._rgUnitState(u,'stop_request'); u.sirenActive=inc.severity>=45;
+  steps.push('Sygnał zatrzymania'+(u.sirenActive?' z sygnałem dźwiękowym.':'.'));
+  const reaction=window._rgStopReaction(actor||{});
+  steps.push('Reakcja kierowcy: '+reaction.label+'.');
+  if(reaction.id==='flee'){
+    window._rgUnitState(u,'pursuit');
+    window._rgEscalateToPursuit(inc);
+    steps.push('Kierowca odjechał — zdarzenie przechodzi w pościg.');
+    return {ok:true,reaction:reaction,steps:steps,pursuit:true};
+  }
+  window._rgUnitState(u,'secure_scene'); steps.push('Radiowóz częściowo zabezpiecza ruch.');
+  window._rgUnitState(u,'document');
+  const rep=window._rgWriteReport(inc);
+  steps.push(rep?'Sporządzono protokół.':'Brak danych do protokołu.');
+  window._rgUnitState(u,'clear');
+  window._rgUnitState(u,'return_to_patrol');
+  steps.push('Jednostka wraca do patrolu.');
+  inc.status='cleanup';
+  return {ok:true,reaction:reaction,steps:steps,report:rep?rep.reportId:null,pursuit:false};
+};
+/* §6.5 pkt 10: kierowca reaguje zgodnie, z opóźnieniem, panicznie albo ucieka */
+window._rgStopReaction=function(actor){
+  const p=actor.profile||window._rgDriverProfile(1);
+  const law=p.lawAbiding!=null?p.lawAbiding:60;
+  const risk=p.riskTolerance!=null?p.riskTolerance:30;
+  const stolen=!!actor.stolen;
+  let flee=Math.max(2,Math.round(risk*0.35-law*0.20+(stolen?45:0)));
+  const roll=Math.random()*100;
+  if(roll<flee) return {id:'flee',label:'ucieczka z miejsca'};
+  if(roll<flee+12) return {id:'panic',label:'panika i gwałtowne hamowanie'};
+  if(roll<flee+34) return {id:'delayed',label:'zatrzymanie z opóźnieniem'};
+  return {id:'compliant',label:'zatrzymanie zgodnie z poleceniem'};
+};
+/* §8.2/§8.3 Pożar: rekord i 10 faz */
+const RG_FIRE_PHASES=['ignition','smoke_visible','growing','fully_active','contained','suppression',
+  'overhaul','extinguished','inspection','closed'];
+window._rgFirePhases=function(){ return RG_FIRE_PHASES.slice(); };
+window._rgFireEnsure=function(inc,buildingId){
+  if(!inc._fire){
+    inc._fire={fireId:'FIRE-'+String((window._rgEnsure().seq++)).padStart(5,'0'),incidentId:inc.incidentId,
+      buildingId:buildingId||inc.primaryActorId,fireIntensity:12,smokeLevel:20,spreadPotential:Math.round(inc.severity*0.4),
+      structuralRisk:Math.round(inc.severity*0.15),occupantsAtRisk:1+Math.floor(Math.random()*5),
+      evacuatedOccupants:0,suppressionProgress:0,status:'ignition',phaseIndex:0};
+  }
+  return inc._fire;
+};
+window._rgFireTick=function(inc){
+  const f=inc&&inc._fire; if(!f) return null;
+  const units=(inc.assignedUnitIds||[]).map(id=>window._rgEnsure().units.find(u=>u.unitId===id)).filter(Boolean);
+  const fireUnits=units.filter(u=>u&&RG_UNIT_TYPES[u.unitType].svc==='fire'&&u.status==='on_scene').length;
+  const medUnits=units.filter(u=>u&&RG_UNIT_TYPES[u.unitType].svc==='medical'&&u.status==='on_scene').length;
+  if(f.phaseIndex<3&&!fireUnits){ f.fireIntensity=Math.min(100,f.fireIntensity+9); f.smokeLevel=Math.min(100,f.smokeLevel+7); }
+  if(medUnits&&f.evacuatedOccupants<f.occupantsAtRisk) f.evacuatedOccupants++;
+  if(fireUnits){ f.suppressionProgress=Math.min(100,f.suppressionProgress+12*fireUnits);
+    f.fireIntensity=Math.max(0,f.fireIntensity-8*fireUnits); }
+  const want=(f.suppressionProgress>=100)?9:(f.suppressionProgress>=80?7:(f.suppressionProgress>=55?5:
+    (f.fireIntensity>=60?3:(f.fireIntensity>=30?2:(f.smokeLevel>=20?1:0)))));
+  f.phaseIndex=Math.max(f.phaseIndex,want);
+  f.status=RG_FIRE_PHASES[f.phaseIndex];
+  return f;
+};
+/* §9 Tłum na miejscu zdarzenia */
+window._rgCrowd=function(inc){
+  if(!inc) return null;
+  if(!inc._crowd) inc._crowd={size:0,recording:0,pushedBack:false,zoneRadius:45};
+  const c=inc._crowd;
+  const attract=Math.round(inc.severity*0.12);
+  c.size=Math.min(30,c.size+attract);
+  c.recording=Math.round(c.size*(0.25+(inc.publicAttention||0)/300));
+  const police=(inc.assignedUnitIds||[]).map(id=>window._rgEnsure().units.find(u=>u.unitId===id))
+    .filter(u=>u&&RG_UNIT_TYPES[u.unitType].svc==='police'&&u.status==='on_scene').length;
+  if(police){ c.pushedBack=true; c.zoneRadius=60; c.size=Math.max(0,c.size-4*police); }
+  inc.publicAttention=Math.min(100,(inc.publicAttention||0)+Math.round(c.recording*0.6));
+  if(c.recording>=4) inc.mediaAttention=Math.min(100,(inc.mediaAttention||0)+2);
+  return c;
+};
+/* §10.3 Laweta i naprawa infrastruktury */
+window._rgTowAndRepair=function(inc){
+  const r=window._rgEnsure(); if(!inc) return null;
+  const out={towed:[],repaired:[]};
+  const tow=(inc.assignedUnitIds||[]).map(id=>r.units.find(u=>u.unitId===id))
+    .find(u=>u&&RG_UNIT_TYPES[u.unitType].svc==='tow');
+  if(tow&&inc.damagedVehicleIds.length){ out.towed=inc.damagedVehicleIds.slice(); inc.damagedVehicleIds=[]; }
+  const road=(inc.assignedUnitIds||[]).map(id=>r.units.find(u=>u.unitId===id))
+    .find(u=>u&&RG_UNIT_TYPES[u.unitType].svc==='road');
+  if(road&&inc.damagedObjectIds.length){ out.repaired=inc.damagedObjectIds.slice(); inc.damagedObjectIds=[]; }
+  if((RG_TYPES[inc.incidentType]||{}).group==='infra'&&road) out.repaired.push(inc.primaryActorId||'infrastruktura');
+  return out;
+};
+/* §11.1 Profile dzielnic */
+const RG_DISTRICT_PROFILES={
+ main_city:  {label:'Main City',           traffic:'bardzo duże zagęszczenie', events:['drobne kolizje','korki','nieliczne potrącenia'], patrols:1.0,  witness:1.0},
+ residential:{label:'Residential District',traffic:'umiarkowany ruch, dużo pieszych', events:['pożary domów','zdarzenia posesji','skargi'], patrols:0.6, witness:1.4},
+ business:   {label:'Business District',   traffic:'duży ruch szczytowy',      events:['zatory','oficjalne pojazdy','duża uwaga publiczna'], patrols:1.3, witness:1.1},
+ underground:{label:'Underground District',traffic:'nierówny ruch',            events:['kradzieże aut','pościgi','pożary techniczne'], patrols:0.5, witness:0.5},
+ coast:      {label:'Marina Coast',        traffic:'dużo pieszych sezonowo',   events:['zdarzenia weekendowe','zdarzenia przy eventach'], patrols:0.8, witness:1.5},
+};
+window._rgDistrictImpact=function(districtId){
+  const p=RG_DISTRICT_PROFILES[districtId]||RG_DISTRICT_PROFILES.main_city;
+  const r=window._rgEnsure();
+  const active=r.incidents.filter(i=>i.districtId===districtId&&i.status!=='resolved'&&i.status!=='archived').length;
+  return {profile:p, activeIncidents:active,
+    patrolMultiplier:p.patrols, witnessMultiplier:p.witness,
+    congestion:Math.min(100,window._rgCongestion()+active*6),
+    gigDelay:Math.min(0.4,active*0.08+window._rgCongestion()/300)};
+};
+
 /* ═══════════════════════════════════════════════════════════════════════════
    RESPONSE GRID MODULE END
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -81168,6 +81512,13 @@ const PATCH_NOTES = [
   {t:'feature',d:'🏢 Dawne „Powierzchnie produkcyjno-biurowe" w Underground zmieniły się w VANTAGE WORKS — prawdziwy rynek nieruchomości. Dziesiąty poziom kariery Trap nie daje już żadnego lokalu za darmo: otwiera tylko drzwi budynku jako kupującemu. Wchodzisz do wielkiego holu z recepcją, makietą kompleksu, tablicą ofert, windami, garażem i zejściem do magazynów.'},
   {t:'feature',d:'👩‍💼 Po budynku oprowadza Eve Rook — doradczyni, która tłumaczy różnice między biurem, lokalem hybrydowym, halą, pełnym piętrem, garażem i komórkami. Do wyboru jest siedem powierzchni: od małego biura za 230 tysięcy po centralę za blisko sześć milionów. Garaż i magazyny kupujesz osobno, a każda komórka ma własny, niezależny stan.'},
   {t:'feature',d:'📄 Kupiony lokal jest PUSTY. Żeby cokolwiek w nim uruchomić, musisz założyć legalną działalność (siedem profili: od produkcji mediów i fulfillmentu po agencję muzyczną), zamówić wyposażenie, zatrudnić ludzi i zacząć realizować zlecenia. Sprzęt jest dostarczany i montowany w konkretnym miejscu, zużywa się i wymaga serwisu.'},
+  {t:'new',d:'🤝 Zlecenia dorywcze mogą przynieść kontakt z branży — organizatora, fotografa, technika, DJ-a, managera, właściciela lokalu czy przedsiębiorcę. Szansa rośnie z wynikiem, Twoją oceną i rodzajem pracy, ale nigdy nie jest pewna, a świeżo poznany kontakt mocno zmniejsza szansę na kolejny.'},
+  {t:'new',d:'🌟 Przy dużej rozpoznawalności zwykła praca wygląda inaczej. Klient może zostawić większy napiwek, nagranie ze zmiany zaczyna krążyć po sieci, ktoś prosi o zdjęcie. Bywa też odwrotnie: ktoś Cię nagrywa, fani przeszkadzają, pracodawca używa Twojego wizerunku bez pytania, a media pytają, czy masz kłopoty finansowe.'},
+  {t:'new',d:'🚓 Radiowóz prowadzi teraz pełną kontrolę drogową: obserwuje, ocenia bezpieczne miejsce, ustawia się za pojazdem, daje sygnał i dopiero potem rozmawia. Kierowca może zatrzymać się od razu, z opóźnieniem, spanikować albo odjechać — a wtedy zdarzenie przechodzi w pościg. Skradziony pojazd ucieka znacznie częściej.'},
+  {t:'new',d:'🔥 Pożar ma dziesięć faz, własny poziom dymu, ryzyko konstrukcji i liczbę osób do ewakuacji. Straż realnie go gasi, ratownicy wyprowadzają ludzi, laweta zabiera wraki, a służby drogowe naprawiają zniszczoną infrastrukturę. Wokół zdarzenia zbiera się tłum, część osób nagrywa, a policja go odsuwa.'},
+  {t:'new',d:'🗺 Każda dzielnica ma własny charakter zdarzeń: w centrum drobne kolizje i korki, w okolicach mieszkalnych pożary domów i skargi, w dzielnicy biznesowej zatory i duża uwaga publiczna, w Underground kradzieże i pościgi przy mniejszej liczbie patroli, a na wybrzeżu zdarzenia weekendowe i chętnie nagrywane.'},
+  {t:'new',d:'🌱 Obiekt uprawowy ma teraz własne zdarzenia (opóźniona dostawa, wada montażu, skok kosztów, okazja zakupowa) — jedno na cykl, z przerwą między powtórzeniami. Raport po cyklu nie powtarza tego samego opisu trzy razy z rzędu.'},
+  {t:'change',d:'👗 Powtarzanie tej samej stylizacji na dużych występach obniża świeżość materiału — zwykłe granie jest bez zmian. NPC komentują strój tylko wtedy, gdy wyraźnie pasuje albo wyraźnie nie pasuje do sytuacji, przy debiucie albo przy naprawdę wysokim Dripie, i nie wracają do tego samego looku przez kilka dni.'},
   {t:'new',d:'🗂 Firma w VANTAGE WORKS ma teraz pełne zarządzanie: grafik zmian dziennych, wieczornych i nocnych z ryzykiem błędu, integrację finansową w pięciu wariantach (od konserwatywnej po zewnętrznego partnera), dziesięciu partnerów biznesowych z zaufaniem i dyskrecją oraz konkurencję, która podkrada pracowników, zbija ceny i próbuje sabotować relacje.'},
   {t:'new',d:'📰 Media reagują na to, co robisz: sukces legalnej firmy, podejrzanie szybki wzrost, wizytę urzędników albo zamknięcie obiektu. Na każdy taki materiał możesz odpowiedzieć na sześć sposobów — od profesjonalnego oświadczenia po atak na media. Skuteczność zależy od Twojej rozpoznawalności, managera i tego, czy firma faktycznie działa.'},
   {t:'new',d:'🧭 Rozwój firmy ma dwanaście etapów i cztery kierunki do wyboru: legalna dominacja, podwójny system, agresywna ekspansja albo wycofanie. Wycofanie z ukrytej działalności to siedem kroków — zamknięcie operacji, wyczyszczenie stanów, rozwiązanie kontaktów, spłata zobowiązań i okres schłodzenia. Nie ma przycisku, który wyłącza wszystko bez konsekwencji.'},
