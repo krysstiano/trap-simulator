@@ -3465,6 +3465,10 @@ const ROOMS = {
       {id:'marina_coast',     wx:1180, wy:1090, w:140,h:130, act:'coast_marina',     prompt:'[E] ⛵ Marina',        lbl:'Marina'},
       {id:'spa_coast',        wx:1700, wy:1320, w:140,h:130, act:'coast_spa',        prompt:'[E] 💆 SPA',           lbl:'SPA'},
       {id:'photoshoot_coast', wx:2200,wy:1320, w:140,h:130, act:'coast_photoshoot', prompt:'[E] 📸 Photoshoot',    lbl:'Photo'},
+      /* v2.3.129 (PDF odzieżowy §4.7): początek szlaku do Pineglass Woods. @2450,1620 — wschodnia część
+         wybrzeża przy zielonym terenie, z dala od wody (brzeg y~1056) i pozostalych obiektow
+         (290 px pod studiem zdjeciowym); sprawdzone rachunkiem bbox wzgledem wszystkich obiektow. */
+      {id:'pineglass_coast', wx:2260,wy:1740, w:170,h:150, act:'coast_pineglass', prompt:'[E] 🌲 Pineglass Woods', lbl:'Pineglass Woods'},
       {id:'surf_coast',       wx:1000, wy:1620, w:140,h:130, act:'coast_surf',       prompt:'[E] 🏄 Surf Shop',     lbl:'Surf'},
       /* PDF „Marina Coast" §3: oznaczone wejście do wody (tryb pływania). Cienki obiekt (h<60) = wykrywany przez getNear (actRadius), nie blokuje ruchu (brak solid). */
       {id:'swim_entry', wx:360, wy:1062, w:260, h:34, act:'coast_swimentry', prompt:'[E] 🏊 Wejdź do wody', lbl:'Kąpielisko', actRadius:120},
@@ -3677,6 +3681,23 @@ const ROOMS = {
       {id:'vw_service',     wx:1060, wy:540, w:110, h:80,  act:'vantage:service',    prompt:'[E] 🔒 Drzwi do części serwisowej',   lbl:'Serwis'},
       {id:'vw_storage_door',wx:60,   wy:540, w:150, h:80,  act:'vantage:storage',    prompt:'[E] 📦 Zejście do magazynów B2',      lbl:'Magazyny B2'},
       {id:'vw_exit',        wx:560,  wy:565, w:120, h:60,  act:'vantage:exit',       prompt:'[E] 🚪 Wyjście na zewnątrz',          lbl:'Wyjście'},
+    ]
+  },
+
+  /* v2.3.129 (PDF odzieżowy §4.7 i §8.3): PINEGLASS WOODS — bór nad wybrzeżem, w którym
+     statystyka terenowa odzieży NorthArc wreszcie ma gdzie działać. Strefy 'pgw_*' i NPC
+     'npc_pgw_ranger' → _drawPgwSprite; act 'pgw:<sub>' → _pgwAct.
+     Brak solid = strefy nie blokują ruchu gracza. */
+  pineglass_woods: {
+    wT:26, hT:15, map:null,
+    objects:[
+      {id:'pgw_trail',      wx:120,  wy:120, w:190,h:130, act:'pgw:trail',  prompt:'[E] 🥾 Szlak grzbietowy',      lbl:'Szlak'},
+      {id:'pgw_forage',     wx:390,  wy:120, w:190,h:120, act:'pgw:forage', prompt:'[E] 🍄 Runo leśne',            lbl:'Runo'},
+      {id:'pgw_view',       wx:900,  wy:110, w:210,h:150, act:'pgw:view',   prompt:'[E] 📷 Punkt widokowy',        lbl:'Widok'},
+      {id:'npc_pgw_ranger', wx:660,  wy:300, w:36, h:58,  act:'pgw:ranger', prompt:'[E] 🧭 Leśniczy Halvard Nyström', lbl:'Leśniczy'},
+      {id:'pgw_creek',      wx:120,  wy:330, w:210,h:130, act:'pgw:creek',  prompt:'[E] 🌊 Przeprawa przez potok', lbl:'Potok'},
+      {id:'pgw_camp',       wx:900,  wy:330, w:190,h:130, act:'pgw:camp',   prompt:'[E] 🔥 Ognisko',               lbl:'Ognisko'},
+      {id:'exit_pgw',       wx:590,  wy:560, w:130,h:70,  act:'pgw:exit',   prompt:'[E] ⬅ Wróć na wybrzeże',       lbl:'Wyjście'},
     ]
   },
 
@@ -4162,6 +4183,8 @@ function drawSprite(id,sx,sy,w,h){
   if(id&&(id.indexOf('spz_')===0||id.indexOf('npc_sp_')===0)){ if(typeof window._drawSunsetSprite==='function'){ window._drawSunsetSprite(id,sx,sy,w,h); X.restore(); return; } }
   /* v2.3.128 (PDF VANTAGE WORKS §7): strefy holu mają własne sprite'y — bez tego renderują się jako szare boxy. */
   if(id&&(id.indexOf('vw_')===0||id==='npc_eve_rook')){ if(typeof window._drawVantageSprite==='function'){ window._drawVantageSprite(id,sx,sy,w,h); X.restore(); return; } }
+  /* PINEGLASS WOODS: strefy `pgw_*` i leśniczy → dedykowany renderer (bez tego szare boxy). */
+  if(id&&(id.indexOf('pgw_')===0||id==='npc_pgw_ranger'||id==='exit_pgw')){ if(typeof window._drawPgwSprite==='function'){ window._drawPgwSprite(id,sx,sy,w,h); X.restore(); return; } }
   /* Terminal SUBTERRA — własny sprite, żeby nie renderował się jako szary box (lekcja v2.3.125). */
   /* v2.3.129 (user: „panel na plantacji… obiekt bez zmian wizualnych"): terminal był płaskim
      prostokątem z napisem. Dedykowany renderer pokazuje realny stan obiektu (poziom, cykl, remont). */
@@ -4367,7 +4390,8 @@ function drawSprite(id,sx,sy,w,h){
     case 'eclipse_business': drawEclipseClub(sx,sy,w,h);break;
     case 'aureum_business': drawAureumClub(sx,sy,w,h);break;               /* PDF Business/golf: Aureum Green Club */
     case 'vesper_business': drawVesperHotel(sx,sy,w,h);break;              /* PDF Vesper House §2: butikowy hotel pod Eclipse Noir */
-    case 'crownline_business': drawCrownlineGallery(sx,sy,w,h);break;      /* PDF marek §7.4: trzeci salon — galeria premium */
+    case 'crownline_business': drawCrownlineGallery(sx,sy,w,h);break;
+    case 'pineglass_coast': drawPineglassTrailhead(sx,sy,w,h);break;   /* PDF odzieżowy §4.7: początek szlaku */      /* PDF marek §7.4: trzeci salon — galeria premium */
     case 'eclipse_stage':  drawEclipseStage(sx,sy,w,h);break;
     case 'eclipse_bar':    drawCasinoBar(sx,sy,w,h,'eclipse');break;
     case 'eclipse_dance':  drawEclipseDancefloor(sx,sy,w,h);break;
@@ -5486,6 +5510,7 @@ function drawRoomDecorations(){
   else if(currentRoom==='vesper_house'){ if(typeof drawVesperHouse==='function') drawVesperHouse(); }
   else if(currentRoom==='sunset_palms'){ if(typeof drawSunsetPalms==='function') drawSunsetPalms(); }
   else if(currentRoom==='vantage_lobby'){ if(typeof drawVantageLobby==='function') drawVantageLobby(); }
+  else if(currentRoom==='pineglass_woods'){ if(typeof drawPineglassWoods==='function') drawPineglassWoods(); }
   else if(currentRoom==='stary_kwartal'){ if(typeof drawStaryKwartal==='function') drawStaryKwartal(); if(typeof window._skDrawLife==='function') window._skDrawLife(); }
   /* v2.1.402 Faza AQ.12 Etap 2 (user explicit "(...) widac w mieszkaniu"): rysuj psa w salonie mieszkania jeśli owned. */
   if(G.dog && G.dog.owned && (currentRoom==='mieszkanie' || currentRoom==='mieszkanie_premium' || currentRoom==='mieszkanie_lux')) {
@@ -15262,6 +15287,10 @@ function handleAct(act,objId){
        gałęzi — ich case leżały w switchu _enterDistrictPlace i nie mogły się dopasować. */
     if(typeof window._vwLobbyAct==='function') window._vwLobbyAct(act.slice(8));
     else if(typeof showMsg==='function') showMsg('🏢 Hol VANTAGE WORKS jeszcze się ładuje — spróbuj za chwilę.','i',3500);
+  } else if(act&&act.indexOf('pgw:')===0){
+    /* PDF odzieżowy §4.7/§8.3: aktywności w Pineglass Woods. */
+    if(typeof window._pgwAct==='function') window._pgwAct(act.slice(4));
+    else if(typeof showMsg==='function') showMsg('🌲 Las jeszcze się ładuje — spróbuj za chwilę.','i',3200);
   } else if(act&&act.indexOf('subterra:')===0){
     /* v2.3.129 BUGFIX (user: „panel na plantacji nie funkcjonuje"): terminal SUBTERRA
        miał case w tym samym martwym switchu → [E] nie otwierało panelu. */
@@ -53666,7 +53695,7 @@ const UC_CATALOG=[
 {id:'zimowa',        brand:'northarc',  model:'Polar Shell',     cat:'weather',slot:'outfit', price:450,  look:'Gruba puchówka z wysokim kapturem i matową powłoką',                   req:{},season:'zima',    st:{weather:{frost:-0.85},concert:0.02},           vis:{sil:'puffer',mat:'puch',pal:['#3a3a4a','#22222c','#8a8a96'],det:['wysoki kaptur','matowa powłoka'],hood:true,hat:false,bag:'limited'}},
 {id:'uc_rainline',   brand:'northarc',  model:'Rainline',        cat:'weather',slot:'outfit', price:380,  look:'Lekka kurtka przeciwdeszczowa z uszczelnionymi szwami',                req:{},season:'deszcz',  st:{weather:{rain:-0.70},gig:{outdoor:0.05}},      vis:{sil:'shell',mat:'membrana',pal:['#2a5a6a','#1a3a48','#d0e0e8'],det:['uszczelnione szwy','lekka membrana'],hood:true,hat:false,bag:'ok'}},
 {id:'uc_city_layer', brand:'northarc',  model:'City Layer',      cat:'weather',slot:'outfit', price:620,  look:'Przejściowa kurtka z wypinaną warstwą',                                req:{level:3},           st:{weather:{frost:-0.45},drip:4},                 vis:{sil:'layered',mat:'softshell',pal:['#3a4048','#262c34','#a0a8b0'],det:['wypinana warstwa','przejściowa'],hood:true,hat:true,bag:'ok'}},
-{id:'uc_stormguard', brand:'northarc',  model:'Stormguard',      cat:'weather',slot:'outfit', price:1600, look:'Techniczny płaszcz terenowy i wodoodporne spodnie',                    req:{level:6},           st:{weather:{rain:-0.90,frost:-0.70},terrain:0.08}, vis:{sil:'long',mat:'membrana 3-warstwowa',pal:['#2a3a30','#1a2620','#c0c8b8'],det:['płaszcz terenowy','wodoodporne spodnie'],hood:true,hat:false,bag:'limited'}},
+{id:'uc_stormguard', brand:'northarc',  model:'Stormguard',      cat:'weather',slot:'outfit', price:1600, look:'Techniczny płaszcz terenowy i wodoodporne spodnie',                    req:{pineglass:2},       st:{weather:{rain:-0.90,frost:-0.70},terrain:0.08}, vis:{sil:'long',mat:'membrana 3-warstwowa',pal:['#2a3a30','#1a2620','#c0c8b8'],det:['płaszcz terenowy','wodoodporne spodnie'],hood:true,hat:false,bag:'limited'}},
 {id:'uc_alpine_black',brand:'northarc', model:'Alpine Black',    cat:'weather',slot:'outfit', price:3200, look:'Premium zimowy look w pełnej czerni',                                  req:{apt:true,fame:25},  st:{weather:{frost:-0.95},drip:14,pres:5},         vis:{sil:'puffer',mat:'puch premium',pal:['#0a0a0c','#141418','#3a3a42'],det:['pełna czerń','premium puch'],hood:true,hat:false,bag:'limited'}},
 /* 4.8 Obuwie i dodatki */
 {id:'uc_clean_low',  brand:'baseline',  model:'Clean Low',       cat:'shoes',  slot:'footwear',price:90,  look:'Proste jasne sneakersy',                                               req:{},                  st:{pres:1},                                       vis:{sil:'low',mat:'skóra syntetyczna',pal:['#e8e8e0','#d0d0c8','#f8f8f4'],det:['proste jasne sneakersy']}},
@@ -53767,6 +53796,13 @@ window._ucReqMet=function(id){
   if(r.apt && !(G.apartment&&G.apartment!=='basic')&&!((G._ownedApts||[]).length>0)) return false;
   if(r.eclipse && !(G.eclipseNoir&&G.eclipseNoir.visited)) return false;
   if(r.vantage && !((typeof window._vwHasAny==='function')&&window._vwHasAny())) return false;
+  /* v2.3.129 (PDF §4.7): wymaganiem Stormguarda jest „Pineglass Woods", nie poziom postaci.
+     Warunek = realne aktywności w lesie. Rzecz już posiadana pozostaje dostępna (reguła #1 —
+     zapisy sprzed tej wersji, gdzie bramką był poziom 6, nie tracą płaszcza). */
+  if(r.pineglass && !window._ucOwned(id)){
+    const pg=(typeof window._pgwEnsure==='function')?window._pgwEnsure():null;
+    if(!pg || (pg.activities||0)<r.pineglass) return false;
+  }
   if(r.vehicle && !(G.car||(G.camper&&G.camper.owned))) return false;
   if(r.gigsPhys && (u.gigStats.phys||0)<r.gigsPhys) return false;
   if(r.gigsEvent && (u.gigStats.event||0)<r.gigsEvent) return false;
@@ -53787,6 +53823,7 @@ window._ucReqText=function(id){
   if(r.apt) p.push('własne mieszkanie');
   if(r.eclipse) p.push('Eclipse Noir');
   if(r.vantage) p.push('lokal w Vantage Works');
+  if(r.pineglass) p.push(r.pineglass+' aktywności w Pineglass Woods');
   if(r.vehicle) p.push('własny pojazd');
   if(r.gigsPhys) p.push(r.gigsPhys+' zlecenia fizyczne');
   if(r.gigsEvent) p.push(r.gigsEvent+' zlecenia eventowe');
@@ -58904,6 +58941,394 @@ window._avOpenCompare=function(){
    CROWNLINE AUTO GALLERY + AUTOVISTA 360 MODULE END
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   PINEGLASS WOODS MODULE START — v2.3.129
+   PDF „Rozszerzony katalog odzieżowy…":
+     §4.7 — NorthArc Stormguard ma wymaganie „Pineglass Woods" oraz bonus „+8% las i teren".
+     §8.3 — „NorthArc reaguje na mróz, deszcz i aktywności w Pineglass Woods."
+   Do v2.3.128 lokacja NIE ISTNIAŁA: `terrain` był wyłącznie etykietą w opisie ubrania,
+   a wymaganie zastąpiono progiem poziomu. Ten moduł daje statystyce miejsce do działania.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+window._pgwEnsure=function(){
+  if(!G.pineglass||typeof G.pineglass!=='object') G.pineglass={};
+  const p=G.pineglass;
+  if(p.visits==null) p.visits=0;
+  if(p.activities==null) p.activities=0;      /* ukończone aktywności — bramka Stormguarda */
+  if(p.trail==null) p.trail=0;                /* przejścia szlaku */
+  if(p.forage==null) p.forage=0;
+  if(p.views==null) p.views=0;
+  if(p.lastDay==null) p.lastDay=-1;
+  if(p.dayCount==null) p.dayCount=0;          /* limit dzienny aktywności */
+  if(p.rangerMet==null) p.rangerMet=false;
+  if(p.soaked==null) p.soaked=false;          /* §8.3 stan „przemoczony" */
+  return p;
+};
+/* §4.7 „+8% las i teren" — sumaryczny bonus terenowy z założonych rzeczy. */
+window._ucTerrainMod=function(){
+  if(typeof window._ucActiveItems!=='function') return 0;
+  let v=0; window._ucActiveItems().forEach(i=>{ if(i.st&&typeof i.st.terrain==='number') v+=i.st.terrain; });
+  return Math.max(0,Math.min(0.45,v));
+};
+/* Dotkliwość pogody w lesie: deszcz i mróz kosztują więcej niż w mieście,
+   ale odzież pogodowa (NorthArc) realnie to zdejmuje (§8.3). */
+window._pgwWeather=function(){
+  const rain=(G.weather===2||G.weather===3||G.weather===5);
+  const frost=(typeof isFrost==='function')?isFrost():(G.weather===4||G.weather===5);
+  const wm=(k)=>(typeof window._ucWeatherMod==='function')?window._ucWeatherMod(k):0;
+  let pen=0, why=[];
+  if(rain){ const p=0.35*(1+wm('rain')); pen+=Math.max(0,p); if(p>0.05) why.push('deszcz'); }
+  if(frost){ const p=0.40*(1+wm('frost')); pen+=Math.max(0,p); if(p>0.05) why.push('mróz'); }
+  return {rain,frost,pen:Math.min(0.75,pen),why};
+};
+window._pgwEnergyCost=function(base){
+  const w=window._pgwWeather(), t=window._ucTerrainMod();
+  return Math.max(2,Math.round(base*(1+w.pen)*(1-t)));
+};
+window._pgwDailyLeft=function(){
+  const p=window._pgwEnsure();
+  if(p.lastDay!==(G.day||0)){ p.lastDay=(G.day||0); p.dayCount=0; }
+  return Math.max(0,5-p.dayCount);
+};
+window._pgwSpend=function(energy){
+  const p=window._pgwEnsure();
+  if(window._pgwDailyLeft()<=0){ return {ok:false,msg:'🌲 Na dziś las wystarczy — wrócisz jutro z nowymi siłami.'}; }
+  if((G.energy||0)<energy) return {ok:false,msg:`⚡ Za mało energii (potrzeba ${energy}).`};
+  G.energy=Math.max(0,(G.energy||0)-energy);
+  p.dayCount++; p.activities++;
+  const w=window._pgwWeather();
+  if(w.rain && (typeof window._ucWeatherMod!=='function' || window._ucWeatherMod('rain')>-0.5)) p.soaked=true;
+  return {ok:true};
+};
+window._pgwEnter=function(){
+  const p=window._pgwEnsure();
+  p.visits++;
+  if(typeof closeOverlay==='function') closeOverlay();
+  if(typeof changeRoom==='function') changeRoom('pineglass_woods',600,600);
+  if(p.visits===1 && typeof showMsg==='function')
+    showMsg('🌲 Pineglass Woods — stary bór nad wybrzeżem. Wilgotno, chłodno i cicho. Bez porządnej odzieży las szybko daje w kość.','i',6000);
+};
+
+/* ── Aktywności ── */
+window._pgwAct=function(sub){
+  const p=window._pgwEnsure();
+  switch(sub){
+    case 'trail':   return window._pgwTrail();
+    case 'forage':  return window._pgwForage();
+    case 'view':    return window._pgwView();
+    case 'camp':    return window._pgwCamp();
+    case 'creek':   return window._pgwCreek();
+    case 'ranger':  return window._pgwRanger();
+    case 'exit':    if(typeof changeRoom==='function') changeRoom('coast',2535,1790); return;
+    default: if(typeof showMsg==='function') showMsg('🌲 Tu jeszcze nic nie ma.','f',2500);
+  }
+};
+window._pgwPanel=function(title,body,res){
+  if(typeof openOverlay==='function') openOverlay();
+  document.getElementById('ov-content').innerHTML=`
+    <h2 style="color:#7ec87e">${title}</h2>
+    ${body}
+    <div class="res" id="pgw-res">${res||''}</div>
+    <button class="cbtn" onclick="closeOverlay()">← Wróć do lasu</button>`;
+};
+window._pgwStatBox=function(){
+  const p=window._pgwEnsure(), w=window._pgwWeather(), t=window._ucTerrainMod();
+  return `<div style="background:#0d1610;border-left:3px solid #7ec87e;border-radius:6px;padding:9px 12px;margin-bottom:11px;font-size:12px;color:#c8dcc8">
+    Aktywności dziś: <b>${5-window._pgwDailyLeft()}/5</b> · Energia: <b>${Math.round(G.energy||0)}</b>
+    ${t>0?`<br>Odzież terenowa: <b style="color:#7ec87e">−${Math.round(t*100)}% zmęczenia</b>`:'<br><span style="color:#a08a6a">Bez odzieży terenowej las męczy mocniej.</span>'}
+    ${w.why.length?`<br>Pogoda: <b style="color:#e0a060">${w.why.join(' i ')}</b> — koszt wysiłku +${Math.round(w.pen*100)}%`:''}
+    ${p.soaked?'<br><span style="color:#8fb8d8">Jesteś przemoczony — ubranie traci na prezentacji, aż wyschnie.</span>':''}
+  </div>`;
+};
+window._pgwTrail=function(){
+  const p=window._pgwEnsure();
+  const cost=window._pgwEnergyCost(16);
+  window._pgwPanel('🥾 Szlak grzbietowy',
+    window._pgwStatBox()+
+    `<p style="font-size:13px;color:#cdd">Pętla wzdłuż grzbietu nad zatoką. Długa, mokra i kamienista — ale widoki są tego warte.</p>
+     <button class="bbtn" style="width:100%" onclick="window._pgwTrailGo()">Wejdź na szlak (−${cost} energii)</button>`,
+    `Przejść szlaku: ${p.trail}`);
+};
+window._pgwTrailGo=function(){
+  const p=window._pgwEnsure();
+  const cost=window._pgwEnergyCost(16);
+  const r=window._pgwSpend(cost);
+  if(!r.ok){ window._pgwRes(r.msg); return; }
+  p.trail++;
+  const t=window._ucTerrainMod();
+  const xp=8+Math.round(6*t*10/8);
+  if(typeof addXP==='function') addXP(xp);
+  G.stress=(typeof clampStat==='function')?clampStat('stress',(G.stress||0)+12):Math.min(100,(G.stress||0)+12);
+  const w=window._pgwWeather();
+  let msg=`🥾 Przeszedłeś pętlę grzbietową (+${xp} doświadczenia, głowa odpoczęła).`;
+  if(w.pen>0.25) msg+=' Pogoda dała w kość — bez lepszej odzieży to była walka.';
+  else if(t>0) msg+=' Odzież terenowa zrobiła robotę — nogi zmęczone, ale sucho.';
+  window._pgwRes(msg);
+  if(typeof updateHUD==='function') updateHUD();
+  window._pgwTrail();
+};
+window._pgwForage=function(){
+  const p=window._pgwEnsure();
+  const cost=window._pgwEnergyCost(12);
+  window._pgwPanel('🍄 Runo leśne',
+    window._pgwStatBox()+
+    `<p style="font-size:13px;color:#cdd">Grzyby, zioła i żywica. Trochę na sprzedaż, trochę do własnych receptur.</p>
+     <button class="bbtn" style="width:100%" onclick="window._pgwForageGo()">Przeszukaj runo (−${cost} energii)</button>`,
+    `Udanych zbiorów: ${p.forage}`);
+};
+window._pgwForageGo=function(){
+  const p=window._pgwEnsure();
+  const cost=window._pgwEnergyCost(12);
+  const r=window._pgwSpend(cost);
+  if(!r.ok){ window._pgwRes(r.msg); return; }
+  p.forage++;
+  const t=window._ucTerrainMod();
+  const base=40+Math.floor(Math.random()*70);
+  const cash=Math.round(base*(1+t*2));
+  G.money=(G.money||0)+cash;
+  window._pgwRes(`🍄 Zebrane runo sprzedasz w mieście — ${cash} zł.${t>0?' Odzież terenowa pozwoliła wejść głębiej w mokradła.':''}`);
+  if(typeof updateHUD==='function') updateHUD();
+  window._pgwForage();
+};
+window._pgwView=function(){
+  const p=window._pgwEnsure();
+  const cost=window._pgwEnergyCost(10);
+  window._pgwPanel('📷 Punkt widokowy',
+    window._pgwStatBox()+
+    `<p style="font-size:13px;color:#cdd">Skała nad koronami drzew. Kadr, jakiego nie zrobisz w mieście — o ile pogoda nie zasłoni wszystkiego.</p>
+     <button class="bbtn" style="width:100%" onclick="window._pgwViewGo()">Zrób materiał (−${cost} energii)</button>`,
+    `Materiałów z lasu: ${p.views}`);
+};
+window._pgwViewGo=function(){
+  const p=window._pgwEnsure();
+  const cost=window._pgwEnergyCost(10);
+  const r=window._pgwSpend(cost);
+  if(!r.ok){ window._pgwRes(r.msg); return; }
+  p.views++;
+  const w=window._pgwWeather();
+  const clear=!w.rain&&!w.frost;
+  const fans=Math.round((clear?45:18)*(1+window._ucTerrainMod()));
+  if(typeof addFans==='function') addFans(fans); else G.fans=(G.fans||0)+fans;
+  window._pgwRes(clear
+    ? `📷 Czyste powietrze i ostre światło — materiał wyszedł świetnie (+${fans} fanów).`
+    : `📷 Mgła i woda na obiektywie zjadły połowę kadru (+${fans} fanów). W pogodny dzień będzie lepiej.`);
+  if(typeof updateHUD==='function') updateHUD();
+  window._pgwView();
+};
+window._pgwCamp=function(){
+  const p=window._pgwEnsure();
+  window._pgwPanel('🔥 Ognisko',
+    window._pgwStatBox()+
+    `<p style="font-size:13px;color:#cdd">Kamienny krąg przy polanie. Można wysuszyć ubranie i złapać oddech.</p>
+     <button class="bbtn" style="width:100%" onclick="window._pgwCampGo()">Rozpal i odpocznij</button>`,
+    p.soaked?'Ubranie jest przemoczone — ogień to naprawi.':'');
+};
+window._pgwCampGo=function(){
+  const p=window._pgwEnsure();
+  const wasSoaked=p.soaked;
+  p.soaked=false;
+  G.energy=(typeof clampStat==='function')?clampStat('energy',(G.energy||0)+18):Math.min(100,(G.energy||0)+18);
+  G.stress=(typeof clampStat==='function')?clampStat('stress',(G.stress||0)+10):Math.min(100,(G.stress||0)+10);
+  window._pgwRes(wasSoaked
+    ? '🔥 Ubranie wyschło przy ogniu, a Ty złapałeś oddech (energia i nastrój w górę).'
+    : '🔥 Chwila przy ogniu — energia i nastrój w górę.');
+  if(typeof updateHUD==='function') updateHUD();
+  window._pgwCamp();
+};
+window._pgwCreek=function(){
+  const p=window._pgwEnsure();
+  const t=window._ucTerrainMod();
+  const cost=window._pgwEnergyCost(14);
+  window._pgwPanel('🌊 Przeprawa przez potok',
+    window._pgwStatBox()+
+    `<p style="font-size:13px;color:#cdd">Potok rozlał się po kamieniach. Da się przejść — pytanie, w czym.</p>
+     ${t>=0.05?'<p style="font-size:12px;color:#7ec87e">Masz odzież terenową — przejdziesz sucho.</p>'
+              :'<p style="font-size:12px;color:#e0a060">Bez odzieży terenowej przemokniesz.</p>'}
+     <button class="bbtn" style="width:100%" onclick="window._pgwCreekGo()">Przepraw się (−${cost} energii)</button>`,
+    '');
+};
+window._pgwCreekGo=function(){
+  const p=window._pgwEnsure();
+  const cost=window._pgwEnergyCost(14);
+  const r=window._pgwSpend(cost);
+  if(!r.ok){ window._pgwRes(r.msg); return; }
+  const t=window._ucTerrainMod();
+  if(t>=0.05){
+    p.soaked=false;
+    if(typeof addXP==='function') addXP(10);
+    window._pgwRes('🌊 Membrana i wysokie cholewy zrobiły swoje — przeszedłeś sucho na drugi brzeg (+10 doświadczenia).');
+  } else {
+    p.soaked=true;
+    G.health=(typeof clampStat==='function')?clampStat('health',(G.health==null?100:G.health)-4):(G.health||100)-4;
+    window._pgwRes('🌊 Woda weszła do butów, spodnie przemokły. Przeszedłeś, ale kosztem zdrowia. Techniczny płaszcz terenowy bardzo by się tu przydał.');
+  }
+  if(typeof updateHUD==='function') updateHUD();
+  window._pgwCreek();
+};
+window._pgwRanger=function(){
+  const p=window._pgwEnsure(); p.rangerMet=true;
+  const need=2, have=p.activities;
+  window._pgwPanel('🧭 Leśniczy Halvard Nyström',
+    window._pgwStatBox()+
+    `<p style="font-size:13px;color:#cdd">„Ludzie przyjeżdżają tu w miejskich butach i dziwią się, że wracają mokrzy.
+      Las nie jest złośliwy — po prostu nie robi wyjątków."</p>
+     <p style="font-size:13px;color:#cdd">„Jak chcesz tu bywać częściej, zaopatrz się u NorthArc. Ich techniczny płaszcz
+      terenowy jest robiony dokładnie pod ten teren — sprzedają go dopiero tym, którzy faktycznie tu chodzą."</p>
+     <div style="background:#0d1610;border:1px solid #2a4a2a;border-radius:8px;padding:10px;font-size:12px;color:#c8dcc8">
+       Aktywności w lesie: <b>${have}</b> / ${need} potrzebnych, żeby NorthArc otworzył sprzedaż płaszcza terenowego.
+       ${have>=need?'<br><b style="color:#7ec87e">Warunek spełniony — płaszcz jest już dostępny w Urban Crown.</b>':''}
+     </div>`,
+    p.visits>1?'Leśniczy kojarzy Cię z poprzednich wizyt.':'');
+};
+window._pgwRes=function(m){ const e=document.getElementById('pgw-res'); if(e) e.textContent=m; };
+
+/* ── Wygląd lasu (walkable interior) ── */
+window.drawPineglassWoods=function(){
+  if(typeof X==='undefined'||typeof ROOMS==='undefined'||!ROOMS.pineglass_woods) return;
+  const W=ROOMS.pineglass_woods.wT*48, H=ROOMS.pineglass_woods.hT*48;
+  const o=wx2sx(0), p=wy2sy(0);
+  const night=(typeof G!=='undefined'&&G.timeOfDay>=2);
+  const w=window._pgwWeather?window._pgwWeather():{rain:false,frost:false};
+  /* runo leśne */
+  const g=X.createLinearGradient(o,p,o,p+H);
+  g.addColorStop(0,night?'#0d1410':'#1b2a18'); g.addColorStop(1,night?'#080d0a':'#121e12');
+  X.fillStyle=g; X.fillRect(o,p,W,H);
+  /* ścieżka */
+  X.fillStyle=night?'#221d15':'#3a3222';
+  X.beginPath(); X.moveTo(o+110,p+H); X.quadraticCurveTo(o+W*0.34,p+H*0.52,o+W*0.52,p+120);
+  X.lineTo(o+W*0.62,p+120); X.quadraticCurveTo(o+W*0.46,p+H*0.56,o+200,p+H); X.closePath(); X.fill();
+  /* deterministyczny rozkład drzew — bez migotania między klatkami */
+  const rnd=(i)=>{ const x=Math.sin(i*127.1)*43758.5453; return x-Math.floor(x); };
+  const drawTree=(tx,ty,sc)=>{
+    X.fillStyle='rgba(0,0,0,.30)';
+    X.beginPath(); X.ellipse(tx,ty+2,16*sc,5*sc,0,0,Math.PI*2); X.fill();
+    X.fillStyle=night?'#241d14':'#3c2f1e'; X.fillRect(tx-3*sc,ty-30*sc,6*sc,30*sc);
+    for(let k=0;k<3;k++){
+      X.fillStyle=night?['#12331e','#0f2b19','#0c2415'][k]:['#2c6b3a','#245a31','#1c4a28'][k];
+      X.beginPath();
+      X.moveTo(tx,ty-(74+k*16)*sc);
+      X.lineTo(tx-(26-k*5)*sc,ty-(30+k*15)*sc);
+      X.lineTo(tx+(26-k*5)*sc,ty-(30+k*15)*sc);
+      X.closePath(); X.fill();
+    }
+  };
+  /* reguła #8: drzewo nie może wyrosnąć na strefie interaktywnej ani jej podpisie —
+     korona sięga ~74*sc w górę i ~26*sc na boki, więc obrys liczony z zapasem. */
+  const zonesBB=ROOMS.pineglass_woods.objects.map(z=>[z.wx-14,z.wy-10,z.wx+z.w+14,z.wy+z.h+16]);
+  const spots=[];
+  for(let i=0;i<46;i++){
+    const tx=40+rnd(i)*(W-80), ty=90+rnd(i+90)*(H-140), sc=0.7+rnd(i+300)*0.7;
+    const tl=tx-28*sc, tr=tx+28*sc, tt=ty-78*sc, tb=ty+6;
+    if(zonesBB.some(b=>tl<b[2]&&tr>b[0]&&tt<b[3]&&tb>b[1])) continue;
+    spots.push([tx,ty,sc]);
+  }
+  spots.sort((a,b)=>a[1]-b[1]).forEach(s=>drawTree(o+s[0],p+s[1],s[2]));
+  /* mgła / deszcz */
+  if(w.rain){
+    X.strokeStyle='rgba(170,200,225,.22)'; X.lineWidth=1;
+    for(let i=0;i<120;i++){ const rx=o+rnd(i+700)*W, ry=p+((rnd(i+800)*H+Date.now()*0.35)%H);
+      X.beginPath(); X.moveTo(rx,ry); X.lineTo(rx-2,ry+11); X.stroke(); }
+  }
+  X.fillStyle=w.frost?'rgba(200,220,240,.10)':'rgba(150,180,160,.06)';
+  X.fillRect(o,p,W,H);
+};
+/* Sprite'y stref lasu — bez tego strefy rysują się jako szare boxy (lekcja v2.3.125). */
+window._drawPgwSprite=function(id,sx,sy,w,h){
+  if(typeof X==='undefined') return;
+  const label=(t)=>{ X.fillStyle='rgba(200,224,200,.72)'; X.font='9px "Segoe UI",Arial'; X.textAlign='center';
+    X.fillText(t,sx+w/2,sy+h-4); X.textAlign='left'; };
+  const shadow=()=>{ X.save(); X.globalAlpha=.32; X.fillStyle='#040704';
+    X.beginPath(); X.ellipse(sx+w/2,sy+h-8,w*0.44,6,0,0,Math.PI*2); X.fill(); X.restore(); };
+  switch(id){
+    case 'pgw_trail':{ shadow();                                  /* drogowskaz szlaku */
+      X.fillStyle='#4a3a24'; X.fillRect(sx+w/2-4,sy+16,8,h-34);
+      X.fillStyle='#6b5433'; X.fillRect(sx+10,sy+22,w-40,14);
+      X.fillStyle='#c8d8b8'; X.font='bold 8px "Segoe UI",Arial'; X.fillText('SZLAK',sx+16,sy+32);
+      X.fillStyle='#6b5433'; X.fillRect(sx+20,sy+44,w-46,12);
+      X.fillStyle='#e05a3a'; X.fillRect(sx+12,sy+24,5,10);
+      label('SZLAK GRZBIETOWY'); break; }
+    case 'pgw_forage':{ shadow();                                  /* kępa grzybów i paproci */
+      X.fillStyle='#1c3a20'; X.beginPath(); X.ellipse(sx+w/2,sy+h-16,w*0.40,h*0.26,0,0,Math.PI*2); X.fill();
+      for(let i=0;i<5;i++){ const mx=sx+18+i*(w-40)/4, my=sy+h-26+((i%2)?-6:2);
+        X.fillStyle='#e8e0cc'; X.fillRect(mx-2,my,4,9);
+        X.fillStyle=i%2?'#a8452c':'#8a6a3a'; X.beginPath(); X.ellipse(mx,my,7,4.5,0,0,Math.PI*2); X.fill(); }
+      label('RUNO LEŚNE'); break; }
+    case 'pgw_view':{ shadow();                                    /* skała widokowa */
+      X.fillStyle='#4a5058'; X.beginPath();
+      X.moveTo(sx+8,sy+h-10); X.lineTo(sx+w*0.30,sy+18); X.lineTo(sx+w*0.62,sy+26);
+      X.lineTo(sx+w-10,sy+h-10); X.closePath(); X.fill();
+      X.fillStyle='#5e666f'; X.beginPath();
+      X.moveTo(sx+w*0.30,sy+18); X.lineTo(sx+w*0.62,sy+26); X.lineTo(sx+w*0.44,sy+h-10);
+      X.closePath(); X.fill();
+      X.fillStyle='rgba(180,215,240,.35)'; X.fillRect(sx+10,sy+h-16,w-20,4);
+      label('PUNKT WIDOKOWY'); break; }
+    case 'pgw_camp':{ shadow();                                    /* ognisko */
+      X.fillStyle='#3a3a3a'; for(let i=0;i<7;i++){ const a=i/7*Math.PI*2;
+        X.beginPath(); X.ellipse(sx+w/2+Math.cos(a)*(w*0.30),sy+h-16+Math.sin(a)*(h*0.16),5,4,0,0,Math.PI*2); X.fill(); }
+      X.fillStyle='#5a4020'; X.fillRect(sx+w/2-14,sy+h-24,28,5); X.fillRect(sx+w/2-4,sy+h-32,8,14);
+      const fl=0.6+0.4*Math.sin(Date.now()/220);
+      X.fillStyle=`rgba(232,140,40,${fl})`; X.beginPath();
+      X.moveTo(sx+w/2,sy+h-52); X.lineTo(sx+w/2-11,sy+h-24); X.lineTo(sx+w/2+11,sy+h-24); X.closePath(); X.fill();
+      X.fillStyle=`rgba(250,220,120,${fl*0.9})`; X.beginPath();
+      X.moveTo(sx+w/2,sy+h-40); X.lineTo(sx+w/2-5,sy+h-24); X.lineTo(sx+w/2+5,sy+h-24); X.closePath(); X.fill();
+      X.save(); X.globalCompositeOperation='lighter'; X.globalAlpha=.22*fl;
+      const gg=X.createRadialGradient(sx+w/2,sy+h-32,2,sx+w/2,sy+h-32,w*0.7);
+      gg.addColorStop(0,'#ffb45a'); gg.addColorStop(1,'rgba(0,0,0,0)');
+      X.fillStyle=gg; X.beginPath(); X.arc(sx+w/2,sy+h-32,w*0.7,0,Math.PI*2); X.fill(); X.restore();
+      label('OGNISKO'); break; }
+    case 'pgw_creek':{                                             /* potok */
+      X.fillStyle='#1a3242'; X.fillRect(sx+4,sy+18,w-8,h-40);
+      X.fillStyle='rgba(140,190,220,.40)';
+      for(let i=0;i<4;i++) X.fillRect(sx+10,sy+24+i*10,w-20,3);
+      X.fillStyle='#5a6068';
+      [[0.22,0.34],[0.52,0.58],[0.78,0.30]].forEach(([fx,fy])=>{
+        X.beginPath(); X.ellipse(sx+w*fx,sy+18+(h-40)*fy,10,6,0,0,Math.PI*2); X.fill(); });
+      label('PRZEPRAWA'); break; }
+    case 'npc_pgw_ranger':{ shadow();                              /* leśniczy */
+      X.fillStyle='#2d3d28'; X.fillRect(sx+8,sy+22,20,30);
+      X.fillStyle='#4a5a3a'; X.fillRect(sx+8,sy+22,20,7);
+      X.fillStyle='#e0bc94'; X.beginPath(); X.arc(sx+18,sy+13,9,0,Math.PI*2); X.fill();
+      X.fillStyle='#4a3a26'; X.fillRect(sx+8,sy+3,20,8); X.fillRect(sx+5,sy+9,26,3);
+      X.fillStyle='#20242a'; X.fillRect(sx+10,sy+52,7,6); X.fillRect(sx+19,sy+52,7,6);
+      X.fillStyle='#8a6a3a'; X.fillRect(sx+26,sy+28,5,14);
+      break; }
+    case 'exit_pgw':{
+      X.fillStyle='#1a2418'; X.fillRect(sx+4,sy+6,w-8,h-14);
+      X.strokeStyle='#7ec87e'; X.lineWidth=2; X.strokeRect(sx+5,sy+7,w-10,h-16);
+      X.fillStyle='#7ec87e'; X.font='bold 9px "Segoe UI",Arial'; X.textAlign='center';
+      X.fillText('← WYBRZEŻE',sx+w/2,sy+h/2+3); X.textAlign='left'; break; }
+    default: X.fillStyle='#243024'; X.fillRect(sx,sy,w,h); break;
+  }
+};
+/* Fasada na mapie Coast — początek szlaku. */
+window.drawPineglassTrailhead=function(sx,sy,w,h){
+  if(typeof X==='undefined') return;
+  X.fillStyle='rgba(0,0,0,.40)'; X.fillRect(sx+4,sy+6,w,h);
+  X.fillStyle='#1a2a18'; X.fillRect(sx,sy,w,h);                    /* ciemna ściana lasu */
+  const rnd=(i)=>{ const x=Math.sin(i*91.7)*43758.5453; return x-Math.floor(x); };
+  for(let i=0;i<12;i++){
+    const tx=sx+8+rnd(i)*(w-16), ty=sy+h-10-rnd(i+40)*(h*0.30), sc=0.55+rnd(i+80)*0.5;
+    X.fillStyle='#3c2f1e'; X.fillRect(tx-2*sc,ty-18*sc,4*sc,18*sc);
+    for(let k=0;k<3;k++){
+      X.fillStyle=['#2c6b3a','#245a31','#1c4a28'][k];
+      X.beginPath(); X.moveTo(tx,ty-(44+k*10)*sc);
+      X.lineTo(tx-(16-k*3)*sc,ty-(18+k*9)*sc); X.lineTo(tx+(16-k*3)*sc,ty-(18+k*9)*sc);
+      X.closePath(); X.fill();
+    }
+  }
+  X.fillStyle='#3a3222'; X.fillRect(sx+w*0.40,sy+h*0.55,w*0.20,h*0.45); /* wylot ścieżki */
+  X.fillStyle='#5a4a2e'; X.fillRect(sx+8,sy+6,w-16,20);                 /* tablica */
+  X.fillStyle='#c8d8b8'; X.font='bold 10px "Segoe UI",Arial'; X.textAlign='center';
+  X.fillText('PINEGLASS WOODS',sx+w/2,sy+20);
+  X.font='7px "Segoe UI",Arial'; X.fillStyle='rgba(200,216,184,.75)';
+  X.fillText('SZLAKI · RUNO · PUNKT WIDOKOWY',sx+w/2,sy+32);
+  X.textAlign='left';
+};
+/* ═══════════════════════════════════════════════════════════════════════════
+   PINEGLASS WOODS MODULE END
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+
 
 /* ═══════════════════════════════════════════════════════════════════════════
    RESPONSE GRID MODULE START — PDF „CITY PULSE / RESPONSE GRID" (§0-16).
@@ -61080,6 +61505,12 @@ window._enterDistrictPlace=(districtId,placeId)=>{
       if(typeof window._openAureumGreen==='function') window._openAureumGreen();
       return;
     /* v2.3.129 (PDF marek §7.4): trzeci salon — galeria premium Crownline Auto Gallery. */
+    /* v2.3.129 (PDF odzieżowy §4.7): wejście na szlak Pineglass Woods. */
+    case 'coast_pineglass':
+      if(typeof closeOverlay==='function') closeOverlay();
+      if(typeof window._pgwEnter==='function') window._pgwEnter();
+      else if(typeof showMsg==='function') showMsg('🌲 Szlak jeszcze się ładuje — spróbuj za chwilę.','i',3200);
+      return;
     case 'business_crownline':
       if(typeof closeOverlay==='function') closeOverlay();
       if(typeof window._crownOpen==='function') window._crownOpen();
@@ -82341,6 +82772,10 @@ const PATCH_NOTES = [
   {t:'feature',d:'💎 W dzielnicy biznesowej otwarto trzeci salon — Crownline Auto Gallery. To galeria marek premium, luksusowych i egzotycznych: Ardent, Vahl, Karsen, Marlowe & Finch, Vantori, Aethon i Ionis. Ceny oraz wymagania są dokładnie takie same jak dotąd — zmienia się tylko miejsce, w którym te auta stoją.'},
   {t:'new',d:'🔄 Doszedł podgląd AutoVista 360. Obejrzysz w nim każdy samochód z czterech stron, przymierzysz osiem lakierów i sprawdzisz komplet danych: nadwozie, klasę, prędkość, sławę, cenę i wymagania. Podgląd niczego nie zmienia w Twoim aucie.'},
   {t:'new',d:'⚖️ Porównywarka zestawia obok siebie do czterech modeli — marka, nadwozie, prędkość, sława, cena, wymagania i salon, w którym stoją. Otworzysz ją z galerii Crownline, z salonu CityDrive i z panelu Twoich pojazdów.'},
+  {t:'feature',d:'🌲 Na wybrzeżu otwarto szlak do Pineglass Woods — starego boru, po którym naprawdę się chodzi. Znajdziesz tam pętlę grzbietową, runo leśne na sprzedaż, punkt widokowy na materiały, przeprawę przez potok, ognisko do odpoczynku i leśniczego, który wie o tym lesie wszystko.'},
+  {t:'new',d:'🥾 Odzież terenowa wreszcie ma gdzie działać: obniża zmęczenie na szlaku, pozwala wejść głębiej po runo i przejść potok suchą stopą. Bez niej przemokniesz i stracisz zdrowie.'},
+  {t:'new',d:'🌧 Deszcz i mróz w lesie kosztują znacznie więcej sił niż w mieście, a kurtki pogodowe realnie to zdejmują. Po przemoczeniu ubranie traci na prezentacji, dopóki nie wysuszysz go przy ognisku. Materiał z punktu widokowego wychodzi dużo lepiej przy czystym powietrzu.'},
+  {t:'change',d:'🧥 Techniczny płaszcz terenowy sprzedawany jest teraz tym, którzy faktycznie chodzą po Pineglass Woods, a nie po prostu osiągnęli poziom. Jeśli masz go już w szafie, zostaje Twój.'},
  ]
  },
  {
