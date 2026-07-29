@@ -42484,6 +42484,8 @@ window._korekDialog=function(){
     {text:'„Coś, co nie wygląda jak trup na kołach.”', fn:()=>openShop('mid')},
     {text:'„Ma nie rzucać się w oczy na ulicy.”', fn:()=>openShop('clean')},
     {text:'„Pokaż wszystko, co masz na stanie.”', fn:()=>openShop('all')},
+    /* v2.3.129 (PDF marek §7.4): Gravel Lot prowadzi też używane auta osobowe wszystkich marek. */
+    {text:'„A co masz na placu z osobowych?”', fn:()=>{ if(typeof closeNPCDlg==='function')closeNPCDlg(); if(typeof window._glUsedPanel==='function') window._glUsedPanel(); }},
     {text:'(Wychodzę)', fn:()=>{ if(typeof closeNPCDlg==='function')closeNPCDlg(); }}
   ],_KOREK);
 };
@@ -42970,7 +42972,17 @@ const CAR_CLASS_ORDER=['A','B','C','D','EF','J','M'];
 function renderSalon(){
   // #17 NERF: prędkości aut zmniejszone (Bugatti było 4× = absurd; v2.1.192: 2.25× → 2.20× = rozsądne)
   /* v2.1.51 Amper: salon — wszystkie auta bez wymogów (tylko cena), oprócz dwóch ikon: Ferrari i Bugatti Chiron zachowują wymogi prestiżowe. */
-  const cars=CAR_CATALOG;
+  /* v2.3.129 (PDF marek §7.4): CityDrive Motors prowadzi „główne marki masowe, premium i część
+     samochodów sportowych" — modele marek, których jedyną afiliacją jest Crownline (Kepler,
+     Vantori, Marlowe & Finch, Aethon), mają ekspozycję i sprzedaż w galerii.
+     ⚠️ Kryterium odbioru #17 zabrania zmiany wymagań progresji, dlatego katalog galerii jest
+     otwierany PRZYCISKIEM STĄD — gracz kupuje te auta w tym samym momencie kariery co dotąd,
+     bez konieczności odblokowania dzielnicy biznesowej. */
+  const cars=CAR_CATALOG.filter(c=>{
+    const b=(typeof window.getVehicleBrand==='function')?window.getVehicleBrand(c.name):null;
+    if(!b||!Array.isArray(b.dealershipAffinity)) return true;
+    return b.dealershipAffinity.includes('citydrive_motors');
+  });
   const carPalette=[
     {name:'Czerwony',c:'#c0392b'},{name:'Niebieski',c:'#2471a3'},{name:'Czarny',c:'#1c2833'},
     {name:'Biały',c:'#d5d8dc'},{name:'Szary',c:'#707b7c'},{name:'Zielony',c:'#1e8449'},
@@ -42999,7 +43011,7 @@ function renderSalon(){
       <button class="cbtn" style="font-size:12px;padding:7px 11px" onclick="window._crownOpen()">💎 Crownline Auto Gallery</button>
     </div>
     <div style="background:#1a1508;border-left:3px solid #e8c56a;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#d8c8a0">
-      💎 Marki premium, luksusowe i egzotyczne mają pełną ekspozycję w <b>Crownline Auto Gallery</b> w dzielnicy biznesowej — tam obejrzysz je w większych detalach. Kupisz je jednak również tutaj, na tych samych warunkach.
+      💎 Marki <b>Kepler, Vantori, Marlowe &amp; Finch i Aethon</b> prowadzi <b>Crownline Auto Gallery</b>. Otworzysz jej katalog przyciskiem powyżej — bez wychodzenia stąd i na tych samych warunkach cenowych co zawsze.
     </div>
     <!-- v2.3.102 (PDF #8-27): pozycja „Bagażnik / schowek auta" USUNIĘTA ze sklepu — schowek jest dostępny tylko w POSIADANYM pojeździe (ekwipunek / panel pojazdu), nie w salonie. -->
     ${G.car?`<div style="background:#0a1220;border-radius:10px;padding:12px;margin-bottom:14px">
@@ -53885,8 +53897,8 @@ window._ucStyleScore=function(occasion){
   items.forEach(i=>{ drip+=(i.st.drip||0); pres+=(i.st.pres||0); });
   drip+=window._ucColorHarmony(items);
   if(occasion){ const m=window._ucOccasionMatch(occasion); drip+=m.dripDelta; pres+=m.presDelta; }
-  /* §8.3 wymaga utraty Dripu I PREZENTACJI — do v2.3.128 kara działała tylko na Drip.
-     Kara prezentacji jest o połowę łagodniejsza: mokra kurtka psuje wygląd bardziej
+  /* §8.3 dopuszcza utratę Dripu I prezentacji („może czasowo tracić"); §5.2 pokazuje wzór
+     z karą tylko na Dripie. Kara prezentacji jest o połowę łagodniejsza: mokra kurtka psuje wygląd bardziej
      niż odbiór samej osoby. */
   const _cond=window._ucConditionPenalty();
   drip-=_cond; pres-=_cond*0.5;
@@ -57346,7 +57358,7 @@ window._ggRender=function(){
       <div style="text-align:center;font-size:14px;color:#fff;font-weight:700;margin-bottom:10px">${s.item.name}</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center">${cats.map((k,i)=>`<button class="cbtn" style="font-size:12px;padding:7px 10px" onclick="window._ggSortPick(${i})">${k.cat}</button>`).join('')}</div>`;
   } else if(job.tpl==='route'){
-    if(!s.points.length) s.points=window._ggRoutePoints();
+    if(!s.points.length) s.points=window._ggRoutePoints(job);
     body=`<div style="text-align:center;font-size:13px;color:#cdd;margin-bottom:8px">${tpl.desc}</div>
       <div style="display:flex;flex-direction:column;gap:5px">${s.points.map((pt,i)=>`<button class="cbtn" style="font-size:12px;padding:7px;text-align:left" onclick="window._ggRoutePick(${i})" ${pt.done?'disabled':''}>
         ${pt.done?'✅':'📍'} ${pt.name} · dystans ${pt.dist} · pilność ${pt.urgency} · opłata ${pt.fee} zł${pt.event?(' · ⚠️ '+pt.event):''}</button>`).join('')}</div>`;
@@ -57361,7 +57373,8 @@ window._ggRender=function(){
         <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center">${window._ggMemoryPool(job).map((x,i)=>`<button class="cbtn" style="font-size:20px;padding:8px 11px" onclick="window._ggMemoryPick(${i})">${x.em}</button>`).join('')}</div>`;
     }
   } else if(job.tpl==='timing'){
-    body=`<div style="text-align:center;font-size:13px;color:#cdd;margin-bottom:10px">${tpl.desc}</div>
+    body=`<div style="text-align:center;font-size:13px;color:#cdd;margin-bottom:4px">${tpl.desc}</div>
+      <div style="text-align:center;font-size:14px;color:#fff;font-weight:700;margin-bottom:9px">${window._ggTimingTask(job,s.round)}</div>
       <div id="gg-bar" style="position:relative;height:26px;background:#0a1220;border:1px solid #2a3a50;border-radius:13px;overflow:hidden;margin-bottom:10px">
         <div style="position:absolute;left:${s.zone||40}%;width:${s.zoneW||20}%;height:100%;background:rgba(46,204,113,.30)"></div>
         <div id="gg-cursor" style="position:absolute;left:0;top:0;width:4px;height:100%;background:#e67e22"></div>
@@ -57412,9 +57425,22 @@ window._ggSortPick=function(i){
   window._ggStep();
 };
 /* ── Szablon: trasa ── */
-window._ggRoutePoints=function(){
-  const names=['Osiedle Zachód','Biurowiec Centrum','Kawiarnia Rynek','Magazyn Wschód','Klub przy promenadzie','Apartament nad kanałem','Punkt odbioru Północ'];
-  const evs=[null,null,'korek','zamknięta ulica','klient nie odbiera','błędny adres','deszcz'];
+window._GG_ROUTES={
+  gg_courier:{names:['Osiedle Zachód','Biurowiec Centrum','Kawiarnia Rynek','Magazyn Wschód','Klub przy promenadzie','Apartament nad kanałem','Punkt odbioru Północ'],
+              evs:[null,null,'korek na moście','zamknięta ulica','klient nie odbiera','błędny adres na etykiecie','ulewa']},
+  gg_valet:{names:['Podjazd główny','Poziom −1, rząd A','Poziom −1, rząd C','Miejsce przy windzie','Zatoka dostawcza','Parking zewnętrzny','Miejsce dla gości VIP'],
+            evs:[null,null,'zastawiony wyjazd','gość zgubił kwit','bardzo ciasne miejsce','rysa do zgłoszenia przed odbiorem','alarm w innym aucie']},
+  gg_bellboy:{names:['Pokój 204','Pokój 311','Apartament 502','Recepcja — depozyt','Pokój 118','Pokój 407','Bagażownia'],
+              evs:[null,null,'winda zajęta przez ekipę','gość nie otwiera','bagaż bez etykiety','prośba o dodatkową pomoc','wózek z zablokowanym kołem']},
+  gg_tech_driver:{names:['Hala widowiskowa','Klub przy promenadzie','Plener nad zatoką','Magazyn sprzętu','Studio nagraniowe','Scena plenerowa','Punkt zwrotu'],
+                  evs:[null,null,'brak miejsca do rozładunku','ochrona nie wpuszcza bez listy','zmiana godziny odbioru','skrzynia nie mieści się w windzie','przesunięta próba']},
+  gg_bikes:{names:['Stacja Rynek','Stacja Dworzec','Stacja Park','Stacja Uczelnia','Stacja Promenada','Stacja Osiedle','Baza serwisowa'],
+            evs:[null,null,'stacja przepełniona','rower z uszkodzonym zamkiem','brak miejsca w wozie','użytkownik prosi o rower na już','zablokowany dojazd']},
+};
+window._ggRoutePoints=function(job){
+  const r=(job&&window._GG_ROUTES[job.id])||window._GG_ROUTES.gg_courier;
+  const names=r.names;
+  const evs=r.evs;
   const n=4+Math.floor(Math.random()*4);
   const out=[];
   for(let i=0;i<n;i++) out.push({name:names[i%names.length],dist:1+Math.floor(Math.random()*5),
@@ -57460,6 +57486,18 @@ window._ggMemoryPick=function(i){
   window._ggRender();
 };
 /* ── Szablon: timing ── */
+window._GG_TIMING={
+  gg_moving:['Chwyć karton w równowadze','Przenieś szafkę przez próg','Ustaw kanapę w drzwiach','Zabezpiecz szybę w ramie','Zejdź z ciężarem po schodach'],
+  gg_loungers:['Rozłóż leżak równo z linią','Otwórz parasol przy podmuchu','Ustaw stolik między leżakami','Wyrównaj rząd przy przejściu','Złóż parasol przed wiatrem'],
+  gg_stage_build:['Wepnij element kratownicy','Naciągnij pas mocujący','Ułóż przewód w korycie','Ustaw barierkę w linii','Dokręć złącze podestu'],
+  gg_voice:['Wejdź w takt na sygnał','Podbij emocję we frazie','Zmieść się w oknie czasu','Zrób pauzę przed hasłem','Zakończ na uderzeniu'],
+  gg_snow:['Zgarnij śnieg przy krawężniku','Rozsyp sól równomiernie','Oczyść stopień przed szczytem','Wyrównaj przejście dla pieszych','Odgarnij przed wejściem'],
+  gg_decor:['Zawieś element na wysokości','Wyrównaj girlandę','Ustaw kompozycję w kadrze','Dopasuj kolor do motywu','Umocuj dekoracje przed próbą'],
+};
+window._ggTimingTask=function(job,round){
+  const arr=(job&&window._GG_TIMING[job.id])||window._GG_TIMING.gg_stage_build;
+  return arr[(round||0)%arr.length];
+};
 window._ggTimingLoop=function(){
   const s=window._ggState; if(!s||s.job.tpl!=='timing') return;
   if(s._raf) cancelAnimationFrame(s._raf);
@@ -57510,8 +57548,20 @@ window._ggJudgePick=function(i){
   window._ggStep();
 };
 /* ── Szablon: refleks / kolejka ── */
+window._GG_QUEUES={
+  gg_dogs:['pies ciągnie w stronę jezdni','druga smycz się splątała','napotkany rowerzysta','pies chce pić','inny pies za płotem','właściciel pisze z pytaniem','trzeba posprzątać po psie','pies siada i nie chce iść'],
+  gg_beach_rent:['klient chce leżak na dwie godziny','zwrot parasola z ułamanym stelażem','rodzina pyta o kajak dla czwórki','sprzęt nie wrócił na czas','klient bez dokumentu','deska wróciła zapiaszczona','kolejka rośnie przy kasie','prośba o przedłużenie'],
+  gg_cloakroom:['gość oddaje płaszcz bez numerka','dwie kurtki w tym samym kolorze','gość spieszy się na taksówkę','ktoś zgubił żeton','prośba o wydanie rzeczy z torby','kolejka po zamknięciu parkietu','gość zostawia parasol','zwrot z uszkodzonym wieszakiem'],
+  gg_backstage:['technik prosi o taśmę','artysta pyta o wodę','trzeba przenieść statyw','ochrona pyta o listę wejść','prośba o ręczniki na scenę','zaginął kabel zasilający','wezwanie do garderoby','prośba o przekazanie setlisty'],
+  gg_merch_stand:['fan pyta o rozmiar L','płatność kartą nie przechodzi','trzeba wydać resztę','skończyły się bluzy w M','prośba o podpis na płycie','ktoś odkłada rzeczy w złe miejsce','kolejka przed występem','pytanie o wysyłkę'],
+  gg_podcast:['poziom mikrofonu skacze','prowadzący daje znak na przerwę','gość mówi za blisko mikrofonu','trzeba włączyć następny segment','słychać szum z korytarza','prośba o wodę do studia','czas segmentu dobiega końca','gość poprawia słuchawki'],
+  gg_apart_service:['brak ręczników w łazience','klimatyzacja ustawiona na maksimum','gość zostawił rzeczy','zgłoszenie o cieknącym kranie','trzeba uzupełnić kapsułki do ekspresu','zameldowanie przyspieszone o godzinę','plama na narzucie','pilot bez baterii'],
+  gg_conference:['prezentacja nie wyświetla się na ekranie','mikrofon prelegenta cichnie','następny mówca spóźniony','prośba o przejściówkę','dźwięk z filmu nie idzie na salę','trzeba przestawić harmonogram','uczestnik szuka sali B','wskaźnik laserowy bez baterii'],
+  gg_photo_runner:['fotograf prosi o blendę','trzeba przestawić tło','model prosi o wodę','światło do przestawienia o metr','prośba o zapasową kartę pamięci','wiatr przewrócił parasolkę','trzeba przynieść rekwizyt','zmiana obiektywu'],
+};
 window._ggReactQueue=function(job){
-  const base=['zgłoszenie od ekipy','prośba gościa','pilna sprawa techniczna','drobna prośba','zwrot sprzętu','pytanie o kierunek','reklamacja','dostawa do przyjęcia'];
+  /* §60: każde zlecenie ma WŁASNE zgłoszenia, nie wspólną listę ogólników. */
+  const base=(job&&window._GG_QUEUES[job.id])||window._GG_QUEUES.gg_backstage;
   const out=[];
   for(let i=0;i<8;i++) out.push({text:base[i%base.length],urgent:Math.random()<0.4});
   return out;
@@ -58544,12 +58594,11 @@ window._crownCars=function(){
   const ids=window._crownBrandIds();
   return CAR_CATALOG.filter(c=>{ const b=window.getVehicleBrand(c.name); return b&&ids.includes(b.id); });
 };
-/* Marki, których jedyną afiliacją w danych jest Crownline. UWAGA: modele tych marek
-   NADAL są kupowalne w CityDrive Motors — kryterium odbioru #17 wymaga, by „wymagania
-   progresji i ceny pozostały zgodne z dotychczasową konfiguracją", a Business District
-   otwiera się dopiero przy 300 sławy. Przeniesienie tu np. Kepler Arrow 911 (0 wymagań)
-   albo Vantori Furia (0 wymagań) zabrałoby graczom auta, które dziś mają wcześniej.
-   Dlatego Crownline daje tym markom pełną ekspozycję i opis, a nie wyłączność sprzedaży. */
+/* Marki, których jedyną afiliacją w danych jest Crownline — ich modele zniknęły z listy
+   CityDrive (PDF §7.4). Kryterium odbioru #17 („wymagania progresji i ceny pozostają zgodne
+   z dotychczasową konfiguracją") jest zachowane, bo katalog galerii otwiera się PRZYCISKIEM
+   z salonu CityDrive: gracz kupuje Kepler Arrow 911 czy Vantori Furię w tym samym momencie
+   kariery co dotąd, bez wymogu odblokowania dzielnicy biznesowej (300 sławy). */
 window._crownExclusiveBrandIds=function(){
   return Object.values(VEHICLE_BRANDS)
     .filter(b=>Array.isArray(b.dealershipAffinity)&&b.dealershipAffinity.includes('crownline_auto_gallery')
@@ -58580,7 +58629,7 @@ window._crownOpen=function(){
     const spd=car.speed>=2?`×${car.speed.toFixed(2).replace('.',',')}`:`+${Math.round((car.speed-1)*100)}%`;
     return `<div class="sitem" style="border-color:#3a3020">
       <h3 style="color:#e8c56a">${window.carDisplayName(car.name)}</h3>
-      <div style="font-size:10px;color:#a08a5a;letter-spacing:.5px;text-transform:uppercase;margin:-4px 0 5px">${window.getVehicleBrand(car.name).displayName}${window._crownExclusive(car.name)?' · marka firmowa galerii':''}</div>
+      <div style="font-size:10px;color:#a08a5a;letter-spacing:.5px;text-transform:uppercase;margin:-4px 0 5px">${window.getVehicleBrand(car.name).displayName}${window._crownExclusive(car.name)?' · tylko w tej galerii':''}</div>
       <p style="font-size:12px">${car.desc}</p>
       <p style="font-size:11px;color:#8fb8d8;margin-bottom:5px">Prędkość: <b>${spd}</b> · Sława: <b>${car.fame>0?'+'+car.fame:car.fame}</b></p>
       ${reqStr.length?`<p style="font-size:10px;color:${reqOk?'#7ec87e':'#e08a6a'};margin-bottom:5px">Wymaga: ${reqStr.join(' · ')}</p>`:''}
@@ -58596,8 +58645,8 @@ window._crownOpen=function(){
     <p class="sub">Galeria marek premium, luksusowych i egzotycznych. Ceny i wymagania są takie same jak wszędzie — zmienia się tylko miejsce, w którym te auta stoją.</p>
     <div style="background:#1a1508;border-left:3px solid #e8c56a;border-radius:6px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:#d8c8a0">
       Aktualnie: ${G.car?'🚗 <b>'+window.carDisplayName(G.car.name)+'</b>':'brak samochodu'} · Portfel: <b>${(G.money||0).toLocaleString('pl')} zł</b><br>
-      Marki firmowe galerii: <b>${window._crownExclusiveBrandIds().map(i=>VEHICLE_BRANDS[i].displayName).join(', ')}</b>
-      — tutaj mają pełną ekspozycję i opis. Kupisz je również w CityDrive Motors, na tych samych warunkach.
+      Marki prowadzone wyłącznie przez tę galerię: <b>${window._crownExclusiveBrandIds().map(i=>VEHICLE_BRANDS[i].displayName).join(', ')}</b>.
+      Katalog galerii otworzysz także z salonu CityDrive Motors — nie musisz tu przyjeżdżać, żeby kupić.
     </div>
     <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
       <button class="cbtn" style="font-size:12px;padding:7px 11px" onclick="window._avOpenCompare()">⚖️ Porównywarka AutoVista 360</button>
@@ -58618,7 +58667,7 @@ window._crownBrandsInfo=function(){
     <p class="sub">Każda marka ma własny profil rynkowy i charakter.</p>
     ${ids.map(i=>{const b=VEHICLE_BRANDS[i];const n=window._crownCars().filter(c=>window.getVehicleBrand(c.name).id===i).length;
       return `<div style="background:#12100a;border:1px solid #3a3020;border-radius:9px;padding:10px 12px;margin-bottom:8px">
-        <div style="font-weight:800;color:#e8c56a;font-size:14px">${b.displayName}${window._crownExclusiveBrandIds().includes(i)?' <span style="font-size:10px;color:#a08a5a">· marka firmowa galerii</span>':''}</div>
+        <div style="font-weight:800;color:#e8c56a;font-size:14px">${b.displayName}${window._crownExclusiveBrandIds().includes(i)?' <span style="font-size:10px;color:#a08a5a">· tylko w tej galerii</span>':''}</div>
         <div style="font-size:12px;color:#cdd;margin:3px 0">${b.positioning}</div>
         <div style="font-size:11px;color:#8a7a5a">${b.dna}</div>
         <div style="font-size:11px;color:#6a8caa;margin-top:4px">Pochodzenie: ${b.origin} · Modeli w galerii: ${n}</div>
@@ -58952,8 +59001,133 @@ window._avOpenCompare=function(){
     <button class="cbtn" onclick="closeOverlay()">← Zamknij</button>`;
 };
 /* ═══════════════════════════════════════════════════════════════════════════
+
+
    CROWNLINE AUTO GALLERY + AUTOVISTA 360 MODULE END
    ═══════════════════════════════════════════════════════════════════════════ */
+/* ═══ GRAVEL LOT — RYNEK WTÓRNY (v2.3.129, PDF marek §7.4) ═══
+   „Gravel Lot Motors: używane egzemplarze wszystkich marek, z naciskiem na Rovan, Calder,
+   Solenne, Vandermark i starsze Vahl." Do v2.3.128 Korek handlował WYŁĄCZNIE kamperami —
+   auta osobowe z drugiej ręki nie istniały. Oferta rotuje dziennie, cena zależy od stanu
+   technicznego, a kupione auto trafia do garażu z tym właśnie stanem (nie 100%). */
+const GL_FOCUS_BRANDS=['rovan','calder','solenne','vandermark','vahl'];
+
+window._glEnsure=function(){
+  if(!G.gravelUsed||typeof G.gravelUsed!=='object') G.gravelUsed={};
+  const g=G.gravelUsed;
+  if(g.day==null) g.day=-1;
+  if(!Array.isArray(g.stock)) g.stock=[];
+  if(!Array.isArray(g.bought)) g.bought=[];
+  return g;
+};
+/* Deterministyczny generator na dobę — ta sama oferta po zapisie i wczytaniu. */
+window._glRng=function(seed){ let x=(seed>>>0)||1;
+  return ()=>{ x^=x<<13;x>>>=0; x^=x>>17; x^=x<<5;x>>>=0; return x/4294967296; }; };
+
+window._glRefresh=function(force){
+  const g=window._glEnsure(); const day=G.day||1;
+  if(!force && g.day===day && g.stock.length) return g.stock;
+  const rnd=window._glRng(day*7919+331);
+  /* rynek wtórny nie prowadzi hipersamochodów ani limuzyn z salonu — to plac z używkami */
+  const pool=CAR_CATALOG.filter(c=>{
+    const b=(typeof window.getVehicleBrand==='function')?window.getVehicleBrand(c.name):null;
+    if(!b) return false;
+    if(!Array.isArray(b.dealershipAffinity)||!b.dealershipAffinity.includes('gravel_lot_motors')){
+      /* §7.4 „używane egzemplarze WSZYSTKICH marek" — pozostałe marki trafiają tu rzadziej */
+      return c.price<=250000;
+    }
+    return true;
+  });
+  const weight=(c)=>{
+    const b=window.getVehicleBrand(c.name);
+    return (b&&GL_FOCUS_BRANDS.includes(b.id))?3:1;   /* „z naciskiem na…" */
+  };
+  const bag=[]; pool.forEach(c=>{ const w=weight(c); for(let i=0;i<w;i++) bag.push(c); });
+  const picked=[]; const seen=new Set();
+  let guard=0;
+  while(picked.length<6 && guard++<400){
+    const c=bag[Math.floor(rnd()*bag.length)];
+    if(!c||seen.has(c.name)) continue;
+    seen.add(c.name);
+    const cond=38+Math.floor(rnd()*48);                 /* 38-85% stanu */
+    const km=Math.round((120-cond)*2600+rnd()*40000);
+    const flaws=[];
+    if(cond<52) flaws.push('ślady korozji na progach');
+    if(cond<62 && rnd()<0.6) flaws.push('wytarte wnętrze');
+    if(rnd()<0.35) flaws.push('lakier poprawiany na jednym elemencie');
+    if(rnd()<0.25) flaws.push('komplet opon do wymiany przed zimą');
+    if(!flaws.length) flaws.push('bez uwag na pierwszy rzut oka');
+    /* cena: im gorszy stan, tym taniej; rynek wtórny zawsze poniżej salonu */
+    const mult=0.34+0.0042*cond;
+    picked.push({ name:c.name, price:Math.max(900,Math.round(c.price*mult/100)*100),
+                  cond, km, flaws, speed:c.speed, id:'gl_'+day+'_'+picked.length });
+  }
+  g.stock=picked; g.day=day;
+  return g.stock;
+};
+window._glBuy=function(offerId){
+  const g=window._glEnsure();
+  const o=g.stock.find(x=>x.id===offerId);
+  if(!o) return {ok:false,msg:'Tej sztuki już nie ma na placu.'};
+  if((G.money||0)<o.price) return {ok:false,msg:`Za mało pieniędzy — potrzebujesz ${o.price.toLocaleString('pl')} zł.`};
+  const cc=CAR_CATALOG.find(c=>c.name===o.name);
+  if(!cc) return {ok:false,msg:'Korek nie może znaleźć dokumentów tego auta.'};
+  const firstTime=!((G._ownedCars||[]).includes(o.name));
+  G.money-=o.price;
+  G._ownedCars=G._ownedCars||[];
+  if(firstTime) G._ownedCars.push(o.name);
+  /* stan techniczny z oferty — TO jest sens rynku wtórnego (salon daje 100%) */
+  G._carCond=G._carCond||{};
+  if(G.car&&G.car.name){ G._carCond[G.car.name]={cond:(G.car.condition==null?100:G.car.condition),color:G.car.color||null}; }
+  G._carCond[o.name]={cond:o.cond,color:(G._carCond[o.name]||{}).color||null};
+  G.car={name:o.name,speed:cc.speed,price:cc.price,condition:o.cond,color:(G._carCond[o.name]||{}).color||undefined};
+  G._inCar=true;
+  g.stock=g.stock.filter(x=>x.id!==offerId);
+  g.bought.push({name:o.name,day:G.day||1,price:o.price,cond:o.cond});
+  const disp=(typeof carDisplayName==='function')?carDisplayName(o.name):o.name;
+  if(typeof notify==='function') notify(`🚗 ${disp} z drugiej ręki — stan ${o.cond}%. Serwis w Garage 77 doprowadzi go do porządku.`);
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof window._vehStateEnsure==='function'){ try{ window._vehStateEnsure(); }catch(e){} }
+  return {ok:true,msg:`Kupione: ${disp} za ${o.price.toLocaleString('pl')} zł (stan ${o.cond}%).`};
+};
+window._glUsedPanel=function(){
+  const stock=window._glRefresh();
+  if(typeof openOverlay==='function') openOverlay();
+  const card=(o)=>{
+    const cc=CAR_CATALOG.find(c=>c.name===o.name)||{};
+    const b=(typeof window.getVehicleBrand==='function')?window.getVehicleBrand(o.name):null;
+    const col=o.cond>=70?'#7ec87e':(o.cond>=52?'#e8a020':'#e0705a');
+    return `<div class="sitem" style="border-color:#4a4030">
+      <h3 style="color:#d8c8a0">${(typeof carDisplayName==='function')?carDisplayName(o.name):o.name}</h3>
+      <div style="font-size:10px;color:#8a7a5a;letter-spacing:.5px;text-transform:uppercase;margin:-4px 0 5px">${b?b.displayName:''} · rynek wtórny</div>
+      <p style="font-size:11px;color:#9ab">Przebieg ${o.km.toLocaleString('pl')} km · stan <b style="color:${col}">${o.cond}%</b></p>
+      <p style="font-size:11px;color:#8fb8d8">${o.flaws.join(' · ')}</p>
+      <p style="font-size:10px;color:#667">Nowy w salonie: ${(cc.price||0).toLocaleString('pl')} zł</p>
+      <div class="pr" style="color:#d8c8a0">${o.price.toLocaleString('pl')} zł</div>
+      <button class="bbtn" style="width:100%;font-size:11px;padding:6px" onclick="window._glBuyBtn('${o.id}')" ${(G.money||0)<o.price?'disabled':''}>Kup z placu</button>
+    </div>`;
+  };
+  document.getElementById('ov-content').innerHTML=`
+    <h2 style="color:#d8c8a0">🔧 Gravel Lot Motors — plac z używkami</h2>
+    <p class="sub">Auta z drugiej ręki, każde z własnym przebiegiem i stanem technicznym. Oferta zmienia się codziennie.</p>
+    <div style="background:#1a1610;border-left:3px solid #d8c8a0;border-radius:6px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:#c8bca0">
+      Korek: „Stan techniczny podaję uczciwie. Co z nim zrobisz, to już twoja sprawa — Garage 77 przyjmie każdego."<br>
+      Portfel: <b>${(G.money||0).toLocaleString('pl')} zł</b> · na placu: <b>${stock.length}</b> sztuk
+    </div>
+    ${stock.length?`<div class="shopgrid">${stock.map(card).join('')}</div>`
+      :'<div style="background:#0a1220;border-radius:8px;padding:14px;font-size:13px;color:#9ab;text-align:center">Plac jest dziś pusty. Korek mówi, żeby wpaść jutro.</div>'}
+    <div class="res" id="gl-res">Auto z placu trafia do garażu w takim stanie, w jakim je kupisz.</div>
+    <div style="display:flex;gap:6px;margin-top:8px">
+      <button class="cbtn" style="flex:1" onclick="window._avOpenCompare()">⚖️ Porównaj w AutoVista 360</button>
+      <button class="cbtn" style="flex:1" onclick="closeOverlay()">← Wróć</button>
+    </div>`;
+};
+window._glBuyBtn=function(id){
+  const r=window._glBuy(id);
+  window._glUsedPanel();
+  const e=document.getElementById('gl-res'); if(e) e.textContent=r.msg;
+};
+
 
 /* ═══════════════════════════════════════════════════════════════════════════
    PINEGLASS WOODS MODULE START — v2.3.129
@@ -59365,9 +59539,11 @@ window.drawPineglassTrailhead=function(sx,sy,w,h){
    Warstwa incydentów miejskich: jedno zdarzenie = JEDEN incidentId, policja wie tylko to,
    co zaobserwowała, zgłosił świadek albo zarejestrował monitoring, a jednostki fizycznie
    dojeżdżają zamiast teleportować się na miejsce.
-   ⚠️ DYREKTYWA WDROŻENIOWA (PDF §16): warstwy uruchamiane po kolei — najpierw ruch,
-   obserwacja i kontrola drogowa, potem pościgi, ratownictwo i pożary. Kolejność pilnuje
-   `RG_STAGES` i `_rgStageActive()`; wyższe warstwy nie ruszają, dopóki niższa nie jest stabilna.
+   ⚠️ DYREKTYWA WDROŻENIOWA (PDF §16.5 pkt 1) dotyczy KOLEJNOŚCI PISANIA KODU, nie progresji
+   gracza: „najpierw wykroczenie i prosty raport, później wypadki i zamknięcia, następnie
+   pościgi, ambulans oraz pożary". Wszystkie warstwy są zbudowane, a bramy jakości §16.3
+   (kryteria 31-35) przechodzą, więc `RG_STAGES` opisuje dziś kolejność powstawania modułu,
+   a gracz od pierwszej minuty ma komplet zdarzeń.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* §14 Etapy wdrożenia — warstwa aktywuje się dopiero, gdy poprzednia jest stabilna */
@@ -59435,7 +59611,16 @@ window._rgEnsure=function(){
   if(!Array.isArray(r.history)) r.history=[];
   if(!Array.isArray(r.traces)) r.traces=[];      /* §10 pamięć miasta do 4 dni */
   if(r.seq==null) r.seq=4820;
-  if(r.stage==null) r.stage=1;                   /* §14 aktywna warstwa wdrożenia */
+  /* v2.3.129 KOREKTA ODCZYTU PDF: §16.5 pkt 1 („Nie implementuj wszystkich warstw
+     jednocześnie, tylko po kolei") to dyrektywa KOLEJNOŚCI WDRAŻANIA DLA AUTORA, a nie
+     bramka progresji dla gracza. Bramy jakości §16.3 (kryteria 31-35) są spełnione i
+     pilnowane przez sędziego, więc wszystkie warstwy są aktywne od pierwszej minuty.
+     Wcześniej świeży zapis startował na warstwie 1 i gracz musiał domknąć kilkanaście
+     incydentów, zanim w mieście w ogóle pojawiły się pościgi, ratownictwo i pożary. */
+  if(r.stage==null) r.stage=RG_STAGES.length;
+  /* migracja starych zapisów: dociągnięcie do pełnego zestawu warstw NIC nie odbiera —
+     wyłącznie dokłada zdarzenia, które i tak są zaimplementowane (reguła #1). */
+  if(r.stage<RG_STAGES.length) r.stage=RG_STAGES.length;
   if(r.chaosBudget==null) r.chaosBudget=100;
   if(r.lastGenDay==null) r.lastGenDay=-99;
   if(r.lastGenMin==null) r.lastGenMin=-999;
@@ -59464,10 +59649,11 @@ window._rgSpawnUnits=function(){
 /* §14 — warstwa działa tylko, gdy jest odblokowana kolejnością wdrożenia */
 window._rgStageActive=function(n){ return window._rgEnsure().stage>=n; };
 window._rgAdvanceStage=function(){
+  /* Wszystkie warstwy są aktywne od startu (patrz komentarz przy r.stage w _rgEnsure).
+     Funkcja została jako bezpiecznik: gdyby zapis przyszedł z niższą warstwą — na przykład
+     ze starszej wersji gry — podnosi ją do pełnego zestawu zamiast blokować treść. */
   const r=window._rgEnsure();
-  /* warunek przejścia: poprzednia warstwa domknęła co najmniej 3 incydenty bez zakleszczeń */
-  const resolved=r.incidents.filter(i=>i.status==='resolved'||i.status==='archived').length;
-  if(resolved>=r.stage*3 && r.telemetry.unitStuck===0 && r.stage<RG_STAGES.length){ r.stage++; return r.stage; }
+  if(r.stage<RG_STAGES.length) r.stage=RG_STAGES.length;
   return r.stage;
 };
 
@@ -59952,7 +60138,7 @@ window._rgPanel=function(){
   if(typeof openOverlay==='function') openOverlay();
   document.getElementById('ov-content').innerHTML=`
     <h2>🚨 RESPONSE GRID</h2>
-    <p class="sub">Warstwa ${r.stage}/6 — ${RG_STAGES[r.stage-1].name}. ${RG_STAGES[r.stage-1].scope}</p>
+    <p class="sub">Aktywne wszystkie warstwy (${r.stage}/${RG_STAGES.length}): ${RG_STAGES.map(x=>x.name).join(' · ')}.</p>
     <div style="background:#0d1420;border:1px solid #1e2c3e;border-radius:10px;padding:11px;font-size:12px;color:#cdd;line-height:1.75">
       Aktywne zdarzenia: <b>${active.length}</b> · zamknięcia: <b>${r.closures.length}</b> · korki: <b>${window._rgCongestion()}%</b><br>
       Jednostki: ${r.units.map(u=>u.unitId+(u.currentIncidentId?'*':'')).join(', ')}<br>
@@ -82806,6 +82992,10 @@ const PATCH_NOTES = [
   {t:'new',d:'🥾 Odzież terenowa wreszcie ma gdzie działać: obniża zmęczenie na szlaku, pozwala wejść głębiej po runo i przejść potok suchą stopą. Bez niej przemokniesz i stracisz zdrowie.'},
   {t:'new',d:'🌧 Deszcz i mróz w lesie kosztują znacznie więcej sił niż w mieście, a kurtki pogodowe realnie to zdejmują. Po przemoczeniu ubranie traci na prezentacji, dopóki nie wysuszysz go przy ognisku. Materiał z punktu widokowego wychodzi dużo lepiej przy czystym powietrzu.'},
   {t:'change',d:'🧥 Techniczny płaszcz terenowy sprzedawany jest teraz tym, którzy faktycznie chodzą po Pineglass Woods, a nie po prostu osiągnęli poziom. Jeśli masz go już w szafie, zostaje Twój.'},
+  {t:'change',d:'🧰 Każde z 42 zleceń dorywczych ma teraz własną treść, a nie wspólny zestaw dla całej grupy. Kurier jeździ pod inne adresy niż valet i bagażowy, wyprowadzanie psów ma inne zgłoszenia niż szatnia czy stoisko z merchem, a przy przeprowadzce, montażu sceny i odśnieżaniu robisz co innego niż u lektora.'},
+  {t:'change',d:'🚨 Życie miasta działa od pierwszej minuty w pełnym zakresie — pościgi, karetki i pożary nie czekają już, aż domkniesz kilkanaście wcześniejszych zdarzeń. Zapisy sprzed tej wersji dostają komplet zdarzeń automatycznie.'},
+  {t:'change',d:'🚘 Trzy salony mają wreszcie rozdzielone oferty. Kepler, Vantori, Marlowe & Finch i Aethon prowadzi wyłącznie Crownline Auto Gallery — ale jej katalog otworzysz jednym przyciskiem prosto z CityDrive, więc kupisz te auta dokładnie tak samo wcześnie jak dotąd.'},
+  {t:'feature',d:'🔧 Gravel Lot Motors handluje teraz także używanymi autami osobowymi, nie tylko kamperami. Korek ma na placu kilka sztuk dziennie, każda z własnym przebiegiem, stanem technicznym i listą usterek — auto trafia do garażu w takim stanie, w jakim je kupisz, a cena jest wyraźnie niższa niż w salonie. Oferta zmienia się codziennie.'},
  ]
  },
  {
