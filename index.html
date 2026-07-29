@@ -3506,6 +3506,13 @@ const ROOMS = {
          → 1024,660: Vesper stoi TERAZ obok Eclipse (34px luka) i przed Aureum (42px luka), w pełni na marmurze
          (1024-1174 × 660-800), zero nachodzenia, zero borderu. */
       {id:'vesper_business',   wx:1024,wy:660, w:150,h:140, act:'business_vesper',    prompt:'[E] 🏨 The Vesper House',      lbl:'Vesper House'},
+      /* v2.3.129 (PDF „Nowa architektura marek…" §7.4): TRZECI salon obok CityDrive i Gravel Lot —
+         Ardent, Vahl, Karsen, Marlowe & Finch, Vantori, Aethon, Ionis i premium SUV-y.
+         Pozycja @140,776 (pawilon 170×80, niska przeszklona bryła): pod parkingiem (dół 762, luka 14 px),
+         POZA jezdnią poziomą (y384-576), jej chodnikiem (y576-624) i pionową ulicą z chodnikami (x624-816).
+         Dolna krawędź 856 = dokładnie tyle, co sprawdzona bryła Aureum Green — więc poza ciemnym borderem.
+         Pierwsza próba @60,760×150 nachodziła 2 px na parking — wykrył to sędzia, nie oko. */
+      {id:'crownline_business',wx:140, wy:776, w:170,h:80,  act:'business_crownline', prompt:'[E] 💎 Crownline Auto Gallery', lbl:'Crownline'},
     ]
   },
 
@@ -4360,6 +4367,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'eclipse_business': drawEclipseClub(sx,sy,w,h);break;
     case 'aureum_business': drawAureumClub(sx,sy,w,h);break;               /* PDF Business/golf: Aureum Green Club */
     case 'vesper_business': drawVesperHotel(sx,sy,w,h);break;              /* PDF Vesper House §2: butikowy hotel pod Eclipse Noir */
+    case 'crownline_business': drawCrownlineGallery(sx,sy,w,h);break;      /* PDF marek §7.4: trzeci salon — galeria premium */
     case 'eclipse_stage':  drawEclipseStage(sx,sy,w,h);break;
     case 'eclipse_bar':    drawCasinoBar(sx,sy,w,h,'eclipse');break;
     case 'eclipse_dance':  drawEclipseDancefloor(sx,sy,w,h);break;
@@ -42954,6 +42962,12 @@ function renderSalon(){
       <div style="flex:1;text-align:center;padding:9px 6px;font-weight:800;font-size:13px;color:#7ec8e3;background:#0e1830;border:1px solid #1a3a5a;border-bottom:2px solid #7ec8e3;border-radius:8px 8px 0 0">🚗 Samochody osobowe</div>
       <button class="cbtn" style="flex:1;padding:9px 6px;font-weight:800;font-size:13px;color:#b18cd9;background:#12102a;border:1px solid #2a1f4a;border-bottom:none;border-radius:8px 8px 0 0;cursor:pointer" onclick="window.renderCamperShop('citydrive')">🚐 Kampery — mobilne zaplecze</button>
     </div>
+    <!-- v2.3.129 (PDF marek §7.4 + kryterium #12): podgląd AutoVista 360 i porównywarka dostępne
+         także z CityDrive — te same nazwy i dane co w galerii Crownline oraz w garażu. -->
+    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="cbtn" style="font-size:12px;padding:7px 11px" onclick="window._avOpenCompare()">⚖️ Porównywarka AutoVista 360</button>
+      <button class="cbtn" style="font-size:12px;padding:7px 11px" onclick="window._avOpen(G.car?G.car.name:CAR_CATALOG[0].name)">🔄 Podgląd AutoVista 360</button>
+    </div>
     <!-- v2.3.102 (PDF #8-27): pozycja „Bagażnik / schowek auta" USUNIĘTA ze sklepu — schowek jest dostępny tylko w POSIADANYM pojeździe (ekwipunek / panel pojazdu), nie w salonie. -->
     ${G.car?`<div style="background:#0a1220;border-radius:10px;padding:12px;margin-bottom:14px">
       <div style="font-size:13px;color:#aaa;margin-bottom:8px">🎨 Kolor lakieru (bezpłatna zmiana):</div>
@@ -51562,6 +51576,59 @@ window._drawVesperSprite=function(id,sx,sy,w,h){
   frame(WOOD2); X.fillStyle='rgba(200,168,72,0.4)'; X.fillRect(sx+6,sy+6,w-12,h-12);
 };
 /* PDF Vesper House §2: fasada budynku na mapie Business — butikowy hotel, ciemna bryła, złote detale, okna w ciepłym świetle, markiza. */
+/* PDF „Nowa architektura marek…" §7.4 — Crownline Auto Gallery: przeszklona galeria premium.
+   Fasada pokazuje realny towar: podświetlone auta na podestach za szybą, obrotowy podest i logo. */
+function drawCrownlineGallery(sx,sy,w,h){
+  const t=Date.now()/1000;
+  X.fillStyle='rgba(0,0,0,.42)'; X.fillRect(sx+5,sy+7,w,h);            /* cień bryły */
+  X.fillStyle='#141a24'; X.fillRect(sx,sy,w,h);                        /* korpus */
+  X.fillStyle='#1b2330'; X.fillRect(sx,sy,w,18);
+  /* przeszklona witryna na całą wysokość parteru */
+  const gx=sx+9, gy=sy+26, gw=w-18, gh=h-58;
+  X.fillStyle='#0a1018'; X.fillRect(gx,gy,gw,gh);
+  const gg=X.createLinearGradient(gx,gy,gx+gw,gy+gh);
+  gg.addColorStop(0,'rgba(150,200,235,.16)'); gg.addColorStop(.5,'rgba(150,200,235,.05)');
+  gg.addColorStop(1,'rgba(150,200,235,.14)');
+  X.fillStyle=gg; X.fillRect(gx,gy,gw,gh);
+  /* auta na podestach — sylwetki widoczne zza szyby */
+  const carAt=(cx,cy,cw,col)=>{
+    X.fillStyle='rgba(0,0,0,.45)'; X.beginPath(); X.ellipse(cx,cy+7,cw*0.55,4,0,0,Math.PI*2); X.fill();
+    X.fillStyle=col; X.beginPath();
+    X.moveTo(cx-cw/2,cy+4); X.lineTo(cx-cw*0.34,cy-cw*0.16); X.lineTo(cx+cw*0.22,cy-cw*0.20);
+    X.lineTo(cx+cw/2,cy+4); X.closePath(); X.fill();
+    X.fillStyle='rgba(190,225,250,.55)';
+    X.fillRect(cx-cw*0.26,cy-cw*0.13,cw*0.40,cw*0.10);                 /* szyby auta */
+    X.fillStyle='#0b0e12';
+    X.beginPath(); X.arc(cx-cw*0.28,cy+5,cw*0.09,0,Math.PI*2); X.fill();
+    X.beginPath(); X.arc(cx+cw*0.28,cy+5,cw*0.09,0,Math.PI*2); X.fill();
+  };
+  /* podest obrotowy z pulsującym światłem */
+  const pw=gw*0.42, px=gx+gw*0.06, py=gy+gh*0.62;
+  X.fillStyle='#1e2836'; X.beginPath(); X.ellipse(px+pw/2,py+8,pw*0.52,7,0,0,Math.PI*2); X.fill();
+  X.save(); X.globalCompositeOperation='lighter'; X.globalAlpha=.20+0.10*Math.sin(t*1.5);
+  const pg=X.createRadialGradient(px+pw/2,py,2,px+pw/2,py,pw*0.7);
+  pg.addColorStop(0,'#e8c56a'); pg.addColorStop(1,'rgba(0,0,0,0)');
+  X.fillStyle=pg; X.beginPath(); X.arc(px+pw/2,py,pw*0.7,0,Math.PI*2); X.fill(); X.restore();
+  carAt(px+pw/2,py,pw*0.86,'#8d1f2b');                                  /* egzotyk na podeście */
+  carAt(gx+gw*0.74,gy+gh*0.38,gw*0.30,'#1c2530');                       /* limuzyna w głębi */
+  carAt(gx+gw*0.72,gy+gh*0.78,gw*0.28,'#c8ccd4');                       /* SUV premium */
+  /* pionowe słupy witryny */
+  X.fillStyle='#0d1219';
+  for(let i=1;i<4;i++) X.fillRect(gx+gw*i/4-2,gy,4,gh);
+  /* gzyms i szyld */
+  X.fillStyle='#0e131b'; X.fillRect(sx,sy+h-30,w,30);
+  X.fillStyle='#e8c56a'; X.fillRect(sx+10,sy+h-26,w-20,2);
+  X.font='bold 10px "Segoe UI",Arial'; X.textAlign='center';
+  X.fillStyle='#e8c56a'; X.fillText('CROWNLINE',sx+w/2,sy+h-13);
+  X.font='7px "Segoe UI",Arial'; X.fillStyle='rgba(232,197,106,.70)';
+  X.fillText('AUTO GALLERY',sx+w/2,sy+h-4);
+  X.textAlign='left';
+  /* dyskretne oświetlenie zewnętrzne */
+  X.save(); X.globalCompositeOperation='lighter'; X.globalAlpha=.14;
+  const lg=X.createLinearGradient(sx,sy+h-34,sx,sy+h);
+  lg.addColorStop(0,'rgba(232,197,106,0)'); lg.addColorStop(1,'#e8c56a');
+  X.fillStyle=lg; X.fillRect(sx,sy+h-34,w,34); X.restore();
+}
 function drawVesperHotel(sx,sy,w,h){
   const t=Date.now()/1000;
   X.fillStyle='rgba(0,0,0,.45)'; X.fillRect(sx+5,sy+7,w,h); /* cień */
@@ -58411,6 +58478,434 @@ window._sbDrawExterior=function(sx,sy,w,h){
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   CROWNLINE AUTO GALLERY + AUTOVISTA 360 MODULE START — v2.3.129
+   PDF „Nowa architektura marek i nazw pojazdów osobowych":
+     §7.4 — trzeci salon (Crownline Auto Gallery) dla marek Ardent, Vahl, Karsen,
+            Marlowe & Finch, Vantori, Aethon, Ionis oraz premium SUV-ów;
+            AutoVista 360 pobiera brandId/modelName/displayName z TEJ SAMEJ definicji.
+     §8 kryterium 12 — nazwy identyczne w salonie, AutoVista 360, porównywarce,
+            garażu, panelu floty i powiadomieniach (jedno źródło: getVehicleDisplayName).
+     §8 kryterium 17 — wymagania progresji i ceny pozostają zgodne z dotychczasową
+            konfiguracją (salon NIE zmienia req ani price; czyta CAR_CATALOG).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Katalog salonu wyliczany z afiliacji marek — zero drugiego źródła prawdy (§7.4). */
+window._crownBrandIds=function(){
+  return Object.values(VEHICLE_BRANDS)
+    .filter(b=>Array.isArray(b.dealershipAffinity)&&b.dealershipAffinity.includes('crownline_auto_gallery'))
+    .map(b=>b.id);
+};
+window._crownCars=function(){
+  const ids=window._crownBrandIds();
+  return CAR_CATALOG.filter(c=>{ const b=window.getVehicleBrand(c.name); return b&&ids.includes(b.id); });
+};
+/* Marki wyłączne dla Crownline (brak afiliacji do CityDrive) — to one dają salonowi sens. */
+window._crownExclusiveBrandIds=function(){
+  return Object.values(VEHICLE_BRANDS)
+    .filter(b=>Array.isArray(b.dealershipAffinity)&&b.dealershipAffinity.includes('crownline_auto_gallery')
+      &&!b.dealershipAffinity.includes('citydrive_motors'))
+    .map(b=>b.id);
+};
+window._crownExclusive=function(carName){
+  const b=window.getVehicleBrand(carName);
+  return !!(b&&window._crownExclusiveBrandIds().includes(b.id));
+};
+
+/* ── Panel salonu ── */
+window._crownOpen=function(){
+  const cars=window._crownCars().slice().sort((a,b)=>a.price-b.price);
+  const brandIds=window._crownBrandIds();
+  if(typeof openOverlay==='function') openOverlay();
+  const groups=brandIds.map(id=>({b:VEHICLE_BRANDS[id],list:cars.filter(c=>window.getVehicleBrand(c.name).id===id)}))
+    .filter(g=>g.list.length).sort((a,b)=>Math.max(...b.list.map(c=>c.price))-Math.max(...a.list.map(c=>c.price)));
+  const card=(car)=>{
+    const r=car.req||{};
+    const reqOk=(!r.level||G.level>=r.level)&&(!r.fame||(G.fame||0)>=r.fame)&&(!r.fans||(G.fans||0)>=r.fans);
+    const reqStr=[];
+    if(r.level) reqStr.push(`poziom ${r.level}${G.level>=r.level?' ✓':' ✕'}`);
+    if(r.fame) reqStr.push(`${r.fame} sławy${(G.fame||0)>=r.fame?' ✓':' ✕'}`);
+    if(r.fans) reqStr.push(`${r.fans.toLocaleString('pl')} fanów${(G.fans||0)>=r.fans?' ✓':' ✕'}`);
+    const owned=(G._ownedCars||[]).includes(car.name);
+    const isCurrent=G.car&&G.car.name===car.name;
+    const spd=car.speed>=2?`×${car.speed.toFixed(2).replace('.',',')}`:`+${Math.round((car.speed-1)*100)}%`;
+    return `<div class="sitem" style="border-color:#3a3020">
+      <h3 style="color:#e8c56a">${window.carDisplayName(car.name)}</h3>
+      <div style="font-size:10px;color:#a08a5a;letter-spacing:.5px;text-transform:uppercase;margin:-4px 0 5px">${window.getVehicleBrand(car.name).displayName}${window._crownExclusive(car.name)?' · wyłącznie tutaj':''}</div>
+      <p style="font-size:12px">${car.desc}</p>
+      <p style="font-size:11px;color:#8fb8d8;margin-bottom:5px">Prędkość: <b>${spd}</b> · Sława: <b>${car.fame>0?'+'+car.fame:car.fame}</b></p>
+      ${reqStr.length?`<p style="font-size:10px;color:${reqOk?'#7ec87e':'#e08a6a'};margin-bottom:5px">Wymaga: ${reqStr.join(' · ')}</p>`:''}
+      <div class="pr" style="color:#e8c56a">${car.price.toLocaleString('pl')} zł</div>
+      ${owned&&!isCurrent?'<div class="owned">✅ W Twojej flocie</div>':''}
+      <div style="display:flex;gap:5px;margin-top:5px">
+        <button class="cbtn" style="flex:1;font-size:11px;padding:6px" onclick="window._avOpen('${car.name.replace(/'/g,'')}')">🔄 AutoVista 360</button>
+        <button class="bbtn" style="flex:1;font-size:11px;padding:6px" onclick="buyCar('${car.name.replace(/'/g,'')}',${car.speed},${car.price})" ${isCurrent||(!owned&&(!reqOk||G.money<car.price))?'disabled':''}>${isCurrent?'Aktualne':owned?'Przesiądź się':'Kup'}</button>
+      </div></div>`;
+  };
+  document.getElementById('ov-content').innerHTML=`
+    <h2 style="color:#e8c56a">💎 Crownline Auto Gallery</h2>
+    <p class="sub">Galeria marek premium, luksusowych i egzotycznych. Ceny i wymagania są takie same jak wszędzie — zmienia się tylko miejsce, w którym te auta stoją.</p>
+    <div style="background:#1a1508;border-left:3px solid #e8c56a;border-radius:6px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:#d8c8a0">
+      Aktualnie: ${G.car?'🚗 <b>'+window.carDisplayName(G.car.name)+'</b>':'brak samochodu'} · Portfel: <b>${(G.money||0).toLocaleString('pl')} zł</b><br>
+      Marki wyłączne dla tej galerii: <b>${window._crownExclusiveBrandIds().map(i=>VEHICLE_BRANDS[i].displayName).join(', ')}</b>.
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="cbtn" style="font-size:12px;padding:7px 11px" onclick="window._avOpenCompare()">⚖️ Porównywarka AutoVista 360</button>
+      <button class="cbtn" style="font-size:12px;padding:7px 11px" onclick="window._crownBrandsInfo()">🏷 Marki w galerii</button>
+    </div>
+    ${groups.map(g=>`
+      <h3 style="color:#e8c56a;margin:14px 0 6px;font-size:14px;border-bottom:1px solid #3a3020;padding-bottom:4px">${g.b.displayName} — ${g.b.positioning}</h3>
+      <p style="font-size:11px;color:#8a7a5a;margin:0 0 8px">${g.b.dna}</p>
+      <div class="shopgrid">${g.list.map(card).join('')}</div>`).join('')}
+    <div class="res" id="crown-res">Podgląd AutoVista 360 pozwala obejrzeć auto z każdej strony przed zakupem.</div>
+    <button class="cbtn" onclick="closeOverlay()">← Wróć</button>`;
+};
+window._crownBrandsInfo=function(){
+  const ids=window._crownBrandIds();
+  if(typeof openOverlay==='function') openOverlay();
+  document.getElementById('ov-content').innerHTML=`
+    <h2 style="color:#e8c56a">🏷 Marki w Crownline Auto Gallery</h2>
+    <p class="sub">Każda marka ma własny profil rynkowy i charakter.</p>
+    ${ids.map(i=>{const b=VEHICLE_BRANDS[i];const n=window._crownCars().filter(c=>window.getVehicleBrand(c.name).id===i).length;
+      return `<div style="background:#12100a;border:1px solid #3a3020;border-radius:9px;padding:10px 12px;margin-bottom:8px">
+        <div style="font-weight:800;color:#e8c56a;font-size:14px">${b.displayName}${window._crownExclusiveBrandIds().includes(i)?' <span style="font-size:10px;color:#a08a5a">· wyłącznie w tej galerii</span>':''}</div>
+        <div style="font-size:12px;color:#cdd;margin:3px 0">${b.positioning}</div>
+        <div style="font-size:11px;color:#8a7a5a">${b.dna}</div>
+        <div style="font-size:11px;color:#6a8caa;margin-top:4px">Pochodzenie: ${b.origin} · Modeli w galerii: ${n}</div>
+      </div>`;}).join('')}
+    <button class="cbtn" onclick="window._crownOpen()">← Wróć do galerii</button>`;
+};
+
+/* ══ AUTOVISTA 360 — podgląd pojazdu z ośmiu stron i porównywarka ══ */
+/* v2.3.129: cztery pewne ujęcia zamiast ośmiu. Widoki trzy-czwarte, składane z profilu
+   bocznego i ściany czołowej, czytały się jak dwie sklejone bryły — zamiast wypuszczać słabą
+   grafikę, obrót prowadzi przez przód → prawy bok → tył → lewy bok. */
+const AV_DIRS=[
+  {id:0,label:'Przód'},{id:1,label:'Prawy bok'},{id:2,label:'Tył'},{id:3,label:'Lewy bok'}
+];
+window._avPalette=[
+  {n:'Czarny',c:'#181c22',hi:'#3a4250'},{n:'Biały',c:'#dfe3e8',hi:'#ffffff'},
+  {n:'Srebrny',c:'#9aa3ad',hi:'#cdd4dc'},{n:'Grafitowy',c:'#4a525c',hi:'#6f7883'},
+  {n:'Czerwony',c:'#9d2028',hi:'#d4434c'},{n:'Granatowy',c:'#1d3358',hi:'#365a92'},
+  {n:'Zielony',c:'#1d4a34',hi:'#2f7a55'},{n:'Złoty',c:'#8a6a28',hi:'#c9a24a'},
+];
+/* Sylwetki nadwozi jako profil boczny (x: -0.5 tył → +0.5 przód, y: 0 ziemia → góra).
+   `seg` opisuje segment PROWADZĄCY do następnego punktu — stąd wiadomo, co jest szybą.
+   Bryła jest zamknięta (ostatni punkt łączy się z pierwszym podwoziem). */
+/* Proporcje nadwozia. L=długość, Hb=wysokość nadwozia, Hc=wysokość kabiny (nad linią okien),
+   cab=[początek,koniec] kabiny wzdłuż długości, wr=promień koła, front/back=osie kół, nose/tail=zwisy. */
+const AV_BODY={
+  compact:{L:1.00,Hb:0.30,Hc:0.30,cab:[0.30,0.76],wr:0.115,fw:0.24,bw:0.76,nose:0.10,tail:0.08,grille:0.42},
+  sedan:  {L:1.22,Hb:0.29,Hc:0.25,cab:[0.34,0.74],wr:0.112,fw:0.23,bw:0.78,nose:0.15,tail:0.13,grille:0.40},
+  sports: {L:1.20,Hb:0.24,Hc:0.19,cab:[0.38,0.70],wr:0.115,fw:0.22,bw:0.79,nose:0.17,tail:0.13,grille:0.34},
+  luxury: {L:1.34,Hb:0.31,Hc:0.26,cab:[0.34,0.76],wr:0.110,fw:0.22,bw:0.79,nose:0.16,tail:0.15,grille:0.44},
+  suv:    {L:1.14,Hb:0.38,Hc:0.30,cab:[0.30,0.80],wr:0.145,fw:0.23,bw:0.78,nose:0.11,tail:0.09,grille:0.46},
+  van:    {L:1.22,Hb:0.46,Hc:0.30,cab:[0.24,0.88],wr:0.125,fw:0.21,bw:0.80,nose:0.09,tail:0.06,grille:0.44},
+};
+window._avShade=function(hex,k){
+  const n=parseInt(hex.slice(1),16);
+  const c=i=>Math.max(0,Math.min(255,Math.round(((n>>i)&255)*k)));
+  return 'rgb('+c(16)+','+c(8)+','+c(0)+')';
+};
+/* Podgląd pojazdu — pięć ręcznie złożonych ujęć (bok, przód, tył i dwa trzy-czwarte),
+   widoki lewej strony to lustrzane odbicia prawych. Rysowane 2D, spójnie z resztą gry. */
+window._avDrawCar=function(cv,carName,dir,zoom,colIdx){
+  if(!cv) return; const g=cv.getContext('2d'); if(!g) return;
+  const W=cv.width,H=cv.height;
+  const car=CAR_CATALOG.find(c=>c.name===carName)||CAR_CATALOG[0];
+  const B=AV_BODY[car.body]||AV_BODY.sedan;
+  const pal=window._avPalette[(colIdx||0)%window._avPalette.length];
+  const body=pal.c, lit=window._avShade(body,1.34), dim=window._avShade(body,0.62), deep=window._avShade(body,0.44);
+  const GLASS='rgba(146,196,232,.62)', GLASS_D='rgba(96,140,178,.55)';
+  /* studio */
+  const bg=g.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#151a23'); bg.addColorStop(1,'#090c11');
+  g.fillStyle=bg; g.fillRect(0,0,W,H);
+  const rg=g.createRadialGradient(W/2,H*0.68,6,W/2,H*0.68,W*0.62);
+  rg.addColorStop(0,'rgba(150,185,215,.16)'); rg.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=rg; g.fillRect(0,0,W,H);
+  g.strokeStyle='rgba(126,200,227,.07)'; g.lineWidth=1;
+  for(let i=1;i<8;i++){ const y=H*0.72+i*i*1.7; if(y>H) break;
+    g.beginPath(); g.moveTo(0,y); g.lineTo(W,y); g.stroke(); }
+
+  const mirror=(dir===3), d=mirror?1:dir;               /* lewy bok = lustro prawego */
+  g.save(); if(mirror){ g.translate(W,0); g.scale(-1,1); }
+
+  const U=(zoom||1)*W*0.72;                              /* jednostka = długość auta */
+  const gy=H*0.76;                                       /* poziom podłoża */
+  const wr=B.wr*U;                                       /* promień koła */
+  const path=(pts,close)=>{ g.beginPath(); g.moveTo(pts[0][0],pts[0][1]);
+    for(let i=1;i<pts.length;i++) g.lineTo(pts[i][0],pts[i][1]); if(close!==false) g.closePath(); };
+  const shadow=(cxx,ww)=>{ g.save(); g.globalAlpha=.45; g.fillStyle='#000';
+    g.beginPath(); g.ellipse(cxx,gy+3,ww*0.52,wr*0.42,0,0,Math.PI*2); g.fill(); g.restore(); };
+  const wheel=(wx,wy,rx,ry)=>{
+    g.fillStyle='#090c10'; g.beginPath(); g.ellipse(wx,wy,rx,ry,0,0,Math.PI*2); g.fill();
+    g.fillStyle='#2a313a'; g.beginPath(); g.ellipse(wx,wy,rx*0.55,ry*0.55,0,0,Math.PI*2); g.fill();
+    g.fillStyle='#616b78'; g.beginPath(); g.ellipse(wx,wy,rx*0.24,ry*0.24,0,0,Math.PI*2); g.fill();
+  };
+
+  /* ── UJĘCIE BOCZNE (dir 2) ── */
+  const drawSide=()=>{
+    const L=B.L*U, x0=W/2-L/2, roof=gy-(B.Hb+B.Hc)*U, belt=gy-B.Hb*U, sill=gy-wr*0.55;
+    shadow(W/2,L);
+    const c0=x0+B.cab[0]*L, c1=x0+B.cab[1]*L;
+    /* nadwozie */
+    const gr=g.createLinearGradient(0,roof,0,gy); gr.addColorStop(0,lit); gr.addColorStop(.55,body); gr.addColorStop(1,dim);
+    g.fillStyle=gr;
+    path([[x0,belt-B.Hb*U*0.10],[x0+B.nose*L*0.5,belt-B.Hb*U*0.34],[c0,belt],
+          [c0+L*0.05,roof],[c1-L*0.06,roof],[c1,belt],
+          [x0+L-B.tail*L*0.4,belt-B.Hb*U*0.22],[x0+L,belt-B.Hb*U*0.02],[x0+L,sill],[x0,sill]]);
+    g.fill(); g.strokeStyle='rgba(0,0,0,.35)'; g.lineWidth=1.2; g.stroke();
+    /* szyby */
+    g.fillStyle=GLASS;
+    path([[c0+L*0.02,belt-2],[c0+L*0.055,roof+3],[c1-L*0.065,roof+3],[c1-L*0.02,belt-2]]); g.fill();
+    g.strokeStyle='rgba(20,30,42,.5)'; g.lineWidth=1;
+    g.beginPath(); g.moveTo((c0+c1)/2,roof+3); g.lineTo((c0+c1)/2,belt-2); g.stroke();
+    /* linia drzwi, klamki, próg */
+    g.strokeStyle='rgba(0,0,0,.28)';
+    g.beginPath(); g.moveTo(c0+L*0.03,belt); g.lineTo(c0+L*0.03,sill-2); g.stroke();
+    g.beginPath(); g.moveTo((c0+c1)/2,belt); g.lineTo((c0+c1)/2,sill-2); g.stroke();
+    g.fillStyle=deep; g.fillRect(c0+L*0.07,belt+B.Hb*U*0.24,L*0.05,2.5);
+    g.fillRect((c0+c1)/2+L*0.04,belt+B.Hb*U*0.24,L*0.05,2.5);
+    g.fillStyle='rgba(0,0,0,.30)'; g.fillRect(x0+L*0.06,sill-3,L*0.88,3);
+    /* nadkola */
+    g.fillStyle='rgba(0,0,0,.42)';
+    [B.fw,B.bw].forEach(f=>{ g.beginPath(); g.arc(x0+f*L,gy-wr*0.98,wr*1.16,Math.PI,0); g.fill(); });
+    /* światła */
+    g.fillStyle='#f6f2da'; g.fillRect(x0+1,belt-B.Hb*U*0.30,L*0.045,B.Hb*U*0.20);
+    g.fillStyle='#b4262c'; g.fillRect(x0+L-L*0.05,belt-B.Hb*U*0.22,L*0.045,B.Hb*U*0.18);
+    /* lusterko */
+    g.fillStyle=dim; g.fillRect(c0+L*0.02,belt-4,L*0.05,4);
+    [B.fw,B.bw].forEach(f=>wheel(x0+f*L,gy-wr,wr,wr));
+  };
+
+  /* ── UJĘCIE CZOŁOWE / TYLNE (dir 0 i 4) ── */
+  const drawEnd=(front)=>{
+    const wdt=B.L*U*0.50, x0=W/2-wdt/2;
+    const roof=gy-(B.Hb+B.Hc)*U, belt=gy-B.Hb*U, sill=gy-wr*0.5;
+    shadow(W/2,wdt*1.06);
+    const gr=g.createLinearGradient(x0,0,x0+wdt,0);
+    gr.addColorStop(0,dim); gr.addColorStop(.42,lit); gr.addColorStop(1,dim);
+    g.fillStyle=gr;
+    path([[x0+wdt*0.04,belt],[x0+wdt*0.16,roof],[x0+wdt*0.84,roof],[x0+wdt*0.96,belt],
+          [x0+wdt,belt+B.Hb*U*0.30],[x0+wdt,sill],[x0,sill],[x0,belt+B.Hb*U*0.30]]);
+    g.fill(); g.strokeStyle='rgba(0,0,0,.35)'; g.lineWidth=1.2; g.stroke();
+    /* szyba */
+    g.fillStyle=front?GLASS:GLASS_D;
+    path([[x0+wdt*0.10,belt-2],[x0+wdt*0.20,roof+4],[x0+wdt*0.80,roof+4],[x0+wdt*0.90,belt-2]]); g.fill();
+    /* dach */
+    g.fillStyle=lit; g.fillRect(x0+wdt*0.16,roof-2,wdt*0.68,3);
+    if(front){
+      g.fillStyle='#14181e'; g.fillRect(x0+wdt*(0.5-B.grille/2),belt+B.Hb*U*0.30,wdt*B.grille,B.Hb*U*0.30);
+      g.fillStyle='#f6f2da';
+      g.fillRect(x0+wdt*0.06,belt+B.Hb*U*0.26,wdt*0.22,B.Hb*U*0.20);
+      g.fillRect(x0+wdt*0.72,belt+B.Hb*U*0.26,wdt*0.22,B.Hb*U*0.20);
+      g.save(); g.globalCompositeOperation='lighter'; g.globalAlpha=.30; g.fillStyle='#fff4bc';
+      g.fillRect(x0+wdt*0.02,belt+B.Hb*U*0.20,wdt*0.30,B.Hb*U*0.32);
+      g.fillRect(x0+wdt*0.68,belt+B.Hb*U*0.20,wdt*0.30,B.Hb*U*0.32); g.restore();
+    } else {
+      g.fillStyle='#b4262c';
+      g.fillRect(x0+wdt*0.05,belt+B.Hb*U*0.24,wdt*0.24,B.Hb*U*0.18);
+      g.fillRect(x0+wdt*0.71,belt+B.Hb*U*0.24,wdt*0.24,B.Hb*U*0.18);
+      g.save(); g.globalCompositeOperation='lighter'; g.globalAlpha=.22; g.fillStyle='#ff5a5a';
+      g.fillRect(x0+wdt*0.02,belt+B.Hb*U*0.20,wdt*0.30,B.Hb*U*0.26);
+      g.fillRect(x0+wdt*0.68,belt+B.Hb*U*0.20,wdt*0.30,B.Hb*U*0.26); g.restore();
+      g.fillStyle='#2a3038'; g.fillRect(x0+wdt*0.62,sill-4,wdt*0.12,3);
+    }
+    /* zderzak + koła wystające po bokach */
+    g.fillStyle=deep; g.fillRect(x0,sill-5,wdt,5);
+    wheel(x0+wdt*0.045,gy-wr,wr*0.42,wr);
+    wheel(x0+wdt*0.955,gy-wr,wr*0.42,wr);
+    /* lusterka */
+    g.fillStyle=dim;
+    g.fillRect(x0-wdt*0.04,belt-1,wdt*0.07,B.Hb*U*0.14);
+    g.fillRect(x0+wdt*0.97,belt-1,wdt*0.07,B.Hb*U*0.14);
+  };
+
+  /* ── UJĘCIA TRZY-CZWARTE (dir 1 przód-prawo, dir 3 tył-prawo) ── */
+  const draw34=(front)=>{
+    const L=B.L*U*0.74, endW=B.L*U*0.30;
+    const totW=L+endW*0.55, x0=W/2-totW/2;
+    const roof=gy-(B.Hb+B.Hc)*U, belt=gy-B.Hb*U, sill=gy-wr*0.55;
+    shadow(W/2,totW);
+    /* W profilu bocznym PRZÓD auta jest po LEWEJ (tam są reflektory), więc ściana czołowa
+       musi doklejać się od lewej, a tylna od prawej. Nakładka 45% szerokości ściany daje
+       wrażenie opływowego narożnika zamiast dwóch rozjechanych brył. */
+    const sx0=front?(x0+endW*0.55):x0;
+    const ex0=front?x0:(x0+L-endW*0.45);
+    const c0=sx0+B.cab[0]*L, c1=sx0+B.cab[1]*L;
+    /* ściana czołowa/tylna (rysowana pierwsza — bok ją przykrywa krawędzią) */
+    const eg=g.createLinearGradient(ex0,0,ex0+endW,0);
+    eg.addColorStop(0,lit); eg.addColorStop(1,dim);
+    g.fillStyle=eg;
+    path([[ex0,belt],[ex0+endW*0.30,roof+ (front?6:4)],[ex0+endW,roof+(front?14:12)],
+          [ex0+endW,sill],[ex0,sill]]);
+    g.fill(); g.strokeStyle='rgba(0,0,0,.35)'; g.lineWidth=1.2; g.stroke();
+    g.fillStyle=front?GLASS:GLASS_D;
+    path([[ex0+endW*0.10,belt-3],[ex0+endW*0.34,roof+9],[ex0+endW*0.94,roof+16],[ex0+endW*0.86,belt-1]]); g.fill();
+    if(front){
+      g.fillStyle='#14181e'; g.fillRect(ex0+endW*0.16,belt+B.Hb*U*0.30,endW*0.66,B.Hb*U*0.28);
+      g.fillStyle='#f6f2da'; g.fillRect(ex0+endW*0.06,belt+B.Hb*U*0.24,endW*0.26,B.Hb*U*0.20);
+      g.save(); g.globalCompositeOperation='lighter'; g.globalAlpha=.30; g.fillStyle='#fff4bc';
+      g.fillRect(ex0,belt+B.Hb*U*0.18,endW*0.36,B.Hb*U*0.30); g.restore();
+    } else {
+      g.fillStyle='#b4262c'; g.fillRect(ex0+endW*0.06,belt+B.Hb*U*0.22,endW*0.28,B.Hb*U*0.18);
+      g.save(); g.globalCompositeOperation='lighter'; g.globalAlpha=.22; g.fillStyle='#ff5a5a';
+      g.fillRect(ex0,belt+B.Hb*U*0.16,endW*0.38,B.Hb*U*0.28); g.restore();
+    }
+    /* daleka strona kół — widoczne jest koło przy tej osi, w którą patrzymy */
+    wheel(sx0+(front?B.fw:B.bw)*L,gy-wr*0.94,wr*0.52,wr*0.92);
+    /* bok */
+    const gr=g.createLinearGradient(0,roof,0,gy); gr.addColorStop(0,lit); gr.addColorStop(.55,body); gr.addColorStop(1,dim);
+    g.fillStyle=gr;
+    path([[sx0,belt-B.Hb*U*0.06],[sx0+B.nose*L*0.5,belt-B.Hb*U*0.30],[c0,belt],
+          [c0+L*0.05,roof],[c1-L*0.06,roof],[c1,belt],
+          [sx0+L-B.tail*L*0.4,belt-B.Hb*U*0.20],[sx0+L,belt],[sx0+L,sill],[sx0,sill]]);
+    g.fill(); g.strokeStyle='rgba(0,0,0,.35)'; g.lineWidth=1.2; g.stroke();
+    g.fillStyle=GLASS;
+    path([[c0+L*0.02,belt-2],[c0+L*0.055,roof+3],[c1-L*0.065,roof+3],[c1-L*0.02,belt-2]]); g.fill();
+    g.strokeStyle='rgba(20,30,42,.5)'; g.lineWidth=1;
+    g.beginPath(); g.moveTo((c0+c1)/2,roof+3); g.lineTo((c0+c1)/2,belt-2); g.stroke();
+    g.fillStyle='rgba(0,0,0,.28)'; g.fillRect(sx0+L*0.06,sill-3,L*0.88,3);
+    g.fillStyle='rgba(0,0,0,.42)';
+    [B.fw,B.bw].forEach(f=>{ g.beginPath(); g.arc(sx0+f*L,gy-wr*0.98,wr*1.14,Math.PI,0); g.fill(); });
+    g.fillStyle=dim; g.fillRect(c0+L*0.02,belt-4,L*0.05,4);
+    [B.fw,B.bw].forEach(f=>wheel(sx0+f*L,gy-wr,wr,wr));
+  };
+
+  if(d===1) drawSide();
+  else if(d===0) drawEnd(true);
+  else drawEnd(false);
+  g.restore();
+
+  /* tabliczka marki i modelu — jedno źródło nazw (§8 kryterium 12) */
+  const br=window.getVehicleBrand(carName);
+  g.fillStyle='rgba(232,197,106,.94)'; g.font='bold 12px "Segoe UI",Arial'; g.textAlign='center';
+  g.fillText(window.carDisplayName(carName),W/2,22);
+  g.fillStyle='rgba(160,180,200,.75)'; g.font='9px "Segoe UI",Arial';
+  g.fillText((br?br.displayName.toUpperCase()+' · ':'')+(AV_DIRS[dir]||AV_DIRS[0]).label.toUpperCase(),W/2,36);
+  g.textAlign='left';
+};
+window._avSession=null;
+window._avOpen=function(carName,fromCompare){
+  const car=CAR_CATALOG.find(c=>c.name===carName);
+  if(!car){ if(typeof showMsg==='function') showMsg('🔄 Nie znaleziono tego modelu w katalogu.','r',3200); return; }
+  window._avSession={name:carName,dir:0,zoom:1,col:0,from:fromCompare?'compare':'gallery'};
+  window._avRender();
+};
+window._avStep=function(d){ const s=window._avSession; if(!s) return; s.dir=(s.dir+d+4)%4; window._avRender(); };
+window._avSetDir=function(d){ const s=window._avSession; if(!s) return; s.dir=d%4; window._avRender(); };
+window._avZoom=function(d){ const s=window._avSession; if(!s) return; s.zoom=Math.max(0.6,Math.min(1.8,s.zoom+d)); window._avRender(); };
+window._avColor=function(i){ const s=window._avSession; if(!s) return; s.col=i; window._avRender(); };
+window._avPick=function(name){ const s=window._avSession; if(!s) return; s.name=name; s.dir=0; window._avRender(); };
+
+window._avRender=function(){
+  const s=window._avSession; if(!s) return;
+  const car=CAR_CATALOG.find(c=>c.name===s.name); if(!car) return;
+  const br=window.getVehicleBrand(s.name);
+  const r=car.req||{};
+  const reqOk=(!r.level||G.level>=r.level)&&(!r.fame||(G.fame||0)>=r.fame)&&(!r.fans||(G.fans||0)>=r.fans);
+  const owned=(G._ownedCars||[]).includes(car.name);
+  const isCurrent=G.car&&G.car.name===car.name;
+  const spd=car.speed>=2?`×${car.speed.toFixed(2).replace('.',',')}`:`+${Math.round((car.speed-1)*100)}%`;
+  const bodyPL={compact:'Miejskie',sedan:'Sedan',sports:'Sportowe',luxury:'Luksusowe',suv:'SUV',van:'Van'};
+  const cmp=(window._avCompareList||[]);
+  if(typeof openOverlay==='function') openOverlay();
+  const row=(k,v)=>`<div style="color:#8a9">${k}</div><div style="color:#e6ecf2;text-align:right">${v}</div>`;
+  document.getElementById('ov-content').innerHTML=`
+    <h2>🔄 AutoVista 360</h2>
+    <p class="sub">Obejrzyj pojazd z każdej strony, zanim wydasz pieniądze. Podgląd nie zmienia Twojego auta ani lakieru.</p>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
+      <div style="flex:0 0 300px">
+        <canvas id="av-canvas" width="300" height="230" style="width:300px;height:230px;border-radius:12px;border:1px solid #2a3a50;display:block"></canvas>
+        <div style="display:flex;gap:5px;margin-top:7px">
+          <button class="cbtn" style="flex:1;font-size:12px;padding:6px" onclick="window._avStep(-1)">◀ Obróć</button>
+          <button class="cbtn" style="flex:1;font-size:12px;padding:6px" onclick="window._avStep(1)">Obróć ▶</button>
+          <button class="cbtn" style="flex:1;font-size:12px;padding:6px" onclick="window._avZoom(0.2)">🔍 +</button>
+          <button class="cbtn" style="flex:1;font-size:12px;padding:6px" onclick="window._avZoom(-0.2)">🔍 −</button>
+        </div>
+        <div style="font-size:10px;color:#667;margin-top:6px;text-align:center;line-height:1.7">
+          ${AV_DIRS.map(d=>`<span style="color:${s.dir===d.id?'#7ec8e3':'#667'};cursor:pointer" onclick="window._avSetDir(${d.id})">${d.label}</span>`).join(' · ')}
+        </div>
+        <div style="font-size:11px;color:#8a9;margin:9px 0 3px;font-weight:700">🎨 Lakier (tylko podgląd)</div>
+        <div>${window._avPalette.map((p,i)=>`<button class="cbtn" title="${p.n}" style="width:26px;height:26px;padding:0;margin:2px;background:${p.c};border-color:${s.col===i?'#fff':'#333'}" onclick="window._avColor(${i})"></button>`).join('')}</div>
+      </div>
+      <div style="flex:1;min-width:270px">
+        <div style="background:#0a1220;border:1px solid #1a2a3a;border-radius:10px;padding:11px;margin-bottom:10px">
+          <div style="font-size:16px;font-weight:800;color:#e8c56a">${window.carDisplayName(s.name)}</div>
+          <div style="font-size:11px;color:#6a8caa;letter-spacing:.5px;text-transform:uppercase;margin:2px 0 7px">${br?br.displayName:'—'}${br?' · '+br.positioning:''}</div>
+          <div style="display:grid;grid-template-columns:1fr auto;gap:3px 12px;font-size:12px">
+            ${row('Nadwozie',bodyPL[car.body]||car.body)}
+            ${row('Klasa',car.cls)}
+            ${row('Prędkość',spd)}
+            ${row('Sława',(car.fame>0?'+':'')+car.fame)}
+            ${row('Cena',car.price.toLocaleString('pl')+' zł')}
+            ${row('Wymagania',[r.level?'poziom '+r.level:null,r.fame?r.fame+' sławy':null,r.fans?r.fans.toLocaleString('pl')+' fanów':null].filter(Boolean).join(' · ')||'brak')}
+            ${row('Status',isCurrent?'Twoje aktualne':(owned?'W Twojej flocie':'Niekupione'))}
+          </div>
+        </div>
+        ${br?`<div style="background:#12100a;border-left:3px solid #e8c56a;border-radius:6px;padding:9px 11px;margin-bottom:10px;font-size:11px;color:#c8b890">${br.dna}<br><span style="color:#8a7a5a">Pochodzenie: ${br.origin}</span></div>`:''}
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="bbtn" style="flex:1;min-width:130px;font-size:12px;padding:8px" onclick="buyCar('${car.name.replace(/'/g,'')}',${car.speed},${car.price})" ${isCurrent||(!owned&&(!reqOk||G.money<car.price))?'disabled':''}>${isCurrent?'Aktualne':owned?'Przesiądź się':'Kup za '+car.price.toLocaleString('pl')+' zł'}</button>
+          <button class="cbtn" style="flex:1;min-width:130px;font-size:12px;padding:8px" onclick="window._avToggleCompare('${car.name.replace(/'/g,'')}')">${cmp.includes(car.name)?'➖ Usuń z porównania':'➕ Dodaj do porównania'}</button>
+        </div>
+        <div style="font-size:11px;color:#8a9;margin:11px 0 4px;font-weight:700">Zobacz inny model</div>
+        <div style="max-height:150px;overflow-y:auto">${CAR_CATALOG.map(c=>`<button class="cbtn" style="font-size:10px;padding:4px 7px;margin:2px;border-color:${c.name===s.name?'#7ec8e3':'#2a3a50'}" onclick="window._avPick('${c.name.replace(/'/g,'')}')">${window.carDisplayName(c.name)}</button>`).join('')}</div>
+      </div>
+    </div>
+    <div class="res" id="av-res">${cmp.length?`W porównaniu: ${cmp.map(n=>window.carDisplayName(n)).join(', ')}`:'Dodaj modele do porównania, aby zestawić je obok siebie.'}</div>
+    <div style="display:flex;gap:6px;margin-top:8px">
+      <button class="cbtn" style="flex:1" onclick="window._avOpenCompare()">⚖️ Porównywarka</button>
+      <button class="cbtn" style="flex:1" onclick="${s.from==='compare'?'window._avOpenCompare()':'window._crownOpen()'}">← Wróć</button>
+    </div>`;
+  const cv=document.getElementById('av-canvas');
+  if(cv) window._avDrawCar(cv,s.name,s.dir,s.zoom,s.col);
+};
+
+window._avCompareList=[];
+window._avToggleCompare=function(name){
+  const l=window._avCompareList;
+  const i=l.indexOf(name);
+  if(i>=0) l.splice(i,1);
+  else { if(l.length>=4){ const res=document.getElementById('av-res'); if(res) res.textContent='Porównanie mieści maksymalnie cztery modele — usuń jeden, aby dodać kolejny.'; return; } l.push(name); }
+  if(window._avSession) window._avRender(); else window._avOpenCompare();
+};
+window._avOpenCompare=function(){
+  const l=window._avCompareList;
+  if(typeof openOverlay==='function') openOverlay();
+  const bodyPL={compact:'Miejskie',sedan:'Sedan',sports:'Sportowe',luxury:'Luksusowe',suv:'SUV',van:'Van'};
+  const cars=l.map(n=>CAR_CATALOG.find(c=>c.name===n)).filter(Boolean);
+  const rows=[
+    ['Marka',c=>{const b=window.getVehicleBrand(c.name);return b?b.displayName:'—';}],
+    ['Nadwozie',c=>bodyPL[c.body]||c.body],
+    ['Klasa',c=>c.cls],
+    ['Prędkość',c=>c.speed>=2?`×${c.speed.toFixed(2).replace('.',',')}`:`+${Math.round((c.speed-1)*100)}%`],
+    ['Sława',c=>(c.fame>0?'+':'')+c.fame],
+    ['Cena',c=>c.price.toLocaleString('pl')+' zł'],
+    ['Wymagania',c=>{const r=c.req||{};return [r.level?'poziom '+r.level:null,r.fame?r.fame+' sławy':null,r.fans?r.fans.toLocaleString('pl')+' fanów':null].filter(Boolean).join(', ')||'brak';}],
+    ['Salon',c=>{const b=window.getVehicleBrand(c.name);if(!b)return '—';
+      const m={citydrive_motors:'CityDrive',gravel_lot_motors:'Gravel Lot',crownline_auto_gallery:'Crownline'};
+      return (b.dealershipAffinity||[]).map(x=>m[x]||x).join(', ');}],
+    ['Status',c=>(G.car&&G.car.name===c.name)?'Twoje aktualne':((G._ownedCars||[]).includes(c.name)?'W Twojej flocie':'Niekupione')],
+  ];
+  document.getElementById('ov-content').innerHTML=`
+    <h2>⚖️ Porównywarka AutoVista 360</h2>
+    <p class="sub">Zestaw do czterech modeli obok siebie. Nazwy, ceny i wymagania pochodzą z tego samego katalogu co salon i garaż.</p>
+    ${cars.length?`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+      <tr><th style="text-align:left;padding:6px;color:#7ec8e3">—</th>${cars.map(c=>`<th style="padding:6px;color:#e8c56a;white-space:nowrap">${window.carDisplayName(c.name)}</th>`).join('')}</tr>
+      ${rows.map(([lab,fn])=>`<tr><td style="padding:6px;color:#8a9;white-space:nowrap">${lab}</td>${cars.map(c=>`<td style="padding:6px;text-align:center;color:#cdd">${fn(c)}</td>`).join('')}</tr>`).join('')}
+      <tr><td style="padding:6px"></td>${cars.map(c=>`<td style="padding:6px;text-align:center"><button class="cbtn" style="font-size:10px;padding:4px 7px" onclick="window._avOpen('${c.name.replace(/'/g,'')}',true)">🔄 Podgląd</button><button class="cbtn" style="font-size:10px;padding:4px 7px;margin-left:3px" onclick="window._avToggleCompare('${c.name.replace(/'/g,'')}')">➖</button></td>`).join('')}</tr>
+    </table></div>`
+    :`<div style="background:#0e1830;border-left:3px solid #7ec8e3;border-radius:6px;padding:10px 12px;font-size:12px;color:#cdd">Porównanie jest puste. Otwórz podgląd dowolnego modelu i dodaj go do porównania.</div>`}
+    <div style="font-size:11px;color:#8a9;margin:12px 0 4px;font-weight:700">Dodaj model</div>
+    <div style="max-height:170px;overflow-y:auto">${CAR_CATALOG.map(c=>`<button class="cbtn" style="font-size:10px;padding:4px 7px;margin:2px;border-color:${l.includes(c.name)?'#7ec8e3':'#2a3a50'}" onclick="window._avToggleCompare('${c.name.replace(/'/g,'')}')">${window.carDisplayName(c.name)}</button>`).join('')}</div>
+    <div class="res" id="av-res">Modeli w porównaniu: ${cars.length} z 4.</div>
+    <button class="cbtn" onclick="closeOverlay()">← Zamknij</button>`;
+};
+/* ═══════════════════════════════════════════════════════════════════════════
+   CROWNLINE AUTO GALLERY + AUTOVISTA 360 MODULE END
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
    RESPONSE GRID MODULE START — PDF „CITY PULSE / RESPONSE GRID" (§0-16).
    Warstwa incydentów miejskich: jedno zdarzenie = JEDEN incidentId, policja wie tylko to,
    co zaobserwowała, zgłosił świadek albo zarejestrował monitoring, a jednostki fizycznie
@@ -60583,6 +61078,12 @@ window._enterDistrictPlace=(districtId,placeId)=>{
     case 'business_aureum':
       if(typeof closeOverlay==='function') closeOverlay();
       if(typeof window._openAureumGreen==='function') window._openAureumGreen();
+      return;
+    /* v2.3.129 (PDF marek §7.4): trzeci salon — galeria premium Crownline Auto Gallery. */
+    case 'business_crownline':
+      if(typeof closeOverlay==='function') closeOverlay();
+      if(typeof window._crownOpen==='function') window._crownOpen();
+      else if(typeof showMsg==='function') showMsg('💎 Galeria jeszcze się ładuje — spróbuj za chwilę.','i',3200);
       return;
     /* v2.1.408 Faza AN.2 Etap 2: Dealer underground place — manual aktywacja Trap career (user explicit NIE auto-unlock). */
     case 'underground_dealer':
@@ -69503,6 +70004,9 @@ window._vehStatusPanel=function(){
   panel.innerHTML=`<div id="mg-job-content" style="max-width:460px;margin:0 auto">
     <div style="text-align:center;font-size:18px;font-weight:800;color:#95a5a6;margin-bottom:10px">🚗 Stan pojazdów</div>
     ${body}
+    <!-- v2.3.129 (PDF marek, kryterium #12): panel floty prowadzi do AutoVista 360 — te same nazwy
+         i dane co w salonach i porównywarce, bez drugiego źródła prawdy. -->
+    ${G.car?`<button class="cbtn" style="width:100%;margin-bottom:6px;font-size:12px" onclick="${closeJs}if(window._avOpen)window._avOpen(G.car.name);">🔄 Zobacz swój samochód w AutoVista 360</button>`:''}
     <div style="display:flex;gap:6px">
       <button class="cbtn" style="flex:1" onclick="${backJs}">↩ Wróć</button>
       <button class="cbtn" style="flex:1;color:#e07070;border-color:#5a1a1a" onclick="${closeJs}">← Zamknij</button>
@@ -81834,6 +82338,9 @@ const PATCH_NOTES = [
   {t:'change',d:'🏗 Obiekt uprawowy zmienia wygląd wraz z rozbudową — i to widać już z mapy, bez wchodzenia do środka. Nieprzejęty stoi zabity deskami z tabliczką, po rozbudowie dostaje zaciemnione szyby, agregat wentylacji i ogrodzenie, a na najwyższym poziomie kominy, przybudówkę, właz zjazdowy i kamerę. Na czas prac remontowych pojawia się rusztowanie z taśmą.'},
   {t:'change',d:'🌿 Wnętrze obiektu też rośnie razem z poziomem: od surowej piwnicy z prowizorycznymi kablami, przez uszczelnione strefy z kanałem wentylacyjnym i panelem sterowania, po podziemny kompleks ze stalowymi słupami, strefą obróbki i monitoringiem.'},
   {t:'change',d:'🌱 Terminal obiektu pokazuje teraz stan na pierwszy rzut oka: poziom, gotowość, trwający cykl albo przestój remontowy.'},
+  {t:'feature',d:'💎 W dzielnicy biznesowej otwarto trzeci salon — Crownline Auto Gallery. To galeria marek premium, luksusowych i egzotycznych: Ardent, Vahl, Karsen, Marlowe & Finch, Vantori, Aethon i Ionis. Ceny oraz wymagania są dokładnie takie same jak dotąd — zmienia się tylko miejsce, w którym te auta stoją.'},
+  {t:'new',d:'🔄 Doszedł podgląd AutoVista 360. Obejrzysz w nim każdy samochód z czterech stron, przymierzysz osiem lakierów i sprawdzisz komplet danych: nadwozie, klasę, prędkość, sławę, cenę i wymagania. Podgląd niczego nie zmienia w Twoim aucie.'},
+  {t:'new',d:'⚖️ Porównywarka zestawia obok siebie do czterech modeli — marka, nadwozie, prędkość, sława, cena, wymagania i salon, w którym stoją. Otworzysz ją z galerii Crownline, z salonu CityDrive i z panelu Twoich pojazdów.'},
  ]
  },
  {
