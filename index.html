@@ -53881,7 +53881,11 @@ window._ucStyleScore=function(occasion){
   items.forEach(i=>{ drip+=(i.st.drip||0); pres+=(i.st.pres||0); });
   drip+=window._ucColorHarmony(items);
   if(occasion){ const m=window._ucOccasionMatch(occasion); drip+=m.dripDelta; pres+=m.presDelta; }
-  drip-=window._ucConditionPenalty();
+  /* §8.3 wymaga utraty Dripu I PREZENTACJI — do v2.3.128 kara działała tylko na Drip.
+     Kara prezentacji jest o połowę łagodniejsza: mokra kurtka psuje wygląd bardziej
+     niż odbiór samej osoby. */
+  const _cond=window._ucConditionPenalty();
+  drip-=_cond; pres-=_cond*0.5;
   return { drip:Math.max(0,Math.min(100,Math.round(drip))), presentation:Math.max(0,Math.min(100,Math.round(pres))) };
 };
 /* Drip modułu doliczany do globalnego licznika Drip gracza (HUD 💎) — bez dublowania
@@ -58997,8 +59001,22 @@ window._pgwSpend=function(energy){
   G.energy=Math.max(0,(G.energy||0)-energy);
   p.dayCount++; p.activities++;
   const w=window._pgwWeather();
-  if(w.rain && (typeof window._ucWeatherMod!=='function' || window._ucWeatherMod('rain')>-0.5)) p.soaked=true;
+  /* §8.3: przemoczenie zapisujemy w ISTNIEJĄCYM stanie odzieży (u.condition), a nie w osobnej
+     fladze — dzięki temu realnie działa przez _ucConditionPenalty, zamiast być samą etykietą. */
+  if(w.rain && (typeof window._ucWeatherMod!=='function' || window._ucWeatherMod('rain')>-0.5)) window._pgwSoak(true);
   return {ok:true};
+};
+window._pgwSoak=function(on){
+  const p=window._pgwEnsure(); p.soaked=!!on;
+  if(typeof window._ucEnsure==='function'){
+    const u=window._ucEnsure();
+    if(on) u.condition='soaked';
+    else if(u.condition==='soaked') u.condition='clean';
+  }
+};
+window._pgwIsSoaked=function(){
+  if(typeof window._ucEnsure==='function') return window._ucEnsure().condition==='soaked';
+  return !!window._pgwEnsure().soaked;
 };
 window._pgwEnter=function(){
   const p=window._pgwEnsure();
@@ -59019,7 +59037,9 @@ window._pgwAct=function(sub){
     case 'camp':    return window._pgwCamp();
     case 'creek':   return window._pgwCreek();
     case 'ranger':  return window._pgwRanger();
-    case 'exit':    if(typeof changeRoom==='function') changeRoom('coast',2535,1790); return;
+    /* wyjście stawia gracza tuż PRZED początkiem szlaku (bryła 2260-2430 × 1740-1890),
+       a nie w losowym miejscu plaży — punkt poprawiony po przesunięciu budynku. */
+    case 'exit':    if(typeof changeRoom==='function') changeRoom('coast',2345,1930); return;
     default: if(typeof showMsg==='function') showMsg('🌲 Tu jeszcze nic nie ma.','f',2500);
   }
 };
@@ -59037,7 +59057,7 @@ window._pgwStatBox=function(){
     Aktywności dziś: <b>${5-window._pgwDailyLeft()}/5</b> · Energia: <b>${Math.round(G.energy||0)}</b>
     ${t>0?`<br>Odzież terenowa: <b style="color:#7ec87e">−${Math.round(t*100)}% zmęczenia</b>`:'<br><span style="color:#a08a6a">Bez odzieży terenowej las męczy mocniej.</span>'}
     ${w.why.length?`<br>Pogoda: <b style="color:#e0a060">${w.why.join(' i ')}</b> — koszt wysiłku +${Math.round(w.pen*100)}%`:''}
-    ${p.soaked?'<br><span style="color:#8fb8d8">Jesteś przemoczony — ubranie traci na prezentacji, aż wyschnie.</span>':''}
+    ${window._pgwIsSoaked()?'<br><span style="color:#8fb8d8">Jesteś przemoczony — strój traci na Dripie i prezentacji, aż wyschnie.</span>':''}
   </div>`;
 };
 window._pgwTrail=function(){
@@ -59121,12 +59141,12 @@ window._pgwCamp=function(){
     window._pgwStatBox()+
     `<p style="font-size:13px;color:#cdd">Kamienny krąg przy polanie. Można wysuszyć ubranie i złapać oddech.</p>
      <button class="bbtn" style="width:100%" onclick="window._pgwCampGo()">Rozpal i odpocznij</button>`,
-    p.soaked?'Ubranie jest przemoczone — ogień to naprawi.':'');
+    window._pgwIsSoaked()?'Ubranie jest przemoczone — ogień to naprawi.':'');
 };
 window._pgwCampGo=function(){
   const p=window._pgwEnsure();
-  const wasSoaked=p.soaked;
-  p.soaked=false;
+  const wasSoaked=window._pgwIsSoaked();
+  window._pgwSoak(false);
   G.energy=(typeof clampStat==='function')?clampStat('energy',(G.energy||0)+18):Math.min(100,(G.energy||0)+18);
   G.stress=(typeof clampStat==='function')?clampStat('stress',(G.stress||0)+10):Math.min(100,(G.stress||0)+10);
   window._pgwRes(wasSoaked
@@ -59154,11 +59174,11 @@ window._pgwCreekGo=function(){
   if(!r.ok){ window._pgwRes(r.msg); return; }
   const t=window._ucTerrainMod();
   if(t>=0.05){
-    p.soaked=false;
+    window._pgwSoak(false);
     if(typeof addXP==='function') addXP(10);
     window._pgwRes('🌊 Membrana i wysokie cholewy zrobiły swoje — przeszedłeś sucho na drugi brzeg (+10 doświadczenia).');
   } else {
-    p.soaked=true;
+    window._pgwSoak(true);
     G.health=(typeof clampStat==='function')?clampStat('health',(G.health==null?100:G.health)-4):(G.health||100)-4;
     window._pgwRes('🌊 Woda weszła do butów, spodnie przemokły. Przeszedłeś, ale kosztem zdrowia. Techniczny płaszcz terenowy bardzo by się tu przydał.');
   }
