@@ -3598,7 +3598,7 @@ const ROOMS = {
        Każda receptura = wieloetapowy process: heat → mix → crystallize/filter → finish. */
     /* v2.1.498 USER FEEDBACK FIX — pozycje rozszerzone, h:130 → h:110 (consistency + space). */
     objects:[
-      {id:'exit_lab',         wx:460, wy:480, w:62, h:62,  act:'goto:underground:240:640',  prompt:'[E] ⬅ Wyjdź z lab', lbl:'Wyjście'},
+      {id:'exit_lab',         wx:460, wy:480, w:62, h:62,  act:'gotoPlace:underground:lab_underground',  prompt:'[E] ⬅ Wyjdź z lab', lbl:'Wyjście'},/* v2.3.130: ta sama klasa błędu co plantacja — było goto:underground:240:640, czyli punkt sprzed przeniesienia hali (v2.3.103/115 → 240,930), gracz wychodził na środek parkingu 290 px nad budynkiem. */
       {id:'lab_cook_shard',   wx:30,  wy:140, w:160,h:110, act:'lab_cook_shard',            prompt:'[E] 💠 Krystalizacja (Shard)', lbl:'Shard'},
       {id:'lab_cook_powder',  wx:220, wy:140, w:160,h:110, act:'lab_cook_powder',           prompt:'[E] ⚪ Filtracja (Proszek)',   lbl:'Proszek'},
       {id:'lab_cook_mix',     wx:410, wy:140, w:160,h:110, act:'lab_cook_mix',              prompt:'[E] 🌟 Mix Premium',           lbl:'Mix'},
@@ -3614,7 +3614,7 @@ const ROOMS = {
   plantacja: {
     wT:24, hT:13, map:null,
     objects:[
-      {id:'exit_plantacja',   wx:500, wy:560, w:62, h:62,  act:'goto:underground:1240:660', prompt:'[E] ⬅ Wyjdź z plantacji', lbl:'Wyjście'},
+      {id:'exit_plantacja',   wx:500, wy:560, w:62, h:62,  act:'gotoPlace:underground:plantation_underground', prompt:'[E] ⬅ Wyjdź z plantacji', lbl:'Wyjście'},/* v2.3.130 (user „wyrzuca w złym miejscu"): było goto:underground:1240:660 = STARA pozycja plantacji (przeniesiona w v2.3.105 na 60,1470) → gracz lądował ~1200 px dalej. Teraz punkt wyjścia liczony z pozycji budynku. */
       /* v2.3.128 (PDF SUBTERRA §11): terminal obiektu — rozwój poziomów, doposażenie, materiały i cykle. */
       {id:'subterra_terminal',wx:660, wy:120, w:96, h:88,  act:'subterra:terminal', prompt:'[E] 🌱 Terminal SUBTERRA', lbl:'SUBTERRA'},
       {id:'plantation_pot_0', wx:90,  wy:250, w:56, h:80,  act:'grow_pot:plantation:0', actRadius:64, prompt:'[E] Doniczka 1', lbl:''},
@@ -15494,6 +15494,14 @@ function handleAct(act,objId){
     useLuxFacility('sauna');
   } else if(act==='firepit'){
     useLuxFacility('firepit');
+  } else if(act.startsWith('gotoPlace:')){
+    /* v2.3.130: wyjście z wnętrza staje PRZED budynkiem, z którego gracz wyszedł.
+       Pozycja liczona z ROOMS w runtime (_districtExitSpawn) — przeniesienie obiektu
+       na mapie nigdy więcej nie rozjedzie punktu wyjścia. */
+    const[,_gpRoom,_gpPlace]=act.split(':');
+    const _gpSpawn=(typeof _districtExitSpawn==='function')?_districtExitSpawn(_gpRoom,_gpPlace):null;
+    if(_gpSpawn) startRoomFade(_gpRoom,_gpSpawn.wx,_gpSpawn.wy);
+    else startRoomFade(_gpRoom,720,480); /* fallback save-safe: brak obiektu w ROOMS */
   } else if(act.startsWith('goto:')){
     const[,room,wx,wy]=act.split(':');
     if(room==='merch_studio' && (G.fans||0)<5000){
@@ -83005,6 +83013,14 @@ window._s9AfterDeal=function(npcId,priceTier){
 };
 const PATCH_NOTES = [
  {
+ ver:'v2.3.130',date:'2026-07-30',cats:['beta-tester','fix'],title:'🚪 Wyjście z plantacji i z hali stawia Cię tam, gdzie powinno',
+ items:[
+  {t:'fix',d:'🌿 Po wyjściu z plantacji postać lądowała w całkiem innej części dzielnicy, kilkaset metrów od budynku. Teraz stajesz tuż przed wejściem, dokładnie tam gdzie było wejście, i od razu możesz wrócić do środka.'},
+  {t:'fix',d:'🏭 To samo dotyczyło wyjścia z hali produkcyjnej — postać trafiała na parking obok. Teraz również wychodzisz przed właściwy budynek.'},
+  {t:'change',d:'🧭 Miejsce, w którym stajesz po wyjściu, jest teraz odczytywane z aktualnego położenia budynku na mapie. Jeśli kiedyś przeniesiemy dany obiekt w inne miejsce dzielnicy, wyjście samo pojedzie za nim i nie rozjedzie się ponownie.'},
+ ]
+ },
+ {
  ver:'v2.3.129',date:'2026-07-29',cats:['beta-tester','fix'],title:'🛠 Hol VANTAGE WORKS znowu reaguje, terminal na plantacji działa, a obiekt uprawowy widać z zewnątrz',
  items:[
   {t:'fix',d:'🏢 W holu VANTAGE WORKS żadne miejsce nie reagowało na przycisk akcji — recepcja, lokale pokazowe, poczekalnia, kawiarnia, magazyny B2, administracja, serwis, toalety, windy, schody, garaż i kontrola dostępu były głuche. Wszystkie 19 punktów działa już poprawnie.'},
@@ -103740,6 +103756,33 @@ function startRoomFade(id,wx,wy){
   if(_blockedByCarEnter(id)) return;
   _roomFadePending={id,wx,wy};_roomFadeDir=-1;_roomFade=0;
 }
+
+/* v2.3.130 (user: „wychodząc z plantacji wyrzuca postać w złym miejscu"):
+   punkt wyjścia z wnętrza liczony w RUNTIME z pozycji budynku na mapie dzielnicy,
+   a nie zapisany na sztywno w akcie. Powód buga: plantacja przeniosła się na mapie
+   (v2.3.105: 1240,580 → 60,1470), a akt wyjścia dalej teleportował na stare 1240,660
+   — gracz lądował ~1200 px od budynku, w innej części dzielnicy. Ta sama klasa błędu
+   co statyczny punkt wyjścia kampera (naprawiony w v2.3.110).
+   Gracz staje tuż PRZED fasadą (pod budynkiem); przy dolnej krawędzi mapy — nad nim. */
+function _districtExitSpawn(district, placeId){
+  const R=(typeof ROOMS!=='undefined')?ROOMS[district]:null;
+  if(!R||!Array.isArray(R.objects)) return null;
+  const o=R.objects.find(x=>x&&x.id===placeId);
+  if(!o) return null;
+  const W=(R.wT||30)*48, H=(R.hT||20)*48;
+  const pw=(typeof P!=='undefined'&&P.w)?P.w:28, ph=(typeof P!=='undefined'&&P.h)?P.h:44;
+  /* ŚRODEK gracza tyle px przed fasadą. getNear w dzielnicach łapie budynek w marginesie 32 px
+     od obrysu, więc 24 zostawia zapas — po wyjściu od razu widać podpowiedź [E] i można wrócić.
+     Liczone od środka (P.wx+P.w/2, P.wy+P.h/2), bo tego używa getNear. */
+  const DET=24;
+  let sx=o.wx+o.w/2-pw/2;
+  let sy=o.wy+o.h+DET-ph/2;                    /* tuż przed wejściem */
+  if(sy+ph>H-16) sy=o.wy-DET-ph/2;             /* budynek przy dolnej krawędzi → stań nad nim */
+  sx=Math.max(16, Math.min(W-pw-16, sx));
+  sy=Math.max(16, Math.min(H-ph-16, sy));
+  return {wx:Math.round(sx), wy:Math.round(sy)};
+}
+window._districtExitSpawn=_districtExitSpawn;
 
 // ═══════════════════════════════════════════════════════════════════
 //  GAME LOOP
