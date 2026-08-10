@@ -67106,6 +67106,8 @@ function startFreestyleMG(){
       G.careers.raper.freestyles=(G.careers.raper.freestyles||0)+1;
       /* v2.3.38 moduł „Numer zastrzeżony": sprawdź trigger SMS od razu po freestyle (self-gated — wyśle tylko gdy warunki §3 spełnione). */
       if(typeof window._underworldCheckTrigger==='function') window._underworldCheckTrigger();
+      /* PDF „Maya Voss” §2.1: drugi ukończony freestyle planuje pierwszy kontakt organizatorki. */
+      if(typeof window._mayaOnFreestyleCompleted==='function') window._mayaOnFreestyleCompleted();
       /* v2.1.860 (user „3 freestyle na dzień możliwe"): licznik DZIENNY freestyle — pierwsze 3/dobę zawsze pełna stawka (bez taperu). */
       if(!G._fsCountToday||G._fsCountToday.day!==G.day) G._fsCountToday={day:G.day,n:0}; G._fsCountToday.n++;
       // #78 NERF 10× — gracz dostawał ~266 raperXP / 106 fanów / 133 follow / 88 rep za 30s freestyle (absurd)
@@ -74890,6 +74892,242 @@ function _ensureSMS(){
 /* v2.1.956 (PDF #1): osobne, mniejsze okno SMS obok telefonu (nie generyczny toast/log powiadomień — anti-natłok).
    Widoczne ~8s, własny dźwięk (sfxSms), klik → otwiera czat nadawcy. Brak klika → znika; SMS zostaje w apce Wiadomości.
    Grupy nadawców: zwykły SMS / oferta kontraktowa (label, menadżer) / oferta sponsorska (sponsor). */
+/* ═══════════════════ MAYA VOSS INTRO MODULE START ══════════════════════════════════════════════
+   PDF „Maya Voss, czyli BREAKDANCE SMS INTRO CHAIN" — pierwszy kontakt organizatorki turniejów
+   breakdance JESZCZE PRZED pierwszą aktywnością w parku.
+   Dwa wejścia (§2): (A) dwa ukończone miejskie freestyle'e, (B) 20 minut aktywnej gry bez freestyle'u.
+   Pierwsza skutecznie aktywowana ścieżka trwale wycisza drugą. Odpowiedź Mayi przychodzi po 60
+   sekundach AKTYWNEJ rozgrywki (pauza, menu i utrata fokusu zatrzymują zegar — §6).
+   ═══════════════════════════════════════════════════════════════════════════════════════════ */
+window._MAYA_INTRO_DELAY=60;        /* §2.1: minuta od drugiego freestyle'u */
+window._MAYA_REPLY_DELAY=60;        /* §6: reakcja Mayi po 60 s aktywnej rozgrywki */
+window._MAYA_FALLBACK_SEC=1200;     /* §2.2: 20 minut aktywnej gry */
+
+window._mayaEnsure=function(){
+  if(!G.mayaIntro||typeof G.mayaIntro!=='object') G.mayaIntro={};
+  const m=G.mayaIntro;
+  if(m.state==null) m.state='locked';                       /* §5 maszyna stanów */
+  if(m.introSource===undefined) m.introSource=null;         /* 'two_freestyles' | 'twenty_minute_fallback' */
+  if(m.introScheduledAtActiveSecond===undefined) m.introScheduledAtActiveSecond=null;
+  if(m.introDelivered==null) m.introDelivered=false;
+  if(m.playerReplyId===undefined) m.playerReplyId=null;
+  if(m.mayaReplyScheduledAtActiveSecond===undefined) m.mayaReplyScheduledAtActiveSecond=null;
+  if(m.mayaReplyDelivered==null) m.mayaReplyDelivered=false;
+  if(m.parkLeadUnlocked==null) m.parkLeadUnlocked=false;
+  if(m.mapMarkerUnlocked==null) m.mapMarkerUnlocked=false;
+  if(m.infoEntryUnlocked==null) m.infoEntryUnlocked=false;
+  if(m.firstBreakdanceCompleted==null) m.firstBreakdanceCompleted=false;
+  if(m.tournamentPathAvailable==null) m.tournamentPathAvailable=false;
+  if(m.relationApplied==null) m.relationApplied=false;      /* §4: premia relacji JEDNORAZOWA */
+  if(typeof G._mayaActiveSec!=='number'||!isFinite(G._mayaActiveSec)) G._mayaActiveSec=0;
+  return m;
+};
+/* §6: zegar AKTYWNEJ rozgrywki. Nie liczy pauzy, menu, kreatora ani czasu po utracie fokusu okna. */
+window._mayaClockRunning=function(){
+  try{
+    if(typeof _paused!=='undefined' && _paused) return false;
+    if(typeof document!=='undefined' && document.hidden) return false;
+    const menu=document.getElementById('menu');
+    if(menu && (menu.style.display==='flex'||menu.style.display==='')) return false;
+    const cr=document.getElementById('creator');
+    if(cr && cr.style.display==='flex') return false;
+    if(window._gameSettingsOpen && window._gameSettingsOpen()) return false;
+    return !!window._gameStarted;
+  }catch(_){ return false; }
+};
+window._mayaActiveSecond=function(){ return G._mayaActiveSec||0; };
+/* §12.2 (rekomendacja dokumentu): licznik 20 minut rusza dopiero po ukończeniu poradnika startowego,
+   żeby wiadomość nie konkurowała z nauką sterowania. */
+window._mayaFallbackClockOn=function(){
+  if(G._tutorialSeen) return true;
+  return !(G._tutorial && typeof G._tutorial==='object');
+};
+/* §7 warunki planowania — jedna bramka dla obu ścieżek. */
+window._mayaCanSchedule=function(){
+  const m=window._mayaEnsure();
+  return m.state==='locked' && m.introDelivered===false
+      && ((G.breakdance&&G.breakdance.parkRunsCompleted)||0)===0
+      && !(G.sms&&G.sms.conversations&&G.sms.conversations.maya_voss&&G.sms.conversations.maya_voss.length);
+};
+window._mayaScheduleIntro=function(source,delaySec){
+  const m=window._mayaEnsure();
+  if(!window._mayaCanSchedule()) return false;
+  m.introSource=source;                                     /* §2 reguła pierwszeństwa — druga ścieżka wyciszona */
+  m.introScheduledAtActiveSecond=window._mayaActiveSecond()+(delaySec||0);
+  m.state='trigger_pending';
+  return true;
+};
+window._mayaOnFreestyleCompleted=function(){
+  const m=window._mayaEnsure();
+  const n=(G.careers&&G.careers.raper&&G.careers.raper.freestyles)||0;
+  if(n===2 && window._mayaCanSchedule()) window._mayaScheduleIntro('two_freestyles',window._MAYA_INTRO_DELAY);
+};
+/* §6: wiadomość nie przerywa cutscenki, minigry, zatrzymania przez policję ani blokującego dialogu. */
+window._mayaSafeMoment=function(){
+  try{
+    if(typeof mgOpen==='function' && mgOpen()) return false;
+    if(typeof npcDlgOpen==='function' && npcDlgOpen()) return false;
+    if(window._policeInDetention && window._policeInDetention()) return false;
+    if(document.getElementById('ms-skip')||document.getElementById('ic-skip')) return false;
+    if(G._dying) return false;
+    return true;
+  }catch(_){ return true; }
+};
+/* Treści z §3 — dokładnie tak, jak w dokumencie. */
+window._MAYA_OPENERS={
+  two_freestyles:'Yo. Dwa freestyle’e i już widać, że nie tylko język trzyma rytm. Dobrze się ruszasz. W parku kręcimy taneczny freestyle i lokalne turnieje. Wpadniesz sprawdzić, czy flow działa też w nogach?',
+  twenty_minute_fallback:'Yo, świeży w mieście, a parkiet dalej bez Twojego śladu. W parku kręcimy taneczny freestyle i lokalne turnieje. Wpadnij, zanim flow zapuści korzenie'
+};
+window._MAYA_REPLIES={
+  /* Wariant A — po dwóch freestyle'ach (§3.1) */
+  maya_intro_a_o1:{set:'maya_intro_a', label:'Brzmi jak mój parkiet. Kiedy gramy?',
+    text:'Brzmi jak mój parkiet. Kiedy gramy?', action:'mayaReply', mayaOpt:'A', rel:2, lead:'active',
+    reply:'No i jest ruch! Wpadnij do parku, a krąg sam Cię sprawdzi! Pierwszy trening jest na totalnym luzie, ale dopiero potem rytm zaczyna wystawiać rachunek'},
+  maya_intro_a_o2:{set:'maya_intro_a', label:'Taneczny freestyle? Brzmi ciekawie, ale najpierw powiedz, jak to działa.',
+    text:'Taneczny freestyle? Brzmi ciekawie, ale najpierw powiedz, jak to działa.', action:'mayaReply', mayaOpt:'B', rel:1, lead:'side',
+    reply:'Prosto: wchodzisz w krąg, łapiesz timing, styl i czyste przejścia. Najpierw trening, później lokalne turnieje. Park nauczy Cię reszty. Wpadnij.'},
+  maya_intro_a_o3:{set:'maya_intro_a', label:'Na razie wolę nawijać, niż wirować',
+    text:'Na razie wolę nawijać, niż wirować', action:'mayaReply', mayaOpt:'C', rel:0, lead:'passive',
+    reply:'Spoko. Park nie ucieknie. Jak nogi zaczną być zazdrosne o mikrofon, to wiesz już, gdzie mnie znaleźć.'},
+  /* Wariant B — brak freestyle'u przez 20 minut (§3.2) */
+  maya_intro_b_o1:{set:'maya_intro_b', label:'Dobra, pokażcie ten cały krąg.',
+    text:'Dobra, pokażcie ten cały krąg.', action:'mayaReply', mayaOpt:'A', rel:2, lead:'active',
+    reply:'I to rozumiem! Park, główny krąg. Na start bez wpisowego, tylko rytm, timing i odwaga. Reszta przychodzi w ruchu. Do zobaczenia!'},
+  maya_intro_b_o2:{set:'maya_intro_b', label:'Co trzeba umieć na start?',
+    text:'Co trzeba umieć na start?', action:'mayaReply', mayaOpt:'B', rel:1, lead:'side',
+    reply:'Na start? Na pewno nie stać jak latarnia reszty nauczysz się w ruchu, spokojnie. Najpierw trening, potem turnieje'},
+  maya_intro_b_o3:{set:'maya_intro_b', label:'Nie dziś. Mam inne tempo.',
+    text:'Nie dziś. Mam inne tempo.', action:'mayaReply', mayaOpt:'C', rel:0, lead:'passive',
+    reply:'Luz. Rytm nie puka dwa razy… ale czasem robi powtórkę. Park stoi otworem, wpadnij kiedyś'}
+};
+window._mayaDeliverIntro=function(){
+  const m=window._mayaEnsure();
+  if(m.introDelivered||!m.introSource) return false;
+  if(!window._mayaSafeMoment()) return false;               /* §6 safeDeliveryQueue — dostarcz przy pierwszym bezpiecznym momencie */
+  const set=(m.introSource==='two_freestyles')?'maya_intro_a':'maya_intro_b';
+  const txt=window._MAYA_OPENERS[m.introSource];
+  if(typeof _smsSend!=='function') return false;
+  const sent=_smsSend('maya_voss',txt,{bypass:true,replySet:set});
+  if(!sent) return false;
+  m.introDelivered=true; m.state='waiting_for_player_reply';
+  return true;
+};
+/* §2/§6: gracz odpowiada → osobny timer 60 s aktywnej rozgrywki na reakcję Mayi. */
+window._mayaOnPlayerReply=function(opt){
+  const m=window._mayaEnsure();
+  if(m.state!=='waiting_for_player_reply') return false;
+  m.playerReplyId=opt&&opt.mayaOpt;
+  m.mayaReplyScheduledAtActiveSecond=window._mayaActiveSecond()+window._MAYA_REPLY_DELAY;
+  m._pendingRel=(opt&&typeof opt.rel==='number')?opt.rel:0;
+  m._pendingLead=(opt&&opt.lead)||'passive';
+  m._pendingText=(opt&&opt.reply)||'';
+  m.state='maya_reply_pending';
+  return true;
+};
+window._mayaDeliverReply=function(){
+  const m=window._mayaEnsure();
+  if(m.state!=='maya_reply_pending'||m.mayaReplyDelivered) return false;
+  if(!window._mayaSafeMoment()) return false;
+  if(typeof window._smsPushNpcReply==='function') window._smsPushNpcReply('maya_voss',m._pendingText||'');
+  else if(typeof _smsSend==='function') _smsSend('maya_voss',m._pendingText||'',{bypass:true});
+  m.mayaReplyDelivered=true;
+  /* §4: premia relacji JEDNORAZOWA — wczytanie zapisu nie może jej naliczyć drugi raz. */
+  if(!m.relationApplied){
+    m.relationApplied=true;
+    const d=m._pendingRel||0;
+    if(d>0){
+      if(typeof _newpdfEnsure==='function') _newpdfEnsure();
+      if(G.breakdance) G.breakdance.organizerRelation=Math.min(100,(G.breakdance.organizerRelation||0)+d);
+    }
+  }
+  window._mayaUnlockParkLead(m._pendingLead||'passive');
+  m.state='park_lead_unlocked';
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return true;
+};
+/* §4/§9: KAŻDA odpowiedź odblokowuje park. Różnica dotyczy wyłącznie sposobu prezentacji celu. */
+window._mayaUnlockParkLead=function(mode){
+  const m=window._mayaEnsure();
+  m.parkLeadUnlocked=true; m.mapMarkerUnlocked=true; m.infoEntryUnlocked=true;
+  m.leadMode=mode||'passive';
+  if(typeof _newpdfEnsure==='function') _newpdfEnsure();
+  if(G.breakdance) G.breakdance.unlocked=true;
+  if(typeof addNotif==='function') addNotif('💃 Nowa aktywność: Freestyle taneczny — trening (park). Trening rozwija timing, styl i czyste przejścia; turnieje otwierają się po pierwszym treningu.');
+  if(mode==='active'){
+    /* §9: opcja A przypina aktywny cel i na 5 sekund pokazuje obiekt parku, po czym kamera wraca do gracza. */
+    window._mayaShowParkSpot();
+  } else if(mode==='side'){
+    if(typeof showMsg==='function') showMsg('💃 Freestyle taneczny w parku: wchodzisz w krąg, łapiesz timing, styl i czyste przejścia. Najpierw trening, potem lokalne turnieje.','i',7000);
+  }
+};
+/* §9: pokaz miejsca w parku — ten sam mechanizm kamery co przelot nad miastem, 5 s i powrót do gracza. */
+window._mayaShowParkSpot=function(){
+  try{
+    const R=(typeof ROOMS!=='undefined')?ROOMS.ulica:null;
+    const obj=R&&R.objects?R.objects.find(o=>o.id==='bboying'):null;
+    if(!obj||typeof currentRoom==='undefined'||currentRoom!=='ulica'){
+      if(typeof showMsg==='function') showMsg('💃 Krąg breakdance czeka w parku — Maya pokaże Ci resztę na miejscu.','i',6000);
+      return false;
+    }
+    const cx=obj.wx+obj.w/2, cy=obj.wy+obj.h/2;
+    window._cinemCam={active:true, targetX:cx-640, targetY:cy-360, targetZoom:1.35, lerpMul:1};
+    window._mayaParkPing=Date.now()+5000;
+    if(typeof showMsg==='function') showMsg('💃 Tutaj kręci się krąg — Urban Flow w parku. Wpadnij i wejdź w środek.','i',5000);
+    setTimeout(()=>{ window._cinemCam=null; window._mayaParkPing=0; }, 5000);
+    return true;
+  }catch(_){ return false; }
+};
+/* Podświetlenie kręgu w parku na czas pokazu (rysowane w pętli renderu). */
+window._mayaDrawParkPing=function(){
+  if(!window._mayaParkPing||Date.now()>window._mayaParkPing) return;
+  if(typeof currentRoom==='undefined'||currentRoom!=='ulica') return;
+  const R=ROOMS.ulica; const obj=R&&R.objects?R.objects.find(o=>o.id==='bboying'):null; if(!obj) return;
+  const sx=wx2sx(obj.wx+obj.w/2), sy=wy2sy(obj.wy+obj.h/2);
+  const p=0.5+Math.sin(Date.now()/180)*0.5;
+  X.save();
+  X.strokeStyle='rgba(232,67,147,'+(0.85*p+0.15)+')'; X.lineWidth=3;
+  X.beginPath(); X.arc(sx,sy,54+p*10,0,Math.PI*2); X.stroke();
+  X.globalAlpha=0.5; X.beginPath(); X.arc(sx,sy,76+p*14,0,Math.PI*2); X.stroke(); X.globalAlpha=1;
+  X.font='bold 12px system-ui'; X.textAlign='center'; X.textBaseline='alphabetic';
+  const lbl='💃 KRĄG BREAKDANCE'; const w=X.measureText(lbl).width+16;
+  X.fillStyle='rgba(12,8,16,0.85)'; X.beginPath(); if(X.roundRect) X.roundRect(sx-w/2,sy-96,w,19,6); else X.rect(sx-w/2,sy-96,w,19); X.fill();
+  X.fillStyle='rgba(240,150,200,'+(0.85+p*0.15)+')'; X.fillText(lbl,sx,sy-82);
+  X.textAlign='left'; X.restore();
+};
+/* Dobowy/klatkowy tick: zegar aktywnej gry, fallback 20 min, dostarczenie intro i reakcji. */
+window._mayaTick=function(dtSec){
+  const m=window._mayaEnsure();
+  if(!window._mayaClockRunning()) return;
+  /* Deltę klamruje już wywołujący (pętla gry ogranicza ją do 1 s na klatkę), więc tutaj przyjmujemy ją wprost —
+     dzięki temu licznik rośnie dokładnie tyle, ile upłynęło aktywnej gry, i jest przewidywalny w teście. */
+  if(typeof dtSec==='number'&&isFinite(dtSec)&&dtSec>0) G._mayaActiveSec=(G._mayaActiveSec||0)+dtSec;
+  const now=window._mayaActiveSecond();
+  /* §2.2 wariant przypominający — tylko przy CAŁKOWITYM braku freestyle'u */
+  if(m.state==='locked' && window._mayaFallbackClockOn()
+     && now>=window._MAYA_FALLBACK_SEC
+     && ((G.careers&&G.careers.raper&&G.careers.raper.freestyles)||0)===0
+     && window._mayaCanSchedule()){
+    window._mayaScheduleIntro('twenty_minute_fallback',0);
+  }
+  if(m.state==='trigger_pending' && m.introScheduledAtActiveSecond!=null && now>=m.introScheduledAtActiveSecond){
+    /* §10: gracz zdążył zrobić breakdance przed SMS-em → anulujemy nieaktualne wprowadzenie */
+    if(((G.breakdance&&G.breakdance.parkRunsCompleted)||0)>0){ m.state='cancelled'; return; }
+    window._mayaDeliverIntro();
+  }
+  if(m.state==='maya_reply_pending' && m.mayaReplyScheduledAtActiveSecond!=null && now>=m.mayaReplyScheduledAtActiveSecond){
+    window._mayaDeliverReply();
+  }
+};
+/* §5: po pierwszym treningu breakdance otwiera się ścieżka turniejowa. */
+window._mayaOnBreakdanceCompleted=function(){
+  const m=window._mayaEnsure();
+  if(!m.firstBreakdanceCompleted){
+    m.firstBreakdanceCompleted=true;
+    m.tournamentPathAvailable=true;
+    if(m.state==='trigger_pending') m.state='cancelled';   /* §10: nie wysyłaj nieaktualnego wprowadzenia */
+  }
+};
+/* ═══════════════════ MAYA VOSS INTRO MODULE END ════════════════════════════════════════════ */
 /* ═══════════════════ SMARTPHONE LIVE BANNER MODULE START ═══════════════════════════════════════
    PDF „SMARTPHONE LIVE BANNER" — powiadomienie o nowej wiadomości WEWNĄTRZ interfejsu smartfona.
    Zasada nadrzędna z dokumentu: to DRUGA warstwa, a nie zamiennik. Dotychczasowy prostokąt w prawym
@@ -77201,7 +77439,8 @@ window._smsRegistryFor=function(contactId){
     case 'label': return window._LABEL_REPLIES;
     case 'wiktor': return window._WIKTOR_REPLIES;
     case 'zbyszek': return window._ZBYSZEK_REPLIES;
-    case 'rysiek': return window._RYSIEK_REPLIES;/* v2.3.131 (PDF Uspr v2.3.130 U6): decyzja o kasacji przez SMS */
+    case 'rysiek': return window._RYSIEK_REPLIES;
+    case 'maya_voss': return window._MAYA_REPLIES;/* PDF „Maya Voss” §3: trzy odpowiedzi gracza na wariant A i B *//* v2.3.131 (PDF Uspr v2.3.130 U6): decyzja o kasacji przez SMS */
     default: return null;
   }
 };
@@ -77474,6 +77713,8 @@ window._smsRichReply=function(contactId,replyId){
   if(opt.text!==null && typeof _smsReply==='function') _smsReply(contactId,opt.text);
   _applySmsRichEffect(opt.fx);
   if(opt.action==='kamilJobs') _smsKamilJobsAction();
+  /* PDF „Maya Voss” §2/§6: odpowiedź gracza uruchamia osobny, 60-sekundowy timer reakcji Mayi. */
+  if(opt.action==='mayaReply' && typeof window._mayaOnPlayerReply==='function') window._mayaOnPlayerReply(opt);
   /* v2.3.131 (PDF Uspr v2.3.130 U6): odpowiedź „Spal te budę" = zgoda na kasację pojazdów czekających na placu. */
   if(opt.action==='kasacjaConsentAll' && typeof window._kasacjaConsentAll==='function') setTimeout(()=>{ try{ window._kasacjaConsentAll(); }catch(_){} }, 900);
   if(contactId==='kamil' && opt.reply && typeof window._smsPushNpcReply==='function') window._smsPushNpcReply('kamil',opt.reply); /* PDF HAJS: follow-up Kamila (freestyle/jobs bez pola reply → brak double-send) */
@@ -77487,7 +77728,8 @@ window._smsRichReply=function(contactId,replyId){
      Nadawcy z własnym handlerem (Marcin, menadżer, producent, sponsor, ekipa, kapitan) wysyłają ją sami,
      Kamil ma linijkę wyżej. Pozostali (fan, wytwórnia, Wiktor, Zbyszek) nie mieli takiej ścieżki i reakcja
      przepadała — tu jest wspólne domknięcie dla wszystkich pozostałych kontaktów. */
-  const _handledBySender=(contactId==='kamil'||contactId==='sponsor'||contactId==='marcin'||contactId==='manager'||contactId==='producent'||contactId==='crew'||contactId==='nolan');
+  /* PDF „Maya Voss” §6: reakcja Mayi jest OPӏNIONA o 60 s aktywnej gry — wysyła ją moduł, nie wspólny fallback. */
+  const _handledBySender=(contactId==='kamil'||contactId==='sponsor'||contactId==='marcin'||contactId==='manager'||contactId==='producent'||contactId==='crew'||contactId==='nolan'||contactId==='maya_voss');
   if(!_handledBySender && opt.reply && typeof window._smsPushNpcReply==='function') window._smsPushNpcReply(contactId,opt.reply);
   if(typeof renderSMSConversation==='function') renderSMSConversation(contactId);
   if(typeof saveGameSilent==='function') saveGameSilent();
@@ -77564,6 +77806,8 @@ window._disciplineParkComplete=function(discKey,score){
   const d=G[discKey], cfg=window._DISC_CFG[discKey]; if(!d||!cfg) return;
   d.unlocked=true;
   d.parkRunsCompleted=(d.parkRunsCompleted||0)+1;
+  /* PDF „Maya Voss” §5/§10: pierwszy trening otwiera ścieżkę turniejową i unieważnia zaplanowane wprowadzenie. */
+  if(discKey==='breakdance' && typeof window._mayaOnBreakdanceCompleted==='function') window._mayaOnBreakdanceCompleted();
   const _good=score>=450;
   if(_good){
     d.goodParkRuns=(d.goodParkRuns||0)+1;
@@ -84218,6 +84462,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.131',date:'2026-08-10',cats:['beta-tester','fix','feature'],title:'🅿️🚚♻️ Parking, holowanie, kasacja pojazdów i porządki w całej grze',
  items:[
+  {t:'feature',d:'💃 Maya Voss odzywa się sama, zanim pierwszy raz staniesz w kręgu. Po dwóch ulicznych freestyle’ach albo po dwudziestu minutach gry bez żadnego freestyle’u dostajesz od niej SMS z zaproszeniem do parku. Masz trzy odpowiedzi do wyboru, a Maya odpisuje na każdą inaczej — po chwili, jak w prawdziwej korespondencji. Każda odpowiedź otwiera taneczny freestyle w parku; różni się tylko to, jak mocno gra Ci go przypomina. Wiadomość nigdy nie przerywa minigry ani rozmowy — poczeka na spokojny moment.'},
   {t:'feature',d:'📱 Nowe powiadomienie o wiadomości — tym razem w samym telefonie. Kiedy przeglądasz aplikacje albo foldery, na górze ekranu smartfona zjedzie mały, jasny prostokąt z nagłówkiem „Wiadomości” i początkiem treści. Kliknięcie w dowolne miejsce otwiera dokładnie tę rozmowę. Znika sam po pięciu sekundach, a przy kilku wiadomościach naraz pojawiają się po kolei, bez nakładania. Dotychczasowe powiadomienie w prawym dolnym rogu działa bez zmian.'},
   {t:'fix',d:'🅿️ Parking przestał podstawiać Ci auto pod nogi. Wcześniej wystarczyło mieć samochód, żeby po wejściu na dowolny parking od razu w nim usiąść — nawet jeśli stał w zupełnie innym miejscu. Teraz [E] otwiera panel parkingu: widzisz na którym miejscu stoi Twój pojazd i w jakim jest stanie, a wsiadasz podchodząc do niego.'},
   {t:'fix',d:'🅿️ Koniec obijania auta o parking. Płyta parkingu nie jest już jedną wielką przeszkodą — na wolne miejsce wjedziesz spokojnie i bez stłuczki. Fizyczne pozostają wyłącznie stojące na nim samochody. Z parkingiem dogadasz się też z 2 metry dalej niż dotąd.'},
@@ -105049,6 +105294,9 @@ function loop(){
   const _realDeltaSec=Math.min(1.0, Math.max(0,(nowT-lastClockReal)/1000));
   if(!_paused && !G._dying && _tMul>0 && !_isSleeping) gameMin+=_realDeltaSec*_BASE_TIME_SCALE*_tMul;
   lastClockReal=nowT;
+  /* PDF „Maya Voss” §6: zegar AKTYWNEJ rozgrywki (pauza/menu/utrata fokusu go zatrzymują).
+     Ten sam licznik obsługuje minutę do intro, 20 minut wariantu przypominającego i minutę do reakcji Mayi. */
+  if(typeof window._mayaTick==='function') window._mayaTick(_realDeltaSec);
   // ── Sync gameMin → G.timeOfDay (pora dnia zmienia się sama bez spania) ──
   // Mapowanie: 06–11=Rano(0) · 12–17=Południe(1) · 18–22=Wieczór(2) · 23–05=Noc(3)
   // Gdy zegar przekroczy 24:00 — odpalamy pełną logikę nextPeriod() raz, by zaliczyć nowy dzień
@@ -105102,7 +105350,8 @@ function loop(){
   _safe(()=>drawPlayerCar(),'drawPlayerCar');
   _safe(()=>drawPlayerCamper(),'drawPlayerCamper'); /* E4b: sprite kampera podczas jazdy */
   _safe(()=>{ if(window._marinaIsPiloting&&window._marinaIsPiloting()) window._marinaDrawPiloting(); },'marinaPilot');
-  _safe(()=>{ if(window._marinaDrawAnchored) window._marinaDrawAnchored(); },'marinaAnchored');/* v2.3.131 B5: zakotwiczona jednostka NIE znika z mapy */
+  _safe(()=>{ if(window._marinaDrawAnchored) window._marinaDrawAnchored(); },'marinaAnchored');
+  _safe(()=>{ if(window._mayaDrawParkPing) window._mayaDrawParkPing(); },'mayaParkPing');/* PDF „Maya Voss” §9: 5-sekundowy pokaz kręgu w parku *//* v2.3.131 B5: zakotwiczona jednostka NIE znika z mapy */
   _safe(()=>drawPlayer(),'drawPlayer');
   /* v2.1.411 Faza AQ.3 Etap 2: pies za graczem na ulicy. Rysuj dopiero po playerze (z-order). */
   if(currentRoom==='ulica' && G.dog && G.dog.owned && !G._inCar) _safe(()=>drawPlayerDog(),'drawPlayerDog');
