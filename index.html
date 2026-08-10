@@ -59710,7 +59710,29 @@ window.VW_INTERACTIONS=[
  {id:'view',    n:'Widok z okna',       req:'viewpoint anchor',    insp:'Kamera i komentarz Eve',            after:'Mood / prestiż / spotkania'},
 ];
 window.VW_LIGHT_SCENES=['Praca','Spotkanie','Prezentacja','Wieczór','Lounge'];
+window.VW_INSPECT_VERSION=2;   /* §17.1 versionId layoutu i render profile */
 window._vwInspectDef=function(id){ return window.VW_INSPECT[id]||null; };
+window._vwInspectIds=function(id){
+  /* §17 struktura definicji: jawne identyfikatory layoutu, profilu, grafu stref, trasy i punktów. */
+  return {localId:id, offerId:'vantage_'+id, layoutAssetId:'vw_'+id+'_layout_v'+window.VW_INSPECT_VERSION,
+    renderProfileId:'vw_'+id+'_render_v'+window.VW_INSPECT_VERSION, zoneGraphId:'vw_'+id+'_zones',
+    eveRouteProfileId:'eve_vw_'+id, insightOverlayProfileId:'vw_'+id+'_overlay',
+    interactionSetId:'vw_'+id+'_interactions', entryPointId:'player_entry', eveEntryPointId:'eve_entry',
+    exitPointId:'inspection_exit', supportsGuidedTour:true, supportsFreeWalk:true, supportsQuickTour:true,
+    version:window.VW_INSPECT_VERSION};
+};
+/* §17 validateLiveOffer — oferta sprawdzana ZANIM wnętrze się załaduje. */
+window._vwValidateLiveOffer=function(defId){
+  const d=window._vwUnitDef(defId);
+  if(!d) return {ok:false, reason:'Tej oferty już nie ma na liście.'};
+  if(!window._vwInspectDef(defId)) return {ok:false, reason:'Ten lokal nie ma jeszcze przygotowanych oględzin.'};
+  if(typeof window._vwMarketUnlocked==='function'&&!window._vwMarketUnlocked())
+    return {ok:false, reason:'Rynek lokali nie jest jeszcze dla Ciebie otwarty.'};
+  const v=window._vwEnsure();   /* v.reserved to POJEDYNCZY defId albo null, nie lista */
+  if(v.units&&v.units.some(u=>u.defId===defId&&u.status===VW_STATES.CONFISCATED))
+    return {ok:false, reason:'Ten lokal jest zajęty przez służby.'};
+  return {ok:true, offer:d};
+};
 /* §4/§5 — FIZYCZNE OGLĘDZINY. Przycisk oględzin przenosi gracza do prawdziwej, chodzalnej mapy
    wnętrza (pokój `vw_inspect`), a nie do planszy, ilustracji ani statycznego opisu. Układ, rozmiar
    i paleta są budowane z profilu lokalu (VW_INSPECT), więc żaden lokal nie jest powiększeniem innego. */
@@ -59723,6 +59745,11 @@ window._vwiEnsure=function(){
   if(!Array.isArray(v.inspect.memory)) v.inspect.memory=[];
   if(!Array.isArray(v.inspect.shortlist)) v.inspect.shortlist=[];
   if(!v.inspect.toured) v.inspect.toured={};
+  if(!v.inspect.visitedZones) v.inspect.visitedZones={};   /* §17.1 persistVisitedZones */
+  if(!v.inspect.telemetry) v.inspect.telemetry={sessions:0, totalSec:0, zonesSeen:0, errors:0, last:null};
+  if(v.inspect.version!==window.VW_INSPECT_VERSION){       /* §17.1: po zmianie layoutu markery mogą nie istnieć */
+    v.inspect.visitedZones={}; v.inspect.version=window.VW_INSPECT_VERSION;
+  }
   return v.inspect;
 };
 /* Układ generowany z listy pomieszczeń: siatka zależna od ICH LICZBY i proporcji lokalu,
@@ -59760,6 +59787,8 @@ window._vwInspectGuard=function(){
 window._vwStartInspection=function(defId,mode){
   const guard=window._vwInspectGuard();
   if(!guard.ok){ if(typeof showMsg==='function') showMsg('🏢 '+guard.why,'f',4200); return false; }
+  const live=window._vwValidateLiveOffer(defId);
+  if(!live.ok){ if(typeof showMsg==='function') showMsg('🏢 '+live.reason,'f',3600); return false; }
   const d=window._vwUnitDef(defId), L=window._vwiLayout(defId);
   if(!d||!L){ if(typeof showMsg==='function') showMsg('🏢 Ten lokal nie ma jeszcze przygotowanych oględzin.','f',3200); return false; }
   const ins=window._vwiEnsure();
@@ -59785,12 +59814,15 @@ window._vwStartInspection=function(defId,mode){
   objs.push({id:'npc_vw_eve', wx:doorX+150, wy:doorY-8, w:34, h:56, act:'vwi:eve', prompt:'[E] 👩‍💼 Eve Rook', lbl:'Eve Rook'});
   ROOMS.vw_inspect={ wT:L.p.wT, hT:L.p.hT, map:null, objects:objs };
   window._vwiState={
-    defId, mode, layout:L, zoneIdx:-1, state:'WAITING_AT_ENTRY', visited:{}, lineIdx:0,
+    defId, mode, layout:L, zoneIdx:-1, state:'WAITING_AT_ENTRY',
+    visited:Object.assign({},(window._vwiEnsure().visitedZones||{})[defId]||{}), lineIdx:0,
+    ids:window._vwInspectIds(defId), startedAt:(typeof performance!=='undefined'?performance.now():0), errors:0,
     eve:{x:doorX+150, y:doorY-8, tx:doorX+150, ty:doorY-8, home:{x:doorX+150,y:doorY-8}, stuck:0, lastD:9999},
     bubble:'', bubbleT:0, overlay:false, light:0, t0:(typeof gameMin==='number'?gameMin:0),
     props:{}, ret:ret
   };
   ins.seen[defId]=seen+1; ins.lastMode=mode;
+  ins.telemetry.sessions++; ins.telemetry.last={defId, mode, day:(G.day||1)};
   if(typeof closeOverlay==='function') closeOverlay();
   if(typeof changeRoom==='function') changeRoom('vw_inspect', doorX+20, doorY-56);
   window._vwiSay(window._vwiPick(VW_EVE_LINES.greet), 5200);
@@ -59818,6 +59850,19 @@ window._vwiRoute=function(){
   const pick=scored.slice(0,Math.max(3,Math.min(5,Math.ceil(all.length/4))));
   return pick.sort((a,b)=>a-b);
 };
+/* §6.2 bezpieczny punkt recovery — przy wejściu, z dala od drzwi i ciągu komunikacyjnego. */
+window._vwiRecoveryMarker=function(){
+  const s=window._vwiState; if(!s) return {x:0,y:0};
+  return {x:s.eve.home.x, y:s.eve.home.y};
+};
+/* §6.2 Eve nie przekracza drzwi ani windy przed graczem, jeśli zamknęłoby to przejście. */
+window._vwiBlocksDoor=function(x,y){
+  if(typeof ROOMS==='undefined'||!ROOMS.vw_inspect) return false;
+  return ROOMS.vw_inspect.objects.some(o=>{
+    if(o.id!=='vwi_exit'&&(window._VWI_TYPE[o.id]||{}).t!=='lift') return false;
+    return (x+17>o.wx-10&&x+17<o.wx+o.w+10&&y+28>o.wy-10&&y+28<o.wy+o.h+10);
+  });
+};
 window._vwiNextZone=function(){
   const s=window._vwiState; if(!s) return;
   const route=window._vwiRoute();
@@ -59834,16 +59879,53 @@ window._vwiNextZone=function(){
 };
 /* §6.5 przeciwdziałanie blokowaniu: Eve nigdy nie stoi w drzwiach, ustępuje graczowi,
    a gdy nie potrafi dojść przez 3 s — przechodzi w RECOVERY_REPOSITION. */
+/* §6.2: czy punkt jest POZA kadrem — dyskretne przeniesienie wolno wykonać tylko wtedy. */
+window._vwiOffCamera=function(x,y){
+  if(typeof wx2sx!=='function'||typeof wy2sy!=='function') return true;
+  const sx=wx2sx(x), sy=wy2sy(y);
+  const cw=(typeof C!=='undefined'&&C&&C.width)?C.width:1280;   /* C = kanwa gry (gc), nie lokalne cv minigier */
+  const ch=(typeof C!=='undefined'&&C&&C.height)?C.height:800;
+  return (sx<-40||sy<-40||sx>cw+40||sy>ch+40);
+};
+/* §6.2: linia widzenia. Wnętrza są otwarte, więc rozdziela je dystans i ściana działowa między rzędami. */
+window._vwiHasLoS=function(){
+  const s=window._vwiState; if(!s||typeof P==='undefined') return true;
+  const e=s.eve, d=Math.hypot((P.wx+14)-(e.x+17),(P.wy+22)-(e.y+28));
+  if(d>420) return false;
+  const rowH=(s.layout.H-64-132)/s.layout.rows;
+  const rowOf=(yy)=>Math.floor((yy-64)/rowH);
+  return rowOf(P.wy+22)===rowOf(e.y+28)||d<150;
+};
 window._vwiTickEve=function(dt){
   const s=window._vwiState; if(!s) return; const e=s.eve;
+  /* §6.2 minimalny dystans oczekiwania 1,2-2,2 m zależnie od szerokości pomieszczenia (1 m = 48 px) */
+  const zNow=(s.zoneIdx>=0)?s.layout.zones[s.zoneIdx]:null;
+  const wide=zNow?Math.min(1,Math.max(0,(zNow.w-140)/220)):0.4;
+  e.keep=Math.round(48*(1.2+wide*1.0));
   let dx=e.tx-e.x, dy=e.ty-e.y, d=Math.hypot(dx,dy);
   if(d>4){
-    const sp=Math.min(150*dt, d);
+    /* §6.2 po 4 s bez postępu Eve ZWALNIA i obraca się do gracza; skok to dopiero ostatni krok */
+    const slow=(e.stall>=4)?0.35:1;
+    const sp=Math.min(150*dt*slow, d);
     e.x+=dx/d*sp; e.y+=dy/d*sp;
-    if(d>e.lastD-0.4) e.stuck+=dt; else e.stuck=0;
+    if(d>e.lastD-0.4) e.stall=(e.stall||0)+dt; else e.stall=0;
     e.lastD=d;
-    if(e.stuck>3){ e.x=e.tx; e.y=e.ty; e.stuck=0; s.state='RECOVERY_REPOSITION'; }
+    if(typeof P!=='undefined') e.face=((P.wx+14)<(e.x+17))?-1:1;
+    if(e.stall>=4&&e.stall<8){ s.state='WAITING_FOR_PLAYER'; }
+    else if(e.stall>=8&&e.stall<12&&!e.rePathed){
+      /* krok 1: lokalne przeliczenie trasy — obejście bokiem, bez znikania */
+      e.rePathed=1; e.tx+=(Math.abs(dx)>Math.abs(dy)?0:56)*(dx<0?-1:1); e.ty+=(Math.abs(dx)>Math.abs(dy)?56:0)*(dy<0?-1:1);
+      s.state='RETURNING_TO_ROUTE';
+    } else if(e.stall>=12){
+      /* krok 2: marker recovery; krok 3: przeniesienie WYŁĄCZNIE poza kadrem i przy braku linii widzenia */
+      const mk=window._vwiRecoveryMarker();
+      if(!window._vwiHasLoS()&&window._vwiOffCamera(mk.x,mk.y)){
+        e.x=mk.x; e.y=mk.y; e.stall=0; e.rePathed=0; s.state='RECOVERY_REPOSITION';
+      } else if(!e.markerTried){ e.markerTried=1; e.tx=mk.x; e.ty=mk.y; s.state='RECOVERY_REPOSITION'; }
+      else { s.state='WAITING_FOR_PLAYER'; }   /* w kadrze Eve po prostu czeka — nie teleportuje się */
+    }
   } else if(s.state==='LEADING_TO_ZONE'){
+    e.stall=0; e.rePathed=0; e.markerTried=0;
     s.state='PRESENTING_ZONE';
     const z=s.layout.zones[s.zoneIdx];
     const lines=s.layout.p.route;
@@ -59851,11 +59933,17 @@ window._vwiTickEve=function(dt){
     window._vwiSay(z.n+'. '+line, 6200);
     s.visited[z.id]=1;
   } else if(s.state==='RECOVERY_REPOSITION') s.state='PRESENTING_ZONE';
-  /* ustąp graczowi, jeżeli stoi zbyt blisko */
+  /* §6.2 ustąp graczowi — dystans zależny od szerokości pomieszczenia, nie stała */
   if(typeof P!=='undefined'){
+    const keep=e.keep||58;
     const pd=Math.hypot((P.wx+14)-(e.x+17),(P.wy+22)-(e.y+28));
-    if(pd<38){ const a=Math.atan2((e.y+28)-(P.wy+22),(e.x+17)-(P.wx+14));
-      e.x+=Math.cos(a)*38*dt*2.2; e.y+=Math.sin(a)*38*dt*2.2; }
+    if(pd<keep){ const a=Math.atan2((e.y+28)-(P.wy+22),(e.x+17)-(P.wx+14));
+      e.x+=Math.cos(a)*keep*dt*2.2; e.y+=Math.sin(a)*keep*dt*2.2; }
+    /* §6.2 nie wchodź w drzwi ani windę przed graczem — cofnij się o krok i przepuść */
+    if(window._vwiBlocksDoor(e.x,e.y)){
+      const pInDoor=window._vwiBlocksDoor(P.wx-17,P.wy-28);
+      if(!pInDoor){ e.y-=60*dt*2.5; } else { e.x+=(e.x>P.wx?1:-1)*60*dt*2.5; }
+    }
   }
   /* w trybie prowadzonym: gdy gracz dołączy do strefy, ruszamy dalej */
   if(s.state==='PRESENTING_ZONE'&&(s.mode==='guided'||s.mode==='quick')&&typeof P!=='undefined'){
@@ -59931,6 +60019,13 @@ window._vwiDecide=function(what){
 /* §5 tryb 5 — Compare Memory: zapamiętane oględziny można zestawić bez ponownego wchodzenia. */
 window._vwiRecordMemory=function(){
   const s=window._vwiState; if(!s) return; const ins=window._vwiEnsure();
+  /* §17.1 persistVisitedZones — te same strefy nie liczą się od nowa po wznowieniu */
+  ins.visitedZones[s.defId]=Object.assign({},ins.visitedZones[s.defId]||{},s.visited);
+  /* §5.2 InspectionTelemetry — czas oględzin, odwiedzone strefy, błędy. Nic poza potrzebami gry. */
+  const sec=Math.round((((typeof performance!=='undefined')?performance.now():0)-(s.startedAt||0))/1000);
+  ins.telemetry.totalSec+=Math.max(0,Math.min(3600,sec));
+  ins.telemetry.zonesSeen+=Object.keys(s.visited).length;
+  ins.telemetry.errors+=(s.errors||0);
   const d=window._vwUnitDef(s.defId), p=s.layout.p;
   const e={defId:s.defId, name:d.name, area:d.area, price:d.price, zones:s.layout.zones.length,
            visited:Object.keys(s.visited).length, dominant:p.dominant, emotion:p.emotion, anchor:p.anchor, advantage:p.advantage};
@@ -59948,6 +60043,8 @@ window._vwiCompareMemory=function(){
   document.getElementById('ov-content').innerHTML=`
     <h2>🧠 Pamięć oględzin</h2>
     <p class="sub">Zestawienie lokali, które faktycznie obejrzałeś od środka. Metraż nie powie wszystkiego.</p>
+    ${m.length>1?`<div style="background:#0d1420;border:1px solid #1e2c3e;border-radius:9px;padding:9px 11px;margin-bottom:8px;font-size:12px;color:#cdd">
+      <b>Różnice wobec ostatnio oglądanego (${m[1].name}):</b><br>${window._vwiDiffLine(m[0],m[1])}</div>`:''}
     ${m.length?`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
       <tr><th style="text-align:left;padding:5px;color:#7ec8e3">—</th>${m.map(e=>`<th style="padding:5px;color:#7ec8e3;white-space:nowrap">${e.name}</th>`).join('')}</tr>
       ${rows.map(([lab,fn])=>`<tr><td style="padding:5px;color:#9ab;white-space:nowrap">${lab}</td>${m.map(e=>`<td style="padding:5px;text-align:center;color:#cdd">${fn(e)}</td>`).join('')}</tr>`).join('')}
@@ -59955,14 +60052,39 @@ window._vwiCompareMemory=function(){
     <div style="margin-top:8px">${ins.shortlist.length?('⭐ Shortlista: '+ins.shortlist.map(id=>(window._vwUnitDef(id)||{}).name).join(', ')):'⭐ Shortlista jest pusta.'}</div>
     <button class="cbtn" style="margin-top:8px" onclick="${window._vwiState?'window._vwiDecisionPanel()':'closeOverlay()'}">← Wróć</button>`;
 };
+/* §5.3 — porównanie bez ładowania dwóch wnętrz naraz: liczby z pamięci, nie z drugiej sceny. */
+window._vwiDiffLine=function(a,b){
+  const f=(lab,x,y,suf)=>{ const d=x-y; if(!d) return lab+': bez różnicy';
+    return lab+': '+(d>0?'+':'')+d.toLocaleString('pl')+(suf||'')+(d>0?' więcej':' mniej'); };
+  return [f('Powierzchnia',a.area,b.area,' m²'), f('Cena',a.price,b.price,' zł'),
+    f('Stref we wnętrzu',a.zones,b.zones,''),
+    'Dominanta: '+(a.dominant===b.dominant?'ta sama':a.dominant+' zamiast '+b.dominant),
+    'Wrażenie: '+(a.emotion===b.emotion?'to samo':a.emotion+' zamiast '+b.emotion)].join(' · ');
+};
 window._vwiLeave=function(bought){
   const s=window._vwiState; if(!s) return;
   window._vwiRecordMemory();
-  const r=s.ret; window._vwiState=null; window._VWI_TYPE={};
+  const r=Object.assign({defId:s.defId},s.ret); window._vwiState=null; window._VWI_TYPE={};
   if(typeof closeOverlay==='function') closeOverlay();
   if(typeof changeRoom==='function') changeRoom(r.room||'vantage_lobby', r.wx||560, r.wy||600);
   if(typeof showMsg==='function') showMsg(bought?'🏢 Lokal jest Twój. Eve odprowadza Cię do windy.':'🏢 Oględziny zakończone. Oferta pozostaje bez zmian.','i',4200);
+  window._vwiFollowUp(r.defId||null,bought);
   if(typeof saveGame==='function') saveGame();
+};
+/* §18 P7 — follow-up Eve: krótka wiadomość po wizycie, dopasowana do tego, co gracz zrobił. */
+window._vwiFollowUp=function(defId,bought){
+  const ins=window._vwiEnsure(); const last=ins.memory[0]; if(!last) return;
+  const d=window._vwUnitDef(last.defId)||{};
+  const short=ins.shortlist.indexOf(last.defId)>=0;
+  const seenAll=(last.visited>=last.zones);
+  let txt;
+  if(bought)        txt='Gratuluję decyzji. Klucze i karta dostępu czekają w recepcji, a ja zostaję do dyspozycji przy wyposażeniu.';
+  else if(short)    txt='Dopisałam '+d.name+' do Pana listy. Gdyby pojawiło się zainteresowanie z innej strony, uprzedzę Pana wcześniej.';
+  else if(!seenAll) txt='Nie obejrzał Pan całego lokalu. Proszę wpaść jeszcze raz — najwięcej mówi przejście między strefami, nie sama karta oferty.';
+  else              txt='Dziękuję za wizytę w '+d.name+'. Gdyby chciał Pan porównać ten układ z innym, wystarczy wrócić do korytarza lokali pokazowych.';
+  const send=()=>{ if(typeof window._smsSend==='function') window._smsSend('eve_rook',txt,{bypass:true});
+    else if(typeof showMsg==='function') showMsg('👩‍💼 Eve Rook: '+txt,'i',6000); };
+  setTimeout(send,2600);
 };
 /* §5 tryb 4 — Insight Overlay: warstwa danych nakładana na fizyczne wnętrze. */
 window._vwiToggleOverlay=function(){ const s=window._vwiState; if(!s) return;
@@ -60137,13 +60259,14 @@ window.drawVwInterior=function(){
     const seg=(W-80)/L.cols;
     for(let c=0;c<L.cols;c++){ const x0=o+40+c*seg+18, ww=seg-64; if(ww>10) X.fillRect(x0,y,ww,5); }
   }
-  /* sufit: świetlówki liniowe + scena światła wybrana przez gracza (§7 smart light) */
-  const scene=s.light||0;
-  const tint=['rgba(220,238,255,.10)','rgba(255,236,206,.12)','rgba(190,215,255,.14)','rgba(255,198,150,.13)','rgba(200,170,255,.12)'][scene];
-  X.fillStyle=tint;
-  for(let x=90;x<W-70;x+=190) X.fillRect(o+x,p+8,140,4);
-  X.fillStyle=window._vwiMix(pal[3],'#000',0.6);
-  for(let x=90;x<W-70;x+=190) X.fillRect(o+x,p+13,140,2);
+  /* §7.2 pięć warstw światła — każda ma inne zadanie i inny rysunek */
+  window._vwiLightLayer('ambient',o,p,W,H,pal,s);
+  window._vwiLightLayer('scene',  o,p,W,H,pal,s);
+  window._vwiLightLayer('accent', o,p,W,H,pal,s);
+  window._vwiLightLayer('emergency',o,p,W,H,pal,s);
+  /* warstwa Task rysowana per strefa w _drawVwiSprite (lampy nad stanowiskami, stołem, magazynem, techniką) */
+  /* §7.1 biophilia i akustyka: zielona ściana, mech, bafflery i panele filcowe */
+  window._vwiWellbeing(o,p,W,H,pal,L);
   /* przeszklenie zewnętrzne po prawej + akcent marki */
   X.fillStyle='rgba(180,215,240,.06)'; X.fillRect(o+W-26,p+40,26,H-150);
   X.fillStyle=window._vwiMix(pal[1],'#000',0.5);
@@ -60160,6 +60283,8 @@ window.drawVwInterior=function(){
       X.fillStyle='rgba(126,200,227,.10)'; X.fillRect(o+z.x,p+z.y,z.w,z.h);
       X.strokeStyle='rgba(126,200,227,.55)'; X.lineWidth=1; X.strokeRect(o+z.x+.5,p+z.y+.5,z.w-1,z.h-1);
       X.fillStyle='#bfe4f5'; X.fillText(Math.round(100*z.w*z.h/tot)+'% · '+(z.i?'interaktywna':'przegląd'),o+z.x+z.w/2,p+z.y+z.h-6);
+      const info=window._vwiZoneMetrics(z);      /* §5.3: pojemność, stanowiska, magazyn, sloty, potencjał */
+      if(info){ X.fillStyle='#8fd6f0'; X.fillText(info,o+z.x+z.w/2,p+z.y+z.h-17); }
     });
     X.restore(); X.textAlign='left';
   }
@@ -60172,6 +60297,82 @@ window.drawVwInterior=function(){
     X.strokeStyle=window._vwiMix(pal[3],'#fff',0.3); X.lineWidth=1; X.strokeRect(bx+.5,by+.5,tw-1,21);
     X.fillStyle='#dceaf5'; X.textAlign='center'; X.fillText(txt,bx+tw/2,by+15); X.textAlign='left';
   }
+};
+/* §5.3 — dane strefy czytane z REALNEJ oferty, żeby nakładka nie kłamała względem karty lokalu. */
+window._vwiZoneMetrics=function(z){
+  const s=window._vwiState; if(!s) return '';
+  const d=window._vwUnitDef(s.defId)||{};
+  switch(z.t){
+    case 'desks':   return 'stanowiska: '+(d.office||0);
+    case 'warehouse':return 'magazyn: '+((d.warehouse||0).toLocaleString('pl'));
+    case 'hall': case 'ops': case 'opsB': case 'opsC': return 'sloty operacyjne: '+(d.slots||0);
+    case 'lift':    return (d.slots>0?'winda towarowa: tak':'tylko ruch osobowy');
+    case 'adapt':   return 'potencjał: przyszła funkcja';
+    case 'office': case 'board': case 'meeting': return 'maks. personel: '+(d.staff||0);
+    case 'loading': return 'obsługa dostaw: '+(d.slots>0?'tak':'nie');
+    default:        return 'powierzchnia lokalu: '+(d.area||0)+' m²';
+  }
+};
+/* §7.2 — warstwy światła. Nazwy zgodne z dokumentem, każda rysuje coś innego. */
+window.VW_LIGHT_LAYERS=['Ambient','Task','Accent','Scene','Emergency'];
+window._vwiLightLayer=function(layer,o,p,W,H,pal,s){
+  const M=window._vwiMix;
+  if(layer==='ambient'){
+    /* równomierne, nieprzepalone światło ogólne */
+    const g=X.createRadialGradient(o+W/2,p+H*0.35,40,o+W/2,p+H*0.35,Math.max(W,H)*0.75);
+    g.addColorStop(0,'rgba(255,255,255,.055)'); g.addColorStop(1,'rgba(255,255,255,0)');
+    X.fillStyle=g; X.fillRect(o,p,W,H);
+    X.fillStyle='rgba(226,240,255,.09)';
+    for(let x=90;x<W-70;x+=190) X.fillRect(o+x,p+8,140,4);
+    X.fillStyle=M(pal[1],'#000',0.6);
+    for(let x=90;x<W-70;x+=190) X.fillRect(o+x,p+13,140,2);
+    return;
+  }
+  if(layer==='scene'){
+    /* profile: Praca, Spotkanie, Prezentacja, Wieczór, Lounge */
+    const tint=['rgba(220,238,255,.07)','rgba(255,236,206,.09)','rgba(190,215,255,.11)','rgba(255,198,150,.10)','rgba(200,170,255,.09)'][s.light||0];
+    X.fillStyle=tint; X.fillRect(o,p,W,H); return;
+  }
+  if(layer==='accent'){
+    /* LED przy lamelach, roślinach, grafice i logotypie */
+    X.fillStyle=M(pal[3],'#ffffff',0.45);
+    for(let x=54;x<W-40;x+=118) X.fillRect(o+x,p+34,2,26);            /* lamele */
+    X.fillStyle='rgba(255,255,255,.14)';
+    for(let x=54;x<W-40;x+=118) X.fillRect(o+x+3,p+34,7,26);
+    X.fillStyle=M(pal[3],'#ffffff',0.55); X.fillRect(o+W/2-70,p+30,140,2);  /* podświetlony logotyp */
+    return;
+  }
+  if(layer==='emergency'){
+    /* czytelne oznakowanie wyjść i światło techniczne — bez efektu dekoracyjnego */
+    const doorX=Math.round(W/2-60), doorY=H-72;
+    X.fillStyle='#1a4a2a'; X.fillRect(o+doorX+40,p+doorY-26,40,13);
+    X.fillStyle='#8ff0b0'; X.font='bold 8px "Segoe UI",Arial'; X.textAlign='center';
+    X.fillText('WYJŚCIE',o+doorX+60,p+doorY-17); X.textAlign='left';
+    X.fillStyle='rgba(140,240,176,.55)';
+    X.fillRect(o+doorX+44,p+doorY-14,4,3); X.fillRect(o+doorX+72,p+doorY-14,4,3);
+    for(let x=70;x<W-60;x+=260){ X.fillStyle='rgba(140,240,176,.30)'; X.fillRect(o+x,p+H-118,14,3); }
+    return;
+  }
+};
+/* §7.1 Activity-Based Working i wellbeing — biophilia i akustyka widoczne, nie tylko w opisie. */
+window._vwiWellbeing=function(o,p,W,H,pal,L){
+  const M=window._vwiMix;
+  /* zielona ściana z mchem przy lewej krawędzi — nie blokuje przejść (poza siatką stref) */
+  const gw=26, gh=Math.min(180,H-220);
+  X.fillStyle='#1f3a24'; X.fillRect(o+8,p+56,gw,gh);
+  for(let y=0;y<gh;y+=9) for(let x=0;x<gw;x+=9){
+    X.fillStyle=['#2f6b3a','#3c7f46','#27612f','#4a8f52'][(x+y)%4];
+    X.beginPath(); X.arc(o+12+x,p+60+y,4.2,0,Math.PI*2); X.fill(); }
+  X.fillStyle='rgba(255,255,255,.05)'; X.fillRect(o+8,p+56,gw,3);
+  /* bafflery akustyczne podwieszone pod sufitem */
+  for(let x=120;x<W-90;x+=74){ X.fillStyle=M(pal[2],'#000',0.42); X.fillRect(o+x,p+20,10,26);
+    X.fillStyle='rgba(0,0,0,.22)'; X.fillRect(o+x+7,p+20,3,26); }
+  /* panele filcowe na ścianie górnej — miękka akustyka, nie dekoracja */
+  for(let x=60;x<W-60;x+=46){ X.fillStyle=M(pal[3],'#000',0.52); X.fillRect(o+x,p+48,38,7);
+    X.fillStyle='rgba(255,255,255,.05)'; X.fillRect(o+x,p+48,38,2); }
+  /* kamień i drewno w pasie wykończenia — materiały z §7.1 */
+  X.fillStyle=M(pal[2],'#000',0.30); X.fillRect(o+W-58,p+56,18,Math.min(150,H-230));
+  for(let y=0;y<Math.min(150,H-230);y+=22){ X.fillStyle='rgba(0,0,0,.16)'; X.fillRect(o+W-58,p+58+y,18,2); }
 };
 window._vwiMix=function(a,b,t){
   const hx=(c)=>[parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)];
@@ -60237,10 +60438,17 @@ window._drawVwiSprite=function(id,sx,sy,w,h){
       break; }
     case 'desks': {
       const cols=w>190?3:2, rows=h>120?2:1;
+      if(w>250){                                                              /* §7.1 phone boxy w większych lokalach */
+        for(let b=0;b<2;b++){ const bx=sx+w-46, by=sy+12+b*((h-30)/2);
+          X.fillStyle=M(dark,'#fff',0.30); X.fillRect(bx,by,34,Math.max(22,(h-34)/2));
+          X.fillStyle='rgba(180,215,240,.16)'; X.fillRect(bx+3,by+3,28,Math.max(16,(h-40)/2));
+          X.fillStyle=M(acc,'#fff',0.35); X.fillRect(bx+3,by+3,28,2);
+          X.fillStyle=M(wood,'#000',0.14); X.fillRect(bx+8,by+Math.max(11,(h-40)/4),18,5); } }
       for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
         const x=sx+12+c*((w-24)/cols), y=sy+14+r*((h-28)/rows), dw=(w-24)/cols-12, dh=(h-28)/rows-16;
         box(x,y,dw,dh,wood); screen(x+dw/2-11,y-8,22,13); chair(x+dw/2,y+dh+7);
-        X.fillStyle=M(acc,'#fff',0.4); X.fillRect(x+dw-8,y+3,3,7);           /* task light */
+        X.fillStyle=M(acc,'#fff',0.4); X.fillRect(x+dw-8,y+3,3,7);           /* task light — oprawa */
+        X.fillStyle='rgba(255,244,214,.16)'; X.fillRect(x+2,y-3,dw-4,7);      /* §7.2 warstwa Task: plama światła na blacie */
         X.fillStyle=M(dark,'#fff',0.40); X.fillRect(x-3,y-2,3,dh+4);          /* separator filcowy */
       }
       break; }
@@ -60263,6 +60471,7 @@ window._drawVwiSprite=function(id,sx,sy,w,h){
       screen(sx+8,cy-16,16,32);
       screen(cx-tw/2,sy+6,long?tw:tw-10,14);                                  /* ściana multimedialna */
       X.fillStyle=M(acc,'#fff',0.5); X.beginPath(); X.arc(cx,sy+h-10,3,0,Math.PI*2); X.fill(); /* mikrofon sufitowy */
+      X.fillStyle='rgba(255,244,214,.14)'; X.fillRect(cx-tw/2,cy-th/2-9,tw,9);   /* §7.2 Task: lampa nad stołem */
       break; }
     case 'minibar': {
       box(sx+8,sy+h/2-12,w-50,26,M(wood,'#000',0.2));                        /* blat */
@@ -60298,6 +60507,7 @@ window._drawVwiSprite=function(id,sx,sy,w,h){
     case 'server': {
       rack(sx+10,sy+12,26,h-30); rack(sx+42,sy+12,26,h-30);
       if(w>120) rack(sx+74,sy+12,26,h-30);
+      X.fillStyle='rgba(255,244,214,.12)'; X.fillRect(sx+8,sy+8,w-16,5);       /* §7.2 Task: światło techniczne */
       X.fillStyle=M(dark,'#fff',0.28); X.fillRect(sx+w-30,sy+14,20,h-34);     /* klimatyzacja */
       for(let i=0;i<4;i++){ X.fillStyle='rgba(255,255,255,.15)'; X.fillRect(sx+w-27,sy+20+i*10,14,3); }
       break; }
@@ -60352,6 +60562,8 @@ window._drawVwiSprite=function(id,sx,sy,w,h){
       for(let i=0;i<Math.floor(w/70);i++){ const px=sx+16+i*70;                /* palety na posadzce */
         X.fillStyle=M(wood,'#000',0.34); X.fillRect(px,sy+h-24,26,9);
         X.fillStyle='rgba(0,0,0,.35)'; for(let k=0;k<3;k++) X.fillRect(px+k*9,sy+h-24,2,9); }
+      X.fillStyle='rgba(255,244,214,.10)';                                    /* §7.2 Task: światło nad alejkami */
+      for(let i=0;i<Math.floor(w/58);i++) X.fillRect(sx+12+i*58,sy+10,40,5);
       X.strokeStyle='rgba(240,192,64,.55)'; X.lineWidth=2; X.setLineDash([6,5]);
       X.strokeRect(sx+6,sy+h-13,w-12,7); X.setLineDash([]);                   /* droga transportowa */
       break; }
@@ -77740,6 +77952,7 @@ const SMS_CONTACTS={
   kantar:    {name:'Numer zastrzeżony',         em:'📵', color:'#9b59b6', physical:true}, /* v2.3.38 moduł „Numer zastrzeżony" — nadawca SMS (broker Kantar w Velvet Room); name→„Kantar” po ukończeniu questa (mutowane w TIER 8) */
   knox:      {name:'Knox „Towline” Mercer',     em:'🛻', color:'#e67e22', physical:false}, /* nowy PDF Fizyczne kolizje: holownik/wraki, usługi powtarzalne (menu w renderSMSConversation) */
   nolan:     {name:'Captain Nolan Reed',        em:'⚓', color:'#00b4d8', physical:false}, /* PDF Marina Coast §6/§25: kapitan portowy — cumowanie, paliwo, serwis, eventy, ostrzeżenia */
+  eve_rook:  {name:'Eve Rook (Vantage Works)', em:'🏢', color:'#7ec8e3', physical:true}, /* VANTAGE V2 §18 P7: follow-up po oględzinach */
   sierra:    {name:'Sierra „Sunny” Bell',        em:'🌅', color:'#f0a860', physical:true}, /* SUNSET PALMS §21-22: gospodyni altany — przypomnienia, leady, referrale */
   rysiek:    {name:'Rysiek „Prasa”',              em:'♻️', color:'#95a5a6', physical:true}, /* v2.3.131 (PDF Uspr v2.3.130 U6): właściciel Metal Valley Yard — decyzja o kasacji, rozliczenia */
 };
@@ -87331,6 +87544,12 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.131',date:'2026-08-10',cats:['beta-tester','fix','feature'],title:'🅿️🚚♻️ Parking, holowanie, kasacja pojazdów i porządki w całej grze',
  items:[
+  {t:'feature',d:'💡 Wnętrza lokali VANTAGE mają teraz pełne oświetlenie: równomierne światło ogólne, lampy nad biurkami, stołem, alejkami magazynu i strefą techniczną, podświetlenia przy lamelach i logotypie, wybraną przez Ciebie scenę oraz osobne, czytelne oznakowanie wyjścia. Doszły też zielona ściana z mchem, panele akustyczne pod sufitem i kabiny do rozmów telefonicznych w większych biurach.'},
+  {t:'fix',d:'👩‍💼 Eve zachowuje się podczas oprowadzania jak człowiek, a nie jak znacznik: trzyma sensowny dystans dopasowany do wielkości pomieszczenia, nie wchodzi w drzwi ani windę przed Tobą, a gdy nie może przejść — najpierw zwalnia i czeka, potem próbuje obejść, i dopiero na końcu wraca do wejścia, zawsze poza Twoim polem widzenia.'},
+  {t:'feature',d:'📐 Warstwa danych podczas zwiedzania pokazuje teraz konkretne liczby z oferty: ile stanowisk mieści dana strefa, jaki jest magazyn, ile jest slotów operacyjnych i które pomieszczenie zostawiono pod przyszłą funkcję.'},
+  {t:'feature',d:'🧠 Porównanie obejrzanych lokali podaje wprost różnice wobec poprzedniej wizyty — o ile więcej metrów, o ile wyższa cena, ile stref przybyło i czym różni się charakter wnętrza.'},
+  {t:'feature',d:'📩 Po wyjściu z oględzin dostaniesz krótką wiadomość od Eve. Jej treść zależy od tego, co zrobiłeś: czy kupiłeś, czy dopisałeś lokal do listy, czy wyszedłeś nie obejrzawszy wszystkiego.'},
+  {t:'fix',d:'🏢 Oględziny nie startują, gdy trwa coś ważniejszego — zatrzymanie, pościg, leczenie albo scena. Gra sprawdza też, czy oferta nadal jest aktualna, zanim wpuści Cię do środka, a wizyta przerwana zapisem gry nie każe zwiedzać od zera tego, co już zobaczyłeś.'},
   {t:'feature',d:'👁 Lokale VANTAGE WORKS można wreszcie obejrzeć od środka. Przycisk oględzin przy ofercie wprowadza Cię do prawdziwego, chodzalnego wnętrza — nie do rysunku ani opisu. Każdy z siedmiu lokali ma własny układ pomieszczeń, własną kolorystykę, własne meble i jeden charakterystyczny punkt, po którym się go zapamiętuje. Ceny, metraże i piętra pozostały bez zmian.'},
   {t:'feature',d:'👩‍💼 Eve Rook oprowadza po lokalu osobiście. Czeka przy drzwiach i pyta, czy wolisz pełne oprowadzanie, swobodne zwiedzanie, czy szybki skrót przez najważniejsze punkty (skrót otwiera się po pierwszym pełnym obejściu). Komentuje kolejne strefy, odpowiada na pytania o zmianę układu, wyposażenie w cenie i o to, dlaczego jeden lokal kosztuje więcej od drugiego. Gdy się oddalisz — czeka, gdy wrócisz — prowadzi dalej.'},
   {t:'feature',d:'🛋 We wnętrzu można sprawdzić, jak lokal działa, a nie tylko jak wygląda: włącz ekran, zmień scenę światła, zasuń rolety, usiądź na kanapie, zajrzyj do minibaru, spójrz przez okno. W trybie oględzin to wyłącznie pokaz — nic nie daje trwałych premii i nic nie zmienia statusu oferty bez Twojego potwierdzenia.'},
