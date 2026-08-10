@@ -19080,6 +19080,202 @@ window._syBookBtn=function(rid){
 };
 window._syToggleBooking=function(rid){ const p=window._syProp(rid); if(!p) return; p.bookingEnabled=!p.bookingEnabled; if(typeof renderSessionBoard==='function') renderSessionBoard(); };
 /* Panel pojedynczego studia — wyposażenie, konsultacje, personel, serwis. */
+/* ── §5.1/§5.2/§15.1 WARSTWA WIZUALNA STUDIA ────────────────────────────────────────────────────
+   Dokument wymaga, żeby kupiony element miał FIZYCZNY asset: po dostawie skrzynię w strefie wejściowej,
+   a po montażu finalny model w swojej strefie. Wymaga też, by każdy produkt miał `visualAssetId`,
+   `slotType`, `interactionAnchorId` i profil serwisu (§15.1). Wcześniej wyposażenie istniało wyłącznie
+   jako dane w panelu — gracz kupował coś, czego nigdy nie widział. ── */
+window.SY_SLOT_BY_CAT={ computer:'desk_surface', daw:'software_license', plugins:'software_license',
+  midi:'desk_surface', microphone:'mic_stand', monitors:'monitor_stand', headphones:'wall_hook',
+  audio_interface:'rack_unit', furniture:'floor', fridge:'floor', lighting:'ceiling_or_wall',
+  acoustics:'wall_panel', extras:'rack_unit', instrument:'floor' };
+window.SY_SERVICE_BY_CAT={ computer:{interval:120,cost:0.06,wear:1.0}, daw:{interval:240,cost:0.02,wear:0.4},
+  plugins:{interval:365,cost:0.01,wear:0.2}, midi:{interval:180,cost:0.04,wear:0.7},
+  microphone:{interval:150,cost:0.05,wear:0.8}, monitors:{interval:200,cost:0.05,wear:0.6},
+  headphones:{interval:90,cost:0.08,wear:1.2}, audio_interface:{interval:150,cost:0.05,wear:0.9},
+  furniture:{interval:300,cost:0.03,wear:0.5}, fridge:{interval:180,cost:0.05,wear:0.7},
+  lighting:{interval:220,cost:0.03,wear:0.5}, acoustics:{interval:400,cost:0.02,wear:0.2},
+  extras:{interval:200,cost:0.04,wear:0.6}, instrument:{interval:200,cost:0.05,wear:0.6} };
+/* uzupełnienie katalogu o pola wymagane w §15.1 — robione programowo, żeby 44 wpisy nie rozjechały się ręcznie */
+(function _syAugmentEquipAssets(){
+  if(typeof STUDIO_EQUIP==='undefined') return;
+  Object.keys(STUDIO_EQUIP).forEach(id=>{
+    const d=STUDIO_EQUIP[id]; if(!d||d.visualAssetId) return;
+    const zone=(typeof window._syZoneFor==='function')?window._syZoneFor(id):'technical';
+    d.visualAssetId='sy_asset_'+id;
+    d.slotType=window.SY_SLOT_BY_CAT[d.cat]||'floor';
+    d.interactionAnchorId='sy_anchor_'+zone+'_'+id;
+    d.service=Object.assign({profileId:'sy_svc_'+d.cat}, window.SY_SERVICE_BY_CAT[d.cat]||{interval:200,cost:0.04,wear:0.6});
+  });
+})();
+window.syEquipAsset=function(defId){ const d=(typeof STUDIO_EQUIP!=='undefined')?STUDIO_EQUIP[defId]:null;
+  return d?{visualAssetId:d.visualAssetId, slotType:d.slotType, interactionAnchorId:d.interactionAnchorId, service:d.service}:null; };
+/* rozkład stref na planie lokalu — proporcje zależne od metrażu, więc każdy lokal wygląda inaczej */
+window._syZoneRects=function(rid,W,H){
+  const room=(typeof STUDIO_ROOMS!=='undefined')?STUDIO_ROOMS[rid]:null;
+  const m2=(room&&room.sizeM2)||24;
+  const wide=Math.min(1,Math.max(0,(m2-16)/90));          /* mały booth ↔ duży penthouse */
+  const pad=10, gap=6;
+  const colW=(W-pad*2-gap*2)/3, rowH=(H-pad*2-gap)/2;
+  const big=colW*(1+wide*0.35);
+  return {
+    workstation:{x:pad,          y:pad,               w:big,          h:rowH,             z:'workstation'},
+    recording:  {x:pad+big+gap,  y:pad,               w:colW,         h:rowH,             z:'recording'},
+    monitoring: {x:pad+big+colW+gap*2, y:pad,         w:W-pad*2-big-colW-gap*2, h:rowH,   z:'monitoring'},
+    client:     {x:pad,          y:pad+rowH+gap,      w:colW*1.2,     h:rowH,             z:'client'},
+    technical:  {x:pad+colW*1.2+gap, y:pad+rowH+gap,  w:colW*0.9,     h:rowH,             z:'technical'},
+    storage:    {x:pad+colW*2.1+gap*2, y:pad+rowH+gap,w:W-pad*2-colW*2.1-gap*2, h:rowH,   z:'storage'},
+    entry:      {x:W-pad-54,     y:H-pad-30,          w:48,           h:24,               z:'entry'}
+  };
+};
+/* rysunek finalnego modelu per kategoria — bez tego zainstalowany sprzęt byłby niewidoczny */
+window._syDrawAsset=function(ctx,cat,x,y,w,h,cond){
+  const dim=(cond!=null&&cond<40);
+  const ink=(c)=>{ ctx.fillStyle=dim?'#5a5f66':c; };
+  ctx.save();
+  switch(cat){
+    case 'computer':
+      ink('#2b3138'); ctx.fillRect(x,y+h*0.35,w*0.42,h*0.6);                 /* obudowa */
+      ink('#12161b'); ctx.fillRect(x+w*0.48,y,w*0.5,h*0.62);                 /* monitor */
+      ink('#3f7fa8'); ctx.fillRect(x+w*0.51,y+h*0.05,w*0.44,h*0.5);
+      ink('#2b3138'); ctx.fillRect(x+w*0.62,y+h*0.62,w*0.22,h*0.08);
+      ink('#3a424b'); ctx.fillRect(x+w*0.46,y+h*0.78,w*0.5,h*0.1);           /* klawiatura */
+      break;
+    case 'daw': case 'plugins':
+      ink('#12161b'); ctx.fillRect(x,y+h*0.1,w,h*0.7);
+      ink('#7ec8e3'); ctx.fillRect(x+2,y+h*0.16,w-4,h*0.1);
+      for(let i=0;i<4;i++){ ink(i%2?'#3f7fa8':'#2a5a75'); ctx.fillRect(x+3+i*(w-6)/4,y+h*0.32,(w-6)/4-2,h*0.4); }
+      break;
+    case 'microphone':
+      ink('#3a424b'); ctx.fillRect(x+w*0.45,y+h*0.25,w*0.08,h*0.7);          /* statyw */
+      ink('#2b3138'); ctx.fillRect(x+w*0.3,y+h*0.93,w*0.4,h*0.07);
+      ink('#c9c2b4'); ctx.beginPath(); ctx.ellipse(x+w*0.49,y+h*0.18,w*0.16,h*0.18,0,0,Math.PI*2); ctx.fill();
+      ink('#6a7079'); ctx.fillRect(x+w*0.38,y+h*0.30,w*0.22,h*0.05);
+      break;
+    case 'monitors':
+      [0,1].forEach(i=>{ const mx=x+i*(w*0.56);
+        ink('#22272d'); ctx.fillRect(mx,y+h*0.2,w*0.42,h*0.72);
+        ink('#0e1216'); ctx.beginPath(); ctx.arc(mx+w*0.21,y+h*0.52,Math.min(w*0.15,h*0.2),0,Math.PI*2); ctx.fill();
+        ink('#7ec8e3'); ctx.fillRect(mx+w*0.16,y+h*0.26,w*0.1,h*0.04); });
+      break;
+    case 'headphones':
+      ink('#2b3138'); ctx.beginPath(); ctx.arc(x+w/2,y+h*0.55,Math.min(w,h)*0.34,Math.PI,0); ctx.lineWidth=Math.max(3,h*0.1);
+      ctx.strokeStyle=dim?'#5a5f66':'#2b3138'; ctx.stroke();
+      ink('#1a1f25'); ctx.fillRect(x+w*0.12,y+h*0.5,w*0.16,h*0.3); ctx.fillRect(x+w*0.72,y+h*0.5,w*0.16,h*0.3);
+      break;
+    case 'audio_interface': case 'extras':
+      ink('#2b3138'); ctx.fillRect(x,y+h*0.3,w,h*0.42);
+      for(let i=0;i<5;i++){ ink('#8fb8d8'); ctx.beginPath(); ctx.arc(x+w*0.12+i*w*0.18,y+h*0.51,Math.max(2,h*0.07),0,Math.PI*2); ctx.fill(); }
+      ink('#7ec87e'); ctx.fillRect(x+w-6,y+h*0.34,3,3);
+      break;
+    case 'furniture':
+      ink('#5d4633'); ctx.fillRect(x,y+h*0.42,w,h*0.34);
+      ink('#7a5c42'); ctx.fillRect(x,y+h*0.28,w,h*0.16);
+      ink('#3a2c20'); ctx.fillRect(x+2,y+h*0.76,w*0.12,h*0.2); ctx.fillRect(x+w-2-w*0.12,y+h*0.76,w*0.12,h*0.2);
+      break;
+    case 'fridge':
+      ink('#c3c8cd'); ctx.fillRect(x+w*0.2,y+h*0.1,w*0.6,h*0.85);
+      ink('#9aa1a8'); ctx.fillRect(x+w*0.2,y+h*0.48,w*0.6,2);
+      ink('#6a7079'); ctx.fillRect(x+w*0.72,y+h*0.22,w*0.04,h*0.16);
+      break;
+    case 'lighting':
+      ink('#3a424b'); ctx.fillRect(x+w*0.1,y+h*0.1,w*0.8,h*0.16);
+      ctx.fillStyle=dim?'rgba(120,120,120,.25)':'rgba(255,226,160,.35)';
+      ctx.beginPath(); ctx.moveTo(x+w*0.15,y+h*0.26); ctx.lineTo(x+w*0.85,y+h*0.26);
+      ctx.lineTo(x+w*0.98,y+h); ctx.lineTo(x+w*0.02,y+h); ctx.closePath(); ctx.fill();
+      break;
+    case 'acoustics':
+      for(let r=0;r<3;r++) for(let c=0;c<3;c++){ ink((r+c)%2?'#3b4a55':'#2c3841');
+        ctx.fillRect(x+c*(w/3)+1,y+r*(h/3)+1,w/3-2,h/3-2); }
+      break;
+    case 'midi': case 'instrument':
+      ink('#22272d'); ctx.fillRect(x,y+h*0.35,w,h*0.4);
+      for(let i=0;i<9;i++){ ink('#e8e8e8'); ctx.fillRect(x+2+i*(w-4)/9,y+h*0.4,(w-4)/9-1.5,h*0.3);
+        if(i%7!==2&&i%7!==6){ ink('#12161b'); ctx.fillRect(x+2+i*(w-4)/9+(w-4)/9*0.62,y+h*0.4,(w-4)/9*0.5,h*0.18); } }
+      break;
+    default:
+      ink('#3a424b'); ctx.fillRect(x,y+h*0.3,w,h*0.5);
+      ink('#8fb8d8'); ctx.fillRect(x+3,y+h*0.36,w-6,h*0.1);
+  }
+  ctx.restore();
+};
+/* skrzynia dostawcza w strefie wejściowej (§5.2) */
+window._syDrawCrate=function(ctx,x,y,w,h,label){
+  ctx.save();
+  ctx.fillStyle='#6b5335'; ctx.fillRect(x,y,w,h);
+  ctx.fillStyle='rgba(255,255,255,.10)'; ctx.fillRect(x,y,w,3);
+  ctx.strokeStyle='#4a3a22'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+w,y+h); ctx.moveTo(x+w,y); ctx.lineTo(x,y+h); ctx.stroke();
+  ctx.fillStyle='#d9c9a3'; ctx.fillRect(x+w*0.18,y+h*0.34,w*0.64,h*0.3);
+  if(label){ ctx.fillStyle='#3a2c18'; ctx.font='bold 7px "Segoe UI",Arial'; ctx.textAlign='center';
+    ctx.fillText(String(label).slice(0,10),x+w/2,y+h*0.56); ctx.textAlign='left'; }
+  ctx.restore();
+};
+/* pełny plan lokalu: strefy (tylko w trybie planowania), skrzynie i zainstalowane modele */
+window._syDrawStudio=function(canvas,rid,planMode){
+  if(!canvas||!canvas.getContext) return false;
+  const ctx=canvas.getContext('2d'); const W=canvas.width, H=canvas.height;
+  const p=(typeof window._syProp==='function')?window._syProp(rid):null;
+  const R=window._syZoneRects(rid,W,H);
+  /* posadzka i elementy budowlane — jedyne, co istnieje w pustym lokalu (§5) */
+  const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#1b2027'); g.addColorStop(1,'#12161b');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(255,255,255,.035)'; ctx.lineWidth=1;
+  for(let x=0;x<W;x+=28){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for(let y=0;y<H;y+=28){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  ctx.strokeStyle='#2a323b'; ctx.lineWidth=3; ctx.strokeRect(1.5,1.5,W-3,H-3);      /* ściany */
+  ctx.fillStyle='#3a424b'; ctx.fillRect(W-46,H-6,34,6);                              /* drzwi */
+  ctx.fillStyle='rgba(180,215,240,.10)'; ctx.fillRect(6,6,W-12,7);                   /* okno */
+  ctx.fillStyle='rgba(255,244,214,.10)';                                             /* światło techniczne */
+  for(let x=24;x<W-20;x+=90) ctx.fillRect(x,4,52,3);
+  /* §5.1 znaczniki stref TYLKO w trybie planowania — nie są przedmiotami */
+  if(planMode){
+    ctx.save(); ctx.font='bold 8px "Segoe UI",Arial';
+    window.SY_ZONES.forEach(z=>{ const r=R[z.id]; if(!r) return;
+      ctx.setLineDash([5,4]); ctx.strokeStyle='rgba(126,200,227,.55)'; ctx.lineWidth=1;
+      ctx.strokeRect(r.x+.5,r.y+.5,r.w-1,r.h-1); ctx.setLineDash([]);
+      ctx.fillStyle='rgba(126,200,227,.07)'; ctx.fillRect(r.x,r.y,r.w,r.h);
+      ctx.fillStyle='#9fd6ea'; ctx.fillText(z.n.replace('Strefa ',''),r.x+4,r.y+11); });
+    ctx.restore();
+  }
+  if(!p) return true;
+  /* §5.2 dostarczone skrzynie czekające na montaż — w strefie wejściowej */
+  const crates=((G.soundyard&&G.soundyard.orders)||[]).filter(o=>o.studioId===rid&&
+    ['delivered_crated','awaiting_installation','installing','commissioning'].indexOf(o.status)>=0);
+  crates.slice(0,3).forEach((o,i)=>{
+    window._syDrawCrate(ctx,R.entry.x-i*26,R.entry.y-6,24,26,(STUDIO_EQUIP[o.defId]||{}).name);
+  });
+  /* zainstalowane modele w swoich strefach */
+  const perZone={};
+  (p.installed||[]).forEach(inst=>{
+    const d=STUDIO_EQUIP[inst.defId]; if(!d) return;
+    const z=inst.zone||window._syZoneFor(inst.defId)||'technical';
+    perZone[z]=perZone[z]||[]; perZone[z].push(inst);
+  });
+  Object.keys(perZone).forEach(z=>{
+    const r=R[z]; if(!r) return;
+    const list=perZone[z], cols=Math.min(3,list.length), rows=Math.ceil(list.length/cols);
+    const cw=(r.w-8)/cols, ch=(r.h-8)/rows;
+    list.forEach((inst,i)=>{
+      const d=STUDIO_EQUIP[inst.defId]||{};
+      const cx=r.x+4+(i%cols)*cw, cy=r.y+4+Math.floor(i/cols)*ch;
+      window._syDrawAsset(ctx,d.cat,cx+2,cy+2,cw-4,ch-4,inst.condition);
+      if((inst.condition||100)<40){ ctx.fillStyle='#e74c3c'; ctx.fillRect(cx+2,cy+2,6,6); }  /* awaria widoczna */
+    });
+  });
+  /* podpis: liczba widocznych modeli — dowód, że kupione rzeczy realnie stoją w lokalu */
+  ctx.fillStyle='rgba(214,232,245,.55)'; ctx.font='bold 9px "Segoe UI",Arial';
+  ctx.fillText((p.installed||[]).length+' zainstalowanych · '+crates.length+' w dostawie',8,H-8);
+  return true;
+};
+window._syPlanMode={};
+window._syTogglePlan=function(rid){ window._syPlanMode[rid]=!window._syPlanMode[rid];
+  const cv=document.getElementById('sy-plan-cv'); if(cv) window._syDrawStudio(cv,rid,!!window._syPlanMode[rid]);
+  const b=document.getElementById('sy-plan-btn'); if(b) b.textContent=window._syPlanMode[rid]?'📐 Plan studia: włączony':'📐 Plan studia: wyłączony';
+};
+window._syRenderPlanCanvas=function(rid){
+  const cv=document.getElementById('sy-plan-cv'); if(cv) window._syDrawStudio(cv,rid,!!window._syPlanMode[rid]);
+};
 window._syStudioPanel=function(rid){
   window._syEnsure();
   const el=document.getElementById('ov-content'); if(!el) return;
@@ -19095,6 +19291,11 @@ window._syStudioPanel=function(rid){
         Nagrania: <b>${q.captureQuality}</b> · odsłuch: <b>${q.monitoringReliability}</b> · gotowość komercyjna: <b>${q.commercialReadiness}</b><br>
         Zainstalowane: <b>${p.installed.length} / ${room.maxEquipmentSlots||0}</b> slotów
       </div>
+      <div style="background:#0a0f16;border:1px solid #1a2c3e;border-radius:9px;padding:9px;margin-bottom:9px;text-align:center">
+        <canvas id="sy-plan-cv" width="600" height="260" style="width:100%;max-width:600px;border-radius:6px;background:#12161b"></canvas>
+        <button class="cbtn" id="sy-plan-btn" style="width:100%;margin-top:6px;font-size:12px" onclick="window._syTogglePlan('${rid}')">📐 Plan studia: ${window._syPlanMode[rid]?'włączony':'wyłączony'}</button>
+        <div style="font-size:11px;color:#8a939a;margin-top:4px">Widzisz realny stan lokalu: skrzynie w dostawie i zamontowany sprzęt w swoich strefach.</div>
+      </div>
       <div style="background:#0d1810;border:1px solid #1e3a24;border-radius:9px;padding:10px;margin-bottom:9px;font-size:12px;color:#cdd">
         <b style="color:#7ec87e">Warstwy gotowości:</b><br>
         ${Object.keys(rd).map(k=>`<span style="color:${rd[k]?'#7ec87e':'#8a939a'}">${rd[k]?'✔':'✖'} ${k}</span>`).join(' · ')}
@@ -19108,6 +19309,8 @@ window._syStudioPanel=function(rid){
       <button class="cbtn" style="width:100%" onclick="closeOverlay()">← Zamknij</button>
     </div>`;
   if(typeof openOverlay==='function') openOverlay();
+  /* §5.2/§15.1: plan lokalu rysowany PO wstawieniu HTML — inaczej kanwy jeszcze nie ma w drzewie. */
+  if(typeof window._syRenderPlanCanvas==='function') window._syRenderPlanCanvas(rid);
 };
 window._syConsultPanel=function(rid){
   const el=document.getElementById('ov-content'); if(!el) return;
@@ -44123,7 +44326,9 @@ window.renderCamperShop=function(source,budget){
   }
   const title=source==='gravel'?'🚐 Gravel Lot Motors — komis pojazdów używanych':'🚐 CityDrive Motors — kampery';
   const intro=(source==='gravel'?'Szutrowy plac na obrzeżach. Tanie kampery z historią, której nikt już nie chce pamiętać.':'Komfortowe kampery z lepszym wyposażeniem, większą przestrzenią i niższą awaryjnością.')+(budgetNote?` <span style="color:#7ec8e3">${budgetNote}</span>`:'');
-  const notOwnedMsg=source==='gravel'?'<p style="color:#778;font-size:12px;margin-bottom:10px">Możesz mieć jednego kampera. To etap przejściowy — mobilny, ale ryzykowny.</p>':'<p style="color:#778;font-size:12px;margin-bottom:10px">Możesz mieć jednego kampera naraz — komfortowy pojazd na większe trasy i dłuższe wyjazdy.</p>';
+  /* v2.3.131 (PDF Uspr v2.3.130 U25): limit to DWA kampery — opis musi mówić to samo co blokada zakupu,
+     inaczej tekst obiecuje graczowi mniej, niż gra realnie pozwala. */
+  const notOwnedMsg=source==='gravel'?'<p style="color:#778;font-size:12px;margin-bottom:10px">Możesz mieć dwa kampery naraz. To etap przejściowy — mobilny, ale ryzykowny.</p>':'<p style="color:#778;font-size:12px;margin-bottom:10px">Możesz mieć dwa kampery naraz — komfortowe pojazdy na większe trasy i dłuższe wyjazdy.</p>';
   /* v2.3.131 (PDF Uspr v2.3.130 U1): przycisk „Wróć" do panelu głównego salonu — tak samo jak
      w sekcji samochodów osobowych. Wcześniej z listy kamperów dało się tylko zamknąć całe okno. */
   const backBtn = (source==='gravel')
@@ -87544,6 +87749,9 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.131',date:'2026-08-10',cats:['beta-tester','fix','feature'],title:'🅿️🚚♻️ Parking, holowanie, kasacja pojazdów i porządki w całej grze',
  items:[
+  {t:'feature',d:'🎚️ Studio pokazuje teraz, co w nim naprawdę stoi. Zamiast samej listy widzisz plan lokalu: dostarczone skrzynie czekające na montaż oraz zamontowany sprzęt narysowany w swojej strefie — komputer z monitorem, mikrofon na statywie, odsłuch, kanapa dla klienta, rack i panele akustyczne. Uszkodzony element jest oznaczony na czerwono.'},
+  {t:'feature',d:'📐 Przycisk „Plan studia” włącza przezroczyste obrysy sześciu stref roboczych wraz z podpisami. Po wyłączeniu znikają — to tylko pomoc przy planowaniu, a nie przedmioty stojące w lokalu.'},
+  {t:'fix',d:'🚐 Opis w salonie mówił o jednym kamperze, choć gra pozwala mieć dwa. Teksty zostały zrównane z tym, co realnie działa.'},
   {t:'feature',d:'💡 Wnętrza lokali VANTAGE mają teraz pełne oświetlenie: równomierne światło ogólne, lampy nad biurkami, stołem, alejkami magazynu i strefą techniczną, podświetlenia przy lamelach i logotypie, wybraną przez Ciebie scenę oraz osobne, czytelne oznakowanie wyjścia. Doszły też zielona ściana z mchem, panele akustyczne pod sufitem i kabiny do rozmów telefonicznych w większych biurach.'},
   {t:'fix',d:'👩‍💼 Eve zachowuje się podczas oprowadzania jak człowiek, a nie jak znacznik: trzyma sensowny dystans dopasowany do wielkości pomieszczenia, nie wchodzi w drzwi ani windę przed Tobą, a gdy nie może przejść — najpierw zwalnia i czeka, potem próbuje obejść, i dopiero na końcu wraca do wejścia, zawsze poza Twoim polem widzenia.'},
   {t:'feature',d:'📐 Warstwa danych podczas zwiedzania pokazuje teraz konkretne liczby z oferty: ile stanowisk mieści dana strefa, jaki jest magazyn, ile jest slotów operacyjnych i które pomieszczenie zostawiono pod przyszłą funkcję.'},
