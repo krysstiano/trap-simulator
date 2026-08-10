@@ -59667,7 +59667,9 @@ window._vwInvitePanel=function(unitId,npcId){
     <p class="sub">Zażyłość ${p.rel}/100 · lokal: ${(window._vwUnitDef(u.defId)||{}).name}</p>
     ${VW_MEET_TYPES.map(t=>{
       const rows=terms.map(([off,lab])=>{ const c=window._vwMeetCheck(u.id,npcId,t.id,off);
-        return `<button class="${c.ok?'bbtn':'cbtn'}" style="font-size:11px;padding:4px 8px;margin:2px" onclick="window._vwInviteBtn('${u.id}','${npcId}','${t.id}',${off},'${(zones[0]||{}).id||''}')" ${c.ok?'':'disabled title="'+c.why.replace(/"/g,'')+'"'}>${lab}</button>`; }).join('');
+        /* `bbtn` jest domyślnie na całą szerokość — bez jawnego `width:auto` wolny termin rozlewał się
+           w zielony pas, a zajęte zostawały małymi guzikami. Wszystkie trzy mają wyglądać tak samo. */
+        return `<button class="${c.ok?'bbtn':'cbtn'}" style="display:inline-block;width:auto;font-size:11px;padding:5px 11px;margin:2px 4px 2px 0" onclick="window._vwInviteBtn('${u.id}','${npcId}','${t.id}',${off},'${(zones[0]||{}).id||''}')" ${c.ok?'':'disabled title="'+c.why.replace(/"/g,'')+'"'}>${lab}</button>`; }).join('');
       return `<div style="background:#0d1420;border:1px solid #1e2c3e;border-radius:9px;padding:9px 11px;margin-bottom:6px">
         <div style="font-size:13px;color:#cdd">${t.ic} <b>${t.n}</b> · ${t.min[0]}-${t.min[1]} min · relacja +${t.rel}</div>
         <div style="font-size:11px;color:#9ab;margin:2px 0 4px">${t.d}</div>${rows}</div>`; }).join('')}
@@ -60194,8 +60196,8 @@ window._vwiDecisionPanel=function(){
     </div>
     ${owned?'<div style="color:#7ec87e;font-size:12px;margin-bottom:6px">✅ Ten lokal już należy do Ciebie — oględziny służą teraz przeglądowi i zarządzaniu.</div>':''}
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
-      ${owned?'<button class="bbtn" style="font-size:12px;padding:6px 10px" onclick="window._vwiManageOwned()">Zarządzaj lokalem</button>':''}
-      <button class="bbtn" style="font-size:12px;padding:6px 10px;display:${owned?'none':'inline-block'}" onclick="window._vwiDecide('buy')" ${(G.money||0)<d.price?'disabled':''}>Kup lokal</button>
+      ${owned?'<button class="bbtn" style="width:auto;font-size:12px;padding:6px 12px" onclick="window._vwiManageOwned()">Zarządzaj lokalem</button>':''}
+      <button class="bbtn" style="width:auto;font-size:12px;padding:6px 12px;display:${owned?'none':'inline-block'}" onclick="window._vwiDecide('buy')" ${(G.money||0)<d.price?'disabled':''}>Kup lokal</button>
       <button class="cbtn" style="font-size:12px;padding:6px 10px;display:${owned?'none':'inline-block'}" onclick="window._vwiDecide('reserve')">Zarezerwuj</button>
       <button class="cbtn" style="font-size:12px;padding:6px 10px;color:${short?'#f0c040':'#9ab'}" onclick="window._vwiDecide('short')">${short?'Na shortliście':'Dodaj do shortlisty'}</button>
       <button class="cbtn" style="font-size:12px;padding:6px 10px" onclick="window._vwiCompareMemory()">Porównaj z innym</button>
@@ -60250,7 +60252,7 @@ window._vwiCompareMemory=function(){
     <p class="sub">Zestawienie lokali, które faktycznie obejrzałeś od środka. Metraż nie powie wszystkiego.</p>
     ${m.length>1?`<div style="background:#0d1420;border:1px solid #1e2c3e;border-radius:9px;padding:9px 11px;margin-bottom:8px;font-size:12px;color:#cdd">
       <b>Różnice wobec ostatnio oglądanego (${m[1].name}):</b><br>${window._vwiDiffLine(m[0],m[1])}</div>`:''}
-    ${m.length?`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+    ${m.length?`<div style="overflow-x:auto;max-width:${Math.min(920,220+m.length*220)}px;margin:0 auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
       <tr><th style="text-align:left;padding:5px;color:#7ec8e3">—</th>${m.map(e=>`<th style="padding:5px;color:#7ec8e3;white-space:nowrap">${e.name}</th>`).join('')}</tr>
       ${rows.map(([lab,fn])=>`<tr><td style="padding:5px;color:#9ab;white-space:nowrap">${lab}</td>${m.map(e=>`<td style="padding:5px;text-align:center;color:#cdd">${fn(e)}</td>`).join('')}</tr>`).join('')}
     </table></div>`:'<p style="color:#9ab;font-size:12px">Nie obejrzałeś jeszcze żadnego lokalu od środka.</p>'}
@@ -60320,7 +60322,7 @@ window._vwiEveDialog=function(){
   s.state='ANSWERING_QUESTION';
   if(typeof openOverlay==='function') openOverlay();
   const faq=VW_EVE_FAQ.map((f,i)=>`<button class="cbtn" style="display:block;width:100%;text-align:left;font-size:12px;padding:6px 9px;margin:3px 0" onclick="window._vwiAsk(${i})">❓ ${f.q}</button>`).join('');
-  const modes=VW_MODES.map(m=>`<button class="cbtn" style="font-size:11px;padding:5px 8px;margin:2px;border-color:${s.mode===m.id?'#7ec8e3':'#2a3a50'}" onclick="window._vwiSetMode('${m.id}')" ${(m.id==='quick'&&!window._vwiEnsure().toured[s.defId])?'disabled title="Skrót po ukończonym oprowadzaniu"':''}>${m.n}</button>`).join('');
+  const modes=VW_MODES.map(m=>`<button class="cbtn" style="display:inline-block;width:auto;font-size:11px;padding:5px 10px;margin:0 4px 4px 0;border-color:${s.mode===m.id?'#7ec8e3':'#2a3a50'}" onclick="window._vwiSetMode('${m.id}')" ${(m.id==='quick'&&!window._vwiEnsure().toured[s.defId])?'disabled title="Skrót po ukończonym oprowadzaniu"':''}>${m.n}</button>`).join('');
   document.getElementById('ov-content').innerHTML=`
     <h2>👩‍💼 Eve Rook</h2>
     <p class="sub">${d.name} · ${p.thesis}</p>
@@ -60330,7 +60332,7 @@ window._vwiEveDialog=function(){
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
       <button class="cbtn" style="font-size:12px;padding:6px 9px" onclick="window._vwiToggleOverlay();closeOverlay()">📐 Warstwa danych</button>
       <button class="cbtn" style="font-size:12px;padding:6px 9px" onclick="window._vwiCompareMemory()">🧠 Pamięć oględzin</button>
-      <button class="bbtn" style="font-size:12px;padding:6px 9px" onclick="window._vwiDecisionPanel()">Przejdź do decyzji</button>
+      <button class="bbtn" style="width:auto;font-size:12px;padding:6px 11px" onclick="window._vwiDecisionPanel()">Przejdź do decyzji</button>
     </div>
     <button class="cbtn" style="margin-top:8px" onclick="closeOverlay()">← Wróć do zwiedzania</button>`;
 };
@@ -60365,7 +60367,7 @@ window._vwiAct=function(sub){
     const idx=s.layout.zones.indexOf(z);
     if(typeof openOverlay==='function') openOverlay();
     const share=Math.round(100*(z.w*z.h)/(s.layout.zones.reduce((a,q)=>a+q.w*q.h,0)));
-    const acts=z.i?`<button class="bbtn" style="font-size:12px;padding:6px 10px;margin-top:6px" onclick="window._vwiProp('${z.i}');closeOverlay()">${window._vwiZoneIcon(z.t)} ${(VW_INTERACTIONS.find(x=>x.id===z.i)||{}).n} — sprawdź</button>`:'';
+    const acts=z.i?`<button class="bbtn" style="width:auto;font-size:12px;padding:6px 12px;margin-top:6px" onclick="window._vwiProp('${z.i}');closeOverlay()">${window._vwiZoneIcon(z.t)} ${(VW_INTERACTIONS.find(x=>x.id===z.i)||{}).n} — sprawdź</button>`:'';
     const extra=(z.t==='lounge'||z.t==='office'||z.t==='reception')?`<button class="cbtn" style="font-size:12px;padding:6px 10px;margin-top:6px" onclick="window._vwiProp('seat');closeOverlay()">🪑 Usiądź na chwilę</button>`:'';
     const light=`<button class="cbtn" style="font-size:12px;padding:6px 10px;margin-top:6px" onclick="window._vwiProp('light');closeOverlay()">💡 Zmień scenę światła</button>`;
     document.getElementById('ov-content').innerHTML=`
@@ -60379,7 +60381,7 @@ window._vwiAct=function(sub){
     return;
   }
   if(typeof showMsg==='function') showMsg('🏢 Ten element pokazowy nie ma osobnej obsługi.','f',2800);
-};
+};
 /* §5 krok 1 — korytarz lokali pokazowych: wybór lokalu do fizycznych oględzin. */
 /* VW-09 — posiadany lokal: przejście do zarządzania zamiast próby zakupu. */
 window._vwiManageOwned=function(){
@@ -60395,13 +60397,14 @@ window._vwShowroom=function(){
     <h2>🚪 Korytarz lokali pokazowych</h2>
     <p class="sub">Każdy lokal można obejrzeć od środka. Karta oferty nie pokaże przepływu między strefami.</p>
     <div class="shopgrid">${VW_UNITS.map(u=>{ const p=window._vwInspectDef(u.id)||{}; const seen=ins.seen[u.id]||0;
-      return `<div class="sitem"><h3 style="font-size:13px">${u.name}</h3>
+      /* karty w rzędzie mają różną długość opisu — kolumna z rozpychaczem wyrównuje przyciski */
+      return `<div class="sitem" style="display:flex;flex-direction:column"><h3 style="font-size:13px">${u.name}</h3>
       <div style="font-size:10px;color:#6a8caa;text-transform:uppercase;letter-spacing:.5px;margin:-3px 0 4px">${u.area} m² · piętro ${u.floor} · ${(p.rooms||[]).length} stref</div>
       <p style="font-size:11px">${p.thesis||u.purpose}</p>
       <p style="font-size:10px;color:#8fb8d8">🎨 ${(p.palette||[]).join(', ')}</p>
       <div class="pr" style="font-size:12px">${u.price.toLocaleString('pl')} zł</div>
       ${seen?`<div style="font-size:10px;color:#7ec87e">Obejrzany ${seen}×</div>`:''}
-      <button class="bbtn" style="font-size:11px;padding:5px;width:100%" onclick="window._vwInspectBtn('${u.id}')">👁 Wejdź do środka</button></div>`; }).join('')}</div>
+      <button class="bbtn" style="font-size:11px;padding:6px;width:100%;margin-top:auto" onclick="window._vwInspectBtn('${u.id}')">👁 Wejdź do środka</button></div>`; }).join('')}</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
       <button class="cbtn" style="font-size:12px;padding:6px 9px" onclick="window._vwiCompareMemory()">🧠 Pamięć oględzin</button>
       <button class="cbtn" style="font-size:12px;padding:6px 9px" onclick="window._vwMarketPanel('units')">📋 Oferta i ceny</button>
@@ -60413,13 +60416,13 @@ window._vwInspectBtn=function(defId){
   const ins=window._vwiEnsure(), seen=ins.seen[defId]||0;
   if(typeof openOverlay==='function') openOverlay();
   const btn=(m)=>{ const lock=(m.id==='quick'&&!ins.toured[defId]);
-    return `<button class="${m.id==='guided'?'bbtn':'cbtn'}" style="font-size:12px;padding:7px 11px;margin:3px" onclick="window._vwStartInspection('${defId}','${m.id}')" ${lock?'disabled':''}>${m.n}${lock?' 🔒':''}</button>`; };
+    return `<button class="${m.id==='guided'?'bbtn':'cbtn'}" style="display:inline-block;width:auto;font-size:12px;padding:7px 13px" onclick="window._vwStartInspection('${defId}','${m.id}')" ${lock?'disabled':''}>${m.n}${lock?' 🔒':''}</button>`; };
   document.getElementById('ov-content').innerHTML=`
     <h2>👁 Oględziny — ${d.name}</h2>
     <p class="sub">${p.thesis} · ${d.area} m² · piętro ${d.floor} · ${p.rooms.length} stref do obejrzenia</p>
     <p style="font-size:12px;color:#cdd">Wchodzisz do środka i zwiedzasz lokal na własnych nogach. Eve Rook czeka przy drzwiach.</p>
     <div style="font-size:11px;color:#8fb8d8;margin:6px 0">🎨 ${p.palette.join(' · ')}<br>🧭 ${p.anchor}</div>
-    <div style="margin:8px 0">${VW_MODES.map(btn).join('')}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;color:#cdd">${VW_MODES.map(btn).join('')}</div>
     <div style="font-size:11px;color:#9ab">${VW_MODES.map(m=>'• <b>'+m.n+'</b> — '+m.d).join('<br>')}</div>
     <div class="res">${seen?('Byłeś tu już '+seen+' raz(y). '+(ins.toured[defId]?'Skrócona trasa jest odblokowana.':'Skrót otworzy się po ukończeniu pełnego oprowadzania.')):'Pierwsza wizyta — polecane pełne oprowadzanie.'} Oględziny nie zmieniają statusu oferty.</div>
     <button class="cbtn" onclick="window._vwMarketPanel('units')">← Wróć do ofert</button>`;
@@ -87749,6 +87752,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.131',date:'2026-08-10',cats:['beta-tester','fix','feature'],title:'🅿️🚚♻️ Parking, holowanie, kasacja pojazdów i porządki w całej grze',
  items:[
+  {t:'fix',d:'🖥 Porządki w nowych oknach VANTAGE: przyciski w jednym rzędzie mają teraz jednakowy rozmiar (wcześniej ten aktywny rozlewał się na całą szerokość), karty lokali w korytarzu pokazowym są wyrównane, a zestawienie obejrzanych lokali nie rozciąga się już przez cały ekran przy jednej pozycji.'},
   {t:'feature',d:'🎚️ Studio pokazuje teraz, co w nim naprawdę stoi. Zamiast samej listy widzisz plan lokalu: dostarczone skrzynie czekające na montaż oraz zamontowany sprzęt narysowany w swojej strefie — komputer z monitorem, mikrofon na statywie, odsłuch, kanapa dla klienta, rack i panele akustyczne. Uszkodzony element jest oznaczony na czerwono.'},
   {t:'feature',d:'📐 Przycisk „Plan studia” włącza przezroczyste obrysy sześciu stref roboczych wraz z podpisami. Po wyłączeniu znikają — to tylko pomoc przy planowaniu, a nie przedmioty stojące w lokalu.'},
   {t:'fix',d:'🚐 Opis w salonie mówił o jednym kamperze, choć gra pozwala mieć dwa. Teksty zostały zrównane z tym, co realnie działa.'},
