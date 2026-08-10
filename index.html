@@ -15686,8 +15686,12 @@ function handleAct(act,objId){
   } else if(act==='tv'){
     openTVMenu();return;
   } else if(act==='minibar'){
-    /* v2.3.107 (user MB): minibar funkcjonalny — minigra nalewania podnosi nastrój. */
-    if(typeof window._startMinibarMG==='function') window._startMinibarMG(); return;
+    /* v2.3.107 (user MB): minibar funkcjonalny — minigra nalewania podnosi nastrój.
+       PDF „Corner Basket i minibar” §5.2: [E] otwiera teraz MENU aktywności (Przygotuj drinka / Sprawdź zapasy /
+       Wypij bez dodatków / Zamknij). Minigra nalewania została warstwą umiejętności przy przygotowaniu. */
+    if(typeof window._minibarMenu==='function') window._minibarMenu();
+    else if(typeof window._startMinibarMG==='function') window._startMinibarMG();
+    return;
   } else if(act==='lampka_toggle'){
     G._lampkaOn=!G._lampkaOn; /* v1.9.34: BUG FIX — proper toggle (poprzednio undefined→false→false stuck) */
     notify(G._lampkaOn?'💡 Lampka włączona':'🌙 Lampka wyłączona');
@@ -18845,6 +18849,9 @@ function showDailySummary(){
 function wakeUp(){
   if(!sleepInterval) return;
   clearInterval(sleepInterval);sleepInterval=null;
+  /* PDF „Corner Basket i minibar” §6: KAC nie jest nową, stałą statystyką — to czasowy efekt liczony
+     PO śnie z poziomu upojenia i zmęczenia. Odpala się tylko wtedy, gdy było z czego. */
+  if(typeof window._boozeOnSleepResolved==='function'){ try{ window._boozeOnSleepResolved(); }catch(_){} }
   const ov=document.getElementById('sleep-overlay');
   ov.classList.remove('on');
   G.hunger=clampStat('hunger', G.hunger-Math.floor((window._sleepTicks||0)*0.06));
@@ -39646,6 +39653,13 @@ const FOOD_CATALOG=[
   {id:'water',name:'Woda',emoji:'💧',hunger:10,energy:10,health:3,stress:3,price:8},
   {id:'burger',name:'Burger',emoji:'🍔',hunger:70,energy:10,health:-3,stress:8,price:45},
   {id:'sushi',name:'Sushi',emoji:'🍣',hunger:50,energy:15,health:10,stress:10,price:70},
+  /* PDF „Corner Basket i minibar” §4: dodatki do drinków to ZWYKŁE napoje — jeden wspólny przedmiot
+     obsługuje potrzeby, handel i receptury. Nie dublujemy ich w dziale alkoholowym. */
+  {id:'cola',name:'Cola',emoji:'🥤',hunger:5,energy:12,health:-2,stress:3,price:9},
+  {id:'tonic',name:'Tonik',emoji:'🥤',hunger:3,energy:4,health:0,stress:2,price:9},
+  {id:'juice',name:'Sok owocowy',emoji:'🥤',hunger:12,energy:8,health:4,stress:3,price:11},
+  {id:'citrus_drink',name:'Napój cytrusowy',emoji:'🥤',hunger:6,energy:8,health:1,stress:3,price:10},
+  {id:'sparkling_water',name:'Woda gazowana',emoji:'💧',hunger:6,energy:6,health:3,stress:2,price:7},
 ];
 
 /* ═══ N2 (v2.3.21, PDF „Najnowsza"): ŚWIEŻOŚĆ JEDZENIA — % spada od dnia zakupu, kara HP za nieświeże.
@@ -39654,7 +39668,7 @@ const FOOD_CATALOG=[
 function _foodCat(id){
   if(id==='sushi') return 'sushi';
   if(id==='burger'||id==='pizza'||id==='meal') return 'meal';         /* gotowe zestawy 5-8%/dobę */
-  if(id==='water'||id==='energy_drink'||id==='coffee'||id==='vitamins') return 'drink'; /* napoje 2%/tydz */
+  if(id==='water'||id==='energy_drink'||id==='coffee'||id==='vitamins'||id==='cola'||id==='tonic'||id==='juice'||id==='citrus_drink'||id==='sparkling_water') return 'drink'; /* napoje 2%/tydz (PDF minibar §4: dodatki do drinków) */
   return 'normal';                                                     /* fruit, chips 2-10%/tydz */
 }
 function _foodDecayRange(cat){ /* %/dobę [min,max] */
@@ -39718,10 +39732,13 @@ function renderFoodShop(){
     <p class="sub">Gotowe produkty trafiają do lodówki. Składniki kuchenne — do spiżarni (do gotowania na płycie).</p>
     <p style="color:#667;font-size:13px;margin-bottom:8px">Lodówka: ${totalFridge} szt · Spiżarnia: ${totalPantry} szt</p>
     <div style="display:flex;gap:8px;margin-bottom:14px">
-      <button onclick="document.getElementById('food-tab-ready').style.display='block';document.getElementById('food-tab-ingredients').style.display='none';document.getElementById('food-tab-extras').style.display='none';" style="flex:1;background:#1a3050;border:1px solid #3a5a80;color:#fff;padding:10px;border-radius:6px;cursor:pointer;font-weight:700">🍱 Gotowe produkty</button>
-      <button onclick="document.getElementById('food-tab-ingredients').style.display='block';document.getElementById('food-tab-ready').style.display='none';document.getElementById('food-tab-extras').style.display='none';" style="flex:1;background:#1a3050;border:1px solid #3a5a80;color:#fff;padding:10px;border-radius:6px;cursor:pointer;font-weight:700">🥚 Składniki do gotowania</button>
-      <button onclick="document.getElementById('food-tab-extras').style.display='block';document.getElementById('food-tab-ready').style.display='none';document.getElementById('food-tab-ingredients').style.display='none';" style="flex:1;background:#1a3050;border:1px solid #3a5a80;color:#fff;padding:10px;border-radius:6px;cursor:pointer;font-weight:700">🧪 Artykuły</button>
+      <button onclick="document.getElementById('food-tab-ready').style.display='block';document.getElementById('food-tab-ingredients').style.display='none';document.getElementById('food-tab-extras').style.display='none';document.getElementById('food-tab-booze').style.display='none';" style="flex:1;background:#1a3050;border:1px solid #3a5a80;color:#fff;padding:10px;border-radius:6px;cursor:pointer;font-weight:700">🍱 Gotowe produkty</button>
+      <button onclick="document.getElementById('food-tab-ingredients').style.display='block';document.getElementById('food-tab-ready').style.display='none';document.getElementById('food-tab-extras').style.display='none';document.getElementById('food-tab-booze').style.display='none';" style="flex:1;background:#1a3050;border:1px solid #3a5a80;color:#fff;padding:10px;border-radius:6px;cursor:pointer;font-weight:700">🥚 Składniki do gotowania</button>
+      <button onclick="document.getElementById('food-tab-extras').style.display='block';document.getElementById('food-tab-ready').style.display='none';document.getElementById('food-tab-ingredients').style.display='none';document.getElementById('food-tab-booze').style.display='none';" style="flex:1;background:#1a3050;border:1px solid #3a5a80;color:#fff;padding:10px;border-radius:6px;cursor:pointer;font-weight:700">🧪 Artykuły</button>
+      <!-- PDF „Corner Basket i minibar” §3: nowa kategoria „Alkohol” z czterema filtrami. -->
+      <button onclick="document.getElementById('food-tab-booze').style.display='block';document.getElementById('food-tab-ready').style.display='none';document.getElementById('food-tab-ingredients').style.display='none';document.getElementById('food-tab-extras').style.display='none';" style="flex:1;background:#2a1a10;border:1px solid #6a4a20;color:#e8c56a;padding:10px;border-radius:6px;cursor:pointer;font-weight:700">🍷 Alkohol</button>
     </div>
+    <div id="food-tab-booze" style="display:none">${(typeof window._boozeShopHtml==='function')?window._boozeShopHtml():''}</div>
     <div id="food-tab-ready">
       <div class="shopgrid">
         ${FOOD_CATALOG.map(f=>{
@@ -46616,9 +46633,377 @@ window._coastVibeTick=function(){
     if(typeof notify==='function') notify(`🌴 Coast Vibe MAX! 3 aktywności na Wybrzeżu dziś — jesteś na fali: +${_fb} sławy, +${_fo} obserwujących.`);
   }
 };
+/* ═══════════════════ CORNER BASKET / MINIBAR MODULE START ══════════════════════════════════════
+   PDF „Corner Basket i aktywność minibaru" — dział alkoholowy w sklepie + wspólna aktywność minibaru
+   w KAŻDYM mieszkaniu. Pętla z §2: zakup → instancja produktu z porcjami → zapasy → kontrola składników
+   → wybór receptury → zużycie porcji → efekt postaci → informacja → zapis.
+   §6: konsumpcja NIE tworzy nowych, równoległych statystyk — przekazuje zmiany właścicielom
+   istniejących stanów (upojenie z modułu nocnego, nastrój, energia, system uzależnień).
+   ═══════════════════════════════════════════════════════════════════════════════════════════ */
+window.BOOZE_SCHEMA_VERSION=1;                 /* §7.3 pkt 34 */
+window.BOOZE_INTOX_LIMIT=85;                   /* §5.1 pkt 29: konfigurowalny limit bezpieczeństwa */
+/* §3 — 15 produktów, cztery filtry. Rodzaj widoczny przy nazwie (identyfikacja niezależna od świata gry).
+   Segment, liczba porcji i podstawowe użycie 1:1 z tabelą dokumentu. Ceny to element balansu gry
+   (dokument zostawia je otwarte w §9) — dobrane tak, by tani segment był realnie tani. */
+const BOOZE_CATALOG=[
+  {id:'concrete_sun_lager', n:'Concrete Sun Lager', kind:'jasne piwo',      f:'beer',   seg:'tani',        serv:1, str:'light',    price:14, tags:['beer'],   use:'bezpośrednio'},
+  {id:'railhound_strong',   n:'Railhound Strong',   kind:'mocne piwo',      f:'beer',   seg:'tani',        serv:1, str:'standard', price:16, tags:['beer'],   use:'bezpośrednio'},
+  {id:'static_orchard_dry', n:'Static Orchard Dry', kind:'cydr jabłkowy',   f:'beer',   seg:'tani',        serv:1, str:'light',    price:15, tags:['cider'],  use:'bezpośrednio'},
+  {id:'velvet_mile_red',    n:'Velvet Mile Red',    kind:'czerwone wino',   f:'wine',   seg:'średni',      serv:3, str:'standard', price:62, tags:['wine'],   use:'wino z wodą gazowaną'},
+  {id:'quiet_hours_white',  n:'Quiet Hours White',  kind:'białe wino',      f:'wine',   seg:'średni',      serv:3, str:'standard', price:58, tags:['wine'],   use:'wino z wodą gazowaną'},
+  {id:'silver_noise_brut',  n:'Silver Noise Brut',  kind:'wino musujące',   f:'wine',   seg:'średni',      serv:3, str:'standard', price:74, tags:['sparkling_wine'], use:'bezpośrednio / spritz'},
+  {id:'clear_district',     n:'Clear District',     kind:'wódka',           f:'spirit', seg:'tani',        serv:5, str:'strong',   price:68, tags:['vodka'],  use:'sok / energetyk'},
+  {id:'cold_signal',        n:'Cold Signal',        kind:'gin',             f:'spirit', seg:'średni',      serv:5, str:'strong',   price:98, tags:['gin'],    use:'tonik'},
+  {id:'harbor_run_white',   n:'Harbor Run White',   kind:'biały rum',       f:'spirit', seg:'średni',      serv:5, str:'strong',   price:92, tags:['white_rum'], use:'cola / napój cytrusowy'},
+  {id:'black_current',      n:'Black Current',      kind:'ciemny rum',      f:'spirit', seg:'średni',      serv:5, str:'strong',   price:96, tags:['dark_rum'],  use:'cola'},
+  {id:'rust_crown',         n:'Rust Crown',         kind:'whiskey',         f:'spirit', seg:'średni',      serv:5, str:'strong',   price:118,tags:['whiskey'],   use:'cola'},
+  {id:'red_mesa',           n:'Red Mesa',           kind:'tequila',         f:'spirit', seg:'średni',      serv:5, str:'strong',   price:108,tags:['tequila'],   use:'napój cytrusowy'},
+  {id:'bitter_mercy',       n:'Bitter Mercy',       kind:'likier ziołowy',  f:'liqueur',seg:'tani / średni',serv:4,str:'standard', price:72, tags:['herbal_liqueur'], use:'bezpośrednio'},
+  {id:'neon_peel',          n:'Neon Peel',          kind:'likier cytrusowy',f:'liqueur',seg:'średni',      serv:4, str:'standard', price:78, tags:['citrus_liqueur'], use:'woda gazowana'},
+  {id:'soft_static',        n:'Soft Static',        kind:'likier kremowy',  f:'liqueur',seg:'średni',      serv:4, str:'standard', price:82, tags:['cream_liqueur'],  use:'kawa'},
+];
+window.BOOZE_CATALOG=BOOZE_CATALOG;
+window.BOOZE_FILTERS=[{id:'beer',n:'Piwo i cydr'},{id:'wine',n:'Wino'},{id:'spirit',n:'Mocne alkohole'},{id:'liqueur',n:'Likiery'}];
+/* §4 — dodatki NIE są dublowane w dziale alkoholowym; to zwykłe napoje z FOOD_CATALOG.
+   Mapa: znacznik dodatku → identyfikator produktu spożywczego. */
+window.BOOZE_MIXERS={ juice:'juice', energy:'energy_drink', tonic:'tonic', cola:'cola', citrus:'citrus_drink', sparkling:'sparkling_water', coffee:'coffee' };
+window.BOOZE_MIXER_NAMES={ juice:'sok owocowy', energy:'napój energetyczny', tonic:'tonik', cola:'cola', citrus:'napój cytrusowy', sparkling:'woda gazowana', coffee:'kawa' };
+/* §4 tabela receptur — 1:1 z dokumentem. §4.1 pkt 20: dopasowanie po ZNACZNIKU RODZAJU, nie po nazwie marki. */
+const BOOZE_RECIPES=[
+  {id:'vodka_juice',   n:'Wódka z sokiem',        alc:'vodka',           mix:'juice'},
+  {id:'vodka_energy',  n:'Wódka z energetykiem',  alc:'vodka',           mix:'energy'},
+  {id:'gin_tonic',     n:'Gin z tonikiem',        alc:'gin',             mix:'tonic'},
+  {id:'wrum_cola',     n:'Biały rum z colą',      alc:'white_rum',       mix:'cola'},
+  {id:'drum_cola',     n:'Ciemny rum z colą',     alc:'dark_rum',        mix:'cola'},
+  {id:'whiskey_cola',  n:'Whiskey z colą',        alc:'whiskey',         mix:'cola'},
+  {id:'tequila_citrus',n:'Tequila z cytrusami',   alc:'tequila',         mix:'citrus'},
+  {id:'wine_sparkling',n:'Wino z wodą gazowaną',  alc:'wine',            mix:'sparkling'},
+  {id:'citrus_spritz', n:'Cytrusowy spritz',      alc:'citrus_liqueur',  mix:'sparkling'},
+  {id:'coffee_liqueur',n:'Kawa z likierem',       alc:'cream_liqueur',   mix:'coffee'},
+];
+window.BOOZE_RECIPES=BOOZE_RECIPES;
+window._boozeDef=function(id){ return BOOZE_CATALOG.find(b=>b.id===id)||null; };
+
+/* §7 — stan modułu. Zapis trzyma WYŁĄCZNIE identyfikatory i zmienny stan instancji (§7.3 pkt 30). */
+window._boozeEnsure=function(){
+  if(!G.booze||typeof G.booze!=='object') G.booze={};
+  const b=G.booze;
+  if(b.schemaVersion==null) b.schemaVersion=window.BOOZE_SCHEMA_VERSION;
+  if(!Array.isArray(b.bottles)) b.bottles=[];          /* [{id, left}] — jedna butelka = jedna instancja */
+  if(typeof b.drinksTotal!=='number') b.drinksTotal=0;
+  if(typeof b.drinksToday!=='number') b.drinksToday=0;
+  if(typeof b.lastDrinkDay!=='number') b.lastDrinkDay=-1;
+  if(typeof b.hangoverUntilDay!=='number') b.hangoverUntilDay=-1;
+  /* §7.3 pkt 31: liczba porcji zawsze w zakresie 0..pojemność opakowania */
+  b.bottles=b.bottles.filter(x=>x&&window._boozeDef(x.id)).map(x=>{
+    const d=window._boozeDef(x.id);
+    return {id:x.id, left:Math.max(0,Math.min(d.serv,(typeof x.left==='number'&&isFinite(x.left))?x.left:d.serv))};
+  }).filter(x=>x.left>0);                               /* §4.1 pkt 24: puste opakowanie znika z zapasów */
+  return b;
+};
+/* Zakup w Corner Basket — tworzy NOWĄ instancję opakowania z pełną liczbą porcji (§2 pkt 14). */
+window._boozeBuy=function(id){
+  const b=window._boozeEnsure(); const d=window._boozeDef(id);
+  if(!d) return {ok:false,msg:'Nie ma takiego produktu.'};
+  const price=(typeof applyShopDiscount==='function')?applyShopDiscount(d.price):d.price;
+  if((G.money||0)<price) return {ok:false,msg:'Za mało pieniędzy — potrzebujesz '+price.toLocaleString('pl')+' zł.'};
+  G.money-=price; if(typeof spent==='function') spent(price);
+  b.bottles.push({id:d.id, left:d.serv});
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return {ok:true,msg:d.n+' ('+d.kind+') trafia do zapasów — '+d.serv+(d.serv===1?' porcja':(d.serv<5?' porcje':' porcji'))+'.'};
+};
+/* Zapasy alkoholu pogrupowane po produkcie (do panelu „Sprawdź zapasy"). */
+window._boozeStock=function(){
+  const b=window._boozeEnsure(); const out={};
+  for(const bo of b.bottles){ if(!out[bo.id]) out[bo.id]={id:bo.id, bottles:0, servings:0}; out[bo.id].bottles++; out[bo.id].servings+=bo.left; }
+  return out;
+};
+window._boozeServingsByTag=function(tag){
+  const b=window._boozeEnsure(); let n=0;
+  for(const bo of b.bottles){ const d=window._boozeDef(bo.id); if(d&&d.tags.indexOf(tag)>=0) n+=bo.left; }
+  return n;
+};
+/* Dodatki liczymy w istniejących zapasach napojów: lodówka + ekwipunek (jeden wspólny przedmiot — §4). */
+window._boozeMixerCount=function(tag){
+  const fid=window.BOOZE_MIXERS[tag]; if(!fid) return 0;
+  let n=0;
+  try{ (G.fridgeItems||[]).forEach(i=>{ if(i&&i.id===fid) n+=(i.qty||0); }); }catch(_){}
+  try{ (G.inventory||[]).forEach(i=>{ if(i&&i.id===fid&&i.type==='item') n+=(i.qty||0); }); }catch(_){}
+  return n;
+};
+window._boozeTakeMixer=function(tag){
+  const fid=window.BOOZE_MIXERS[tag]; if(!fid) return false;
+  try{
+    const f=(G.fridgeItems||[]).find(i=>i&&i.id===fid&&(i.qty||0)>0);
+    if(f){ f.qty--; if(f.qty<=0) G.fridgeItems=G.fridgeItems.filter(i=>i!==f); return true; }
+  }catch(_){}
+  try{
+    const it=(G.inventory||[]).find(i=>i&&i.id===fid&&i.type==='item'&&(i.qty||0)>0);
+    if(it){ it.qty--; if(it.qty<=0) G.inventory=G.inventory.filter(i=>i!==it); return true; }
+  }catch(_){}
+  return false;
+};
+/* Pobranie JEDNEJ porcji alkoholu o danym znaczniku — najpierw z NACZĘTEGO opakowania. */
+window._boozeTakeAlcohol=function(tag){
+  const b=window._boozeEnsure();
+  const idx=b.bottles.map((bo,i)=>({bo,i,d:window._boozeDef(bo.id)}))
+    .filter(x=>x.d&&x.d.tags.indexOf(tag)>=0)
+    .sort((a,z)=>a.bo.left-z.bo.left)[0];
+  if(!idx) return null;
+  idx.bo.left--;
+  const used=idx.d;
+  if(idx.bo.left<=0) b.bottles.splice(idx.i,1);          /* §4.1 pkt 24 */
+  return used;
+};
+/* §4.1 pkt 22-23: lista receptur z jawnym powodem niedostępności. */
+window._boozeRecipeStatus=function(){
+  return BOOZE_RECIPES.map(r=>{
+    const alc=window._boozeServingsByTag(r.alc);
+    const mix=window._boozeMixerCount(r.mix);
+    const missing=[];
+    if(alc<1) missing.push('alkohol: '+window._boozeTagLabel(r.alc));
+    if(mix<1) missing.push('dodatek: '+(window.BOOZE_MIXER_NAMES[r.mix]||r.mix));
+    /* UWAGA: NIE nadpisujemy pól `alc`/`mix` — to ZNACZNIKI rodzaju, po których dopasowujemy składniki (§4.1 pkt 20).
+       Liczby porcji wracają pod osobnymi nazwami, żeby interfejs mógł pokazać i nazwę, i stan zapasu. */
+    return {...r, alcServ:alc, mixQty:mix, available:missing.length===0, missing};
+  });
+};
+window._boozeTagLabel=function(tag){
+  const d=BOOZE_CATALOG.find(x=>x.tags.indexOf(tag)>=0);
+  return d?d.kind:tag;
+};
+/* §6 — pakiet zmian przekazywany WŁAŚCICIELOM istniejących stanów. quality 0..1 z minigry nalewania. */
+window._boozeApplyEffects=function(def,quality,withMixer){
+  const q=Math.max(0,Math.min(1,typeof quality==='number'?quality:0.8));
+  const b=window._boozeEnsure();
+  const strengthMul=def.str==='strong'?1.6:(def.str==='standard'?1.0:0.6);
+  /* Upojenie — istniejący wskaźnik nocny (jedno źródło dla klubu, altany i mieszkania) */
+  let intoxAdd=Math.round((7*strengthMul)*(withMixer?0.85:1));
+  if(typeof _newpdfEnsure==='function') _newpdfEnsure();
+  if(typeof window._eclipseEnsure==='function'){ try{ window._eclipseEnsure(); }catch(_){} }
+  if(G.eclipseNoir&&G.eclipseNoir.nightlife){
+    G.eclipseNoir.nightlife.intoxication=Math.max(0,Math.min(100,(G.eclipseNoir.nightlife.intoxication||0)+intoxAdd));
+  }
+  /* Nastrój — chwilowa poprawa, tym większa im lepiej nalane (bez darmowej, trwałej redukcji) */
+  const mood=Math.round((withMixer?9:7)*(0.55+q*0.65));
+  if(typeof clampStat==='function') G.stress=clampStat('stress',(G.stress||50)+mood); else G.stress=Math.min(100,(G.stress||50)+mood);
+  /* Zmęczenie/kondycja — niewielki lub zerowy wpływ (mocniejszy alkohol lekko zabiera energię) */
+  const enDelta=(def.str==='strong')?-4:(def.str==='standard'?-2:0);
+  if(enDelta) G.energy=(typeof clampStat==='function')?clampStat('energy',(G.energy||0)+enDelta):Math.max(0,(G.energy||0)+enDelta);
+  G.hunger=(typeof clampStat==='function')?clampStat('hunger',(G.hunger||0)+3):Math.min(100,(G.hunger||0)+3);
+  /* Podatność na uzależnienie — pojedyncza porcja bez widocznej zmiany; rośnie przy POWTARZALNYM wzorcu */
+  if(b.lastDrinkDay!==(G.day||0)){ b.lastDrinkDay=(G.day||0); b.drinksToday=0; }
+  b.drinksToday++; b.drinksTotal++;
+  if(typeof window._addictionSysEnsure==='function'){
+    window._addictionSysEnsure();
+    const a=G.addictionSystem&&G.addictionSystem.alcohol;
+    if(a){
+      a.lastUseDay=(G.day||0); a.daysClean=0;
+      a.useLevel=Math.min(100,(a.useLevel||0)+1);
+      if(b.drinksToday>=3){ a.tolerance=Math.min(100,(a.tolerance||0)+1); a.dependence=Math.min(100,(a.dependence||0)+1); }
+    }
+  }
+  return {intox:intoxAdd, mood, energy:enDelta};
+};
+window._boozeIntox=function(){ try{ return (G.eclipseNoir&&G.eclipseNoir.nightlife&&G.eclipseNoir.nightlife.intoxication)||0; }catch(_){ return 0; } };
+
+/* §5.1 — warunki uruchomienia aktywności. */
+window._boozeCanUseMinibar=function(){
+  if(typeof APT_ROOMS==='undefined') return {ok:true};
+  const inApt=Object.values(APT_ROOMS).indexOf(currentRoom)>=0;
+  if(!inApt) return {ok:false, why:'Minibar działa tylko w Twoim mieszkaniu.'};
+  if(typeof mgOpen==='function' && mgOpen()) return {ok:false, why:'Najpierw dokończ bieżącą czynność.'};
+  return {ok:true};
+};
+/* §5.3 — wyniki interakcji, z jawnym komunikatem przy każdej odmowie. */
+window._boozePrepare=function(recipeId){
+  const st=window._boozeRecipeStatus().find(r=>r.id===recipeId);
+  if(!st) return;
+  if(!st.available){ if(typeof showMsg==='function') showMsg('🍸 Brakuje składników — '+st.missing.join(' · ')+'.','r',5200); return; }
+  if(window._boozeIntox()>=window.BOOZE_INTOX_LIMIT){ if(typeof showMsg==='function') showMsg('🥴 Masz już dosyć. Odstaw szklankę i prześpij się — kolejny drink nic dobrego nie zrobi.','r',5200); return; }
+  window._boozeStartPour({mode:'recipe', recipeId});
+};
+window._boozeDrinkNeat=function(boozeId){
+  const b=window._boozeEnsure(); const d=window._boozeDef(boozeId);
+  if(!d) return;
+  if(window._boozeServingsByTag(d.tags[0])<1){ if(typeof showMsg==='function') showMsg('🍸 Nie masz już porcji tego alkoholu.','r',4200); return; }
+  if(window._boozeIntox()>=window.BOOZE_INTOX_LIMIT){ if(typeof showMsg==='function') showMsg('🥴 Masz już dosyć. Odstaw szklankę i prześpij się — kolejny drink nic dobrego nie zrobi.','r',5200); return; }
+  window._boozeStartPour({mode:'neat', boozeId});
+};
+/* Minigra nalewania (istniejąca mechanika) staje się WARSTWĄ UMIEJĘTNOŚCI receptury:
+   jakość nalania modyfikuje efekt, a składniki zużywają się DOPIERO po udanym przygotowaniu (§8 pkt 40-41). */
+window._boozeStartPour=function(ctx){
+  window._boozePending=ctx;
+  if(typeof window._startMinibarMG==='function') window._startMinibarMG(true);
+};
+/* §7.1 — zużycie porcji i publikacja efektu jako JEDNA rozliczana operacja (§7.3 pkt 32),
+   odporna na powtórne wywołanie tego samego zdarzenia (pkt 33). */
+window._boozeResolve=function(quality){
+  const ctx=window._boozePending; if(!ctx||ctx._done) return null;
+  ctx._done=true; window._boozePending=null;
+  /* Domknięcie panelu nalewania na wypadek ścieżki, która nie przeszła przez _minibarStop —
+     inaczej otwarty panel blokowałby kolejne uruchomienie minibaru (§5.1). */
+  try{ const _mj=document.getElementById('mg-job'); if(_mj&&_mj.classList.contains('on')){ _mj.classList.remove('on'); _mj.style.display='none'; const _mc=document.getElementById('mg-job-content'); if(_mc) _mc.innerHTML=''; } }catch(_){}
+  window._minibarFromRecipe=false;
+  const b=window._boozeEnsure();
+  if(ctx.mode==='recipe'){
+    const r=BOOZE_RECIPES.find(x=>x.id===ctx.recipeId); if(!r) return null;
+    if(window._boozeServingsByTag(r.alc)<1||window._boozeMixerCount(r.mix)<1){
+      if(typeof showMsg==='function') showMsg('🍸 Zabrakło składnika — nic nie zostało zużyte.','r',4500);
+      return null;
+    }
+    const used=window._boozeTakeAlcohol(r.alc);
+    const mixOk=window._boozeTakeMixer(r.mix);
+    if(!used||!mixOk){ if(typeof showMsg==='function') showMsg('🍸 Coś poszło nie tak przy odmierzaniu — spróbuj ponownie.','r',4200); return null; }
+    const fx=window._boozeApplyEffects(used,quality,true);
+    if(typeof showMsg==='function') showMsg('🍹 '+r.n+' gotowy. Nastrój +'+fx.mood+'. Zostało porcji: '+window._boozeServingsByTag(r.alc)+'.','g',5200);
+    if(typeof saveGameSilent==='function') saveGameSilent();
+    return {recipe:r.id, fx};
+  }
+  const d=window._boozeDef(ctx.boozeId); if(!d) return null;
+  const used=window._boozeTakeAlcohol(d.tags[0]);
+  if(!used){ if(typeof showMsg==='function') showMsg('🍸 Zabrakło porcji — nic nie zostało zużyte.','r',4200); return null; }
+  const fx=window._boozeApplyEffects(used,quality,false);
+  if(typeof showMsg==='function') showMsg('🥃 '+used.n+' — '+used.kind+'. Nastrój +'+fx.mood+'. Zostało porcji: '+window._boozeServingsByTag(d.tags[0])+'.','g',5200);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return {booze:d.id, fx};
+};
+/* §6 — KAC jako czasowy efekt liczony PO ŚNIE z upojenia i zmęczenia. Nie jest osobną, stałą statystyką. */
+window._boozeOnSleepResolved=function(){
+  const b=window._boozeEnsure();
+  const intox=window._boozeIntox();
+  if(intox<25) return null;
+  const severity=Math.min(3,Math.round(intox/30));
+  b.hangoverUntilDay=(G.day||0);
+  const moodHit=-(4+severity*4), enHit=-(5+severity*5);
+  if(typeof clampStat==='function'){ G.stress=clampStat('stress',(G.stress||50)+moodHit); G.energy=clampStat('energy',(G.energy||0)+enHit); }
+  else { G.stress=Math.max(0,(G.stress||50)+moodHit); G.energy=Math.max(0,(G.energy||0)+enHit); }
+  if(G.eclipseNoir&&G.eclipseNoir.nightlife) G.eclipseNoir.nightlife.intoxication=Math.round(intox*0.2);
+  if(typeof showMsg==='function') showMsg('🤕 Kac po wczorajszym. Głowa ciężka, energia niżej — dziś lepiej bez szaleństw.','r',6000);
+  return {severity, moodHit, enHit};
+};
+/* ═══ PDF „Corner Basket i minibar" §5.2 — WSPÓLNY interfejs aktywności minibaru ═══════════════
+   Konkretne mieszkanie wskazuje wyłącznie punkt uruchomienia; logika i wygląd panelu są jedne
+   dla wszystkich lokali, więc nowe mieszkania nie wymagają osobnego kodu. */
+window._minibarMenu=function(){
+  const chk=window._boozeCanUseMinibar();
+  if(!chk.ok){ if(typeof showMsg==='function') showMsg('🍸 '+chk.why,'r',4200); return; }
+  window._boozeEnsure();
+  const el=document.getElementById('ov-content'); if(!el) return;
+  const stock=window._boozeStock();
+  const bottles=Object.values(stock);
+  const totalServ=bottles.reduce((n,x)=>n+x.servings,0);
+  const intox=window._boozeIntox();
+  const intoxCol=intox>=window.BOOZE_INTOX_LIMIT?'#e74c3c':(intox>=45?'#e8a020':'#7ec87e');
+  el.innerHTML=`
+    <h2>🍸 Minibar</h2>
+    <p class="sub">Twoje zapasy z Corner Basket. Każda receptura zużywa jedną porcję alkoholu i jedną porcję dodatku.</p>
+    <div style="max-width:560px;margin:0 auto">
+      <div style="background:#12100a;border:1px solid #4a4030;border-radius:10px;padding:11px;margin-bottom:10px;color:#cdd;font-size:12.5px">
+        Butelki w zapasie: <b>${bottles.length}</b> · porcje alkoholu: <b>${totalServ}</b> · upojenie: <b style="color:${intoxCol}">${Math.round(intox)}</b>
+      </div>
+      <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._minibarRecipes()">🍹 Przygotuj drinka</button>
+      <button class="cbtn" style="width:100%;margin-bottom:6px" onclick="window._minibarStockPanel()">📦 Sprawdź zapasy</button>
+      <button class="cbtn" style="width:100%;margin-bottom:6px" onclick="window._minibarNeatPanel()">🥃 Wypij bez dodatków</button>
+      <button class="cbtn" style="width:100%" onclick="closeOverlay()">← Zamknij</button>
+    </div>`;
+  if(typeof openOverlay==='function') openOverlay();
+};
+window._minibarRecipes=function(){
+  const el=document.getElementById('ov-content'); if(!el) return;
+  const list=window._boozeRecipeStatus();
+  const av=list.filter(r=>r.available), miss=list.filter(r=>!r.available);
+  const card=(r,ok)=>`<div style="background:${ok?'#0d1810':'#151310'};border:1px solid ${ok?'#2a6a3a':'#3a3630'};border-radius:9px;padding:10px;margin-bottom:7px;${ok?'':'opacity:.72'}">
+      <div style="font-size:14px;font-weight:800;color:${ok?'#7ec87e':'#9a938a'}">${r.n}</div>
+      <div style="font-size:11.5px;color:#8a939a;margin-top:2px">${window._boozeTagLabel(r.alc)} <span style="color:#7a838a">(porcje: ${r.alcServ})</span> + ${window.BOOZE_MIXER_NAMES[r.mix]} <span style="color:#7a838a">(${r.mixQty})</span></div>
+      ${ok?`<button class="bbtn" style="width:100%;margin-top:6px" onclick="window._boozePrepare('${r.id}')">Przygotuj</button>`
+          :`<div style="font-size:11.5px;color:#e8a020;margin-top:5px">Brakuje — ${r.missing.join(' · ')}</div>`}
+    </div>`;
+  el.innerHTML=`
+    <h2>🍹 Przygotuj drinka</h2>
+    <p class="sub">Dostępne od ręki oraz te, do których czegoś brakuje — z podaniem konkretnego braku.</p>
+    <div style="max-width:560px;margin:0 auto">
+      <h3 style="color:#7ec87e;font-size:13px;margin:6px 0">Dostępne (${av.length})</h3>
+      ${av.length?av.map(r=>card(r,true)).join(''):'<div style="color:#9aa;font-size:12.5px;padding:8px 0">Na razie nic nie da się zmieszać. Alkohol kupisz w Corner Basket (dział „Alkohol"), dodatki w tym samym sklepie w napojach.</div>'}
+      <h3 style="color:#e8a020;font-size:13px;margin:12px 0 6px">Brakuje składników (${miss.length})</h3>
+      ${miss.map(r=>card(r,false)).join('')}
+      <button class="cbtn" style="width:100%;margin-top:8px" onclick="window._minibarMenu()">← Wróć</button>
+    </div>`;
+  if(typeof openOverlay==='function') openOverlay();
+};
+window._minibarStockPanel=function(){
+  const el=document.getElementById('ov-content'); if(!el) return;
+  const stock=Object.values(window._boozeStock());
+  const mix=Object.keys(window.BOOZE_MIXERS).map(t=>({t, n:window.BOOZE_MIXER_NAMES[t], q:window._boozeMixerCount(t)}));
+  el.innerHTML=`
+    <h2>📦 Zapasy minibaru</h2>
+    <p class="sub">Opakowania i liczba pozostałych porcji. Puste opakowanie znika z zapasów.</p>
+    <div style="max-width:560px;margin:0 auto">
+      <h3 style="color:#e8c56a;font-size:13px;margin:6px 0">Alkohole</h3>
+      ${stock.length?stock.map(x=>{const d=window._boozeDef(x.id);
+        return `<div style="background:#12100a;border:1px solid #4a4030;border-radius:9px;padding:9px 11px;margin-bottom:6px;color:#cdd;font-size:12.5px">
+          <b>${d.n}</b> <span style="color:#8a939a">· ${d.kind}</span><br>
+          Opakowania: <b>${x.bottles}</b> · pozostałe porcje: <b style="color:#7ec87e">${x.servings}</b></div>`;
+      }).join(''):'<div style="color:#9aa;font-size:12.5px;padding:8px 0">Brak alkoholu w zapasach.</div>'}
+      <h3 style="color:#8fb8d8;font-size:13px;margin:12px 0 6px">Dodatki (zwykłe napoje)</h3>
+      <div style="background:#0a1220;border:1px solid #1a3a5a;border-radius:9px;padding:9px 11px;color:#cdd;font-size:12.5px;line-height:1.7">
+        ${mix.map(m=>`${m.n}: <b style="color:${m.q>0?'#7ec87e':'#8a939a'}">${m.q}</b>`).join(' · ')}
+      </div>
+      <button class="cbtn" style="width:100%;margin-top:10px" onclick="window._minibarMenu()">← Wróć</button>
+    </div>`;
+  if(typeof openOverlay==='function') openOverlay();
+};
+window._minibarNeatPanel=function(){
+  const el=document.getElementById('ov-content'); if(!el) return;
+  const stock=Object.values(window._boozeStock());
+  el.innerHTML=`
+    <h2>🥃 Wypij bez dodatków</h2>
+    <p class="sub">Jedna porcja prosto z opakowania, bez receptury.</p>
+    <div style="max-width:560px;margin:0 auto">
+      ${stock.length?stock.map(x=>{const d=window._boozeDef(x.id);
+        return `<div style="background:#12100a;border:1px solid #4a4030;border-radius:9px;padding:10px;margin-bottom:6px">
+          <div style="font-size:14px;font-weight:800;color:#e8c56a">${d.n}</div>
+          <div style="font-size:11.5px;color:#8a939a">${d.kind} · pozostałe porcje: <b>${x.servings}</b></div>
+          <button class="bbtn" style="width:100%;margin-top:6px" onclick="window._boozeDrinkNeat('${d.id}')">Nalej porcję</button></div>`;
+      }).join(''):'<div style="color:#9aa;font-size:12.5px;padding:8px 0">Brak alkoholu w zapasach. Kup coś w Corner Basket, dział „Alkohol".</div>'}
+      <button class="cbtn" style="width:100%;margin-top:8px" onclick="window._minibarMenu()">← Wróć</button>
+    </div>`;
+  if(typeof openOverlay==='function') openOverlay();
+};
+/* §3 — zakładka „Alkohol" w Corner Basket z czterema filtrami. */
+window._boozeShopFilter='beer';
+window._boozeShopTab=function(f){ window._boozeShopFilter=f; if(typeof renderFoodShop==='function') renderFoodShop(); document.getElementById('food-tab-booze').style.display='block'; document.getElementById('food-tab-ready').style.display='none'; document.getElementById('food-tab-ingredients').style.display='none'; document.getElementById('food-tab-extras').style.display='none'; };
+window._boozeBuyBtn=function(id){
+  const r=window._boozeBuy(id);
+  if(typeof showMsg==='function') showMsg((r.ok?'🍾 ':'💸 ')+r.msg, r.ok?'g':'r', 4500);
+  if(typeof renderFoodShop==='function'){ renderFoodShop(); window._boozeShopTab(window._boozeShopFilter); }
+};
+window._boozeShopHtml=function(){
+  window._boozeEnsure();
+  const stock=window._boozeStock();
+  const tabs=window.BOOZE_FILTERS.map(f=>`<button class="cbtn" style="flex:1;font-size:12px;padding:7px;border-color:${window._boozeShopFilter===f.id?'#e8c56a':'#2a3a50'};color:${window._boozeShopFilter===f.id?'#e8c56a':'#9ab'}" onclick="window._boozeShopTab('${f.id}')">${f.n}</button>`).join('');
+  const items=BOOZE_CATALOG.filter(b=>b.f===window._boozeShopFilter).map(b=>{
+    const price=(typeof applyShopDiscount==='function')?applyShopDiscount(b.price):b.price;
+    const have=stock[b.id];
+    return `<div class="sitem"><h3>${b.n}</h3>
+      <p style="font-size:11px;color:#8fb8d8;margin:-2px 0 4px">${b.kind} · segment ${b.seg}</p>
+      <p style="font-size:11px;color:#667">Porcje w opakowaniu: ${b.serv} · użycie: ${b.use}</p>
+      <div class="pr">${price} zł</div>
+      ${have?`<div style="color:#27ae60;font-size:11px">W zapasach: ${have.bottles} szt. (${have.servings} porcji)</div>`:''}
+      <button class="bbtn" style="width:100%" onclick="window._boozeBuyBtn('${b.id}')" ${(G.money||0)<price?'disabled':''}>Kup</button></div>`;
+  }).join('');
+  return `<p style="font-size:11.5px;color:#8a939a;margin-bottom:8px">Alkohol trafia do zapasów minibaru w mieszkaniu. Dodatki do drinków (cola, tonik, sok, energetyk, napój cytrusowy, woda gazowana, kawa) kupisz w zakładce „Gotowe produkty" — to zwykłe napoje.</p>
+    <div style="display:flex;gap:6px;margin-bottom:10px">${tabs}</div>
+    <div class="shopgrid">${items}</div>`;
+};
+/* ═══════════════════ CORNER BASKET / MINIBAR MODULE END ════════════════════════════════════════ */
 /* v2.3.107 (user MB1: „minibar funkcjonalny — mechanika jak bar Velvet Room, lanie drinka, podnosi nastrój"):
    minigra nalewania — pasek rośnie, zatrzymaj w zielonej strefie = idealny drink. Cooldown ~3h gry (anti-farm nastroju). */
-window._startMinibarMG=function(){
+window._startMinibarMG=function(fromRecipe){
+  /* PDF „Corner Basket i minibar”: wywołanie z receptury pomija dawny, darmowy tryb „nastrój z niczego” —
+     składniki są realne, a jakość nalania modyfikuje efekt. */
+  window._minibarFromRecipe=!!fromRecipe;
   const _mg=document.getElementById('mg-job');const _mc=document.getElementById('mg-job-content');
   if(!_mg||!_mc) return;
   const _abs=(typeof gameMin==='number')?((G.day||1)*1440+gameMin):0;
@@ -46651,6 +47036,19 @@ window._minibarStop=function(spill){
   else if(f>=72 && f<=92){ mood=18; msg='🍸 Idealnie nalane! Rozsiadasz się i odprężasz.'; }
   else if(f>=55){ mood=11; msg='🥃 Nieźle nalane — miły drink.'; }
   else { mood=6; msg='🥃 Trochę za mało, ale spoko.'; }
+  /* PDF „Corner Basket i minibar” §6: przy przygotowaniu według receptury efekty nalicza moduł minibaru
+     (zużycie porcji + pakiet zmian stanów), a nie ta minigra. Jakość nalania jest jej wkładem. */
+  if(window._minibarFromRecipe && typeof window._boozeResolve==='function'){
+    const _q=(spill||f>100)?0.25:(f>=72&&f<=92?1:(f>=55?0.7:0.45));
+    window._minibarFromRecipe=false;
+    if(typeof gameMin==='number') G._lastMinibarAbs=(G.day||1)*1440+gameMin;
+    G._minibarMG=null;
+    document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';
+    window._boozeResolve(_q);
+    if(typeof updateHUD==='function') updateHUD();
+    if(typeof saveGameSilent==='function') saveGameSilent();
+    return;
+  }
   G.stress=Math.min(100,(G.stress||50)+mood);
   G.hunger=Math.min(100,(G.hunger||0)+4);
   if(typeof gameMin==='number') G._lastMinibarAbs=(G.day||1)*1440+gameMin;
@@ -46662,6 +47060,8 @@ window._minibarStop=function(spill){
 };
 window._minibarAbort=function(){
   if(G._minibarInterval){clearInterval(G._minibarInterval);G._minibarInterval=null;}
+  /* PDF §5.3 „Przerwanie”: brak zmian i BRAK częściowego zużycia składników. */
+  window._minibarFromRecipe=false; window._boozePending=null;
   G._minibarMG=null;
   const _mj=document.getElementById('mg-job'); if(_mj) _mj.classList.remove('on'); const _mc=document.getElementById('mg-job-content'); if(_mc) _mc.innerHTML='';
 };
@@ -75095,9 +75495,18 @@ window._mayaDrawParkPing=function(){
   X.textAlign='left'; X.restore();
 };
 /* Dobowy/klatkowy tick: zegar aktywnej gry, fallback 20 min, dostarczenie intro i reakcji. */
+/* Rdzeń przebiegu: dolicza czas i przesuwa maszynę stanów. Wydzielony z `_mayaTick`, żeby test mógł
+   przesunąć zegar dokładnie o zadaną liczbę sekund, niezależnie od tempa klatek. */
+window._mayaAdvance=function(dtSec){
+  const m=window._mayaEnsure();
+  return window._mayaStep(m,dtSec);
+};
 window._mayaTick=function(dtSec){
   const m=window._mayaEnsure();
   if(!window._mayaClockRunning()) return;
+  return window._mayaStep(m,dtSec);
+};
+window._mayaStep=function(m,dtSec){
   /* Deltę klamruje już wywołujący (pętla gry ogranicza ją do 1 s na klatkę), więc tutaj przyjmujemy ją wprost —
      dzięki temu licznik rośnie dokładnie tyle, ile upłynęło aktywnej gry, i jest przewidywalny w teście. */
   if(typeof dtSec==='number'&&isFinite(dtSec)&&dtSec>0) G._mayaActiveSec=(G._mayaActiveSec||0)+dtSec;
@@ -84462,6 +84871,8 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.131',date:'2026-08-10',cats:['beta-tester','fix','feature'],title:'🅿️🚚♻️ Parking, holowanie, kasacja pojazdów i porządki w całej grze',
  items:[
+  {t:'feature',d:'🍷 Corner Basket ma dział alkoholowy, a minibar w mieszkaniu wreszcie coś znaczy. W sklepie znajdziesz 15 pozycji w czterech kategoriach — przy każdej widać rodzaj, segment i liczbę porcji w opakowaniu. Butelki trafiają do zapasów minibaru, a w KAŻDYM swoim mieszkaniu przygotujesz z nich drinka według jednej z dziesięciu receptur. Panel pokazuje osobno to, co zrobisz od ręki, i to, do czego czegoś brakuje — zawsze z nazwą brakującego składnika. Możesz też nalać sobie porcję bez dodatków albo sprawdzić stan zapasów. Dodatki (cola, tonik, sok, energetyk, napój cytrusowy, woda gazowana, kawa) kupisz w zwykłych napojach.'},
+  {t:'feature',d:'🥃 Picie ma konsekwencje, ale nie tworzy nowych pasków na ekranie. Drink poprawia nastrój i podnosi upojenie, mocniejszy alkohol zabiera trochę energii, a przy powtarzanym schemacie rośnie skłonność do sięgania po więcej. Po śnie możesz obudzić się z kacem — tym mocniejszym, im więcej było poprzedniego wieczoru. Przy bardzo wysokim upojeniu gra po prostu odmawia kolejnego drinka.'},
   {t:'feature',d:'💃 Maya Voss odzywa się sama, zanim pierwszy raz staniesz w kręgu. Po dwóch ulicznych freestyle’ach albo po dwudziestu minutach gry bez żadnego freestyle’u dostajesz od niej SMS z zaproszeniem do parku. Masz trzy odpowiedzi do wyboru, a Maya odpisuje na każdą inaczej — po chwili, jak w prawdziwej korespondencji. Każda odpowiedź otwiera taneczny freestyle w parku; różni się tylko to, jak mocno gra Ci go przypomina. Wiadomość nigdy nie przerywa minigry ani rozmowy — poczeka na spokojny moment.'},
   {t:'feature',d:'📱 Nowe powiadomienie o wiadomości — tym razem w samym telefonie. Kiedy przeglądasz aplikacje albo foldery, na górze ekranu smartfona zjedzie mały, jasny prostokąt z nagłówkiem „Wiadomości” i początkiem treści. Kliknięcie w dowolne miejsce otwiera dokładnie tę rozmowę. Znika sam po pięciu sekundach, a przy kilku wiadomościach naraz pojawiają się po kolei, bez nakładania. Dotychczasowe powiadomienie w prawym dolnym rogu działa bez zmian.'},
   {t:'fix',d:'🅿️ Parking przestał podstawiać Ci auto pod nogi. Wcześniej wystarczyło mieć samochód, żeby po wejściu na dowolny parking od razu w nim usiąść — nawet jeśli stał w zupełnie innym miejscu. Teraz [E] otwiera panel parkingu: widzisz na którym miejscu stoi Twój pojazd i w jakim jest stanie, a wsiadasz podchodząc do niego.'},
