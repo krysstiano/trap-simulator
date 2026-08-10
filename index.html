@@ -87752,6 +87752,8 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.131',date:'2026-08-10',cats:['beta-tester','fix','feature'],title:'🅿️🚚♻️ Parking, holowanie, kasacja pojazdów i porządki w całej grze',
  items:[
+  {t:'fix',d:'🖥 Gra dopasowuje się teraz do rozdzielczości Twojego ekranu. Obraz jest rysowany w pełnej rozdzielczości monitora, a nie powiększany z mniejszego — na Full HD, 1440p i 4K znika rozmycie i poszarpane krawędzie. Dotyczy też ekranów o wysokiej gęstości pikseli.'},
+  {t:'fix',d:'🎰 Okna gier w kasynie i inne duże panele mieszczą się w całości na ekranie. Wcześniej ruletka, automaty i blackjack wychodziły poniżej dolnej krawędzi i trzeba było przewijać, żeby dojść do zakładów. Teraz panel sam dopasowuje rozmiar, a tekst pozostaje ostry.'},
   {t:'fix',d:'🖥 Porządki w nowych oknach VANTAGE: przyciski w jednym rzędzie mają teraz jednakowy rozmiar (wcześniej ten aktywny rozlewał się na całą szerokość), karty lokali w korytarzu pokazowym są wyrównane, a zestawienie obejrzanych lokali nie rozciąga się już przez cały ekran przy jednej pozycji.'},
   {t:'feature',d:'🎚️ Studio pokazuje teraz, co w nim naprawdę stoi. Zamiast samej listy widzisz plan lokalu: dostarczone skrzynie czekające na montaż oraz zamontowany sprzęt narysowany w swojej strefie — komputer z monitorem, mikrofon na statywie, odsłuch, kanapa dla klienta, rack i panele akustyczne. Uszkodzony element jest oznaczony na czerwono.'},
   {t:'feature',d:'📐 Przycisk „Plan studia” włącza przezroczyste obrysy sześciu stref roboczych wraz z podpisami. Po wyłączeniu znikają — to tylko pomoc przy planowaniu, a nie przedmioty stojące w lokalu.'},
@@ -110100,6 +110102,94 @@ try{
   }
 }catch(_){}
 
+/* ═══════════════════ SKALOWANIE DO ROZDZIELCZOŚCI GRACZA — MODULE START ═══════════════════
+   Zgłoszenie usera: „wiele okien trzeba scrollować, szczególnie gry w kasynie" oraz „ma nie być
+   rozpikselowania, tracenia ostrości i rozjechanych napisów".
+
+   POMIAR PRZED ZMIANĄ (dbg_scale_probe.mjs):
+     1366×768  → kanwa 1280×720 rozciągana do 1365×768 = ostrość 0.94×
+     1920×1080 → ostrość 0.67×   ·  2560×1440 → 0.50×  ·  3840×2160 → 0.33×
+     Panele kasyna przy 1366×768: ruletka 792 px (158 px POZA ekranem), automaty 802 px (169 px),
+     blackjack 731 px (83 px), plinko 826 px (górna krawędź ucięta o 78 px).
+
+   DWA NIEZALEŻNE ROZWIĄZANIA:
+   (1) `_autoRenderScale` — backing-store kanwy gry rośnie do realnej liczby pikseli urządzenia,
+       więc świat jest rysowany 1:1 zamiast rozciągany. Rysowanie nadal używa współrzędnych
+       1280×720 (bazowa macierz `setTransform`), więc ŻADEN kod rysujący się nie zmienia.
+   (2) `_fitOverlay` — panel, który nie mieści się w dostępnej wysokości, jest pomniejszany
+       transformacją zamiast wychodzić poza ekran. Tekst pozostaje wektorowy (bez utraty ostrości),
+       a kliknięcia w kanwy minigier liczone są z `getBoundingClientRect`, więc działają bez zmian. */
+
+/* ── (1) OSTROŚĆ ─────────────────────────────────────────────────────────────────────────────── */
+window._scaleStage=1;                       /* aktualna skala sceny (transform na #wrap) */
+window._autoRenderScale=function(){
+  const C=document.getElementById('gc'); if(!C) return;
+  const dpr=Math.max(1,window.devicePixelRatio||1);
+  const stage=window._scaleStage||1;
+  /* mnożnik jakości z ustawień (0.5-1.5) mnoży, a nie zastępuje, realne zapotrzebowanie */
+  let mult=1;
+  try{ const s=JSON.parse(localStorage.getItem('snowy_gfx')||'{}'); if(s&&+s.renderScale) mult=+s.renderScale; }catch(_){}
+  mult=Math.max(0.5,Math.min(1.5,mult));
+  /* górna granica 3 = natywne 4K; wyżej koszt pamięci rośnie szybciej niż widoczna jakość */
+  const q=Math.max(0.5,Math.min(3,+(mult*stage*dpr).toFixed(3)));
+  const bw=Math.round(1280*q), bh=Math.round(720*q);
+  if(C.width!==bw||C.height!==bh){ C.width=bw; C.height=bh; }
+  C.style.width='1280px'; C.style.height='720px';
+  window._gfxRenderScale=q;                 /* loop() ustawia z tego bazową macierz co klatkę */
+  return q;
+};
+
+/* ── (2) PANELE ZAWSZE W CAŁOŚCI NA EKRANIE ──────────────────────────────────────────────────── */
+window._FIT_PAIRS=[['overlay','ov-content'],['mg-job','mg-job-content']];
+window._FIT_MIN=0.52;                       /* poniżej tego progu wolimy przewijanie niż mikrodruk */
+window._fitOverlay=function(){
+  window._FIT_PAIRS.forEach(([boxId,inId])=>{
+    const box=document.getElementById(boxId), el=document.getElementById(inId);
+    if(!box||!el) return;
+    if(box.offsetParent===null){ el.style.transform=''; el.style.marginBottom=''; return; }
+    /* pomiar ZAWSZE bez wcześniejszej transformacji — inaczej skala nakłada się na siebie */
+    el.style.transform=''; el.style.marginBottom='';
+    const cs=getComputedStyle(box);
+    /* 4 px zapasu: część paneli dorysowuje treść tuż po pierwszym renderze (rozdanie kart,
+       animacja koła) i bez marginesu potrafiły wystawać kilka pikseli pod krawędź. */
+    const avail=box.clientHeight-parseFloat(cs.paddingTop||0)-parseFloat(cs.paddingBottom||0)-4;
+    const natural=el.offsetHeight;
+    if(!natural||!avail) return;
+    if(natural<=avail+1){ box.style.overflowY='auto'; return; }
+    const k=Math.max(window._FIT_MIN, avail/natural);
+    el.style.transformOrigin='top center';
+    el.style.transform='scale('+k.toFixed(4)+')';
+    /* skala nie zmienia wysokości w układzie — kompensujemy, żeby rodzic nie trzymał paska */
+    el.style.marginBottom=(-(natural*(1-k)))+'px';
+    box.style.overflowY=(natural*k>avail+1)?'auto':'hidden';
+  });
+};
+/* przeliczenie po każdej zmianie treści panelu (panele przepisują innerHTML) */
+(function _fitWatch(){
+  let raf=0;
+  let late=0;
+  const kick=()=>{ if(raf) return; raf=requestAnimationFrame(()=>{ raf=0; try{ window._fitOverlay(); }catch(_){}
+    /* powtórka po chwili — treść dosypana asynchronicznie zmienia wysokość po pierwszym dopasowaniu */
+    clearTimeout(late); late=setTimeout(()=>{ try{ window._fitOverlay(); }catch(_){} },140); }); };
+  window._fitKick=kick;
+  const attach=()=>{
+    window._FIT_PAIRS.forEach(([,inId])=>{
+      const el=document.getElementById(inId); if(!el||el._fitObs) return;
+      el._fitObs=new MutationObserver(kick);
+      el._fitObs.observe(el,{childList:true,subtree:true,characterData:true});
+    });
+    window._FIT_PAIRS.forEach(([boxId])=>{
+      const b=document.getElementById(boxId); if(!b||b._fitObs) return;
+      b._fitObs=new MutationObserver(kick);      /* zmiana klasy .on = otwarcie panelu */
+      b._fitObs.observe(b,{attributes:true,attributeFilter:['class','style']});
+    });
+  };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',attach);
+  else attach();
+  setTimeout(attach,1200);
+})();
+/* ═══════════════════ SKALOWANIE DO ROZDZIELCZOŚCI GRACZA — MODULE END ═══════════════════ */
+
 function scaleGame(){
   /* v2.1.155: Mobile portrait fix v2 — character creator/menu były mikroskopijne (scale 0.29 dla 375x667).
      Strategy: detect mobile + pre-game state (menu/creator visible) → DISABLE #wrap transform, pokaż natywne UI.
@@ -110132,7 +110222,12 @@ function scaleGame(){
     el.style.transform=`scale(${s})`;
     el.style.left=Math.max(0,(window.innerWidth-scaledW)/2)+'px';
     el.style.top=Math.max(0,(window.innerHeight-scaledH)/2)+'px';
+    /* skala sceny jest teraz WEJŚCIEM dla ostrości kanwy — bez tego świat renderuje się
+       w 1280×720 i jest rozciągany do rozdzielczości gracza (na 4K widać co trzeci piksel). */
+    window._scaleStage=s;
+    if(typeof window._autoRenderScale==='function') window._autoRenderScale();
   }
+  if(typeof window._fitKick==='function') window._fitKick();
   const isPortrait=window.innerHeight>window.innerWidth;
   /* v2.1.153: rotate hint dla bardzo małych portrait (<420px width) */
   let hint=document.getElementById('rotate-hint');
@@ -110500,11 +110595,15 @@ loop();
     s=s||load();
     var C=document.getElementById('gc'); if(!C) return;
     /* 1) Render scale — zmiana backing-res canvasu (mniej pikseli=szybciej/miękko, wiecej=ostro/drozej). CSS display 1280x720 zablokowany. */
-    var rs=Math.max(0.5,Math.min(1.5, +s.renderScale||1));
-    window._gfxRenderScale=rs;
-    var bw=Math.round(1280*rs), bh=Math.round(720*rs);
-    if(C.width!==bw||C.height!==bh){ C.width=bw; C.height=bh; }
-    C.style.width='1280px'; C.style.height='720px';
+    /* Suwak jakości jest teraz MNOŻNIKIEM realnego zapotrzebowania (skala sceny × gęstość pikseli),
+       a nie wartością bezwzględną. Wcześniej maksimum 1.5 oznaczało, że na ekranie 4K gra rysowała
+       1920×1080 pikseli na powierzchni 3840×2160 — stąd rozmycie zgłoszone przez gracza. */
+    if(typeof window._autoRenderScale==='function') window._autoRenderScale();
+    else { var rs=Math.max(0.5,Math.min(1.5, +s.renderScale||1));
+      window._gfxRenderScale=rs;
+      var bw=Math.round(1280*rs), bh=Math.round(720*rs);
+      if(C.width!==bw||C.height!==bh){ C.width=bw; C.height=bh; }
+      C.style.width='1280px'; C.style.height='720px'; }
     /* 2) Limit FPS — gate w loop() */
     window._gfxFpsInterval = (s.fpsLimit>0)?(1000/s.fpsLimit):0;
     /* v2.3.131 (PDF Uspr v2.3.130 U31): flaga animacji przejść UI — czytana przez elementy interfejsu
