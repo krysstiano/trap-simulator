@@ -764,7 +764,10 @@ body.mobile-pregame #gc, body.mobile-pregame #hud, body.mobile-pregame #dmg-over
     <span style="margin-left:auto;font-size:8px;color:rgba(255,220,80,.85);font-weight:700;letter-spacing:1.2px;line-height:1;font-family:'Segoe UI',Arial,sans-serif">M / KLIK = PEŁNA</span>
   </div>
 </div>
-<div id="quest-widget" style="position:absolute;top:70px;right:14px;width:220px;background:rgba(8,12,22,.96);border:1px solid #2a3a50;border-radius:8px;padding:8px 10px;z-index:14;font-size:11px;color:#aaa;display:none;pointer-events:all;box-shadow:0 4px 14px rgba(0,0,0,.5)">
+<!-- v2.3.131 (PDF Uspr v2.3.130 U31): lista „Cele" rozwija się PŁYNNIE po najechaniu kursorem
+     i zwija 3 sekundy po jego zjechaniu. Klik nadal działa jak dotąd. Zachowanie można wyłączyć
+     w Ustawieniach → Efekty / Shadery → „Animacje przejść interfejsu". -->
+<div id="quest-widget" onmouseenter="window._qwHoverIn&&window._qwHoverIn()" onmouseleave="window._qwHoverOut&&window._qwHoverOut()" style="position:absolute;top:70px;right:14px;width:220px;background:rgba(8,12,22,.96);border:1px solid #2a3a50;border-radius:8px;padding:8px 10px;z-index:14;font-size:11px;color:#aaa;display:none;pointer-events:all;box-shadow:0 4px 14px rgba(0,0,0,.5)">
   <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer;user-select:none" onclick="toggleQuestWidget()" title="Kliknij, aby rozwinąć/zwinąć listę celów">
     <span id="qw-title" style="color:#7ec8e3;font-weight:700">📋 Cele</span>
     <span id="qw-toggle" style="color:#667;font-size:10px">▾</span>
@@ -4312,7 +4315,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'zone_rear_yard':          drawBackroomZoneMarker(sx,sy,w,h,'rear_yard');break;
     case 'lab_underground':         drawUgOffice(sx,sy,w,h);break;/* v2.3.122 (PDF Uspr v2.3.121): z zewnątrz biurowiec z parkingiem i halą, nie laboratorium */
     case 'underground_office_info':  drawInfoPillar(sx,sy,w,h);break;/* v2.3.115 (PDF Uspr): słupek informacyjny */
-    case 'plantation_underground':  drawPlantation(sx,sy,w,h);break;
+    case 'plantation_underground':  drawSubterraCellar(sx,sy,w,h);break;/* v2.3.131 (PDF Uspr v2.3.130 U23): stara brukowana piwnica (SUBTERRA), nie szklarnia */
     case 'gravellot_underground':   drawGravelLotHall(sx,sy,w,h);break; /* v2.3.102 (PDF #8-24): hala serwisowa/warsztatowa zamiast zwykłej fasady */
     /* v2.1.385 Faza C' Coast new map: tropical buildings */
     case 'exit_coast':              drawCoastExitGate(sx,sy,w,h);break;
@@ -4488,8 +4491,10 @@ function drawSprite(id,sx,sy,w,h){
     case 'kamper_bed':                      drawKamperBed(sx,sy,w,h);break;
     case 'kamper_pot_0': case 'kamper_pot_1': drawGrowPot(sx,sy,w,h,id);break; /* v2.1.782 wolnostojąca doniczka */
     case 'plantation_pot_0': case 'plantation_pot_1': case 'plantation_pot_2': case 'plantation_pot_3': case 'plantation_pot_4': case 'plantation_pot_5': drawGrowPot(sx,sy,w,h,id);break; /* v2.1.790 FAZA 2 */
-    case 'plant_drying':  drawDryingRack(sx,sy,w,h);break;
-    case 'plant_pack':    drawPackingStation(sx,sy,w,h);break;
+    /* v2.3.131 (PDF Uspr v2.3.130 U23): dopóki gracz nie kupi wyposażenia FINISH w terminalu SUBTERRA,
+       w tych miejscach stoi oznaczone PUSTE stanowisko (a nie gotowy sprzęt, którego nikt nie kupił). */
+    case 'plant_drying':  if(typeof window._sbStationReady==='function'&&!window._sbStationReady('plant_drying')){ drawSubterraEmptyBay(sx,sy,w,h,'Suszenie'); } else drawDryingRack(sx,sy,w,h); break;
+    case 'plant_pack':    if(typeof window._sbStationReady==='function'&&!window._sbStationReady('plant_pack')){ drawSubterraEmptyBay(sx,sy,w,h,'Pakowanie'); } else drawPackingStation(sx,sy,w,h); break;
     case 'exit_plantacja': drawInteriorExit(sx,sy,w,h);break;
     case 'lab_cook_shard':                  drawCrystallizationStation(sx,sy,w,h);break;
     case 'lab_cook_powder':                 drawFiltrationStation(sx,sy,w,h);break;
@@ -7695,19 +7700,83 @@ function drawCasino(sx,sy,w,h){
 // Pozycje wszystkich 12 miejsc parkingowych (do auto-pickania pustego dla _carParkedAt).
 // Statyczne — auta z parkedPos zajmują slot 0,1,3,4 lewy oraz 0,2,3,5 prawy.
 const _PARKING_OCCUPIED_SET=new Set(['L0','L1','L3','L4','R0','R2','R3','R5']);
+/* v2.3.131 (PDF Uspr v2.3.130 U17) — „parking jako obiekt inteligentny".
+   Wspólna GEOMETRIA parkingu: ta sama, którą rysuje drawParking(). Dzięki temu:
+   • wolne miejsce, na które gracz wjeżdża, jest realnie wolne (żadnej kolizji ani uszkodzenia),
+   • zaparkowane auta stoją dokładnie tam, gdzie je widać, i to ONE są obiektami fizycznymi,
+   • marker zaparkowanego pojazdu gracza trafia w środek miejsca, a nie obok niego.
+   Wcześniej _findFreeParkingSpot liczyło na sztywno 6 miejsc i wjazd 80 px, a drawParking skalowało
+   oba parametry do szerokości → na małych parkingach dzielnic pozycje się rozjeżdżały. */
+window._parkingGeom=function(parkObj){
+  if(!parkObj) return null;
+  const w=parkObj.w, h=parkObj.h;
+  const drivewayW=Math.max(24, Math.min(80, Math.round(w*0.22)));
+  const drivewayX=parkObj.wx + Math.round((w-drivewayW)/2);
+  const leftSpace=drivewayX-parkObj.wx;
+  const rightStartX=drivewayX+drivewayW;
+  const rightSpace=(parkObj.wx+w)-rightStartX;
+  const spots=Math.max(2, Math.min(6, Math.round(Math.min(leftSpace,rightSpace)/30)));
+  return {drivewayW,drivewayX,leftSpace,rightStartX,rightSpace,spots,
+          leftSpotW:leftSpace/spots, rightSpotW:rightSpace/spots, wy:parkObj.wy, h};
+};
+/* Typy i rozstawienie aut — LUSTRO tablic z drawParking(). Zmiana tam = zmiana tutaj. */
+window._PARKING_CAR_TYPES=[{hRatio:0.85,wRatio:0.30},{hRatio:0.65,wRatio:0.28},{hRatio:0.78,wRatio:0.36},{hRatio:0.92,wRatio:0.30}];
+window._PARKING_PARKED_POS=[
+  {side:'L',slot:0,type:1},{side:'L',slot:1,type:0},{side:'L',slot:3,type:2},{side:'L',slot:4,type:1},
+  {side:'R',slot:0,type:3},{side:'R',slot:2,type:0},{side:'R',slot:3,type:1},{side:'R',slot:5,type:2}
+];
+/* Prostokąty kolizji ZAJĘTYCH miejsc (stojące auta) w koordynatach świata. Wolne miejsca NIE mają kolizji. */
+window._parkingCarRects=function(parkObj){
+  const g=window._parkingGeom(parkObj); if(!g) return [];
+  const out=[];
+  for(const pc of window._PARKING_PARKED_POS){
+    if(pc.slot>=g.spots) continue;
+    const spW=pc.side==='L'?g.leftSpotW:g.rightSpotW;
+    const baseX=pc.side==='L'?(parkObj.wx+pc.slot*spW):(g.rightStartX+pc.slot*spW);
+    const ct=window._PARKING_CAR_TYPES[pc.type]||window._PARKING_CAR_TYPES[0];
+    const carW=Math.round(spW*ct.wRatio*2);
+    const carH=Math.min(Math.round((g.h-12)*ct.hRatio), Math.round(carW*2.6));
+    out.push({id:'parking_car_'+pc.side+pc.slot, wx:Math.round(baseX+(spW-carW)/2), wy:Math.round(g.wy+6+((g.h-12)-carH)/2), w:carW, h:carH});
+  }
+  return out;
+};
+/* Lista WOLNYCH miejsc (etykieta + środek) — używana przez panel parkingu i wybór miejsca postoju. */
+window._parkingFreeSpots=function(parkObj){
+  const g=window._parkingGeom(parkObj); if(!g) return [];
+  const free=[];
+  for(let i=0;i<g.spots;i++){
+    if(!_PARKING_OCCUPIED_SET.has('L'+i)) free.push({code:'L'+i, label:'Lewa strona, miejsce '+(i+1), wx:parkObj.wx+i*g.leftSpotW+g.leftSpotW/2, wy:parkObj.wy+parkObj.h/2});
+    if(!_PARKING_OCCUPIED_SET.has('R'+i)) free.push({code:'R'+i, label:'Prawa strona, miejsce '+(i+1), wx:g.rightStartX+i*g.rightSpotW+g.rightSpotW/2, wy:parkObj.wy+parkObj.h/2});
+  }
+  return free;
+};
+/* v2.3.131 (PDF Uspr v2.3.130 U2): WŁASNY zaparkowany pojazd jest obiektem fizycznym również dla DRUGIEGO
+   pojazdu gracza. Zwraca prostokąt kolizji tego pojazdu gracza, którym gracz aktualnie NIE jedzie
+   (w bieżącym pokoju, poza naprawą). Dzięki temu auto i kamper nie przenikają przez siebie, a zderzenie
+   niesie konsekwencje dla OBU pojazdów. */
+window._otherOwnedVehicleRects=function(){
+  const out=[];
+  if(typeof G==='undefined'||typeof P==='undefined') return out;
+  const inRepair=(k)=>(typeof window._vehInRepair==='function')&&window._vehInRepair(k);
+  const add=(kind,pos,w,h)=>{
+    if(!pos||inRepair(kind)) return;
+    if(pos.room && pos.room!==currentRoom) return;
+    out.push({id:'own_vehicle_'+kind, _ownVeh:kind, wx:pos.wx+P.w/2-w/2, wy:pos.wy+P.h/2-h/2, w, h});
+  };
+  if(G.car&&G.car.name&&!G._inCar) add('car',G._carParkedAt,54,30);
+  if(G.camper&&G.camper.owned&&!G._inCamper) add('camper',G._camperParkedAt,62,38);
+  return out;
+};
+/* Etykieta miejsca, na którym stoi pojazd gracza (do panelu [E] — PDF U17). */
+window._parkingSpotLabelAt=function(parkObj,wx,wy){
+  const free=window._parkingFreeSpots(parkObj); if(!free.length) return null;
+  let best=null,bd=1e9;
+  for(const s of free){ const d=Math.hypot(s.wx-wx,s.wy-wy); if(d<bd){bd=d;best=s;} }
+  return (best&&bd<=160)?best.label:null;
+};
 function _findFreeParkingSpot(parkObj){
   if(!parkObj) return {wx:1500, wy:1620};
-  const drivewayW=80;
-  const drivewayX=parkObj.wx + Math.round((parkObj.w-drivewayW)/2);
-  const leftSpace=drivewayX - parkObj.wx;
-  const rightSpace=(parkObj.wx+parkObj.w)-(drivewayX+drivewayW);
-  const SPOTS_PER_SIDE=6;
-  const lW=leftSpace/SPOTS_PER_SIDE, rW=rightSpace/SPOTS_PER_SIDE;
-  const free=[];
-  for(let i=0;i<SPOTS_PER_SIDE;i++){
-    if(!_PARKING_OCCUPIED_SET.has('L'+i)) free.push({wx: parkObj.wx + i*lW + lW/2, wy: parkObj.wy + parkObj.h/2});
-    if(!_PARKING_OCCUPIED_SET.has('R'+i)) free.push({wx: drivewayX+drivewayW + i*rW + rW/2, wy: parkObj.wy + parkObj.h/2});
-  }
+  const free=window._parkingFreeSpots(parkObj);
   return free.length ? free[Math.floor(Math.random()*free.length)] : {wx:parkObj.wx+parkObj.w/2, wy:parkObj.wy+parkObj.h/2};
 }
 
@@ -10894,6 +10963,147 @@ function drawUgOffice(sx,sy,w,h){
   X.fillStyle='#4a4f58';X.fillRect(sx+w*0.86,pY+pH*0.15,w*0.10,pH*0.80);
 }
 
+/* ═══ v2.3.131 (PDF Uspr v2.3.130 U23) — OBIEKT SUBTERRA WIDZIANY Z ZEWNĄTRZ ══════════════════
+   Zamiast szklarni z ikoną rośliny i napisem „Plantacja": stara, brukowana piwnica wtopiona w skarpę.
+   Wygląd zmienia się razem ze stanem obiektu:
+     • nieprzejęty  — zabity deskami properly, zarośnięty mchem, wyblakła tabliczka, kłódka na sztabie;
+       • przejęty T1  — deski zdjęte, nowe drzwi stalowe, sprzątnięte podejście;
+     • T2 / T3      — po remoncie: czysty mur, latarnia nad wejściem, czytnik dostępu, kratka wentylacji.
+   Cały rysunek jest wektorowy (żadnego szarego prostokąta z tekstem) i skaluje się do rozmiaru obiektu. */
+function drawSubterraCellar(sx,sy,w,h){
+  const s=(typeof G!=='undefined'&&G.subterra&&typeof G.subterra==='object')?G.subterra:null;
+  const owned=!!(s&&(s.state==='OWNED'||s.state==='RENOVATING'));
+  const tier=owned?Math.max(1,Math.min(3,s.tier||1)):0;
+  const night=(typeof G!=='undefined'&&G.timeOfDay>=2);
+  const t=Date.now();
+  /* cień pod bryłą */
+  X.fillStyle='rgba(0,0,0,.42)'; X.fillRect(sx+4,sy+7,w,h);
+  /* skarpa/ziemia za piwnicą */
+  X.fillStyle=tier>=2?'#2b2b26':'#26251f'; X.fillRect(sx,sy,w,h);
+  /* MUR Z KAMIENIA — brukowane bloki układane w rzędach z przesunięciem */
+  const rowH=Math.max(6,Math.round(h*0.11));
+  const colW=Math.max(9,Math.round(w*0.16));
+  for(let ry=0,r=0; ry<h; ry+=rowH,r++){
+    const off=(r%2)?Math.round(colW/2):0;
+    for(let cx=-off; cx<w; cx+=colW){
+      const bx=sx+Math.max(0,cx), by=sy+ry;
+      const bw=Math.min(colW-2, w-Math.max(0,cx)), bh=Math.min(rowH-2, h-ry);
+      if(bw<=1||bh<=1) continue;
+      /* deterministyczny odcień per kamień — mur wygląda naturalnie, ale nie migocze */
+      const seed=((r*37+cx*17)%13)/13;
+      const base=tier>=3?[92,90,84]:tier>=2?[80,78,72]:[62,60,54];
+      const v=Math.round(seed*16-8);
+      X.fillStyle=`rgb(${base[0]+v},${base[1]+v},${base[2]+v})`;
+      X.fillRect(bx,by,bw,bh);
+      /* fuga — jasna górna krawędź, ciemny dół (wypukłość kamienia) */
+      X.fillStyle='rgba(255,255,255,.06)'; X.fillRect(bx,by,bw,1);
+      X.fillStyle='rgba(0,0,0,.28)'; X.fillRect(bx,by+bh-1,bw,1);
+    }
+  }
+  /* MECH i zacieki — tym mniej, im wyższy poziom obiektu */
+  const mossN=tier>=3?2:tier>=2?4:9;
+  for(let i=0;i<mossN;i++){
+    const mx=sx+((i*53)%Math.max(1,w-10)), my=sy+h*0.42+((i*31)%Math.max(1,h*0.5));
+    X.fillStyle=tier>=2?'rgba(70,96,58,.30)':'rgba(64,92,52,.48)';
+    X.beginPath(); X.ellipse(mx+5,my,5+(i%3)*2,3+(i%2)*2,0,0,Math.PI*2); X.fill();
+  }
+  /* NADPROŻE z ciosanego kamienia + zejście do piwnicy */
+  const dw=Math.round(w*0.42), dh=Math.round(h*0.46);
+  const dx=sx+Math.round((w-dw)/2), dy=sy+h-dh;
+  X.fillStyle=tier>=2?'#6a6459':'#4a463d';
+  X.fillRect(dx-4,dy-7,dw+8,7);
+  X.fillStyle='rgba(0,0,0,.3)'; X.fillRect(dx-4,dy-2,dw+8,2);
+  /* wnęka wejścia — ciemność schodów w dół */
+  const gr=X.createLinearGradient(0,dy,0,dy+dh);
+  gr.addColorStop(0,'#0d0c0a'); gr.addColorStop(1,'#050505');
+  X.fillStyle=gr; X.fillRect(dx,dy,dw,dh);
+  /* stopnie schodzące w mrok */
+  for(let i=0;i<3;i++){
+    X.fillStyle=`rgba(120,116,104,${0.30-i*0.08})`;
+    X.fillRect(dx+2+i*2, dy+dh-6-i*5, dw-4-i*4, 2);
+  }
+  if(!owned){
+    /* NIEPRZEJĘTY — zabite deski na krzyż + sztaba z kłódką */
+    X.strokeStyle='#6b4f2e'; X.lineWidth=Math.max(3,Math.round(dw*0.09)); X.lineCap='round';
+    X.beginPath(); X.moveTo(dx+2,dy+dh*0.28); X.lineTo(dx+dw-2,dy+dh*0.52); X.stroke();
+    X.beginPath(); X.moveTo(dx+2,dy+dh*0.62); X.lineTo(dx+dw-2,dy+dh*0.30); X.stroke();
+    X.lineCap='butt';
+    X.fillStyle='#8a8a90'; X.fillRect(dx+dw/2-6,dy+dh*0.44,12,4);
+    X.strokeStyle='#b8b8c0'; X.lineWidth=1.6;
+    X.beginPath(); X.arc(dx+dw/2,dy+dh*0.42,3.2,Math.PI,0); X.stroke();
+    /* wyblakła tabliczka właściciela */
+    X.fillStyle='rgba(120,112,92,.55)'; X.fillRect(sx+w*0.08,sy+h*0.16,Math.round(w*0.30),Math.round(h*0.13));
+    X.fillStyle='rgba(40,38,32,.45)';
+    for(let i=0;i<3;i++) X.fillRect(sx+w*0.10,sy+h*0.19+i*Math.max(2,h*0.033),Math.round(w*0.24-i*4),1.5);
+  } else {
+    /* PRZEJĘTY — stalowe drzwi w progu, im wyższy poziom, tym solidniejsze */
+    X.fillStyle=tier>=3?'#5a6068':tier>=2?'#4a5058':'#3c4046';
+    X.fillRect(dx+2,dy+3,dw-4,dh-3);
+    X.fillStyle='rgba(255,255,255,.07)'; X.fillRect(dx+2,dy+3,dw-4,2);
+    /* pionowe przetłoczenia drzwi */
+    X.fillStyle='rgba(0,0,0,.25)';
+    for(let i=1;i<3;i++) X.fillRect(dx+2+i*(dw-4)/3,dy+5,1.5,dh-8);
+    /* klamka */
+    X.fillStyle='#c8ccd2'; X.fillRect(dx+dw-10,dy+dh*0.5,5,2.5);
+    if(tier>=2){
+      /* czytnik dostępu — mała dioda pulsująca */
+      const on=0.55+Math.sin(t/620)*0.45;
+      X.fillStyle='#1a1e22'; X.fillRect(dx+dw+2,dy+dh*0.42,6,9);
+      X.fillStyle=`rgba(60,220,140,${on})`; X.fillRect(dx+dw+3.5,dy+dh*0.45,3,3);
+    }
+  }
+  /* KRATKA WENTYLACYJNA (po remoncie) albo zakratowane okienko piwniczne */
+  const vx=sx+Math.round(w*0.10), vy=sy+Math.round(h*0.52), vw=Math.round(w*0.20), vh=Math.round(h*0.14);
+  X.fillStyle='#0a0a0c'; X.fillRect(vx,vy,vw,vh);
+  X.strokeStyle=tier>=2?'#8a9098':'#5a5a56'; X.lineWidth=1.4;
+  if(tier>=2){ for(let i=1;i<4;i++){ X.beginPath(); X.moveTo(vx,vy+i*vh/4); X.lineTo(vx+vw,vy+i*vh/4); X.stroke(); } }
+  else { for(let i=1;i<3;i++){ X.beginPath(); X.moveTo(vx+i*vw/3,vy); X.lineTo(vx+i*vw/3,vy+vh); X.stroke(); } }
+  X.strokeRect(vx,vy,vw,vh);
+  /* LATARNIA nad wejściem — dopiero po remoncie; nocą realnie świeci */
+  if(tier>=2){
+    const lx=dx+dw+Math.round(w*0.06), ly=sy+Math.round(h*0.30);
+    X.fillStyle='#2a2e33'; X.fillRect(lx-1,ly-6,2,6);
+    X.fillStyle='#3a4046'; X.fillRect(lx-5,ly,10,7);
+    const glow=night?1:0.35;
+    X.fillStyle=`rgba(255,214,150,${0.85*glow})`; X.fillRect(lx-3.5,ly+1.5,7,4);
+    if(night){
+      const g2=X.createRadialGradient(lx,ly+4,1,lx,ly+4,26);
+      g2.addColorStop(0,'rgba(255,206,130,.34)'); g2.addColorStop(1,'rgba(255,206,130,0)');
+      X.fillStyle=g2; X.beginPath(); X.arc(lx,ly+4,26,0,Math.PI*2); X.fill();
+    }
+  }
+  /* ślady użytkowania przy progu — ubita ścieżka (tylko gdy obiekt działa) */
+  if(owned){
+    X.fillStyle='rgba(72,64,50,.35)';
+    X.beginPath(); X.ellipse(dx+dw/2, sy+h-2, dw*0.75, 5, 0, 0, Math.PI*2); X.fill();
+  }
+}
+/* v2.3.131 (PDF Uspr v2.3.130 U23): PUSTE stanowisko w piwnicy — wyraźnie oznaczone miejsce pod sprzęt,
+   z podpisem, czego brakuje. Rysowane wektorowo (obrys, posadzka, gniazdo, przyłącze), żeby nie było
+   „szarego prostokąta z napisem". */
+function drawSubterraEmptyBay(sx,sy,w,h,label){
+  /* posadzka stanowiska — jaśniejszy prostokąt z fazowanymi rogami */
+  X.fillStyle='rgba(28,32,26,.85)'; X.fillRect(sx,sy+h*0.35,w,h*0.6);
+  X.fillStyle='rgba(255,255,255,.04)'; X.fillRect(sx,sy+h*0.35,w,2);
+  /* obrys pod montaż — przerywana żółto-zielona ramka */
+  X.save(); X.setLineDash([7,5]); X.lineWidth=2; X.strokeStyle='rgba(150,200,140,.55)';
+  X.strokeRect(sx+4,sy+h*0.38,w-8,h*0.52); X.setLineDash([]); X.restore();
+  /* przyłącze elektryczne i wodne — detale, po których widać, że miejsce jest przygotowane */
+  X.fillStyle='#2e3238'; X.fillRect(sx+8,sy+h*0.20,16,12);
+  X.fillStyle='#c8b45a'; X.fillRect(sx+11,sy+h*0.20+3,3,6); X.fillRect(sx+17,sy+h*0.20+3,3,6);
+  X.strokeStyle='#4a5058'; X.lineWidth=2.5;
+  X.beginPath(); X.moveTo(sx+w-14,sy+h*0.20); X.lineTo(sx+w-14,sy+h*0.40); X.stroke();
+  X.fillStyle='#5a6068'; X.beginPath(); X.arc(sx+w-14,sy+h*0.42,4,0,Math.PI*2); X.fill();
+  /* podpis — czego tu brakuje */
+  X.save(); X.textAlign='center';
+  X.font='bold 11px "Segoe UI",Arial'; X.lineWidth=3; X.lineJoin='round'; X.strokeStyle='rgba(0,0,0,.75)';
+  X.strokeText(label,sx+w/2,sy+h*0.62); X.fillStyle='#cfe6c8'; X.fillText(label,sx+w/2,sy+h*0.62);
+  X.font='bold 9.5px "Segoe UI",Arial'; X.lineWidth=3; X.strokeStyle='rgba(0,0,0,.75)';
+  X.strokeText('wolne stanowisko',sx+w/2,sy+h*0.76); X.fillStyle='rgba(190,215,180,.9)'; X.fillText('wolne stanowisko',sx+w/2,sy+h*0.76);
+  X.font='bold 9px "Segoe UI",Arial'; X.lineWidth=3; X.strokeStyle='rgba(0,0,0,.75)';
+  X.strokeText('kup sprzęt w terminalu',sx+w/2,sy+h*0.88); X.fillStyle='rgba(160,190,155,.85)'; X.fillText('kup sprzęt w terminalu',sx+w/2,sy+h*0.88);
+  X.textAlign='left'; X.restore();
+}
 function drawPlantation(sx,sy,w,h){
   /* Plantacja — szklarnia z roślinami w środku */
   const isDay=(typeof G!=='undefined' && G.timeOfDay<2);
@@ -13472,10 +13682,13 @@ function drawPlayerCar(){
     const body=G.car.color||(carC[G.car.name]||'#555');
     X.save();
     X.translate(_psx,_psy);
-    /* v2.3.122 (PDF): na parkingu auto stoi RÓWNOLEGLE do innych (pionowo, dziobem w stronę wjazdu), jak zaparkowane auta w miejscu. */
+    /* v2.3.122 (PDF): na parkingu auto stoi RÓWNOLEGLE do innych (pionowo, dziobem w stronę wjazdu), jak zaparkowane auta w miejscu.
+       v2.3.131 (PDF Uspr v2.3.130 U4): poza parkingiem auto zachowuje kąt z chwili opuszczenia (G._carParkedAt.dir),
+       zamiast prostować się do pionu. Ten sam przelicznik kierunku co przy jeździe. */
     const _lotPark=!!(G._carParkedAt&&G._carParkedAt._lot);
     X.save();
     if(_lotPark) X.rotate(-Math.PI/2);
+    else if(typeof G._carParkedAt.dir==='number') X.rotate([Math.PI*1.5,0,Math.PI*.5,Math.PI][G._carParkedAt.dir]||0);
     /* Cień */
     X.fillStyle='rgba(0,0,0,.30)';X.beginPath();X.ellipse(3,5,30,14,0,0,Math.PI*2);X.fill();
     /* Karoseria (sylwetka per typ auta — v2.1.693) */
@@ -13500,6 +13713,8 @@ function drawPlayerCar(){
       X.fillStyle='rgba(8,16,12,0.82)';X.beginPath();if(X.roundRect)X.roundRect(-_vW/2,-58,_vW,18,5);else X.rect(-_vW/2,-58,_vW,18);X.fill();
       X.fillStyle=_vLock?`rgba(231,160,32,${0.75+_vp*0.25})`:`rgba(46,204,113,${0.75+_vp*0.25})`;X.fillText(_vLbl,0,-45);
     }
+    /* v2.3.131 (PDF Uspr v2.3.130 U3): status ubytku kondycji przez 3 s nad uderzonym pojazdem gracza. */
+    if(typeof window._drawVehHitBadge==='function') window._drawVehHitBadge('car',0,0);
     X.textAlign='left';X.textBaseline='alphabetic';
     X.restore();
   }
@@ -13532,13 +13747,31 @@ function drawPlayerCar(){
   X.restore();
   _drawVehicleInsidePrompt('car', sx, sy);
 }
+/* v2.3.131 (PDF Uspr v2.3.130 U3): mały status „−X% kondycji" nad pojazdem gracza, w który gracz uderzył
+   drugim swoim pojazdem. Widoczny dokładnie 3 sekundy od zderzenia, potem znika sam.
+   Rysowany w układzie, w którym już stoi dany pojazd (auto: po translate do jego środka → 0,0). */
+window._drawVehHitBadge=function(kind,cx,cy){
+  const b=window._vehHitBadge;
+  if(!b||b.kind!==kind||Date.now()>b.until) return;
+  const left=(b.until-Date.now())/3000;
+  const a=Math.max(0,Math.min(1,left*1.6));
+  const txt='−'+b.lost+'% kondycji';
+  X.save();
+  X.font='bold 12px system-ui'; X.textAlign='center'; X.textBaseline='alphabetic';
+  const w=X.measureText(txt).width+16;
+  X.fillStyle='rgba(26,8,8,'+(0.86*a)+')';
+  X.beginPath(); if(X.roundRect) X.roundRect(cx-w/2, cy-80, w, 19, 6); else X.rect(cx-w/2, cy-80, w, 19); X.fill();
+  X.strokeStyle='rgba(231,76,60,'+(0.9*a)+')'; X.lineWidth=1.2; X.stroke();
+  X.fillStyle='rgba(240,150,140,'+a+')'; X.fillText(txt, cx, cy-66);
+  X.restore();
+};
 /* v2.3.108 PDF#9 §20: dyskretna podpowiedź stanu podczas jazdy (odkrywalność sterowania silnik/pasy/światła). */
 function _drawVehicleInsidePrompt(kind, sx, sy){
   try{
     const st=(G._vehState&&G._vehState[kind]); if(!st) return;
     const key=kind==='camper'?'K':'V';
-    const hint = (!st.engineOn && !st.engineStartedThisSession) ? `[${key}] Uruchom silnik`
-      : (st.engineOn ? `[${key}] Zgaś · [H] pasy · [G] światła` : `[${key}] Wysiądź · przytrzymaj = odpal`);
+    /* v2.3.131 (PDF Uspr v2.3.130 U5): jednolita podpowiedź przy zgaszonym silniku. */
+    const hint = st.engineOn ? `[${key}] Zgaś · [H] pasy · [G] światła` : `[${key}] Wysiądź · [${key}] Przytrzymaj, by uruchomić`;
     X.save(); X.font='bold 10px system-ui'; X.textAlign='center'; X.textBaseline='alphabetic';
     const hw=X.measureText(hint).width+12;
     X.fillStyle='rgba(8,12,20,0.72)'; X.fillRect(sx-hw/2, sy-28, hw, 15);
@@ -13560,6 +13793,7 @@ function drawPlayerCamper(){
     /* v2.3.122 (PDF): na parkingu kamper stoi równolegle do innych aut (pionowo). */
     const _lotParkC=!!(G._camperParkedAt&&G._camperParkedAt._lot);
     X.save(); if(_lotParkC) X.rotate(-Math.PI/2);
+    else if(typeof G._camperParkedAt.dir==='number') X.rotate([Math.PI*1.5,0,Math.PI*.5,Math.PI][G._camperParkedAt.dir]||0);/* v2.3.131 (PDF Uspr v2.3.130 U4): kamper zachowuje kąt z chwili opuszczenia */
     X.fillStyle='rgba(0,0,0,.28)';X.beginPath();X.ellipse(3,7,34*_wm,20,0,0,Math.PI*2);X.fill();
     const _L=42*_wm,_H=34;/* v2.3.100: wyższy kamper (26→34) */
     X.fillStyle='#d8d8e0'; if(X.roundRect){X.beginPath();X.roundRect(-_L/2,-_H/2,_L,_H,5);X.fill();}else{X.fillRect(-_L/2,-_H/2,_L,_H);}
@@ -13594,6 +13828,8 @@ function drawPlayerCamper(){
       X.fillStyle='rgba(8,16,12,0.82)';X.beginPath();if(X.roundRect)X.roundRect(_psx-_vW/2,_psy-58,_vW,18,5);else X.rect(_psx-_vW/2,_psy-58,_vW,18);X.fill();
       X.fillStyle=(_vLock?'rgba(231,160,32,':'rgba(46,204,113,')+(0.75+_vp*0.25)+')';X.fillText(_vLbl,_psx,_psy-45);X.restore();
     }
+    /* v2.3.131 (PDF Uspr v2.3.130 U3): status ubytku kondycji nad uderzonym kamperem. */
+    if(typeof window._drawVehHitBadge==='function') window._drawVehHitBadge('camper',_psx,_psy);
   }
   if(!G._inCamper || !G.camper || !G.camper.owned || !_carRoom(currentRoom) || G._inCar) return;
   const sx=wx2sx(P.wx)+P.w/2, sy=wy2sy(P.wy)+P.h/2;
@@ -14718,7 +14954,10 @@ function updatePlayer(){
   let ny=clamp(P.wy+dy,62,room.hT*T-P.h-8);
   // Building collision (only on ulica)
   if(currentRoom==='ulica'){
-    const bldgs=room.objects.filter(o=>o.w>60&&o.h>60&&!o.id.startsWith('npc_')&&o.id!=='bench'&&o.id!=='bench2'&&o.id!=='pond'&&o.id!=='skate'&&o.id!=='bboying'&&o.id!=='save'&&o.id!=='wardrobe'&&o.id!=='apt_cust'&&o.id!=='phone_home'&&o.id!=='freestyle_spot');
+    /* v2.3.131 (PDF Uspr v2.3.130 U17): „parking" wypada z listy brył twardych — cała płyta parkingu przestaje być
+       jednym obiektem fizycznym, o który gracz rozbijał auto przy każdej próbie zaparkowania. Fizyczne zostają
+       WYŁĄCZNIE zajęte miejsca (stojące auta) — dokładają się niżej przez _parkingCarRects(). */
+    const bldgs=room.objects.filter(o=>o.w>60&&o.h>60&&!o.id.startsWith('npc_')&&o.id!=='bench'&&o.id!=='bench2'&&o.id!=='pond'&&o.id!=='skate'&&o.id!=='bboying'&&o.id!=='save'&&o.id!=='wardrobe'&&o.id!=='apt_cust'&&o.id!=='phone_home'&&o.id!=='freestyle_spot'&&o.id!=='parking');
     // Park fence collision — segmenty wokół parku x:0-672, y:864-1248. Wejście tylko przez bramkę c=13, r=21-22 (wy 1008-1104)
     const FT=14; // grubość płotku
     const parkFence=[
@@ -14734,7 +14973,12 @@ function updatePlayer(){
     /* v2.3.102 (PDF #8-6): budka kebaba to solidny obiekt — gracz przez nią nie przenika (wcześniej „powietrze"). Prostokąt liczony z pozycji npc_vendor (korpus budki, przód/lada zostaje dostępny). */
     const _kebab=room.objects.find(o=>o.id==='npc_vendor');
     const _kebabCol=_kebab?[{wx:_kebab.wx+_kebab.w/2-68, wy:_kebab.wy-115+_kebab.h-10, w:136, h:88}]:[];
-    const allCollide=[...bldgs,...DB_DECORATIVE,...parkFence,..._kebabCol];
+    /* v2.3.131 (PDF Uspr v2.3.130 U17): zajęte miejsca parkingowe = realne, stojące auta → obiekty fizyczne. */
+    const _parkObjU=room.objects.find(o=>o.id==='parking');
+    const _parkCarsU=(_parkObjU&&typeof window._parkingCarRects==='function')?window._parkingCarRects(_parkObjU):[];
+    /* v2.3.131 (PDF Uspr v2.3.130 U2): drugi pojazd gracza też jest bryłą fizyczną — da się w niego uderzyć. */
+    const _ownVehU=(typeof window._otherOwnedVehicleRects==='function')?window._otherOwnedVehicleRects():[];
+    const allCollide=[...bldgs,...DB_DECORATIVE,...parkFence,..._kebabCol,..._parkCarsU,..._ownVehU];
     const pw=P.w,ph=P.h;
     let _hitX=null,_hitY=null; /* KOLIZJE Tier B: zapamiętaj obiekt zablokowania (do impaktu pojazdu) */
     // Try X movement first
@@ -14750,7 +14994,13 @@ function updatePlayer(){
     if((_hitX||_hitY)&&typeof window._vehMaybeImpact==='function') window._vehMaybeImpact(_hitX,_hitY,dx,dy);
   } else {
     // Wewnątrz pokojów (mieszkanie/premium/lux/studio/silownia/merch_studio) + dzielnice — kolizja z obiektami solid (ściany/budynki)
-    const walls=room.objects.filter(o=>o.solid);
+    /* v2.3.131 (PDF Uspr v2.3.130 U17): w dzielnicach płyta parkingu nigdy nie była twarda, ale i STOJĄCE auta
+       nie miały kolizji — przez zaparkowany samochód dało się przejechać. Teraz zajęte miejsca są fizyczne
+       tak samo jak na ulicy; wolne pozostają przejezdne. */
+    const _parkObjD=room.objects.find(o=>o.id==='parking');
+    const _parkCarsD=(_parkObjD&&typeof window._parkingCarRects==='function')?window._parkingCarRects(_parkObjD):[];
+    const _ownVehD=(typeof window._otherOwnedVehicleRects==='function')?window._otherOwnedVehicleRects():[];
+    const walls=room.objects.filter(o=>o.solid).concat(_parkCarsD,_ownVehD);
     if(walls.length){
       const pw=P.w,ph=P.h;
       let _hitX=null,_hitY=null;
@@ -14767,6 +15017,8 @@ function updatePlayer(){
   /* PDF „Marina Coast" §4: tick pływania (zużycie siły, ostrzeżenia, ratunek, auto-wyjście na brzeg). */
   if(currentRoom==='coast' && typeof window._marinaSwimTick==='function') window._marinaSwimTick();
   if(currentRoom==='coast' && typeof window._marinaPilotTick==='function') window._marinaPilotTick();
+  /* v2.3.131 (PDF Uspr v2.3.130 B5): strażnik kotwicy — gracz nigdy nie zostaje na wodzie bez jednostki. */
+  if(currentRoom==='coast' && typeof window._marinaAnchorGuard==='function') window._marinaAnchorGuard();
   // F+ DUPLIKAT KROKÓW — usunięty drugi dźwięk kroków (sfxStep "noise" w tle).
   // Gracz miał 2 nakładające się dźwięki: playStep (tup-tup, gameLoop) + sfxStep (szuru-szuru, tu).
   // Zostaje TYLKO playStep przez maybeSoundStep w gameLoop.
@@ -14793,6 +15045,18 @@ function updatePlayer(){
       if(obj.act==='enter_apt'){
         const aptName=G.apartment==='mega_villa'?'Mega Villa 🏖':G.apartment==='mansion'?'Rezydencja 🏰':G.apartment==='duplex'?'Apartament Duplex 🏢':G.apartment==='luxury'?'Penthouse 💎':G.apartment==='premium'?'Apartament Premium':G.apartment==='basic'?'Mieszkanie Podstawowe':'Traphouse';
         txt=`[E] Wejdź — ${aptName}`;
+      }
+      /* v2.3.131 (PDF Uspr v2.3.130 U29): etykieta obiektu SUBTERRA pokazuje CENĘ PRZEJĘCIA,
+         zamiast wysyłać gracza po tę informację do wnętrza terminala. Po przejęciu — nazwa obiektu
+         wyliczona z jego poziomu. */
+      if(obj.id==='plantation_underground'){
+        const _sb=(typeof G!=='undefined'&&G.subterra&&typeof G.subterra==='object')?G.subterra:null;
+        if(_sb&&_sb.owned){
+          const _nm=(typeof window._sbName==='function')?window._sbName():'Obiekt uprawowy';
+          txt='[E] 🌱 '+_nm;
+        } else if(typeof SB_STAGES!=='undefined'&&SB_STAGES[0]){
+          txt='[E] 🧱 Przejmij lokal · '+SB_STAGES[0].price.toLocaleString('pl')+' zł';
+        }
       }
       // Studio Merch — wymaga 5000 fanów
       if(obj.id==='merch_studio'){
@@ -14846,6 +15110,8 @@ function getNear(){
   for(const obj of room.objects){
     if(obj.id==='velvet_loza' && !(typeof window._kantarPresent==='function'&&window._kantarPresent())) continue; /* v2.3.38: loża Kantara tylko gdy quest aktywny */
     if(obj.id==='velvet_parking' && !(typeof window._uwZ2Active==='function'&&window._uwZ2Active())) continue; /* v2.3.38: parking Z2 tylko gdy aktywne */
+    /* v2.3.131 (PDF Uspr v2.3.130 U23): stanowiska SUBTERRA działają dopiero po zakupie wyposażenia w terminalu. */
+    if((obj.id==='plant_drying'||obj.id==='plant_pack') && typeof window._sbStationReady==='function' && !window._sbStationReady(obj.id)) continue;
     const isParkObj=['fountain','pond','skate','bboying','freestyle_spot','apt2_fountain'].includes(obj.id);
     const isDecorOnly=!obj.act || obj.id.startsWith('park_lamp')||obj.id.startsWith('park_bush')||obj.id==='park_trash';
     const isBuilding=obj.w>60&&obj.h>60&&!obj.id.startsWith('npc_')&&!isParkObj&&!isDecorOnly;
@@ -14853,7 +15119,10 @@ function getNear(){
     /* v2.1.58 Amper: parking to obszar otwarty (nie budynek z drzwiami) — łap interakcję od KAŻDEJ strony.
        Wcześniej logika facesSouth=false dawała detect TYLKO przy północnej krawędzi (gracz musiał stać nad parkingiem). */
     if(obj.id==='parking'){
-      const margin=30;
+      /* v2.3.131 (PDF Uspr v2.3.130 U18): zasięg interakcji z parkingiem +2 m w KAŻDEJ dzielnicy.
+         Skala świata: 48 px ≈ 1,5 m (ten sam przelicznik, którego używają komunikaty „X m stąd"),
+         czyli 2 m = 64 px. Margines 30 → 94. */
+      const margin=94;
       if(px>obj.wx-margin && px<obj.wx+obj.w+margin && py>obj.wy-margin && py<obj.wy+obj.h+margin) return obj.id;
       continue;
     }
@@ -15695,53 +15964,94 @@ function handleAct(act,objId){
   } else if(act==='casino:cashier'){
     openCasinoCashier();
   } else if(act==='parking:info'){
-    /* v2.3.102 (PDF #8-29): kamper też kwalifikuje się do postoju na parkingu miejskim (jak auto). */
-    if(G._inCamper){
-      const _pObj=(ROOMS[currentRoom]&&ROOMS[currentRoom].objects||[]).find(o=>o.id==='parking');
-      const _doParkCamper=()=>{ const s=(typeof _findFreeParkingSpot==='function'&&_findFreeParkingSpot(_pObj))||{wx:P.wx,wy:P.wy}; G._camperParkedAt={wx:s.wx,wy:s.wy,room:currentRoom,_lot:true};/* v2.3.122: parkowanie równoległe (parking) */ G._inCamper=false; if(typeof showMsg==='function') showMsg('🅿️ Zaparkowałeś kampera na parkingu. Wróć tutaj i naciśnij K, by nim ruszyć.'); if(typeof saveGameSilent==='function') saveGameSilent(); };
-      if(typeof gameConfirm==='function') gameConfirm('🅿️ Zaparkować tu kampera?\n\nKamper zostanie na parkingu — wróć, aby nim ruszyć (K).',_doParkCamper);
-      else _doParkCamper();
-      return;
-    }
-    if(!G.car){
-      if(typeof showMsg==='function')showMsg('🅿️ Parking miejski — potrzebujesz auta. Kup je w Salonie Aut.','r');
-    } else if(G._inCar){
-      /* v2.1.63 Amper: in-game gameConfirm (modal w stylu gry) zamiast natywnego browser confirm().
-         Gracz widzi modal pasujący do reszty UI, z TAK/NIE w grze, BEZ przeglądarkowego dialogu. */
-      if(typeof gameConfirm==='function'){
-        gameConfirm('🅿️ Czy chcesz zaparkować auto tutaj?\n\nAuto zostanie na parkingu i musisz tu wrócić, aby je odebrać.',()=>{
-          /* v1.8.41: parkowanie zapisuje konkretną pozycję na parkingu (puste miejsce). N6: parking w bieżącym pokoju + room. */
-          const parkObj=(ROOMS[currentRoom]&&ROOMS[currentRoom].objects||[]).find(o=>o.id==='parking');
-          const slotPos=_findFreeParkingSpot(parkObj);
-          G._carParkedAt={wx:slotPos.wx,wy:slotPos.wy,room:currentRoom,_lot:true};/* v2.3.122: parkowanie równoległe (parking) */
-          G._inCar=false;
-          G._carsParked=(G._carsParked||0)+1;
-          if(typeof showMsg==='function') showMsg('🅿️ Zaparkowałeś auto na parkingu. Wróć tutaj, by je odebrać (E).');
-          if(typeof saveGameSilent==='function') saveGameSilent();
-        });
-      } else {
-        /* v2.1.497 USER FEEDBACK FIX — fallback NIE używa native confirm. Auto-park bez confirm (gameConfirm zawsze dostępne w normalnym flow). */
-        const parkObj=(ROOMS[currentRoom]&&ROOMS[currentRoom].objects||[]).find(o=>o.id==='parking');
-        const slotPos=_findFreeParkingSpot(parkObj);
-        G._carParkedAt={wx:slotPos.wx,wy:slotPos.wy,room:currentRoom,_lot:true};/* v2.3.122: parkowanie równoległe (parking) */
-        G._inCar=false;
-        G._carsParked=(G._carsParked||0)+1;
-        if(typeof showMsg==='function') showMsg('🅿️ Zaparkowałeś auto na parkingu. Wróć tutaj, by je odebrać (E).');
-      }
-      return; /* asynchroniczne — zapis przez callback w gameConfirm */
-    } else if(G._carParkedAt){
-      // Auto stoi na parkingu — gracz odbiera je
-      G._carParkedAt=null;
-      G._inCar=true;
-      { const _en=(G.gender==='f')?'Wsiadłaś do pojazdu':'Wsiadłeś do pojazdu'; if(typeof window._subtleMsg==='function') window._subtleMsg('🚗 '+_en); else if(typeof showMsg==='function') showMsg('🚗 '+_en,'i',3000); } /* U4 (v2.3.44 PDF): subtelny napis zamiast okna+boost */
-    } else {
-      // Auto przy graczu, ale w parking handlerze — to wsiadanie z chodnika obok
-      G._inCar=true;
-      { const _en=(G.gender==='f')?'Wsiadłaś do pojazdu':'Wsiadłeś do pojazdu'; if(typeof window._subtleMsg==='function') window._subtleMsg('🚗 '+_en); else if(typeof showMsg==='function') showMsg('🚗 '+_en,'i',3000); } /* U4 (v2.3.44 PDF): subtelny napis zamiast okna+boost */
-    }
-    if(typeof saveGameSilent==='function')saveGameSilent();
+    /* v2.3.131 (PDF Uspr v2.3.130, błąd B1 + usprawnienie U17):
+       [E] na parkingu NIE przywołuje już żadnego pojazdu. Wcześniej ostatnia gałąź ustawiała G._inCar=true
+       bez sprawdzenia, czy gracz w ogóle zaparkował tu swoje auto — wystarczyło je posiadać, żeby pojazd
+       „zmaterializował się" przy graczu na dowolnym parkingu. Teraz [E] otwiera panel informacyjny:
+       gdzie stoi pojazd gracza i jakie ma dane. Wsiadanie odbywa się WYŁĄCZNIE przy samym pojeździe ([V]/[K]). */
+    if(typeof window._parkingPanel==='function') window._parkingPanel();
   }
 }
+/* ═══ PANEL PARKINGU (PDF Uspr v2.3.130 U17) ═══════════════════════════════════════════════
+   Jedno okno dla wszystkich sytuacji: siedzisz w pojeździe → możesz tu zaparkować; stoisz pieszo →
+   widzisz, na którym miejscu stoi Twój pojazd i jakie ma dane; nie masz tu nic → jasny komunikat.
+   Panel NIGDY nie zmienia właściciela/pozycji pojazdu bez świadomej decyzji gracza. */
+window._parkingPanel=function(){
+  const parkObj=(ROOMS[currentRoom]&&ROOMS[currentRoom].objects||[]).find(o=>o.id==='parking');
+  const el=document.getElementById('ov-content');
+  const hasCar=!!(G.car&&G.car.name), hasCamper=!!(G.camper&&G.camper.owned);
+  const _lbl=(kind)=>kind==='camper'
+    ? ((typeof window._vehLabelOf==='function')?window._vehLabelOf('camper',G.camper&&G.camper.model):'Kamper')
+    : ((typeof window._vehLabelOf==='function')?window._vehLabelOf('car',G.car&&G.car.name):(G.car&&G.car.name)||'Samochód');
+  const _cond=(kind)=>(typeof window._vehOverall==='function'&&typeof window._condPct==='function')?window._condPct(window._vehOverall(kind)):100;
+  /* Czy dany pojazd stoi NA TYM parkingu (ten pokój + wewnątrz prostokąta płyty)? */
+  const _onThisLot=(pos)=>{
+    if(!pos||!parkObj) return false;
+    if(pos.room && pos.room!==currentRoom) return false;
+    return pos.wx>=parkObj.wx-20 && pos.wx<=parkObj.wx+parkObj.w+20 && pos.wy>=parkObj.wy-20 && pos.wy<=parkObj.wy+parkObj.h+20;
+  };
+  const carHere=hasCar&&_onThisLot(G._carParkedAt), campHere=hasCamper&&_onThisLot(G._camperParkedAt);
+  const freeCount=(typeof window._parkingFreeSpots==='function')?window._parkingFreeSpots(parkObj).length:0;
+  const rows=[];
+  if(carHere){
+    const sp=(typeof window._parkingSpotLabelAt==='function')?window._parkingSpotLabelAt(parkObj,G._carParkedAt.wx,G._carParkedAt.wy):null;
+    rows.push(`<div style="background:#0d1620;border:1px solid #2a4a3a;border-radius:10px;padding:12px;margin-bottom:8px">
+      <div style="font-size:14px;font-weight:800;color:#7ec87e">🚗 ${_lbl('car')}</div>
+      <div style="font-size:12.5px;color:#cdd;margin-top:5px">Miejsce postojowe: <b>${sp||'na płycie parkingu'}</b></div>
+      <div style="font-size:12.5px;color:#cdd">Stan techniczny: <b>${_cond('car')}%</b>${(typeof window._vehEngineOn==='function'&&window._vehEngineOn('car'))?' · silnik pracuje':''}</div>
+      <div style="font-size:11.5px;color:#8a939a;margin-top:5px">Podejdź do pojazdu i naciśnij [V], żeby wsiąść.</div></div>`);
+  }
+  if(campHere){
+    const sp=(typeof window._parkingSpotLabelAt==='function')?window._parkingSpotLabelAt(parkObj,G._camperParkedAt.wx,G._camperParkedAt.wy):null;
+    rows.push(`<div style="background:#0d1620;border:1px solid #2a4a3a;border-radius:10px;padding:12px;margin-bottom:8px">
+      <div style="font-size:14px;font-weight:800;color:#7ec87e">🚐 ${_lbl('camper')}</div>
+      <div style="font-size:12.5px;color:#cdd;margin-top:5px">Miejsce postojowe: <b>${sp||'na płycie parkingu'}</b></div>
+      <div style="font-size:12.5px;color:#cdd">Stan techniczny: <b>${_cond('camper')}%</b></div>
+      <div style="font-size:11.5px;color:#8a939a;margin-top:5px">Podejdź do kampera i naciśnij [K], żeby wsiąść.</div></div>`);
+  }
+  if(!carHere&&!campHere){
+    /* Komunikat wprost z PDF: system informuje, że gracz nie ma tu zaparkowanego pojazdu osobowego. */
+    let where='';
+    if(hasCar&&G._carParkedAt&&G._carParkedAt.room&&G._carParkedAt.room!==currentRoom) where='<div style="font-size:12px;color:#8fb8d8;margin-top:6px">Twój samochód stoi w innej lokacji — wróć tam, żeby nim ruszyć.</div>';
+    rows.push(`<div style="background:#1a1410;border:1px solid #5a3a1a;border-radius:10px;padding:12px;margin-bottom:8px;color:#e8c56a;font-size:13px">
+      Nie masz tutaj zaparkowanego pojazdu osobowego. Z tego parkingu odbierzesz wyłącznie własny pojazd, który sam tu zostawiłeś.${where}</div>`);
+  }
+  let actions='';
+  if(G._inCar&&hasCar){
+    actions+=`<button class="bbtn" style="width:100%;margin-bottom:6px;border-color:#27ae60;color:#7ec87e" onclick="window._parkingParkHere('car')">🅿️ Zaparkuj tutaj samochód</button>`;
+  }
+  if(G._inCamper&&hasCamper){
+    actions+=`<button class="bbtn" style="width:100%;margin-bottom:6px;border-color:#27ae60;color:#7ec87e" onclick="window._parkingParkHere('camper')">🅿️ Zaparkuj tutaj kampera</button>`;
+  }
+  const html=`
+    <h2>🅿️ Parking</h2>
+    <p class="sub">Wolne miejsca: <b>${freeCount}</b>. Na wolne miejsce wjedziesz bez ryzyka stłuczki — fizyczne są tylko stojące auta.</p>
+    <div style="max-width:520px;margin:0 auto">${rows.join('')}${actions}
+      <button class="cbtn" style="width:100%" onclick="closeOverlay()">← Wróć</button>
+    </div>`;
+  if(el){ el.innerHTML=html; if(typeof openOverlay==='function') openOverlay(); }
+  else if(typeof showMsg==='function') showMsg(carHere||campHere?'🅿️ Twój pojazd stoi na tym parkingu.':'🅿️ Nie masz tutaj zaparkowanego pojazdu osobowego.','i',4500);
+};
+/* Zaparkowanie pojazdu, w którym gracz aktualnie siedzi (świadoma decyzja z panelu). */
+window._parkingParkHere=function(kind){
+  const parkObj=(ROOMS[currentRoom]&&ROOMS[currentRoom].objects||[]).find(o=>o.id==='parking');
+  const s=(typeof _findFreeParkingSpot==='function'&&_findFreeParkingSpot(parkObj))||{wx:P.wx,wy:P.wy};
+  if(kind==='camper'){
+    if(!(G.camper&&G.camper.owned)||!G._inCamper) return;
+    G._camperParkedAt={wx:s.wx,wy:s.wy,room:currentRoom,_lot:true};
+    if(typeof window._vehExitKeepFacing==='function') window._vehExitKeepFacing('camper');
+    G._inCamper=false;
+    if(typeof showMsg==='function') showMsg('🅿️ Zaparkowałeś kampera na parkingu. Podejdź do niego i naciśnij [K], żeby ruszyć.','g',4500);
+  } else {
+    if(!(G.car&&G.car.name)||!G._inCar) return;
+    G._carParkedAt={wx:s.wx,wy:s.wy,room:currentRoom,_lot:true};
+    if(typeof window._vehExitKeepFacing==='function') window._vehExitKeepFacing('car');
+    G._inCar=false; G._carsParked=(G._carsParked||0)+1;
+    if(typeof showMsg==='function') showMsg('🅿️ Zaparkowałeś auto na parkingu. Podejdź do niego i naciśnij [V], żeby ruszyć.','g',4500);
+  }
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  if(typeof window._parkingPanel==='function') window._parkingPanel();
+};
 
 function openHelipadOverlay(){
   const isVip=G.apartment==='luxury';
@@ -17969,7 +18279,10 @@ window.renderStudioEquip=function(roomId){
   window._recalcStudioRoomStats(roomId);
   const s=window.getStudioRoomStats(roomId), miss=window.studioRoomMissing(roomId);
   const qcol=(v)=>v>=70?'#27ae60':v>=45?'#f1c40f':'#e67e22';
-  const statsBar=`<div style="background:#0a1220;border:1px solid #1a3a5a;border-radius:8px;padding:9px 12px;margin-bottom:8px;display:flex;flex-wrap:wrap;gap:10px;font-size:11px">
+  /* v2.3.131 (PDF Uspr v2.3.130 U19): etykiety pasku statystyk („Nagrania", „Miks/master", „Komfort NPC",
+     „Atmosfera", „Prestiż") dziedziczyły domyślny CIEMNY kolor tekstu i na granatowym tle były nieczytelne.
+     Ustawiamy jawnie standardowy jasny kolor paneli. */
+  const statsBar=`<div style="background:#0a1220;border:1px solid #1a3a5a;border-radius:8px;padding:9px 12px;margin-bottom:8px;display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:#cdd">
     <span>🎤 Nagrania: <b style="color:${qcol(s.recordingQuality)}">${s.recordingQuality}%</b></span>
     <span>🎚️ Miks/master: <b style="color:${qcol(s.mixQuality)}">${s.mixQuality}%</b></span>
     <span>🛋️ Komfort NPC: <b style="color:${qcol(s.comfortScore)}">${s.comfortScore}%</b></span>
@@ -27482,7 +27795,15 @@ function progressQuest(target){
   // Licznik wykonanych prac dorywczych (storyline #1 — Pierwsza wypłata)
   // Zlicza TYLKO faktyczne ukończenia minigier prac, nie eventów/darowizn.
   if(['pizza','supermarket','carwash','construction','kurier','zmywak','ulotki','koszenie','magazyn','mechanik','resell','zlom','statysta','fotograf','ochroniarz','eventstaff'].includes(target)){
-    G._jobsCompleted=(G._jobsCompleted||0)+1;
+    /* v2.3.131 (PDF Uspr v2.3.130, błąd B6): niektóre minigry wołały progressQuest dwa razy
+       (ścieżka „pełne wykonanie" + ścieżka „koniec czasu"/wypłata), więc JEDNA zmiana zliczała się ×2
+       i gracz po drugiej pracy dostawał komunikat o TRZECIEJ zmianie.
+       Bramka obejmuje WYŁĄCZNIE licznik wykonanych zmian — reszta obsługi zlecenia (storyline, zlecenie dnia,
+       drop materiału, wskazówka o Gigi) działa jak dotąd, żeby nie wyłączyć niczego przy okazji. */
+    if(!window._jobShiftCounted){
+      window._jobShiftCounted=true;
+      G._jobsCompleted=(G._jobsCompleted||0)+1;
+    }
     /* v2.1.628: drop składnika craftingu (~35%) — zasila warsztat. */
     try{ window._maybeJobMaterial&&window._maybeJobMaterial(); }catch(e){}
     /* U7 (PDF v2.3.45): po PIERWSZEJ „światowej" pracy dorywczej (nie-Gigi) jednorazowa wskazówka
@@ -29071,6 +29392,7 @@ function nextPeriod(){
     G.timeOfDay=0;G.day++;G.hunger=clampStat('hunger', G.hunger-15);
     if(typeof _noxTickContracts==='function') _noxTickContracts(); /* NX-3 (v2.3.44 PDF): rozstrzygnij zlecenia NOX po deadline */
     if(typeof window._metalValleyTickPayouts==='function') window._metalValleyTickPayouts(); /* v2.3.108 PDF#11: dojrzewanie wypłat rozbiórki + SMS Ryśka */
+    if(typeof window._kasacjaTick==='function') window._kasacjaTick(); /* v2.3.131 (PDF Uspr v2.3.130 U6/U10): postojowe, SMS Ryśka po 3 dniach, koniec kasacji po dniu roboczym */
     if(typeof window._vehRepairTick==='function') window._vehRepairTick(); /* nowy PDF Fizyczne kolizje TIER D: odbiór pojazdu z naprawy po readyDay */
     if(typeof window._vehTickDaily==='function') window._vehTickDaily(); /* TIER E/G: wygaśnięcie zakazu jazdy + konsekwencje porzuconego wraku */
     if((G.defamation||0)>0) G.defamation=Math.max(0,G.defamation-2); /* v2.1.874: zniesławienie opada powoli (-2/dobę) */
@@ -40102,6 +40424,7 @@ function claimLoginReward(){
   if(r.buff && typeof addBuff==='function'){ addBuff(r.buff.type,r.buff.mult,r.buff.durSec); lines.push(_loginBuffLabel(r.buff)); }
   if(r.item && typeof window.invGiveItem==='function'){ let ok=false; for(let i=0;i<(r.qty||1);i++){ if(window.invGiveItem(r.item))ok=true; } const it=(typeof ITEM_CATALOG!=='undefined')?ITEM_CATALOG.find(x=>x.id===r.item):null; if(it)lines.push(((r.qty||1)>1?(r.qty+'× '):'')+it.emoji+' '+it.name+(ok?'':' (ekwipunek pełny — odbierz miejsce!)')); }
   G.loginLastClaimDate=st.today; /* streak źródłowany z G.playStreak — NIE ustawiamy własnego licznika (anti-duplikat) */
+  G._loginClaimCount=(G._loginClaimCount||0)+1;/* v2.3.131 (PDF Uspr v2.3.130 U28): licznik odebranych nagród — bonus „łapka" co 3. logowanie */
   if(typeof saveGameSilent==='function')saveGameSilent();
   if(typeof showMsg==='function')showMsg('🎁 Dzień '+st.streak+' z rzędu! '+lines.join(', '),'g',5500);
   return lines;
@@ -40158,11 +40481,19 @@ window._loginClaim=function(){
     <div style="font-size:44px">🎁</div>
     <div style="font-size:18px;color:#27ae60;font-weight:900;margin:6px 0 10px">Nagroda odebrana!</div>
     <div style="font-size:14px;color:#cdd;line-height:1.8;margin-bottom:16px">${Array.isArray(lines)?lines.join('<br>'):''}</div>
-    <button class="cbtn" style="background:linear-gradient(145deg,#e91e8c,#9b1560);color:#fff;border:none;width:100%;font-weight:800;font-size:14px" onclick="window.openLoginClawGame()">🦾 Bonus: zagraj w ŁAPKĘ!</button>
+    ${window._clawBonusAvailable()
+      ? `<button class="cbtn" style="background:linear-gradient(145deg,#e91e8c,#9b1560);color:#fff;border:none;width:100%;font-weight:800;font-size:14px" onclick="window.openLoginClawGame()">🦾 Bonus: zagraj w ŁAPKĘ!</button>`
+      : `<div style="font-size:12px;color:#8aa;margin-bottom:10px">🦾 Łapka nagród wraca co trzecie logowanie — następnym razem za ${window._clawBonusIn()} ${window._clawBonusIn()===1?'logowanie':'logowania'}.</div>`}
     <button class="cbtn" onclick="closeOverlay()">Zamknij</button>
   </div>`;
   if(typeof confetti==='function')confetti(40);
 };
+/* v2.3.131 (PDF Uspr v2.3.130 U28): „łapka" pojawia się co TRZECIE logowanie, niezależnie od tego,
+   czy gracz loguje się dzień po dniu, czy z przerwami. Liczymy odebrane nagrody za logowanie
+   (a nie serię), więc przerwana passa nie kasuje postępu do bonusu. */
+window._clawLoginCount=function(){ return (G._loginClaimCount||0); };
+window._clawBonusAvailable=function(){ return window._clawLoginCount()%3===0 && window._clawLoginCount()>0; };
+window._clawBonusIn=function(){ const r=3-(window._clawLoginCount()%3); return r===0?3:r; };
 /* v2.1.706 (user: ZAMIAST koła kasyna — nowa gra spin „łapka": chwytak lata na boki, gracz naciska,
    łapka opada, chwyta nagrodę i podnosi. Ładne animacje. Nagrody inne niż kasyno. */
 window.openLoginClawGame=function(){
@@ -41980,12 +42311,14 @@ window._novaShowDiagnosis=function(){ if(typeof _5pdfEnsure==='function')_5pdfEn
   if(!rec.length) rec.push('Stan stabilny. Kontroluj przemęczenie i napięcie, nie przeciągaj maratonów.');
   const el=document.getElementById('ov-content'); if(!el) return;
   el.innerHTML=`<h2>🩺 Nova Cura — diagnoza</h2><p class="sub">Dokładność diagnozy: ${acc}% (zależy od Twojej szczerości w wywiadzie).</p>
-    <div style="background:#0d1620;border:1px solid #1a2a3a;border-radius:8px;padding:12px;margin-bottom:12px;font-size:13px;line-height:1.7">
+    <!-- v2.3.131 (PDF Uspr v2.3.130 U20): panel diagnozy dziedziczył domyślny CIEMNY kolor tekstu na ciemnym tle
+         (nieczytelny). Ustawiamy jawnie standardowy jasny kolor paneli gry. -->
+    <div style="background:#0d1620;border:1px solid #1a2a3a;border-radius:8px;padding:12px;margin-bottom:12px;font-size:13px;line-height:1.7;color:#cdd">
       ❤️ Zdrowie: <b>${Math.floor(G.health||0)}</b> · 🙂 Nastrój: <b>${mood}</b> · 😰 Napięcie: <b>${tension}</b> · 🥱 Przemęczenie: <b>${fat}</b><br>
       💊 Ryzyko uzależnień: <b>${window._novaRiskLabel(window._novaAddictionRisk())}</b>${wd>0?` · odstawienie: <b>${wd}</b>`:''}${mcl>=1?` · ⚠️ kryzys: <b>${mcl}</b>`:''}
     </div>
-    <div style="background:#101a10;border:1px solid #244a24;border-radius:8px;padding:12px;margin-bottom:12px">
-      <b style="color:#7ec87e">Zalecenia:</b><ul style="margin:6px 0 0 16px;padding:0;font-size:13px;line-height:1.7">${rec.map(r=>`<li>${r}</li>`).join('')}</ul>
+    <div style="background:#101a10;border:1px solid #244a24;border-radius:8px;padding:12px;margin-bottom:12px;color:#cdd">
+      <b style="color:#7ec87e">Zalecenia:</b><ul style="margin:6px 0 0 16px;padding:0;font-size:13px;line-height:1.7;color:#cdd">${rec.map(r=>`<li>${r}</li>`).join('')}</ul>
     </div>
     <button class="cbtn" onclick="renderHospital()">← Wróć do Nova Cura</button>`;
 };
@@ -42342,6 +42675,26 @@ window.getVehicleDisplayName=function(vehicle){
 /* Zgodność wsteczna: carDisplayName() było już wpięte w salon/garaż/powiadomienia — zostaje jako alias. */
 window.carDisplayName=function(name){ return window.getVehicleDisplayName(name); };
 window.getVehicleBrand=function(name){ const d=VEHICLE_MODELS[name]; return d?VEHICLE_BRANDS[d.brandId]:null; };
+/* v2.3.131 (PDF Uspr v2.3.130, błędy B3/B4): JEDNO źródło etykiety pojazdu dla WSZYSTKICH paneli poza salonem
+   (Metal Valley „Sprawdź rozliczenia", komunikat po sprzedaży, holowanie, SMS Ryśka). Osobówka → nazwa z katalogu
+   CityDrive/Gravel Lot (getVehicleDisplayName); kamper → nazwa modelu z Gravel Lot Motors. Stare zapisy trzymające
+   surowe `name` też przechodzą przez migrację, więc nigdzie nie wypłynie dawna, wycofana nazwa. */
+window._vehLabelOf=function(kind,nameOrId){
+  if(kind==='camper'){
+    const m=(typeof window._camperModelById==='function')?window._camperModelById(nameOrId):null;
+    if(m&&m.name) return m.name;
+    /* stary zapis: przekazano już nazwę modelu — sprawdź czy istnieje w katalogu Gravel Lot */
+    if(typeof window._camperModelByName==='function'){ const m2=window._camperModelByName(nameOrId); if(m2&&m2.name) return m2.name; }
+    return nameOrId||'Kamper';
+  }
+  return (typeof window.getVehicleDisplayName==='function')?window.getVehicleDisplayName(nameOrId):(nameOrId||'Pojazd');
+};
+/* Etykieta pozycji rozliczeniowej Metal Valley — działa też na WPISACH ZE STARYCH ZAPISÓW,
+   w których `vehName` zapisano jako surową (wycofaną) nazwę. Priorytet: vehId → vehName. */
+window._vehLabelOfPending=function(p){
+  if(!p) return 'Pojazd';
+  return window._vehLabelOf(p.vehKind, p.vehId||p.vehName);
+};
 /* PDF §8 — walidator kompletności danych nazewniczych (uruchamiany przez sędziego audit_marki.mjs). */
 window.validateVehicleNaming=function(name){
   const errors=[]; const d=VEHICLE_MODELS[name];
@@ -42377,6 +42730,9 @@ const CAMPER_MODELS=[
   {id:'aurum_roamer_x', name:'Aurum Roamer X', price:480000, source:'citydrive', emoji:'🚐', cond:95, storage:5, labCap:4, qualityMod:-1, breakdown:1, police:-12, npcReport:-12, theft:16, fire:5, camouflage:95, explosion:0, maintCost:'high', desc:'Najbardziej prestiżowy kamper w ofercie CityDrive Motors. Duża przestrzeń, wysoki standard i wyposażenie, które w połączeniu z ponadczasowym stylem wnętrz bardziej przypomina apartament na kołach niż zwykły pojazd.'},
 ];
 window._camperModelById=function(id){ return (typeof CAMPER_MODELS!=='undefined')?CAMPER_MODELS.find(x=>x.id===id)||null:null; };
+/* v2.3.131 (PDF Uspr v2.3.130 B3): wyszukanie modelu kampera po NAZWIE — dla starych zapisów Metal Valley,
+   które trzymały `vehName` zamiast identyfikatora modelu. */
+window._camperModelByName=function(n){ return (typeof CAMPER_MODELS!=='undefined'&&n)?CAMPER_MODELS.find(x=>x.name===n)||null:null; };
 /* ═══ E4-FIZYKA JAZDY (E4a drive-state foundation) ═══
    Kamper = DRUGI pojazd w istniejącym systemie jazdy (analog auta: boost ruchu updatePlayer L13169, sprite L12117, park _carParkedAt).
    _camperDriveParams(): parametry jazdy — kamper jest NAJWOLNIEJSZYM pojazdem (duży/ciężki):
@@ -42399,9 +42755,18 @@ window.buyCamper=function(modelId,source){
   window._camperEnsure(); const c=G.camper;
   const m=window._camperModelById(modelId);
   if(!m){ if(typeof showMsg==='function')showMsg('Nieznany model kampera.','r'); return false; }
-  if(c.owned){ if(typeof showMsg==='function')showMsg('🚐 Masz juz kampera. Najpierw go sprzedaj albo zarzadzaj przez panel.','r',4500); return false; }
+  /* v2.3.131 (PDF Uspr v2.3.130 U25): gracz może mieć DWA kampery. Wzorzec floty jest ten sam,
+     co przy samochodach: G.camper trzyma pojazd AKTYWNY, a drugi czeka w garażu (G.camper.garage)
+     i można się między nimi przesiadać. Trzeciego już nie kupimy. */
+  if(!Array.isArray(c.garage)) c.garage=[];
+  if(c.owned && c.garage.length>=1){ if(typeof showMsg==='function')showMsg('🚐 Masz już dwa kampery. Sprzedaj jednego, zanim kupisz kolejnego.','r',4500); return false; }
   if((G.money||0) < m.price){ if(typeof showMsg==='function')showMsg('Nie masz wystarczajaco gotowki (potrzeba '+m.price.toLocaleString('pl')+' zl).','r',4500); return false; }
   G.money -= m.price;
+  /* U25: dotychczasowy kamper trafia do garażu (zachowuje stan, kamuflaż i historię zakupu). */
+  if(c.owned){
+    c.garage.push({model:c.model, condition:c.condition, camouflage:c.camouflage, purchaseDay:c.purchaseDay, purchasePrice:c.purchasePrice, sourceShop:c.sourceShop, sellerNpc:c.sellerNpc, location:c.location});
+    if(typeof showMsg==='function') showMsg('🚐 Poprzedni kamper stoi w garażu — przesiądziesz się w panelu kampera.','i',5000);
+  }
   c.owned=true; c.model=modelId; c.condition=m.cond||70; c.camouflage=m.camouflage||10; c.destroyed=false; c.daysInLoc=0;
   c.partsAtMetalValley=false; /* v2.3.108 PDF#11: nowy kamper — wyczyść ghost-flagę po ew. poprzedniej rozbiórce */
   /* v2.3.102 (PDF #6): zapis źródła zakupu — odkup u Korka tylko dla kamperów z Gravel Lot (po 14 dniach, 50%). */
@@ -42446,29 +42811,101 @@ window.renderCamperShop=function(source,budget){
   window._camperEnsure(); const c=G.camper;
   const el=document.getElementById('ov-content'); if(!el) return;
   let models=(typeof CAMPER_MODELS!=='undefined')?CAMPER_MODELS.filter(m=> m.source===source || m.source==='both'):[];
-  /* v2.3.102 (PDF #8-23): 4 opcje budżetowe u Korka sortują listę wg preferencji (wszystkie modele widoczne). */
+  /* v2.3.102 (PDF #8-23): 4 opcje budżetowe u Korka sortują listę wg preferencji.
+     v2.3.131 (PDF Uspr v2.3.130 U32/U33/U35): opcje dialogowe mają POKAZYWAĆ KONKRETNE oferty,
+     a nie tylko przestawiać kolejność całej listy — Korek odpowiada dokładnie na to, o co pytasz. */
   let budgetNote='';
-  if(budget==='cheap'){ models=models.slice().sort((a,b)=>a.price-b.price); budgetNote='Od najtańszych — byleby jeździł.'; }
-  else if(budget==='mid'){ models=models.slice().sort((a,b)=>a.price-b.price); budgetNote='Średnia półka — coś, co nie wygląda jak trup na kołach.'; }
-  else if(budget==='clean'){ models=models.slice().sort((a,b)=>(b.qualityMod||0)-(a.qualityMod||0)||a.price-b.price); budgetNote='Czystsze wizualnie, ale droższe — mniej rzuca się w oczy.'; }
+  if(budget==='cheap'){
+    /* U32: „Najtańszy, byleby jeździł." → jedna, najtańsza pozycja z oferty. */
+    const cheapest=models.slice().sort((a,b)=>a.price-b.price)[0];
+    models=cheapest?[cheapest]:[];
+    budgetNote='Najtańsze, co mam na chodzie.';
+  }
+  else if(budget==='mid'){
+    /* U33: „Coś, co nie wygląda jak trup na kołach." → dwie środkowe pozycje. */
+    const srt=models.slice().sort((a,b)=>a.price-b.price);
+    models=srt.slice(1,3);
+    budgetNote='Dwie sztuki ze środka półki.';
+  }
+  else if(budget==='clean'){
+    /* U35: „Ma nie rzucać się w oczy na ulicy." → ostatnia, najdroższa pozycja z oferty kempingowej. */
+    const srt=models.slice().sort((a,b)=>a.price-b.price);
+    models=srt.length?[srt[srt.length-1]]:[];
+    budgetNote='Najspokojniejszy wizualnie egzemplarz, jaki mam.';
+  }
   const ownedName=c.owned?((window._camperModelById(c.model)||{}).name||c.model):null;
+  /* v2.3.131 (PDF Uspr v2.3.130 U25): posiadanie jednego kampera NIE blokuje już przycisku zakupu.
+     Etykieta informuje wprost o stanie posiadania: „Kup (masz już jednego kampera)". Blokada wraca
+     dopiero przy drugim kamperze. */
+  if(!Array.isArray(c.garage)) c.garage=[];
+  const camperCount=(c.owned?1:0)+c.garage.length;
   const rows=models.map(m=>{
-    const afford=(G.money||0)>=m.price, dis=c.owned||!afford;
+    const afford=(G.money||0)>=m.price;
+    const atLimit=camperCount>=2;
+    const dis=atLimit||!afford;
+    const label = atLimit ? 'Masz już dwa kampery'
+      : (!afford ? 'Za mało gotówki'
+      : (camperCount===1 ? ('Kup (masz już jednego kampera) · '+m.price.toLocaleString('pl')+' zł')
+      : ('Kup za '+m.price.toLocaleString('pl')+' zł')));
     return `<div style="background:#0a1220;border:1px solid #1a3a5a;border-radius:10px;padding:12px;margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
         <b style="font-size:15px;color:#7ec8e3">${window._shopIco(m.emoji)} ${m.name}</b><span style="color:#e8a020;font-weight:700;white-space:nowrap">${m.price.toLocaleString('pl')} zł</span></div>
       <p style="font-size:12.5px;color:#99a;margin:6px 0">${m.desc}</p>
       <div style="font-size:11.5px;color:#778;margin-bottom:8px">📦 Pojemność ${window._camperTier(m.storage)} · 🧪 Zaplecze ${window._camperTier(m.labCap)} · 🔧 Awaryjność ${window._camperTier(m.breakdown)} · ✨ Jakość ${100+(m.qualityMod||0)}/100</div>
-      <button class="bbtn" style="width:100%" ${dis?'disabled':''} onclick="window.buyCamper('${m.id}','${source}');window.renderCamperShop('${source}','${budget||''}')">${c.owned?'Masz już kampera':afford?('Kup za '+m.price.toLocaleString('pl')+' zł'):'Za mało gotówki'}</button>
+      <button class="bbtn" style="width:100%" ${dis?'disabled':''} onclick="window.buyCamper('${m.id}','${source}');window.renderCamperShop('${source}','${budget||''}')">${label}</button>
     </div>`;
   }).join('');
+  /* v2.3.131 (PDF Uspr v2.3.130 U34): „Pokaż wszystko, co masz na stanie." u Korka pokazuje JEDEN panel
+     rozdzielony na dwie sekcje — używane kampery ORAZ używane auta osobowe z placu. Wcześniej były to
+     dwa osobne okna i gracz musiał wracać do dialogu, żeby zobaczyć drugą połowę oferty. */
+  let usedCarsSection='';
+  if(source==='gravel' && budget==='all' && typeof window._glRefresh==='function'){
+    const stock=window._glRefresh()||[];
+    const cardU=(o)=>{
+      const cc=(typeof CAR_CATALOG!=='undefined')?CAR_CATALOG.find(x=>x.name===o.name)||{}:{};
+      const col=o.cond>=70?'#7ec87e':(o.cond>=52?'#e8a020':'#e0705a');
+      return `<div style="background:#12100a;border:1px solid #4a4030;border-radius:10px;padding:12px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <b style="font-size:15px;color:#d8c8a0">${(typeof carDisplayName==='function')?carDisplayName(o.name):o.name}</b>
+          <span style="color:#e8a020;font-weight:700;white-space:nowrap">${o.price.toLocaleString('pl')} zł</span></div>
+        <p style="font-size:11.5px;color:#9ab;margin:6px 0">Przebieg ${o.km.toLocaleString('pl')} km · stan <b style="color:${col}">${o.cond}%</b> · nowy w salonie ${(cc.price||0).toLocaleString('pl')} zł</p>
+        <button class="bbtn" style="width:100%" onclick="window._glBuyBtn('${o.id}');window.renderCamperShop('gravel','all')" ${(G.money||0)<o.price?'disabled':''}>Kup z placu</button>
+      </div>`;
+    };
+    usedCarsSection=`<h3 style="color:#d8c8a0;font-size:14px;margin:16px 0 6px">🔧 Gravel Lot Motors — plac z używkami</h3>
+      <p class="sub" style="margin-bottom:8px">Auta z drugiej ręki, każde z własnym przebiegiem i stanem technicznym.</p>
+      ${stock.length?stock.map(cardU).join(''):'<div style="background:#0a1220;border-radius:8px;padding:14px;font-size:13px;color:#9ab;text-align:center">Plac jest dziś pusty. Korek mówi, żeby wpaść jutro.</div>'}
+      <div class="res" id="gl-res" style="margin-top:4px">Auto z placu trafia do garażu w takim stanie, w jakim je kupisz.</div>`;
+  }
   const title=source==='gravel'?'🚐 Gravel Lot Motors — komis pojazdów używanych':'🚐 CityDrive Motors — kampery';
   const intro=(source==='gravel'?'Szutrowy plac na obrzeżach. Tanie kampery z historią, której nikt już nie chce pamiętać.':'Komfortowe kampery z lepszym wyposażeniem, większą przestrzenią i niższą awaryjnością.')+(budgetNote?` <span style="color:#7ec8e3">${budgetNote}</span>`:'');
   const notOwnedMsg=source==='gravel'?'<p style="color:#778;font-size:12px;margin-bottom:10px">Możesz mieć jednego kampera. To etap przejściowy — mobilny, ale ryzykowny.</p>':'<p style="color:#778;font-size:12px;margin-bottom:10px">Możesz mieć jednego kampera naraz — komfortowy pojazd na większe trasy i dłuższe wyjazdy.</p>';
+  /* v2.3.131 (PDF Uspr v2.3.130 U1): przycisk „Wróć" do panelu głównego salonu — tak samo jak
+     w sekcji samochodów osobowych. Wcześniej z listy kamperów dało się tylko zamknąć całe okno. */
+  const backBtn = (source==='gravel')
+    ? `<button class="cbtn" style="width:100%;margin-top:6px" onclick="if(window._korekDialog){closeOverlay();window._korekDialog();}else{closeOverlay();}">← Wróć</button>`
+    : `<button class="cbtn" style="width:100%;margin-top:6px" onclick="if(typeof renderSalon==='function'){renderSalon();if(typeof openOverlay==='function')openOverlay();}else{closeOverlay();}">← Wróć</button>`;
   el.innerHTML=`<h2>${title}</h2><p class="sub">${intro}</p>
-    ${c.owned?`<div style="background:#0e1830;border-left:3px solid #f1c40f;padding:8px 12px;margin-bottom:12px;border-radius:4px;font-size:13px;color:#cdd">Masz już kampera (${ownedName}). Zarządzaj nim w telefonie: Kariera → Trap → Kamper.</div>`:notOwnedMsg}
+    ${c.owned?`<div style="background:#0e1830;border-left:3px solid #f1c40f;padding:8px 12px;margin-bottom:12px;border-radius:4px;font-size:13px;color:#cdd">Masz już kampera (${ownedName})${c.garage.length?` oraz ${c.garage.length} w garażu`:''}. Zarządzaj nimi w telefonie: Kariera → Trap → Kamper.</div>`:notOwnedMsg}
+    ${(source==='gravel'&&budget==='all')?'<h3 style="color:#7ec8e3;font-size:14px;margin:6px 0">🚐 Kampery używane</h3>':''}
     ${rows||'<p style="color:#778">Brak modeli w tym punkcie.</p>'}
+    ${usedCarsSection}
+    ${backBtn}
     <button onclick="closeOverlay()" class="cbtn" style="width:100%;margin-top:6px">← Zamknij</button>`;
+};
+/* v2.3.131 (PDF Uspr v2.3.130 U25): przesiadka między posiadanymi kamperami (aktywny ↔ garaż). */
+window._camperSwapGarage=function(idx){
+  window._camperEnsure(); const c=G.camper;
+  if(!Array.isArray(c.garage)||!c.garage[idx]) return;
+  if(G._inCamper){ if(typeof showMsg==='function') showMsg('🚐 Najpierw wysiądź z kampera, zanim się przesiądziesz.','r',3800); return; }
+  const cur={model:c.model, condition:c.condition, camouflage:c.camouflage, purchaseDay:c.purchaseDay, purchasePrice:c.purchasePrice, sourceShop:c.sourceShop, sellerNpc:c.sellerNpc, location:c.location};
+  const nx=c.garage[idx];
+  c.garage[idx]=cur;
+  c.model=nx.model; c.condition=nx.condition; c.camouflage=nx.camouflage;
+  c.purchaseDay=nx.purchaseDay; c.purchasePrice=nx.purchasePrice; c.sourceShop=nx.sourceShop; c.sellerNpc=nx.sellerNpc; c.location=nx.location||c.location;
+  const nm=(window._camperModelById(c.model)||{}).name||c.model;
+  if(typeof showMsg==='function') showMsg('🚐 Przesiadka: aktywny kamper to teraz '+nm+'.','g',4500);
+  if(typeof saveGameSilent==='function') saveGameSilent();
 };
 /* NPC Korek (Gravel Lot Motors) — dialog wejścia + zakupowy. Gated: gravelLotUnlocked (Kantar) / street respect / trap. (PDF pkt 4) */
 window._korekDialog=function(){
@@ -42801,7 +43238,7 @@ window.renderCamperPanel=function(){
         <div>Stan wnętrza: <b style="color:#cdd">${interiorDesc}</b></div>
         <div>Pojemność: <b style="color:#cdd">${capLbl}</b></div>
         <div>Ryzyko: <b style="color:${riskLbl==='Niskie'?'#27ae60':riskLbl==='Podwyższone'?'#e74c3c':'#f39c12'}">${riskLbl}</b></div>
-        <div>Stan techn.: <b style="color:${cond>=60?'#27ae60':cond>=30?'#f39c12':'#e74c3c'}">${cond}%</b> · Paliwo: <b style="color:${fuel>=30?'#27ae60':'#e74c3c'}">${fuel}%</b></div>
+        <div>Stan techn.: <b style="color:${cond>=60?'#27ae60':cond>=30?'#f39c12':'#e74c3c'}">${(typeof window._condPct==='function')?window._condPct(cond):Math.round(cond)}%</b> · Paliwo: <b style="color:${fuel>=30?'#27ae60':'#e74c3c'}">${fuel}%</b></div>
       </div>
     </div>
     ${workSection}
@@ -42999,7 +43436,7 @@ function renderSalon(){
   const carDefC={'Maluch':'#c0392b','Seat Ibiza':'#2471a3','BMW E46':'#1c2833'};
   const curColor=G.car?(G.car.color||(carDefC[G.car.name]||'#c0392b')):'#c0392b';
   document.getElementById('ov-content').innerHTML=`
-    <h2>🚗 Salon Samochodowy</h2>
+    <h2>Salon Samochodowy</h2><!-- v2.3.131 (PDF Uspr v2.3.130 U9): bez emoji w etykiecie nazwy salonu -->
     <p class="sub">Samochód zwiększa prędkość poruszania i prestiż. Szybszy samochód = szybsze dostawy w pracy Kuriera!</p>
     <div style="background:#0e1830;border-left:3px solid #f1c40f;padding:8px 12px;margin-bottom:12px;border-radius:4px;font-size:13px;color:#cdd">
       💡 <b>Sterowanie:</b> na ulicy naciśnij klawisz <kbd style="background:#1a2845;border:1px solid #f1c40f;color:#f1c40f;padding:1px 6px;border-radius:3px;font-family:monospace">V</kbd> aby <b>wsiąść / wysiąść</b> z auta.
@@ -43014,8 +43451,8 @@ function renderSalon(){
     <!-- v2.3.129 (PDF marek §7.4 + kryterium #12): podgląd AutoVista 360 i porównywarka dostępne
          także z CityDrive — te same nazwy i dane co w galerii Crownline oraz w garażu. -->
     <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
-      <button class="cbtn" style="font-size:12px;padding:7px 11px" onclick="window._avOpenCompare()">⚖️ Porównywarka AutoVista 360</button>
-      <button class="cbtn" style="font-size:12px;padding:7px 11px" onclick="window._avOpen(G.car?G.car.name:CAR_CATALOG[0].name)">🔄 Podgląd AutoVista 360</button>
+      <button class="cbtn" style="font-size:12px;padding:7px 11px" onclick="window._avScopeNames=null;window._avOpenCompare()">⚖️ Porównywarka AutoVista 360</button>
+      <button class="cbtn" style="font-size:12px;padding:7px 11px" onclick="window._avScopeNames=null;window._avOpen(G.car?G.car.name:CAR_CATALOG[0].name)">🔄 Podgląd AutoVista 360</button>
       <button class="cbtn" style="font-size:12px;padding:7px 11px" onclick="window._crownOpen()">💎 Crownline Auto Gallery</button>
     </div>
     <div style="background:#1a1508;border-left:3px solid #e8c56a;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#d8c8a0">
@@ -43049,7 +43486,7 @@ function renderSalon(){
           ${reqStr.length?`<p style="font-size:11px;color:${reqOk?'#7ec87e':'#e74c3c'};margin-bottom:6px">📋 ${reqStr.join(' · ')}</p>`:''}
           <div class="pr">${car.price.toLocaleString('pl')} zł</div>
           ${isCurrent?'<div class="owned">✅ Aktualny</div>':owned?'<div style="color:#c8a520;font-size:11px">📦 W garażu</div>':''}
-          ${(isCurrent||owned)?`<div style="font-size:11px;color:${_cond>=70?'#7ec87e':_cond>=40?'#e8a020':'#e74c3c'};margin:3px 0">🔧 Stan: ${_cond}% · skup: ${_sellP.toLocaleString('pl')} zł</div>`:''}
+          ${(isCurrent||owned)?`<div style="font-size:11px;color:${_cond>=70?'#7ec87e':_cond>=40?'#e8a020':'#e74c3c'};margin:3px 0">🔧 Stan: ${window._condPct(_cond)}% · skup: ${_sellP.toLocaleString('pl')} zł</div>`:''}
           <div style="display:flex;gap:6px;margin-top:4px">
           <button class="bbtn" style="flex:1" onclick="buyCar('${car.name}',${car.speed},${car.price})" ${isCurrent||(!owned&&(!reqOk||G.money<car.price))?'disabled':''}>${isCurrent?'Aktualne':owned?'Przesiądź się':'Kup'}</button>
           ${(isCurrent||owned)?`<button class="cbtn" style="flex:1;color:#e8b04a;border-color:#7a5a1a;font-size:12px" onclick="window._sellCarPrompt('${car.name}')">💰 Sprzedaj</button>`:''}
@@ -43086,10 +43523,12 @@ window._sellCarPrompt=function(name){
   const priceNow=window._carSellPrice(name,cond);
   const priceFull=Math.floor(car.price*0.50);
   const rec=cond<100
-    ? `\n\n🔧 Stan techniczny: ${cond}% — warto rozważyć PRZEGLĄD w Warsztacie przed sprzedażą:\n• Teraz: ${priceNow.toLocaleString('pl')} zł\n• Po naprawie (stan 100%): ${priceFull.toLocaleString('pl')} zł  (+${(priceFull-priceNow).toLocaleString('pl')} zł)`
+    ? `\n\n🔧 Stan techniczny: ${window._condPct(cond)}% — warto rozważyć PRZEGLĄD w Warsztacie przed sprzedażą:\n• Teraz: ${priceNow.toLocaleString('pl')} zł\n• Po naprawie (stan 100%): ${priceFull.toLocaleString('pl')} zł  (+${(priceFull-priceNow).toLocaleString('pl')} zł)`
     : `\n\n✅ Stan techniczny: 100% — najlepsza możliwa cena.`;
   const _do=()=>window._sellCar(name);
-  if(typeof gameConfirm==='function') gameConfirm(`💰 Sprzedać ${car.emoji||'🚗'} ${name} za ${priceNow.toLocaleString('pl')} zł?${rec}\n\n(Skup płaci 35–50% wartości zależnie od stanu technicznego.)`, _do);
+  /* v2.3.131 (PDF Uspr v2.3.130 B4): nazwa z katalogu CityDrive, nie surowy identyfikator (stara, wycofana marka). */
+  const _dn=(typeof carDisplayName==='function')?carDisplayName(name):name;
+  if(typeof gameConfirm==='function') gameConfirm(`💰 Sprzedać ${car.emoji||'🚗'} ${_dn} za ${priceNow.toLocaleString('pl')} zł?${rec}\n\n(Skup płaci 35–50% wartości zależnie od stanu technicznego.)`, _do);
   else _do();
 };
 window._sellCar=function(name){
@@ -43103,11 +43542,12 @@ window._sellCar=function(name){
   delete G._carCond[name];
   if(isActive){
     const other=G._ownedCars[0];
-    if(other){ const oc=CAR_CATALOG.find(x=>x.name===other); const sv=(G._carCond[other]||{}); G.car={name:other,speed:oc?oc.speed:1,price:oc?oc.price:0,condition:sv.cond==null?100:sv.cond,color:sv.color||undefined}; if(typeof notify==='function')notify(`🚗 Przesiadasz się na ${other}.`); }
+    if(other){ const oc=CAR_CATALOG.find(x=>x.name===other); const sv=(G._carCond[other]||{}); G.car={name:other,speed:oc?oc.speed:1,price:oc?oc.price:0,condition:sv.cond==null?100:sv.cond,color:sv.color||undefined}; if(typeof notify==='function')notify(`🚗 Przesiadasz się na ${(typeof carDisplayName==='function')?carDisplayName(other):other}.`); }
     else { G.car=null; G._inCar=false; G._carParkedAt=null; }
   }
   G.money=(G.money||0)+priceNow; G.totalEarned=(G.totalEarned||0)+priceNow;
-  if(typeof showMsg==='function') showMsg(`💰 Sprzedano ${name} za ${priceNow.toLocaleString('pl')} zł (stan ${cond}%).`,'g',5000);
+  /* v2.3.131 (PDF Uspr v2.3.130 B4): komunikat o sprzedaży używa nazwy z katalogu CityDrive Motors. */
+  if(typeof showMsg==='function') showMsg(`💰 Sprzedano ${(typeof carDisplayName==='function')?carDisplayName(name):name} za ${priceNow.toLocaleString('pl')} zł (stan ${window._condPct(cond)}%).`,'g',5000);
   if(typeof updateHUD==='function') updateHUD();
   if(typeof renderSalon==='function') renderSalon();
 };
@@ -43312,6 +43752,28 @@ function renderSalaKoncertowa(){
   `;
 }
 
+/* ═══ v2.3.131 (PDF Uspr v2.3.130 U14) — „ZLOKALIZUJ" DLA NIERUCHOMOŚCI ═══════════════════════
+   Odpowiednik działającej funkcji „Pokaż na mapie" przy kamperze, ale dla mieszkań, apartamentów,
+   rezydencji i willi: otwiera pełną mapę, płynnie przybliża do budynku i obrysowuje go żółtą ramką.
+   Dostępne przy każdej posiadanej pozycji, bez limitu użyć. */
+window._APT_MAP_OBJ={ traphouse:'traphouse', basic:'apt_basic', premium:'apt_premium', luxury:'apt_penthouse',
+                      duplex:'apt_duplex', mansion:'apt_mansion', mega_villa:'apt_mega_villa' };
+window._aptLocate=function(aptId){
+  const objId=window._APT_MAP_OBJ[aptId];
+  const R=(typeof ROOMS!=='undefined')?ROOMS.ulica:null;
+  const obj=(objId&&R&&Array.isArray(R.objects))?R.objects.find(o=>o.id===objId):null;
+  if(!obj){ if(typeof showMsg==='function') showMsg('📍 Nie udało się ustalić położenia tego lokalu na mapie.','r',4000); return; }
+  const cx=obj.wx+(obj.w||120)/2, cy=obj.wy+(obj.h||120)/2;
+  /* podświetlenie obrysu na mapie przez 8 s */
+  window._fmapLocate={wx:obj.wx, wy:obj.wy, w:obj.w||120, h:obj.h||120, label:obj.lbl||'Twój lokal', room:'ulica', until:Date.now()+8000};
+  if(typeof closeOverlay==='function') closeOverlay();
+  if(typeof phoneOpen==='function' && phoneOpen() && typeof togglePhone==='function') togglePhone();
+  if(typeof openFullMap==='function'){
+    openFullMap('ulica');
+    setTimeout(()=>{ try{ if(typeof window._mapFocusCoord==='function') window._mapFocusCoord(cx,cy,1.1,2.2); }catch(e){} },130);
+    if(typeof showMsg==='function') showMsg('📍 Mapa miasta: '+(obj.lbl||'Twój lokal')+' — zaznaczony żółtą obwódką.','i',5500);
+  } else if(typeof showMsg==='function') showMsg('📍 '+(obj.lbl||'Twój lokal')+' znajduje się w mieście — otwórz mapę klawiszem [M].','i',5000);
+};
 // Biuro Nieruchomości
 function renderBiuroNieruchomosci(){
   /* v2.1.51 Amper: ceny mieszkań podniesione ~3-4× — wcześniej za 60k zł gracz miał już penthouse co kompletnie nie pasowało do dochodów z koncertów po znerfowaniu. */
@@ -43410,7 +43872,11 @@ function renderBiuroNieruchomosci(){
         const priceLabel=ownedBefore?'<span style="color:#7ec87e">✅ Posiadane</span>':a.cost.toLocaleString('pl')+' zł';
         const btnLabel=ownedBefore?'✅ Posiadane':!reqOk?'Brak wymogów':!moneyOk?'Brak kasy':'🔑 Kup';
         const activeMark=(G.apartment===a.id)?'<div class="owned" style="color:#27ae60;font-size:11px;margin-top:4px">🏠 Twoje aktualne mieszkanie</div>':'';
-        return `<div class="sitem" style="width:200px"><h3>${a.name}</h3><p>${a.desc}</p><p style="color:#27ae60;font-size:11px;margin-bottom:4px">${a.bonusText}</p>${reqStr?`<p style="color:${reqOk?'#7ec87e':'#e74c3c'};font-size:11px;margin-bottom:6px">📋 ${reqStr}</p>`:''}<div class="pr">${priceLabel}</div>${activeMark}<button class="bbtn" onclick="buyApartment('${a.id}',${a.cost})" ${disabled?'disabled':''}>${btnLabel}</button></div>`;
+        /* v2.3.131 (PDF Uspr v2.3.130 U14): przy KAŻDYM posiadanym lokalu przycisk „Zlokalizuj" —
+           otwiera mapę, przybliża do budynku i zaznacza go żółtą obwódką (analogicznie do
+           „Pokaż na mapie" przy kamperze). Bez limitu użyć, widoczny na stałe. */
+        const locBtn=ownedBefore?`<button class="cbtn" style="width:100%;margin-top:5px;font-size:11.5px;padding:6px" onclick="window._aptLocate('${a.id}')">📍 Zlokalizuj</button>`:'';
+        return `<div class="sitem" style="width:200px"><h3>${a.name}</h3><p>${a.desc}</p><p style="color:#27ae60;font-size:11px;margin-bottom:4px">${a.bonusText}</p>${reqStr?`<p style="color:${reqOk?'#7ec87e':'#e74c3c'};font-size:11px;margin-bottom:6px">📋 ${reqStr}</p>`:''}<div class="pr">${priceLabel}</div>${activeMark}<button class="bbtn" onclick="buyApartment('${a.id}',${a.cost})" ${disabled?'disabled':''}>${btnLabel}</button>${locBtn}</div>`;
       }).join('')}
     </div>
     ${rentalsHtml}
@@ -48464,11 +48930,70 @@ window._marinaAnchorBoard=function(){
   if(typeof saveGameSilent==='function') saveGameSilent();
   return true;
 };
+/* ═══ v2.3.131 (PDF Uspr v2.3.130, błąd B5 + usprawnienie U12) ════════════════════════════════
+   Rozdzielenie CUMOWANIA od KOTWICZENIA i koniec „uziemienia" gracza na morzu.
+
+   Objaw zgłoszony przez gracza: po rzuceniu kotwicy na łodzi Open / RIB (np. Marlin Open 24,
+   IronHull R9) jednostka znikała z mapy, a po zamknięciu panelu pokładowego gracz stał na wodzie
+   bez możliwości ruchu — rozgrywka się kończyła.
+
+   Przyczyna: jednostki bez chodzalnego pokładu (hasInteriorMap:false) otwierały PANEL. Powrót za ster
+   był podpięty wyłącznie pod jeden przycisk („Zejdź z pokładu"). Zamknięcie panelu w jakikolwiek inny
+   sposób (Esc, inny przycisk, przejście do aktywności) zostawiało stan `_anchored` bez `piloting`:
+   łodzi nikt nie rysował, a ruch po wodzie jest zablokowany dla pieszego.
+
+   Rozwiązanie dwuwarstwowe:
+   (1) zakotwiczona jednostka jest RYSOWANA w miejscu zakotwiczenia — gracz ją widzi;
+   (2) strażnik `_marinaAnchorGuard` przywraca ster, gdy tylko gracz zamknie pokład w dowolny sposób,
+       więc stan „na wodzie bez łodzi" nie może już powstać. */
+window._marinaAnchorGuard=function(){
+  if(typeof currentRoom==='undefined'||currentRoom!=='coast') return;
+  if(typeof G==='undefined'||!G.marina) return;
+  const a=G.marina._anchored; if(!a||!a.craftId) return;
+  if(G.marina.piloting&&G.marina.piloting.active) return;          /* już za sterem */
+  if(typeof mgOpen==='function'&&mgOpen()) return;                  /* otwarty panel pokładowy */
+  const ov=document.getElementById('overlay');
+  if(ov&&ov.classList&&ov.classList.contains('on')) return;         /* otwarte okno pełnoekranowe */
+  if(G.marina.swimming&&G.marina.swimming.isSwimming) return;       /* gracz pływa wpław */
+  if(typeof window._marinaResumeFromAnchor==='function') window._marinaResumeFromAnchor();
+};
+/* Rysowanie zakotwiczonej jednostki (żeby NIE znikała z mapy, gdy gracz jest na pokładzie/w panelu). */
+window._marinaDrawAnchored=function(){
+  if(typeof currentRoom==='undefined'||currentRoom!=='coast') return;
+  if(typeof G==='undefined'||!G.marina) return;
+  const a=G.marina._anchored; if(!a||!a.craftId) return;
+  if(G.marina.piloting&&G.marina.piloting.active) return;
+  try{
+    const sx=wx2sx(a.wx)+P.w/2, sy=wy2sy(a.wy)+P.h/2;
+    const cat=a.cat||'open';
+    const bw=(cat==='catamaran')?96:(cat==='yacht'?86:66), bh=(cat==='catamaran')?52:(cat==='yacht'?40:30);
+    X.save(); X.translate(sx,sy); X.rotate(a.heading||0);
+    if(typeof _drawMarinaBoat==='function') _drawMarinaBoat(-bw/2,-bh/2,bw,bh,cat,{piloting:false});
+    X.restore();
+    /* znacznik kotwicy — jasny sygnał, że jednostka stoi i czeka */
+    const pu=0.7+Math.sin(Date.now()/500)*0.3;
+    X.save(); X.font='bold 16px "Segoe UI",Arial,sans-serif'; X.textAlign='center'; X.textBaseline='middle';
+    X.shadowColor='#00d4f0'; X.shadowBlur=12*pu; X.fillStyle='rgba(0,212,240,'+pu+')';
+    X.fillText('⚓',sx,sy-bh/2-16); X.shadowBlur=0; X.restore();
+  }catch(_){}
+};
 /* powrót z pokładu zakotwiczonej jednostki: wracamy na wodę w to samo miejsce (nie na kej) */
 window._marinaResumeFromAnchor=function(){
   _marinaEnsure(); const a=G.marina._anchored;
   if(!a||!a.craftId) return false;
-  const w=_marinaOwnedById(a.craftId); if(!w){ G.marina._anchored=null; return false; }
+  const w=_marinaOwnedById(a.craftId);
+  if(!w){
+    /* v2.3.131 (PDF Uspr v2.3.130 B5): jednostka zniknęła z floty (sprzedana, skasowana, uszkodzony zapis),
+       a gracz stoi na kotwicy na środku morza. Bez tej gałęzi zostawałby unieruchomiony na wodzie —
+       dokładnie ten stan, który zgłosił gracz. Odstawiamy go bezpiecznie na keję. */
+    G.marina._anchored=null;
+    if(typeof currentRoom!=='undefined' && currentRoom==='coast'){
+      P.wy=MARINA_SHORE_Y-56; P.wx=Math.max(1180,Math.min(3000,P.wx));
+      if(typeof updateCamera==='function') updateCamera();
+      if(typeof showMsg==='function') showMsg('⚓ Twojej jednostki nie ma już w porcie — wróciłeś na keję.','i',5000);
+    }
+    return false;
+  }
   const md=_marinaModelById(w.modelId);
   G.marina.piloting={active:true, craftId:a.craftId, rental:false, cat:a.cat||(md&&md.cat)||'', name:w.name||(md&&md.name)||'Jednostka', engine:!!(md&&md.fuelCapacity>0), heading:a.heading||0, wakeT:0, t:0};
   if(typeof currentRoom!=='undefined' && currentRoom!=='coast' && typeof changeRoom==='function') changeRoom('coast', a.wx, a.wy);
@@ -48483,6 +49008,18 @@ window._marinaPilotTick=function(){
   if(typeof currentRoom==='undefined'||currentRoom!=='coast') return;
   _marinaEnsure(); const pl=G.marina.piloting; if(!pl||!pl.active) return;
   pl.t=(pl.t||0)+1;
+  /* v2.3.131 (PDF Uspr v2.3.130 U12): CUMOWANIE ≠ KOTWICZENIE. Przy pomoście gracz cumuje ([E]),
+     a poza portem może rzucić kotwicę ([G]) i wejść na pokład — dotąd nikt mu o tym nie mówił.
+     Podpowiedź pojawia się raz na wypłynięcie, w chwili minięcia granicy portu. */
+  if(!pl.rental && pl.cat!=='kayak' && pl.cat!=='jetski'){
+    const _fx=P.wx+P.w/2, _fy=P.wy+(P.h||44);
+    const _out=(typeof _marinaPortDist==='function')&&(_marinaPortDist(_fx,_fy)>MARINA_MOOR_RANGE_PX);
+    if(_out && !pl._anchorHintShown){
+      pl._anchorHintShown=true;
+      if(typeof showMsg==='function') showMsg('⚓ Jesteś poza portem. Naciśnij [G], żeby rzucić kotwicę w tym miejscu i wejść na pokład — jednostka zaczeka dokładnie tutaj. Cumowanie ([E]) działa dopiero przy pomoście.','i',6500);
+    }
+    if(!_out) pl._anchorHintShown=false;
+  }
   /* v2.3.122 (PDF Uspr v2.3.121): sztorm rzuca jednostką — fala znosi ją z kursu i mocniej kołysze.
      Siła rośnie płynnie z fazą sztormu; przy pełnym sztormie sterowanie robi się naprawdę trudne. */
   {
@@ -48641,7 +49178,13 @@ const POLICE_DISTRICTS={
 function _policeDistrict(){ return POLICE_DISTRICTS[currentRoom]||null; }
 function _policeHour(){ return Math.floor(((typeof gameMin!=='undefined'?gameMin:(G.gameMin||360))%1440)/60); }
 function _policeTimeMult(){ const h=_policeHour(); if(h>=6&&h<12) return 0.75; if(h>=12&&h<18) return 1.00; if(h>=18&&h<23) return 1.25; return 0.25; }
-function _policeIsWeekend(){ const d=((G.day||0)%7); return d===5||d===6; } /* Pt/Sob */
+function _policeIsWeekend(){
+  /* v2.3.131 (PDF Uspr v2.3.130 U15, audyt interpretera): zachowanie BEZ ZMIAN (piątek + sobota —
+     wtedy służby i ulica są najbardziej aktywne), ale dzień tygodnia pochodzi z jednego, wspólnego
+     źródła `_dayOfWeek()` (0=poniedziałek), a nie z własnego, przesuniętego rachunku `G.day % 7`. */
+  const d=(typeof _dayOfWeek==='function')?_dayOfWeek():(((G.day||1)-1)%7);
+  return d===4||d===5;
+} /* Pt/Sob */
 function _policeWeekendMult(){ if(!_policeIsWeekend()) return 1.00; return _policeHour()>=18?1.5:1.25; }
 
 /* stan prawny gracza */
@@ -52106,7 +52649,15 @@ function _spDay(){ return (typeof G!=='undefined'&&typeof G.day==='number')?G.da
 function _spGameMin(){ return (typeof gameMin==='number')?gameMin:(typeof G!=='undefined'&&G.gameMin)||0; }
 function _spHour(){ return Math.floor(_spGameMin()/60)%24; }
 /* weekday: 0=Pon..6=Niedz (deterministyczne z G.day) */
-function _spWeekday(){ return ((_spDay()%7)+7)%7; }
+function _spWeekday(){
+  /* v2.3.131 (PDF Uspr v2.3.130 U15) — BŁĄD INTERPRETERA DNI TYGODNIA.
+     Moduł liczył dzień jako `G.day % 7`, podczas gdy cała reszta gry używa `(G.day - 1) % 7`
+     (dzień 1 = poniedziałek). Efekt: niedziela była czytana jako poniedziałek i Sunset Mixer
+     nie startował mimo zgodnej daty na ekranie. Teraz moduł korzysta z JEDNEGO, wspólnego
+     interpretera `_dayOfWeek()`, więc nazwa dnia w interfejsie i bramka wydarzenia zawsze się zgadzają. */
+  if(typeof _dayOfWeek==='function') return _dayOfWeek();
+  return ((_spDay()-1)%7+7)%7;
+}
 const _SP_WD=['Poniedziałek','Wtorek','Środa','Czwartek','Piątek','Sobota','Niedziela'];
 
 /* ── osie gracza ── */
@@ -54532,7 +55083,7 @@ window._ucCard=function(id,rot){
     <div class="pr" style="font-size:13px">${it.price===0?'Gratis':price.toLocaleString('pl')+' zł'}${disc?' <span style="font-size:10px;color:#e8a020">wyprzedaż −10%</span>':''}</div>
     ${on?'<div class="owned">✅ Noszone</div>':owned?'<div style="color:#c8a520;font-size:10px">📦 W garderobie</div>':''}
     <div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap">
-      <button class="cbtn" style="flex:1;font-size:11px;padding:5px" onclick="window._cfsOpen('${id}')">🪞 Przymierz</button>
+      <button class="cbtn" style="flex:1;font-size:11px;padding:5px" onclick="window._cfsOpen('${id}')">Przymierz</button><!-- v2.3.131 (PDF Uspr v2.3.130 U24): bez emoji na przycisku przymierzania -->
       ${owned?`<button class="bbtn" style="flex:1;font-size:11px;padding:5px" onclick="window._ucEquipBtn('${id}')" ${on?'disabled':''}>${on?'Noszone':'Załóż'}</button>`
              :`<button class="bbtn" style="flex:1;font-size:11px;padding:5px" onclick="window._ucBuyBtn('${id}')" ${(!ok||G.money<price)?'disabled':''}>Kup</button>`}
       <button class="cbtn" style="font-size:11px;padding:5px 7px;color:${wished?'#f0c040':'#667'}" title="Lista życzeń" onclick="window._ucWishToggle('${id}')">⭐</button>
@@ -57944,6 +58495,23 @@ window._sbGear=function(id){ return SB_GEAR.find(g=>g.id===id)||null; };
 window._sbStage=function(id){ return SB_STAGES.find(s=>s.id===id)||null; };
 
 /* ── §8 Stan i model danych (schemaVersion, save-safe) ─────────────────────── */
+/* ═══ v2.3.131 (PDF Uspr v2.3.130 U23) — PUSTY OBIEKT PO ZAKUPIE ═══════════════════════════════
+   PDF: „po zakupie tego obiektu musi być on cały pusty, a cały sprzęt powinien być dostępny do kupienia
+   na terminalu/komputerze, który znajduje się w tej nieruchomości".
+   Stanowisko suszenia i pakowania NIE stoi już w piwnicy od pierwszego wejścia — pojawia się dopiero
+   po zainstalowaniu wyposażenia kategorii FINISH z terminala SUBTERRA (FinishBench / CureVault / SortLine).
+   Dopóki go nie ma, w tym miejscu widać oznaczone, puste stanowisko z informacją, gdzie je kupić. */
+window._sbHasFinishGear=function(){
+  try{
+    const s=(G&&G.subterra)?G.subterra:null;
+    if(!s||!Array.isArray(s.gear)) return false;
+    return s.gear.some(g=>{ if(!g||!g.installed) return false; const d=(typeof window._sbGear==='function')?window._sbGear(g.defId):null; return !!(d&&d.cat==='FINISH'); });
+  }catch(_){ return false; }
+};
+window._sbStationReady=function(objId){
+  if(objId!=='plant_drying'&&objId!=='plant_pack') return true;
+  return window._sbHasFinishGear();
+};
 window._sbEnsure=function(){
   if(!G.subterra||typeof G.subterra!=='object') G.subterra={};
   const s=G.subterra;
@@ -58304,7 +58872,7 @@ window._sbTerminal=function(){
       Poziom kariery Trap ${((G.trap&&G.trap.level)||1)} / 5 — próg jedynie usuwa blokadę zakupu, nie daje obiektu.<br>
       Cena przejęcia: <b>${SB_STAGES[0].price.toLocaleString('pl')} zł</b><br>
       Po przejęciu: <b>${SB_TIERS[0].name}</b> — potencjał ${SB_TIERS[0].potential}, limit jakości ${SB_TIERS[0].qualityCap}, ${SB_TIERS[0].slots} sloty.</div>
-      <button class="bbtn" style="width:100%;margin-top:10px" onclick="window._sbBuyBtn()" ${window._sbCanBuy()&&(G.money||0)>=SB_STAGES[0].price?'':'disabled'}>Przejmij obiekt</button>
+      <button class="bbtn" style="width:100%;margin-top:10px" onclick="window._sbBuyBtn()" ${window._sbCanBuy()&&(G.money||0)>=SB_STAGES[0].price?'':'disabled'}>Przejmij lokal · ${SB_STAGES[0].price.toLocaleString('pl')} zł</button><!-- v2.3.131 (PDF Uspr v2.3.130 U29): cena widoczna na etykiecie -->
       <button class="cbtn" style="width:100%;margin-top:6px" onclick="window._sbSiteView()">🔍 SiteView — podgląd przed zakupem</button>`;
   } else if(tab==='status'){
     const cyc=s.cycle;
@@ -58345,6 +58913,22 @@ window._sbTerminal=function(){
           <button class="cbtn" style="flex:1;font-size:10px;padding:4px" onclick="window._sbServiceBtn('${g.instId}')">🔧 Serwis</button>
           <button class="cbtn" style="flex:1;font-size:10px;padding:4px;color:#e07a5a" onclick="window._sbSellBtn('${g.instId}')">💰 Demontaż</button>
         </div></div>`;}).join('')}</div>`:''}
+      <!-- v2.3.131 (PDF Uspr v2.3.130 U23): CAŁE wyposażenie obiektu kupuje się w terminalu, także
+           stanowiska uprawowe. Dotąd doniczki dokupywało się wyłącznie klikając puste miejsce w piwnicy. -->
+      ${(function(){
+        const owned=(G.grow&&G.grow.potsOwned)||1;
+        const costs={1:800,2:2500,3:6000,4:9000,5:12000};
+        const cost=costs[owned]||12000;
+        const max=owned>=6;
+        return `<h3 style="color:#7ec8e3;margin:12px 0 6px;font-size:13px">Stanowiska uprawowe</h3>
+        <div class="shopgrid"><div class="sitem"><h3 style="font-size:12px">Stanowisko uprawowe</h3>
+          <div style="font-size:9px;color:#6a8caa;text-transform:uppercase;margin:-3px 0 3px">UPRAWA · miejsce w hali</div>
+          <p style="font-size:11px">Przygotowane miejsce pod pojedynczą roślinę: donica, podstawa i przyłącze wody.</p>
+          <p style="font-size:10px;color:#9ab">Zajęte stanowiska: <b>${owned} / 6</b></p>
+          ${max?'<div class="owned">✅ Komplet stanowisk</div>':`<div class="pr" style="font-size:12px">${cost.toLocaleString('pl')} zł</div>
+          <button class="bbtn" style="width:100%;font-size:11px;padding:5px" onclick="window._sbBuyPotBtn()" ${(G.money||0)<cost?'disabled':''}>Dokup stanowisko</button>`}
+        </div></div>`;
+      })()}
       <h3 style="color:#7ec8e3;margin:12px 0 6px;font-size:13px">Katalog</h3>
       <div class="shopgrid">${SB_GEAR.map(d=>{
         const need=s.tier<d.minTier;
@@ -58438,17 +59022,42 @@ window._sbSiteView=function(){
 };
 /* Przyciski terminala */
 window._sbRes=function(m){ const e=document.getElementById('sb-res'); if(e) e.textContent=m; };
-window._sbBuyBtn=function(){ const r=window._sbBuyFacility('buy_'+(G.day||1)); window._sbTerminal(); window._sbRes(r.msg); };
-window._sbStageBtn=function(id){ const r=window._sbBuyStage(id,'stage_'+id); window._sbTerminal(); window._sbRes(r.msg); };
-window._sbInstallBtn=function(id,ad){ const r=window._sbInstall(id,ad,null); window._sbTerminal(); window._sbRes(r.msg); };
-window._sbServiceBtn=function(i){ const r=window._sbService(i,null); window._sbTerminal(); window._sbRes(r.msg); };
-window._sbSellBtn=function(i){ const r=window._sbSell(i,null); window._sbTerminal(); window._sbRes(r.msg); };
+/* v2.3.131 (PDF Uspr v2.3.130 U30) — REAKCJA PRZYCISKÓW TERMINALA SUBTERRA.
+   Problem zgłoszony przez gracza: po kliknięciu „Kup etap" / „Zainstaluj" / „Wybierz" jedyną informacją
+   zwrotną był drobny tekst na SAMYM DOLE panelu (np. „Ustawiono materiały na najbliższy cykl."). Gracz
+   go nie widział i miał wrażenie, że panel nie działa.
+   Teraz każda operacja pokazuje STANDARDOWE okno komunikatu gry — dokładnie tak, jak reszta czynności —
+   a tekst na dole panelu zostaje jako dodatkowe podsumowanie. */
+window._sbFeedback=function(r){
+  const msg=(r&&(r.msg||r.why))||'';
+  if(!msg) return;
+  const ok=!!(r&&r.ok);
+  if(typeof showMsg==='function') showMsg((ok?'🌱 ':'⛔ ')+msg, ok?'g':'r', ok?5000:5200);
+  else if(typeof notify==='function') notify(msg);
+  window._sbRes(msg);
+};
+/* Wspólna obsługa: wykonaj → przerysuj terminal → pokaż okno z wynikiem. */
+window._sbAct=function(fn){ const r=fn(); window._sbTerminal(); window._sbFeedback(r); return r; };
+window._sbBuyBtn=function(){ window._sbAct(()=>window._sbBuyFacility('buy_'+(G.day||1))); };
+/* v2.3.131 (PDF Uspr v2.3.130 U23): dokupienie stanowiska uprawowego z poziomu terminala. */
+window._sbBuyPotBtn=function(){
+  window._sbAct(()=>{
+    const before=(G.grow&&G.grow.potsOwned)||1;
+    const ok=(typeof window._growBuySlot==='function')?window._growBuySlot('plantation'):false;
+    const after=(G.grow&&G.grow.potsOwned)||before;
+    return ok?{ok:true,msg:'Zamontowano stanowisko uprawowe nr '+after+'. Nowe miejsce czeka w hali.'}
+             :{ok:false,msg:before>=6?'Wszystkie stanowiska uprawowe są już zamontowane.':'Nie udało się dokupić stanowiska.'};
+  });
+};
+window._sbStageBtn=function(id){ window._sbAct(()=>window._sbBuyStage(id,'stage_'+id)); };
+window._sbInstallBtn=function(id,ad){ window._sbAct(()=>window._sbInstall(id,ad,null)); };
+window._sbServiceBtn=function(i){ window._sbAct(()=>window._sbService(i,null)); };
+window._sbSellBtn=function(i){ window._sbAct(()=>window._sbSell(i,null)); };
 window._sbMatBtn=function(b,a){ const s=window._sbEnsure();
-  const r=window._sbSetMaterials(b!=null?b:s.materials.base,a!=null?a:(b!=null?s.materials.addon:null));
-  window._sbTerminal(); window._sbRes(r.msg); };
-window._sbStartBtn=function(){ const r=window._sbStartCycle(null,null); window._sbTerminal(); window._sbRes(r.msg); };
-window._sbFinishBtn=function(){ const r=window._sbFinishCycle(null); window._sbTerminal(); window._sbRes(r.msg); };
-window._sbAbortBtn=function(){ const r=window._sbAbortCycle(null); window._sbTerminal(); window._sbRes(r.msg); };
+  window._sbAct(()=>window._sbSetMaterials(b!=null?b:s.materials.base,a!=null?a:(b!=null?s.materials.addon:null))); };
+window._sbStartBtn=function(){ window._sbAct(()=>window._sbStartCycle(null,null)); };
+window._sbFinishBtn=function(){ window._sbAct(()=>window._sbFinishCycle(null)); };
+window._sbAbortBtn=function(){ window._sbAct(()=>window._sbAbortCycle(null)); };
 
 /* ═══ WARSTWA WIZUALNA (v2.3.129) ═══
    PDF §2.2 pkt 13: „Po zakupie zmiana jest widoczna w nazwie obiektu, MODELU WNĘTRZA,
@@ -58984,7 +59593,7 @@ window._avRender=function(){
           <button class="cbtn" style="flex:1;min-width:130px;font-size:12px;padding:8px" onclick="window._avToggleCompare('${car.name.replace(/'/g,'')}')">${cmp.includes(car.name)?'➖ Usuń z porównania':'➕ Dodaj do porównania'}</button>
         </div>
         <div style="font-size:11px;color:#8a9;margin:11px 0 4px;font-weight:700">Zobacz inny model</div>
-        <div style="max-height:150px;overflow-y:auto">${CAR_CATALOG.map(c=>`<button class="cbtn" style="font-size:10px;padding:4px 7px;margin:2px;border-color:${c.name===s.name?'#7ec8e3':'#2a3a50'}" onclick="window._avPick('${c.name.replace(/'/g,'')}')">${window.carDisplayName(c.name)}</button>`).join('')}</div>
+        <div style="max-height:150px;overflow-y:auto">${window._avScopeCatalog().map(c=>`<button class="cbtn" style="font-size:10px;padding:4px 7px;margin:2px;border-color:${c.name===s.name?'#7ec8e3':'#2a3a50'}" onclick="window._avPick('${c.name.replace(/'/g,'')}')">${window.carDisplayName(c.name)}</button>`).join('')}</div>
       </div>
     </div>
     <div class="res" id="av-res">${cmp.length?`W porównaniu: ${cmp.map(n=>window.carDisplayName(n)).join(', ')}`:'Dodaj modele do porównania, aby zestawić je obok siebie.'}</div>
@@ -59003,6 +59612,16 @@ window._avToggleCompare=function(name){
   if(i>=0) l.splice(i,1);
   else { if(l.length>=4){ const res=document.getElementById('av-res'); if(res) res.textContent='Porównanie mieści maksymalnie cztery modele — usuń jeden, aby dodać kolejny.'; return; } l.push(name); }
   if(window._avSession) window._avRender(); else window._avOpenCompare();
+};
+/* v2.3.131 (PDF Uspr v2.3.130 U36): zakres porównywarki. Otwarta z placu Korka pokazuje WYŁĄCZNIE modele,
+   które faktycznie stoją dziś na placu Gravel Lot Motors; otwarta z salonu — pełny katalog. */
+window._avScopeNames=null;
+window._avScopeCatalog=function(){
+  if(Array.isArray(window._avScopeNames)&&window._avScopeNames.length){
+    const set=new Set(window._avScopeNames);
+    return CAR_CATALOG.filter(c=>set.has(c.name));
+  }
+  return CAR_CATALOG;
 };
 window._avOpenCompare=function(){
   const l=window._avCompareList;
@@ -59032,7 +59651,7 @@ window._avOpenCompare=function(){
     </table></div>`
     :`<div style="background:#0e1830;border-left:3px solid #7ec8e3;border-radius:6px;padding:10px 12px;font-size:12px;color:#cdd">Porównanie jest puste. Otwórz podgląd dowolnego modelu i dodaj go do porównania.</div>`}
     <div style="font-size:11px;color:#8a9;margin:12px 0 4px;font-weight:700">Dodaj model</div>
-    <div style="max-height:170px;overflow-y:auto">${CAR_CATALOG.map(c=>`<button class="cbtn" style="font-size:10px;padding:4px 7px;margin:2px;border-color:${l.includes(c.name)?'#7ec8e3':'#2a3a50'}" onclick="window._avToggleCompare('${c.name.replace(/'/g,'')}')">${window.carDisplayName(c.name)}</button>`).join('')}</div>
+    <div style="max-height:170px;overflow-y:auto">${window._avScopeCatalog().map(c=>`<button class="cbtn" style="font-size:10px;padding:4px 7px;margin:2px;border-color:${l.includes(c.name)?'#7ec8e3':'#2a3a50'}" onclick="window._avToggleCompare('${c.name.replace(/'/g,'')}')">${window.carDisplayName(c.name)}</button>`).join('')}</div>
     <div class="res" id="av-res">Modeli w porównaniu: ${cars.length} z 4.</div>
     <button class="cbtn" onclick="closeOverlay()">← Zamknij</button>`;
 };
@@ -59095,8 +59714,13 @@ window._glRefresh=function(force){
     if(!flaws.length) flaws.push('bez uwag na pierwszy rzut oka');
     /* cena: im gorszy stan, tym taniej; rynek wtórny zawsze poniżej salonu */
     const mult=0.34+0.0042*cond;
+    /* v2.3.131 (PDF Uspr v2.3.130 U36): każdy używany egzemplarz ma JEDEN, konkretny kolor lakieru —
+       to fizyczna sztuka stojąca na placu, a nie konfigurowalne zamówienie z salonu. */
+    const _pal=(typeof window._avPalette!=='undefined'&&window._avPalette.length)?window._avPalette:[{n:'Grafit',c:'#3a3a3a'}];
+    const _cidx=Math.floor(rnd()*_pal.length);
     picked.push({ name:c.name, price:Math.max(900,Math.round(c.price*mult/100)*100),
-                  cond, km, flaws, speed:c.speed, id:'gl_'+day+'_'+picked.length });
+                  cond, km, flaws, speed:c.speed, colorIdx:_cidx, color:_pal[_cidx].c, colorName:_pal[_cidx].n,
+                  id:'gl_'+day+'_'+picked.length });
   }
   g.stock=picked; g.day=day;
   return g.stock;
@@ -59115,8 +59739,9 @@ window._glBuy=function(offerId){
   /* stan techniczny z oferty — TO jest sens rynku wtórnego (salon daje 100%) */
   G._carCond=G._carCond||{};
   if(G.car&&G.car.name){ G._carCond[G.car.name]={cond:(G.car.condition==null?100:G.car.condition),color:G.car.color||null}; }
-  G._carCond[o.name]={cond:o.cond,color:(G._carCond[o.name]||{}).color||null};
-  G.car={name:o.name,speed:cc.speed,price:cc.price,condition:o.cond,color:(G._carCond[o.name]||{}).color||undefined};
+  /* v2.3.131 (PDF Uspr v2.3.130 U36): używka przyjeżdża w SWOIM kolorze — jednym, ustalonym dla tej sztuki. */
+  G._carCond[o.name]={cond:o.cond,color:o.color||(G._carCond[o.name]||{}).color||null};
+  G.car={name:o.name,speed:cc.speed,price:cc.price,condition:o.cond,color:o.color||(G._carCond[o.name]||{}).color||undefined};
   G._inCar=true;
   g.stock=g.stock.filter(x=>x.id!==offerId);
   g.bought.push({name:o.name,day:G.day||1,price:o.price,cond:o.cond});
@@ -59138,6 +59763,7 @@ window._glUsedPanel=function(){
       <div style="font-size:10px;color:#8a7a5a;letter-spacing:.5px;text-transform:uppercase;margin:-4px 0 5px">${b?b.displayName:''} · rynek wtórny</div>
       <p style="font-size:11px;color:#9ab">Przebieg ${o.km.toLocaleString('pl')} km · stan <b style="color:${col}">${o.cond}%</b></p>
       <p style="font-size:11px;color:#8fb8d8">${o.flaws.join(' · ')}</p>
+      <p style="font-size:11px;color:#9ab">Lakier: <span style="display:inline-block;width:12px;height:12px;background:${o.color||'#3a3a3a'};border:1px solid #555;border-radius:3px;vertical-align:middle"></span> <b>${o.colorName||'nieokreślony'}</b> <span style="color:#667">(jedyny egzemplarz w tym kolorze)</span></p>
       <p style="font-size:10px;color:#667">Nowy w salonie: ${(cc.price||0).toLocaleString('pl')} zł</p>
       <div class="pr" style="color:#d8c8a0">${o.price.toLocaleString('pl')} zł</div>
       <button class="bbtn" style="width:100%;font-size:11px;padding:6px" onclick="window._glBuyBtn('${o.id}')" ${(G.money||0)<o.price?'disabled':''}>Kup z placu</button>
@@ -59154,7 +59780,7 @@ window._glUsedPanel=function(){
       :'<div style="background:#0a1220;border-radius:8px;padding:14px;font-size:13px;color:#9ab;text-align:center">Plac jest dziś pusty. Korek mówi, żeby wpaść jutro.</div>'}
     <div class="res" id="gl-res">Auto z placu trafia do garażu w takim stanie, w jakim je kupisz.</div>
     <div style="display:flex;gap:6px;margin-top:8px">
-      <button class="cbtn" style="flex:1" onclick="window._avOpenCompare()">⚖️ Porównaj w AutoVista 360</button>
+      <button class="cbtn" style="flex:1" onclick="window._avScopeNames=(window._glRefresh()||[]).map(function(o){return o.name;});window._avOpenCompare()">⚖️ Porównaj w AutoVista 360</button>
       <button class="cbtn" style="flex:1" onclick="closeOverlay()">← Wróć</button>
     </div>`;
 };
@@ -60759,7 +61385,7 @@ function _drawPatrolCar(sx,sy,dir,emergency){
     X.fillStyle='#5a1418'; X.fillRect(-9,-15,8,4);
     X.fillStyle='#16304a'; X.fillRect(1,-15,8,4);
   }
-  X.fillStyle='#fff'; X.font='bold 6px Arial'; X.textAlign='center'; X.fillText('POLICJA',0,4); X.textAlign='left';
+  X.fillStyle='#fff'; X.font='bold 6px Arial'; X.textAlign='center'; X.fillText('POLICE',0,4); X.textAlign='left';/* v2.3.131 (PDF Uspr v2.3.130 U13): uniwersalny napis na radiowozach, ta sama wielkość czcionki */
   X.restore();
 }
 window._drawPatrolCar=_drawPatrolCar;
@@ -60900,7 +61526,11 @@ window._policeIssueStreetFine=function(reason, lo, hi){
 (function _policeRegisterEvents(){
   if(typeof CHOICE_EVENTS==='undefined' || !Array.isArray(CHOICE_EVENTS)) return;
   if(CHOICE_EVENTS.__policeRegistered) return; CHOICE_EVENTS.__policeRegistered=true;
-  const inDistrict=()=>!!POLICE_DISTRICTS[currentRoom] && !window._policeInDetention();
+  /* v2.3.131 (PDF Uspr v2.3.130 U11): ŻADNE losowe zdarzenia uliczne nie mogą odpalić się graczowi,
+     gdy ten jest za sterem jednostki pływającej albo stoi na kotwicy na morzu. „Awantura na ulicy"
+     na środku zatoki wyrywała z rejsu i nie miała sensu fabularnego. */
+  const onWater=()=>!!(typeof G!=='undefined'&&G.marina&&((G.marina.piloting&&G.marina.piloting.active)||(G.marina._anchored&&G.marina._anchored.craftId)||(G.marina.swimming&&G.marina.swimming.isSwimming)));
+  const inDistrict=()=>!!POLICE_DISTRICTS[currentRoom] && !window._policeInDetention() && !onWater();
   CHOICE_EVENTS.push(
     { name:'Kontrola policyjna', chance:1.0, cond:()=>inDistrict() && (G.legal?G.legal.lastCheckDay:-99)!==(G.day||0) && (Math.random()*100 < _policeCheckChance()), fn:()=>window._policeStartCheck('rutynowa kontrola') },
     /* v2.3.122 (PDF Uspr v2.3.121): ZERO kradziezy ulicznych na Marina Coast — to dzielnica wypoczynkowa,
@@ -62274,7 +62904,9 @@ function showJobIntro(config, onStart){
     <button id="job-intro-start" style="background:linear-gradient(145deg,#2eaf5a,#1a7838);border:1px solid rgba(46,175,90,0.7);color:#fff;padding:14px 56px;cursor:pointer;border-radius:10px;font-size:18px;font-weight:700;letter-spacing:1px;transition:all .2s cubic-bezier(0.22,0.61,0.36,1);box-shadow:0 6px 18px rgba(39,174,96,.35),inset 0 1px 0 rgba(255,255,255,0.15)">▶ Zacznij!</button>
     <button onclick="if(window._jobMgCleanup)window._jobMgCleanup();else{const e=document.getElementById('mg-job');e.classList.remove('on');e.style.display='none';}" style="background:transparent;border:1px solid rgba(126,200,227,0.15);color:#7a8aa0;padding:9px 24px;cursor:pointer;border-radius:8px;font-size:13px;transition:all .18s">✕ Anuluj</button>
   </div>`;
-  document.getElementById('job-intro-start').onclick=()=>onStart();
+  /* v2.3.131 (PDF Uspr v2.3.130, błąd B6): jedna zmiana pracy dorywczej = JEDNO zaliczenie.
+     Start minigry otwiera nową „sesję zmiany"; licznik prac przyjmuje z niej dokładnie jeden wpis. */
+  document.getElementById('job-intro-start').onclick=()=>{ window._jobShiftSession=(window._jobShiftSession||0)+1; window._jobShiftCounted=false; onStart(); };
   document.getElementById('job-intro-start').onmouseenter=function(){this.style.transform='translateY(-2px)';this.style.boxShadow='0 10px 28px rgba(39,174,96,.45),inset 0 1px 0 rgba(255,255,255,0.18)';};
   document.getElementById('job-intro-start').onmouseleave=function(){this.style.transform='';this.style.boxShadow='0 6px 18px rgba(39,174,96,.35),inset 0 1px 0 rgba(255,255,255,0.15)';};
   window._jobMgCleanup=()=>{el.classList.remove('on');el.style.display='none';el.innerHTML='<div id="mg-job-content"></div>';};
@@ -63262,8 +63894,8 @@ function _startConstructionGame(){
   // 3 zadania: cegły (timing), beton (klikanie), belki (trzymaj+pozycja)
   const TASKS=[
     {id:'brick',name:'🧱 Mur — Układaj cegły!',hint:'Kliknij gdy wskaźnik w zielonej strefie',total:8},
-    {id:'cement',name:'🏗 Beton — Mieszaj cement!',hint:'Klikaj szybko żeby wymieszać beton',total:30}, /* U11 (v2.3.44 PDF): mieszanie 20→30 */
-    {id:'beam',name:'🔩 Belka — Ustaw na miejscu!',hint:'Trzymaj SPACJĘ żeby podnosić (puść = opada). ENTER lub przycisk = zatwierdź pozycję.',total:3},
+    {id:'cement',name:'🏗 Beton — Mieszaj cement!',hint:'Klikaj szybko żeby wymieszać beton',total:40}, /* U11 (v2.3.44 PDF): mieszanie 20→30; v2.3.131 (PDF Uspr v2.3.130 U27): 30→40 klików */
+    {id:'beam',name:'🔩 Belka — Ustaw na miejscu!',hint:'Trzymaj SPACJĘ żeby podnosić (puść = opada). ENTER lub przycisk = zatwierdź pozycję.',total:6},/* v2.3.131 (PDF Uspr v2.3.130 U27): 3→6 belek */
   ];
   let taskIdx=0,taskDone=0,totalScore=0,over=false,raf;
   /* v2.1.175: speed 3.5→5.5 — user "wskaźnik powinien latać trochę szybciej" */
@@ -63304,7 +63936,7 @@ function _startConstructionGame(){
         <span id="con-progress">0/8</span>
         <span id="con-score" style="color:#f1c40f">⭐ 0 pkt</span>
         <span id="con-combo" style="color:#e67e22"></span>
-        <span style="color:#7ec8e3">⏱ <span id="con-time" style="color:#f1c40f;font-weight:700">180s</span></span>
+        <span style="color:#7ec8e3">⏱ <span id="con-time" style="color:#f1c40f;font-weight:700">90s</span></span>
       </div>
       <canvas id="con-cv" width="660" height="240" style="border:2px solid #2a2a0a;border-radius:8px;cursor:pointer"></canvas>
       <div id="con-result" style="font-size:15px;font-weight:700;min-height:22px;color:#fff"></div>
@@ -63331,11 +63963,11 @@ function _startConstructionGame(){
   let _conTimerInt=setInterval(()=>{
     if(over){clearInterval(_conTimerInt);return;}
     const _el=Math.floor((Date.now()-_conStartTime)/1000);
-    const _rem=Math.max(0,180-_el);
+    const _rem=Math.max(0,90-_el);/* v2.3.131 (PDF Uspr v2.3.130 U27): 180 s → 90 s */
     const _te=document.getElementById('con-time');if(_te)_te.textContent=_rem+'s';
     if(_rem<=0){clearInterval(_conTimerInt);if(!over){
       const _frac=taskIdx/3 + (taskDone/(TASKS[taskIdx]?.total||1))/3;
-      let _partPay=Math.floor(95*_frac*getPracaBonus('construction'));
+      let _partPay=Math.floor(95*_frac*getPracaBonus('construction'));/* U27: _frac liczony z taskIdx/total → nowe wartości total same się skalują */
       if(_partPay>0)earn(_partPay);
       G.energy=clampStat('energy', G.energy-5);addXP(Math.floor(25*_frac)); // v1.8.59: construction timeout 10→5 (-70% od oryginału 15)
       progressQuest('construction');
@@ -63412,7 +64044,9 @@ function _startConstructionGame(){
       const now=Date.now();
       if(now-lastClickTime<300)clickCombo=Math.min(clickCombo+1,5);else clickCombo=0;
       lastClickTime=now;
-      const pts=1+clickCombo;totalScore+=pts;clickCount++;taskDone++;
+      /* v2.3.131 (PDF Uspr v2.3.130 U27): więcej klików (30→40), ale ZAROBEK za pełne zlecenie bez zmian —
+         punkty za mieszanie skalowane w proporcji 30/40, więc pełny etap daje dokładnie tyle co dotąd. */
+      const pts=(1+clickCombo)*0.75;totalScore+=pts;clickCount++;taskDone++;
       // Krople betonu z miksera
       emitDrops(W/2+55+30,80+18,clickCombo>=3?6:2);
       const combo=document.getElementById('con-combo');if(combo)combo.textContent=clickCombo>=3?`🔥 Combo x${clickCombo}!`:'';
@@ -63426,8 +64060,10 @@ function _startConstructionGame(){
         const res=document.getElementById('con-result');if(res){res.style.color='#e67e22';res.textContent='⚠️ Belka za wysoko!';}
       } else {
         const diff=Math.abs(beamY-beamTarget);
-        const pts=diff<15?20:diff<30?12:6;totalScore+=pts;beamPlaced++;taskDone++;beamSuccessFlash=30;
-        addFloor(pts);
+        /* v2.3.131 (PDF Uspr v2.3.130 U27): 6 belek zamiast 3 — punkty skalowane w proporcji 3/6,
+           żeby pełne zlecenie płaciło tę samą kwotę co przed zmianą. */
+        const ptsRaw=diff<15?20:diff<30?12:6; const pts=ptsRaw*0.5; totalScore+=pts;beamPlaced++;taskDone++;beamSuccessFlash=30;
+        addFloor(ptsRaw);
         // Iskry przy spawaniu belki — dużo dla idealnego, mniej dla dobrego
         const bxC=W/2;emitSparks(bxC-80,beamY+11,pts>=20?20:12,'#ffe066');
         emitSparks(bxC+80,beamY+11,pts>=20?20:12,'#ffe066');
@@ -63545,6 +64181,7 @@ function _startConstructionGame(){
     document.removeEventListener('keydown',kd);document.removeEventListener('keyup',ku);
     // #84 NERF -30% — construction był ~22zł/min, teraz ~15zł/min (zgodne — najwolniejsza praca)
     /* v2.1.573 balans (playtest review): budowa ma limit 180s — NAJDŁUŻSZA praca, a płaciła max ~76 (25 zł/min, najgorszy per-czas po naprawie myjni). Baza podniesiona: 20+score*0.35 → 40+score*0.85 (max ~176, ~1 zł/s jak myjnia 150zł/150s). */
+    totalScore=Math.round(totalScore);/* v2.3.131 U27: normalizacja punktów jest ułamkowa — do wypłaty i na ekran idzie liczba całkowita */
     let pay=Math.floor(55+totalScore*0.9); /* v2.1.726: 40+0.85→55+0.9 (lepszy floor dla słabszej gry + lekki boost pasma) */
     pay=Math.floor(pay*getPracaBonus('construction')); // F3-FIX-B
     if(G.managementDeal)pay=Math.floor(pay*Math.min(1.2,G.managementBonus));
@@ -64441,7 +65078,7 @@ window._metalValleyNegoTry=function(style){
 /* §17: modal potwierdzenia. */
 window._metalValleyConfirmModal=function(){
   const s=window._mvSession; if(!s) return; const v=s.veh;
-  const body=`Potwierdzenie rozbiórki\n\nPojazd: ${v.kind==='camper'?'🚐':'🚗'} ${v.name}\nOtrzymasz: ${s.currentNet.toLocaleString('pl')} zł\nCzas rozliczenia: ${s.days} dni gry\n\nPo zatwierdzeniu pojazd zniknie z Twoich pojazdów, nie będzie można nim jeździć ani go odzyskać, a pieniądze otrzymasz dopiero po rozliczeniu.\n\nZatwierdzić rozbiórkę?`;
+  const body=`Potwierdzenie rozbiórki\n\nPojazd: ${v.kind==='camper'?'🚐':'🚗'} ${(typeof window._vehLabelOf==='function')?window._vehLabelOf(v.kind,v.id||v.name):v.name}\nOtrzymasz: ${s.currentNet.toLocaleString('pl')} zł\nCzas rozliczenia: ${s.days} dni gry\n\nPo zatwierdzeniu pojazd zniknie z Twoich pojazdów, nie będzie można nim jeździć ani go odzyskać, a pieniądze otrzymasz dopiero po rozliczeniu.\n\nZatwierdzić rozbiórkę?`;
   if(typeof gameConfirm==='function') gameConfirm(body, ()=>{ window._confirmVehicleScrap(); }, null); else window._confirmVehicleScrap();
 };
 /* §18: zatwierdzenie — usuń pojazd + dodaj oczekującą wypłatę. */
@@ -64458,7 +65095,7 @@ window._confirmVehicleScrap=function(){
     if(G.car&&G.car.name===v.id){ G.car=null; G._inCar=false; G._carParkedAt=null; }
   }
   const id='mvp'+(G.day||0)+'_'+G.metalValley.pending.length+'_'+Math.floor(s.currentNet||0);
-  G.metalValley.pending.push({ id, vehKind:v.kind, vehId:v.id, vehName:v.name, amount:s.currentNet, payoutDay:(G.day||0)+s.days, status:'pending', complication:null });
+  G.metalValley.pending.push({ id, vehKind:v.kind, vehId:v.id, vehName:(typeof window._vehLabelOf==='function')?window._vehLabelOf(v.kind,v.id||v.name):v.name, amount:s.currentNet, payoutDay:(G.day||0)+s.days, status:'pending', complication:null });
   G.metalValley.scrapJobsCompleted=(G.metalValley.scrapJobsCompleted||0)+1; G.metalValley.lastScrapDay=(G.day||0);
   window._metalValleyEnsure();
   const amt=s.currentNet, dd=s.days; window._mvSession=null;
@@ -64479,9 +65116,41 @@ window._metalValleySettlements=function(){
     const ready=(p.payoutDay||0)<=(G.day||0); const daysLeft=Math.max(0,(p.payoutDay||0)-(G.day||0));
     /* v2.3.110 FIX: id w SINGLE-quotes + escape (JSON.stringify wstrzykiwał " → klik „Odbierz" nie działał). */
     const pidEsc=String(p.id).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
-    return `<div style="background:#0e1216;border:1px solid ${ready?'#27ae60':'#2a3238'};border-radius:8px;padding:10px;margin-bottom:7px;font-size:12.5px;color:#cdd"><div><b>${p.vehName}</b> <span style="color:#8a939a">· ${p.amount.toLocaleString('pl')} zł</span></div><div style="margin-top:3px">${ready?'<span style="color:#2ecc71;font-weight:700">Gotowe do odbioru</span>':'<span style="color:#f39c12">w trakcie rozliczenia · dostępne za '+daysLeft+' dni</span>'}</div>${ready?`<button class="cbtn" style="width:100%;margin-top:6px;border-color:#27ae60;color:#7ec87e" onclick="window._claimMetalValleyPayout&&window._claimMetalValleyPayout('${pidEsc}')">💰 Odbierz ${p.amount.toLocaleString('pl')} zł</button>`:''}</div>`;
+    return `<div style="background:#0e1216;border:1px solid ${ready?'#27ae60':'#2a3238'};border-radius:8px;padding:10px;margin-bottom:7px;font-size:12.5px;color:#cdd"><div><b>${(typeof window._vehLabelOfPending==='function')?window._vehLabelOfPending(p):p.vehName}</b> <span style="color:#8a939a">· ${p.amount.toLocaleString('pl')} zł</span></div><div style="margin-top:3px">${ready?'<span style="color:#2ecc71;font-weight:700">Gotowe do odbioru</span>':'<span style="color:#f39c12">w trakcie rozliczenia · dostępne za '+daysLeft+' dni</span>'}</div>${ready?`<button class="cbtn" style="width:100%;margin-top:6px;border-color:#27ae60;color:#7ec87e" onclick="window._claimMetalValleyPayout&&window._claimMetalValleyPayout('${pidEsc}')">💰 Odbierz ${p.amount.toLocaleString('pl')} zł</button>`:''}</div>`;
   }).join('');
-  panel.innerHTML=`<div id="mg-job-content" style="max-width:440px;margin:0 auto"><div style="text-align:center;font-size:17px;color:#95a5a6;font-weight:800;margin-bottom:10px">📋 Rozliczenia Metal Valley Yard</div>${rows}<button class="cbtn" style="width:100%;margin-top:6px;color:#e07070;border-color:#5a1a1a" onclick="${backJs}">← Wróć</button></div>`;
+  /* v2.3.131 (PDF Uspr v2.3.130 U10): panel rozdzielony na DWIE niezależne sekcje.
+     „Rozbiórki" działają jak dotąd. „Kasacje" to osobna usługa: najpierw decyzja gracza, potem
+     jeden dzień roboczy prasy i wypłata wg klasy pojazdu. */
+  if(typeof window._kasacjaEnsure==='function') window._kasacjaEnsure();
+  const mvK=G.metalValley;
+  const queue=(mvK.scrapQueue||[]), kas=(mvK.kasacje||[]);
+  let kasRows='';
+  if(!queue.length && !kas.length){
+    kasRows='<div style="color:#9aa;font-size:13px;text-align:center;padding:12px">Brak pojazdów w kasacji.</div>';
+  } else {
+    kasRows=queue.map(q=>{
+      const idEsc=String(q.id).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+      const waiting=(G.day||0)-(q.towedDay||0);
+      const payout=window._kasacjaPayoutFor(q.vehKind,q.vehId);
+      return `<div style="background:#0e1216;border:1px solid #6a5a1a;border-radius:8px;padding:10px;margin-bottom:7px;font-size:12.5px;color:#cdd">
+        <div><b>${q.vehKind==='camper'?'🚐':'🚗'} ${q.vehName}</b> <span style="color:#8a939a">· ${window._kasacjaClassLabel(q.vehKind,q.vehId)}</span></div>
+        <div style="margin-top:3px;color:#e8c56a">Czeka na Twoją decyzję · ${waiting} ${waiting===1?'dzień':'dni'} na placu${q.penaltyTotal?' · postojowe '+q.penaltyTotal.toLocaleString('pl')+' zł':''}</div>
+        <div style="color:#8a939a;font-size:11.5px">Po kasacji otrzymasz ${payout.toLocaleString('pl')} zł.</div>
+        <button class="cbtn" style="width:100%;margin-top:6px;border-color:#e8a020;color:#e8c56a" onclick="window._kasacjaDecisionPanel&&window._kasacjaDecisionPanel('${idEsc}')">⚖️ Podejmij decyzję</button></div>`;
+    }).join('')+kas.map(k=>{
+      const idEsc=String(k.id).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+      const ready=(k.status==='ready');
+      return `<div style="background:#0e1216;border:1px solid ${ready?'#27ae60':'#2a3238'};border-radius:8px;padding:10px;margin-bottom:7px;font-size:12.5px;color:#cdd">
+        <div><b>${k.vehKind==='camper'?'🚐':'🚗'} ${k.vehName}</b> <span style="color:#8a939a">· ${k.amount.toLocaleString('pl')} zł</span></div>
+        <div style="margin-top:3px">${ready?'<span style="color:#2ecc71;font-weight:700">Kasacja zakończona — gotowe do odbioru</span>':'<span style="color:#f39c12">w trakcie kasacji – 1 dzień</span>'}</div>
+        ${ready?`<button class="cbtn" style="width:100%;margin-top:6px;border-color:#27ae60;color:#7ec87e" onclick="window._kasacjaClaim&&window._kasacjaClaim('${idEsc}')">💰 Odbierz ${k.amount.toLocaleString('pl')} zł</button>`:''}</div>`;
+    }).join('');
+  }
+  const secHdr=(t)=>`<div style="font-size:13px;font-weight:800;color:#8fb8d8;margin:10px 2px 6px;letter-spacing:.4px">${t}</div>`;
+  panel.innerHTML=`<div id="mg-job-content" style="max-width:440px;margin:0 auto"><div style="text-align:center;font-size:17px;color:#95a5a6;font-weight:800;margin-bottom:4px">📋 Rozliczenia Metal Valley Yard</div>
+    ${secHdr('🔧 Rozbiórki')}${rows}
+    ${secHdr('♻️ Kasacje')}${kasRows}
+    <button class="cbtn" style="width:100%;margin-top:6px;color:#e07070;border-color:#5a1a1a" onclick="${backJs}">← Wróć</button></div>`;
 };
 /* §19: odbiór wypłaty. */
 window._claimMetalValleyPayout=function(id){
@@ -64504,12 +65173,213 @@ window._metalValleyTickPayouts=function(){
     if((p.payoutDay||0)<=(G.day||0)){
       p._matured=true;
       if(!p.complication && Math.random()<0.10){ const cut=0.05+Math.random()*0.05; p.amount=Math.max(1,Math.floor(p.amount*(1-cut))); p.complication='parts_lower'; }
-      const sms='Rozliczenie za pojazd '+p.vehName+' gotowe. Części poszły, plac odetchnął, a Ty możesz odebrać swoje pieniądze. Wpadnij do Metal Valley Yard albo potwierdź odbiór w panelu.';
+      const sms='Rozliczenie za pojazd '+((typeof window._vehLabelOfPending==='function')?window._vehLabelOfPending(p):p.vehName)+' gotowe. Części poszły, plac odetchnął, a Ty możesz odebrać swoje pieniądze. Wpadnij do Metal Valley Yard albo potwierdź odbiór w panelu.';
       if(typeof window._sendSMS==='function'){ try{ window._sendSMS('Rysiek „Prasa"', sms); }catch(e){ if(typeof notify==='function') notify('📩 '+sms); } }
       else if(typeof notify==='function') notify('📩 Rysiek: '+sms);
     }
   }
 };
+/* ═══════════ KASACJA MODULE START (PDF „Usprawnienia v2.3.130" U6 + U10) ═══════════════════════
+   Rozdzielenie DWÓCH usług, które gra dotąd traktowała jak jedną:
+   • ROZBIÓRKA — Rysiek rozbiera pojazd na części, wycena + negocjacje, rozliczenie po kilku dniach
+     (istniejące `G.metalValley.pending`, bez zmian).
+   • KASACJA — pojazd odholowany z Garage 77 trafia na plac i CZEKA NA DECYZJĘ GRACZA. Samo holowanie
+     nie oznacza już zgody na zniszczenie pojazdu. Gracz potwierdza albo rezygnuje; za każdą dobę zwłoki
+     płaci postojowe, a po trzech dniach dostaje SMS od Ryśka. Kasacja trwa 1 DZIEŃ ROBOCZY (bez weekendu),
+     stawka zależy od klasy pojazdu, a wypłata jest dostępna dopiero po zakończeniu usługi. */
+window._KASACJA_PENALTY_PER_DAY=1500;      /* PDF: 1500 zł za każdą kolejną dobę bez decyzji */
+window._KASACJA_SERVICE_FEE=250;           /* koszt samej usługi — PDF wymaga opłaty „od razu", nie podając kwoty */
+window._KASACJA_SMS_AFTER_DAYS=3;          /* PDF: po 3 dniach odzywa się Rysiek „Prasa" */
+/* PDF: stawki za kasację wg klasy pojazdu (klasy zgodne z CAR_CLASS_LABELS). */
+window._KASACJA_PAYOUT_BY_CLASS={A:600,B:650,C:700,D:750,EF:650,J:1000,M:750};
+/* Kamper nie należy do klas osobowych — traktowany jak duży van (klasa M). */
+window._kasacjaClassOf=function(kind,vehId){
+  if(kind==='camper') return 'M';
+  const c=(typeof CAR_CATALOG!=='undefined')?CAR_CATALOG.find(x=>x.name===vehId):null;
+  return (c&&c.cls)?c.cls:'C';
+};
+window._kasacjaPayoutFor=function(kind,vehId){
+  const cls=window._kasacjaClassOf(kind,vehId);
+  return window._KASACJA_PAYOUT_BY_CLASS[cls]||700;
+};
+window._kasacjaClassLabel=function(kind,vehId){
+  const cls=window._kasacjaClassOf(kind,vehId);
+  return (typeof CAR_CLASS_LABELS!=='undefined'&&CAR_CLASS_LABELS[cls])?CAR_CLASS_LABELS[cls]:('Klasa '+cls);
+};
+/* „1 dzień roboczy (nie w weekendy)" — dzień gry liczony od poniedziałku (G.day 1 = poniedziałek).
+   Zwraca najbliższy dzień roboczy PO dniu startowym. */
+window._kasacjaNextWorkday=function(fromDay){
+  let d=(fromDay||0)+1;
+  for(let i=0;i<7;i++){ const dow=((d-1)%7+7)%7; if(dow<5) return d; d++; }
+  return d;
+};
+window._kasacjaEnsure=function(){
+  window._metalValleyEnsure();
+  const mv=G.metalValley;
+  if(!Array.isArray(mv.scrapQueue)) mv.scrapQueue=[];   /* czeka na decyzję gracza */
+  if(!Array.isArray(mv.kasacje)) mv.kasacje=[];         /* zatwierdzone, w trakcie / gotowe do odbioru */
+  return mv;
+};
+/* Odholowanie na plac BEZ automatycznej zgody na kasację (PDF U6). Zwraca wpis kolejki. */
+window._kasacjaTowIn=function(kind){
+  const mv=window._kasacjaEnsure();
+  let vehId,label;
+  if(kind==='camper'){
+    if(!G.camper||!G.camper.owned) return null;
+    vehId=G.camper.model||'camper'; label=(typeof window._vehLabelOf==='function')?window._vehLabelOf('camper',vehId):'Kamper';
+    G.camper.owned=false; G.camper.activeCamperId=null; G._camperParkedAt=null; G._inCamper=false; G.camper.destroyed=false;
+  } else {
+    if(!G.car||!G.car.name) return null;
+    vehId=G.car.name; label=(typeof window._vehLabelOf==='function')?window._vehLabelOf('car',vehId):vehId;
+    if(Array.isArray(G._ownedCars)) G._ownedCars=G._ownedCars.filter(n=>n!==vehId);
+    if(G._carCond) delete G._carCond[vehId];
+    if(G.car&&G.car.name===vehId){ G.car=null; G._inCar=false; G._carParkedAt=null; }
+  }
+  const entry={id:'kq'+(G.day||0)+'_'+mv.scrapQueue.length+'_'+String(vehId).length, vehKind:kind, vehId, vehName:label,
+    cls:window._kasacjaClassOf(kind,vehId), towedDay:(G.day||0), lastPenaltyDay:(G.day||0), penaltyTotal:0, smsSent:false};
+  mv.scrapQueue.push(entry);
+  return entry;
+};
+/* Dobowy tick: postojowe za zwłokę + SMS Ryśka po 3 dniach + dojrzewanie kasacji. */
+window._kasacjaTick=function(){
+  const mv=window._kasacjaEnsure();
+  const today=(G.day||0);
+  for(const q of mv.scrapQueue){
+    const daysWaiting=today-(q.lastPenaltyDay||q.towedDay||today);
+    if(daysWaiting>0){
+      const fee=window._KASACJA_PENALTY_PER_DAY*daysWaiting;
+      q.penaltyTotal=(q.penaltyTotal||0)+fee;
+      q.lastPenaltyDay=today;
+      if(typeof notify==='function') notify('♻️ Metal Valley Yard: postojowe za '+q.vehName+' — +'+fee.toLocaleString('pl')+' zł do rozliczenia (łącznie '+q.penaltyTotal.toLocaleString('pl')+' zł).');
+    }
+    if(!q.smsSent && (today-(q.towedDay||today))>=window._KASACJA_SMS_AFTER_DAYS){
+      q.smsSent=true;
+      if(typeof _smsSend==='function') _smsSend('rysiek','Pamiętasz, że stoją u mnie na placu Twoje zwłoki na czterech kołach??? Nie chce Ci nabijać paragonu, ale przyjeżdżają kolejni… Jaka decyzja?',{bypass:true,replySet:'rysiek_kasacja_decision'});
+      else if(typeof notify==='function') notify('📩 Rysiek „Prasa": Pamiętasz, że stoją u mnie na placu Twoje zwłoki na czterech kołach???');
+    }
+  }
+  for(const k of mv.kasacje){
+    if(k.status==='in_progress' && (k.readyDay||0)<=today){
+      k.status='ready';
+      if(typeof _smsSend==='function') _smsSend('rysiek','Kasacja zakończona: '+k.vehName+'. Prasa zrobiła swoje. Odbierz '+k.amount.toLocaleString('pl')+' zł w rozliczeniach.',{bypass:true});
+      else if(typeof notify==='function') notify('♻️ Kasacja zakończona: '+k.vehName+' — do odbioru '+k.amount.toLocaleString('pl')+' zł.');
+    }
+  }
+};
+/* Panel decyzji o kasacji (PDF U6: „Potwierdź" / „Zrezygnuj" / „Powróć"). */
+window._kasacjaDecisionPanel=function(qid){
+  const mv=window._kasacjaEnsure();
+  const q=mv.scrapQueue.find(x=>x.id===qid); if(!q){ if(window._metalValleySettlements) window._metalValleySettlements(); return; }
+  const panel=document.getElementById('mg-job'); if(!panel) return;
+  panel.classList.add('on'); panel.style.display='';
+  const payout=window._kasacjaPayoutFor(q.vehKind,q.vehId);
+  const waiting=(G.day||0)-(q.towedDay||0);
+  const due=(q.penaltyTotal||0)+window._KASACJA_SERVICE_FEE;
+  const idEsc=String(q.id).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  panel.innerHTML=`<div id="mg-job-content" style="max-width:460px;margin:0 auto">
+    <div style="text-align:center;font-size:17px;color:#95a5a6;font-weight:800;margin-bottom:8px">♻️ Kasacja pojazdu — decyzja</div>
+    <div style="background:#0e1216;border:1px solid #2a3238;border-radius:9px;padding:12px;color:#cdd;font-size:12.5px;line-height:1.6;margin-bottom:10px">
+      <div><b>${q.vehKind==='camper'?'🚐':'🚗'} ${q.vehName}</b></div>
+      <div style="color:#8a939a">${window._kasacjaClassLabel(q.vehKind,q.vehId)}</div>
+      <div style="margin-top:6px">Na placu od: <b>${waiting} ${waiting===1?'dzień':'dni'}</b></div>
+      <div>Wypłata po kasacji: <b style="color:#2ecc71">${payout.toLocaleString('pl')} zł</b></div>
+      <div>Czas usługi: <b style="color:#f39c12">1 dzień roboczy</b> (bez weekendów)</div>
+      <div style="margin-top:6px">Do zapłaty przy potwierdzeniu: <b style="color:#e8a020">${due.toLocaleString('pl')} zł</b>
+        <span style="color:#8a939a">(usługa ${window._KASACJA_SERVICE_FEE.toLocaleString('pl')} zł${q.penaltyTotal?' + postojowe '+q.penaltyTotal.toLocaleString('pl')+' zł':''})</span></div>
+    </div>
+    <div style="color:#8a939a;font-size:11px;line-height:1.5;margin-bottom:10px">Każda kolejna doba bez decyzji to ${window._KASACJA_PENALTY_PER_DAY.toLocaleString('pl')} zł postojowego. Rezygnacja oddaje pojazd Tobie — stanie przed bramą Metal Valley Yard.</div>
+    <div style="display:flex;gap:8px">
+      <button class="cbtn" style="flex:1;border-color:#27ae60;color:#7ec87e" onclick="window._kasacjaConfirm&&window._kasacjaConfirm('${idEsc}')">✓ Potwierdź</button>
+      <button class="cbtn" style="flex:1;border-color:#e8a020;color:#e8c56a" onclick="window._kasacjaCancel&&window._kasacjaCancel('${idEsc}')">✕ Zrezygnuj</button>
+      <button class="cbtn" style="flex:1;color:#e07070;border-color:#5a1a1a" onclick="window._metalValleySettlements&&window._metalValleySettlements()">← Powróć</button>
+    </div></div>`;
+};
+window._kasacjaConfirm=function(qid){
+  const mv=window._kasacjaEnsure();
+  const i=mv.scrapQueue.findIndex(x=>x.id===qid); if(i<0) return;
+  const q=mv.scrapQueue[i];
+  const due=(q.penaltyTotal||0)+window._KASACJA_SERVICE_FEE;
+  if((G.money||0)<due){ if(typeof showMsg==='function') showMsg('💸 Rysiek: „Najpierw uregulujmy plac i usługę — '+due.toLocaleString('pl')+' zł. Bez tego prasa nie ruszy."','r',5500); return; }
+  G.money-=due; if(typeof spent==='function') spent(due);
+  const payout=window._kasacjaPayoutFor(q.vehKind,q.vehId);
+  mv.scrapQueue.splice(i,1);
+  mv.kasacje.push({id:'kz'+(G.day||0)+'_'+mv.kasacje.length, vehKind:q.vehKind, vehId:q.vehId, vehName:q.vehName, cls:q.cls,
+    amount:payout, startDay:(G.day||0), readyDay:window._kasacjaNextWorkday(G.day||0), status:'in_progress'});
+  if(typeof showMsg==='function') showMsg('♻️ Kasacja zlecona: '+q.vehName+'. Zapłacono '+due.toLocaleString('pl')+' zł. Po jednym dniu roboczym odbierzesz '+payout.toLocaleString('pl')+' zł.','g',7000);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  if(typeof updateHUD==='function') updateHUD();
+  if(window._metalValleySettlements) window._metalValleySettlements();
+};
+window._kasacjaCancel=function(qid){
+  const mv=window._kasacjaEnsure();
+  const i=mv.scrapQueue.findIndex(x=>x.id===qid); if(i<0) return;
+  const q=mv.scrapQueue[i];
+  const due=(q.penaltyTotal||0);
+  if(due>0 && (G.money||0)<due){ if(typeof showMsg==='function') showMsg('💸 Rysiek: „Postojowe '+due.toLocaleString('pl')+' zł najpierw. Plac nie jest darmowy."','r',5000); return; }
+  if(due>0){ G.money-=due; if(typeof spent==='function') spent(due); }
+  mv.scrapQueue.splice(i,1);
+  /* pojazd wraca do gracza — stoi przed bramą Metal Valley Yard */
+  const gate={wx:4400,wy:850,room:'ulica'};
+  if(q.vehKind==='camper'){ G.camper.owned=true; G.camper.model=q.vehId; G._camperParkedAt={wx:gate.wx,wy:gate.wy,room:gate.room}; }
+  else {
+    G._ownedCars=G._ownedCars||[]; if(!G._ownedCars.includes(q.vehId)) G._ownedCars.push(q.vehId);
+    const c=(typeof CAR_CATALOG!=='undefined')?CAR_CATALOG.find(x=>x.name===q.vehId):null;
+    if(!G.car) G.car={name:q.vehId,speed:c?c.speed:1,price:c?c.price:0,condition:1};
+    G._carParkedAt={wx:gate.wx,wy:gate.wy,room:gate.room};
+  }
+  if(typeof showMsg==='function') showMsg('♻️ Rysiek: „Twoja sprawa. Stoi przed bramą — zabieraj." Pojazd wrócił do Ciebie'+(due>0?' (postojowe −'+due.toLocaleString('pl')+' zł)':'')+'.','i',7000);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  if(typeof updateHUD==='function') updateHUD();
+  if(window._metalValleySettlements) window._metalValleySettlements();
+};
+window._kasacjaClaim=function(kid){
+  const mv=window._kasacjaEnsure();
+  const i=mv.kasacje.findIndex(x=>x.id===kid); if(i<0) return;
+  const k=mv.kasacje[i];
+  if(k.status!=='ready'){ if(typeof showMsg==='function') showMsg('♻️ Kasacja jeszcze trwa — wróć po zakończeniu usługi.','r',4000); return; }
+  G.money=(G.money||0)+k.amount; G.totalEarned=(G.totalEarned||0)+k.amount;
+  mv.kasacje.splice(i,1);
+  if(typeof showMsg==='function') showMsg('💰 Odebrano '+k.amount.toLocaleString('pl')+' zł za kasację: '+k.vehName+'.','g',5500);
+  if(typeof updateHUD==='function') updateHUD(); if(typeof saveGameSilent==='function') saveGameSilent();
+  if(window._metalValleySettlements) window._metalValleySettlements();
+};
+/* Odpowiedzi gracza na SMS Ryśka (PDF U6 — trzy warianty i trzy spersonalizowane reakcje).
+   Wariant 3 („Spal te budę") oznacza ZGODĘ na kasację wszystkich pojazdów czekających na placu. */
+window._RYSIEK_REPLIES={
+  rysiek_kasacja_decision_o1:{set:'rysiek_kasacja_decision', label:'„Wybacz, natłok spraw… Uregulujemy to"',
+    text:'Wybacz, natłok spraw… Niebawem pojawię się uregulować tę sytuację. Przepraszam z góry za utrudnienia',
+    reply:'Wszystko rozumiem, ale ten natłok spraw będzie Cię kosztował, pamiętaj o tym. Przetrzymam to jeszcze dla Ciebie, ale zjaw się jak najszybciej.'},
+  rysiek_kasacja_decision_o2:{set:'rysiek_kasacja_decision', label:'„Nie ukrywam, ale mam ciężką sytuację…"',
+    text:'Nie będę ukrywać, ale mam aktualnie kurewsko ciężką sytuację… Postaram się u Was pojawić jak najszybciej jak to możliwe. Wybacz za utrudnienia.',
+    reply:'Ciężką sytuację powiadasz… Nie chcesz wiedzieć co ja mam tutaj teraz w papierach i na placu… W przyszłym tygodniu będę zmuszony podnieść wszystkim ceny o połowę, bo mamy niestety ograniczoną ilość miejsc. Zrozum, ja też nie mam łatwo…'},
+  rysiek_kasacja_decision_o3:{set:'rysiek_kasacja_decision', label:'„Spal te budę"',
+    text:'Rychu… Spal tę jebaną budę w pył. Wystaw mi rachunek, a wyślę Ci przelew.',
+    action:'kasacjaConsentAll',
+    reply:'Mówisz i masz. Zaraz wjeżdżam na prasę. Mam nadzieję, że pozbieraliście z niego swoje zabawki, bo nic z nich nie zostanie'},
+};
+/* Zgoda przez SMS — uruchamia kasację wszystkich pojazdów z kolejki i informuje o finansach (PDF U6). */
+window._kasacjaConsentAll=function(){
+  const mv=window._kasacjaEnsure();
+  if(!mv.scrapQueue.length) return;
+  const ids=mv.scrapQueue.map(q=>q.id);
+  let total=0, lines=[];
+  for(const id of ids){
+    const q=mv.scrapQueue.find(x=>x.id===id); if(!q) continue;
+    const payout=window._kasacjaPayoutFor(q.vehKind,q.vehId);
+    const due=(q.penaltyTotal||0)+window._KASACJA_SERVICE_FEE;
+    if((G.money||0)<due){ if(typeof notify==='function') notify('♻️ Rysiek czeka na uregulowanie '+due.toLocaleString('pl')+' zł za '+q.vehName+' — bez tego prasa nie ruszy.'); continue; }
+    G.money-=due; if(typeof spent==='function') spent(due);
+    const j=mv.scrapQueue.findIndex(x=>x.id===id); if(j>=0) mv.scrapQueue.splice(j,1);
+    mv.kasacje.push({id:'kz'+(G.day||0)+'_'+mv.kasacje.length, vehKind:q.vehKind, vehId:q.vehId, vehName:q.vehName, cls:q.cls,
+      amount:payout, startDay:(G.day||0), readyDay:window._kasacjaNextWorkday(G.day||0), status:'in_progress'});
+    total+=payout; lines.push(q.vehName+' — '+payout.toLocaleString('pl')+' zł');
+  }
+  if(lines.length && typeof showMsg==='function'){
+    showMsg('♻️ Kasacja zlecona. Po jednym dniu roboczym odbierzesz łącznie '+total.toLocaleString('pl')+' zł ('+lines.join(', ')+').','g',8000);
+  }
+  if(typeof updateHUD==='function') updateHUD(); if(typeof saveGameSilent==='function') saveGameSilent();
+};
+/* ═══════════ KASACJA MODULE END ═══════════════════════════════════════════════════════════════ */
 function startScrapMG(){
   if((G.energy||0)<6){if(typeof showMsg==='function')showMsg('⚡ Za mało energii na sortowanie złomu (potrzeba 6)','r');return;}
   showJobIntro({icon:'♻️',name:'Skup złomu — sortowanie',wage:'90–180',difficulty:'Średnia',diffColor:'#f1c40f',
@@ -65242,7 +66112,7 @@ function _startZmywakGame(){
   function cleanup(){
     gameActive=false;
     if(window._zmwkTimer){clearInterval(window._zmwkTimer);window._zmwkTimer=null;}
-    if(earned>0){earn(earned);showMsg(`🫧 Zmywak: zarobiono ${earned} zł!`);addXP(earned/5);updateHUD();progressQuest('zmywak');earned=0;}
+    if(earned>0){earn(earned);showMsg(`Zmywak: zarobiono ${earned} zł!`);/* v2.3.131 (PDF Uspr v2.3.130 U26): bez emoji w komunikacie */addXP(earned/5);updateHUD();progressQuest('zmywak');earned=0;}
   }
 
   window._zmwkTimer=setInterval(()=>{
@@ -70076,6 +70946,7 @@ window._camperEnsure=function(){
   d('purchaseDay',0); d('purchasePrice',0); d('sourceShop',''); d('sellerNpc',''); d('soldBack',false); d('stolen',false);
   if(!Array.isArray(c.upgrades)) c.upgrades=[];
   if(!Array.isArray(c.history)) c.history=[];
+  if(!Array.isArray(c.garage)) c.garage=[];/* v2.3.131 (PDF Uspr v2.3.130 U25): drugi kamper — save-safe (stare zapisy dostają pusty garaż) */
   /* GRANDFATHER: istniejący gracz z odblokowanym Trapem zachowuje kamper jako posiadany (kompatybilność save). */
   /* v2.3.107 (user: „kampery do kupienia — gracz ma je OD RAZU przed zakupem"): Trap.unlocked odblokowuje tylko
      SKLEP (Gravel Lot Motors), NIE daje własności. Kamper zdobywasz WYŁĄCZNIE kupując (buyCamper). Grandfather
@@ -70212,6 +71083,7 @@ window._vehTrafficEnsure=function(){
   const t=G.traffic;
   const dn=(k,v)=>{ if(typeof t[k]!=='number'||isNaN(t[k])) t[k]=v; };
   dn('roadIncidentScore',0); dn('vehicleConfiscations',0); dn('repeatedCrashCount',0); dn('publicCrashExposure',0);
+  dn('npcContactCount',0);/* v2.3.131 (PDF Uspr v2.3.130 U16): licznik kontaktów z przechodniami/pojazdami NPC — próg konfiskaty */
   if(typeof t.criticalDrivingWarningShown!=='boolean') t.criticalDrivingWarningShown=false;
   if(!('drivingBanUntilDay' in t)) t.drivingBanUntilDay=null;
   if(!('lastMajorCrashDay' in t)) t.lastMajorCrashDay=null;
@@ -70224,6 +71096,10 @@ window._vehTrafficEnsure=function(){
 window._vehDmg=function(kind){ const st=window._vehGet(kind); return (st&&st.dmg)?st.dmg:null; };
 window._vehCondRef=function(kind){ return kind==='camper'?(G.camper||{}):(G.car||{}); };
 window._vehOverall=function(kind){ const r=window._vehCondRef(kind); return (typeof r.condition==='number'&&!isNaN(r.condition))?Math.max(0,Math.min(100,r.condition)):100; };
+/* v2.3.131 (PDF Uspr v2.3.130 U7/U8): JEDEN formatter procentu stanu pojazdu do WYŚWIETLANIA.
+   Wewnętrznie stan zostaje ułamkowy (matematyka napraw/wyceny bez skoków), ale gracz nigdy nie widzi
+   „1.1774999999999998%" ani „70.10749999999999%" — zawsze pełną liczbę. */
+window._condPct=function(v){ const n=Number(v); return (isNaN(n)?0:Math.round(Math.max(0,Math.min(100,n)))); };
 /* §8 poziomy wizualne: przerzucaj flagi na progach overallHealth (+ pojedyncze strefy krytyczne). */
 window._vehUpdateVisual=function(kind){
   const d=window._vehDmg(kind); if(!d) return;
@@ -70319,10 +71195,15 @@ window._vehClassifyObstacle=function(b){
   if((b.w||0)>60 && (b.h||0)>60) return 'building';
   return 'wall';
 };
-/* §25 (lekki akumulator; Tier G rozbuduje ostrzeżenie/konfiskatę). */
-window._vehAddIncidentScore=function(pts){
+/* §25 (lekki akumulator; Tier G rozbuduje ostrzeżenie/konfiskatę).
+   v2.3.131 (PDF Uspr v2.3.130 U16+U37): drugi argument oznacza kontakt z ŻYWYM uczestnikiem ruchu
+   (przechodniem NPC albo pojazdem NPC). Tylko takie kontakty liczą się do konfiskaty. Uderzenia
+   w latarnie, płoty, budynki i inne elementy terenu nadal psują pojazd i mogą kosztować mandat
+   za zniszczenie mienia, ale NIE prowadzą już do odebrania pojazdu. */
+window._vehAddIncidentScore=function(pts,isNpcContact){
   if(typeof window._vehTrafficEnsure==='function') window._vehTrafficEnsure();
   const t=G.traffic; if(!t) return;
+  if(isNpcContact) t.npcContactCount=(t.npcContactCount||0)+1;
   t.roadIncidentScore=Math.max(0,(t.roadIncidentScore||0)+(pts||0));
   if((pts||0)>=20){ /* §25 poważny incydent → licznik recydywy w oknie 7 dni */
     if(t.lastMajorCrashDay!=null && (G.day||0)-(t.lastMajorCrashDay)<=7) t.repeatedCrashCount=(t.repeatedCrashCount||0)+1;
@@ -70349,6 +71230,10 @@ window._vehConfiscationFine=function(){
 /* §27 warunek konfiskaty. */
 window._vehShouldConfiscate=function(){
   window._vehTrafficEnsure(); const t=G.traffic;
+  /* v2.3.131 (PDF Uspr v2.3.130 U16+U37): pojazd może zostać odebrany DOPIERO po co najmniej dziesięciu
+     fizycznych kontaktach z żywymi uczestnikami ruchu (przechodnie NPC, pojazdy NPC). Otarcie o latarnię,
+     płot czy ścianę nigdy nie kończy się konfiskatą — gracz szkodzi wtedy wyłącznie własnemu pojazdowi. */
+  if((t.npcContactCount||0)<10) return false;
   return (t.roadIncidentScore||0)>=100 || ((t.roadIncidentScore||0)>=80 && (t.repeatedCrashCount||0)>=3);
 };
 /* §27 konfiskata = zakaz jazdy 3 dni + mandat + heat/zniesławienie (pojazd NIE usuwany z save — reguła #1; „niedostępny" = zakaz). */
@@ -70439,7 +71324,7 @@ window._vehHandleHitAndRun=function(incident){
   if(typeof window._uwAddStat==='function'){ try{ window._uwAddStat('street_heat',25); }catch(_){} }
   G.violenceHeat=(G.violenceHeat||0)+10;
   if(typeof addDefamation==='function') addDefamation(20);
-  if(typeof window._vehAddIncidentScore==='function') window._vehAddIncidentScore(20);
+  if(typeof window._vehAddIncidentScore==='function') window._vehAddIncidentScore(20,true);/* v2.3.131 U37: ucieczka z miejsca zdarzenia z udziałem NPC */
   if(G.signalNine && typeof window._s9Effect==='function'){ try{ window._s9Effect({agencyHeat:8,brandTrust:-2}); }catch(_){} }
   if(typeof window._vehMaybeCrashPost==='function') window._vehMaybeCrashPost(incident);
   if(typeof showMsg==='function') showMsg('🏃 Uciekasz z miejsca zdarzenia. Ryzyko nagrania i uwagi służb rośnie — „heat" i zniesławienie mocno w górę.','r',6000);
@@ -70734,6 +71619,20 @@ window._vehMaybeImpact=function(hitX,hitY,dx,dy){
   const dealt=window._vehApplyDamage(kind,zone,amount,'collision');
   window._vehAddIncidentScore(dealt>=25?20:5); /* duże uderzenie=poważna kolizja, małe=mała (§25) */
   window._vehImpactFx(kind,type,dealt);
+  /* v2.3.131 (PDF Uspr v2.3.130 U2+U3): uderzenie we WŁASNY zaparkowany pojazd uszkadza również JEGO
+     (każdy pojazd w grze jest obiektem fizycznym), a nad trafionym pojazdem zapala się na 3 s status
+     z informacją, ile procent kondycji stracił. */
+  const _hb=(xDominant?hitX:hitY);
+  if(_hb && _hb._ownVeh && _hb._ownVeh!==kind){
+    const _vk=_hb._ownVeh;
+    const _before=window._vehOverall(_vk);
+    /* uderzony stoi — obrywa stroną od nadjeżdżającego; siła nieco mniejsza niż u jadącego */
+    const _zoneHit = xDominant ? ((dx<0)?'rightSide':'leftSide') : ((dy<0)?'rear':'front');
+    window._vehApplyDamage(_vk,_zoneHit,Math.max(2,Math.round(amount*0.8)),'collision');
+    const _after=window._vehOverall(_vk);
+    const _lost=Math.max(0,(typeof window._condPct==='function')?(window._condPct(_before)-window._condPct(_after)):Math.round(_before-_after));
+    if(_lost>0) window._vehHitBadge={kind:_vk, lost:_lost, until:Date.now()+3000};
+  }
   /* §17 Tier E: pojazd zbity do 0% w kolizji może zapłonąć. */
   if(window._vehOverall(kind)<=0 && typeof window._vehShouldCatchFire==='function' && window._vehShouldCatchFire(kind,'collision')){ if(typeof window._vehStartFire==='function') window._vehStartFire(kind); }
   /* §24 Tier F: mandat za zniszczenie mienia publicznego (throttle+szansa wewnątrz). */
@@ -70809,6 +71708,15 @@ window._vehEvaluateRepairability=function(kind){
   const fireDamage=(d.visual&&d.visual.fireDamage)?40:0;
   const totalLossScore=structuralDamage*0.45+mechanicalDamage*0.40+fireDamage*0.15;
   const exploded=!!(d.visual&&d.visual.exploded);
+  /* v2.3.131 (PDF Uspr v2.3.130, błąd B2) — ODBUDOWA PO OPŁACONYM HOLOWANIU.
+     Do tej pory opcja „Wezwij holowanie do warsztatu" była w praktyce MARTWA: panel holowania pojawia się
+     przy unieruchomieniu (0% kondycji), a przy 0% strefy są zerowane, więc `totalLossScore` zawsze
+     przekraczał próg i Garage 77 odsyłał gracza z kwitkiem — po pobraniu opłaty za kurs.
+     Teraz opłacony transport do warsztatu daje realne prawo do PEŁNEJ ODBUDOWY: pojazd stojący w Garage 77
+     po holowaniu jest naprawialny (koszt i tak rośnie proporcjonalnie do zniszczeń). Wyjątkiem zostaje
+     pojazd, który spłonął i eksplodował — tego nie składa już nikt, zostaje kasacja. */
+  const towed=!!(G.traffic&&G.traffic._towedToWorkshop&&G.traffic._towedToWorkshop.kind===kind);
+  if(towed&&!exploded) return {repairable:true, totalLossScore:Math.round(totalLossScore), exploded, rebuild:true};
   return {repairable:(totalLossScore<75 && !exploded), totalLossScore:Math.round(totalLossScore), exploded};
 };
 /* naprawa stref (per poziom): PODNIEŚ strefy → visual → ustaw condition WPROST (omija clamp-w-dół recalc).
@@ -70872,7 +71780,8 @@ window._vehRepairVehicle=function(kind,level){
   G.money-=cost; if(typeof spent==='function') spent(cost);
   if(cov>0 && typeof showMsg==='function') showMsg('🛡️ Ubezpieczenie pokryło '+Math.round(cov*100)+'% kosztu naprawy.','i',3500);
   const days=window._vehRepairDays(level);
-  if(days<=0){ window._vehRepairZones(kind,level); window._vehParkAtGarage77(kind); /* W2: postaw przed Garage 77 */ if(typeof showMsg==='function') showMsg('🔧 Naprawa wykonana — stan '+window._vehOverall(kind)+'%. Pojazd stoi przed Garage 77 (−'+cost.toLocaleString('pl')+' zł).','g',5000); }
+  if(G.traffic._towedToWorkshop&&G.traffic._towedToWorkshop.kind===kind) G.traffic._towedToWorkshop=null;/* v2.3.131 B2: naprawa podjęta → znacznik „odholowany" zbędny */
+  if(days<=0){ window._vehRepairZones(kind,level); window._vehParkAtGarage77(kind); /* W2: postaw przed Garage 77 */ if(typeof showMsg==='function') showMsg('🔧 Naprawa wykonana — stan '+window._condPct(window._vehOverall(kind))+'%. Pojazd stoi przed Garage 77 (−'+cost.toLocaleString('pl')+' zł).','g',5000); }
   else { G.traffic._repair={kind,level,readyDay:(G.day||0)+days,cost}; if(typeof showMsg==='function') showMsg('🔧 Pojazd w naprawie — gotowy za '+days+' dni gry (−'+cost.toLocaleString('pl')+' zł).','g',5500); }
   if(typeof updateHUD==='function') updateHUD(); if(typeof saveGameSilent==='function') saveGameSilent();
   return true;
@@ -70901,7 +71810,7 @@ window._vehScrapTotalLoss=function(kind){
   else { if(!G.car||!G.car.name) return false; veh={kind:'car',id:G.car.name,name:G.car.name,condition:window._vehOverall('car')}; }
   const o=(typeof window._calcVehicleScrap==='function')?window._calcVehicleScrap(veh):{net:500,days:2};
   const id='mvp'+(G.day||0)+'_'+G.metalValley.pending.length+'_'+Math.floor(o.net||0)+'_wreck';
-  G.metalValley.pending.push({id,vehKind:veh.kind,vehId:veh.id,vehName:veh.name,amount:o.net,payoutDay:(G.day||0)+(o.days||2),status:'pending',complication:null});
+  G.metalValley.pending.push({id,vehKind:veh.kind,vehId:veh.id,vehName:(typeof window._vehLabelOf==='function')?window._vehLabelOf(veh.kind,veh.id||veh.name):veh.name,amount:o.net,payoutDay:(G.day||0)+(o.days||2),status:'pending',complication:null});
   G.metalValley.scrapJobsCompleted=(G.metalValley.scrapJobsCompleted||0)+1; G.metalValley.lastScrapDay=(G.day||0);
   if(kind==='camper'){ G.camper.owned=false; G.camper.partsAtMetalValley=true; G.camper.destroyed=false; G.camper.activeCamperId=null; G._camperParkedAt=null; G._inCamper=false; }
   else { if(Array.isArray(G._ownedCars)) G._ownedCars=G._ownedCars.filter(n=>n!==veh.id); if(G._carCond) delete G._carCond[veh.id]; if(G.car&&G.car.name===veh.id){ G.car=null; G._inCar=false; G._carParkedAt=null; } }
@@ -70919,11 +71828,35 @@ window._vehCallTow=function(kind,destination){
   if((G.money||0)<cost){ if(typeof showMsg==='function') showMsg('💸 Nie masz gotówki na holowanie ('+cost.toLocaleString('pl')+' zł).','r',3500); return false; }
   G.money-=cost; if(typeof spent==='function') spent(cost);
   const k=G._knox; if(k){ k.towsCalled=(k.towsCalled||0)+1; k.trust=Math.min(100,(k.trust||0)+1); k.relationship=Math.min(100,(k.relationship||0)+1); k.lastTowDay=(G.day||0); }
-  if(destination==='metal_valley'){ const r=window._vehScrapTotalLoss(kind); if(typeof showMsg==='function') showMsg('🚚 Knox odholował wrak do Metal Valley Yard (−'+cost.toLocaleString('pl')+' zł). Rozliczenie w Metal Valley.','g',6500); }
+  if(destination==='metal_valley'){
+    /* v2.3.131 (PDF Uspr v2.3.130 U6): holowanie na plac ≠ zgoda na kasację. Pojazd trafia do kolejki decyzji
+       w sekcji „Kasacje" i czeka, aż gracz świadomie potwierdzi albo zrezygnuje z usługi. */
+    const q=(typeof window._kasacjaTowIn==='function')?window._kasacjaTowIn(kind):null;
+    if(q){
+      if(typeof window._knoxUnlock==='function') window._knoxUnlock('wreck');
+      const sms='Knox przywiózł Twój wrak na plac. Nic z nim nie robię, dopóki nie powiesz. Decyzję podejmiesz w rozliczeniach — sekcja Kasacje. Za każdą dobę postoju doliczam '+window._KASACJA_PENALTY_PER_DAY.toLocaleString('pl')+' zł.';
+      if(typeof _smsSend==='function') _smsSend('rysiek',sms,{bypass:true}); else if(typeof notify==='function') notify('📩 Rysiek: '+sms);
+      if(typeof showMsg==='function') showMsg('🚚 Knox odholował pojazd do Metal Valley Yard (−'+cost.toLocaleString('pl')+' zł). Pojazd CZEKA NA TWOJĄ DECYZJĘ — sekcja „Kasacje" w rozliczeniach.','g',7500);
+    } else {
+      /* awaryjnie: brak pojazdu do przyjęcia (np. już oddany) — zwróć opłatę, nie zostawiaj gracza z niczym */
+      G.money+=cost;
+      if(typeof showMsg==='function') showMsg('🚚 Knox nie zastał pojazdu do zabrania — opłata zwrócona.','i',4500);
+    }
+  }
   else { /* do warsztatu: przestaw zaparkowany pojazd pod Garage 77 i odblokuj naprawę mimo unieruchomienia */
+    /* v2.3.131 (PDF Uspr v2.3.130, błąd B2): druga bramka — nawet gdyby ktoś wywołał funkcję z pominięciem panelu,
+       nie pobieramy opłaty za holowanie wraku do warsztatu, w którym naprawa i tak jest niemożliwa. */
+    const _rp=(typeof window._vehEvaluateRepairability==='function')?window._vehEvaluateRepairability(kind):{repairable:true};
+    if(_rp.exploded){
+      G.money+=cost; if(typeof spent==='function' && typeof G.totalSpent==='number') G.totalSpent=Math.max(0,G.totalSpent-cost);
+      if(typeof showMsg==='function') showMsg('🚚 Knox obejrzał wrak i odmówił kursu: „Do warsztatu? Za co? Po tym pożarze nie ma czego składać." Opłata nie została pobrana — zostaje kasacja w Metal Valley Yard.','r',7000);
+      return false;
+    }
     const _gf=window._VEH_GARAGE77_FRONT||{wx:3254,wy:2140,room:'ulica'};
     if(kind==='car'){ G._carParkedAt={wx:_gf.wx,wy:_gf.wy,room:'ulica'}; G._inCar=false; }
     else { G._camperParkedAt={wx:_gf.wx,wy:_gf.wy,room:'ulica'}; G._inCamper=false; }
+    /* jawny znacznik „stoi w warsztacie po holowaniu" — Garage 77 potwierdza to graczowi na karcie naprawy */
+    window._vehTrafficEnsure(); G.traffic._towedToWorkshop={kind, day:(G.day||0)};
     if(typeof showMsg==='function') showMsg('🚚 Knox odholował pojazd pod Garage 77 (−'+cost.toLocaleString('pl')+' zł). Wejdź do warsztatu, żeby naprawić.','g',6500);
   }
   if(typeof updateHUD==='function') updateHUD(); if(typeof saveGameSilent==='function') saveGameSilent();
@@ -70949,9 +71882,15 @@ window._vehTowPanel=function(kind){
   const btn=(oc,txt,extra)=>`<button class="cbtn" style="width:100%;text-align:left;padding:11px 14px;margin-bottom:7px;font-size:14px${extra||''}" onclick="${oc}">${txt}</button>`;
   panel.innerHTML=`<div id="mg-job-content" style="width:100%;max-width:460px;margin:0 auto">
     <div style="text-align:center;margin-bottom:6px"><div style="font-size:20px;font-weight:800;color:#e67e22">${em} Pojazd unieruchomiony</div>
-      <div style="font-size:12px;color:#8a939a;margin-top:4px">Stan pojazdu: <b style="color:${oh<=10?'#e74c3c':'#f39c12'}">${oh}%</b>. Nie da się nim jechać — potrzebne holowanie.${rep.repairable?'':' <span style="color:#e74c3c">Naprawa nieopłacalna → kasacja.</span>'}</div></div>
+      <div style="font-size:12px;color:#8a939a;margin-top:4px">Stan pojazdu: <b style="color:${oh<=10?'#e74c3c':'#f39c12'}">${window._condPct(oh)}%</b>. Nie da się nim jechać — potrzebne holowanie.${rep.repairable?'':' <span style="color:#e74c3c">Naprawa nieopłacalna → kasacja.</span>'}</div></div>
     <div style="margin-top:12px">
-      ${btn("window._vehCallTow('"+kind+"','workshop');"+closeJs,'🚚 Wezwij holowanie do warsztatu · '+towWork.toLocaleString('pl')+' zł')}
+      ${!rep.exploded
+        ? btn("window._vehCallTow('"+kind+"','workshop');"+closeJs,'🚚 Wezwij holowanie do warsztatu · '+towWork.toLocaleString('pl')+' zł'+(rep.repairable?'':'<div style="font-size:11px;color:#8fb8d8;margin-top:3px;font-weight:400">Po transporcie Garage 77 podejmie się pełnej odbudowy — będzie drogo, ale pojazd wróci na drogę.</div>'))
+        : `<button class="cbtn" disabled style="width:100%;text-align:left;padding:11px 14px;margin-bottom:7px;font-size:14px;opacity:.55;cursor:not-allowed">🚚 Holowanie do warsztatu — niedostępne<div style="font-size:11px;color:#e8a0a0;margin-top:3px;font-weight:400">Po pożarze i eksplozji nie ma czego odbudowywać. Nie pobieramy opłaty za kurs, który nic nie zmieni — zostaje kasacja.</div></button>`}
+      <!-- v2.3.131 (PDF Uspr v2.3.130, błąd B2): wcześniej przycisk holowania do warsztatu był aktywny ZAWSZE.
+           Przy wraku (naprawa nieopłacalna) gracz płacił 1500 zł, dostawał komunikat „Knox odholował pojazd",
+           a w Garage 77 nie było czego naprawiać. Teraz opłata w ogóle nie może zostać pobrana w takiej sytuacji,
+           a pojazd nadający się do naprawy po odholowaniu jest jawnie oznaczony jako czekający w warsztacie. -->
       ${btn("window._vehCallTow('"+kind+"','metal_valley');"+closeJs,'♻️ Holowanie do Metal Valley Yard (kasacja) · '+towMV.toLocaleString('pl')+' zł')}
       ${btn(closeJs+"if(typeof window._vehInsuranceInfo==='function')window._vehInsuranceInfo('${kind}','tow');",'🛡️ Ubezpieczenie pojazdu')}
       ${btn("window._vehExitVehicle&&window._vehExitVehicle('"+kind+"');"+closeJs,'🚶 Wróć pieszo / zostaw pojazd','; color:#e07070; border-color:#5a1a1a')}
@@ -70997,7 +71936,13 @@ window._vehRepairCard=function(kind){
   else {
     const rep=window._vehEvaluateRepairability(kind);
     const cb=(lvl,lbl)=>{ const c=window._vehRepairCost(kind,lvl); const dd=window._vehRepairDays(lvl); return `<button class="bbtn" style="font-size:11.5px;padding:6px 8px;margin:2px 0" ${(G.money||0)<c?'disabled':''} onclick="window.repairVehicleLevel('${kind}','${lvl}')">${lbl} · ${c.toLocaleString('pl')} zł${dd>0?' · '+dd+'d':''}</button>`; };
-    if(!rep.repairable){ body=`<div style="color:#e74c3c;font-size:11.5px;margin:4px 0">✗ Zbyt zniszczony — naprawa nieopłacalna.</div><button class="bbtn" style="font-size:11.5px;padding:6px 8px;border-color:#7a2a2a;color:#e6a0a0" onclick="closeOverlay();window._vehTowPanel&&window._vehTowPanel('${kind}')">♻️ Kasacja / holowanie</button>`; }
+    if(rep.rebuild){
+      /* v2.3.131 B2: pojazd przywieziony lawetą — jedyna sensowna opcja to pełna odbudowa, ale ma być REALNA. */
+      const _c=window._vehRepairCost(kind,'full'), _d=window._vehRepairDays('full');
+      body=`<div style="color:#e8c56a;font-size:11.5px;margin:4px 0">🔧 Pojazd po holowaniu — Garage 77 podejmie się pełnej odbudowy.</div>
+        <button class="bbtn" style="font-size:11.5px;padding:6px 8px" ${(G.money||0)<_c?'disabled':''} onclick="window.repairVehicleLevel('${kind}','full')">Pełna odbudowa · ${_c.toLocaleString('pl')} zł${_d>0?' · '+_d+'d':''}</button>`;
+    }
+    else if(!rep.repairable){ body=`<div style="color:#e74c3c;font-size:11.5px;margin:4px 0">✗ Zbyt zniszczony — naprawa nieopłacalna.</div><button class="bbtn" style="font-size:11.5px;padding:6px 8px;border-color:#7a2a2a;color:#e6a0a0" onclick="closeOverlay();window._vehTowPanel&&window._vehTowPanel('${kind}')">♻️ Kasacja / holowanie</button>`; }
     else {
       /* W3: oferuj tylko naprawę faktycznie potrzebnej kategorii; naprawiona kategoria → ✓ zamiast przycisku w tych samych stawkach. */
       const rows=[];
@@ -71008,7 +71953,12 @@ window._vehRepairCard=function(kind){
     }
   }
   const mCol=mechP>=66?'#2ecc71':mechP>=33?'#f39c12':'#e74c3c'; const vCol=visP>=66?'#2ecc71':visP>=33?'#f39c12':'#e74c3c';
-  return `<div class="sitem"><h3>${em} ${title}</h3><p>${nm} — 🔧 mechanika: <b style="color:${mCol}">${mechP}%</b> · 🎨 wygląd: <b style="color:${vCol}">${visP}%</b></p>${body}</div>`;/* v2.3.117 (PDF Uspr115 W3): osobno mechanika i wygląd */
+  /* v2.3.131 (PDF Uspr v2.3.130, błąd B2): potwierdzenie, że opłacone holowanie faktycznie coś dało —
+     pojazd przywieziony przez Knoxa jest jawnie oznaczony jako czekający na miejscu, razem z opcjami naprawy. */
+  const _tw=(G.traffic&&G.traffic._towedToWorkshop);
+  const towBanner=(_tw&&_tw.kind===kind&&!window._vehInRepair(kind))
+    ? `<div style="background:#0d2016;border:1px solid #2a6a4a;border-radius:7px;padding:7px 9px;margin:4px 0;color:#7ec87e;font-size:11.5px">🚚 Pojazd odholowany przez Knoxa — stoi w warsztacie i czeka na naprawę.</div>` : '';
+  return `<div class="sitem"><h3>${em} ${title}</h3><p>${nm} — 🔧 mechanika: <b style="color:${mCol}">${mechP}%</b> · 🎨 wygląd: <b style="color:${vCol}">${visP}%</b></p>${towBanner}${body}</div>`;/* v2.3.117 (PDF Uspr115 W3): osobno mechanika i wygląd */
 };
 /* wykonaj naprawę wybranego poziomu + re-render warsztatu. */
 /* v2.3.126 (PDF Uspr v2.3.124 U9): okno potwierdzenia dla napraw czasochłonnych (mech./pełna) —
@@ -71240,7 +72190,7 @@ window._vehHitPedestrian=function(ped){
   if(now-(window._vehPedHitClock||0)<3500) return; window._vehPedHitClock=now;
   window._vehApplyDamage(kind,'front',6,'pedestrian');
   const fatal=Math.random()<0.12;
-  window._vehAddIncidentScore(fatal?30:25);
+  window._vehAddIncidentScore(fatal?30:25,true);/* v2.3.131 U37: potrącenie pieszego = kontakt z uczestnikiem ruchu */
   if(typeof window._uwAddStat==='function'){ try{ window._uwAddStat('street_heat', fatal?18:10); }catch(_){} }
   if(G.violenceHeat!=null||true) G.violenceHeat=(G.violenceHeat||0)+(fatal?12:6);
   if(typeof addDefamation==='function') addDefamation(fatal?20:8);
@@ -71268,7 +72218,7 @@ window._vehHitNpcCar=function(npcCar){
   if(now-(window._vehNpcCarHitClock||0)<2500) return; window._vehNpcCarHitClock=now;
   const zone=window._vehImpactZoneFromDir((P.dir===3?-1:P.dir===1?1:0),(P.dir===0?-1:P.dir===2?1:0));
   window._vehApplyDamage(kind, zone, 22+Math.floor(Math.random()*14), 'moving_vehicle');
-  window._vehAddIncidentScore(10);
+  window._vehAddIncidentScore(10,true);/* v2.3.131 U37: zderzenie z pojazdem NPC = kontakt z uczestnikiem ruchu */
   window._vehIssueFine('Kolizja z innym pojazdem', 1500+Math.floor(Math.random()*2501));
   /* v2.3.117 (PDF Uspr115 W11): auto NPC po kolizji z graczem STOI 3 min real-time (nie na stałe), potem odjeżdża jak zwykły ruch. */
   if(npcCar){ if(typeof npcCar.dx==='number'&&Math.abs(npcCar.dx)>0.01) npcCar._crashDx=npcCar.dx; npcCar._crashedAt=Date.now(); npcCar.dx=0; }
@@ -71281,9 +72231,10 @@ window._vehHitNpcCar=function(npcCar){
 window._getVehiclePrompt=function(kind){
   const key=kind==='camper'?'K':'V'; const st=window._vehGet(kind);
   if(!window._vehIsInside(kind)){ return st.locked?`[J] Odblokuj pojazd`:`[${key}] Wsiądź`; }
-  if(!st.engineOn && !st.engineStartedThisSession) return `[${key}] Uruchom silnik · [J] zamek · przytrzymaj [${key}] = wysiądź`;
+  /* v2.3.131 (PDF Uspr v2.3.130 U5): przy zgaszonym silniku ZAWSZE ta sama para — „[X] Wysiądź"
+     oraz „[X] Przytrzymaj, by uruchomić". Bez zależności od tego, czy silnik już raz odpalono. */
   if(st.engineOn) return `[${key}] Zgaś silnik · [H] pasy · [G] światła`;
-  return `[${key}] Wysiądź · przytrzymaj [${key}] = odpal silnik`;
+  return `[${key}] Wysiądź · [${key}] Przytrzymaj, by uruchomić`;
 };
 window._vehStartEngine=function(kind){
   const st=window._vehGet(kind);
@@ -71324,12 +72275,21 @@ window._vehOnEnter=function(kind){ const st=window._vehGet(kind); st.engineOn=fa
     G._eclipseDrunkDrive=(G.day||0);
   } }catch(e){}
 };
+/* v2.3.131 (PDF Uspr v2.3.130 U4): kierunek, w którym pojazd BYŁ ustawiony w chwili opuszczenia.
+   Zapisujemy P.dir do pozycji postojowej, żeby po wysiadce pojazd stał tak, jak go zatrzymano,
+   zamiast prostować się automatycznie do pionu. Stare zapisy bez pola `dir` → rysowanie jak dotąd. */
+window._vehExitKeepFacing=function(kind){
+  const d=(typeof P!=='undefined'&&typeof P.dir==='number')?P.dir:0;
+  if(kind==='camper'){ if(G._camperParkedAt) G._camperParkedAt.dir=d; }
+  else { if(G._carParkedAt) G._carParkedAt.dir=d; }
+};
 window._vehExitVehicle=function(kind){
   const st=window._vehGet(kind); st.engineOn=false; st.engineStartedThisSession=false; st.engineStoppedAfterDrive=false; st.seatbeltOn=false; /* §15: pasy auto-odpięte przy wyjściu */
-  if(kind==='camper'){ G._inCamper=false; G._camperParkedAt={wx:P.wx,wy:P.wy,room:currentRoom};
+  const _pdir=(typeof P!=='undefined'&&typeof P.dir==='number')?P.dir:0;/* U4: zapamiętaj ustawienie pojazdu */
+  if(kind==='camper'){ G._inCamper=false; G._camperParkedAt={wx:P.wx,wy:P.wy,room:currentRoom,dir:_pdir};
     const _ex=(G.gender==='f')?'Wyszłaś z kampera':'Wyszedłeś z kampera';
     if(typeof window._subtleMsg==='function') window._subtleMsg('🚶 '+_ex); else if(typeof showMsg==='function') showMsg('🚶 '+_ex,'i',3000);
-  } else { G._inCar=false; G._carParkedAt={wx:P.wx,wy:P.wy,room:currentRoom};
+  } else { G._inCar=false; G._carParkedAt={wx:P.wx,wy:P.wy,room:currentRoom,dir:_pdir};
     const _ex=(G.gender==='f')?'Wyszłaś z pojazdu':'Wyszedłeś z pojazdu';
     if(typeof window._subtleMsg==='function') window._subtleMsg('🚶 '+_ex); else if(typeof showMsg==='function') showMsg('🚶 '+_ex,'i',3000);
   }
@@ -71342,9 +72302,12 @@ window._vehCycleInside=function(kind, isRepeat){
     if(window._vehActivelyMoving()){ if(typeof showMsg==='function') showMsg('🚗 Najpierw zatrzymaj pojazd, potem zgaś silnik.','r',2500); return; }
     window._vehStopEngine(kind); return;
   }
-  const fresh = !st.engineStartedThisSession; /* dopiero co wsiadłeś (silnik jeszcze nieodpalony) */
-  const onShort = fresh ? ()=>window._vehStartEngine(kind) : ()=>window._vehExitVehicle(kind);
-  const onLong  = fresh ? ()=>window._vehExitVehicle(kind)  : ()=>window._vehStartEngine(kind);
+  /* v2.3.131 (PDF Uspr v2.3.130 U5): JEDNOLITE sterowanie po wsiadce — krótkie [V]/[K] = WYSIĄDŹ,
+     przytrzymanie = uruchom silnik. Wcześniej znaczenie klawisza zależało od tego, czy silnik już raz
+     odpalono w tej sesji (`fresh`), więc zaraz po wsiadce gracz nie mógł po prostu wysiąść.
+     Po uruchomieniu silnika sterowanie jazdą pozostaje bez zmian. */
+  const onShort = ()=>window._vehExitVehicle(kind);
+  const onLong  = ()=>window._vehStartEngine(kind);
   window._vehHoldPending={kind, t:Date.now(), onShort, onLong};
   if(window._vehHoldTimer) clearTimeout(window._vehHoldTimer);
   window._vehHoldTimer=setTimeout(()=>{ const p=window._vehHoldPending; if(p&&p.kind===kind){ window._vehHoldPending=null; window._vehHoldTimer=null; try{ p.onLong(); }catch(_){} } },420);
@@ -73323,8 +74286,22 @@ function renderPhoneApp(app){
   }
 
   /* v2.1.120: Wave 4 S35 — single template + single concat (zamiast 2× identyczne `innerHTML +=` w if-else). Lepsza wydajność DOM. */
-  ph.insertAdjacentHTML('beforeend', `<div style="padding:8px 14px"><button class="cbtn" style="width:100%" onclick="renderPhoneHome()">← Wróć</button></div>`);
+  /* v2.3.131 (PDF Uspr v2.3.130 U22): „← Wróć" wraca do PODGRUPY, z której gracz wszedł do aplikacji
+     (np. Bank/Parabank/Rachunki/Pasywne dochody/Crypto → folder „Finanse"), a nie na pulpit telefonu. */
+  ph.insertAdjacentHTML('beforeend', `<div style="padding:8px 14px"><button class="cbtn" style="width:100%" onclick="${window._phBackJs(app)}">← Wróć</button></div>`);
 }
+/* Mapa aplikacja → folder telefonu. Jedno miejsce, w którym trzymamy przynależność aplikacji do podgrupy. */
+window._PH_APP_FOLDER={
+  bank:'finance', parabank:'finance', bills:'finance', crypto:'finance', metals:'finance',
+  safe:'finance', olx:'finance', luxury:'finance', passive:'finance',
+  instagram:'social', twitter:'social', tiktok:'social', spotify:'career', trap:'career',
+  atelier:'career', gigs:'career', quests:'career',
+};
+window._phFolderOfApp=function(app){ return (window._PH_APP_FOLDER&&window._PH_APP_FOLDER[app])||null; };
+window._phBackJs=function(app){
+  const f=window._phFolderOfApp(app);
+  return f ? `renderPhoneFolder('${f}')` : 'renderPhoneHome()';
+};
 
 function renderPhoneQuests(){
   const ph=document.getElementById('ph-content');
@@ -73902,6 +74879,7 @@ const SMS_CONTACTS={
   knox:      {name:'Knox „Towline” Mercer',     em:'🛻', color:'#e67e22', physical:false}, /* nowy PDF Fizyczne kolizje: holownik/wraki, usługi powtarzalne (menu w renderSMSConversation) */
   nolan:     {name:'Captain Nolan Reed',        em:'⚓', color:'#00b4d8', physical:false}, /* PDF Marina Coast §6/§25: kapitan portowy — cumowanie, paliwo, serwis, eventy, ostrzeżenia */
   sierra:    {name:'Sierra „Sunny” Bell',        em:'🌅', color:'#f0a860', physical:true}, /* SUNSET PALMS §21-22: gospodyni altany — przypomnienia, leady, referrale */
+  rysiek:    {name:'Rysiek „Prasa”',              em:'♻️', color:'#95a5a6', physical:true}, /* v2.3.131 (PDF Uspr v2.3.130 U6): właściciel Metal Valley Yard — decyzja o kasacji, rozliczenia */
 };
 function _ensureSMS(){
   if(!G.sms||typeof G.sms!=='object') G.sms={conversations:{},unread:0,_triggeredEvents:{}};
@@ -73981,7 +74959,12 @@ window._smsSend=function(contactId,text,opts){
   G.sms.unread=(G.sms.unread||0)+1;
   /* v2.1.228 audit-fix #57: SMS od NPC MUSI być widoczny od razu — gracz wcześniej musiał sam otwierać telefon żeby zobaczyć kilka SMS-ów. Teraz: TOAST (showMsg) + addNotif gdy phone zamknięty. Phone otwarty → tylko badge na 💬 ikonie. */
   const _c=SMS_CONTACTS[contactId];
-  if(_c && !document.getElementById('phone')?.classList.contains('on')){
+  /* v2.3.131 (PDF Uspr v2.3.130 U21): okno powiadomienia w prawym dolnym rogu pojawia się przy KAŻDEJ
+     przychodzącej wiadomości — również wtedy, gdy gracz ma otwarty telefon. Wcześniej było odwrotnie:
+     popup pokazywał się tylko przy zamkniętym telefonie, więc odpowiedź, na którą gracz świadomie czekał
+     z otwartą korespondencją (np. „Numer zastrzeżony" po „Z kim mam do czynienia?"), dochodziła bez
+     żadnego sygnału i tylko cicho dopisywała się do wątku. */
+  if(_c){
     /* v2.1.956 (PDF #1): SMS od NPC w OSOBNYM oknie obok telefonu + własny dźwięk (NIE generyczny toast/log = anti-natłok).
        SMS żyje w apce Wiadomości (badge 💬 unread); osobne okno to tylko alert ~8s z klik→czat. */
     if(typeof window._showSmsPopup==='function') window._showSmsPopup(contactId,text);
@@ -76038,6 +77021,7 @@ window._smsRegistryFor=function(contactId){
     case 'label': return window._LABEL_REPLIES;
     case 'wiktor': return window._WIKTOR_REPLIES;
     case 'zbyszek': return window._ZBYSZEK_REPLIES;
+    case 'rysiek': return window._RYSIEK_REPLIES;/* v2.3.131 (PDF Uspr v2.3.130 U6): decyzja o kasacji przez SMS */
     default: return null;
   }
 };
@@ -76310,6 +77294,8 @@ window._smsRichReply=function(contactId,replyId){
   if(opt.text!==null && typeof _smsReply==='function') _smsReply(contactId,opt.text);
   _applySmsRichEffect(opt.fx);
   if(opt.action==='kamilJobs') _smsKamilJobsAction();
+  /* v2.3.131 (PDF Uspr v2.3.130 U6): odpowiedź „Spal te budę" = zgoda na kasację pojazdów czekających na placu. */
+  if(opt.action==='kasacjaConsentAll' && typeof window._kasacjaConsentAll==='function') setTimeout(()=>{ try{ window._kasacjaConsentAll(); }catch(_){} }, 900);
   if(contactId==='kamil' && opt.reply && typeof window._smsPushNpcReply==='function') window._smsPushNpcReply('kamil',opt.reply); /* PDF HAJS: follow-up Kamila (freestyle/jobs bez pola reply → brak double-send) */
   if(contactId==='sponsor' && typeof window._sponsorHandleReply==='function') window._sponsorHandleReply(opt);
   if(contactId==='marcin' && typeof window._marcinHandleReply==='function') window._marcinHandleReply(opt);
@@ -77478,7 +78464,7 @@ function renderPhonePassive(){
         <b style="color:#aac">💡 Jak to liczymy:</b> 🎵 Streamy (Loopify/AurumWave/ViewGrid/EchoDrop/Radio) <b>naliczają się do puli</b> i odbierasz je przyciskiem „Zbierz tantiemy" w aplikacji — NIE wpadają same. 🧢 Merch = auto co tick. Pozostałe (Evolution / skille / bank / wynajmy / kebab / sponsor) = auto raz dziennie (po północy). Kwoty bazowe × Twój mnożnik zarobków. Szacunki na podstawie aktualnych słuchaczy/produktów/skilli.
       </div>
     </div>
-    <div style="padding:8px 14px"><button class="cbtn" style="width:100%" onclick="renderPhoneHome()">← Wróć</button></div>
+    <div style="padding:8px 14px"><button class="cbtn" style="width:100%" onclick="renderPhoneFolder('finance')">← Wróć</button></div><!-- v2.3.131 (PDF Uspr v2.3.130 U22): powrót do podgrupy „Finanse" -->
   `;
 }
 window.renderPhonePassive=renderPhonePassive;
@@ -81714,6 +82700,17 @@ function openFullMap(districtId){
       lab.textContent=lm.name;
       wrap.appendChild(lab);
     }
+    /* v2.3.131 (PDF Uspr v2.3.130 U14): żółta obwódka zlokalizowanej nieruchomości + etykieta. */
+    if(window._fmapLocate && Date.now()<window._fmapLocate.until && (window._fmapLocate.room||'ulica')===_md){
+      const L=window._fmapLocate;
+      const box=document.createElement('div');
+      box.style.cssText=`position:absolute;left:${L.wx*scale}px;top:${L.wy*scale}px;width:${L.w*scale}px;height:${L.h*scale}px;border:3px solid #f1c40f;border-radius:6px;box-shadow:0 0 18px rgba(241,196,15,.85),inset 0 0 14px rgba(241,196,15,.35);pointer-events:none;z-index:6;animation:fmapHalo 1.4s ease-in-out infinite`;
+      wrap.appendChild(box);
+      const lbl=document.createElement('div');
+      lbl.style.cssText=`position:absolute;left:${(L.wx+L.w/2)*scale}px;top:${(L.wy-8)*scale}px;background:#f1c40f;color:#1a1205;padding:${padding}px ${padding*2+2}px;border-radius:4px;font-size:${fontSize+1}px;font-weight:900;white-space:nowrap;transform:translate(-50%,-100%);box-shadow:0 2px 8px rgba(0,0,0,.6);pointer-events:none;z-index:7;font-family:inherit`;
+      lbl.textContent='📍 '+(L.label||'Twój lokal');
+      wrap.appendChild(lbl);
+    }
     // ── Player marker — separate element, updated live ──
     const playerDot=document.createElement('div');
     playerDot.id='fmap-player-dot';
@@ -82395,8 +83392,33 @@ function findNextGoal(){
    rozgrywki. Klik rozwija/zwija listę; stan zapisywany w G._questCollapsed (undefined = zwinięty domyślnie). */
 function toggleQuestWidget(){
   G._questCollapsed = (G._questCollapsed===false); /* expanded(false)→collapse(true); inne→expand(false) */
+  window._qwHoverExpanded=false; /* ręczne kliknięcie ma pierwszeństwo nad rozwinięciem z hovera */
   if(typeof updateQuestWidget==='function') updateQuestWidget();
 }
+/* ═══ v2.3.131 (PDF Uspr v2.3.130 U31) — ROZWIJANIE LISTY „CELE" PO NAJECHANIU KURSOREM ═══
+   Gracz nie musi klikać: najechanie rozwija listę od razu, a zjechanie kursorem zwija ją po 3 sekundach.
+   Rozwinięcie z hovera jest TYMCZASOWE — nie nadpisuje trwałego wyboru gracza (G._questCollapsed),
+   więc po zwinięciu widget wraca do stanu, który gracz sam ustawił.
+   Całość respektuje przełącznik „Animacje przejść interfejsu" (Ustawienia → Efekty / Shadery). */
+window._qwHoverExpanded=false;
+window._qwHoverTimer=null;
+window._qwTransitionsOn=function(){ return window._gfxUiTransitions!==false; };
+window._qwHoverIn=function(){
+  if(!window._qwTransitionsOn()) return;
+  if(window._qwHoverTimer){ clearTimeout(window._qwHoverTimer); window._qwHoverTimer=null; }
+  if(G._questCollapsed===false) return;      /* gracz i tak trzyma listę rozwiniętą */
+  if(window._qwHoverExpanded) return;
+  window._qwHoverExpanded=true;
+  if(typeof updateQuestWidget==='function') updateQuestWidget();
+};
+window._qwHoverOut=function(){
+  if(!window._qwHoverExpanded) return;
+  if(window._qwHoverTimer) clearTimeout(window._qwHoverTimer);
+  window._qwHoverTimer=setTimeout(function(){
+    window._qwHoverTimer=null; window._qwHoverExpanded=false;
+    if(typeof updateQuestWidget==='function') updateQuestWidget();
+  }, 3000);
+};
 function updateQuestWidget(){
   const w=document.getElementById('quest-widget');
   if(!w) return;
@@ -82474,7 +83496,8 @@ function updateQuestWidget(){
   if(items.length===0){w.style.display='none';return;}
   w.style.display='';
   /* v2.1.871: domyślnie zwinięty (pigułka) — nie zasłania ekranu. Puls przy gotowym/pilnym zadaniu. */
-  const _collapsed=(G._questCollapsed!==false);
+  /* v2.3.131 U31: rozwinięcie z hovera jest równoważne rozwinięciu ręcznemu, ale tymczasowe. */
+  const _collapsed=(G._questCollapsed!==false) && !window._qwHoverExpanded;
   const _body=document.getElementById('qw-body');
   const _title=document.getElementById('qw-title');
   const _tg=document.getElementById('qw-toggle');
@@ -83012,6 +84035,37 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.131',date:'2026-08-10',cats:['beta-tester','fix','feature'],title:'🅿️🚚♻️ Parking, holowanie, kasacja pojazdów i porządki w całej grze',
+ items:[
+  {t:'fix',d:'🅿️ Parking przestał podstawiać Ci auto pod nogi. Wcześniej wystarczyło mieć samochód, żeby po wejściu na dowolny parking od razu w nim usiąść — nawet jeśli stał w zupełnie innym miejscu. Teraz [E] otwiera panel parkingu: widzisz na którym miejscu stoi Twój pojazd i w jakim jest stanie, a wsiadasz podchodząc do niego.'},
+  {t:'fix',d:'🅿️ Koniec obijania auta o parking. Płyta parkingu nie jest już jedną wielką przeszkodą — na wolne miejsce wjedziesz spokojnie i bez stłuczki. Fizyczne pozostają wyłącznie stojące na nim samochody. Z parkingiem dogadasz się też z 2 metry dalej niż dotąd.'},
+  {t:'fix',d:'🚚 „Wezwij holowanie do warsztatu" wreszcie coś daje. Wcześniej płaciłeś za kurs, dostawałeś wiadomość, że Knox odholował pojazd — i w Garage 77 nie było czego naprawiać. Teraz opłacony transport oznacza pełną odbudowę w warsztacie. Jedyny wyjątek to pojazd po pożarze i eksplozji: wtedy kurs jest odmawiany i nie tracisz na to ani grosza.'},
+  {t:'fix',d:'🚗 Nazwy pojazdów są wszędzie takie same. Rozliczenia w Metal Valley Yard, komunikat po sprzedaży auta i wiadomości od Ryśka pokazywały czasem stare, wycofane nazwy. Teraz wszędzie widnieje ta sama nazwa, którą widzisz w CityDrive Motors i Gravel Lot Motors.'},
+  {t:'fix',d:'⚓ Kotwiczenie łodzi Open i RIB nie zabiera Ci już rozgrywki. Po zarzuceniu kotwicy jednostka znikała z mapy, a Ty zostawałeś na środku morza bez możliwości ruchu. Teraz zakotwiczona łódź jest widoczna ze znacznikiem kotwicy i zawsze wracasz za jej ster.'},
+  {t:'fix',d:'🧰 Jedna zmiana w pracy dorywczej liczy się jako jedna. Wcześniej niektóre prace zaliczały się podwójnie i po drugiej zmianie gra gratulowała Ci trzeciej.'},
+  {t:'fix',d:'📅 Niedziela to niedziela. Moduł Sunset Palms liczył dni tygodnia inaczej niż reszta gry, przez co Sunset Mixer nie startował w niedzielę mimo zgodnej daty na ekranie.'},
+  {t:'fix',d:'📩 Powiadomienie o nowej wiadomości pojawia się także wtedy, gdy masz otwarty telefon. Wcześniej odpowiedź, na którą świadomie czekałeś z otwartą korespondencją, dochodziła bez żadnego sygnału.'},
+  {t:'fix',d:'🔧 Stan pojazdu pokazujemy w pełnych procentach. Zamiast „70.10749999999999%" widzisz po prostu 70%.'},
+  {t:'fix',d:'💰 Powrót z Banku, Parabanku, Rachunków, Pasywnych dochodów i Crypto wraca do folderu Finanse, a nie na pulpit telefonu.'},
+  {t:'fix',d:'🩺 Czytelniejsze teksty: diagnoza w Nova Cura i pasek wyposażenia w Soundyard Studio nie są już ciemne na ciemnym tle.'},
+  {t:'feature',d:'♻️ Kasacja pojazdu to teraz Twoja decyzja, nie automat. Odholowany wrak czeka na placu Metal Valley Yard w nowej sekcji „Kasacje" — możesz potwierdzić kasację, zrezygnować i odebrać pojazd albo wrócić później. Za każdą dobę zwłoki dochodzi opłata postojowa, a po trzech dniach odezwie się Rysiek „Prasa" z pytaniem, co dalej. Sama usługa trwa jeden dzień roboczy, a stawka zależy od klasy pojazdu.'},
+  {t:'feature',d:'🚙 Możesz mieć dwa kampery naraz. Kupując drugi, poprzedni trafia do garażu i w każdej chwili możesz się między nimi przesiąść.'},
+  {t:'feature',d:'💥 Twoje pojazdy są dla siebie realne. Jadąc jednym możesz uszkodzić drugi, zaparkowany — nad trafionym pojazdem przez trzy sekundy zobaczysz, ile procent kondycji stracił.'},
+  {t:'feature',d:'🚗 Pojazd zostaje ustawiony tak, jak go zaparkowałeś. Po wyjściu nie prostuje się już automatycznie do pionu.'},
+  {t:'feature',d:'🎮 Nowe, jednolite sterowanie pojazdem: krótkie [V] (auto) albo [K] (kamper) to wyjście, a przytrzymanie uruchamia silnik. Sama jazda bez zmian.'},
+  {t:'feature',d:'🧱 Obiekt uprawowy wygląda wreszcie jak to, czym jest — stara, brukowana piwnica wtopiona w skarpę. Nieprzejęty jest zabity deskami i zarośnięty mchem, po przejęciu dostaje stalowe drzwi, a po remoncie czysty mur, latarnię nad wejściem i czytnik dostępu. Po zakupie wnętrze jest puste: suszarnia i pakowanie pojawiają się dopiero po kupieniu sprzętu w terminalu, gdzie dokupisz też kolejne stanowiska uprawowe.'},
+  {t:'feature',d:'🌱 Terminal SUBTERRA odpowiada normalnym oknem komunikatu przy każdej operacji. Cena przejęcia lokalu widnieje teraz wprost na etykiecie obiektu i na przycisku.'},
+  {t:'feature',d:'📍 Przy każdym posiadanym mieszkaniu, apartamencie, rezydencji i willi jest przycisk „Zlokalizuj" — otwiera mapę, przybliża do budynku i zaznacza go żółtą obwódką.'},
+  {t:'feature',d:'📋 Lista „Cele" z prawej strony rozwija się po najechaniu kursorem i zwija trzy sekundy po jego zjechaniu. Animacje przejść możesz wyłączyć w Ustawieniach → Efekty / Shadery.'},
+  {t:'feature',d:'🔧 Korek pokazuje dokładnie to, o co pytasz: najtańszy egzemplarz, dwie sztuki ze środka półki albo najspokojniejszy wizualnie kamper. „Pokaż wszystko" otwiera jeden panel z kamperami i autami osobowymi. Każda używka ma jeden, konkretny kolor lakieru, a porównywarka AutoVista 360 otwarta z placu pokazuje wyłącznie modele, które faktycznie tam stoją.'},
+  {t:'change',d:'🚔 Pojazd stracisz dopiero po serii realnych zderzeń z przechodniami albo innymi autami. Otarcie o latarnię, płot czy ścianę psuje Twój pojazd, ale nikt Ci go za to nie odbiera.'},
+  {t:'change',d:'🏗 Plac Budowy: więcej roboty w krótszym czasie — 40 mieszań betonu, 6 belek i 90 sekund zamiast 3 minut. Wypłata za pełne zlecenie pozostaje bez zmian.'},
+  {t:'change',d:'🦾 Łapka nagród wraca co trzecie logowanie, niezależnie od tego, czy grasz dzień po dniu.'},
+  {t:'change',d:'🌊 Podczas rejsu i postoju na kotwicy nie zaczepiają Cię już uliczne zdarzenia z lądu. Wypływając poza port dostajesz podpowiedź, że kotwicę rzucasz klawiszem [G] — cumujesz natomiast dopiero przy pomoście.'},
+  {t:'change',d:'🚓 Na radiowozach widnieje uniwersalny napis POLICE. Z salonu, przycisku przymierzania w Urban Crown i komunikatu o zarobku na zmywaku zniknęły zbędne emoji, a z panelu kamperów w CityDrive Motors można wrócić do salonu.'},
+ ]
+ },
  {
  ver:'v2.3.130',date:'2026-07-30',cats:['beta-tester','fix'],title:'🚪 Wyjście z plantacji i z hali stawia Cię tam, gdzie powinno',
  items:[
@@ -103867,6 +104921,7 @@ function loop(){
   _safe(()=>drawPlayerCar(),'drawPlayerCar');
   _safe(()=>drawPlayerCamper(),'drawPlayerCamper'); /* E4b: sprite kampera podczas jazdy */
   _safe(()=>{ if(window._marinaIsPiloting&&window._marinaIsPiloting()) window._marinaDrawPiloting(); },'marinaPilot');
+  _safe(()=>{ if(window._marinaDrawAnchored) window._marinaDrawAnchored(); },'marinaAnchored');/* v2.3.131 B5: zakotwiczona jednostka NIE znika z mapy */
   _safe(()=>drawPlayer(),'drawPlayer');
   /* v2.1.411 Faza AQ.3 Etap 2: pies za graczem na ulicy. Rysuj dopiero po playerze (z-order). */
   if(currentRoom==='ulica' && G.dog && G.dog.owned && !G._inCar) _safe(()=>drawPlayerDog(),'drawPlayerDog');
@@ -105650,7 +106705,12 @@ loop();
    Ustawienia per-urzadzenie (osobny localStorage 'snowy_gfx', NIE w save gry). */
 (function(){
   var KEY='snowy_gfx';
-  var DEF={ renderScale:1, fpsLimit:0, smoothing:'high', colorGrade:'none', bloom:false, vignette:false, scanlines:false, grain:false, reduceFlashing:false, bigText:false };
+  var DEF={ renderScale:1, fpsLimit:0, smoothing:'high', colorGrade:'none', bloom:false, vignette:false, scanlines:false, grain:false, reduceFlashing:false, bigText:false,
+    /* v2.3.131 (PDF Uspr v2.3.130 U31): wspólny przełącznik ANIMACJI PRZEJŚĆ elementów interfejsu.
+       Dziś steruje rozwijaniem listy „Cele" po najechaniu kursorem; to celowo BUFOR pod kolejne
+       animowane elementy, żeby nie mnożyć osobnych ustawień przy każdej nowej animacji.
+       Wyłączony → elementy zachowują się jak dotąd (tylko klikalne). */
+    uiTransitions:true };
   /* presety filtra koloru (CSS filter — realny GPU post-process) */
   /* v2.3.54: brightness kompensuje contrast — kolorowe presety NIE ciemnieją (fix „Żywy był ciemny")
      + mocniejsza saturacja = realnie odczuwalna różnica jak w grach AAA (zmierzone _diag_gfx.mjs). */
@@ -105703,6 +106763,9 @@ loop();
     C.style.width='1280px'; C.style.height='720px';
     /* 2) Limit FPS — gate w loop() */
     window._gfxFpsInterval = (s.fpsLimit>0)?(1000/s.fpsLimit):0;
+    /* v2.3.131 (PDF Uspr v2.3.130 U31): flaga animacji przejść UI — czytana przez elementy interfejsu
+       (dziś lista „Cele"), zapisywana razem z resztą ustawień graficznych na urządzeniu. */
+    window._gfxUiTransitions = (s.uiTransitions!==false);
     /* 3) Wygładzanie (imageSmoothing) — loop() egzekwuje co klatke */
     window._gfxSmoothing = s.smoothing; // 'off'|'fxaa'|'high'
     window._gfxSmoothQ = (s.smoothing==='high')?'high':(s.smoothing==='fxaa'?'low':'low');
@@ -105752,7 +106815,8 @@ loop();
         +_row('Poświata (Bloom)','Świetlisty blask jasnych miejsc i neonów.',_tog('bloom',s.bloom))
         +_row('Winieta','Przyciemnione rogi ekranu — kinowy klimat.',_tog('vignette',s.vignette))
         +_row('Skanlinie (CRT)','Retro efekt starego monitora.',_tog('scanlines',s.scanlines))
-        +_row('Ziarno filmowe','Subtelny szum jak na taśmie.',_tog('grain',s.grain));
+        +_row('Ziarno filmowe','Subtelny szum jak na taśmie.',_tog('grain',s.grain))
+        +_row('Animacje przejść interfejsu','Płynne rozwijanie i zwijanie elementów po najechaniu kursorem (m.in. lista „Cele" z prawej strony). Wyłączone — elementy tylko klikalne, jak dawniej.',_tog('uiTransitions',s.uiTransitions));
     }
     ov.innerHTML='<div style="width:560px;max-width:94vw;max-height:88vh;overflow:auto;background:#0a0f1a;border:2px solid #2a3a52;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.6)">'
       +'<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #1a2535"><div style="font-size:17px;font-weight:900;color:#fff;letter-spacing:1px">⚙️ USTAWIENIA</div>'
