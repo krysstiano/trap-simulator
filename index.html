@@ -72332,7 +72332,7 @@ function togglePhone(){
     const _hp=document.getElementById('hphone'); if(_hp){_hp.classList.remove('has-new'); setTimeout(()=>{if((G.sms?.unread||0)>0||(G.notifsUnread||0)>0)_hp.classList.add('has-new');},100);}
   }
 }
-function closePhone(){document.getElementById('phone').classList.remove('on');}
+function closePhone(){document.getElementById('phone').classList.remove('on');if(typeof window._slbClear==='function')window._slbClear();/* PDF „Smartphone Live Banner” §12: zamknięcie telefonu czyści banner i kolejkę */}
 function phoneOpen(){return document.getElementById('phone').classList.contains('on');}
 
 // v1.8.75: telefon zorganizowany w foldery — z 20 płaskich ikon → 7 folderów + 2 top-level shortcuts
@@ -74890,6 +74890,176 @@ function _ensureSMS(){
 /* v2.1.956 (PDF #1): osobne, mniejsze okno SMS obok telefonu (nie generyczny toast/log powiadomień — anti-natłok).
    Widoczne ~8s, własny dźwięk (sfxSms), klik → otwiera czat nadawcy. Brak klika → znika; SMS zostaje w apce Wiadomości.
    Grupy nadawców: zwykły SMS / oferta kontraktowa (label, menadżer) / oferta sponsorska (sponsor). */
+/* ═══════════════════ SMARTPHONE LIVE BANNER MODULE START ═══════════════════════════════════════
+   PDF „SMARTPHONE LIVE BANNER" — powiadomienie o nowej wiadomości WEWNĄTRZ interfejsu smartfona.
+   Zasada nadrzędna z dokumentu: to DRUGA warstwa, a nie zamiennik. Dotychczasowy prostokąt w prawym
+   dolnym rogu ekranu gry działa dalej i ma własną logikę; oba systemy słuchają tego samego zdarzenia.
+   Nazwy techniczne wg §2: kontroler SmartphoneNotificationBannerController, komponent
+   MessageNotificationBanner, kanał `sms:received`, router `phone/messages/thread/:threadId`.
+   ═══════════════════════════════════════════════════════════════════════════════════════════ */
+window._SLB={ queue:[], active:null, enterT:null, showT:null, exitT:null, gapT:null, seq:0 };
+window._SLB_MAX_QUEUE=5;        /* §9: limit kolejki WIZUALNEJ (same SMS-y zapisują się zawsze) */
+window._SLB_PREVIEW_MAX=30;     /* §5: dokładnie 30 znaków, potem trzy kropki (łącznie maks. 33) */
+window._SLB_SHOW_MS=5000;       /* §6.2: pełna ekspozycja liczona OD KOŃCA animacji wejścia */
+window._SLB_ENTER_MS=320;       /* §6.2: 300–340 ms */
+window._SLB_EXIT_MS=260;        /* §6.2: 240–300 ms */
+window._SLB_GAP_MS=150;         /* §9: przerwa między kolejnymi bannerami 120–180 ms */
+
+/* §5.1 — normalizacja i skracanie po GRAFEMACH (nie po bajtach), żeby nie przeciąć emoji ani „ą". */
+window._slbGraphemes=function(str){
+  try{
+    if(typeof Intl!=='undefined' && Intl.Segmenter){
+      const seg=new Intl.Segmenter('pl',{granularity:'grapheme'});
+      return Array.from(seg.segment(str),s=>s.segment);
+    }
+  }catch(_){}
+  return Array.from(str);   /* fallback: iterator po punktach kodowych (nie rozcina par surogatów) */
+};
+window._slbPreview=function(rawText,maxVisible){
+  const max=(typeof maxVisible==='number')?maxVisible:window._SLB_PREVIEW_MAX;
+  const normalized=String(rawText==null?'':rawText).replace(/[\r\n\t]+/g,' ').replace(/\s{2,}/g,' ').trim();
+  const g=window._slbGraphemes(normalized);
+  if(g.length<=max) return g.join('');
+  return g.slice(0,max).join('')+'...';
+};
+
+/* §4.3 — AUTORSKA ikona aplikacji Wiadomości. Zakaz emoji i ikon systemowych: rysujemy własny wektor
+   (zaokrąglony kwadrat, chłodny niebieski gradient, biały dymek rozmowy i trzy kropki).
+   Trzy warianty wymagane przez dokument: standardowy, mały i o podwyższonym kontraście. */
+window._slbIconSvg=function(variant){
+  const v=variant||'standard';
+  const small=(v==='small');
+  const hc=(v==='high-contrast');
+  const size=small?40:52;
+  const g1=hc?'#0b63ff':'#3b82f6', g2=hc?'#003bb3':'#1d4ed8';
+  const bubble=hc?'#ffffff':'#f4f8ff';
+  const dot=hc?'#0b3fa8':'#2563eb';
+  const uid='slbIcoGrad'+(window._SLB.seq++);
+  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 52 52" aria-hidden="true" focusable="false" style="display:block">'
+    +'<defs><linearGradient id="'+uid+'" x1="0" y1="0" x2="0" y2="1">'
+    +'<stop offset="0%" stop-color="'+g1+'"/><stop offset="100%" stop-color="'+g2+'"/></linearGradient></defs>'
+    +'<rect x="1" y="1" width="50" height="50" rx="14" fill="url(#'+uid+')"'+(hc?' stroke="#ffffff" stroke-width="2"':'')+'/>'
+    +'<path d="M13 16.5h26a4.5 4.5 0 0 1 4.5 4.5v9a4.5 4.5 0 0 1-4.5 4.5H24.8l-6.6 5.2a.9.9 0 0 1-1.45-.72V34.5H13A4.5 4.5 0 0 1 8.5 30v-9A4.5 4.5 0 0 1 13 16.5z" fill="'+bubble+'"/>'
+    +'<circle cx="19" cy="25.5" r="2.6" fill="'+dot+'"/><circle cx="26" cy="25.5" r="2.6" fill="'+dot+'"/><circle cx="33" cy="25.5" r="2.6" fill="'+dot+'"/>'
+    +'</svg>';
+};
+
+/* §7.2 — warunki wyświetlenia. Zwraca false także wtedy, gdy gracz OGLĄDA już ten sam wątek (§3.3). */
+window._slbShouldShow=function(ev){
+  if(!ev||!ev.threadId) return false;
+  const ph=document.getElementById('phone');
+  if(!ph||!ph.classList.contains('on')) return false;                 /* telefon zamknięty → tylko stary HUD */
+  if(ph.dataset&&ph.dataset.closing==='1') return false;
+  const mg=document.getElementById('mg-job');
+  if(mg&&mg.classList.contains('on')) return false;                   /* blokujący modal */
+  if(G._phView==='sms:'+ev.threadId) return false;                    /* ten sam wątek już otwarty */
+  return true;
+};
+
+/* Kanał zdarzeń §7.1 — jedno zdarzenie PO zapisaniu wiadomości. */
+window._slbOnSmsReceived=function(ev){
+  if(!window._slbShouldShow(ev)) return false;
+  /* §9: kolejna wiadomość z TEGO SAMEGO wątku zastępuje oczekujący wpis (nie mnożymy bannerów) */
+  const same=window._SLB.queue.findIndex(function(q){ return q.threadId===ev.threadId; });
+  const item={ notificationId:'slb'+(window._SLB.seq++), messageId:ev.messageId||'', threadId:ev.threadId,
+               senderId:ev.senderId||ev.threadId, previewText:window._slbPreview(ev.body), createdAtRealMs:Date.now() };
+  if(same>=0) window._SLB.queue[same]=item;
+  else if(window._SLB.queue.length<window._SLB_MAX_QUEUE) window._SLB.queue.push(item);
+  else return false;                                                   /* limit kolejki wizualnej */
+  if(!window._SLB.active) window._slbShowNext();
+  return true;
+};
+
+window._slbReducedMotion=function(){
+  if(window._gfxUiTransitions===false) return true;                    /* ustawienie gry (U31) */
+  try{ return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }catch(_){ return false; }
+};
+
+window._slbShowNext=function(){
+  const ph=document.getElementById('phone');
+  if(!ph||!ph.classList.contains('on')){ window._slbClear(); return; }
+  const item=window._SLB.queue.shift();
+  if(!item){ window._SLB.active=null; return; }
+  window._SLB.active=item;
+  var _old=document.getElementById('slb-banner'); if(_old) _old.remove();
+  const reduced=window._slbReducedMotion();
+  const el=document.createElement('div');
+  el.id='slb-banner';
+  el.className='MessageNotificationBanner';
+  el.setAttribute('role','button'); el.setAttribute('tabindex','0');
+  /* §4.1: kotwica top-center WEWNĄTRZ viewportu telefonu, szerokość 86–90%, wys. 76–88 px, radius 22–28 px. */
+  el.style.cssText='position:absolute;left:50%;top:12px;width:88%;min-height:80px;transform:translate(-50%,-120%);'
+    +'opacity:0;z-index:60;display:flex;align-items:center;gap:14px;padding:14px;box-sizing:border-box;'
+    +'background:linear-gradient(160deg,rgba(238,243,252,.94),rgba(222,231,246,.92));'
+    +'border:1px solid rgba(255,255,255,.75);border-radius:24px;'
+    +'box-shadow:0 10px 26px rgba(0,0,0,.35),0 1px 0 rgba(255,255,255,.6) inset;'
+    +'backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);cursor:pointer;font-family:inherit;'
+    +'transition:transform '+window._SLB_ENTER_MS+'ms cubic-bezier(.22,1,.36,1),opacity '+window._SLB_ENTER_MS+'ms cubic-bezier(.22,1,.36,1)';
+  const esc=function(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+  el.innerHTML='<div class="IconContainer" style="flex:0 0 auto;width:52px;height:52px;border-radius:14px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,.25)">'+window._slbIconSvg('standard')+'</div>'
+    +'<div class="TextColumn" style="flex:1;min-width:0">'
+    +'<div class="TitleText" style="font-size:14px;font-weight:700;color:#121a2a;letter-spacing:.2px">Wiadomości</div>'
+    +'<div class="PreviewText" style="font-size:12.5px;color:#39445a;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(item.previewText)+'</div>'
+    +'</div>';
+  const act=function(){ window._slbOpenThread(item); };
+  el.addEventListener('click',act);
+  el.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); act(); } });
+  ph.appendChild(el);
+  /* ENTERING → VISIBLE: pięć sekund liczymy DOPIERO po zakończeniu animacji wejścia (§6.2). */
+  if(reduced){
+    el.style.transition='opacity 160ms linear';
+    el.style.transform='translate(-50%,0)';
+    requestAnimationFrame(function(){ el.style.opacity='1'; });
+    window._SLB.showT=setTimeout(function(){ window._slbDismiss('timeout'); }, 160+window._SLB_SHOW_MS);
+  } else {
+    el.style.transform='translate(-50%,-120%) scale(.985)';
+    requestAnimationFrame(function(){ el.style.transform='translate(-50%,0) scale(1)'; el.style.opacity='1'; });
+    window._SLB.enterT=setTimeout(function(){
+      window._SLB.showT=setTimeout(function(){ window._slbDismiss('timeout'); }, window._SLB_SHOW_MS);
+    }, window._SLB_ENTER_MS);
+  }
+};
+
+window._slbDismiss=function(reason){
+  const el=document.getElementById('slb-banner');
+  clearTimeout(window._SLB.enterT); clearTimeout(window._SLB.showT);
+  window._SLB.enterT=null; window._SLB.showT=null;
+  const finish=function(){
+    var b=document.getElementById('slb-banner'); if(b) b.remove();
+    window._SLB.active=null;
+    if(window._SLB.queue.length){ window._SLB.gapT=setTimeout(function(){ window._slbShowNext(); }, window._SLB_GAP_MS); }
+  };
+  if(!el){ finish(); return; }
+  if(window._slbReducedMotion()){
+    el.style.transition='opacity 150ms linear'; el.style.opacity='0';
+    window._SLB.exitT=setTimeout(finish,160);
+  } else {
+    el.style.transition='transform '+window._SLB_EXIT_MS+'ms cubic-bezier(.4,0,1,1),opacity '+window._SLB_EXIT_MS+'ms cubic-bezier(.4,0,1,1)';
+    el.style.transform='translate(-50%,-120%)'; el.style.opacity='0';
+    window._SLB.exitT=setTimeout(finish,window._SLB_EXIT_MS+20);
+  }
+};
+
+/* §8 — kliknięcie otwiera KONKRETNY wątek po threadId (nie po nazwie kontaktu). */
+window._slbOpenThread=function(item){
+  if(!item||item._navLocked) return;
+  item._navLocked=true;
+  clearTimeout(window._SLB.enterT); clearTimeout(window._SLB.showT);
+  const exists=!!(G.sms&&G.sms.conversations&&G.sms.conversations[item.threadId]) && !!SMS_CONTACTS[item.threadId];
+  window._slbDismiss(exists?'opened_thread':'routing_fallback');
+  if(exists){ if(typeof window.renderSMSConversation==='function') window.renderSMSConversation(item.threadId); }
+  else if(typeof renderPhoneApp==='function') renderPhoneApp('sms');   /* awaryjnie lista rozmów; SMS zostaje nieprzeczytany */
+};
+
+/* §12 — zamknięcie telefonu natychmiast czyści banner i CAŁĄ kolejkę wizualną. */
+window._slbClear=function(){
+  clearTimeout(window._SLB.enterT); clearTimeout(window._SLB.showT);
+  clearTimeout(window._SLB.exitT); clearTimeout(window._SLB.gapT);
+  window._SLB.enterT=window._SLB.showT=window._SLB.exitT=window._SLB.gapT=null;
+  window._SLB.queue.length=0; window._SLB.active=null;
+  var b=document.getElementById('slb-banner'); if(b) b.remove();
+};
+/* ═══════════════════ SMARTPHONE LIVE BANNER MODULE END ═════════════════════════════════════ */
 window._showSmsPopup=function(contactId,text){
   const c=SMS_CONTACTS[contactId]; if(!c) return;
   const _group = contactId==='sponsor' ? {lbl:'OFERTA SPONSORSKA', col:'#e91e8c'}
@@ -74969,6 +75139,15 @@ window._smsSend=function(contactId,text,opts){
        SMS żyje w apce Wiadomości (badge 💬 unread); osobne okno to tylko alert ~8s z klik→czat. */
     if(typeof window._showSmsPopup==='function') window._showSmsPopup(contactId,text);
     else { const _preview=text.slice(0,60)+(text.length>60?'…':''); if(typeof showMsg==='function') showMsg(`📩 SMS od ${_c.name.split(' ')[0]}: ${_preview}`,'f',6000); if(typeof addNotif==='function') addNotif(`${_c.em} SMS od ${_c.name.split(' ')[0]}: ${text.slice(0,40)}`); }
+  }
+  /* PDF „Smartphone Live Banner” §7.1 — JEDNO zdarzenie `sms:received`, emitowane DOPIERO po zapisaniu
+     wiadomości w wątku. Odbiorców jest dwóch i są od siebie niezależni: dotychczasowy prostokąt HUD
+     (wyżej) oraz nowy banner wewnątrz telefonu (niżej). Banner NIE oznacza wiadomości jako przeczytanej. */
+  if(typeof window._slbOnSmsReceived==='function'){
+    try{ const _n=G.sms.conversations[contactId].length;
+      window._slbOnSmsReceived({ eventId:'sms_'+contactId+'_'+_n, messageId:contactId+'_'+_n, threadId:contactId,
+        senderId:contactId, senderDisplayName:(_c&&_c.name)||contactId, body:text, receivedAtRealMs:Date.now(),
+        receivedAtGameMinute:(typeof gameMin==='number'?gameMin:0), sourceAppId:'messages' }); }catch(_){}
   }
   // Opcjonalna akcja po otrzymaniu SMS (np. quick offer)
   if(opts&&opts.action) G.sms.conversations[contactId][G.sms.conversations[contactId].length-1].action=opts.action;
@@ -76136,6 +76315,7 @@ window.renderPlayerChatList=function(){
 function _smsTimeToMin(t){const [h,m]=(t||'00:00').split(':').map(Number);return h*60+m;}
 window.renderSMSConversation=function(contactId){
   _ensureSMS();
+  G._phView='sms:'+contactId;/* PDF „Smartphone Live Banner” §3.3: banner nie pokazuje się dla wątku, który gracz właśnie ogląda */
   /* v2.0.32: player_xxx → forward do _openPlayerChat (ten ma input do pisania, quick replies NIE pasują do graczy) */
   if(String(contactId).startsWith('player_')){
     const uid=contactId.replace(/^player_/,'');
@@ -84038,6 +84218,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.131',date:'2026-08-10',cats:['beta-tester','fix','feature'],title:'🅿️🚚♻️ Parking, holowanie, kasacja pojazdów i porządki w całej grze',
  items:[
+  {t:'feature',d:'📱 Nowe powiadomienie o wiadomości — tym razem w samym telefonie. Kiedy przeglądasz aplikacje albo foldery, na górze ekranu smartfona zjedzie mały, jasny prostokąt z nagłówkiem „Wiadomości” i początkiem treści. Kliknięcie w dowolne miejsce otwiera dokładnie tę rozmowę. Znika sam po pięciu sekundach, a przy kilku wiadomościach naraz pojawiają się po kolei, bez nakładania. Dotychczasowe powiadomienie w prawym dolnym rogu działa bez zmian.'},
   {t:'fix',d:'🅿️ Parking przestał podstawiać Ci auto pod nogi. Wcześniej wystarczyło mieć samochód, żeby po wejściu na dowolny parking od razu w nim usiąść — nawet jeśli stał w zupełnie innym miejscu. Teraz [E] otwiera panel parkingu: widzisz na którym miejscu stoi Twój pojazd i w jakim jest stanie, a wsiadasz podchodząc do niego.'},
   {t:'fix',d:'🅿️ Koniec obijania auta o parking. Płyta parkingu nie jest już jedną wielką przeszkodą — na wolne miejsce wjedziesz spokojnie i bez stłuczki. Fizyczne pozostają wyłącznie stojące na nim samochody. Z parkingiem dogadasz się też z 2 metry dalej niż dotąd.'},
   {t:'fix',d:'🚚 „Wezwij holowanie do warsztatu" wreszcie coś daje. Wcześniej płaciłeś za kurs, dostawałeś wiadomość, że Knox odholował pojazd — i w Garage 77 nie było czego naprawiać. Teraz opłacony transport oznacza pełną odbudowę w warsztacie. Jedyny wyjątek to pojazd po pożarze i eksplozji: wtedy kurs jest odmawiany i nie tracisz na to ani grosza.'},
