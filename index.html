@@ -1311,6 +1311,14 @@ function resetG(){
 // ═══════════════════════════════════════════════════════════════════
 const C  = document.getElementById('gc');
 const X  = C.getContext('2d');
+/* ── ADAPTACYJNA SCENA ──────────────────────────────────────────────────────────────────
+   Logiczny rozmiar świata. Do v2.3.131 był sztywno 1280x720, więc na ekranach o innych
+   proporcjach niż 16:9 zostawały czarne pasy (np. 1280x800 -> 80 px u dołu).
+   Teraz scena ROŚNIE do proporcji ekranu: skala dobierana jest tak, by świat nigdy nie był
+   mniejszy niż zaprojektowane 1280x720, a nadmiar wysokości/szerokości staje się dodatkową
+   widoczną przestrzenią. Aktualizowane w scaleGame(); cała matematyka kamery, wypełnień
+   pełnoekranowych i rozmiaru kanwy czyta te trzy wartości zamiast literałów. */
+let VIEW_W=1280, VIEW_H=720, VIEW_VH=658;   /* VIEW_VH = obszar świata pod paskiem HUD (62 px) */
 const T  = 48;
 const cam = {x:0, y:0, zoom:1};
 
@@ -4105,19 +4113,21 @@ function drawTileMap(room){
   const wW=room.wT*T, wH=room.hT*T;
   // Gdy pokój jest mniejszy niż viewport (np. studio 1056×672, silownia 960×672 vs 1280×658),
   // dorysuj ciemne tło aby NIE było pustego czarnego paska po prawej / na dole.
-  if(wW<1280 || wH<658){
+  if(wW<VIEW_W || wH<VIEW_VH){
     X.fillStyle='#0e1420';
-    X.fillRect(0,62,1280,658);
+    X.fillRect(0,62,VIEW_W,VIEW_VH);
     // Subtelny gradient żeby nie wyglądało jak "out-of-bounds"
-    const g=X.createLinearGradient(0,62,0,720);
+    const g=X.createLinearGradient(0,62,0,VIEW_H);
     g.addColorStop(0,'rgba(50,30,50,.10)');g.addColorStop(1,'rgba(0,0,0,.30)');
-    X.fillStyle=g;X.fillRect(0,62,1280,658);
+    X.fillStyle=g;X.fillRect(0,62,VIEW_W,VIEW_VH);
   }
   if(!room.map) return; /* v2.1.930: pokoje bez kafelkowej mapy (casino/striptiz_club/wnętrza) — tło z dekoracji; bez tego room.map[r] rzucał (łapane przez _safe co klatkę). */
   for(let r=0;r<room.hT;r++){
     for(let c=0;c<room.wT;c++){
       const tx=c*T+ox,ty=r*T+oy;
-      if(tx>-T&&tx<1280&&ty>-T&&ty<720){
+      /* odcięcie widoczności liczone z REALNEJ sceny — przy sztywnym 1280×720 kafle poniżej
+         720 px nie były rysowane i na wyższych ekranach zostawał czarny pas. */
+      if(tx>-T&&tx<VIEW_W&&ty>-T&&ty<VIEW_H){
         const id=room.map[r][c];
         if(tiles[id]) X.drawImage(tiles[id],tx,ty);
       }
@@ -8956,7 +8966,7 @@ function drawVelvetExtras(sx,sy,w,h){
 }
 function drawStriptizDecorations(){
   // podłoga klubu (ciemna z połyskiem)
-  X.fillStyle='#160812';X.fillRect(0,62,1280,658);
+  X.fillStyle='#160812';X.fillRect(0,62,VIEW_W,VIEW_VH);
   // pas parkietu pod sceną
   X.fillStyle='#20101c';X.fillRect(120,300,1040,260);
   // neonowe paski na ścianie
@@ -8978,7 +8988,7 @@ function drawStriptizDecorations(){
 function drawEclipseNoirDecorations(){
   const t=Date.now()/600;
   /* podłoga klubu (grafit z fioletowym połyskiem) */
-  X.fillStyle='#0d0a18';X.fillRect(0,62,1296,658);
+  X.fillStyle='#0d0a18';X.fillRect(0,62,VIEW_W,VIEW_VH);
   /* pas lounge przy ścianie */
   X.fillStyle='#140f24';X.fillRect(60,540,1176,150);
   /* lasery skanujące (skośne linie z góry) */
@@ -12848,7 +12858,7 @@ function drawLightingOverlay(){
   X.save();
   X.globalCompositeOperation='multiply';
   X.fillStyle=tint;X.globalAlpha=alpha;
-  X.fillRect(0,62,1280,658);
+  X.fillRect(0,62,VIEW_W,VIEW_VH);
   X.restore();
 }
 
@@ -13041,13 +13051,13 @@ function drawWetSurfaces(){
   X.save();X.globalCompositeOperation='screen';
   for(const [y0,y1] of roadBands){
     const sy0=wy2sy(y0),sy1=wy2sy(y1);
-    if(sy1<62||sy0>720)continue;
+    if(sy1<62||sy0>VIEW_H)continue;
     // Vertical gradient — ciemny do jasnego (odbicia)
     const g=X.createLinearGradient(0,sy0,0,sy1);
     g.addColorStop(0,`rgba(80,90,110,${0.06*intensity})`);
     g.addColorStop(0.5,`rgba(140,150,170,${0.16*intensity})`);
     g.addColorStop(1,`rgba(80,90,110,${0.06*intensity})`);
-    X.fillStyle=g;X.fillRect(0,Math.max(62,sy0),1280,Math.min(720,sy1)-Math.max(62,sy0));
+    X.fillStyle=g;X.fillRect(0,Math.max(62,sy0),VIEW_W,Math.min(VIEW_H,sy1)-Math.max(62,sy0));
   }
   X.restore();
   // Kałuże — drobne plamy odbiciowe (pre-deterministyczne pozycje)
@@ -13072,7 +13082,7 @@ function drawWetSurfaces(){
   X.save();X.globalCompositeOperation='multiply';
   for(const [y0,y1] of roadBands){
     const sy0=Math.max(62,wy2sy(y0)),sy1=Math.min(720,wy2sy(y1));
-    if(sy1<62||sy0>720)continue;
+    if(sy1<62||sy0>VIEW_H)continue;
     X.fillStyle=`rgba(40,45,55,${0.18*intensity})`;
     X.fillRect(0,sy0,1280,sy1-sy0);
   }
@@ -13098,7 +13108,7 @@ function drawAtmosphericFog(){
   const drift2=(now*0.022)%1280;
   const drift3=(now*0.010)%1280;
   // Ground layer — niska mgła
-  const g1=X.createLinearGradient(0,520,0,720);
+  const g1=X.createLinearGradient(0,520,0,VIEW_H);
   g1.addColorStop(0,`rgba(220,225,235,0)`);
   g1.addColorStop(0.5,`rgba(220,225,235,${0.12*intensity})`);
   g1.addColorStop(1,`rgba(220,225,235,${0.20*intensity})`);
@@ -13197,7 +13207,7 @@ function drawRedFlash(){
   const _alpha = 0.30 * (1 - _progress); /* fade out 0.30 → 0 */
   X.save();
   X.fillStyle=`rgba(204,16,16,${_alpha})`;
-  X.fillRect(0,62,1280,720-62);
+  X.fillRect(0,62,VIEW_W,VIEW_VH);
   X.restore();
 }
 
@@ -13308,9 +13318,9 @@ function drawWeatherFX(){
   if(G.health<25&&G.health>0){
     const pulse=0.5+Math.sin(Date.now()/200)*0.5;
     X.fillStyle=`rgba(255,0,0,${0.18+pulse*0.12})`;
-    X.fillRect(0,62,1280,658);
+    X.fillRect(0,62,VIEW_W,VIEW_VH);
     // Pulsujące przyciemnienie
-    if(pulse>0.85){X.fillStyle='rgba(0,0,0,0.15)';X.fillRect(0,62,1280,658);}
+    if(pulse>0.85){X.fillStyle='rgba(0,0,0,0.15)';X.fillRect(0,62,VIEW_W,VIEW_VH);}
     // Dźwięk alarmu co kilka sekund
     if(!window._lastDangerSound||Date.now()-window._lastDangerSound>4000){
       window._lastDangerSound=Date.now();
@@ -13330,7 +13340,7 @@ function drawWeatherFX(){
         const rx=sr(i*3+weatherTick*.007)*1280,ry=(sr(i*3+1)*720+(weatherTick*(w===5?4:2)))%720+62;
         X.beginPath();X.moveTo(rx,ry);X.lineTo(rx+(w===5?-5:-2),ry+(w===5?16:12));X.stroke();
       }
-      if(w===5&&Math.random()<.002*wi){X.fillStyle=`rgba(200,220,255,${.07*wi})`;X.fillRect(0,62,1280,658);} /* W12: częstotliwość błysków rośnie z intensywnością (start ~0) */
+      if(w===5&&Math.random()<.002*wi){X.fillStyle=`rgba(200,220,255,${.07*wi})`;X.fillRect(0,62,VIEW_W,VIEW_VH);} /* W12: częstotliwość błysków rośnie z intensywnością (start ~0) */
     }
     if(w===3&&wi>0.02){
       // Padające płatki śniegu — z sway i sparkle (liczba skaluje się intensywnością — W12)
@@ -13357,7 +13367,7 @@ function drawWeatherFX(){
     }
   }
   /* v1.9.20: BUG FIX — mgła tylko na ulicy (poprzednio leak do mieszkania/studio/siłowni) */
-  if(w===4 && outdoor && wi>0.02){X.fillStyle=`rgba(180,190,200,${.18*wi})`;X.fillRect(0,62,1280,658);} /* W12: mgła gęstnieje stopniowo */
+  if(w===4 && outdoor && wi>0.02){X.fillStyle=`rgba(180,190,200,${.18*wi})`;X.fillRect(0,62,VIEW_W,VIEW_VH);} /* W12: mgła gęstnieje stopniowo */
   // F+ Punkt #21: płatki kwiatów spadające wiosną (cherry blossom / bzy)
   if(outdoor && typeof getSeasonKey==='function' && (getSeasonKey()==='spring')){
     const petalCols=['#ffc0cb','#ff80b0','#ffd0e0','#ff70a0'];
@@ -13486,7 +13496,7 @@ function drawWeatherFX(){
       }
     }
   }
-  if(alpha>0){X.fillStyle=`rgba(0,0,20,${alpha})`;X.fillRect(0,62,1280,658);}
+  if(alpha>0){X.fillStyle=`rgba(0,0,20,${alpha})`;X.fillRect(0,62,VIEW_W,VIEW_VH);}
   if(!isInterior){
     const sky=X.createLinearGradient(0,62,0,120);
     sky.addColorStop(0,dc.sky);sky.addColorStop(1,'rgba(0,0,0,0)');
@@ -14840,10 +14850,11 @@ function updateCamera(){
        Max: cam.x = wW - 640(1 + 1/Z). Pozwala budynkom przy prawej krawędzi (wx>3680) być w centrum przy zoom 1.6.
        Przykład: BIURO wx=4004 z Z=1.6 — wcześniej clamp 3040 (off-center 1158px right), teraz clamp 3280 (~74px right of center). */
     const _z=Math.max(0.1, cam.zoom||1);
-    const _minX=Math.min(0, 640*(1/_z-1));
-    const _maxX=Math.max(0, wW - 640*(1+1/_z));
-    const _minY=Math.min(0, 329*(1/_z-1));
-    const _maxY=Math.max(0, wH - 329*(1+1/_z));
+    const _hw=VIEW_W/2, _hh=VIEW_VH/2;
+    const _minX=Math.min(0, _hw*(1/_z-1));
+    const _maxX=Math.max(0, wW - _hw*(1+1/_z));
+    const _minY=Math.min(0, _hh*(1/_z-1));
+    const _maxY=Math.max(0, wH - _hh*(1+1/_z));
     cam.x=clamp(cam.x, _minX, _maxX);
     cam.y=clamp(cam.y, _minY, _maxY);
     cam._initialized=true;
@@ -14854,8 +14865,10 @@ function updateCamera(){
     cam.zoom += (1 - cam.zoom) * 0.1;
     if(Math.abs(cam.zoom-1)<0.005) cam.zoom=1;
   }
-  const tx=clamp(P.wx+P.w/2-640,0,Math.max(0,wW-1280));
-  const ty=clamp(P.wy+P.h/2-360,0,Math.max(0,wH-658));
+  /* 640 -> pół szerokości sceny, 360 -> pół widocznej wysokości + 31 px offsetu w dół
+     (gracz stoi lekko poniżej środka kadru — zachowane 1:1 z układem 1280x720). */
+  const tx=clamp(P.wx+P.w/2-VIEW_W/2,0,Math.max(0,wW-VIEW_W));
+  const ty=clamp(P.wy+P.h/2-(VIEW_VH/2+31),0,Math.max(0,wH-VIEW_VH));
   // Smooth lerp — kamera płynnie dogania pozycję gracza zamiast skakać.
   // Większy LERP_SPEED → szybciej za graczem, mniejszy → bardziej "filmowo".
   const LERP_SPEED=0.22;
@@ -14870,7 +14883,7 @@ function updateCamera(){
   }
 }
 // Snap camera natychmiastowo (np. po teleport / changeRoom)
-function snapCamera(){const room=ROOMS[currentRoom];const wW=room.wT*T,wH=room.hT*T;cam.x=clamp(P.wx+P.w/2-640,0,Math.max(0,wW-1280));cam.y=clamp(P.wy+P.h/2-360,0,Math.max(0,wH-658));cam._initialized=true;}
+function snapCamera(){const room=ROOMS[currentRoom];const wW=room.wT*T,wH=room.hT*T;cam.x=clamp(P.wx+P.w/2-VIEW_W/2,0,Math.max(0,wW-VIEW_W));cam.y=clamp(P.wy+P.h/2-(VIEW_VH/2+31),0,Math.max(0,wH-VIEW_VH));cam._initialized=true;}
 
 function updatePlayer(){
   if(typeof window._policeInDetention==='function' && window._policeInDetention() && currentRoom!=='police_cell'){ P.moving=false; try{ window._policeOpenDetention(); }catch(e){} return; }
@@ -60090,8 +60103,9 @@ window._vwiNextZone=function(){
 window._vwiOffCamera=function(x,y){
   if(typeof wx2sx!=='function'||typeof wy2sy!=='function') return true;
   const sx=wx2sx(x), sy=wy2sy(y);
-  const cw=(typeof C!=='undefined'&&C&&C.width)?C.width:1280;   /* C = kanwa gry (gc), nie lokalne cv minigier */
-  const ch=(typeof C!=='undefined'&&C&&C.height)?C.height:800;
+  /* wymiary SCENY, nie backing-store kanwy — ten drugi jest przemnożony przez skalę renderowania */
+  const cw=(typeof VIEW_W!=='undefined')?VIEW_W:1280;
+  const ch=(typeof VIEW_H!=='undefined')?VIEW_H:720;
   return (sx<-40||sy<-40||sx>cw+40||sy>ch+40);
 };
 /* §6.2: linia widzenia. Wnętrza są otwarte, więc rozdziela je dystans i ściana działowa między rzędami. */
@@ -75421,7 +75435,7 @@ window._drawVehExploFlash=function(){
   if(!G._exploFlashUntilT) return; const now=Date.now();
   if(now>=G._exploFlashUntilT){ G._exploFlashUntilT=0; return; }
   const alpha=0.5*((G._exploFlashUntilT-now)/250);
-  X.save(); X.fillStyle=`rgba(255,180,90,${Math.max(0,alpha)})`; X.fillRect(0,62,1280,720-62); X.restore();
+  X.save(); X.fillStyle=`rgba(255,180,90,${Math.max(0,alpha)})`; X.fillRect(0,62,VIEW_W,VIEW_VH); X.restore();
 };
 /* płomienie na pozycji ekranu (reuse w _drawVehicleFx driving + branchach zaparkowanego pojazdu). */
 window._vehDrawFlames=function(sx,sy){
@@ -85566,7 +85580,7 @@ function _itutRenderStep(){
   if(window._cinemCam){
     window._cinemCam.active=true;
     window._cinemCam.targetX=step.wx-640; window._cinemCam.targetY=step.wy-329; window._cinemCam.targetZoom=step.zoom||1.6;
-    if(typeof cam!=='undefined'){ cam.x=step.wx-640; cam.y=step.wy-329; cam.zoom=step.zoom||1.6; }
+    if(typeof cam!=='undefined'){ cam.x=step.wx-VIEW_W/2; cam.y=step.wy-VIEW_VH/2; cam.zoom=step.zoom||1.6; }
     window._cinemCam.highlight={wx:step.wx, wy:step.wy, r:step.r||200};
     window._cinemCam.hlOpacity=0.6;
   }
@@ -87749,6 +87763,12 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.132',date:'2026-08-10',cats:['beta-tester','fix'],title:'🖼 Pełny ekran na każdych proporcjach monitora',
+ items:[
+  {t:'fix',d:'🖼 Koniec czarnych pasów. Gra wypełnia teraz cały ekran niezależnie od jego proporcji — na monitorach 16:10, 5:4 i panoramicznych zamiast czarnych krawędzi dostajesz po prostu więcej widocznego świata. Obraz nie jest przy tym rozciągany ani przycinany.'},
+ ]
+ },
  {
  ver:'v2.3.131',date:'2026-08-10',cats:['beta-tester','fix','feature'],title:'🅿️🚚♻️ Parking, holowanie, kasacja pojazdów i porządki w całej grze',
  items:[
@@ -100637,7 +100657,7 @@ function drawSeasonOverlay(){
   const s=getSeason();
   if(s.tint && s.tint!=='rgba(180,255,180,0.05)'){
     X.fillStyle=s.tint;
-    X.fillRect(0,62,1280,658);
+    X.fillRect(0,62,VIEW_W,VIEW_VH);
   }
 }
 // ─── MERCH STORE — pełnoprawna mechanika ──
@@ -106099,7 +106119,7 @@ function drawParkLife(){
     // F+ v1.8.10: anim TYLKO gdy NPC FAKTYCZNIE zmienił pozycję (nie chodzi w miejscu)
     if(Math.abs(p.wx-_prevWx)>0.05 || Math.abs(p.wy-_prevWy)>0.05) p.anim++;
     const sx=wx2sx(p.wx),sy=wy2sy(p.wy);
-    if(sx<-50||sx>1330||sy<32||sy>720) continue;
+    if(sx<-50||sx>VIEW_W+50||sy<32||sy>VIEW_H) continue;
     // Rysunek wg typu — uzupełnione casual i kid dla nowych parkPeds (F+ 2026-05-12)
     const skinByType={runner:'#e0a870',dogwalker:'#d0c090',business:'#e8d0a0',elderly:'#d0d0c0',couple1:'#e0c8a0',couple2:'#c8b090',casual:'#d4a070',kid:'#f0d4a8'};
     const clothByType={runner:'#3498db',dogwalker:'#27ae60',business:'#1a2a4a',elderly:'#444',couple1:'#e91e63',couple2:'#9b59b6',casual:'#5a3a8a',kid:'#f39c12'};
@@ -106124,7 +106144,7 @@ function drawParkFence(){
   // Helper — rysuj jeden segment płotku
   const drawSeg=(wx,wy,horizontal)=>{
     const sx=wx2sx(wx),sy=wy2sy(wy);
-    if(sx<-30||sx>1310||sy<32||sy>720) return;
+    if(sx<-30||sx>VIEW_W+30||sy<32||sy>VIEW_H) return;
     if(horizontal){
       X.fillStyle='#5a4028';X.fillRect(sx,sy,T_,4);
       X.fillStyle='#3a2818';
@@ -107376,7 +107396,7 @@ function drawCityDecorations(){
     const wx0=Math.floor(cam.x/40)*40;
     for(let wx=wx0;wx<cam.x+1284;wx+=40){
       if(wxMax&&wx>wxMax)break;
-      const ssx=sx2(wx);if(ssx>1280)break;
+      const ssx=sx2(wx);if(ssx>VIEW_W)break;
       // Skip jeśli pasek (20px szer) NACHODZI na blok
       if(vBlocked.some(([a,b])=>wx+20>=a&&wx<=b))continue;
       if(ssx+20>0)X.fillRect(ssx,sy-1,20,3);
@@ -107387,7 +107407,7 @@ function drawCityDecorations(){
     const wy0=Math.floor(cam.y/40)*40;
     for(let wy=wy0;wy<cam.y+662;wy+=40){
       if(wyMax&&wy>wyMax)break;
-      const sy=sy2(wy);if(sy>720)break;
+      const sy=sy2(wy);if(sy>VIEW_H)break;
       // Skip jeśli pasek (20px wys) NACHODZI na blok
       if(hBlocked.some(([a,b])=>wy+20>=a&&wy<=b))continue;
       if(sy+20>62)X.fillRect(ssx-1,sy,3,20);
@@ -108159,13 +108179,13 @@ function drawCinemHighlight(){
   X.save();
   /* v1.9.92: ciemne tło z miękką dziurą (radial gradient zamiast hard cutoff) */
   /* Najpierw soft mask — radial gradient od full opacity na brzegu do clear w centrum */
-  const maskG=X.createRadialGradient(sx,sy,r*0.5,sx,sy,Math.max(1280,720));
+  const maskG=X.createRadialGradient(sx,sy,r*0.5,sx,sy,Math.max(VIEW_W,VIEW_H));
   maskG.addColorStop(0,`rgba(0,0,0,0)`);
   maskG.addColorStop(0.15,`rgba(0,0,0,${0.15*op})`);
   maskG.addColorStop(0.5,`rgba(0,0,0,${0.55*op})`);
   maskG.addColorStop(1,`rgba(0,0,0,${0.7*op})`);
   X.fillStyle=maskG;
-  X.fillRect(0,0,1280,720);
+  X.fillRect(0,0,VIEW_W,VIEW_H);
   /* v1.9.92: 3 pulsujące pierścienie z desync phase (każdy pulsuje w innym tempie) */
   for(let i=0;i<3;i++){
     const phase=t+i*0.7;
@@ -108513,7 +108533,7 @@ function drawMissionBar(){
   const pct=Math.min(1,totalFans/target);
   const daysElapsed=G.day-(mm.startDay||1);
   const daysLeft=Math.max(0,(mm.daysLimit||30)-daysElapsed);
-  const barW=280,barH=14,bx=1280-barW-10,by=92;
+  const barW=280,barH=14,bx=VIEW_W-barW-10,by=92;
   // Tło
   X.fillStyle='rgba(0,4,12,.82)';X.beginPath();if(X.roundRect)X.roundRect(bx-4,by-4,barW+8,barH+28,4);else X.fillRect(bx-4,by-4,barW+8,barH+28);X.fill();
   // Nagłówek
@@ -108590,7 +108610,7 @@ function loop(){
   /* render scale: bazowy transform (kamera save/restore nestuje się w nim) + wygładzanie egzekwowane co klatkę */
   const _gfxRs=window._gfxRenderScale||1; X.setTransform(_gfxRs,0,0,_gfxRs,0,0);
   if(window._gfxSmoothing!==undefined){ X.imageSmoothingEnabled=(window._gfxSmoothing!=='off'); if(window._gfxSmoothQ) X.imageSmoothingQuality=window._gfxSmoothQ; }
-  X.clearRect(0,0,1280,720);
+  X.clearRect(0,0,VIEW_W,VIEW_H);
   const menuEl=document.getElementById('menu');
   const isMenu=menuEl.style.display==='flex'||menuEl.style.display==='';
   const isCreator=document.getElementById('creator').style.display==='flex';
@@ -108714,7 +108734,7 @@ function loop(){
       _roomFade=Math.max(0,_roomFade-0.09);
       if(_roomFade<=0){_roomFadeDir=0;_roomFadePending=null;}
     }
-    if(_roomFade>0){X.fillStyle=`rgba(0,0,0,${_roomFade})`;X.fillRect(0,62,1280,658);}
+    if(_roomFade>0){X.fillStyle=`rgba(0,0,0,${_roomFade})`;X.fillRect(0,62,VIEW_W,VIEW_VH);}
   }
   _safe(()=>updatePlayer(),'updatePlayer');
   _safe(()=>maybeSoundStep(),'maybeSoundStep');
@@ -110132,9 +110152,9 @@ window._autoRenderScale=function(){
   mult=Math.max(0.5,Math.min(1.5,mult));
   /* górna granica 3 = natywne 4K; wyżej koszt pamięci rośnie szybciej niż widoczna jakość */
   const q=Math.max(0.5,Math.min(3,+(mult*stage*dpr).toFixed(3)));
-  const bw=Math.round(1280*q), bh=Math.round(720*q);
+  const bw=Math.round(VIEW_W*q), bh=Math.round(VIEW_H*q);
   if(C.width!==bw||C.height!==bh){ C.width=bw; C.height=bh; }
-  C.style.width='1280px'; C.style.height='720px';
+  C.style.width=VIEW_W+'px'; C.style.height=VIEW_H+'px';
   window._gfxRenderScale=q;                 /* loop() ustawia z tego bazową macierz co klatkę */
   return q;
 };
@@ -110215,10 +110235,17 @@ function scaleGame(){
   } else {
     /* Gameplay scaling (lub desktop) */
     document.body.classList.remove('mobile-pregame');
-    el.style.width='1280px';
-    el.style.height='720px';
+    /* Skala dobrana tak, żeby świat NIGDY nie był mniejszy niż zaprojektowane 1280x720.
+       Nadmiar ekranu (proporcje inne niż 16:9) zamieniamy na dodatkową widoczną przestrzeń
+       zamiast czarnych pasów. Górne ograniczenie chroni przed absurdalnie szeroką sceną
+       na monitorach panoramicznych — tam resztę nadal dopełnia wyśrodkowanie. */
     const s=Math.min(window.innerWidth/1280,window.innerHeight/720);
-    const scaledW=1280*s, scaledH=720*s;
+    const SW=Math.max(1280,Math.min(2400,Math.round(window.innerWidth/s)));
+    const SH=Math.max(720, Math.min(1500,Math.round(window.innerHeight/s)));
+    VIEW_W=SW; VIEW_H=SH; VIEW_VH=SH-62;
+    el.style.width=SW+'px';
+    el.style.height=SH+'px';
+    const scaledW=SW*s, scaledH=SH*s;
     el.style.transform=`scale(${s})`;
     el.style.left=Math.max(0,(window.innerWidth-scaledW)/2)+'px';
     el.style.top=Math.max(0,(window.innerHeight-scaledH)/2)+'px';
@@ -110601,9 +110628,9 @@ loop();
     if(typeof window._autoRenderScale==='function') window._autoRenderScale();
     else { var rs=Math.max(0.5,Math.min(1.5, +s.renderScale||1));
       window._gfxRenderScale=rs;
-      var bw=Math.round(1280*rs), bh=Math.round(720*rs);
+      const bw=Math.round(VIEW_W*rs), bh=Math.round(VIEW_H*rs);
       if(C.width!==bw||C.height!==bh){ C.width=bw; C.height=bh; }
-      C.style.width='1280px'; C.style.height='720px'; }
+      C.style.width=VIEW_W+'px'; C.style.height=VIEW_H+'px'; }
     /* 2) Limit FPS — gate w loop() */
     window._gfxFpsInterval = (s.fpsLimit>0)?(1000/s.fpsLimit):0;
     /* v2.3.131 (PDF Uspr v2.3.130 U31): flaga animacji przejść UI — czytana przez elementy interfejsu
