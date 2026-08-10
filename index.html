@@ -3068,6 +3068,10 @@ const ROOMS = {
       {id:'salon',        wx:3010, wy:133, w:148,h:155, act:'shop:salon',               prompt:'[E] Salon CityDrive Motors',         lbl:'CityDrive Motors'},
       {id:'radio_st',     wx:3760, wy:133, w:148,h:155, act:'shop:radiostation',        prompt:'[E] Radio Street FM',           lbl:'Radio Street'},
       {id:'biuro_nieruch',wx:3930, wy:133, w:148,h:155, act:'shop:biuro',               prompt:'[E] Biuro Nieruchomości',       lbl:'Nieruchomości'},
+      /* PDF SOUNDYARD §3: trzy niezależne nieruchomości studyjne na mapie Main City — każda o innej bryle. */
+      {id:'sy_mercer',  wx:700,  wy:133,  w:150,h:155, act:'sy_prop:mercer_12',  prompt:'[E] Lokal użytkowy — Mercer 12',  lbl:'Mercer 12'},
+      {id:'sy_calder',  wx:2180, wy:133,  w:150,h:155, act:'sy_prop:calder_7b',  prompt:'[E] Lokal w oficynie — Calder 7B', lbl:'Calder 7B'},
+      {id:'sy_halston', wx:3560, wy:2208, w:150,h:155, act:'sy_prop:halston_41', prompt:'[E] Pawilon usługowy — Halston 41', lbl:'Halston 41'},
       // ── Freestyle spot — przed Salą Koncertową (na trawie centralnej, daleko od parku) ──
       {id:'freestyle_spot',wx:2435,wy:635, w:70, h:70, act:'freestyle',               prompt:'[E] Freestyle',                    lbl:'Freestyle'}, /* v1.9.32: w 80→70 — gap od DB block */
       // ── NPCs na chodniku (v2.1.6: rozrzucone po całej mapie, nie wszyscy na H1 south) ──
@@ -4372,6 +4376,9 @@ function drawSprite(id,sx,sy,w,h){
     case 'penthouse_helipad': drawPenthouseHelipad(sx,sy,w,h);break;
     case 'penthouse_antenna': drawPenthouseAntenna(sx,sy,w,h);break;
     case 'meble':        drawBuilding(sx,sy,w,h,'#003087','','#FFDA1A',null,true,{commercial:true});drawNorthRoomSign(sx,sy,w,h);break;
+    case 'sy_mercer':    drawSyMercer(sx,sy,w,h);break;   /* PDF SOUNDYARD §3 */
+    case 'sy_calder':    drawSyCalder(sx,sy,w,h);break;   /* PDF SOUNDYARD §3 */
+    case 'sy_halston':   drawSyHalston(sx,sy,w,h);break;  /* PDF SOUNDYARD §3 */
     case 'zlomowisko':   drawBuilding(sx,sy,w,h,'#2a2620','Metal Valley Yard','#95a5a6','♻️',true,{commercial:true});drawScrapyardExtras(sx,sy,w,h);break; /* v2.1.916 PDF */
     case 'jysk':         drawBuilding(sx,sy,w,h,'#0a3a6a','Meblux','#ffffff','',true,{commercial:true});break; /* v2.1.917 PDF — niebiesko-biały brand */
     case 'pepco':        drawBuilding(sx,sy,w,h,'#5a1030','Backstreet Thrift','#ffffff','🛍️',true,{commercial:true});break; /* v2.1.918 PDF — magenta brand */
@@ -15560,6 +15567,10 @@ function handleAct(act,objId){
     /* PDF odzieżowy §4.7/§8.3: aktywności w Pineglass Woods. */
     if(typeof window._pgwAct==='function') window._pgwAct(act.slice(4));
     else if(typeof showMsg==='function') showMsg('🌲 Las jeszcze się ładuje — spróbuj za chwilę.','i',3200);
+  } else if(act&&act.indexOf('sy_prop:')===0){
+    /* PDF SOUNDYARD §3/§4.2: [E] na lokalu — oględziny przed zakupem, panel zarządzania po zakupie. */
+    if(typeof window._syPropAct==='function') window._syPropAct(act.slice(8));
+    return;
   } else if(act&&act.indexOf('subterra:')===0){
     /* v2.3.129 BUGFIX (user: „panel na plantacji nie funkcjonuje"): terminal SUBTERRA
        miał case w tym samym martwym switchu → [E] nie otwierało panelu. */
@@ -18012,6 +18023,1201 @@ const STUDIO_EQUIP={
 };
 window.STUDIO_EQUIP=STUDIO_EQUIP;
 /* Grupy DISPLAY (PDF §12): łączą granularne cats (computer+daw, monitors+headphones, plugins+extras). Formuły 13.3 czytają granularne cats osobno. */
+/* ═══════════════════ SOUNDYARD STUDIO ECOSYSTEM MODULE START ═══════════════════════════════════
+   PDF „SOUNDYARD STUDIO ECOSYSTEM" (wersja 2.0). Najważniejsza zmiana: kompleks Soundyard sprzedaje
+   już tylko dwa największe lokale, a Studio S/M/L stają się trzema odrębnymi nieruchomościami na mapie
+   Main City, dostępnymi także w Biurze Nieruchomości. Każdy kupiony lokal startuje PUSTY, a każdy
+   element wyposażenia trzeba kupić, dostarczyć, zainstalować i zobaczyć fizycznie w pomieszczeniu.
+   ═══════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* ── §11 KATALOG 44 ELEMENTÓW ────────────────────────────────────────────────────────────────
+   Stare identyfikatory ZOSTAJĄ (kompatybilność zapisów), zmieniamy nazwy wyświetlane i dokładamy
+   panel „Informacje techniczne" z pięcioma polami wymaganymi przez dokument: funkcja techniczna,
+   wpływ w grze, wymagania i kompatybilność, wizualizacja po zakupie, ograniczenia. */
+window.SY_EQUIP_INFO={
+  /* 11.1 Komputery i DAW */
+  computer_basic:{name:'Axiom Node C6',cat:'Komputer Basic',
+    fn:'Podstawowa stacja do rejestracji i edycji małych projektów. Odpowiada za stabilność sesji, liczbę ścieżek, wielkość bufora i obciążenie procesorami wtyczek; nie zmienia samodzielnie charakteru sygnału mikrofonowego.',
+    fx:'+25 computeCapacity, do 24 ścieżek, mały zapas pluginów, wyższe ryzyko przeciążenia przy DAW Pro.',
+    req:'Dowolne studio; obsługuje Trackloom Start. Trackloom Studio działa z ograniczeniami; Trackloom Nexus jest zablokowany.',
+    vis:'Kompaktowa czarna obudowa pod biurkiem, pojedynczy monitor 24", prosta klawiatura i mysz.',
+    lim:'Nie zastępuje DAW, interfejsu ani akustyki; eksport przy stabilnej sesji nie staje się automatycznie gorszy tylko dlatego, że komputer jest tańszy.'},
+  computer_studio:{name:'Axiom Forge S18',cat:'Komputer Studio',
+    fn:'Średnia stacja robocza z większym zapasem procesora i pamięci, szybszym ładowaniem projektów i stabilniejszym monitoringiem przy małym buforze.',
+    fx:'+55 computeCapacity, do 72 ścieżek, niższe ryzyko przerw w dźwięku, pełna obsługa Trackloom Studio.',
+    req:'Zatwierdzona strefa stanowiska oraz fotel i biurko. Trackloom Nexus działa, ale bez pełnego zapasu.',
+    vis:'Większa obudowa z dyskretnym podświetleniem, dwa monitory 27", lepsza klawiatura i hub studyjny.',
+    lim:'Nie poprawia akustyki ani jakości mikrofonu; przewaga ujawnia się przy dużych projektach, niskiej latencji i wielu pluginach.'},
+  workstation_pro:{name:'Axiom Atlas X42',cat:'Workstation Pro',
+    fn:'Wysokowydajna stacja do dużych sesji, instrumentów wirtualnych, miksu i pracy wielozadaniowej.',
+    fx:'+95 computeCapacity, do 160 ścieżek, wysoki zapas pluginów, skrócony czas renderu i kopii zapasowej, pełna obsługa Trackloom Nexus.',
+    req:'Studio L lub większe albo zatwierdzony plan dla M; stabilne zasilanie.',
+    vis:'Pełnowymiarowa cicha obudowa, dwa duże monitory i trzeci ekran mierników oraz routingu.',
+    lim:'Nie daje korzyści proporcjonalnej do ceny w małym projekcie; nadal wymaga sprawnego interfejsu i poprawnej konfiguracji.'},
+  daw_starter:{name:'Trackloom Start',cat:'DAW Starter',
+    fn:'Podstawowe oprogramowanie do nagrywania, edycji, MIDI i prostego miksu. Organizuje ścieżki, routing, automatyzację i eksport, ale samo nie zastępuje wejść audio ani mikrofonu.',
+    fx:'Odblokowuje nagrywanie i montaż; limit 24 ścieżek, ograniczone routowanie i podstawowe narzędzia.',
+    req:'Dowolny komputer Axiom; licencja przypisana do konkretnego stanowiska.',
+    vis:'Ikona Trackloom Start na pulpicie, uproszczony interfejs na monitorze i pudełko z licencją na półce.',
+    lim:'Brak zaawansowanego compingu, rozbudowanej automatyzacji i większych sesji komercyjnych.'},
+  daw_pro:{name:'Trackloom Studio',cat:'DAW Pro',
+    fn:'Pełny przebieg nagrywania, edycji, miksu, automatyzacji i monitoringu wielu miksów odsłuchowych.',
+    fx:'Odblokowuje sesje komercyjne, rozbudowane poprawki, większy routing i integrację z PrismRack Pro.',
+    req:'Axiom Forge S18 lub Atlas X42; interfejs Studio albo Pro Rack dla pełnej funkcji.',
+    vis:'Rozbudowana ikona i ekran miksera oraz osi czasu, dodatkowe skróty sesji i menedżer szablonów.',
+    lim:'Nie podnosi jakości źródła bez dobrego nagrania i pomieszczenia; na Node C6 działa w trybie ograniczonym.'},
+  daw_ultimate:{name:'Trackloom Nexus',cat:'DAW Ultimate',
+    fn:'Najwyższy wariant do dużych sesji, zaawansowanego routingu, wielu stanowisk i pełnej automatyzacji.',
+    fx:'Odblokowuje przebieg premium, równoległe sesje postprodukcyjne, zaawansowane szablony i najwyższą przepustowość.',
+    req:'Axiom Atlas X42, Interface Pro Rack, konsultacja premium dla pełnego wykorzystania.',
+    vis:'Dedykowany interfejs wieloekranowy, zaawansowany mikser i ekran zarządzania wejściami oraz wyjściami.',
+    lim:'W małym studiu bywa przerostem formy; nie zastępuje kompetencji realizatora ani poprawnego monitoringu.'},
+  /* 11.2 Mikrofony */
+  mic_usb:{name:'Clearwave USB One',cat:'Mikrofon USB Basic',
+    fn:'Mikrofon z wbudowanym przetwornikiem i połączeniem cyfrowym. Pozwala ominąć osobny interfejs w najprostszym torze, lecz ma ograniczoną rozbudowę, monitoring i routing.',
+    fx:'Odblokowuje najtańszy łańcuch demo; +22 captureScore, niski prestiż u klientów.',
+    req:'Komputer, DAW i słuchawki; tylko własne nagrania i najniższy poziom wynajmu.',
+    vis:'Mikrofon na małym statywie biurkowym, przewód USB i aktywny wskaźnik na ekranie DAW.',
+    lim:'Nie współpracuje z torem rackowym tak elastycznie jak mikrofon XLR; nie nadaje się do automatycznego wynajmu premium.'},
+  mic_dynamic:{name:'IronVoice D3',cat:'Mikrofon Dynamic Studio',
+    fn:'Mikrofon dynamiczny jest wytrzymały, może obsługiwać wysokie poziomy dźwięku i bywa praktyczny w mniej kontrolowanych pomieszczeniach. Zwykle ma niższą czułość niż pojemnościowy i wymaga odpowiedniego wzmocnienia przedwzmacniacza.',
+    fx:'+40 captureScore, mniejsza kara za słabą akustykę i hałas otoczenia, bonus do energicznych wokali.',
+    req:'Interfejs z odpowiednim zapasem wzmocnienia; statyw i słuchawki.',
+    vis:'Ciemny mikrofon na ramieniu lub statywie, gruby uchwyt i pop-filtr.',
+    lim:'Nie jest automatycznie lepszy dla każdego głosu; niższa czułość nie oznacza pełnej izolacji od pokoju.'},
+  mic_condenser:{name:'Luma C87',cat:'Mikrofon Condenser Pro',
+    fn:'Mikrofon pojemnościowy wymaga zasilania i zwykle oferuje większą czułość oraz szerokie pasmo, dzięki czemu ujawnia więcej detalu, ale również więcej charakteru pomieszczenia.',
+    fx:'+68 captureScore, wysoki detal i prestiż; większa kara za nieprzygotowaną akustykę.',
+    req:'Interface Studio lub Pro Rack z zasilaniem fantomowym; Panele Studio albo lepsza adaptacja.',
+    vis:'Duża kapsuła w koszu antywstrząsowym, pop-filtr, stojak i przewód XLR.',
+    lim:'Nie gwarantuje dobrego wokalu bez właściwego ustawienia, wykonania i kontroli odbić; w pustym pokoju może obniżyć spójność nagrań.'},
+  mic_tube:{name:'Emberglass T12',cat:'Mikrofon Tube Premium',
+    fn:'Premium mikrofon lampowy z osobnym zasilaczem i charakterystycznym torem analogowym. W grze zapewnia wariant tonalny i prestiż, nie „obiektywnie najlepszy" dźwięk.',
+    fx:'+82 captureScore, +12 prestiż, specjalne preferencje klientów premium, wyższe koszty serwisu.',
+    req:'Studio L lub większe, Interface Pro Rack, Adaptacja Pro, konsultacja toru wokalowego.',
+    vis:'Duży mikrofon w złotawym wykończeniu, zasilacz na racku, dedykowany przewód i twarda walizka.',
+    lim:'Większa cena i koloracja nie pasują do każdego źródła; urządzenie ma wyższe zużycie i okresowy serwis.'},
+  /* 11.3 Interfejsy audio — kategoria istniała w grze pusta, dokument ją wypełnia */
+  if_basic:{name:'SignalBridge I2',cat:'Interface Basic',
+    fn:'Konwertuje sygnał analogowy na dane cyfrowe i zapewnia przedwzmacniacz, wejścia, wyjścia oraz monitoring. Interfejs nie jest tylko „kartą dźwiękową"; definiuje routowanie, zapas wzmocnienia i stabilność sterownika.',
+    fx:'2 wejścia, 2 wyjścia, +28 conversionScore, podstawowy monitoring bezpośredni.',
+    req:'Komputer i DAW; obsługuje jeden mikrofon i jednego artystę.',
+    vis:'Małe urządzenie na biurku, dwa pokrętła wzmocnienia, wskaźniki i przewody do komputera oraz słuchawek.',
+    lim:'Ograniczona liczba miksów odsłuchowych i wyjść; nie nadaje się do rozbudowanej obsługi wielu osób.'},
+  if_studio:{name:'SignalBridge I8',cat:'Interface Studio',
+    fn:'Więcej wejść i wyjść, stabilniejsze monitorowanie i osobne tory odsłuchowe. Opóźnienie zależy od całego systemu, bufora i sterownika; monitoring bezpośredni może je ograniczyć.',
+    fx:'8 wejść, 8 wyjść, +58 conversionScore, dwa miksy odsłuchowe, niższe ryzyko opóźnienia.',
+    req:'Axiom Forge lub lepszy; rekomendowany Trackloom Studio.',
+    vis:'Urządzenie biurkowo-rackowe z miernikami, większą liczbą przewodów i kontrolerem monitorów.',
+    lim:'Nie poprawi nagrania, jeśli wzmocnienie jest źle ustawione, mikrofon niedopasowany, a pokój niekontrolowany.'},
+  if_prorack:{name:'SignalBridge R16',cat:'Interface Pro Rack',
+    fn:'Rackowy interfejs o dużej liczbie wejść i wyjść, rozwiniętym routingu, pomiarach i integracji wielu stanowisk.',
+    fx:'16+ kanałów, +86 conversionScore, cztery miksy odsłuchowe, redundancja i najwyższa przepustowość.',
+    req:'Studio L lub większe, rack techniczny, Axiom Atlas dla pełnego wykorzystania.',
+    vis:'Urządzenie 2U w racku, stały miernik kanałów, patch panel i uporządkowane okablowanie.',
+    lim:'W Studio S jest niekompatybilny; duża liczba kanałów nie ma wartości bez realnej potrzeby i kompetentnej obsługi.'},
+  /* 11.4 Odsłuch i słuchawki */
+  hp_basic:{name:'Hushline C1',cat:'Słuchawki Basic',
+    fn:'Zamknięte słuchawki do podstawowego nagrywania i kontroli. Konstrukcja zamknięta ogranicza wyciek dźwięku do mikrofonu, dlatego jest praktyczna podczas nagrywania.',
+    fx:'1 stanowisko odsłuchowe, +18 monitoringScore, podstawowe nagrywanie.',
+    req:'Wyjście słuchawkowe interfejsu albo mikrofonu USB.',
+    vis:'Jedna para na prostym wieszaku przy stanowisku.',
+    lim:'Nie zapewnia wiarygodnej oceny miksu na poziomie monitorów i zaadaptowanego pomieszczenia.'},
+  hp_studio:{name:'Hushline C2',cat:'Słuchawki Studio',
+    fn:'Lepsze zamknięte słuchawki o wyższym komforcie i dokładności, przeznaczone do długich sesji nagraniowych i edycji.',
+    fx:'+42 monitoringScore, mniejsze zmęczenie artysty, lepsza ocena edycji.',
+    req:'Interface Basic lub lepszy.',
+    vis:'Solidna para na metalowym wieszaku, wymienne przewody i etui.',
+    lim:'Nadal nie zastępuje odsłuchu głośnikowego i wpływu pomieszczenia na miks.'},
+  hp_artist:{name:'Hushline Artist Pack 4',cat:'Słuchawki Artist Pack',
+    fn:'Cztery zamknięte pary oraz dystrybucja sygnału dla artystów i gości. Pozwala tworzyć niezależne podstawowe miksy odsłuchowe.',
+    fx:'4 stanowiska, +55 komfort, odblokowuje sesje grupowe i wyższą pojemność gości.',
+    req:'Interface Studio lub Pro Rack; wolny slot techniczny.',
+    vis:'Cztery pary na ściennym stojaku i mały wzmacniacz słuchawkowy w racku.',
+    lim:'Liczba słuchawek nie zwiększa jakości samego nagrania; wymaga poprawnego routingu i obsługi.'},
+  mon_basic:{name:'Fieldnote 5',cat:'Monitory Basic',
+    fn:'Małe monitory bliskiego pola do podstawowej kontroli balansu. Wiarygodność zależy od ustawienia, symetrii, odległości i reakcji pomieszczenia.',
+    fx:'+28 monitorCapability; odblokowuje podstawowy miks w S i M.',
+    req:'Para symetrycznych punktów odsłuchowych i zatwierdzony plan.',
+    vis:'Dwa małe monitory na podkładkach po obu stronach ekranu.',
+    lim:'Nie naprawiają złego pomieszczenia; nie pokazują pełnego dołu przy większym dystansie odsłuchu.'},
+  mon_studio:{name:'Fieldnote 7',cat:'Monitory Studio',
+    fn:'Średni system bliskiego pola o większym zapasie i zakresie. Poprawne ustawienie w trójkącie odsłuchowym oraz symetria boczna mają kluczowe znaczenie.',
+    fx:'+62 monitorCapability, lepsza przekładalność miksu, sesje miksowe komercyjne.',
+    req:'Panele Studio lub Adaptacja Pro; konsultacja akustyczna.',
+    vis:'Większe monitory na osobnych standach, kable prowadzone do interfejsu i znaczniki pozycji.',
+    lim:'W Studio S zwykle zbyt duże; bez adaptacji mogą zwiększyć błędne decyzje zamiast je ograniczyć.'},
+  mon_premium:{name:'Fieldnote Reference 8',cat:'Monitory Premium',
+    fn:'Referencyjny system o dużym zapasie, precyzyjnym obrazowaniu i możliwościach kalibracji. Wymaga dopasowania do odległości i objętości pomieszczenia.',
+    fx:'+90 monitorCapability, miks premium, +10 prestiż, mniejsza liczba poprawek przy kompetentnym realizatorze.',
+    req:'Studio L, XL lub Penthouse, Adaptacja Pro, Axiom Atlas, konsultacja premium i uruchomienie kontrolne.',
+    vis:'Duże monitory na ciężkich standach, panel kalibracji na ekranie i oznaczone punkty odsłuchowe.',
+    lim:'Niekompatybilne z S; koszt bez przygotowanego pokoju jest zmarnowany.'},
+  /* 11.5 MIDI i instrumenty */
+  midi_mini:{name:'Keyform Mini 25',cat:'MIDI Mini',
+    fn:'Mała klawiatura sterująca wysyła dane MIDI do instrumentów wirtualnych; nie generuje jakości audio sama z siebie.',
+    fx:'+15 beatWorkflow, szybkie szkice, mały rozmiar.',
+    req:'DAW i komputer.',
+    vis:'25-klawiszowy kontroler na wysuwanej półce pod biurkiem.',
+    lim:'Ograniczony zakres klawiatury i kontrola ekspresji.'},
+  midi_studio:{name:'Keyform Studio 49',cat:'MIDI Studio',
+    fn:'Średnia klawiatura z kontrolerami, przydatna do produkcji, automatyzacji i instrumentów wirtualnych.',
+    fx:'+38 beatWorkflow, +10 szybkość automatyzacji, lepszy komfort kompozycji.',
+    req:'Rekomendowany DAW Pro; miejsce na stand lub szerokie biurko.',
+    vis:'49 klawiszy na osobnym standzie, pokrętła i podświetlane pady.',
+    lim:'Nie wpływa bezpośrednio na czystość nagrania wokalu.'},
+  midi_prokeys:{name:'Keyform Pro 88',cat:'MIDI Pro Keys',
+    fn:'Pełnowymiarowa klawiatura sterująca do zaawansowanej gry i aranżacji.',
+    fx:'+70 compositionWorkflow, specjalne zlecenia produkcyjne i komfort pianistów.',
+    req:'Studio L lub większe; duży slot instrumentów.',
+    vis:'88 klawiszy na ciężkim standzie, pedały i ławka.',
+    lim:'Nie mieści się w S; wysoka cena ma wartość tylko dla pracy opartej na grze klawiszowej.'},
+  pad_ctrl:{name:'PulsePad 16',cat:'Pad Controller',
+    fn:'Kontroler padów do rytmu, sampli i szybkiego programowania patternów.',
+    fx:'+40 drumWorkflow, szybsze tworzenie beatów i bonus do gry na padach na żywo.',
+    req:'Komputer i DAW.',
+    vis:'16 podświetlanych padów obok klawiatury i ekran samplera w DAW.',
+    lim:'Nie jest samodzielnym samplerem ani interfejsem audio.'},
+  guitar_corner:{name:'Instrument Corner',cat:'Gitara / Instrument Corner',
+    fn:'Zestaw podstawowych instrumentów, standów i okablowania do dogrywek.',
+    fx:'+35 różnorodność aranżacji, odblokowuje sesje instrumentalne i klientów o szerszych wymaganiach.',
+    req:'Studio M warunkowo, L i wyżej rekomendowane; interfejs z wejściem instrumentowym.',
+    vis:'Gitara na stojaku, mały instrument dodatkowy, przewody, stołek i półka akcesoriów.',
+    lim:'Nie jest pełnym live roomem; zbyt małe pomieszczenie ogranicza jednoczesne nagrania.'},
+  /* 11.6 Akustyka */
+  ac_foam:{name:'RoomForm Starter',cat:'Pianki akustyczne Basic',
+    fn:'Lekka absorpcja głównie wyższych częstotliwości. Może zmniejszyć trzepoczące echo, ale nie jest izolacją akustyczną i nie kontroluje skutecznie niskich częstotliwości.',
+    fx:'+18 acousticControl, redukcja prostych odbić w S i M.',
+    req:'Plan bazowy; ograniczona liczba zatwierdzonych punktów ściennych.',
+    vis:'Niewielkie geometryczne fragmenty na ścianach, bez pokrywania całego pokoju.',
+    lim:'Nie „wygłusza" studia i nie może zastąpić szerokopasmowej adaptacji.'},
+  ac_panels:{name:'RoomForm Broadband',cat:'Panele akustyczne Studio',
+    fn:'Szerokopasmowe panele rozmieszczone w punktach pierwszych odbić i wybranych strefach pomagają kontrolować czas pogłosu i wczesne odbicia.',
+    fx:'+48 acousticControl, stabilniejsze nagranie wokalu i monitoring.',
+    req:'Konsultacja Imani Rook; odpowiednie kotwy ścienne.',
+    vis:'Grube panele w tkaninie, symetryczne układy boczne i panel sufitowy w większych lokalach.',
+    lim:'Nie zapewniają izolacji od ulicy ani sąsiadów; złe rozmieszczenie może nadmiernie stłumić część pasma.'},
+  ac_adapt:{name:'RoomForm Blueprint',cat:'Adaptacja Pro',
+    fn:'Kompletny projekt oparty na pomiarach: szerokopasmowa absorpcja, kontrola narożników, dyfuzja lub elementy hybrydowe oraz kalibracja pozycji odsłuchowej.',
+    fx:'+82 acousticControl, gotowość na monitoring premium, niższe ryzyko poprawek i skarg na hałas.',
+    req:'Specjalistyczna konsultacja, minimum Studio M; pełny efekt w L i wyżej.',
+    vis:'Spójny zestaw paneli, narożników, chmury sufitowej i oznaczonej pozycji odsłuchowej.',
+    lim:'Nie rozwiązuje hałasu konstrukcyjnego bez odpowiedniej izolacji budynku; wymaga okresowej weryfikacji po zmianach mebli.'},
+  ac_booth_compact:{name:'VoxShell Compact',cat:'Kabina wokalna Compact',
+    fn:'Mała wydzielona strefa do suchszych nagrań wokalnych. Jej projekt musi ograniczać niepożądaną ciasną kolorację i zapewniać wentylację; sam mały „martwy box" nie jest automatycznie dobry.',
+    fx:'+45 izolacja wokalu, mniejszy wpływ ulicy i gości, lepsze nagrywanie w M i L.',
+    req:'Studio M lub większe, konsultacja akustyczna, wolny slot i wentylacja.',
+    vis:'Moduł z drzwiami, szybą, wewnętrznym panelem i lampą statusową.',
+    lim:'Nie mieści się w S; przy złym projekcie może zwiększać wrażenie ciasnoty i dyskomfort.'},
+  ac_booth_pro:{name:'VoxShell Pro',cat:'Kabina wokalna Pro',
+    fn:'Większa kabina z lepszą kontrolą, oknem, cichą wentylacją i możliwością ustawienia mikrofonu oraz wykonawcy bez nadmiernej ciasnoty.',
+    fx:'+78 izolacja wokalu, sesje wokalne premium, większa prywatność i komfort.',
+    req:'Studio L, XL lub Penthouse; Adaptacja Pro i konsultacja premium.',
+    vis:'Pełnowymiarowa kabina z podwójnymi drzwiami, oknem, panelem sygnałowym i zmiennym oświetleniem.',
+    lim:'Zajmuje dużo metrażu i slotów; nie jest potrzebna każdemu sposobowi pracy.'},
+  /* 11.7 Oświetlenie */
+  light_basic:{name:'Worklight Basic',cat:'Lampy Basic',
+    fn:'Równomierne oświetlenie robocze stanowiska i strefy nagrań.',
+    fx:'+12 komfort, mniejsze zmęczenie podczas nocnych sesji.',
+    req:'Dowolny lokal.',
+    vis:'Lampka biurkowa, prosta lampa stojąca i neutralna temperatura światła.',
+    lim:'Nie wpływa na jakość dźwięku.'},
+  light_led:{name:'Moodline LED',cat:'LED Mood Kit',
+    fn:'Oświetlenie nastrojowe poprawiające doświadczenie klienta i wizualną identyfikację studia.',
+    fx:'+18 komfort, +8 prestiż, bonus do materiałów i atmosfery sesji.',
+    req:'Wolne punkty ścienne i sterownik.',
+    vis:'Linie LED za biurkiem i w strefie klienta, z kilkoma zatwierdzonymi scenami kolorystycznymi.',
+    lim:'Nie może maskować braków technicznych; nadmierne migotanie lub jasność obniża komfort.'},
+  light_rgb:{name:'FrameGlow RGB Wall',cat:'RGB Studio Wall',
+    fn:'Duża ściana świetlna do wizerunku i nagrań wideo, niezależna od toru audio.',
+    fx:'+22 prestiż, +20 możliwości materiałowe, lepsze sesje zza kulis.',
+    req:'Studio M i większe oraz dedykowana ściana bez paneli krytycznych.',
+    vis:'Modułowa ściana RGB z panelem sterowania i ustawieniami marki studia.',
+    lim:'Nie może zastąpić paneli akustycznych w punktach pierwszych odbić.'},
+  light_film:{name:'FrameGlow Film Kit',cat:'Film Light Kit',
+    fn:'Zestaw kontrolowanego światła do nagrań, zdjęć, podcastów i klipów studyjnych.',
+    fx:'+45 możliwości materiałowe, odblokowuje płatne sesje wideo i lepszy materiał promocyjny.',
+    req:'Rekomendowane Studio L i większe; miejsce magazynowe.',
+    vis:'Dwa softboxy lub panele LED na statywach, torba, ramiona i ekran sterowania.',
+    lim:'Zajmuje przestrzeń i może przeszkadzać w sesji audio, jeśli nie zostanie odłożony.'},
+  /* 11.8 Meble i komfort */
+  furn_chair:{name:'Axis Engineer Chair',cat:'Fotel Realizatora',
+    fn:'Ergonomiczne stanowisko zmniejsza zmęczenie przy długim nagrywaniu i edycji.',
+    fx:'−15% zmęczenia realizatora, +8 stabilność pracy.',
+    req:'Strefa stanowiska realizatora.',
+    vis:'Regulowany fotel przy biurku, animacja siadania i pracy.',
+    lim:'Nie wpływa bezpośrednio na brzmienie.'},
+  furn_sofa_used:{name:'Reclaim Sofa',cat:'Kanapa Used',
+    fn:'Tani używany mebel dla jednego lub dwóch gości.',
+    fx:'+10 komfort, mały bonus goszczenia, możliwe szybsze zużycie.',
+    req:'Strefa klienta i wystarczający metraż.',
+    vis:'Lekko zużyta kanapa o niedopasowanym kolorze, drobne ślady użytkowania.',
+    lim:'Niski prestiż i wyższy koszt czyszczenia.'},
+  furn_sofa_studio:{name:'Studio Sofa',cat:'Kanapa Studio',
+    fn:'Trwała kanapa zaprojektowana do częstych sesji i oczekiwania gości.',
+    fx:'+28 komfort, +8 prestiż, większa tolerancja długich sesji.',
+    req:'Studio M i większe; strefa klienta.',
+    vis:'Prosta ciemna kanapa, stolik i dwa miejsca na ładowanie telefonu.',
+    lim:'Nie zwiększa jakości technicznej nagrań.'},
+  furn_lounge:{name:'Lounge Premium',cat:'Lounge Premium',
+    fn:'Komplet wypoczynkowy do obsługi klientów premium i spotkań odsłuchowych.',
+    fx:'+60 komfort, +25 prestiż, dostęp do klientów premium i bonus do odsłuchów towarzyskich.',
+    req:'L warunkowo, XL i Penthouse rekomendowane; duża strefa klienta.',
+    vis:'Sofa modułowa, fotele, stolik, dywan i spójne dekoracje.',
+    lim:'Duży koszt i zajętość powierzchni; w małym lokalu obniża ergonomię.'},
+  /* 11.9 Lodówki */
+  fridge_mini:{name:'QuietChill Mini',cat:'Mini lodówka',
+    fn:'Mała lodówka zwiększa komfort gości, ale urządzenie chłodnicze może generować hałas i wibracje, dlatego musi stać poza krytyczną strefą nagraniową lub wyłączać sprężarkę podczas nagrania.',
+    fx:'+8 komfort, mały zapas napojów, +2 ryzyko hałasu bez poprawnego ustawienia.',
+    req:'Strefa klienta lub techniczna zatwierdzona przez konsultanta.',
+    vis:'Mała lodówka pod blatem w strefie klienta.',
+    lim:'Nie może zostać postawiona obok mikrofonu lub monitorów.'},
+  fridge_studio:{name:'QuietChill Studio',cat:'Lodówka Studio',
+    fn:'Cichszy model o większej pojemności i trybie sesyjnym ograniczającym cykl pracy podczas nagrań.',
+    fx:'+20 komfort, +8 goszczenie, mniejsze ryzyko hałasu.',
+    req:'Studio M i większe oraz oddzielna strefa techniczna.',
+    vis:'Średnia lodówka z panelem trybu cichego i półką napojów.',
+    lim:'Tryb cichy jest czasowy i wymaga późniejszego powrotu do normalnej pracy.'},
+  fridge_premium:{name:'QuietChill Premium',cat:'Lodówka Premium',
+    fn:'Duży, estetyczny model dla studia premium z kontrolą zapasów i bardzo niską emisją hałasu w trybie sesyjnym.',
+    fx:'+38 komfort, +15 prestiż, bonus do goszczenia klientów premium.',
+    req:'XL lub Penthouse albo zatwierdzone L.',
+    vis:'Zabudowana lodówka w strefie klienta, ekran zapasów w aplikacji SessionBoard.',
+    lim:'Nie ma wpływu na jakość miksu; wymaga regularnego uzupełniania i czyszczenia.'},
+  /* 11.10 Dodatki realizacyjne i operacyjne */
+  plugins_basic:{name:'PrismRack Basic',cat:'Pakiet pluginów Basic',
+    fn:'Podstawowe procesory korekcji, dynamiki, pogłosu i narzędzia pomiarowe w DAW.',
+    fx:'+20 zestaw narzędzi miksowych, mniejsza kara za podstawowy miks, odblokowuje proste łańcuchy.',
+    req:'Dowolny DAW; komputer Node lub lepszy.',
+    vis:'Nowe pozycje w przeglądarce pluginów i mała karta licencyjna przy stanowisku.',
+    lim:'Więcej pluginów nie gwarantuje lepszego miksu; nadmierne użycie może zwiększyć błąd i obciążenie procesora.'},
+  plugins_pro:{name:'PrismRack Pro',cat:'Pakiet pluginów Pro',
+    fn:'Rozbudowany zestaw procesorów, analizy, korekcji i narzędzi do miksu oraz masteringu.',
+    fx:'+55 zestaw narzędzi miksowych, rozszerzone opcje poprawek, lepsza zgodność z klientami komercyjnymi.',
+    req:'Trackloom Studio lub Nexus, Axiom Forge lub Atlas.',
+    vis:'Rozszerzone menu pluginów, ekran analizatora i dodatkowy kontroler licencji.',
+    lim:'Nie zastępuje akustyki, odsłuchu ani umiejętności realizatora.'},
+  extra_booking:{name:'SessionBoard Wall Panel',cat:'Panel rezerwacji',
+    fn:'Fizyczny ekran przy wejściu zsynchronizowany z aplikacją SessionBoard. Obsługuje zameldowanie, status zajętości, harmonogram i podstawowe komunikaty.',
+    fx:'+35 niezawodność rezerwacji, automatyczne zameldowanie, mniej konfliktów i możliwość pracy menedżera zdalnie.',
+    req:'Działający internet, aplikacja SessionBoard i konto studia.',
+    vis:'Smukły tablet ścienny przy wejściu, lampka zajętości i aktualny termin.',
+    lim:'Nie zapewnia bezpieczeństwa ani jakości sesji; bez realizatora pokazuje jedynie status.'},
+  extra_access:{name:'NightWatch Studio Access',cat:'System dostępu',
+    fn:'Elektroniczny system kontroli dostępu dla pracowników i klientów, z czasowymi uprawnieniami przypisanymi do rezerwacji.',
+    fx:'+40 niezawodność dostępu, mniejsze ryzyko kradzieży, odblokowanie samodzielnego zameldowania i wynajmu zdalnego.',
+    req:'SessionBoard, panel przy drzwiach i konsultacja operacyjna.',
+    vis:'Czytnik przy drzwiach, mała dioda statusu i rejestr wejść w aplikacji.',
+    lim:'Nie jest magiczną ochroną przed wszystkimi zdarzeniami; błędne uprawnienia lub awaria mogą zablokować wejście.'},
+};
+/* Nazwa wyświetlana sprzętu — JEDNO źródło (§11: stare identyfikatory zostają, nazwy nowe). */
+window.syEquipName=function(id){ const i=window.SY_EQUIP_INFO[id]; return i?i.name:((window.STUDIO_EQUIP&&STUDIO_EQUIP[id]&&STUDIO_EQUIP[id].name)||id); };
+window.syEquipCatLabel=function(id){ const i=window.SY_EQUIP_INFO[id]; return i?i.cat:''; };
+/* ── §3 TRZY NIEZALEŻNE NIERUCHOMOŚCI STUDYJNE NA MAPIE ──────────────────────────────────────
+   Studio S/M/L zachowują parametry użytkowe, ceny i wewnętrzne identyfikatory, ale przenoszą się
+   z kompleksu do trzech osobnych obiektów Main City. Wymóg unikalności z dokumentu: każdy budynek
+   ma INNY obrys, typ wejścia, dach, otoczenie i relację z ulicą — żadnego przemalowanego klona. */
+window.SY_PROPERTIES=[
+  {id:'mercer_12', roomId:'studio_s_booth', title:'Lokal użytkowy — Mercer 12',
+   alt:['Lokal narożny — Mercer 12','Lokal po dawnym punkcie usługowym — Mercer 12'],
+   legacy:'Studio S — Booth Room', m2:18, price:62400, slots:10, upkeep:900,
+   where:'Zachodnia część Main City, parter starszej kamienicy przy skrzyżowaniu Mercer Street i krótkiej ulicy serwisowej.',
+   look:'Wąski lokal narożny po dawnym punkcie dorabiania kluczy: ciemnoczerwona cegła, metalowa roleta, dwie różnej szerokości witryny, mały daszek i boczne drzwi techniczne.',
+   inside:'Jedno prostokątne pomieszczenie z małą wnęką techniczną. Najlepszy do prostego boothu wokalnego i stanowiska realizatora; ograniczona przestrzeń nie pozwala na pełny lounge ani duży zestaw instrumentów.',
+   story:'Właściciel zamknął punkt usługowy po wzroście czynszu. Lokal jest surowy, ale ma niezależne wejście i grubą ścianę od strony klatki schodowej.',
+   potential:'Małe studio wokalne', mapObj:'sy_mercer', wx:700, wy:133, w:150, h:155},
+  {id:'calder_7b', roomId:'studio_m_vocal', title:'Lokal w oficynie — Calder 7B',
+   alt:['Oficyna użytkowa — Calder 7B','Lokal dziedzińcowy — Calder 7B'],
+   legacy:'Studio M — Vocal Room', m2:32, price:116000, slots:18, upkeep:1600,
+   where:'Środkowa część Main City, wejście przez wąski przejazd i niewielki dziedziniec za ciągiem sklepów.',
+   look:'Dwukondygnacyjna oficyna z jasnym tynkiem, stalowymi schodami ewakuacyjnymi i matowymi oknami; lokal gracza znajduje się na parterze i wygląda jak dawne biuro rachunkowe.',
+   inside:'Główne pomieszczenie, mała wnęka na stanowisko komputerowe oraz wydzielony fragment pod kompaktową kabinę wokalną. Pozwala obsłużyć jednego artystę i realizatora bez pełnej strefy lounge.',
+   story:'Przez lata działała tu księgowość i archiwum dokumentów. Cichy dziedziniec jest atutem, ale wentylacja i dojazd dostaw są słabsze niż w większych lokalach.',
+   potential:'Studio wokalne z kabiną', mapObj:'sy_calder', wx:2180, wy:133, w:150, h:155},
+  {id:'halston_41', roomId:'studio_l_producer', title:'Pawilon usługowy — Halston 41',
+   alt:['Pawilon wolnostojący — Halston 41','Lokal usługowy z zapleczem — Halston 41'],
+   legacy:'Studio L — Producer Suite', m2:54, price:212000, slots:28, upkeep:2800,
+   where:'Wschodnia część Main City, na bocznej ulicy prowadzącej w stronę dzielnicy mieszkaniowej, z dwoma miejscami parkingowymi i wejściem od ulicy.',
+   look:'Niski wolnostojący pawilon po dawnym punkcie poligraficznym: asymetryczny dach, pasowe okna, okładzina z jasnych płyt, osobne drzwi dostawcze i wyblakły szyld do usunięcia.',
+   inside:'Dwa połączone pomieszczenia i małe zaplecze. Umożliwia oddzielenie nagrań od odsłuchu, montaż kabiny Pro, większego stanowiska produkcyjnego i niewielkiej strefy dla klientów.',
+   story:'Drukarnia przeniosła się do Business District. Lokal ma lepsze możliwości przebudowy niż S i M, lecz przed profesjonalnym wykorzystaniem wymaga kontroli hałasu instalacji i symetrii strefy odsłuchowej.',
+   potential:'Suita producencka z zapleczem', mapObj:'sy_halston', wx:3560, wy:2208, w:150, h:155},
+];
+window.syPropByRoom=function(roomId){ return window.SY_PROPERTIES.find(p=>p.roomId===roomId)||null; };
+window.syPropById=function(id){ return window.SY_PROPERTIES.find(p=>p.id===id)||null; };
+/* §2: w kompleksie zostają WYŁĄCZNIE dwa największe lokale. */
+window.SY_COMPLEX_UNITS=['studio_xl_lounge','studio_penthouse'];
+window.SY_EXTERNAL_UNITS=['studio_s_booth','studio_m_vocal','studio_l_producer'];
+window.syIsComplexUnit=function(roomId){ return window.SY_COMPLEX_UNITS.indexOf(roomId)>=0; };
+
+/* ── §3 WYGLĄD Z ZEWNĄTRZ — trzy różne bryły, rysowane wektorowo ─────────────────────────────
+   Żaden z budynków nie wygląda jak studio nagrań i żaden nie jest przemalowaną kopią pozostałych:
+   różnią się obrysem, dachem, typem wejścia, układem okien i otoczeniem. */
+function drawSyMercer(sx,sy,w,h){
+  /* NAROŻNA KAMIENICA — ciemnoczerwona cegła, metalowa roleta, dwie RÓŻNEJ SZEROKOŚCI witryny, daszek */
+  const owned=window.syOwnsProperty&&window.syOwnsProperty('mercer_12');
+  X.fillStyle='rgba(0,0,0,.42)'; X.fillRect(sx+4,sy+6,w,h);
+  /* bryła: ścięty narożnik od strony skrzyżowania */
+  X.fillStyle='#5a2a24';
+  X.beginPath(); X.moveTo(sx+18,sy); X.lineTo(sx+w,sy); X.lineTo(sx+w,sy+h); X.lineTo(sx,sy+h); X.lineTo(sx,sy+18); X.closePath(); X.fill();
+  /* cegła — poziome rzędy z przesunięciem */
+  for(let ry=0,r=0; ry<h; ry+=9,r++){
+    for(let cx=(r%2?-9:0); cx<w; cx+=18){
+      const bx=sx+Math.max(0,cx), bw=Math.min(16,w-Math.max(0,cx));
+      if(bw<=1) continue;
+      if(sy+ry<sy+18 && bx<sx+18) continue;                 /* ścięty narożnik */
+      X.fillStyle=((r*7+cx)%5<2)?'#6a322a':'#5e2a23';
+      X.fillRect(bx,sy+ry,bw,7);
+    }
+  }
+  /* gzyms i mały daszek nad wejściem */
+  X.fillStyle='#3a1a16'; X.fillRect(sx,sy+h*0.10,w,5);
+  X.fillStyle='#7a4a30'; X.fillRect(sx+w*0.30,sy+h*0.44,w*0.44,6);
+  /* dwie witryny RÓŻNEJ szerokości */
+  X.fillStyle='#16202a'; X.fillRect(sx+w*0.06,sy+h*0.52,w*0.20,h*0.30);
+  X.fillRect(sx+w*0.76,sy+h*0.52,w*0.18,h*0.30);
+  X.strokeStyle='#8a6a4a'; X.lineWidth=1.6;
+  X.strokeRect(sx+w*0.06,sy+h*0.52,w*0.20,h*0.30); X.strokeRect(sx+w*0.76,sy+h*0.52,w*0.18,h*0.30);
+  X.fillStyle='rgba(150,190,220,.18)'; X.fillRect(sx+w*0.07,sy+h*0.53,w*0.18,h*0.13);
+  /* metalowa roleta na wejściu — po zakupie podniesiona */
+  const dx=sx+w*0.34, dy=sy+h*0.50, dw=w*0.32, dh=h*0.50;
+  X.fillStyle='#0c0c0e'; X.fillRect(dx,dy,dw,dh);
+  const shut=owned?0.28:1;
+  X.fillStyle='#7d8288';
+  for(let i=0;i<Math.round(dh*shut/5);i++) X.fillRect(dx,dy+i*5,dw,3.4);
+  X.fillStyle='#4a4e54'; X.fillRect(dx-2,dy-4,dw+4,5);
+  if(owned){ X.fillStyle='rgba(200,220,240,.16)'; X.fillRect(dx+3,dy+dh*0.34,dw-6,dh*0.6); }
+  /* boczne drzwi techniczne */
+  X.fillStyle='#3a3a3e'; X.fillRect(sx+w-14,sy+h*0.60,10,h*0.34);
+  /* szyld po dawnym punkcie dorabiania kluczy */
+  X.fillStyle=owned?'#1a2a36':'#4a3a28'; X.fillRect(sx+w*0.28,sy+h*0.20,w*0.46,h*0.16);
+  X.fillStyle=owned?'#7ec8e3':'rgba(200,180,140,.55)';
+  X.font='bold 9px "Segoe UI",Arial'; X.textAlign='center';
+  X.fillText(owned?'MERCER 12':'DO WYNAJĘCIA', sx+w/2, sy+h*0.31);
+  X.textAlign='left';
+}
+function drawSyCalder(sx,sy,w,h){
+  /* OFICYNA DWUKONDYGNACYJNA — jasny tynk, stalowe schody ewakuacyjne, matowe okna, wejście przez przejazd */
+  const owned=window.syOwnsProperty&&window.syOwnsProperty('calder_7b');
+  X.fillStyle='rgba(0,0,0,.40)'; X.fillRect(sx+4,sy+6,w,h);
+  /* bryła prostopadłościenna, cofnięta prawa część (dziedziniec) */
+  X.fillStyle='#c8bfa8'; X.fillRect(sx,sy,w*0.74,h);
+  X.fillStyle='#b3aa94'; X.fillRect(sx+w*0.74,sy+h*0.22,w*0.26,h*0.78);
+  /* tynk — subtelne plamy */
+  for(let i=0;i<16;i++){ const px=sx+((i*47)%Math.max(1,w-16)), py=sy+((i*61)%Math.max(1,h-14));
+    X.fillStyle='rgba(160,150,130,.16)'; X.fillRect(px,py,10,6); }
+  /* płaski dach z attyką */
+  X.fillStyle='#8d8574'; X.fillRect(sx-2,sy-5,w*0.74+4,7);
+  /* dwie kondygnacje matowych okien */
+  for(let row=0;row<2;row++){
+    for(let c=0;c<3;c++){
+      const ox=sx+w*(0.07+c*0.21), oy=sy+h*(0.16+row*0.30), ow=w*0.15, oh=h*0.19;
+      X.fillStyle='#9fb3bd'; X.fillRect(ox,oy,ow,oh);
+      X.fillStyle='rgba(255,255,255,.22)'; X.fillRect(ox+1.5,oy+1.5,ow-3,oh*0.42);
+      X.strokeStyle='#7a7466'; X.lineWidth=1.2; X.strokeRect(ox,oy,ow,oh);
+    }
+  }
+  /* stalowe schody ewakuacyjne na prawej ścianie */
+  X.strokeStyle='#5d6166'; X.lineWidth=2;
+  X.beginPath(); X.moveTo(sx+w*0.78,sy+h*0.26); X.lineTo(sx+w*0.78,sy+h); X.stroke();
+  X.beginPath(); X.moveTo(sx+w*0.96,sy+h*0.26); X.lineTo(sx+w*0.96,sy+h); X.stroke();
+  for(let i=0;i<7;i++){ const yy=sy+h*(0.30+i*0.10); X.beginPath(); X.moveTo(sx+w*0.78,yy); X.lineTo(sx+w*0.96,yy); X.stroke(); }
+  /* PRZEJAZD — ciemna brama, przez którą wchodzi się na dziedziniec */
+  const gx=sx+w*0.28, gy=sy+h*0.58, gw=w*0.20, gh=h*0.42;
+  X.fillStyle='#0d0f10'; X.fillRect(gx,gy,gw,gh);
+  X.fillStyle='#8d8574'; X.beginPath(); X.moveTo(gx-3,gy); X.lineTo(gx+gw/2,gy-9); X.lineTo(gx+gw+3,gy); X.closePath(); X.fill();
+  if(owned){
+    /* światło z dziedzińca po zakupie */
+    const gr=X.createLinearGradient(0,gy,0,gy+gh); gr.addColorStop(0,'rgba(255,214,150,.22)'); gr.addColorStop(1,'rgba(255,214,150,0)');
+    X.fillStyle=gr; X.fillRect(gx,gy,gw,gh);
+  }
+  /* tabliczka adresowa */
+  X.fillStyle=owned?'#20303c':'#7a7466'; X.fillRect(sx+w*0.06,sy+h*0.80,w*0.17,h*0.12);
+  X.fillStyle=owned?'#9fd8ea':'#e6e0d0'; X.font='bold 8px "Segoe UI",Arial'; X.textAlign='center';
+  X.fillText('7B', sx+w*0.145, sy+h*0.885);
+  X.textAlign='left';
+}
+function drawSyHalston(sx,sy,w,h){
+  /* PAWILON WOLNOSTOJĄCY — asymetryczny dach jednospadowy, pasowe okna, jasne płyty, dwa miejsca parkingowe */
+  const owned=window.syOwnsProperty&&window.syOwnsProperty('halston_41');
+  X.fillStyle='rgba(0,0,0,.38)'; X.fillRect(sx+4,sy+6,w,h);
+  /* dwa miejsca parkingowe PRZED pawilonem (element wyróżniający ten obiekt) */
+  X.fillStyle='#26262a'; X.fillRect(sx+w*0.04,sy+h*0.76,w*0.92,h*0.24);
+  X.strokeStyle='#e8e8e8'; X.lineWidth=1.6;
+  X.beginPath(); X.moveTo(sx+w*0.50,sy+h*0.78); X.lineTo(sx+w*0.50,sy+h*0.98); X.stroke();
+  X.strokeRect(sx+w*0.06,sy+h*0.78,w*0.88,h*0.20);
+  /* bryła niska, szeroka */
+  X.fillStyle='#d6d2c6'; X.fillRect(sx,sy+h*0.22,w,h*0.56);
+  /* okładzina z jasnych płyt — pionowe podziały */
+  X.strokeStyle='rgba(140,136,122,.55)'; X.lineWidth=1;
+  for(let i=1;i<7;i++){ const px=sx+w*i/7; X.beginPath(); X.moveTo(px,sy+h*0.22); X.lineTo(px,sy+h*0.78); X.stroke(); }
+  /* ASYMETRYCZNY dach jednospadowy */
+  X.fillStyle='#4e5257';
+  X.beginPath(); X.moveTo(sx-4,sy+h*0.22); X.lineTo(sx+w*0.62,sy+h*0.04); X.lineTo(sx+w+4,sy+h*0.16); X.lineTo(sx+w+4,sy+h*0.24); X.lineTo(sx-4,sy+h*0.30); X.closePath(); X.fill();
+  X.fillStyle='rgba(255,255,255,.10)';
+  X.beginPath(); X.moveTo(sx-4,sy+h*0.22); X.lineTo(sx+w*0.62,sy+h*0.04); X.lineTo(sx+w*0.62,sy+h*0.08); X.lineTo(sx-4,sy+h*0.26); X.closePath(); X.fill();
+  /* PASOWE okno — jeden długi pas zamiast pojedynczych okien */
+  X.fillStyle='#1b2730'; X.fillRect(sx+w*0.08,sy+h*0.34,w*0.60,h*0.16);
+  X.fillStyle='rgba(160,200,230,.20)'; X.fillRect(sx+w*0.08,sy+h*0.34,w*0.60,h*0.07);
+  X.strokeStyle='#8b8778'; X.lineWidth=1.4; X.strokeRect(sx+w*0.08,sy+h*0.34,w*0.60,h*0.16);
+  /* wejście od ulicy + osobne drzwi dostawcze */
+  X.fillStyle=owned?'#2c3a46':'#3a3a3c'; X.fillRect(sx+w*0.74,sy+h*0.40,w*0.16,h*0.38);
+  X.fillStyle='#c8ccd2'; X.fillRect(sx+w*0.885,sy+h*0.58,4,2.5);
+  X.fillStyle='#6a6e74'; X.fillRect(sx+w*0.03,sy+h*0.46,w*0.04,h*0.32);
+  /* wyblakły szyld po drukarni — po zakupie zastąpiony adresem */
+  X.fillStyle=owned?'#1c2c22':'rgba(190,180,150,.45)'; X.fillRect(sx+w*0.10,sy+h*0.24,w*0.44,h*0.08);
+  X.fillStyle=owned?'#9fe0b0':'rgba(120,110,90,.75)';
+  X.font='bold 8px "Segoe UI",Arial'; X.textAlign='center';
+  X.fillText(owned?'HALSTON 41':'DRUK • OFFSET', sx+w*0.32, sy+h*0.305);
+  X.textAlign='left';
+  if(owned){
+    /* lampa nad wejściem po zakupie */
+    X.fillStyle='rgba(255,214,150,.85)'; X.fillRect(sx+w*0.78,sy+h*0.36,w*0.08,3);
+  }
+}
+window.syOwnsProperty=function(pid){
+  const p=window.syPropById(pid); if(!p) return false;
+  try{ return !!(G.studioComplex&&Array.isArray(G.studioComplex.ownedRooms)&&G.studioComplex.ownedRooms.indexOf(p.roomId)>=0); }catch(_){ return false; }
+};
+/* ── §6 KONSULTACJE Z INŻYNIEREM DŹWIĘKU ─────────────────────────────────────────────────────
+   Reguła: bez konsultacji bazowej dla DANEJ nieruchomości nie kupimy do niej wyposażenia.
+   Zakup lokalu daje jeden voucher na konsultację startową, żeby nie powstał ekonomiczny zakleszczenie. */
+window.SY_CONSULTANTS=[
+  {id:'mara_venn',   name:'Mara Venn',   spec:'Projekt bazowy i budżet',   scope:'układ stref, minimum nagraniowe, kompatybilność metrażu', cost:1500, voucher:true,
+   rooms:['studio_s_booth','studio_m_vocal','studio_l_producer','studio_xl_lounge','studio_penthouse']},
+  {id:'leon_vail',   name:'Leon Vail',   spec:'Tor wokalowy i sesje',      scope:'dobór typu mikrofonu, interfejsu, monitoringu słuchawkowego i przebiegu pracy', cost:6000,
+   rooms:['studio_m_vocal','studio_l_producer','studio_xl_lounge','studio_penthouse']},
+  {id:'imani_rook',  name:'Imani Rook',  spec:'Akustyka i odsłuch',        scope:'symetria, pierwsze odbicia, adaptacja szerokopasmowa, ustawienie monitorów', cost:7500,
+   rooms:['studio_s_booth','studio_m_vocal','studio_l_producer','studio_xl_lounge','studio_penthouse']},
+  {id:'kade_mercer', name:'Kade Mercer', spec:'Studio komercyjne',         scope:'przepustowość, rezerwacje, obsada, prywatność klientów i rentowność', cost:10000,
+   rooms:['studio_l_producer','studio_xl_lounge','studio_penthouse']},
+  {id:'selene_ward', name:'Selene Ward', spec:'Projekt premium',           scope:'pełny projekt wielostrefowy, monitoring premium i kontrola jakości', cost:25000,
+   rooms:['studio_xl_lounge','studio_penthouse']},
+];
+window.syConsultant=function(id){ return window.SY_CONSULTANTS.find(c=>c.id===id)||null; };
+/* §5.1 sześć stref funkcjonalnych — konkretne miejsca pod wyposażenie, widoczne w trybie „Plan studia". */
+window.SY_ZONES=[
+  {id:'workstation', n:'Strefa stanowiska realizatora', d:'miejsce pod biurko, komputer, interfejs, odsłuch i fotel'},
+  {id:'recording',   n:'Strefa nagraniowa',             d:'miejsce pod mikrofon, statyw i ewentualną kabinę'},
+  {id:'monitoring',  n:'Strefa odsłuchowa',             d:'oś symetrii monitorów i pozycja słuchacza'},
+  {id:'client',      n:'Strefa klienta',                d:'kanapa albo lounge, jeśli metraż na to pozwala'},
+  {id:'technical',   n:'Strefa techniczna',             d:'rack, zasilanie, serwis i przewody'},
+  {id:'storage',     n:'Strefa magazynowa',             d:'instrumenty, stojaki, słuchawki i drobne wyposażenie'},
+];
+/* §5.2 cykl zakup → dostawa → instalacja. */
+window.SY_ORDER_STATES=['ordered','in_delivery','delivered_crated','awaiting_installation','installing','commissioning','installed','service_required','failed'];
+/* §12.1 zależności najważniejszych elementów. */
+window.SY_DEPS={
+  daw_starter:['computer'], daw_pro:['computer'], daw_ultimate:['workstation_pro'],
+  mic_dynamic:['audio_interface'], mic_condenser:['audio_interface'], mic_tube:['audio_interface'],
+  mon_basic:['plan'], mon_studio:['plan'], mon_premium:['plan','ac_adapt'],
+  hp_artist:['audio_interface'], ac_booth_pro:['ac_adapt'],
+};
+
+window.sySchemaVersion=1;
+window._syEnsure=function(){
+  if(typeof _5pdfEnsure==='function') _5pdfEnsure();
+  if(!G.soundyard||typeof G.soundyard!=='object') G.soundyard={};
+  const y=G.soundyard;
+  if(y.schemaVersion==null) y.schemaVersion=window.sySchemaVersion;
+  if(!y.props||typeof y.props!=='object') y.props={};        /* per studioId: konsultacje, plan, zamówienia, personel */
+  if(!Array.isArray(y.orders)) y.orders=[];
+  if(!Array.isArray(y.bookings)) y.bookings=[];
+  if(!Array.isArray(y.staff)) y.staff=[];
+  if(y.migrated==null) y.migrated=false;
+  /* per-lokal */
+  const all=window.SY_COMPLEX_UNITS.concat(window.SY_EXTERNAL_UNITS);
+  for(const rid of all){
+    if(!y.props[rid]||typeof y.props[rid]!=='object') y.props[rid]={};
+    const p=y.props[rid];
+    if(p.consultationStatus==null) p.consultationStatus='none';  /* none | voucher | approved | legacy_validated */
+    if(p.voucher==null) p.voucher=false;
+    if(!p.plan||typeof p.plan!=='object') p.plan=null;
+    if(!Array.isArray(p.installed)) p.installed=[];              /* instancje: {instanceId, defId, condition, zone, active} */
+    if(p.bookingEnabled==null) p.bookingEnabled=true;
+    if(p.price==null) p.price=0;
+    if(p.rating==null) p.rating=0;
+    if(p.revenueWeek==null) p.revenueWeek=0;
+    if(p.costWeek==null) p.costWeek=0;
+  }
+  window._syMigrate();
+  return y;
+};
+/* ── §13 MIGRACJA ZAPISÓW ────────────────────────────────────────────────────────────────────
+   Zachowujemy studioId, ceny, własność, przychody i historię. Zmienia się wyłącznie położenie
+   S/M/L oraz sposób renderowania. Sprzęt realnie kupiony w starym systemie staje się instancją;
+   dekoracyjne atrapy, których gracz NIE kupił, nie zamieniają się w darmowy sprzęt. */
+window._syMigrate=function(){
+  const y=G.soundyard; if(!y||y.migrated) return;
+  const sc=G.studioComplex; if(!sc) return;
+  y.migrated=true;
+  for(const rid of window.SY_COMPLEX_UNITS.concat(window.SY_EXTERNAL_UNITS)){
+    const inst=(sc.rooms&&sc.rooms[rid])||null;
+    const p=y.props[rid]; if(!p) continue;
+    const legacyEquip=(inst&&Array.isArray(inst.equipment))?inst.equipment.slice():[];
+    if(legacyEquip.length){
+      /* stary zapis ma REALNIE kupiony sprzęt → instancje + tryb legacy_validated zamiast blokady */
+      p.installed=legacyEquip.map((eid,i)=>({instanceId:'sy_lg_'+rid+'_'+i, defId:eid, condition:100, zone:window._syZoneFor(eid), active:true, legacy:true}));
+      if(p.consultationStatus==='none'){ p.consultationStatus='legacy_validated'; p.freeAudit=true; }
+    }
+    if((sc.ownedRooms||[]).indexOf(rid)>=0 && p.consultationStatus==='none'){ p.voucher=true; p.consultationStatus='voucher'; }
+  }
+};
+window._syZoneFor=function(defId){
+  const d=(typeof STUDIO_EQUIP!=='undefined')?STUDIO_EQUIP[defId]:null; const c=d?d.cat:'';
+  if(c==='computer'||c==='daw'||c==='plugins'||c==='midi') return 'workstation';
+  if(c==='microphone') return 'recording';
+  if(c==='monitors'||c==='headphones') return 'monitoring';
+  if(c==='furniture'||c==='fridge') return 'client';
+  if(c==='audio_interface'||c==='extras'||c==='lighting') return 'technical';
+  if(c==='acoustic') return 'recording';
+  return 'storage';
+};
+window._syProp=function(rid){ window._syEnsure(); return G.soundyard.props[rid]||null; };
+window._syOwned=function(rid){ try{ return (G.studioComplex.ownedRooms||[]).indexOf(rid)>=0; }catch(_){ return false; } };
+window._syHasEquip=function(rid,defId){ const p=window._syProp(rid); return !!(p&&p.installed.some(x=>x.defId===defId&&x.active)); };
+window._syHasCat=function(rid,cat){ const p=window._syProp(rid); if(!p) return false;
+  return p.installed.some(x=>{ const d=STUDIO_EQUIP[x.defId]; return x.active&&d&&d.cat===cat; }); };
+/* §6 wykonanie konsultacji — tworzy designPlan z listą dopuszczonych elementów. */
+window._syConsult=function(rid,consultantId){
+  window._syEnsure();
+  const p=window._syProp(rid); const c=window.syConsultant(consultantId);
+  if(!p||!c) return {ok:false,msg:'Nie znaleziono konsultanta.'};
+  if(!window._syOwned(rid)) return {ok:false,msg:'Najpierw kup ten lokal.'};
+  if(c.rooms.indexOf(rid)<0) return {ok:false,msg:c.name+' nie obsługuje tego lokalu.'};
+  const useVoucher=(c.voucher&&p.voucher);
+  const cost=useVoucher?0:c.cost;
+  if((G.money||0)<cost) return {ok:false,msg:'Za mało pieniędzy — konsultacja kosztuje '+cost.toLocaleString('pl')+' zł.'};
+  if(cost>0){ G.money-=cost; if(typeof spent==='function') spent(cost); }
+  if(useVoucher) p.voucher=false;
+  const room=STUDIO_ROOMS[rid]||{};
+  const allowed=Object.keys(STUDIO_EQUIP).filter(id=>window._syAllowedInRoom(rid,id));
+  p.plan={consultantId, revision:((p.plan&&p.plan.revision)||0)+1, approvedEquipmentIds:allowed,
+          zones:window.SY_ZONES.map(z=>z.id), variants:['A — minimum','B — rozsądny rozwój','C — docelowy projekt'],
+          warnings:window._syPlanWarnings(rid)};
+  p.consultationStatus='approved';
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return {ok:true,msg:c.name+' kończy oględziny i zatwierdza plan dla lokalu '+(room.name||rid)+'.'};
+};
+window._syPlanWarnings=function(rid){
+  const room=STUDIO_ROOMS[rid]||{}; const w=[];
+  if((room.sizeM2||0)<20) w.push('Mały metraż — monitory większe niż bliskiego pola będą marnowane.');
+  if((room.sizeM2||0)<35) w.push('Kabina wokalna Pro nie zmieści się w tym lokalu.');
+  w.push('Lodówka i sprzęt chłodniczy poza krytyczną strefą nagraniową.');
+  return w;
+};
+/* Czy element w ogóle pasuje do metrażu i klasy lokalu (§11 wymagania). */
+window._syAllowedInRoom=function(rid,defId){
+  const room=STUDIO_ROOMS[rid]||{}; const m2=room.sizeM2||0;
+  if(defId==='mon_premium'||defId==='ac_booth_pro'||defId==='if_prorack'||defId==='mic_tube'||defId==='midi_prokeys') return m2>=54;
+  if(defId==='ac_booth_compact'||defId==='mon_studio'||defId==='light_rgb') return m2>=32;
+  if(defId==='furn_lounge') return m2>=54;
+  return true;
+};
+/* §12 warunek zakupu wyposażenia. */
+window._syCanBuyEquip=function(rid,defId){
+  window._syEnsure();
+  const p=window._syProp(rid); const d=STUDIO_EQUIP[defId];
+  if(!p||!d) return {ok:false,why:'Nieznany element.'};
+  if(!window._syOwned(rid)) return {ok:false,why:'Nie posiadasz tego lokalu.'};
+  if(p.consultationStatus!=='approved'&&p.consultationStatus!=='legacy_validated') return {ok:false,why:'Najpierw konsultacja bazowa dla tego lokalu.'};
+  if(p.plan&&p.plan.approvedEquipmentIds.indexOf(defId)<0) return {ok:false,why:'Ten element nie jest dopuszczony w zatwierdzonym planie lokalu.'};
+  if(!window._syAllowedInRoom(rid,defId)) return {ok:false,why:'Metraż lokalu nie pozwala na ten element.'};
+  if(window._syHasEquip(rid,defId)) return {ok:false,why:'Ten element jest już zainstalowany.'};
+  const room=STUDIO_ROOMS[rid]||{}; const cap=room.maxEquipmentSlots||10;
+  if(p.installed.length>=cap) return {ok:false,why:'Brak wolnego slotu w tym lokalu.'};
+  const deps=window.SY_DEPS[defId]||[];
+  for(const dep of deps){
+    if(dep==='plan') continue;
+    if(dep==='computer'){ if(!window._syHasCat(rid,'computer')) return {ok:false,why:'Wymagany komputer w tym lokalu.'}; continue; }
+    if(dep==='audio_interface'){ if(!window._syHasCat(rid,'audio_interface')) return {ok:false,why:'Wymagany interfejs audio w tym lokalu.'}; continue; }
+    if(!window._syHasEquip(rid,dep)) return {ok:false,why:'Wymagany wcześniejszy element: '+window.syEquipName(dep)+'.'};
+  }
+  if((G.money||0)<d.price) return {ok:false,why:'Za mało pieniędzy.'};
+  return {ok:true};
+};
+/* §5.2 zakup → paczka → instalacja → uruchomienie kontrolne. */
+window._syOrderEquip=function(rid,defId){
+  const chk=window._syCanBuyEquip(rid,defId);
+  if(!chk.ok) return {ok:false,msg:chk.why};
+  const d=STUDIO_EQUIP[defId];
+  G.money-=d.price; if(typeof spent==='function') spent(d.price);
+  const y=G.soundyard;
+  const o={orderId:'syo'+(G.day||0)+'_'+y.orders.length, studioId:rid, defId, status:'ordered', day:(G.day||0), readyDay:(G.day||0)+1};
+  y.orders.push(o);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return {ok:true,msg:window.syEquipName(defId)+' zamówiony. Dostawa na miejsce zajmie jeden dzień, potem montaż i uruchomienie.'};
+};
+/* Dobowy tick — przesuwa zamówienia przez stany aż do „installed". */
+window._syOrdersTick=function(){
+  window._syEnsure(); const y=G.soundyard; const today=(G.day||0);
+  for(const o of y.orders){
+    if(o.status==='installed'||o.status==='failed') continue;
+    if(today<o.readyDay) continue;
+    const seq=['ordered','in_delivery','delivered_crated','awaiting_installation','installing','commissioning','installed'];
+    const i=seq.indexOf(o.status);
+    if(i<0||i>=seq.length-1){ o.status='installed'; }
+    else { o.status=seq[i+1]; o.readyDay=today+(o.status==='installed'?0:0); }
+    if(o.status==='installed'){
+      const p=window._syProp(o.studioId);
+      if(p&&!p.installed.some(x=>x.defId===o.defId)){
+        p.installed.push({instanceId:'syi_'+o.orderId, defId:o.defId, condition:100, zone:window._syZoneFor(o.defId), active:true});
+        if(typeof notify==='function') notify('🎚️ '+window.syEquipName(o.defId)+' zainstalowany i uruchomiony w lokalu '+((STUDIO_ROOMS[o.studioId]||{}).name||o.studioId)+'.');
+      }
+    }
+  }
+  y.orders=y.orders.filter(o=>o.status!=='installed'||((G.day||0)-o.day)<3);
+};
+/* ── §7 GOTOWOŚĆ STUDIA — niezależne warstwy, jakość ograniczana przez WĄSKIE GARDŁO ─────────── */
+window._syReadiness=function(rid){
+  window._syEnsure();
+  const p=window._syProp(rid)||{installed:[]};
+  const has=(id)=>window._syHasEquip(rid,id);
+  const cat=(c)=>window._syHasCat(rid,c);
+  const r={
+    powerReady:true,
+    computeReady:cat('computer'),
+    dawReady:cat('daw'),
+    captureReady:cat('microphone'),
+    monitoringReady:cat('headphones')||cat('monitors'),
+    acousticReady:cat('acoustic'),
+    furnitureReady:has('furn_chair'),
+    accessReady:has('extra_access'),
+    bookingReady:has('extra_booking'),
+    staffReady:(G.soundyard.staff||[]).some(s=>s.studioId===rid),
+    maintenanceReady:p.installed.every(x=>(x.condition||0)>0),
+  };
+  return r;
+};
+/* §7.1 pięć poziomów minimalnej konfiguracji. */
+window._syConfigLevel=function(rid){
+  const r=window._syReadiness(rid);
+  const hasXlr=(window._syHasEquip(rid,'mic_dynamic')||window._syHasEquip(rid,'mic_condenser')||window._syHasEquip(rid,'mic_tube'))&&window._syHasCat(rid,'audio_interface');
+  const usb=window._syHasEquip(rid,'mic_usb');
+  if(r.computeReady&&r.dawReady&&hasXlr&&r.monitoringReady&&r.acousticReady&&r.furnitureReady&&r.staffReady&&r.bookingReady&&r.accessReady&&window._syHasEquip(rid,'mon_premium'))
+    return {id:'premium', n:'Sesje premium', own:true, rent:true};
+  if(r.computeReady&&r.dawReady&&hasXlr&&r.furnitureReady&&r.staffReady&&r.bookingReady&&r.accessReady)
+    return {id:'auto_rent', n:'Automatyczny wynajem', own:true, rent:true};
+  if(r.computeReady&&r.dawReady&&hasXlr&&r.furnitureReady&&r.staffReady)
+    return {id:'with_engineer', n:'Studio z realizatorem', own:true, rent:true};
+  if(r.computeReady&&r.dawReady&&hasXlr&&r.monitoringReady&&r.acousticReady)
+    return {id:'xlr', n:'Własne nagrania XLR', own:true, rent:'warunkowo'};
+  if(r.computeReady&&r.dawReady&&usb&&window._syHasCat(rid,'headphones'))
+    return {id:'usb', n:'Własne demo / USB', own:true, rent:false};
+  return {id:'none', n:'Lokal jeszcze nie nagrywa', own:false, rent:false};
+};
+/* §7.2 model wąskich gardeł — minimum, nie suma bonusów. */
+window._syQuality=function(rid){
+  const sc=(id,v)=>window._syHasEquip(rid,id)?v:0;
+  const micSrc=Math.max(sc('mic_usb',22),sc('mic_dynamic',40),sc('mic_condenser',68),sc('mic_tube',82));
+  const conv=Math.max(sc('if_basic',28),sc('if_studio',58),sc('if_prorack',86), window._syHasEquip(rid,'mic_usb')?24:0);
+  const roomCtl=Math.max(sc('ac_foam',18),sc('ac_panels',48),sc('ac_adapt',82));
+  const monCap=Math.max(sc('mon_basic',28),sc('mon_studio',62),sc('mon_premium',90));
+  const hpCap=Math.max(sc('hp_basic',18),sc('hp_studio',42),sc('hp_artist',55));
+  const eng=window._syEngineerSkill(rid);
+  const stability=Math.max(sc('computer_basic',25),sc('computer_studio',55),sc('workstation_pro',95));
+  const captureQuality=Math.min(micSrc,conv,roomCtl||1,eng||1,stability);
+  const gm=(a)=>{ const v=a.filter(x=>x>0); if(!v.length) return 0; return Math.round(Math.pow(v.reduce((m,x)=>m*x,1),1/v.length)); };
+  const monitoringReliability=gm([monCap||hpCap,roomCtl,eng]);
+  const cfg=window._syConfigLevel(rid);
+  const commercialReadiness=Math.min(captureQuality, (G.soundyard.staff||[]).some(s=>s.studioId===rid)?70:0,
+    window._syHasEquip(rid,'extra_booking')?80:20, window._syHasEquip(rid,'extra_access')?80:30, 100);
+  return {captureQuality, monitoringReliability, commercialReadiness, level:cfg};
+};
+window._syEngineerSkill=function(rid){
+  const st=(G.soundyard.staff||[]).filter(s=>s.studioId===rid);
+  if(!st.length) return Math.min(90,30+((G.skills&&G.skills.studio)||0)*10);
+  return Math.round(st.reduce((m,s)=>Math.max(m,s.recordingSkill||40),0));
+};
+/* ── §9 ROLE PERSONELU ───────────────────────────────────────────────────────────────────────── */
+window.SY_ROLES=[
+  {id:'recording',  n:'Realizator nagrań',      duties:'prowadzenie sesji, gain staging jako abstrakcja, dobór mikrofonu, comping', stats:['recordingSkill','vocalSkill','clientHandling','speed'], share:0.34},
+  {id:'mix',        n:'Mix engineer',           duties:'edycja, miks, rewizje',                                                     stats:['mixSkill','translationSkill','revisionDiscipline'], share:0.36},
+  {id:'mastering',  n:'Mastering engineer',     duties:'finalna kontrola i eksport',                                                stats:['masteringSkill','monitoringSkill','consistency'], share:0.38},
+  {id:'assistant',  n:'Asystent',               duties:'przygotowanie sesji, kopia zapasowa, porządek i patching',                  stats:['reliability','technicalSupport','learning'], share:0.15},
+  {id:'manager',    n:'Studio manager',         duties:'rezerwacje, płatności, konflikty, obsada',                                  stats:['operationsSkill','negotiation','punctuality'], share:0.20},
+  {id:'tech',       n:'Technik',                duties:'instalacja, serwis, diagnoza awarii',                                       stats:['repairSkill','equipmentKnowledge'], share:0.22},
+  {id:'hospitality',n:'Sprzątanie / hospitality',duties:'przygotowanie przestrzeni i komfort klientów',                             stats:['cleanliness','serviceQuality'], share:0.10},
+];
+window.syRole=function(id){ return window.SY_ROLES.find(r=>r.id===id)||null; };
+window._syHireStaff=function(rid,roleId,name){
+  window._syEnsure(); const y=G.soundyard; const role=window.syRole(roleId);
+  if(!role) return {ok:false,msg:'Nieznana rola.'};
+  if(!window._syOwned(rid)) return {ok:false,msg:'Nie posiadasz tego lokalu.'};
+  const s={employeeId:'sys'+y.staff.length+'_'+(G.day||0), role:roleId, name:name||(role.n+' '+(y.staff.length+1)),
+    recordingSkill:40+Math.floor(Math.random()*35), mixingSkill:35+Math.floor(Math.random()*35),
+    masteringSkill:30+Math.floor(Math.random()*35), clientHandling:40+Math.floor(Math.random()*40),
+    reliability:50+Math.floor(Math.random()*40), fatigue:0,
+    /* Koszt pracownika jest UDZIAŁEM w stawce godzinowej lokalu, a nie sztywną kwotą. Inaczej obsługa
+       najmniejszego studia kosztowałaby więcej niż wynosi jego stawka i sesja zawsze schodziłaby do zera. */
+    hourlyCost:Math.max(40,Math.round(window._syRate(rid)*(role.share||0.3))), studioId:rid, activeSessionId:null};
+  y.staff.push(s);
+  return {ok:true,msg:s.name+' dołącza do obsługi lokalu.',staff:s};
+};
+/* §9.1 realizator jest przypisany do KONKRETNEJ sesji i studia; nie prowadzi dwóch naraz. */
+window._syEngineerFree=function(employeeId){
+  const y=G.soundyard; const s=(y.staff||[]).find(x=>x.employeeId===employeeId);
+  return !!(s&&!s.activeSessionId);
+};
+/* ── §10 BOOKING ─────────────────────────────────────────────────────────────────────────────── */
+window.SY_BOOKING_STATES=['lead','request','provisional_hold','deposit_pending','confirmed','checked_in','in_session','overrun','completed','cancelled','no_show','disputed'];
+/* §10.2 zakresy stawek do testów balansu — punkt startowy, nie finalna tabela. */
+window.SY_RATES={ studio_s_booth:[160,280], studio_m_vocal:[260,450], studio_l_producer:[420,750], studio_xl_lounge:[700,1200], studio_penthouse:[1200,2500] };
+window._syDefaultRate=function(rid){ const r=window.SY_RATES[rid]||[200,300]; return Math.round((r[0]+r[1])/2); };
+window._sySetPrice=function(rid,val){ const p=window._syProp(rid); if(!p) return false; const r=window.SY_RATES[rid]||[100,5000];
+  p.price=Math.max(r[0],Math.min(r[1],Math.round(val||0))); return true; };
+window._syRate=function(rid){ const p=window._syProp(rid); return (p&&p.price>0)?p.price:window._syDefaultRate(rid); };
+window._syCanAcceptBooking=function(rid){
+  const p=window._syProp(rid); if(!p||!p.bookingEnabled) return {ok:false,why:'Rezerwacje wyłączone.'};
+  /* §12.3: krytyczna awaria komputera, interfejsu albo oprogramowania BLOKUJE sesję — i to jest
+     najważniejsza informacja dla gracza, więc sprawdzamy ją PRZED ogólnym poziomem konfiguracji. */
+  const r=window._syReadiness(rid);
+  if(!r.maintenanceReady) return {ok:false,why:'Awaria sprzętu blokuje sesje — najpierw serwis.'};
+  if(!r.staffReady) return {ok:false,why:'Brak przypisanej obsady.'};
+  const cfg=window._syConfigLevel(rid);
+  if(cfg.rent!==true) return {ok:false,why:'Lokal nie jest jeszcze gotowy komercyjnie ('+cfg.n+').'};
+  return {ok:true};
+};
+window._syNewBooking=function(rid,hours,clientName){
+  window._syEnsure(); const y=G.soundyard;
+  const chk=window._syCanAcceptBooking(rid);
+  if(!chk.ok) return {ok:false,msg:chk.why};
+  const h=Math.max(1,Math.min(12,hours||4));
+  const rate=window._syRate(rid);
+  const eng=(y.staff||[]).find(s=>s.studioId===rid&&!s.activeSessionId);
+  if(!eng) return {ok:false,msg:'Wszyscy realizatorzy tego lokalu są zajęci.'};
+  /* §10.1: konflikt terminu w tym samym studiu */
+  if(y.bookings.some(b=>b.studioId===rid&&['confirmed','checked_in','in_session','overrun'].indexOf(b.status)>=0&&b.day===(G.day||0)))
+    return {ok:false,msg:'Ten lokal ma już sesję w tym dniu.'};
+  const b={bookingId:'syb'+y.bookings.length+'_'+(G.day||0), studioId:rid, clientNpcId:clientName||'Klient',
+    day:(G.day||0), hours:h, sessionType:'nagranie', guestCount:1+Math.floor(Math.random()*3),
+    assignedEngineerId:eng.employeeId, baseRate:rate, deposit:Math.round(rate*h*0.2),
+    status:'confirmed', privacyTier:'standard', expectedRevenue:rate*h, cancellationRisk:0.1};
+  y.bookings.push(b); eng.activeSessionId=b.bookingId;
+  return {ok:true,msg:'Rezerwacja przyjęta: '+h+' h × '+rate+' zł.',booking:b};
+};
+/* §10 sessionNetIncome — przychód brutto minus realne koszty. */
+window._sySessionNet=function(b){
+  const y=G.soundyard; const eng=(y.staff||[]).find(s=>s.employeeId===b.assignedEngineerId);
+  const gross=(b.baseRate||0)*(b.hours||0);
+  const engineerCost=(eng?eng.hourlyCost:0)*(b.hours||0);
+  const assistantCost=(y.staff||[]).filter(s=>s.studioId===b.studioId&&s.role==='assistant').reduce((n,s)=>n+s.hourlyCost*(b.hours||0),0);
+  const utilities=Math.round(gross*0.05), cleaning=Math.round(gross*0.03);
+  const wear=Math.round(gross*0.04), platformFee=Math.round(gross*0.03), refunds=0;
+  return {gross, engineerCost, assistantCost, utilities, cleaning, wear, platformFee, refunds,
+          net:Math.max(0, gross-engineerCost-assistantCost-utilities-cleaning-wear-platformFee-refunds)};
+};
+window._syRunSession=function(bookingId){
+  window._syEnsure(); const y=G.soundyard;
+  const b=y.bookings.find(x=>x.bookingId===bookingId); if(!b) return null;
+  /* Sesja rozliczana DOKŁADNIE raz — powtórne wywołanie na zakończonej rezerwacji nie może wypłacić
+     pieniędzy drugi raz (ten sam wymóg idempotencji co przy innych zdarzeniach finansowych). */
+  if(b.status==='completed'||b.paidOut) return {status:b.status, alreadyPaid:true};
+  const seq=['confirmed','checked_in','in_session','completed'];
+  const i=seq.indexOf(b.status);
+  if(i<0) return null;
+  b.status=seq[Math.min(seq.length-1,i+1)];
+  if(b.status==='completed'){
+    if(b.paidOut) return {status:'completed', alreadyPaid:true};
+    b.paidOut=true;
+    const fin=window._sySessionNet(b);
+    G.money=(G.money||0)+fin.net; G.totalEarned=(G.totalEarned||0)+fin.net;
+    const p=window._syProp(b.studioId);
+    if(p){ p.revenueWeek=(p.revenueWeek||0)+fin.gross; p.costWeek=(p.costWeek||0)+(fin.gross-fin.net);
+      const q=window._syQuality(b.studioId);
+      const score=Math.max(1,Math.min(5, 2 + (q.captureQuality/40) + (q.monitoringReliability/60)));
+      p.rating=p.rating?Math.round((p.rating*0.7+score*0.3)*10)/10:Math.round(score*10)/10; }
+    const eng=(y.staff||[]).find(s=>s.employeeId===b.assignedEngineerId);
+    if(eng){ eng.activeSessionId=null; eng.fatigue=Math.min(100,(eng.fatigue||0)+(b.hours||0)*4); }
+    if(typeof updateHUD==='function') updateHUD();
+    return fin;
+  }
+  return {status:b.status};
+};
+/* §12.3 serwis, awarie i zużycie. */
+window._syWearTick=function(){
+  window._syEnsure(); const y=G.soundyard;
+  for(const rid in y.props){
+    const p=y.props[rid]; if(!p||!Array.isArray(p.installed)) continue;
+    for(const inst of p.installed){
+      inst.condition=Math.max(0,(inst.condition==null?100:inst.condition)-(0.4+Math.random()*0.8));
+      if(inst.condition<=0&&inst.active){
+        inst.active=false;
+        const d=STUDIO_EQUIP[inst.defId]||{};
+        const critical=(d.cat==='computer'||d.cat==='daw'||d.cat==='audio_interface');
+        if(typeof notify==='function') notify('🔧 '+window.syEquipName(inst.defId)+' wymaga serwisu'+(critical?' — sesje w tym lokalu są wstrzymane.':'.'));
+      }
+    }
+  }
+};
+window._syService=function(rid,instanceId){
+  const p=window._syProp(rid); if(!p) return {ok:false,msg:'Nieznany lokal.'};
+  const inst=p.installed.find(x=>x.instanceId===instanceId); if(!inst) return {ok:false,msg:'Nie znaleziono sprzętu.'};
+  const d=STUDIO_EQUIP[inst.defId]||{price:1000};
+  const cost=Math.max(150,Math.round(d.price*0.08*(1-(inst.condition||0)/100)+150));
+  if((G.money||0)<cost) return {ok:false,msg:'Serwis kosztuje '+cost.toLocaleString('pl')+' zł.'};
+  G.money-=cost; if(typeof spent==='function') spent(cost);
+  inst.condition=100; inst.active=true;
+  return {ok:true,msg:window.syEquipName(inst.defId)+' po serwisie — sprawny w 100%.'};
+};
+/* Dobowy tick modułu (zamówienia, zużycie, tygodniowe utrzymanie). */
+window._syDailyTick=function(){
+  window._syEnsure();
+  window._syOrdersTick();
+  window._syWearTick();
+  if(((G.day||0)%7)===0){
+    for(const rid in G.soundyard.props){
+      if(!window._syOwned(rid)) continue;
+      const p=G.soundyard.props[rid];
+      const prop=window.syPropByRoom(rid);
+      const upkeep=prop?prop.upkeep:((STUDIO_ROOMS[rid]||{}).weeklyMaintenance||0);
+      if(upkeep>0){ G.money=(G.money||0)-upkeep; if(typeof spent==='function') spent(upkeep); }
+      p.revenueWeek=0; p.costWeek=0;
+    }
+  }
+};
+/* ── §4 BIURO NIERUCHOMOŚCI: kategoria „Lokale użytkowe — potencjał studyjny" ─────────────────
+   Nazwa kategorii opisuje MOŻLIWE zastosowanie, nie obiecuje gotowego studia. */
+window.SY_RE_CATEGORY={id:'creative_audio_properties', name:'Lokale użytkowe — potencjał studyjny'};
+/* §4.1 ikona informacji — wektor rysowany jako litera „i" w okręgu, NIE emoji i bez zależności od czcionki. */
+window.syInfoIcon=function(size){
+  const s=size||14;
+  return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 16 16" aria-hidden="true" style="vertical-align:-2px">'
+    +'<circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/>'
+    +'<circle cx="8" cy="4.6" r="1.05" fill="currentColor"/>'
+    +'<rect x="7.1" y="6.7" width="1.8" height="5.1" rx=".9" fill="currentColor"/></svg>';
+};
+window._syListingHtml=function(){
+  window._syEnsure();
+  const rows=window.SY_PROPERTIES.map(p=>{
+    const owned=window._syOwned(p.roomId);
+    const afford=(G.money||0)>=p.price;
+    return `<div class="sitem" style="width:230px;border-color:${owned?'#2a6a3a':'#4a4a30'}">
+      <h3 style="font-size:13px">${p.title}</h3>
+      <p style="font-size:11px;color:#8fb8d8;margin:-2px 0 4px">${p.m2} m² · ${p.slots} slotów · utrzymanie ${p.upkeep.toLocaleString('pl')} zł/tydz.</p>
+      <p style="font-size:11px;color:#99a">Stan: <b>pusty / do adaptacji</b><br>Potencjał: <b>${p.potential}</b></p>
+      <div class="pr">${owned?'<span style="color:#7ec87e">✅ Posiadane</span>':p.price.toLocaleString('pl')+' zł'}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">
+        <button class="cbtn" style="flex:1;font-size:10.5px;padding:5px" onclick="window._syLocate('${p.id}')">Zobacz na mapie</button>
+        <button class="cbtn" style="flex:1;font-size:10.5px;padding:5px" onclick="window._syViewing('${p.id}')">Umów oględziny</button>
+        <button class="cbtn" style="flex:1;font-size:10.5px;padding:5px" onclick="window._syInfoPanel('${p.id}')">${window.syInfoIcon(12)} Informacje o lokalu</button>
+        <button class="cbtn" style="flex:1;font-size:10.5px;padding:5px" onclick="window._syComparePanel()">Porównaj</button>
+        ${owned?'':`<button class="bbtn" style="width:100%;font-size:11.5px;padding:6px" ${afford?'':'disabled'} onclick="window._syBuyProperty('${p.id}')">Kup</button>`}
+      </div></div>`;
+  }).join('');
+  return `<h3 style="color:#e8c56a;margin:16px 0 8px">🏢 ${window.SY_RE_CATEGORY.name}</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:10px">Nazwa kategorii opisuje możliwe zastosowanie — żaden z tych lokali nie jest gotowym studiem. Cena to sama przestrzeń; sprzęt, akustykę i obsługę kupujesz osobno.</p>
+    <div class="shopgrid">${rows}</div>`;
+};
+window._syLocate=function(pid){
+  const p=window.syPropById(pid); if(!p) return;
+  window._fmapLocate={wx:p.wx, wy:p.wy, w:p.w, h:p.h, label:p.title.split('—')[1]?p.title.split('—')[1].trim():p.title, room:'ulica', until:Date.now()+8000};
+  if(typeof closeOverlay==='function') closeOverlay();
+  if(typeof openFullMap==='function'){
+    openFullMap('ulica');
+    setTimeout(()=>{ try{ if(typeof window._mapFocusCoord==='function') window._mapFocusCoord(p.wx+p.w/2,p.wy+p.h/2,1.1,2.2); }catch(e){} },130);
+    if(typeof showMsg==='function') showMsg('📍 '+p.title+' — zaznaczony na mapie miasta.','i',5200);
+  }
+};
+window._syInfoPanel=function(pid){
+  const p=window.syPropById(pid); if(!p) return;
+  const el=document.getElementById('ov-content'); if(!el) return;
+  el.innerHTML=`
+    <h2>${window.syInfoIcon(20)} ${p.title}</h2>
+    <p class="sub">${p.alt.join(' · ')}</p>
+    <div style="max-width:640px;margin:0 auto;color:#cdd;font-size:13px;line-height:1.7">
+      <div style="background:#0a1220;border:1px solid #1a3a5a;border-radius:9px;padding:11px;margin-bottom:8px">
+        Powierzchnia: <b>${p.m2} m²</b> · Cena: <b>${p.price.toLocaleString('pl')} zł</b> · Sloty: <b>${p.slots}</b> · Utrzymanie: <b>${p.upkeep.toLocaleString('pl')} zł/tydz.</b>
+      </div>
+      <p><b style="color:#8fb8d8">Położenie:</b> ${p.where}</p>
+      <p><b style="color:#8fb8d8">Wygląd zewnętrzny:</b> ${p.look}</p>
+      <p><b style="color:#8fb8d8">Układ wnętrza:</b> ${p.inside}</p>
+      <p><b style="color:#8fb8d8">Historia obiektu:</b> ${p.story}</p>
+      <button class="cbtn" style="width:100%;margin-top:10px" onclick="renderBiuroNieruchomosci()">← Wróć do ogłoszeń</button>
+    </div>`;
+  if(typeof openOverlay==='function') openOverlay();
+};
+window._syComparePanel=function(){
+  const el=document.getElementById('ov-content'); if(!el) return;
+  const rows=window.SY_PROPERTIES.map(p=>`<tr>
+    <td style="padding:6px 8px;color:#e8c56a">${p.title.split('—')[1].trim()}</td>
+    <td style="padding:6px 8px">${p.m2} m²</td><td style="padding:6px 8px">${p.price.toLocaleString('pl')} zł</td>
+    <td style="padding:6px 8px">${p.slots}</td><td style="padding:6px 8px">${p.upkeep.toLocaleString('pl')} zł</td>
+    <td style="padding:6px 8px;color:#9ab">${p.potential}</td></tr>`).join('');
+  el.innerHTML=`<h2>⚖️ Porównanie lokali użytkowych</h2>
+    <div style="max-width:700px;margin:0 auto;overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px;color:#cdd">
+      <tr style="color:#8fb8d8;text-align:left"><th style="padding:6px 8px">Lokal</th><th style="padding:6px 8px">Metraż</th><th style="padding:6px 8px">Cena</th><th style="padding:6px 8px">Sloty</th><th style="padding:6px 8px">Utrzymanie</th><th style="padding:6px 8px">Potencjał</th></tr>
+      ${rows}
+    </table>
+    <button class="cbtn" style="width:100%;margin-top:12px" onclick="renderBiuroNieruchomosci()">← Wróć</button></div>`;
+  if(typeof openOverlay==='function') openOverlay();
+};
+/* §4.2 oględziny BEZ zakupu — gracz widzi pustą przestrzeń i instalacje. */
+window._syViewing=function(pid){
+  const p=window.syPropById(pid); if(!p) return;
+  const el=document.getElementById('ov-content'); if(!el) return;
+  const owned=window._syOwned(p.roomId);
+  el.innerHTML=`
+    <h2>🔍 Oględziny — ${p.title}</h2>
+    <p class="sub">Oglądasz pustą przestrzeń. Widzisz ściany, drzwi, okna i instalacje — nic więcej.</p>
+    <div style="max-width:620px;margin:0 auto">
+      <div style="background:#0d1218;border:1px solid #2a3238;border-radius:10px;padding:14px;color:#cdd;font-size:13px;line-height:1.7">
+        ${p.inside}<br><br>
+        <b style="color:#8fb8d8">Instalacje na miejscu:</b> zasilanie, oświetlenie techniczne, wentylacja, wejście${p.id==='halston_41'?' i osobne drzwi dostawcze':''}.<br>
+        <b style="color:#8fb8d8">Stan:</b> pusty / do adaptacji — żadnego biurka, komputera, mikrofonu, kanapy, monitorów, paneli ani lodówki.
+      </div>
+      <h3 style="color:#7ec8e3;font-size:13px;margin:12px 0 6px">🗺 Plan studia — strefy funkcjonalne</h3>
+      <div style="background:#0a1220;border:1px solid #1a3a5a;border-radius:9px;padding:11px;color:#cdd;font-size:12.5px;line-height:1.8">
+        ${window.SY_ZONES.map(z=>`<div><b style="color:#8fb8d8">${z.n}</b> — ${z.d}</div>`).join('')}
+        <div style="color:#8a939a;margin-top:6px">To wyłącznie znaczniki planowania. Nie są przedmiotami i nie pojawiają się w normalnym widoku lokalu.</div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+        ${owned?'<div style="flex:1;color:#7ec87e;font-size:12.5px;padding:8px">✅ Ten lokal już należy do Ciebie.</div>'
+               :`<button class="bbtn" style="flex:1" ${(G.money||0)>=p.price?'':'disabled'} onclick="window._syBuyProperty('${p.id}')">Kup za ${p.price.toLocaleString('pl')} zł</button>`}
+        <button class="cbtn" style="flex:1" onclick="window._syWatch('${p.id}')">☆ Do obserwowanych</button>
+        <button class="cbtn" style="flex:1" onclick="renderBiuroNieruchomosci()">← Wróć</button>
+      </div>
+    </div>`;
+  if(typeof openOverlay==='function') openOverlay();
+};
+window._syWatch=function(pid){
+  window._syEnsure(); const y=G.soundyard;
+  if(!Array.isArray(y.watched)) y.watched=[];
+  if(y.watched.indexOf(pid)<0) y.watched.push(pid);
+  if(typeof showMsg==='function') showMsg('☆ Lokal dodany do obserwowanych.','i',3500);
+};
+/* §4.2 zakup tworzy instancję nieruchomości + voucher na obowiązkową konsultację bazową. */
+window._syBuyProperty=function(pid){
+  window._syEnsure();
+  const p=window.syPropById(pid); if(!p) return {ok:false,msg:'Nie znaleziono lokalu.'};
+  if(window._syOwned(p.roomId)) return {ok:false,msg:'Już posiadasz ten lokal.'};
+  if((G.money||0)<p.price){ if(typeof showMsg==='function') showMsg('💸 Za mało pieniędzy — lokal kosztuje '+p.price.toLocaleString('pl')+' zł.','r',4500); return {ok:false}; }
+  G.money-=p.price; if(typeof spent==='function') spent(p.price);
+  const sc=G.studioComplex;
+  if(!Array.isArray(sc.ownedRooms)) sc.ownedRooms=[];
+  if(sc.ownedRooms.indexOf(p.roomId)<0) sc.ownedRooms.push(p.roomId);
+  if(!sc.rooms[p.roomId]) sc.rooms[p.roomId]={equipment:[]};
+  const prop=window._syProp(p.roomId);
+  prop.voucher=true; prop.consultationStatus='voucher'; prop.installed=[];   /* §5: lokal startuje PUSTY */
+  if(typeof showMsg==='function') showMsg('🔑 Kupiłeś '+p.title+'. Lokal jest pusty — dostajesz voucher na obowiązkową konsultację bazową.','g',7000);
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  if(typeof renderBiuroNieruchomosci==='function') renderBiuroNieruchomosci();
+  return {ok:true};
+};
+/* [E] na budynku — karta lokalu (oględziny przed zakupem, panel po zakupie). */
+window._syPropAct=function(pid){
+  const p=window.syPropById(pid); if(!p) return;
+  if(window._syOwned(p.roomId)) window._syStudioPanel(p.roomId);
+  else window._syViewing(pid);
+};
+/* ── §8 SESSIONBOARD ─────────────────────────────────────────────────────────────────────────── */
+window._syAllStudios=function(){ return window.SY_COMPLEX_UNITS.concat(window.SY_EXTERNAL_UNITS).filter(rid=>window._syOwned(rid)); };
+window.renderSessionBoard=function(){
+  window._syEnsure();
+  const ph=document.getElementById('ph-content'); if(!ph) return;
+  document.getElementById('ph-title').textContent='🎚️ SessionBoard';
+  G._phView='app:sessionboard';
+  const mine=window._syAllStudios();
+  const y=G.soundyard;
+  const active=y.bookings.filter(b=>['confirmed','checked_in','in_session','overrun'].indexOf(b.status)>=0);
+  const rev=mine.reduce((n,r)=>n+((window._syProp(r)||{}).revenueWeek||0),0);
+  const cost=mine.reduce((n,r)=>n+((window._syProp(r)||{}).costWeek||0),0);
+  const alerts=[];
+  for(const rid of mine){
+    const chk=window._syCanAcceptBooking(rid);
+    if(!chk.ok) alerts.push(((STUDIO_ROOMS[rid]||{}).name||rid)+' — '+chk.why);
+  }
+  ph.innerHTML=`<div class="ph-screen">
+    <div style="background:#0a1a2a;border-radius:8px;padding:12px;margin-bottom:10px">
+      <div style="font-size:12px;color:#3498db;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Portfel studiów</div>
+      <div style="color:#cdd;font-size:12.5px;line-height:1.7">
+        Studia: <b>${mine.length}</b> · dziś sesje: <b>${active.length}</b><br>
+        Przychód tygodnia: <b style="color:#2ecc71">${rev.toLocaleString('pl')} zł</b> · koszty: <b style="color:#e8a020">${cost.toLocaleString('pl')} zł</b><br>
+        Wynik netto: <b style="color:${rev-cost>=0?'#2ecc71':'#e74c3c'}">${(rev-cost).toLocaleString('pl')} zł</b>
+      </div>
+    </div>
+    ${alerts.length?`<div style="background:#1a1206;border-left:3px solid #f1c40f;padding:8px 10px;border-radius:5px;font-size:11.5px;color:#e8d5a5;margin-bottom:10px">⚠️ ${alerts.join('<br>⚠️ ')}</div>`:''}
+    ${mine.length?mine.map(rid=>{
+      const p=window._syProp(rid), room=STUDIO_ROOMS[rid]||{}, cfg=window._syConfigLevel(rid), q=window._syQuality(rid);
+      const b=y.bookings.find(x=>x.studioId===rid&&['confirmed','checked_in','in_session','overrun'].indexOf(x.status)>=0);
+      const eng=b?(y.staff||[]).find(s=>s.employeeId===b.assignedEngineerId):null;
+      return `<div style="background:#0c1420;border:1px solid #1a3a5a;border-radius:8px;padding:10px;margin-bottom:8px;color:#cdd;font-size:12px">
+        <div style="font-weight:800;color:#7ec8e3">${room.name||rid}</div>
+        <div>Status: <b style="color:${cfg.rent===true?'#2ecc71':'#e8a020'}">${cfg.n}</b></div>
+        <div>Nagrania: <b>${q.captureQuality}</b> · odsłuch: <b>${q.monitoringReliability}</b> · gotowość: <b>${q.commercialReadiness}</b></div>
+        <div>Stawka: <b>${window._syRate(rid)} zł/h</b> · ocena: <b>${p.rating||'—'}</b></div>
+        ${b?`<div style="color:#9fd8ea;margin-top:3px">Sesja: ${b.hours} h · ${b.clientNpcId} · ${eng?eng.name:'brak realizatora'} · faza: ${b.status}</div>`:'<div style="color:#8a939a;margin-top:3px">Brak zaplanowanej sesji.</div>'}
+        <div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">
+          <button class="cbtn" style="flex:1;font-size:10.5px;padding:5px" onclick="closePhone();window._syStudioPanel('${rid}')">Zarządzaj</button>
+          ${b?`<button class="cbtn" style="flex:1;font-size:10.5px;padding:5px" onclick="window._syRunSession('${b.bookingId}');renderSessionBoard()">Przesuń sesję</button>`
+             :`<button class="cbtn" style="flex:1;font-size:10.5px;padding:5px" onclick="window._syBookBtn('${rid}')">Przyjmij rezerwację</button>`}
+          <button class="cbtn" style="flex:1;font-size:10.5px;padding:5px" onclick="window._syToggleBooking('${rid}')">${p.bookingEnabled?'Wyłącz rezerwacje':'Włącz rezerwacje'}</button>
+        </div></div>`;
+    }).join(''):'<div style="color:#9aa;font-size:12.5px;padding:10px">Nie masz jeszcze żadnego studia. Lokale użytkowe znajdziesz w Biurze Nieruchomości, a XL i Penthouse w kompleksie Soundyard.</div>'}
+    <div style="padding:8px 0"><button class="cbtn" style="width:100%" onclick="renderPhoneFolder('career')">← Wróć</button></div>
+  </div>`;
+};
+window._syBookBtn=function(rid){
+  const r=window._syNewBooking(rid,4,'Nera West');
+  if(typeof showMsg==='function') showMsg((r.ok?'📅 ':'⛔ ')+r.msg, r.ok?'g':'r', 4800);
+  if(typeof renderSessionBoard==='function') renderSessionBoard();
+};
+window._syToggleBooking=function(rid){ const p=window._syProp(rid); if(!p) return; p.bookingEnabled=!p.bookingEnabled; if(typeof renderSessionBoard==='function') renderSessionBoard(); };
+/* Panel pojedynczego studia — wyposażenie, konsultacje, personel, serwis. */
+window._syStudioPanel=function(rid){
+  window._syEnsure();
+  const el=document.getElementById('ov-content'); if(!el) return;
+  const room=STUDIO_ROOMS[rid]||{}, p=window._syProp(rid), cfg=window._syConfigLevel(rid), q=window._syQuality(rid);
+  const rd=window._syReadiness(rid);
+  const need=p.consultationStatus!=='approved'&&p.consultationStatus!=='legacy_validated';
+  el.innerHTML=`
+    <h2>🎚️ ${room.name||rid}</h2>
+    <p class="sub">Cena lokalu oznaczała wyłącznie prawo do pustej przestrzeni. Wszystko poniżej kupujesz i montujesz osobno.</p>
+    <div style="max-width:640px;margin:0 auto">
+      <div style="background:#0a1220;border:1px solid #1a3a5a;border-radius:9px;padding:11px;margin-bottom:9px;color:#cdd;font-size:12.5px;line-height:1.8">
+        Poziom: <b style="color:${cfg.rent===true?'#2ecc71':'#e8a020'}">${cfg.n}</b> · własne sesje: <b>${cfg.own?'tak':'nie'}</b> · wynajem: <b>${cfg.rent===true?'tak':(cfg.rent?cfg.rent:'nie')}</b><br>
+        Nagrania: <b>${q.captureQuality}</b> · odsłuch: <b>${q.monitoringReliability}</b> · gotowość komercyjna: <b>${q.commercialReadiness}</b><br>
+        Zainstalowane: <b>${p.installed.length} / ${room.maxEquipmentSlots||0}</b> slotów
+      </div>
+      <div style="background:#0d1810;border:1px solid #1e3a24;border-radius:9px;padding:10px;margin-bottom:9px;font-size:12px;color:#cdd">
+        <b style="color:#7ec87e">Warstwy gotowości:</b><br>
+        ${Object.keys(rd).map(k=>`<span style="color:${rd[k]?'#7ec87e':'#8a939a'}">${rd[k]?'✔':'✖'} ${k}</span>`).join(' · ')}
+      </div>
+      ${need?`<div style="background:#1a1206;border-left:3px solid #f1c40f;padding:9px 11px;border-radius:5px;font-size:12px;color:#e8d5a5;margin-bottom:9px">
+        Bez konsultacji bazowej nie kupisz do tego lokalu wyposażenia.${p.voucher?' Masz voucher na konsultację startową — jest bezpłatna.':''}</div>`:''}
+      <button class="bbtn" style="width:100%;margin-bottom:6px" onclick="window._syConsultPanel('${rid}')">🧭 Konsultacje z inżynierem dźwięku</button>
+      <button class="bbtn" style="width:100%;margin-bottom:6px" ${need?'disabled':''} onclick="window._syEquipPanel('${rid}')">🎛️ Wyposażenie i zamówienia</button>
+      <button class="cbtn" style="width:100%;margin-bottom:6px" onclick="window._syStaffPanel('${rid}')">👥 Realizatorzy i pracownicy</button>
+      <button class="cbtn" style="width:100%;margin-bottom:6px" onclick="window._syServicePanel('${rid}')">🔧 Serwis i awarie</button>
+      <button class="cbtn" style="width:100%" onclick="closeOverlay()">← Zamknij</button>
+    </div>`;
+  if(typeof openOverlay==='function') openOverlay();
+};
+window._syConsultPanel=function(rid){
+  const el=document.getElementById('ov-content'); if(!el) return;
+  const p=window._syProp(rid);
+  const list=window.SY_CONSULTANTS.filter(c=>c.rooms.indexOf(rid)>=0).map(c=>{
+    const free=(c.voucher&&p.voucher);
+    return `<div style="background:#0c1420;border:1px solid #1a3a5a;border-radius:9px;padding:10px;margin-bottom:7px;color:#cdd;font-size:12.5px">
+      <div style="font-weight:800;color:#7ec8e3">${c.name}</div>
+      <div style="color:#8fb8d8">${c.spec}</div>
+      <div style="color:#9ab;font-size:11.5px;margin-top:3px">${c.scope}</div>
+      <div class="pr" style="font-size:12px">${free?'<span style="color:#7ec87e">voucher (bezpłatnie)</span>':c.cost.toLocaleString('pl')+' zł'}</div>
+      <button class="bbtn" style="width:100%;margin-top:5px" onclick="window._syConsultBtn('${rid}','${c.id}')">Umów konsultację</button></div>`;
+  }).join('');
+  el.innerHTML=`<h2>🧭 Konsultacje — ${(STUDIO_ROOMS[rid]||{}).name||rid}</h2>
+    <p class="sub">Konsultant nie gwarantuje jakości. Ogranicza błędy projektowe i pomaga wykorzystać sprzęt zgodnie z metrażem.</p>
+    <div style="max-width:600px;margin:0 auto">${list}
+    ${p.plan?`<div style="background:#0d1810;border:1px solid #1e3a24;border-radius:9px;padding:10px;color:#cdd;font-size:12px">
+      <b style="color:#7ec87e">Zatwierdzony plan (rewizja ${p.plan.revision})</b><br>
+      Warianty: ${p.plan.variants.join(' · ')}<br>
+      ${p.plan.warnings.map(w=>'⚠️ '+w).join('<br>')}</div>`:''}
+    <button class="cbtn" style="width:100%;margin-top:8px" onclick="window._syStudioPanel('${rid}')">← Wróć</button></div>`;
+  if(typeof openOverlay==='function') openOverlay();
+};
+window._syConsultBtn=function(rid,cid){
+  const r=window._syConsult(rid,cid);
+  if(typeof showMsg==='function') showMsg((r.ok?'🧭 ':'⛔ ')+r.msg, r.ok?'g':'r', 5200);
+  window._syConsultPanel(rid);
+};
+window._syEquipPanel=function(rid){
+  const el=document.getElementById('ov-content'); if(!el) return;
+  const p=window._syProp(rid);
+  const groups=window.STUDIO_EQUIP_GROUPS.map(g=>{
+    const ids=Object.keys(STUDIO_EQUIP).filter(id=>g.cats.indexOf(STUDIO_EQUIP[id].cat)>=0);
+    if(!ids.length) return '';
+    return `<h3 style="color:#9b59b6;font-size:12.5px;margin:10px 0 5px">${g.label}</h3><div class="shopgrid">`+
+      ids.map(id=>{
+        const d=STUDIO_EQUIP[id], info=window.SY_EQUIP_INFO[id]||{};
+        const owned=window._syHasEquip(rid,id);
+        const chk=window._syCanBuyEquip(rid,id);
+        const pending=(G.soundyard.orders||[]).find(o=>o.studioId===rid&&o.defId===id&&o.status!=='installed');
+        return `<div class="sitem"><h3 style="font-size:12px">${window.syEquipName(id)}</h3>
+          <div style="font-size:10px;color:#6a8caa;text-transform:uppercase;margin:-3px 0 3px">${info.cat||''}</div>
+          <div class="pr" style="font-size:12px">${d.price.toLocaleString('pl')} zł</div>
+          ${owned?'<div class="owned">✅ Zainstalowane</div>':(pending?`<div style="color:#e8a020;font-size:11px">📦 ${pending.status}</div>`:'')}
+          <div style="display:flex;gap:4px;margin-top:4px">
+            <button class="bbtn" style="flex:1;font-size:11px;padding:5px" ${(owned||pending||!chk.ok)?'disabled':''} onclick="window._syOrderBtn('${rid}','${id}')">${owned?'Masz':(pending?'W drodze':'Zamów')}</button>
+            <button class="cbtn" style="font-size:11px;padding:5px 8px" title="Informacje techniczne" onclick="window._syEquipInfo('${rid}','${id}')">${window.syInfoIcon(12)}</button>
+          </div>
+          ${(!owned&&!pending&&!chk.ok)?`<div style="font-size:10.5px;color:#e8a020;margin-top:3px">${chk.why}</div>`:''}
+        </div>`;
+      }).join('')+'</div>';
+  }).join('');
+  el.innerHTML=`<h2>🎛️ Wyposażenie — ${(STUDIO_ROOMS[rid]||{}).name||rid}</h2>
+    <p class="sub">Sloty: <b>${p.installed.length}/${(STUDIO_ROOMS[rid]||{}).maxEquipmentSlots||0}</b>. Element działa dopiero po dostawie, montażu i uruchomieniu — nie w chwili kliknięcia „Zamów".</p>
+    <div style="max-width:760px;margin:0 auto">${groups}
+    <button class="cbtn" style="width:100%;margin-top:10px" onclick="window._syStudioPanel('${rid}')">← Wróć</button></div>`;
+  if(typeof openOverlay==='function') openOverlay();
+};
+window._syOrderBtn=function(rid,id){
+  const r=window._syOrderEquip(rid,id);
+  if(typeof showMsg==='function') showMsg((r.ok?'📦 ':'⛔ ')+r.msg, r.ok?'g':'r', 5200);
+  window._syEquipPanel(rid);
+};
+/* §11 panel „Informacje techniczne" — pięć pól wymaganych przez dokument. */
+window._syEquipInfo=function(rid,id){
+  const el=document.getElementById('ov-content'); if(!el) return;
+  const i=window.SY_EQUIP_INFO[id]||{}; const d=STUDIO_EQUIP[id]||{};
+  el.innerHTML=`<h2>${window.syInfoIcon(20)} ${i.name||id}</h2>
+    <p class="sub">${i.cat||''} · ${(d.price||0).toLocaleString('pl')} zł</p>
+    <div style="max-width:640px;margin:0 auto;color:#cdd;font-size:13px;line-height:1.7">
+      <p><b style="color:#8fb8d8">Funkcja techniczna:</b> ${i.fn||'—'}</p>
+      <p><b style="color:#7ec87e">Wpływ w grze:</b> ${i.fx||'—'}</p>
+      <p><b style="color:#e8c56a">Wymagania i kompatybilność:</b> ${i.req||'—'}</p>
+      <p><b style="color:#c89eeb">Wizualizacja po zakupie:</b> ${i.vis||'—'}</p>
+      <p><b style="color:#e8a020">Ograniczenia / czego nie robi:</b> ${i.lim||'—'}</p>
+      <button class="cbtn" style="width:100%;margin-top:8px" onclick="window._syEquipPanel('${rid}')">← Wróć</button>
+    </div>`;
+  if(typeof openOverlay==='function') openOverlay();
+};
+window._syStaffPanel=function(rid){
+  const el=document.getElementById('ov-content'); if(!el) return;
+  const y=G.soundyard; const mine=(y.staff||[]).filter(s=>s.studioId===rid);
+  el.innerHTML=`<h2>👥 Obsada — ${(STUDIO_ROOMS[rid]||{}).name||rid}</h2>
+    <p class="sub">Realizator jest przypisany do konkretnej sesji i studia — nie prowadzi dwóch naraz.</p>
+    <div style="max-width:620px;margin:0 auto">
+      ${mine.length?mine.map(s=>`<div style="background:#0c1420;border:1px solid #1a3a5a;border-radius:9px;padding:10px;margin-bottom:6px;color:#cdd;font-size:12.5px">
+        <b style="color:#7ec8e3">${s.name}</b> <span style="color:#8a939a">· ${(window.syRole(s.role)||{}).n||s.role}</span><br>
+        Nagrania ${s.recordingSkill} · miks ${s.mixingSkill} · obsługa klienta ${s.clientHandling} · zmęczenie ${Math.round(s.fatigue)}<br>
+        Stawka: ${s.hourlyCost} zł/h ${s.activeSessionId?'<span style="color:#e8a020">· zajęty sesją</span>':'<span style="color:#7ec87e">· wolny</span>'}
+      </div>`).join(''):'<div style="color:#9aa;font-size:12.5px;padding:8px 0">Brak obsady — bez realizatora studio nie przyjmie rezerwacji.</div>'}
+      <h3 style="color:#7ec8e3;font-size:13px;margin:12px 0 6px">Zatrudnij</h3>
+      ${window.SY_ROLES.map(r=>`<button class="cbtn" style="width:100%;text-align:left;margin-bottom:5px;font-size:12px" onclick="window._syHireBtn('${rid}','${r.id}')">${r.n} — ${Math.max(40,Math.round(window._syRate(rid)*(r.share||0.3)))} zł/h<div style="font-size:11px;color:#8a939a">${r.duties}</div></button>`).join('')}
+      <button class="cbtn" style="width:100%;margin-top:8px" onclick="window._syStudioPanel('${rid}')">← Wróć</button></div>`;
+  if(typeof openOverlay==='function') openOverlay();
+};
+window._syHireBtn=function(rid,roleId){
+  const r=window._syHireStaff(rid,roleId);
+  if(typeof showMsg==='function') showMsg((r.ok?'👥 ':'⛔ ')+r.msg, r.ok?'g':'r', 4500);
+  window._syStaffPanel(rid);
+};
+window._syServicePanel=function(rid){
+  const el=document.getElementById('ov-content'); if(!el) return;
+  const p=window._syProp(rid);
+  el.innerHTML=`<h2>🔧 Serwis — ${(STUDIO_ROOMS[rid]||{}).name||rid}</h2>
+    <p class="sub">Awaria komputera, interfejsu lub oprogramowania blokuje sesję. Awaria lampy albo lodówki obniża komfort, ale nagrań nie zatrzymuje.</p>
+    <div style="max-width:620px;margin:0 auto">
+      ${p.installed.length?p.installed.map(x=>{
+        const col=x.condition>=60?'#7ec87e':(x.condition>=25?'#e8a020':'#e74c3c');
+        return `<div style="background:#0c1420;border:1px solid #1a3a5a;border-radius:9px;padding:9px;margin-bottom:6px;color:#cdd;font-size:12.5px">
+          <b>${window.syEquipName(x.defId)}</b> <span style="color:#8a939a">· ${x.zone}</span><br>
+          Kondycja: <b style="color:${col}">${Math.round(x.condition)}%</b>${x.active?'':' <span style="color:#e74c3c">— poza serwisem</span>'}
+          ${x.condition<100?`<button class="cbtn" style="width:100%;margin-top:5px;font-size:11.5px;padding:5px" onclick="window._syServiceBtn('${rid}','${x.instanceId}')">Serwisuj</button>`:''}
+        </div>`;
+      }).join(''):'<div style="color:#9aa;font-size:12.5px;padding:8px 0">Lokal jest pusty — nie ma czego serwisować.</div>'}
+      <button class="cbtn" style="width:100%;margin-top:8px" onclick="window._syStudioPanel('${rid}')">← Wróć</button></div>`;
+  if(typeof openOverlay==='function') openOverlay();
+};
+window._syServiceBtn=function(rid,iid){
+  const r=window._syService(rid,iid);
+  if(typeof showMsg==='function') showMsg((r.ok?'🔧 ':'⛔ ')+r.msg, r.ok?'g':'r', 4500);
+  window._syServicePanel(rid);
+};
+/* ═══════════════════ SOUNDYARD STUDIO ECOSYSTEM MODULE END ═════════════════════════════════ */
 window.STUDIO_EQUIP_GROUPS=[
   {label:'💻 Komputer i DAW',cats:['computer','daw']},
   {label:'🎤 Mikrofony',cats:['microphone']},
@@ -18329,10 +19535,16 @@ function renderStudioForSale(){
   document.getElementById('ov-content').innerHTML=`
     <h2>🎙️ Soundyard Studio Complex</h2>
     <p class="sub">Kup przestrzeń, wyposaż ją i zamień w miejsce, które pracuje na Twoją muzykę. Cena lokalu = sama przestrzeń; sprzęt kupujesz osobno.</p>
-    <div style="color:#7ec8e3;font-size:12px;margin-bottom:8px">Twoje lokale: <b>${owned.length}/5</b> · Twoja kasa: <b style="color:#2ecc71">${(G.money||0).toLocaleString('pl')} zł</b> · Rabat za poziom (${L}): <b>${disc}</b></div>
+    <div style="color:#7ec8e3;font-size:12px;margin-bottom:8px">Twoje lokale w Soundyard: <b>${owned.filter(function(r){return window.syIsComplexUnit&&window.syIsComplexUnit(r);}).length}/2</b> · Twoja kasa: <b style="color:#2ecc71">${(G.money||0).toLocaleString('pl')} zł</b> · Rabat za poziom (${L}): <b>${disc}</b></div>
     ${owned.length?`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px"><button class="bbtn" style="padding:5px 12px;font-size:12px;background:#2a2510;border-color:#6a5a1a;color:#e8d55a" onclick="renderStudioRental()">🏢 Wynajem i realizatorzy</button>${(Math.floor((sc.weeklyPending||0))>0)?`<span style="color:#9ee89e;font-size:11px">💰 ${Math.floor(sc.weeklyPending).toLocaleString('pl')} zł z wynajmu do odebrania</span>`:''}</div>`:''}
     ${owned.length===0?'<div style="background:#1a1206;border-left:3px solid #f1c40f;padding:8px 11px;border-radius:4px;font-size:11.5px;color:#e8d5a5;margin-bottom:10px">Nie masz jeszcze żadnej przestrzeni studyjnej. Pamiętaj: sama przestrzeń nie wystarczy — po zakupie musisz ją wyposażyć.</div>':''}
-    ${Object.keys(STUDIO_ROOMS).map(roomCard).join('')}
+    <!-- PDF SOUNDYARD §2: kompleks sprzedaje już TYLKO dwa największe lokale. Studio S/M/L to osobne
+         nieruchomości na mapie Main City, dostępne w Biurze Nieruchomości. -->
+    ${(window.SY_COMPLEX_UNITS||Object.keys(STUDIO_ROOMS)).map(roomCard).join('')}
+    <div style="background:#0a1220;border-left:3px solid #7ec8e3;padding:9px 11px;border-radius:5px;font-size:11.5px;color:#9fd8ea;margin-top:8px">
+      Studio S, M i L nie są już częścią kompleksu — to trzy osobne lokale użytkowe w mieście (Mercer 12, Calder 7B, Halston 41).
+      Znajdziesz je w Biurze Nieruchomości w kategorii „Lokale użytkowe — potencjał studyjny”.
+    </div>
     <div class="res" id="studio-sale-res" style="margin-top:6px"></div>
     <button class="cbtn" style="margin-top:10px" onclick="closeOverlay()">← Wróć</button>
   `;
@@ -29399,7 +30611,8 @@ function nextPeriod(){
     G.timeOfDay=0;G.day++;G.hunger=clampStat('hunger', G.hunger-15);
     if(typeof _noxTickContracts==='function') _noxTickContracts(); /* NX-3 (v2.3.44 PDF): rozstrzygnij zlecenia NOX po deadline */
     if(typeof window._metalValleyTickPayouts==='function') window._metalValleyTickPayouts(); /* v2.3.108 PDF#11: dojrzewanie wypłat rozbiórki + SMS Ryśka */
-    if(typeof window._kasacjaTick==='function') window._kasacjaTick(); /* v2.3.131 (PDF Uspr v2.3.130 U6/U10): postojowe, SMS Ryśka po 3 dniach, koniec kasacji po dniu roboczym */
+    if(typeof window._kasacjaTick==='function') window._kasacjaTick();
+    if(typeof window._syDailyTick==='function') window._syDailyTick(); /* PDF SOUNDYARD §5.2/§12.3: dostawy, montaż, zużycie, utrzymanie */ /* v2.3.131 (PDF Uspr v2.3.130 U6/U10): postojowe, SMS Ryśka po 3 dniach, koniec kasacji po dniu roboczym */
     if(typeof window._vehRepairTick==='function') window._vehRepairTick(); /* nowy PDF Fizyczne kolizje TIER D: odbiór pojazdu z naprawy po readyDay */
     if(typeof window._vehTickDaily==='function') window._vehTickDaily(); /* TIER E/G: wygaśnięcie zakazu jazdy + konsekwencje porzuconego wraku */
     if((G.defamation||0)>0) G.defamation=Math.max(0,G.defamation-2); /* v2.1.874: zniesławienie opada powoli (-2/dobę) */
@@ -43896,6 +45109,7 @@ function renderBiuroNieruchomosci(){
         return `<div class="sitem" style="width:200px"><h3>${a.name}</h3><p>${a.desc}</p><p style="color:#27ae60;font-size:11px;margin-bottom:4px">${a.bonusText}</p>${reqStr?`<p style="color:${reqOk?'#7ec87e':'#e74c3c'};font-size:11px;margin-bottom:6px">📋 ${reqStr}</p>`:''}<div class="pr">${priceLabel}</div>${activeMark}<button class="bbtn" onclick="buyApartment('${a.id}',${a.cost})" ${disabled?'disabled':''}>${btnLabel}</button>${locBtn}</div>`;
       }).join('')}
     </div>
+    ${(typeof window._syListingHtml==='function')?window._syListingHtml():''}
     ${rentalsHtml}
     <div class="res" id="shop-res">Wybierz mieszkanie.</div>
     <button class="cbtn" onclick="closeOverlay()">← Wróć</button>
@@ -72780,6 +73994,8 @@ function _getPhoneFolders(){
       /* NX (v2.3.44 PDF): NOX Route — czarnorynkowy komunikator. Widoczny od początku; klik → ekran blokady z checklistą (renderNoxApp dispatcher) dopóki nie spełnisz warunków. */
       _phApp('⬢','NOX Route','#06080c','#1ad9c0',"renderNoxApp()", _tutLock, _tutLockMsg),
       /* v2.3.102 (PDF #7): S9 Agency (Signal Nine) — agencja marketingowa. Widoczna od początku; klik → panel z wymaganiami dopóki nie spełnisz warunków (singiel/freestyle/posty). */
+      /* PDF SOUNDYARD §8: aplikacja SessionBoard obejmuje WSZYSTKIE studia gracza, także te poza kompleksem. */
+      _phApp('🎚️','SessionBoard','#0a1a16','#2ecc71',"renderSessionBoard()"),
       _phApp('📡','S9 Agency','#0a1420','#3498db',"(function(){var p=document.getElementById('phone');if(p&&p.classList.contains('on')&&typeof togglePhone==='function')togglePhone();if(typeof window.renderS9Agency==='function')window.renderS9Agency();})()", _tutLock, _tutLockMsg),
     ]},
     finance:{em:'💰',label:'Finanse',preview:['🏦','💸','💰','📈'],apps:[
@@ -84871,6 +86087,10 @@ const PATCH_NOTES = [
  {
  ver:'v2.3.131',date:'2026-08-10',cats:['beta-tester','fix','feature'],title:'🅿️🚚♻️ Parking, holowanie, kasacja pojazdów i porządki w całej grze',
  items:[
+  {t:'feature',d:'🎚️ Studia nagrań to teraz osobne nieruchomości w mieście. Kompleks Soundyard sprzedaje już tylko dwa największe lokale, a mniejsze studia stały się trzema budynkami na mapie: Mercer 12 (narożny lokal po punkcie usługowym), Calder 7B (oficyna za przejazdem, ze schodami ewakuacyjnymi) i Halston 41 (wolnostojący pawilon po drukarni, z dwoma miejscami parkingowymi). Każdy wygląda inaczej, ma własną historię i ogłoszenie w Biurze Nieruchomości — możesz obejrzeć lokal przed zakupem, zobaczyć go na mapie i porównać z pozostałymi.'},
+  {t:'feature',d:'🧰 Kupiony lokal jest CAŁKIEM pusty — cena to sama przestrzeń. Sprzęt zamawiasz osobno, a on nie pojawia się w chwili kliknięcia: najpierw dostawa, potem montaż i uruchomienie. Zanim cokolwiek kupisz, potrzebna jest konsultacja z inżynierem dźwięku — do wyboru pięcioro specjalistów, a pierwsza rozmowa po zakupie lokalu jest na voucherze.'},
+  {t:'feature',d:'🎧 Katalog wyposażenia to 44 pozycje, każda z panelem informacji: co dany sprzęt naprawdę robi, co daje w grze, czego wymaga, jak wygląda po montażu i czego NIE zrobi. Jakość nagrań ogranicza najsłabsze ogniwo — drogi mikrofon w nieprzygotowanym pomieszczeniu nie da skoku, dopóki nie zajmiesz się akustyką.'},
+  {t:'feature',d:'📅 W telefonie pojawiła się aplikacja SessionBoard — jedno miejsce na wszystkie Twoje studia: gotowość techniczna, obsada, rezerwacje, stawki, przychody i koszty. Bez realizatora albo przy awarii sprzętu studio nie przyjmie sesji, a po zakończonej sesji do portfela trafia kwota po odjęciu wynagrodzeń, mediów, sprzątania i zużycia.'},
   {t:'feature',d:'🍷 Corner Basket ma dział alkoholowy, a minibar w mieszkaniu wreszcie coś znaczy. W sklepie znajdziesz 15 pozycji w czterech kategoriach — przy każdej widać rodzaj, segment i liczbę porcji w opakowaniu. Butelki trafiają do zapasów minibaru, a w KAŻDYM swoim mieszkaniu przygotujesz z nich drinka według jednej z dziesięciu receptur. Panel pokazuje osobno to, co zrobisz od ręki, i to, do czego czegoś brakuje — zawsze z nazwą brakującego składnika. Możesz też nalać sobie porcję bez dodatków albo sprawdzić stan zapasów. Dodatki (cola, tonik, sok, energetyk, napój cytrusowy, woda gazowana, kawa) kupisz w zwykłych napojach.'},
   {t:'feature',d:'🥃 Picie ma konsekwencje, ale nie tworzy nowych pasków na ekranie. Drink poprawia nastrój i podnosi upojenie, mocniejszy alkohol zabiera trochę energii, a przy powtarzanym schemacie rośnie skłonność do sięgania po więcej. Po śnie możesz obudzić się z kacem — tym mocniejszym, im więcej było poprzedniego wieczoru. Przy bardzo wysokim upojeniu gra po prostu odmawia kolejnego drinka.'},
   {t:'feature',d:'💃 Maya Voss odzywa się sama, zanim pierwszy raz staniesz w kręgu. Po dwóch ulicznych freestyle’ach albo po dwudziestu minutach gry bez żadnego freestyle’u dostajesz od niej SMS z zaproszeniem do parku. Masz trzy odpowiedzi do wyboru, a Maya odpisuje na każdą inaczej — po chwili, jak w prawdziwej korespondencji. Każda odpowiedź otwiera taneczny freestyle w parku; różni się tylko to, jak mocno gra Ci go przypomina. Wiadomość nigdy nie przerywa minigry ani rozmowy — poczeka na spokojny moment.'},
