@@ -3553,6 +3553,12 @@ const ROOMS = {
          (przy graffiti „XYZ" wx:380 wy:660) i powiększony. Strefa: cols 5-11.6 (x240-560 < chodnik V x624),
          y580-710 (między chodnikiem H y576 a dolnymi budynkami y720). Bezkolizyjnie vs lab/tattoo/speakeasy. */
       {id:'parking', wx:240, wy:576, w:384, h:134, act:'parking:info', prompt:'[E] 🅿️ Parking', lbl:'Parking'},/* v2.3.105 (user): rozszerzony do krawędzi chodników — góra do chodnika poziomego (y576), prawo do chodnika pionowego „V" (x624); BEZ nachodzenia (flush) */
+      /* PDF „NPC Mason Hale — GUIDE FLYOVER SYSTEM" §3.2: przewodnik stoi PRZY BRAMIE dzielnicy,
+         na CHODNIKU, kilka metrów od głównej osi przejścia i NIE blokuje pathfindingu.
+         Brama/wyjście = exit_under @1340,420. Jezdnia Underground to pas y488-552
+         (DISTRICT_ROAD_Y 520 ± HALF 32), więc sylwetka y415-473 stoi bezpiecznie NAD nią
+         (15 px zapasu). Spawn gracza po wejściu do dzielnicy to (1200,430) — bez kolizji. */
+      {id:'npc_mason_hale',         wx:1255,wy:415, w:36, h:58,  act:'ughGuide:talk',        prompt:'[E] 🕶 Zapytaj o Under — Mason Hale', lbl:'Mason Hale'},
       /* 7 places Underground (basic stubs, content w sub-faza B'.2+) */
       {id:'piwnica_underground',    wx:180, wy:140, w:140,h:130, act:'underground_piwnica',   prompt:'[E] 🎙 Piwnica Producenta',    lbl:'Piwnica'},
       {id:'cypher_underground',     wx:445, wy:140, w:140,h:130, act:'underground_cypher',    prompt:'[E] 🎤 Cypher Club',           lbl:'Cypher'},/* v2.3.100: 480→445 — przestrzeń dla Gravel Lot */
@@ -4341,6 +4347,8 @@ function drawSprite(id,sx,sy,w,h){
     case 'underground_office_info':  drawInfoPillar(sx,sy,w,h);break;/* v2.3.115 (PDF Uspr): słupek informacyjny */
     case 'plantation_underground':  drawSubterraCellar(sx,sy,w,h);break;/* v2.3.131 (PDF Uspr v2.3.130 U23): stara brukowana piwnica (SUBTERRA), nie szklarnia */
     case 'gravellot_underground':   drawGravelLotHall(sx,sy,w,h);break; /* v2.3.102 (PDF #8-24): hala serwisowa/warsztatowa zamiast zwykłej fasady */
+    /* GUIDE FLYOVER §3: Mason Hale ma własną sylwetkę — bez tego byłby szarym boxem (lekcja v2.3.125). */
+    case 'npc_mason_hale':          if(typeof window._drawMasonHale==='function') window._drawMasonHale(sx,sy,w,h); break;
     /* v2.1.385 Faza C' Coast new map: tropical buildings */
     case 'exit_coast':              drawCoastExitGate(sx,sy,w,h);break;
     case 'plaza_coast':             drawCoastBuilding(sx,sy,w,h,'🏖','Plaża + Bar','#d4a060');break;
@@ -15582,6 +15590,11 @@ function handleAct(act,objId){
     const _po=act.slice('police_opt:'.length);
     if(_po==='phone'){ if(typeof window._policeCellPhone==='function') window._policeCellPhone(); }
     else if(typeof window._policeDetentionOpt==='function') window._policeDetentionOpt(_po);
+  } else if(act&&act.indexOf('ughGuide:')===0){
+    /* GUIDE FLYOVER §4/§6: przewodnik odpowiada TYLKO na świadomą interakcję gracza.
+       ⚠️ LEKCJA v2.3.129: każdy nowy prefiks aktu MUSI mieć własną gałąź w handleAct. */
+    if(typeof window._ughTalk==='function') window._ughTalk();
+    else if(typeof showMsg==='function') showMsg('🕶 Mason właśnie odchodzi od bramy — spróbuj za chwilę.','i',3200);
   } else if(act&&act.indexOf('vesper:')===0){
     if(typeof window._vesperAct==='function') window._vesperAct(act.slice(7));
   } else if(act&&act.indexOf('sunset:')===0){
@@ -64255,6 +64268,432 @@ window._swVehiclePanelHTML=function(){
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   UNDERGROUND GUIDE FLYOVER — MODULE START
+   PDF „NPC Mason Hale, czyli system GUIDE FLYOVER SYSTEM w dzielnicy Underground District"
+   (45 testów akceptacyjnych §27, Definition of Done §28).
+   Zasady KRYTYCZNE, wdrożone dosłownie:
+     • przelot NIE uruchamia się automatycznie po wejściu do dzielnicy — tylko przez świadomą
+       interakcję z Masonem (§4, test 1);
+     • moduł nie tworzy drugiego systemu kamery — jest SCENARIUSZEM istniejącego „Przelotu nad
+       miastem" (§16, §29.2, §30);
+     • Mason nie może zniknąć na stałe — ma fallback spawnu (§3.2, §29.2, test 38);
+     • staged scenes ustępują realnym incydentom City Pulse (§17, §18);
+     • flyover NIE jest źródłem prawdy dla własności ani progresji SUBTERRA — tylko odczytuje
+       stan z istniejącego systemu nieruchomości (§11.1, §19, §29.2);
+     • replay nie przyznaje ponownie intel/unlocków (§29.3).
+   ═══════════════════════════════════════════════════════════════════════════ */
+window.UGH_NPC_ID='underground_guide_mason_hale';
+window._ughEnsure=function(){
+  if(!G.undergroundGuide||typeof G.undergroundGuide!=='object') G.undergroundGuide={};
+  const s=G.undergroundGuide;
+  if(typeof s.introSeen!=='boolean') s.introSeen=false;
+  if(typeof s.firstTourCompleted!=='boolean') s.firstTourCompleted=false;
+  if(typeof s.tourInProgress!=='boolean') s.tourInProgress=false;
+  if(s.lastCompletedShotId===undefined) s.lastCompletedShotId=null;
+  if(!Array.isArray(s.unlockedIntelEntries)) s.unlockedIntelEntries=[];
+  if(!Array.isArray(s.askedTopics)) s.askedTopics=[];
+  if(typeof s.replayCount!=='number') s.replayCount=0;
+  if(s.state===undefined) s.state='IDLE_AT_GATE';
+  return s;
+};
+/* §3.2 fallback spawnu — Mason NIE może zostać trwale usunięty przez incydent City Pulse. */
+window._ughRestoreNpc=function(){
+  const room=ROOMS.underground; if(!room||!Array.isArray(room.objects)) return false;
+  if(room.objects.some(o=>o.id==='npc_mason_hale')) return true;
+  room.objects.push({id:'npc_mason_hale', wx:1255, wy:415, w:36, h:58,
+    act:'ughGuide:talk', prompt:'[E] 🕶 Zapytaj o Under — Mason Hale', lbl:'Mason Hale'});
+  return true;
+};
+/* §4 warunki aktywacji — brak startu w trakcie sceny krytycznej, pościgu czy zatrzymania. */
+window._ughEligibility=function(){
+  const s=window._ughEnsure();
+  if(s.tourInProgress) return {ok:false, reason:'in_progress', msg:'Oprowadzanie już trwa.'};
+  if(currentRoom!=='underground') return {ok:false, reason:'wrong_room', msg:'Mason czeka przy bramie Underground.'};
+  if(G._cinematicActive) return {ok:false, reason:'cinematic', msg:'Poczekaj, aż skończy się bieżąca scena.'};
+  /* §18: pościg / aresztowanie gracza blokuje start */
+  const chased=!!(G.police&&(G.police.chasing||G.police.detained))||!!G._policeChase||!!G._arrested;
+  if(chased) return {ok:false, reason:'police', msg:'Najpierw załatw to, co za Tobą jedzie.'};
+  if(typeof window._cityPulseCritical==='function' && window._cityPulseCritical('underground'))
+    return {ok:false, reason:'incident', msg:'W dzielnicy dzieje się coś poważnego. Wróć za chwilę.'};
+  return {ok:true};
+};
+/* §17 Staged Scene Director — mikroscena ustępuje REALNEMU zdarzeniu świata. */
+window._ughPrepareStagedScene=function(sceneId, zoneId){
+  if(typeof window._cityPulseCritical==='function' && window._cityPulseCritical(zoneId||'underground'))
+    return {ok:false, fallback:'use_live_world'};
+  const pool=window._ughStagingPool||(window._ughStagingPool={active:{}});
+  if(pool.active[sceneId]) return {ok:false, fallback:'static_shot'};
+  pool.active[sceneId]={at:Date.now()};
+  /* §29.5: aktorzy żyją tylko na czas ujęcia — hard timeout zwalnia rezerwację nawet po błędzie */
+  setTimeout(()=>{ try{ delete pool.active[sceneId]; }catch(_){} }, 12000);
+  return {ok:true, reservationId:sceneId};
+};
+window._ughReleaseStagedScenes=function(){ window._ughStagingPool={active:{}}; };
+/* §11.1/§19: stan własności „Adaptowanej piwnicy uprawowej" czytany z ISTNIEJĄCEGO systemu.
+   Flyover niczego tu nie zapisuje i nie trzyma kopii danych SUBTERRA. */
+window._ughSubterraState=function(){
+  try{
+    if(G.subterra && (G.subterra.owned===true || G.subterra.purchased===true)) return 'POSIADANY';
+    if(typeof window._subterraOwned==='function' && window._subterraOwned()) return 'POSIADANY';
+    if(G.plantation && G.plantation.owned) return 'POSIADANY';
+  }catch(_){}
+  return 'DO KUPIENIA';
+};
+/* ── §11 PEŁNA TRASA — 15 lokacji w kolejności z dokumentu ─────────────────────────────────────
+   Każdy punkt: kotwica kamery, nazwa w overlayu, kwestia Masona i opis mikrosceny. */
+window._ughFullTopics=function(){
+  const sub=window._ughSubterraState();
+  const T=(em,title,desc,places)=>({em,title,desc,places,durPerPlace:6200});
+  return [
+    /* §7.2 scena otwierająca ~10 s + monolog */
+    T('🕶','MASON HALE — WITAJ W UNDERZE',
+      'W Underze każdy coś kręci. Jedni interes, drudzy numer na boku, trzeci własny pogrzeb. Tu nic nie leży bez właściciela, a jak leży, no to ktoś już zapierdala, żeby to podnieść. Tutaj nie wygrywa najmądrzejszy ani najtwardszy, a ten, który pierwszy zrozumie, kto kogo właśnie próbuje wyruchać. Słabi znikają, głupi płacą, a naiwni jeszcze przez chwilę myślą, że trafili na okazję. Under nie ma litości, bo litość to tutaj luksus, na który większości zwyczajnie kurwa nie stać. Chodź. Pokażę Ci, gdzie warto patrzeć… i gdzie lepiej nie patrzeć zbyt długo.',
+      [{wx:1273, wy:444, label:'BRAMA UNDERGROUND', zoom:1.55}]),
+    /* §8 cold open #1 */
+    T('🤝','STARY KWARTAŁ — ŻYWE ZDJĘCIE DZIELNICY',
+      'Tu interesy trwają krócej niż powitanie. Patrz, tylko nie gap się za długo. Ludzie tu mają alergię na ciekawskich. Pod tym względem to pojebany rewir.',
+      [{wx:565, wy:1370, label:'STARY KWARTAŁ — WYMIANA', zoom:1.5}]),
+    /* §9 cold open #2 */
+    T('🚔','LOMBARD — NIEBIESKIE ŚWIATŁO',
+      'Z kolei nie każdemu udaje się wyrwać z nędzy... Niektórzy wybierają skrót, a tutaj skróty lubią kończyć się niebieskim światłem i kurewsko długą rozmową.',
+      [{wx:900, wy:785, label:'LOMBARD — ZATRZYMANIE', zoom:1.55}]),
+    /* §11 punkty 01-15 */
+    T('🎙','01 · PIWNICA PRODUCENTA',
+      'Piwnica. Jak chcesz robić bangery, które ktoś potem puści dalej, polecam zacząć tutaj. Taniej, niż w wielkim studio, ale talentu w pakiecie tam nie dają. Uważałbym jedynie na ziomka, który to prowadzi. To dobry gość, ale nieprzewidywalny.',
+      [{wx:250, wy:205, label:'PIWNICA PRODUCENTA', zoom:1.5}]),
+    T('🎤','02 · CYPHER CLUB',
+      'Cypher Club. Tu się sprawdza, kto ma wersy, a kto tylko zdjęcie profilowe. Jak wejdziesz dobrze to wyjdziesz z kontaktem, a jak wejdziesz źle… to też Cię zapamiętają.',
+      [{wx:515, wy:205, label:'CYPHER CLUB', zoom:1.5}]),
+    T('🎨','03 · MURAL WALL',
+      'Mural. Malunki, klipy, trochę dripu i zawsze ktoś w tle, kto twierdzi, że zna autora. Dobre miejsce, żeby być widzianym. Jak Ci zależy na ekspozycji to się tam pojawiaj.',
+      [{wx:935, wy:205, label:'MURAL WALL', zoom:1.5}]),
+    T('🌫','04 · SMOLARNIA',
+      'Smolarnia. Jak chcesz zwolnić tempo, zawsze znajdziesz tam coś do zajarania. Tylko nie pomyl odpoczynku z wypierdalaniem życia przez okno. Na początku i tak masz za dużo do ugrania, żeby pół dnia siedzieć zjarany i patrzeć w ścianę.',
+      [{wx:1150, wy:205, label:'SMOLARNIA', zoom:1.5}]),
+    T('💉','05 · SALON TATUAŻU',
+      'Igła i tusz. Dziara może podbić wizerunek, jeśli wiesz co robisz. Może też zrobić z Ciebie karykaturę, jeśli polecisz za grubo.',
+      [{wx:250, wy:785, label:'SALON TATUAŻU', zoom:1.5}]),
+    T('🥃','06 · SPEAKEASY',
+      'Speakeasy. Dobry drin, cicha loża i w chuj plotek. Nie każdy kontakt rodzi się przy biurku, wiadomo.',
+      [{wx:550, wy:785, label:'SPEAKEASY', zoom:1.5}]),
+    T('💰','07 · LOMBARD',
+      'Lombard. Szybka gotówka, szybkie decyzje i wolne żale. Tu rzeczy tracą właścicieli szybciej niż ludzie godność po trzeciej pożyczce. Jak już coś kładziesz na ladzie, to nie rób potem miny, jakby Ci właśnie zabrali dzieciństwo.',
+      [{wx:900, wy:785, label:'LOMBARD', zoom:1.45}]),
+    T('🤝','08 · DEALER (TRAP)',
+      'Lokalny dealer. Jak zaczynasz rozmowę, bądź zdecydowany. Rozmyślisz się i wrócisz minutę później, a gościa już nie ma. Gość nie nadstawia karku po to, żeby robić za jebany szyld reklamowy. W tym świecie istnieje wystarczająco dużo powodów, żeby nie grzać jednego miejsca za długo.',
+      [{wx:1150, wy:785, label:'DEALER (TRAP)', zoom:1.5}]),
+    T('🌃','09 · NOCNY ZAUŁEK',
+      'Zaułek żyje dopiero po zmroku. Poprzedni burdel zamknęli, a właściciela zawinęli za stręczycielstwo. Interes przenieśli kawałek dalej i zmienili szyld. Klasyka gatunku: zmieniasz adres i nagle wszyscy udają, że to zupełnie nowy biznes. Jak chcesz podupczyć, tutaj znajdziesz kontakty. Tylko pilnuj portfela, przyjacielu. Kurwy tu też wychodzą na łowy, nie każda poluje wyłącznie na Twojego chuja.',
+      [{wx:1310, wy:875, label:'NOCNY ZAUŁEK (NOC)', zoom:1.5}]),
+    T('🏢','10 · VANTAGE WORKS',
+      'Biura, hale, szkło, stal i rachunki. Wejdziesz tam dopiero z wysokim poziomem, flotą, kontaktami i obyciem w interesie. Rzadko który uliczniak wspina się tak wysoko. Praktycznie żaden. Mówią: jak spadać, to z wysokiego konia, tylko tutaj najpierw musisz wyruchać pół miasta, żeby w ogóle dostać siodło.',
+      [{wx:410, wy:1080, label:'VANTAGE WORKS', zoom:1.4}]),
+    T('🌱','11 · ADAPTOWANA PIWNICA UPRAWOWA',
+      'Zgliszcza. W tym miejscu była kiedyś państwowa hala produkcyjna. Interes się zawinął, papierologia zgniła, a z całej konstrukcji została piwnica i kawał podziemnego magazynu. Nie mam pojęcia ile powierzchni mogło tam zostać, bo obiekt był dość długo w rozbiórce. Możesz kupić te resztki i urządzić pod siebie, tylko nie pomyl tanich murów z tanim interesem… Stare dziury w ziemi potrafią mieć kurewsko drogie pomysły.',
+      [{wx:120, wy:1530, label:'ADAPTOWANA PIWNICA UPRAWOWA · '+sub+' · SUBTERRA', zoom:1.45}]),
+    T('🚐','12 · GRAVEL LOT MOTORS',
+      'Gravel Lot Motors. Kampery, auta osobowe i trochę niecodziennych historii pod lakierem. Dobre miejsce kiedy potrzebujesz kół, a salonówki Cię obrażają cenami. Sam korzystam z lokalnych usług i jestem zadowolony, polecam tam zajrzeć w wolnej chwili.',
+      [{wx:970, wy:1015, label:'GRAVEL LOT MOTORS', zoom:1.45}]),
+    T('🏚','13 · BARAKI',
+      'Slumsy. Tu człowiek potrafi nie mieć na suchy chleb, ale na działkę jakoś kurwa zawsze znajdzie sposób. Nie licz, że od razu Ci tu zaufają… Ćpun potrafi być głodny, zdesperowany i paranoiczny jednocześnie, a uwierz mi, to kurewsko upierdliwe połączenie. Im dłużej jesteś w interesie, tym mniej patrzą na ciebie jak na przypadkowego frajera. Zaufanie to fundament. Im większe doświadczenie w karierze Trap, tym sprawniej schodzi materiał. Jak zaczynają kojarzyć Twoją mordę, wtedy dopiero zaczyna się tu prawdziwy handel.',
+      [{wx:235, wy:1365, label:'BARAKI', zoom:1.45}]),
+    T('🧱','14 · STARY KWARTAŁ',
+      'Stary Kwartał. Kamienice, ludzie, kontakty, klienci z ulicy i cudze terytorium w jednym pudełku. Możesz tu dorobić, ale podbieranie komuś ludzi potrafi mieć właściciela. Zalecam ostrożność.',
+      [{wx:565, wy:1370, label:'STARY KWARTAŁ', zoom:1.45}]),
+    T('🏕','15 · ZAJAZD KEMPINGOWY',
+      'Zajazd kempingowy. Mniej napinki, więcej spontanu. Odpoczniesz, podbijesz networking i zaufanie, a jak masz czym się pochwalić w socialach, to i ktoś może zacząć kojarzyć Twoją ksywkę na mieście. Niegdyś wpadałem tu dość często, ale od jakiegoś czasu chętniej uskuteczniam wypady na Marinę.',
+      [{wx:1030, wy:1485, label:'ZAJAZD KEMPINGOWY', zoom:1.45}]),
+    /* §12 finał — trzy parkingi jako teaser progresji (LOCKED_PREVIEW) */
+    T('🅿️','FINAŁ · STARY POSTÓJ',
+      'Stary Postój. Tutaj pierwszy kamper zaczyna dopiero mieć sens. Gliny zaglądają tam rzadziej niż do centrum, ale nie myl ciszy z niewidzialnością. Jak masz wiedzę, ręce do roboty i trochę biznesowego sznytu, możesz z takiej budy zrobić coś więcej, niż tylko miejsce do spania. Oczywiście jeśli się zdecydujesz, bo w ten interes najczęściej wchodzą ludzie, którzy albo nie widzą innej drogi… albo za późno zauważyli, że była jakaś inna.',
+      [{wx:1055, wy:1755, label:'STARY POSTÓJ · '+(window._ughParkingState('old_parking')), zoom:1.4}]),
+    T('🅿️','FINAŁ · TYLNY PLAC',
+      'Tylny Plac. Trochę więcej przestrzeni, trochę mniej przypadkowych oczu. Nie odblokujesz go za samą obecność, trzeba już coś znaczyć.',
+      [{wx:1340, wy:1355, label:'TYLNY PLAC · '+(window._ughParkingState('rear_yard')), zoom:1.4}]),
+    T('🅿️','FINAŁ · CICHY KANAŁ',
+      'Cichy Kanał. Odblokowuje się w późnym etapie. Jak już wiesz, po co go potrzebujesz, zwykle nie muszę tłumaczyć Ci reszty.',
+      [{wx:205, wy:1755, label:'CICHY KANAŁ · '+(window._ughParkingState('silent_channel')), zoom:1.4}]),
+    /* §13 return shot */
+    T('🕶','POWRÓT DO MASONA',
+      'No. Teraz przynajmniej wiesz, gdzie możesz stracić pieniądze świadomie. Masz pytania — pytaj.',
+      [{wx:1273, wy:444, label:'BRAMA UNDERGROUND', zoom:1.5}]),
+  ];
+};
+/* §12: stan trzech parkingów czytany z istniejącej progresji — flyover niczego nie odblokowuje. */
+window._ughParkingState=function(which){
+  try{
+    if(which==='old_parking'){
+      const hasCamper=!!(G.camper&&G.camper.owned)||((G.camper&&Array.isArray(G.camper.garage))?G.camper.garage.length>0:false);
+      return hasCamper?'ODBLOKOWANY':'PODGLĄD — po pierwszym kamperze';
+    }
+    if(which==='rear_yard'){
+      const lvl=(G.trap&&G.trap.level)||0;
+      return lvl>=6?'ODBLOKOWANY':'PODGLĄD — średni etap kariery Trap';
+    }
+    const lvl=(G.trap&&G.trap.level)||0;
+    const trust=(G.underworldIntro&&G.underworldIntro.kantarTrust)||0;
+    return (lvl>=11&&trust>=4)?'ODBLOKOWANY':'PODGLĄD — późny etap kariery';
+  }catch(_){ return 'PODGLĄD'; }
+};
+/* §15 SHORT TOURS — przeloty tematyczne dostępne po pierwszym pełnym oprowadzeniu. */
+window._ughShortTour=function(kind){
+  const all=window._ughFullTopics();
+  const byLabel=(frag)=>all.find(t=>t.places[0].label.indexOf(frag)>=0);
+  const pick=(arr)=>arr.map(byLabel).filter(Boolean);
+  if(kind==='music')    return pick(['PIWNICA PRODUCENTA','CYPHER CLUB','MURAL WALL','ZAJAZD KEMPINGOWY']);
+  if(kind==='business') return pick(['VANTAGE WORKS','ADAPTOWANA PIWNICA','GRAVEL LOT MOTORS','LOMBARD','ZAJAZD KEMPINGOWY']);
+  if(kind==='street')   return pick(['STARY KWARTAŁ','BARAKI','DEALER','NOCNY ZAUŁEK']);
+  return all;
+};
+/* ── §6 PIERWSZY KONTAKT ─────────────────────────────────────────────────────────────────────── */
+window._ughTalk=function(){
+  const s=window._ughEnsure();
+  window._ughRestoreNpc();
+  if(s.firstTourCompleted){ window._ughHub(); return; }
+  s.introSeen=true; s.state='INTERACTION_OPEN';
+  window._ughDlg('Mason Hale','„Pierwszy raz w Underze?"',[
+    {t:'„Pokaż mi, co tutaj znajdę."', fn:()=>{
+      window._ughSay('„Dobre wyczucie czasu. Żeby potem nie było, że nikt Cię nie ostrzegał."');
+      setTimeout(()=>window._ughStartTour('full'),1200); }},
+    {t:'„Najpierw powiedz, po co mam tu wracać."', fn:()=>{
+      window._ughDlg('Mason Hale','„Bo tu się nie przychodzi po widoki. Tu się przychodzi po ludzi, robotę, flotę albo kłopoty. Zwykle po kilka naraz. Ludzie robią ludzi, więc głównie po to."',[
+        {t:'„Dobra, prowadź."', fn:()=>window._ughStartTour('full')},
+        {t:'„Nie teraz."', fn:()=>window._ughDecline()},
+      ]); }},
+    {t:'„Nie teraz."', fn:()=>window._ughDecline()},
+  ]);
+};
+window._ughDecline=function(){
+  const s=window._ughEnsure(); s.state='IDLE_AT_GATE';
+  window._ughSay('„Jak będziesz miał ochotę zgubić godzinę i znaleźć kilka problemów, wiesz gdzie stoję."');
+};
+window._ughSay=function(txt){ if(typeof showMsg==='function') showMsg('🕶 Mason Hale: '+txt,'i',6000); };
+/* Prosty, spójny z grą panel dialogowy — max 3 opcje naraz (§14, test 25). */
+window._ughDlg=function(who, text, opts){
+  const el=document.getElementById('ov-content'); if(!el) return;
+  const list=(opts||[]).slice(0,3);   /* §14: NIGDY więcej niż 3 opcje jednocześnie */
+  window._ughDlgOpts=list;
+  el.innerHTML=`<h2>🕶 ${who}</h2>
+    <div style="max-width:560px;margin:0 auto">
+      <div style="background:#12100c;border-left:3px solid #c8a520;border-radius:8px;padding:12px 14px;font-size:13px;color:#e8e2d0;line-height:1.6;margin-bottom:10px">${text}</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${list.map((o,i)=>`<button class="cbtn" style="text-align:left;font-size:12.5px" onclick="window._ughPick(${i})">${o.t}</button>`).join('')}
+        <button class="cbtn" style="text-align:left;font-size:12px;color:#8a939a" onclick="closeOverlay()">← Zostaw temat</button>
+      </div>
+    </div>`;
+  if(typeof openOverlay==='function') openOverlay();
+};
+window._ughPick=function(i){
+  const o=(window._ughDlgOpts||[])[i]; if(!o) return;
+  if(typeof closeOverlay==='function') closeOverlay();
+  if(typeof o.fn==='function') o.fn();
+};
+/* ── §5/§24 URUCHOMIENIE PRZELOTU ────────────────────────────────────────────────────────────── */
+window._ughStartTour=function(kind){
+  const s=window._ughEnsure();
+  const e=window._ughEligibility();
+  if(!e.ok){ window._ughSay('„'+e.msg+'"'); return {ok:false, reason:e.reason}; }
+  /* §29.3 idempotencja: drugi start zablokowany dopóki trwa tour */
+  s.tourInProgress=true; s.state='CINEMATIC_INTRO'; s.lastCompletedShotId=null;
+  if(kind!=='full') s.replayCount=(s.replayCount||0)+1;
+  else if(s.firstTourCompleted) s.replayCount=(s.replayCount||0)+1;
+  window._ughReleaseStagedScenes();
+  /* §17: mikrosceny cold openów rezerwowane, ale ustępują realnym incydentom */
+  window._ughPrepareStagedScene('cold_open_stary_kwartal','underground');
+  window._ughPrepareStagedScene('cold_open_lombard','underground');
+  const topics=(kind&&kind!=='full')?window._ughShortTour(kind):window._ughFullTopics();
+  if(typeof window.openCinematicFlythrough!=='function'){ s.tourInProgress=false; return {ok:false,reason:'no_camera'}; }
+  window.openCinematicFlythrough({roomId:'underground', topics:topics, onDone:()=>window._ughFinishTour(kind)});
+  return {ok:true, shots:topics.length};
+};
+window._ughFinishTour=function(kind){
+  const s=window._ughEnsure();
+  s.tourInProgress=false;
+  window._ughReleaseStagedScenes();
+  window._ughRestoreNpc();
+  /* §29.3: replay NIE przyznaje ponownie intel ani unlocków */
+  const first=!s.firstTourCompleted;
+  if(first && (!kind||kind==='full')){
+    s.firstTourCompleted=true;
+    window._ughGrantIntel();
+  }
+  s.state='IDLE_POST_TOUR';
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  setTimeout(()=>{ window._ughSay('„No. Teraz przynajmniej wiesz, gdzie możesz stracić pieniądze świadomie. Masz pytania — pytaj."'); }, 700);
+  setTimeout(()=>{ if(currentRoom==='underground') window._ughHub(); }, 2200);
+};
+/* §19 UNDERGROUND INTEL — lekka warstwa wiedzy po pierwszym pełnym przelocie. */
+window.UGH_INTEL=[
+  {id:'piwnica',   n:'Piwnica Producenta', tags:['muzyka','produkcja']},
+  {id:'cypher',    n:'Cypher Club',        tags:['muzyka','networking']},
+  {id:'mural',     n:'Mural Wall',         tags:['drip','social']},
+  {id:'smolarnia', n:'Smolarnia',          tags:['rekreacja']},
+  {id:'tattoo',    n:'Salon Tatuażu',      tags:['wizerunek','drip']},
+  {id:'speakeasy', n:'Speakeasy',          tags:['relaks','kontakty']},
+  {id:'lombard',   n:'Lombard',            tags:['gotówka','ryzyko']},
+  {id:'dealer',    n:'Dealer (Trap)',      tags:['kontakt','cooldown']},
+  {id:'zaulek',    n:'Nocny zaułek',       tags:['relaks','noc']},
+  {id:'vantage',   n:'VANTAGE WORKS',      tags:['late-game','high capital']},
+  {id:'subterra',  n:'Adaptowana piwnica uprawowa', tags:['property','for sale','adaptation','SUBTERRA']},
+  {id:'gravel',    n:'Gravel Lot Motors',  tags:['pojazdy']},
+  {id:'baraki',    n:'Baraki',             tags:['trust','local competition']},
+  {id:'kwartal',   n:'Stary Kwartał',      tags:['trust','local competition']},
+  {id:'zajazd',    n:'Zajazd kempingowy',  tags:['rest','networking','social']},
+];
+window._ughGrantIntel=function(){
+  const s=window._ughEnsure();
+  window.UGH_INTEL.forEach(e=>{ if(s.unlockedIntelEntries.indexOf(e.id)<0) s.unlockedIntelEntries.push(e.id); });
+  if(typeof addNotif==='function') addNotif('🕶 Mason Hale oprowadził Cię po Underground. Opisy odwiedzonych miejsc trafiły do wiedzy o dzielnicy.');
+};
+/* ── §14 POST-TOUR DIALOGUE HUB — 9 węzłów, max 3 opcje na ekranie ───────────────────────────── */
+window.UGH_TOPICS=[
+  {id:'start',   q:'„Od czego warto zacząć?"',
+   a:'„Zależy co gonisz. Kasę, ludzi, muzę, dragi czy wszystko na raz. W Underze każda z tych rzeczy ma inne drzwi. Under najlepiej kręci się na rzeczach, o których ludzie wolą nie gadać przy otwartym oknie. Jak masz jeszcze sumienie i planujesz je zachować, też nie jesteś tu bezrobotny. Muza w studio, cyphery, mural, kontakty, pierwsze mordy, które zaczną Cię kojarzyć…"',
+   sub:['music','street','vantage']},
+  {id:'trouble', q:'„Gdzie najłatwiej się wkopać?"',
+   a:'„Wszędzie. Dealer, cudzy teren i zbyt hałaśliwy biznes to trzy dobre sposoby, żeby narobić sobie problemów. Jeśli zainteresuje Cię ten mniej oficjalny obieg, to na pewno nie zalecam szukania klientów od drzwi do drzwi, jakbyś chciał im wpierdolić panele fotowoltaiczne."',
+   sub:['dealer','street','vantage']},
+  {id:'worth',   q:'„Co jest tu naprawdę warte czasu?"',
+   a:'„Szczerze? Zależy czego szukasz, ale nie będę ściemniał, że Under daje możliwości głównie tym, którzy potrafią wycisnąć coś z miejsca, z którego większość mieszkańców najchętniej by spierdalała. Na pewno radzę nie próbować przeskakiwać pięciu szczebli naraz. Nie zalecam także zadłużania się tylko po to, żeby wyglądać. Reputacji nie buduje się mordą. Zresztą zrobisz jak uważasz."',
+   sub:['relax','gravel','parkingi']},
+  {id:'himself', q:'„A Ty? Nigdy nie chciałeś się stąd wyrwać?"',
+   a:'„Codziennie. Tylko najpierw chciałem mieć pieniądze. Potem kontakty. Potem jeszcze jeden interes, a potem trzeba było naprawić to, co spierdolił poprzedni. I tak leci. Największy żart tego miejsca jest taki, że wszyscy robią tu rzeczy, żeby któregoś dnia już nie musieć ich robić. A połowa budzi się dziesięć lat później i dalej kurwa zbiera na ten ostatni ruch."',
+   sub:['start','vantage','relax']},
+  {id:'music',   q:'„Piwnica czy Cypher?"',
+   a:'„Piwnica, jeśli chcesz coś zbudować od podstaw. Cypher, jeśli chcesz sprawdzić, czy to w ogóle działa na ludzi. Jedno oddziałuje na drugie. Z tego co słyszę od chłopaków, to najlepsze pod kątem efektów jest połączenie tych dwóch elementów."',
+   sub:['mural','contacts','start']},
+  {id:'mural',   q:'„Na co przekłada się Mural?"',
+   a:'„Daje tło, widoczność i okazję do contentu. Jak masz markę, miejsce robi za wzmacniacz, a jak nie masz to zostaje ładna pamiątka. Nieliczni się w to bawią, ale z reguły rodzi zainteresowanie. Nie zaszkodzi spróbować, może jednak warto."',
+   sub:['music','contacts','start']},
+  {id:'contacts',q:'„Gdzie najlepiej łapać ludzi do muzyki?"',
+   a:'„Cypher, Zajazd, czasem Speakeasy, ale nie oszukujmy się… Teraz muzyka, newsy, klipy najpierw zapierdalają przez telefon, a dopiero potem przez miasto. FrameUp, ViewGrid, wrzutki, wiadomości. Nie lubię tego cyrku z lajkami, relacjami i udawaniem życia pod zasięgi, ale taki jest rynek. Możesz gardzić algorytmem, tylko algorytm ma głęboko w dupie, że nim gardzisz."',
+   sub:['music','relax','start']},
+  {id:'dealer',  q:'„Czemu dealer znika na kilka godzin?"',
+   a:'„Bo nie prowadzi kiosku, przyjacielu. Jak zamkniesz temat bez decyzji, gość wraca do swoich spraw. System traktuje to jak cooldown kontaktu. Dla tego bądź zdecydowany jak już zamierzasz się w to pakować."',
+   sub:['decyzja','subterra','street']},
+  {id:'decyzja', q:'„Ile mam czasu na decyzję przy zakupie towaru?"',
+   a:'„Tyle, ile potrzebujesz, ale resztę uzgadniaj na miejscu. Problem zaczyna się dopiero, gdy ją kończysz bez decyzji i wracasz po chwili. Rób przemyślane zakupy."',
+   sub:['dealer','subterra','street']},
+  {id:'subterra',q:'„Do czego można wykorzystać tę ruderę na sprzedaż na dole?"',
+   a:'„Stary… Pytasz mnie, czy siebie? Bo jak patrzę na piwnicę pod starą halą, to ostatnią rzeczą, o której myślę, jest jebana przechowalnia rowerów. Nadaje się idealnie do zaplecza uprawowego. Znałem typa, który kiedyś pracował w tym zakładzie i nawijał, że pod spodem ciągnął się jeszcze niezły kawał magazynu. Miejsca powinno być dość, żeby zrobić z nim coś sensownego. Tylko nie pomyl nieruchomości z biznesem."',
+   sub:['dealer','vantage','start'], subterra:true},
+  {id:'street',  q:'„Gdzie najłatwiej znaleźć klientów na start?"',
+   a:'„Łatwiej nie znaczy lepiej, ale to baraki i kwartał są tym najtańszym segmentem. Niejeden zeżre własne gówno, żeby wywąchać Ci coś z ręki, a i pojawią się tacy, którzy zamiast na samarkę, mocniej spojrzą na zaufanie i nie wezmą od Ciebie nawet za frajer. Kwartał daje więcej kontaktów, ale też więcej cudzych interesów."',
+   sub:['konflikt','musze','dealer']},
+  {id:'konflikt',q:'„Co jeśli ktoś się na moją obecność wkurwi?"',
+   a:'„To znaczy, że system reputacji i lokalnej konkurencji działa. Nie każdy tubylec będzie Ci klaskać za wejście na jego teren. Tutaj toczy się walka o przetrwanie, przyjacielu."',
+   sub:['street','musze','start']},
+  {id:'musze',   q:'„Czy muszę sprzedawać w barakach i na kwartale?"',
+   a:'„Posłuchaj… Under ma być wyborem, nie obowiązkiem. Możesz wejść tam po ludzi, informacje albo całkiem olać to miejsce. Istnieje wiele węzłów sprzedażowych, dojdziesz do tego indywidualnie."',
+   sub:['street','start','relax']},
+  {id:'vantage', q:'„Kiedy ma sens wejść w VANTAGE WORKS?"',
+   a:'„Kiedy cena lokalu przestaje wyglądać jak nieśmieszny żart, a koszty utrzymania nie wpierdolą Cię do reszty. Taki etap to już nie przelewki, brachu. Dobrze to przemyśl."',
+   sub:['vantage2','vantage3','vantage4']},
+  {id:'vantage2',q:'„A co poza pieniędzmi, żeby w to wejść?"',
+   a:'„Wysoki poziom kariery, zdobyte kontakty i obycie w biznesie. Eve sprzeda Ci metry. Gra sprawdzi, czy potrafisz je utrzymać."',
+   sub:['vantage3','vantage4','vantage']},
+  {id:'vantage3',q:'„Największy błąd jaki mogę popełnić?"',
+   a:'„Kupienie dużej hali tylko dlatego, że można. Pusta hala jest prostą drogą do wyjebania się. Potrzeba niemałego buforu gotówkowego, żeby to zaczęło hulać należycie."',
+   sub:['vantage4','vantage','start']},
+  {id:'vantage4',q:'„Znasz kogoś, kto powie mi więcej na ten temat?"',
+   a:'„Pracuje tam jedna osoba. Przedstawia lokale. Nic Ci nie powie, dopóki czegoś nie kupisz, ale myślę, że na każdego istnieje sposób. Mam jeden stary kontakt, ale wymaga odświeżenia. Bez pewności, że w to wchodzisz nie kiwnę palcem. Póki co nie warto ruszać tematu."',
+   sub:['vantage','start','relax']},
+  {id:'gravel',  q:'„Brać pierwsze lepsze, co jeździ?"',
+   a:'„Jeździć to niski próg. Patrz na stan, cenę i do czego ma służyć. Jeśli mam doradzić, to nie brałbym pierwszego z brzegu trupa na kołach."',
+   sub:['kamper','sprzedaz','parkingi']},
+  {id:'kamper',  q:'„Kamper jest potrzebny do parkingów?"',
+   a:'„Do Starego Postoju - tak. Pierwszy zakupiony kamper odblokowuje Ci jego funkcję i możliwość działania na zapleczu."',
+   sub:['parkingi','sprzedaz','gravel']},
+  {id:'sprzedaz',q:'„A jak będę chciał sprzedać pojazd?"',
+   a:'„To już zależy od systemu własności i Swaply. Plac niestety nie jest magicznym przyciskiem cofającym zakup, ale może udałoby Ci się dogadać z właścicielem."',
+   sub:['gravel','kamper','parkingi']},
+  {id:'relax',   q:'„Gdzie odpocząć bez przypału?"',
+   a:'„Tutaj to jedynie zajazd jest godny uwagi. Dobry na długie spontany. Speakeasy, jeśli chcesz towarzystwa i dobrego burbonu. Smolarnia, jeśli zechcesz zwolnić tempo. Każde miejsce ma inny koszt i efekt."',
+   sub:['zaulek','zajazd','start']},
+  {id:'zaulek',  q:'„Nocny zaułek?"',
+   a:'„Tylko nocą. W ciągu dnia jedyne co znajdziesz to kondomy w rowie."',
+   sub:['relax','zajazd','start']},
+  {id:'zajazd',  q:'„Co daje Zajazd?"',
+   a:'„Networking, zaufanie, odpoczynek i okazję, żeby Twoje social media zaczęły żyć poza ekranem telefonu."',
+   sub:['relax','zaulek','start']},
+  {id:'parkingi',q:'„Który parking odblokuje się pierwszy?"',
+   a:'„Stary Postój, pod Zajazdem. Kupujesz pierwszy kamper i dostajesz do niego dostęp. Zajeżdżasz tam i masz dostęp do zaplecza operacyjnego."',
+   sub:['parkingi2','parkingi3','kamper']},
+  {id:'parkingi2',q:'„A co z pozostałymi parkingami?"',
+   a:'„Pojawią się z czasem. Początkujący nie dostaje całej infrastruktury, musisz na nią zapracować."',
+   sub:['parkingi3','parkingi','kamper']},
+  {id:'parkingi3',q:'„Czy służby się tam kręcą?"',
+   a:'„Psy? Rzadko, ale nie nigdy. Jak trafisz na miejsce, gdzie nikt nie zagląda i nikt o nic nie pyta, to albo masz kurewskie szczęście, albo właśnie nie zauważyłeś, kto patrzy. Czaisz?"',
+   sub:['parkingi','parkingi2','start']},
+];
+window._ughTopic=function(id){ return window.UGH_TOPICS.find(t=>t.id===id)||null; };
+/* §14: hub tematów. Zapamiętane tematy dostają znacznik „rozmawiano", ale zostają dostępne;
+   przy powtórce Mason skraca odpowiedź. §20: askedTopics NIE jest metryką przyjaźni. */
+window._ughHub=function(){
+  const s=window._ughEnsure();
+  window._ughRestoreNpc();
+  if(!s.firstTourCompleted){ window._ughTalk(); return; }
+  const mark=(id)=>s.askedTopics.indexOf(id)>=0?' <span style="color:#7a8a6a;font-size:10px">· rozmawiano</span>':'';
+  /* §14 / test 25: na ekranie NIGDY więcej niż 3 opcje dialogowe naraz. Głównych tematów jest
+     cztery, więc hub stronicuje je po trzy — „inne tematy" to nawigacja, nie kolejna kwestia. */
+  const ALL_MAIN=['start','trouble','worth','himself'];
+  if(typeof G._ughPage!=='number') G._ughPage=0;
+  const page=G._ughPage%2;
+  const main=page===0?ALL_MAIN.slice(0,3):ALL_MAIN.slice(3).concat(ALL_MAIN.slice(0,2));
+  const el=document.getElementById('ov-content'); if(!el) return;
+  const sub=window._ughSubterraState();
+  el.innerHTML=`<h2>🕶 Mason Hale</h2>
+    <p class="sub">Przewodnik po Underground District. Pytaj, o co chcesz.</p>
+    <div style="max-width:600px;margin:0 auto">
+      <div style="font-size:12px;color:#8a939a;margin-bottom:8px">Adaptowana piwnica uprawowa: <b style="color:${sub==='POSIADANY'?'#7ec87e':'#e0c060'}">${sub}</b></div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${main.slice(0,3).map(id=>{const t=window._ughTopic(id); return t?`<button class="cbtn" style="text-align:left;font-size:12.5px" onclick="window._ughAsk('${id}')">${t.q}${mark(id)}</button>`:'';}).join('')}
+      </div>
+      <div style="margin-top:6px"><button class="cbtn" style="width:100%;font-size:11px;color:#8a939a" onclick="G._ughPage=(G._ughPage||0)+1;window._ughHub()">▸ inne tematy</button></div>
+      <div style="font-size:12px;color:#7ec8e3;margin:12px 0 6px">🎬 Przeloty tematyczne</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <button class="cbtn" style="text-align:left;font-size:12px" onclick="closeOverlay();window._ughStartTour('full')">„Przelecisz całość jeszcze raz?" — pełna trasa</button>
+        <button class="cbtn" style="text-align:left;font-size:12px" onclick="closeOverlay();window._ughStartTour('music')">„Pokaż mi tylko miejsca związane z muzyką."</button>
+        <button class="cbtn" style="text-align:left;font-size:12px" onclick="closeOverlay();window._ughStartTour('business')">„Pokaż mi tylko sekcje biznesowe."</button>
+        <button class="cbtn" style="text-align:left;font-size:12px" onclick="closeOverlay();window._ughStartTour('street')">„Pokaż mi ulicę."</button>
+      </div>
+      <button class="cbtn" style="width:100%;margin-top:12px" onclick="closeOverlay()">← Wróć</button>
+    </div>`;
+  if(typeof openOverlay==='function') openOverlay();
+};
+window._ughAsk=function(id){
+  const s=window._ughEnsure();
+  const t=window._ughTopic(id); if(!t) return;
+  const repeat=s.askedTopics.indexOf(id)>=0;
+  if(!repeat) s.askedTopics.push(id);
+  /* §20: przy powtórce krótsza wersja — „To już przerabialiśmy." */
+  let ans=t.a;
+  if(repeat) ans='„To już przerabialiśmy. Wersja krótka: "'+t.a.replace(/^„/,'').slice(0,140).trim()+'…"';
+  /* §11.1/§14.3: pytania o SUBTERRA reagują na stan własności z istniejącego systemu */
+  if(t.subterra && window._ughSubterraState()==='POSIADANY')
+    ans='„Skoro już to kupiłeś, przestań patrzeć na mury, a zacznij na to, co pod nimi. Reszta jest w Twoim panelu SUBTERRA — tam ustawiasz strefy i rozwój."';
+  const subs=(t.sub||[]).slice(0,3).map(sid=>{ const st=window._ughTopic(sid); return st?{t:st.q, fn:()=>window._ughAsk(sid)}:null; }).filter(Boolean);
+  subs.push({t:'← Wróć do tematów', fn:()=>window._ughHub()});
+  window._ughDlg('Mason Hale', ans, subs.slice(0,3));
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+/* §3 sylwetka NPC — spokojny lokalny bywalec (czapka, kurtka, dłonie w kieszeniach). */
+window._drawMasonHale=function(sx,sy,w,h){
+  X.save();
+  X.fillStyle='rgba(0,0,0,.32)'; X.beginPath(); X.ellipse(sx+w/2, sy+h-3, w*0.42, 4, 0,0,Math.PI*2); X.fill();
+  X.fillStyle='#2b2f36'; X.fillRect(sx+w*0.22, sy+h*0.44, w*0.56, h*0.40);      /* kurtka */
+  X.fillStyle='#1b1f26'; X.fillRect(sx+w*0.28, sy+h*0.82, w*0.18, h*0.18);      /* nogawki */
+  X.fillRect(sx+w*0.54, sy+h*0.82, w*0.18, h*0.18);
+  X.fillStyle='#c9a07a'; X.beginPath(); X.arc(sx+w/2, sy+h*0.30, w*0.20, 0, Math.PI*2); X.fill(); /* twarz */
+  X.fillStyle='#14171c'; X.fillRect(sx+w*0.26, sy+h*0.17, w*0.48, h*0.10);      /* czapka */
+  X.fillRect(sx+w*0.22, sy+h*0.25, w*0.56, h*0.035);                            /* daszek */
+  X.fillStyle='#0d1014'; X.fillRect(sx+w*0.32, sy+h*0.29, w*0.36, h*0.05);      /* okulary */
+  X.restore();
+};
+/* ═══════════════════ UNDERGROUND GUIDE — MODULE END ═════════════════════════ */
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
    PINEGLASS WOODS MODULE START — v2.3.129
    PDF „Rozszerzony katalog odzieżowy…":
      §4.7 — NorthArc Stormguard ma wymaganie „Pineglass Woods" oraz bonus „+8% las i teren".
@@ -65578,6 +66017,16 @@ const RG_DISTRICT_PROFILES={
  business:   {label:'Business District',   traffic:'duży ruch szczytowy',      events:['zatory','oficjalne pojazdy','duża uwaga publiczna'], patrols:1.3, witness:1.1},
  underground:{label:'Underground District',traffic:'nierówny ruch',            events:['kradzieże aut','pościgi','pożary techniczne'], patrols:0.5, witness:0.5},
  coast:      {label:'Marina Coast',        traffic:'dużo pieszych sezonowo',   events:['zdarzenia weekendowe','zdarzenia przy eventach'], patrols:0.8, witness:1.5},
+};
+/* GUIDE FLYOVER §18: czy w dzielnicy trwa KRYTYCZNY incydent. Przewodnik nie może wtedy
+   wystartować, a mikrosceny ustępują realnemu zdarzeniu — priorytet ma świat, nie inscenizacja. */
+window._cityPulseCritical=function(districtId){
+  try{
+    const r=window._rgEnsure();
+    const CRIT=['pursuit','fire','shooting','arrest','robbery','collision_major'];
+    return r.incidents.some(i=>i.districtId===districtId && i.status!=='resolved' && i.status!=='archived'
+      && (i.severity==='critical' || i.priority>=3 || CRIT.indexOf(i.incidentType)>=0));
+  }catch(_){ return false; }
 };
 window._rgDistrictImpact=function(districtId){
   const p=RG_DISTRICT_PROFILES[districtId]||RG_DISTRICT_PROFILES.main_city;
@@ -86003,9 +86452,17 @@ window._showCinematicOffer=()=>{
 };
 
 /* v1.9.87/v1.9.89: AERIAL CAMERA FLYTHROUGH — prawdziwy cinematic przelot przez miasto */
-window.openCinematicFlythrough=()=>{
-  if(currentRoom!=='ulica'){
-    if(typeof showMsg==='function') showMsg('🎬 Wyjdź z mieszkania żeby zobaczyć przelot po mieście','f',4500);
+/* PDF „NPC Mason Hale — GUIDE FLYOVER SYSTEM" §16/§29.2/§30 (dyrektywa KRYTYCZNA):
+   „Nie wolno tworzyć drugiej niezależnej implementacji flyover camera. Moduł musi być
+   SCENARIUSZEM istniejącego już trybu Przelot nad miastem."
+   Dlatego funkcja przyjmuje opcjonalny `scenario`:
+     {roomId, topics:[…], onDone:fn}
+   Bez argumentu zachowuje się DOKŁADNIE jak dotąd (przelot po Main City z pokoju „ulica"),
+   więc żaden istniejący punkt wywołania nie zmienia działania. */
+window.openCinematicFlythrough=(scenario)=>{
+  const _scRoom=(scenario&&scenario.roomId)||'ulica';
+  if(currentRoom!==_scRoom){
+    if(typeof showMsg==='function') showMsg(_scRoom==='ulica'?'🎬 Wyjdź z mieszkania żeby zobaczyć przelot po mieście':'🎬 Ten przelot działa tylko na miejscu.','f',4500);
     return;
   }
   G._cinematicActive=true;
@@ -86168,9 +86625,12 @@ window.openCinematicFlythrough=()=>{
       customFinalePan:true, /* v2.1.319: flag aktywuje custom path animation w _next() */
     },
   ];
+  /* GUIDE FLYOVER §16: scenariusz z zewnątrz podmienia listę tematów, ale CAŁA warstwa techniczna
+     (kamera, easing, overlay, lock sterowania, save/load, skip) zostaje ta sama. */
+  const _TOPICS=(scenario&&Array.isArray(scenario.topics)&&scenario.topics.length)?scenario.topics:TOPICS;
   /* Spłaszczona lista shots — każdy item = jeden cel kamery */
   const SHOTS=[];
-  TOPICS.forEach((topic, topicIdx)=>{
+  _TOPICS.forEach((topic, topicIdx)=>{
     topic.places.forEach((place, placeIdx)=>{
       SHOTS.push({
         topicIdx, placeIdx,
@@ -86253,7 +86713,7 @@ window.openCinematicFlythrough=()=>{
             <div style="color:#f1c40f;font-size:13px;font-weight:700;letter-spacing:2px">🎤 To koniec wprowadzenia, zaczynaj kiedy będziesz gotowy.</div>
           </div>
           <button onclick="window._closeCinematic()" style="margin-top:16px;background:linear-gradient(135deg,#f1c40f,#e91e8c);color:#000;border:none;padding:16px 44px;font-size:18px;font-weight:900;letter-spacing:3px;border-radius:12px;cursor:pointer;box-shadow:0 8px 30px rgba(241,196,15,.5);font-family:inherit;text-transform:uppercase;animation:emojiFloat 2.5s ease-in-out infinite">▶ ZACZYNAM</button>
-        `:`<div id="cinem-counter" style="margin-top:12px;color:#778;font-size:11px;letter-spacing:1px">Topic ${s.topicIdx+1}/${TOPICS.length}</div>`}`;
+        `:`<div id="cinem-counter" style="margin-top:12px;color:#778;font-size:11px;letter-spacing:1px">Topic ${s.topicIdx+1}/${_TOPICS.length}</div>`}`;
       /* PDF 13.08 U19: po każdym renderze przywróć aktualnie wybrany stopień zwinięcia. */
       if(typeof window._cinemApplyBoxState==='function') window._cinemApplyBoxState();
     };
@@ -86527,6 +86987,9 @@ window.openCinematicFlythrough=()=>{
       if(!_busy && G._tutorialSeen){ window.showLeaderboardOnboarding(); return; }
       if((tries||0)<300) setTimeout(()=>_commAfterTutorial((tries||0)+1), 2000);
     })(0);
+    /* GUIDE FLYOVER §13/§24: scenariusz może domknąć własny przebieg (powrót do przewodnika,
+       odblokowanie huba rozmowy). Wywoływane PO przywróceniu kamery i sterowania. */
+    if(scenario && typeof scenario.onDone==='function'){ try{ scenario.onDone(); }catch(_){} }
   };
   /* Letterbox bars (czarne paski u góry/dołu — efekt kinowy z slide-in).
      v2.1.21: 80→15vh + 60→12vh — żeby zakryć HUD na każdej skali (1080p HUD=93px, 4K=186px). */
@@ -89211,6 +89674,10 @@ const PATCH_NOTES = [
   {t:'feature',d:'💬 Do ogłoszeń piszą prawdziwie różni ludzie — każdy z własnym nickiem, charakterem i stylem rozmowy, od rzeczowych po wulgarnych. Odpowiadasz jedną z gotowych opcji, a kupujący odpisuje po chwili, nie natychmiast. Część znika bez słowa. Około 80% tych, którzy złożą ofertę, próbuje zbić cenę — możesz przyjąć, odrzucić albo dać kontrofertę, najwyżej trzy razy.'},
   {t:'feature',d:'🔑 Wystawiony pojazd zostaje Twój i normalnie nim jeździsz. Znika dopiero w chwili, gdy sam zatwierdzisz sprzedaż — a jeśli akurat nim jedziesz, gra poczeka, aż zaparkujesz. Pieniądze i przekazanie auta dzieją się w jednej operacji, więc nie da się stracić pojazdu bez zapłaty ani odwrotnie.'},
   {t:'feature',d:'♻️ Auta z Gravel Lot Motors nie wracają na plac, ale możesz je sprzedać na Swaply albo oddać do Metal Valley Yard. Jednego pojazdu nie sprzedasz dwiema drogami naraz — przy oddawaniu na złom gra anuluje ogłoszenie i uprzedza, że opłata nie wraca.'},
+  {t:'feature',d:'🕶 Przy bramie Underground District stoi Mason Hale — lokalny przewodnik. Zagadaj do niego, a zabierze Cię na kinowy przelot po dzielnicy: piętnaście miejsc po kolei, z komentarzem o tym, po co tam wchodzić i czym to grozi. Przelot NIE włącza się sam — startuje tylko wtedy, gdy sam o to poprosisz.'},
+  {t:'feature',d:'🗺 Po oprowadzeniu Mason zostaje przewodnikiem na stałe. Możesz go pytać o muzykę, ulicę, dealera, VANTAGE WORKS, pojazdy, parkingi i o niego samego, a przy powtórce skraca odpowiedź. Możesz też poprosić o krótszy przelot: tylko muzyka, tylko biznes albo tylko ulica.'},
+  {t:'feature',d:'🌱 W trasie pojawia się „Adaptowana piwnica uprawowa" — pozostałość po dawnej państwowej hali. Przelot pokazuje ją jako nieruchomość DO KUPIENIA, a po zakupie ten sam punkt pokazuje już stan POSIADANY. Sam przelot niczego nie kupuje ani nie odblokowuje.'},
+  {t:'feature',d:'🅿️ Na koniec Mason pokazuje trzy parkingi: Stary Postój, Tylny Plac i Cichy Kanał. Widzisz je od razu, ale działają dopiero, gdy na nie zapracujesz — pierwszy otwiera zakup pierwszego kampera.'},
   {t:'feature',d:'🏢 Po zakupie lokalu w VANTAGE WORKS odzywa się Eve Rook. Możesz odpowiedzieć na jedenaście sposobów — od „odbiorę klucze i przejdę lokal na spokojnie" po prośbę o trzy warianty wyposażenia — a jej rada zależy od tego, KTÓRY lokal kupiłeś. Zwykłe podziękowanie po prostu kończy rozmowę.'},
  ]
  },
