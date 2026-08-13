@@ -4223,6 +4223,8 @@ function drawSprite(id,sx,sy,w,h){
   /* RESIDENTIAL DISTRICT: posesje, POI, park i las mają własne renderery — bez tego byłyby szarymi
      boxami (lekcja v2.3.125). `reslot_*` rysuje dom z dachem, podjazdem, garażem i dekoracjami. */
   if(id&&id.indexOf('reslot_')===0){ if(typeof window._drawResLotById==='function'){ window._drawResLotById(id,sx,sy,w,h); X.restore(); return; } }
+  /* §51: strefy chodzalnych wnętrz dzielnicy mają własne meble. */
+  if(id&&id.indexOf('ri_')===0&&currentRoom==='res_interior'){ if(typeof window._drawResInteriorSprite==='function'){ window._drawResInteriorSprite(id,sx,sy,w,h); X.restore(); return; } }
   if(id&&(id.indexOf('res_')===0||id.indexOf('park_')===0||id.indexOf('woods_')===0)&&currentRoom==='residential'){
     if(typeof window._drawResSprite==='function'){ window._drawResSprite(id,sx,sy,w,h); X.restore(); return; } }
   /* PINEGLASS WOODS: strefy `pgw_*` i leśniczy → dedykowany renderer (bez tego szare boxy). */
@@ -63631,6 +63633,19 @@ window._swEnsure=function(){
   return s;
 };
 window._swId=function(prefix){ const s=window._swEnsure(); s.seq++; return prefix+String(10000+s.seq).slice(1); };
+/* §22 EVENTY DOMENOWE — jedenaście nazwanych zdarzeń modułu. Dziennik trzyma ostatnie 60 wpisów
+   (telemetria z §30.4: średni czas sprzedaży i średni % ceny referencyjnej dają się z nich policzyć). */
+window.SWAPLY_EVENTS=['swaply_vehicle_listing_submitted','swaply_vehicle_listing_published',
+  'swaply_vehicle_listing_sale_unlocked','swaply_buyer_thread_created','swaply_buyer_message_received',
+  'swaply_buyer_offer_created','swaply_offer_countered','swaply_offer_accepted_by_player',
+  'swaply_vehicle_sold','swaply_vehicle_listing_expired','swaply_vehicle_listing_cancelled'];
+window._swEmit=function(name, payload){
+  const s=window._swEnsure();
+  if(!Array.isArray(s.events)) s.events=[];
+  s.events.push(Object.assign({ev:name, at:window._swMinute(), day:(G.day||1)}, payload||{}));
+  if(s.events.length>60) s.events.splice(0, s.events.length-60);
+  return name;
+};
 
 /* ── §5 POCHODZENIE POJAZDU I LIMIT CENY ────────────────────────────────────────────────────────
    Snapshot wartości referencyjnej zapisujemy PRZY NABYCIU i nigdy nie przeliczamy z aktualnej
@@ -63711,6 +63726,7 @@ window._swSubmitListing=function(vehId, price){
   };
   listing.inquiryScheduleSeed=window._swHash(listing.listingId+':'+listing.publishedAtGameMinute);
   s.listings.push(listing);
+  window._swEmit('swaply_vehicle_listing_submitted',{listingId:listing.listingId, vehicleInstanceId:vehId, price:listing.listingPrice});
   if(typeof updateHUD==='function') updateHUD();
   if(typeof saveGameSilent==='function') saveGameSilent();
   return {ok:true, code:'OK', msg:'Ogłoszenie wysłane do moderacji. Publikacja za 3 godziny czasu gry.', listing:listing};
@@ -63721,6 +63737,7 @@ window._swCancelListing=function(listingId, silentMode){
   if(!l) return {ok:false, msg:'Nie ma takiego ogłoszenia.'};
   if(l.status==='SOLD') return {ok:false, msg:'Ten pojazd został już sprzedany.'};
   l.status='CANCELLED';
+  window._swEmit('swaply_vehicle_listing_cancelled',{listingId:l.listingId});
   window._swCloseThreads(l,'CLOSED_CANCELLED');
   if(typeof saveGameSilent==='function') saveGameSilent();
   if(!silentMode && typeof showMsg==='function') showMsg('📋 Ogłoszenie anulowane. Opłata 200 zł nie jest zwracana.','i',4500);
@@ -63877,6 +63894,8 @@ window._swCreateThread=function(listing){
   };
   s.threads.push(thread);
   listing.threadIds.push(threadId);
+  window._swEmit('swaply_buyer_thread_created',{threadId:threadId, listingId:listing.listingId, persona:thread.personaId});
+  window._swEmit('swaply_buyer_message_received',{threadId:threadId, tone:q.tone});
   /* §15: powiadomienie idzie ISTNIEJĄCYM kanałem, z routingiem do konkretnego wątku Swaply. */
   window._swNotify(thread, q.q);
   return thread;
@@ -63899,6 +63918,7 @@ window._swMakeOffer=function(thread){
     expiresAtGameMinute:Math.min(listing.expiresAtGameMinute, window._swMinute()+2880),
     negotiationRound:thread.negotiationRound};
   s.offers.push(offer);
+  window._swEmit('swaply_buyer_offer_created',{offerId:offer.offerId, threadId:thread.threadId, amount:amount, negotiated:negotiates});
   thread.currentOfferAmount=amount;
   thread.state='OFFER_MADE';
   thread.messages.push({from:'buyer', text:(negotiates
@@ -63919,6 +63939,7 @@ window._swCounter=function(threadId, amount){
   if(amt>l.listingPrice) return {ok:false,code:'ABOVE_LISTING',msg:'Kontroferta nie może przekraczać ceny z ogłoszenia ('+l.listingPrice.toLocaleString('pl')+' zł).'};
   if(amt>l.referenceValueSnapshot && l.referenceValueSnapshot>0) return {ok:false,code:'ABOVE_LIMIT',msg:'Kontroferta nie może przekraczać limitu pojazdu.'};
   t.negotiationRound++;
+  window._swEmit('swaply_offer_countered',{threadId:t.threadId, amount:amt, round:t.negotiationRound});
   t.messages.push({from:'me', text:'Moja cena: '+amt.toLocaleString('pl')+' zł.', at:window._swMinute()});
   const reserve=Math.round(l.listingPrice*t.buyer.reservationPriceFactor);
   const rnd=window._swRand(window._swHash(t.threadId+':counter'+t.negotiationRound));
@@ -63977,6 +63998,7 @@ window._swTick=function(){
     }
     if(l.status==='MODERATION_PENDING' && now>=l.publishedAtGameMinute){
       l.status='PUBLISHED_PROCESSING';
+      window._swEmit('swaply_vehicle_listing_published',{listingId:l.listingId});
       l.inquirySchedule=window._swBuildInquirySchedule(l);
       l._firedInquiries=0;
       if(typeof addNotif==='function') addNotif('📋 Swaply: ogłoszenie „'+l.vehicleName+'" przeszło moderację i jest widoczne.');
@@ -63984,11 +64006,12 @@ window._swTick=function(){
     }
     if(l.status==='PUBLISHED_PROCESSING' && now>=l.saleUnlockedAtGameMinute){
       l.status='PUBLISHED_SELLABLE';
+      window._swEmit('swaply_vehicle_listing_sale_unlocked',{listingId:l.listingId});
       if(typeof addNotif==='function') addNotif('📋 Swaply: od teraz możesz sfinalizować sprzedaż „'+l.vehicleName+'".');
       dirty=true;
     }
     if(now>=l.expiresAtGameMinute){
-      l.status='EXPIRED'; window._swCloseThreads(l,'CLOSED_EXPIRED');
+      l.status='EXPIRED'; window._swEmit('swaply_vehicle_listing_expired',{listingId:l.listingId}); window._swCloseThreads(l,'CLOSED_EXPIRED');
       if(typeof addNotif==='function') addNotif('📋 Swaply: ogłoszenie „'+l.vehicleName+'" wygasło. Wystaw ponownie za '+window.SWAPLY_FEE+' zł.');
       dirty=true; return;
     }
@@ -64052,6 +64075,7 @@ window._swAcceptOffer=function(threadId){
   const off=s.offers.find(o=>o.threadId===t.threadId && ['ACTIVE','ACCEPTED_BY_BUYER'].indexOf(o.status)>=0);
   if(!off) return {ok:false, code:'NO_OFFER', msg:'Oferta już nieaktualna.'};
   l.status='SALE_READY'; l.acceptedOfferId=off.offerId;
+  window._swEmit('swaply_offer_accepted_by_player',{listingId:l.listingId, offerId:off.offerId, amount:off.amount});
   /* §8: nie wolno despawnować auta spod jadącego gracza — czekamy na bezpieczne zaparkowanie. */
   const inst=window._vehInstanceById(l.vehicleInstanceId);
   const driving=(inst&&inst.kind==='car'&&G._inCar&&G.car&&G.car.name===inst.rawName)||
@@ -64080,6 +64104,7 @@ window._swCommitSale=function(listingId, offerId){
   /* 3) domknięcie stanu */
   off.status='CONSUMED';
   l.status='SOLD'; l.finalSalePrice=price; l.soldAtGameMinute=window._swMinute();
+  window._swEmit('swaply_vehicle_sold',{listingId:l.listingId, vehicleInstanceId:l.vehicleInstanceId, finalPrice:price, refValue:l.referenceValueSnapshot, days:Math.round((l.soldAtGameMinute-l.submittedAtGameMinute)/1440)});
   window._swCloseThreads(l,'CLOSED_SOLD');
   if(typeof updateHUD==='function') updateHUD();
   if(typeof saveGameSilent==='function') saveGameSilent();
@@ -64296,6 +64321,27 @@ window._swCounterBtn=function(tid,inputId,lid){
   const r=window._swCounter(tid, el?Number(el.value):0);
   if(typeof showMsg==='function') showMsg((r.ok?'📋 ':'⛔ ')+r.msg, r.ok?'i':'r', 5000);
   window._swPhoneTab('msg:'+lid); };
+/* §20.1 zakładka „Wiadomości" — wszystkie wątki ze wszystkich ogłoszeń w jednym miejscu,
+   z wyróżnieniem tych, które czekają na decyzję gracza. */
+window._swAllThreadsHTML=function(){
+  const s=window._swEnsure();
+  const open=s.threads.filter(t=>['INQUIRY_OPEN','OFFER_MADE','BUYER_ACCEPTED'].indexOf(t.state)>=0);
+  if(!open.length) return '<div style="font-size:12px;color:#667">Brak aktywnych rozmów z kupującymi.</div>';
+  return open.map(t=>{
+    const l=window._swListingById(t.listingId)||{};
+    const last=(t.messages||[]).filter(m=>m.from!=='me').slice(-1)[0]||{};
+    const wait=(t.state==='OFFER_MADE'||t.state==='BUYER_ACCEPTED');
+    return `<div style="background:#0a1220;border:1px solid ${wait?'#27ae60':'#1a2a3a'};border-radius:8px;padding:9px;margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;gap:8px">
+        <div style="font-weight:700;font-size:12.5px;color:#5dade2">${t.buyerNickname}</div>
+        <div style="font-size:11px;color:#8a9aa8">${l.vehicleName||''}</div>
+      </div>
+      <div style="font-size:11.5px;color:#9ab;margin:4px 0">${(last.text||'').slice(0,96)}</div>
+      ${wait?`<div style="font-size:11px;color:#f1c40f">Czeka na Twoją decyzję · oferta ${(t.currentOfferAmount||0).toLocaleString('pl')} zł</div>`:''}
+      <button class="cbtn" style="width:100%;margin-top:5px;font-size:11px;padding:4px 8px" onclick="window._swPhoneTab('msg:${t.listingId}')">Otwórz rozmowę</button>
+    </div>`;
+  }).join('');
+};
 /* Historia (§20.1) */
 window._swHistoryHTML=function(){
   const s=window._swEnsure();
@@ -64313,12 +64359,14 @@ window._swVehiclePanelHTML=function(){
   let body='';
   if(tab==='sell') body=window._swSellHTML();
   else if(tab==='history') body=window._swHistoryHTML();
+  else if(tab==='msgs') body=window._swAllThreadsHTML();
   else if(tab.indexOf('msg:')===0) body=`<button class="cbtn" style="font-size:11px;padding:4px 8px;margin-bottom:6px" onclick="window._swPhoneTab('listings')">← Ogłoszenia</button>`+window._swThreadsHTML(tab.slice(4));
   else body=window._swListingsHTML();
   return `<div style="background:#0a1525;border:1px solid #2a5a8a;border-radius:8px;padding:10px;margin-bottom:10px">
     <div style="font-size:14px;font-weight:700;color:#5dade2;margin-bottom:3px">🚗 Swaply — pojazdy</div>
     <div style="font-size:11px;color:#8a9aa8;line-height:1.5;margin-bottom:7px">Sprzedaj auto lub kampera prywatnie. Wystawiony pojazd nadal jest Twój i możesz nim jeździć aż do finalizacji sprzedaży.${fleet?` Flota: <b>${fleet.cars}/${fleet.maxCars}</b> aut · <b>${fleet.campers}/${fleet.maxCampers}</b> kamperów (łącznie ${fleet.all}/${fleet.maxAll}).`:''}</div>
-    <div style="display:flex;gap:4px;margin-bottom:8px">${T('listings','Moje ogłoszenia')}${T('sell','Sprzedaj')}${T('history','Historia')}</div>
+    <!-- §20.1: zakladki aplikacji. „Oferty" to istniejaca, przedmiotowa czesc Swaply nad tym panelem. -->
+    <div style="display:flex;gap:4px;margin-bottom:8px">${T('listings','Moje ogłoszenia')}${T('sell','Sprzedaj')}${T('msgs','Wiadomości')}${T('history','Historia')}</div>
     ${body}
   </div>`;
 };
@@ -64561,7 +64609,10 @@ window._ughStartTour=function(kind){
   window._ughPrepareStagedScene('cold_open_lombard','underground');
   const topics=(kind&&kind!=='full')?window._ughShortTour(kind):window._ughFullTopics();
   if(typeof window.openCinematicFlythrough!=='function'){ s.tourInProgress=false; return {ok:false,reason:'no_camera'}; }
-  window.openCinematicFlythrough({roomId:'underground', topics:topics, onDone:()=>window._ughFinishTour(kind)});
+  window._ughStaged=null;
+  window.openCinematicFlythrough({roomId:'underground', topics:topics,
+    onShot:(shot)=>window._ughOnShot(shot),          /* §11/§17: aktorzy wystawiani pod wchodzące ujęcie */
+    onDone:()=>window._ughFinishTour(kind)});
   return {ok:true, shots:topics.length};
 };
 window._ughFinishTour=function(kind){
@@ -64734,6 +64785,116 @@ window._ughAsk=function(id){
   subs.push({t:'← Wróć do tematów', fn:()=>window._ughHub()});
   window._ughDlg('Mason Hale', ans, subs.slice(0,3));
   if(typeof saveGameSilent==='function') saveGameSilent();
+};
+/* ── §11/§17 MIKROSCENY — REALNIE RYSOWANI AKTORZY ───────────────────────────────────────────
+   Testy akceptacyjne §27 nie mówią o „zarezerwowaniu aktorów", tylko o tym, co gracz WIDZI:
+   T7 — mikroscena Starego Kwartału kończy się rozejściem dwóch NPC po wymianie przedmiotu;
+   T9 — przy Lombardzie stoją DWA radiowozy na sygnałach, TRZECH policjantów celujących
+        i DWÓCH gangsterów z rękami w górze.
+   Dlatego scena ma własną warstwę rysowania, sterowaną czasem od wejścia w ujęcie. */
+window._ughStaged=null;
+window.UGH_SCENES={
+  'STARY KWARTAŁ — WYMIANA':{id:'cold_open_stary_kwartal', kind:'exchange'},
+  'LOMBARD — ZATRZYMANIE':  {id:'cold_open_lombard',       kind:'bust'},
+  'PIWNICA PRODUCENTA':     {id:'sc_piwnica',   kind:'pair', a:'#8fb3c8', b:'#c8a06a'},
+  'CYPHER CLUB':            {id:'sc_cypher',    kind:'circle'},
+  'MURAL WALL':             {id:'sc_mural',     kind:'painter'},
+  'SMOLARNIA':              {id:'sc_smolarnia', kind:'table'},
+  'SALON TATUAŻU':          {id:'sc_tattoo',    kind:'pair', a:'#2f3a44', b:'#7a5a3a'},
+  'SPEAKEASY':              {id:'sc_speakeasy', kind:'table'},
+  'LOMBARD':                {id:'sc_lombard',   kind:'pair', a:'#3a3a44', b:'#5a4a34'},
+  'DEALER (TRAP)':          {id:'sc_dealer',    kind:'exchange'},
+  'NOCNY ZAUŁEK (NOC)':     {id:'sc_zaulek',    kind:'dancers'},
+  'GRAVEL LOT MOTORS':      {id:'sc_gravel',    kind:'pair', a:'#4a5a6a', b:'#6a5a3a'},
+  'BARAKI':                 {id:'sc_baraki',    kind:'group'},
+  'ZAJAZD KEMPINGOWY':      {id:'sc_zajazd',    kind:'table'},
+};
+window._ughOnShot=function(shot){
+  if(!shot) return;
+  const lbl=String(shot.placeLabel||'');
+  let def=null;
+  for(const k in window.UGH_SCENES){ if(lbl.indexOf(k)>=0){ def=window.UGH_SCENES[k]; break; } }
+  if(!def){ window._ughStaged=null; return; }
+  /* §17/§18: realny incydent City Pulse ma pierwszeństwo — wtedy NIE inscenizujemy niczego. */
+  const prep=window._ughPrepareStagedScene(def.id,'underground');
+  if(!prep.ok && prep.fallback==='use_live_world'){ window._ughStaged=null; return; }
+  window._ughStaged={id:def.id, kind:def.kind, a:def.a, b:def.b, wx:shot.wx, wy:shot.wy, t0:Date.now()};
+};
+/* Rysowanie warstwy inscenizacji — wołane z pętli rysowania pokoju underground. */
+window._ughDrawStagedScenes=function(){
+  const st=window._ughStaged; if(!st) return;
+  if(currentRoom!=='underground') return;
+  const el=(Date.now()-st.t0)/1000;
+  if(el>14){ window._ughStaged=null; return; }          /* §16 hard timeout ujęcia */
+  const sx=wx2sx(st.wx), sy=wy2sy(st.wy);
+  if(sx<-260||sx>VIEW_W+260||sy<-200||sy>VIEW_H+200) return;
+  const P2=(x,y,cloth,hair)=>{                            /* prosta sylwetka NPC */
+    X.fillStyle='rgba(0,0,0,.30)'; X.beginPath(); X.ellipse(x,y+22,10,4,0,0,Math.PI*2); X.fill();
+    X.fillStyle=cloth||'#3a4450'; X.fillRect(x-7,y-2,14,22);
+    X.fillStyle='#c9a07a'; X.beginPath(); X.arc(x,y-9,7,0,Math.PI*2); X.fill();
+    X.fillStyle=hair||'#241a12'; X.fillRect(x-7,y-16,14,6);
+  };
+  const arms=(x,y,col)=>{ X.strokeStyle=col||'#c9a07a'; X.lineWidth=3;
+    X.beginPath(); X.moveTo(x-6,y+2); X.lineTo(x-16,y-8); X.moveTo(x+6,y+2); X.lineTo(x+16,y-8); X.stroke(); };
+  X.save();
+  if(st.kind==='exchange'){
+    /* T7: podchodzą → wymieniają nieopisany pakiet → ROZCHODZĄ SIĘ w przeciwne strony */
+    const app=Math.min(1, el/3.2), hold=(el>3.2&&el<5.6), part=Math.max(0,(el-5.6)/4);
+    const gap=54-40*app+part*90;
+    const ax=sx-gap/2, bx=sx+gap/2;
+    P2(ax,sy,'#3b4652'); P2(bx,sy,'#4a3f33');
+    if(hold){ X.fillStyle='#c8b06a'; X.fillRect(sx-5,sy-2,10,7); }   /* pakiet — bez zawartości */
+    if(el<5.6){ arms(ax,sy); arms(bx,sy); }
+  } else if(st.kind==='bust'){
+    /* T9: 2 radiowozy z kogutami + 3 policjantów celujących + 2 gangsterów z rękami w górze */
+    const fl=(Math.floor(el*6)%2===0);
+    const car=(cx,cy)=>{
+      X.fillStyle='#e8ecef'; X.fillRect(cx-26,cy-11,52,22);
+      X.fillStyle='#1a2a4a'; X.fillRect(cx-26,cy-2,52,7);
+      X.fillStyle='#0d0d0d'; X.fillRect(cx-20,cy-9,40,7);
+      X.fillStyle=fl?'#e74c3c':'#2b6ad0'; X.fillRect(cx-9,cy-16,8,5);
+      X.fillStyle=fl?'#2b6ad0':'#e74c3c'; X.fillRect(cx+1,cy-16,8,5);
+      X.fillStyle='#fff'; X.font='bold 6px Arial'; X.textAlign='center'; X.fillText('POLICE',cx,cy+4); X.textAlign='left';
+    };
+    car(sx-72, sy+34); car(sx+72, sy+34);
+    [[-46,4],[0,10],[46,4]].forEach(([dx,dy])=>{        /* trzej policjanci — celują do środka */
+      P2(sx+dx, sy+dy, '#1d2a44', '#12161c');
+      X.strokeStyle='#c9a07a'; X.lineWidth=3; X.beginPath();
+      X.moveTo(sx+dx+(dx<0?6:-6), sy+dy+2); X.lineTo(sx+dx+(dx<0?20:-20), sy+dy-2); X.stroke();
+      X.fillStyle='#15181c'; X.fillRect(sx+dx+(dx<0?19:-24), sy+dy-5, 6, 4);
+    });
+    [[-14,-30],[16,-30]].forEach(([dx,dy])=>{           /* dwaj zatrzymywani — ręce W GÓRĘ */
+      P2(sx+dx, sy+dy, '#3a2f28', '#1a120c');
+      X.strokeStyle='#c9a07a'; X.lineWidth=3; X.beginPath();
+      X.moveTo(sx+dx-6, sy+dy); X.lineTo(sx+dx-12, sy+dy-16);
+      X.moveTo(sx+dx+6, sy+dy); X.lineTo(sx+dx+12, sy+dy-16); X.stroke();
+    });
+  } else if(st.kind==='circle'){
+    const n=5; for(let i=0;i<n;i++){ const a=(i/n)*Math.PI*2+el*0.25;
+      P2(sx+Math.cos(a)*40, sy+Math.sin(a)*22, ['#3a4a5a','#4a3a5a','#5a4a3a','#3a5a4a','#5a3a3a'][i%5]); }
+    X.fillStyle='#d8d4c8'; X.fillRect(sx-2,sy-4,4,10);          /* mikrofon w środku kręgu */
+  } else if(st.kind==='painter'){
+    P2(sx-16,sy,'#4a5a3a'); arms(sx-16,sy);
+    X.fillStyle=['#e0563a','#3a8ad0','#e0c03a'][Math.floor(el)%3];
+    X.fillRect(sx+2, sy-18+Math.sin(el*3)*6, 22, 5);            /* świeży ślad farby */
+  } else if(st.kind==='table'){
+    X.fillStyle='#5a4632'; X.fillRect(sx-20,sy+4,40,7);
+    P2(sx-26,sy,'#3f4a56'); P2(sx+26,sy,'#4a3f56');
+    X.fillStyle='rgba(220,220,210,'+(0.35+0.25*Math.sin(el*2))+')';
+    X.beginPath(); X.arc(sx, sy-20-el*2, 5+el, 0, Math.PI*2); X.fill();   /* dym/para */
+  } else if(st.kind==='dancers'){
+    [[-22,0],[6,4],[30,-2]].forEach(([dx,dy],i)=>{ P2(sx+dx,sy+dy,['#c94b7a','#b04bc9','#c9884b'][i],'#2a1a12');
+      X.fillStyle='rgba(255,140,60,.9)'; X.fillRect(sx+dx+7, sy+dy-6+Math.sin(el*4+i)*1.5, 2, 2); });
+    X.fillStyle='rgba(255,90,170,'+(0.25+0.2*Math.sin(el*3))+')';
+    X.fillRect(sx-46, sy-40, 92, 8);                              /* neon nad zaułkiem */
+  } else if(st.kind==='group'){
+    [[-30,0],[-6,6],[18,-2],[38,8]].forEach(([dx,dy],i)=>P2(sx+dx,sy+dy,['#4a4038','#3a3630','#443c34','#38342e'][i]));
+    if(el>2&&el<6){ X.fillStyle='#c8b06a'; X.fillRect(sx-2,sy+2,7,5); }
+  } else if(st.kind==='pair'){
+    P2(sx-20,sy,st.a||'#3a4450'); P2(sx+20,sy,st.b||'#4a3f33');
+    if(Math.sin(el*2)>0) arms(sx-20,sy);
+  }
+  X.restore();
 };
 /* §3 sylwetka NPC — spokojny lokalny bywalec (czapka, kurtka, dłonie w kieszeniach). */
 window._drawMasonHale=function(sx,sy,w,h){
@@ -65562,8 +65723,144 @@ window._resGigPanel=function(){
     </div>`);
 };
 window._resGigBtn=function(id){
+  /* §44/§45: dwa zlecenia mają WŁASNE minigry opisane w dokumencie — nie wolno ich zredukować
+     do samej wypłaty. Reszta gigów rozlicza się jak dotąd. */
+  const g=window.RES_GIGS.find(x=>x.id===id);
+  if(g && g.minigame){
+    const r=window._resEnsure();
+    if((r.residentialReputation||0)<(g.rep||0)){ if(typeof showMsg==='function') showMsg('⛔ To zlecenie otwiera się przy reputacji '+g.rep+' w dzielnicy.','r',4500); return; }
+    if((G.energy||0)<g.en){ if(typeof showMsg==='function') showMsg('⚡ Za mało energii (potrzeba '+g.en+').','r',4000); return; }
+    if(id==='res_pool')    return window._resPoolMG();
+    if(id==='res_staging') return window._resStagingMG();
+  }
   const res=window._resDoGig(id);
   if(typeof showMsg==='function') showMsg((res.ok?'✅ ':'⛔ ')+res.msg, res.ok?'g':'r', 5200);
+  window._resGigPanel();
+};
+/* ── §44 SERWIS BASENU ────────────────────────────────────────────────────────────────────────
+   „zbieranie zanieczyszczeń, kontrola kilku wskaźników, wykrywanie uszkodzeń, przygotowanie
+   leżaków, ograniczony czas". Wskaźniki są ABSTRAKCYJNE — dokument wprost zabrania realistycznych
+   instrukcji chemicznych, więc pokazujemy tylko „w normie / poza normą". */
+window._resPoolMG=function(){
+  const st=window._resPoolState={debris:6, checks:{ph:false,filtr:false,pompa:false}, damage:null,
+    loungers:false, t0:Date.now(), limit:45, done:false};
+  st.damage=(Math.random()<0.5)?'pęknięta płytka przy skimmerze':null;
+  window._resPoolRender();
+};
+window._resPoolRender=function(){
+  const st=window._resPoolState; if(!st) return;
+  const left=Math.max(0, st.limit-Math.floor((Date.now()-st.t0)/1000));
+  const chk=Object.keys(st.checks).filter(k=>st.checks[k]).length;
+  window._resPanel(`<h2>🏊 Serwis basenu</h2>
+    <p class="sub">Usuń zanieczyszczenia, sprawdź urządzenia i przygotuj strefę przed przyjazdem właścicieli.</p>
+    <div style="max-width:560px;margin:0 auto">
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:#9fc4dc;margin-bottom:8px">
+        <span>⏱ Pozostały czas: <b style="color:${left<12?'#e08080':'#7ec87e'}">${left} s</b></span>
+        <span>🧹 Zanieczyszczenia: <b>${st.debris}</b></span>
+      </div>
+      <div style="background:#0d2230;border:1px solid #1e4a5e;border-radius:10px;padding:12px;margin-bottom:9px">
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          ${Array.from({length:st.debris}).map((_,i)=>`<button class="cbtn" style="padding:6px 10px;font-size:14px" onclick="window._resPoolPick(${i})">🍂</button>`).join('')||'<span style="color:#7ec87e;font-size:12.5px">Tafla czysta.</span>'}
+        </div>
+      </div>
+      <div style="font-size:12px;color:#9fc4dc;margin-bottom:5px">Kontrola wskaźników (${chk}/3):</div>
+      ${['ph','filtr','pompa'].map(k=>`<button class="cbtn" style="width:100%;text-align:left;font-size:12px;margin-bottom:4px${st.checks[k]?';color:#7ec87e;border-color:#27ae60':''}" onclick="window._resPoolCheck('${k}')">${st.checks[k]?'✔':'○'} ${({ph:'Wskaźnik równowagi wody',filtr:'Drożność filtra',pompa:'Praca pompy'})[k]}${st.checks[k]?' — w normie':''}</button>`).join('')}
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;margin:6px 0 4px${st.damageFound?';color:#e0c060;border-color:#8a7a3a':''}" onclick="window._resPoolScan()">${st.damageFound?'⚠ Znaleziono: '+st.damage:'🔍 Szukaj uszkodzeń'}</button>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;margin-bottom:8px${st.loungers?';color:#7ec87e;border-color:#27ae60':''}" onclick="window._resPoolLoungers()">${st.loungers?'✔ Leżaki rozstawione':'🛋 Przygotuj leżaki'}</button>
+      <button class="bbtn" style="width:100%" onclick="window._resPoolFinish()">Zgłoś zakończenie</button>
+    </div>`);
+};
+window._resPoolPick=function(){ const st=window._resPoolState; if(!st||st.done) return; st.debris=Math.max(0,st.debris-1); window._resPoolRender(); };
+window._resPoolCheck=function(k){ const st=window._resPoolState; if(!st||st.done) return; st.checks[k]=true; window._resPoolRender(); };
+window._resPoolScan=function(){ const st=window._resPoolState; if(!st||st.done) return; st.damageFound=true; window._resPoolRender(); };
+window._resPoolLoungers=function(){ const st=window._resPoolState; if(!st||st.done) return; st.loungers=true; window._resPoolRender(); };
+window._resPoolFinish=function(){
+  const st=window._resPoolState; if(!st||st.done) return; st.done=true;
+  const left=Math.max(0, st.limit-Math.floor((Date.now()-st.t0)/1000));
+  const chk=Object.keys(st.checks).filter(k=>st.checks[k]).length;
+  let score=0;
+  score+=Math.round((6-st.debris)/6*40);
+  score+=Math.round(chk/3*25);
+  if(st.damage){ if(st.damageFound) score+=20; } else score+=20;
+  if(st.loungers) score+=10;
+  if(left>0) score+=5;
+  const res=window._resDoGig('res_pool');
+  const bonus=Math.round((res.pay||0)*(score/100));
+  if(res.ok && bonus>0){ if(typeof earn==='function') earn(bonus,false); else G.money=(G.money||0)+bonus; }
+  /* §44: dobry wynik otwiera dalsze możliwości — prywatny event / kolejne zlecenie / valet */
+  if(score>=75){ window._resAdd('villaConnections',+3); window._resAdd('employerRelationship',+2); }
+  window._resPoolState=null;
+  if(typeof showMsg==='function') showMsg('🏊 Serwis zakończony. Ocena '+score+'/100 · łącznie '+(((res.pay||0)+bonus)).toLocaleString('pl')+' zł.'+(score>=75?' Właściciele pytali, czy obsłużysz też prywatny event.':''), score>=60?'g':'i', 6500);
+  window._resGigPanel();
+};
+/* ── §45 HOME STAGING ─────────────────────────────────────────────────────────────────────────
+   „przestrzenna siatka, styl nieruchomości, budżet, właściwe przejścia, odpowiednia liczba
+   dekoracji, ograniczenie wizualnego chaosu". */
+window.RES_STAGING_ITEMS=[
+  {id:'sofa',   n:'Kanapa',        em:'🛋', cost:900,  style:'ciepły',      bulk:2},
+  {id:'table',  n:'Stół',          em:'🪑', cost:600,  style:'ciepły',      bulk:2},
+  {id:'lamp',   n:'Lampa',         em:'💡', cost:250,  style:'nowoczesny',  bulk:1},
+  {id:'plant',  n:'Roślina',       em:'🪴', cost:180,  style:'ciepły',      bulk:1},
+  {id:'art',    n:'Grafika',       em:'🖼', cost:420,  style:'nowoczesny',  bulk:1},
+  {id:'rug',    n:'Dywan',         em:'🧶', cost:520,  style:'ciepły',      bulk:1},
+  {id:'mirror', n:'Lustro',        em:'🪞', cost:380,  style:'nowoczesny',  bulk:1},
+  {id:'shelf',  n:'Regał',         em:'📚', cost:700,  style:'nowoczesny',  bulk:2},
+];
+window._resStagingMG=function(){
+  const styles=['ciepły','nowoczesny'];
+  window._resStagingState={style:styles[Math.floor(Math.random()*2)], budget:2600, picked:[], done:false};
+  window._resStagingRender();
+};
+window._resStagingRender=function(){
+  const st=window._resStagingState; if(!st) return;
+  const spent=st.picked.reduce((n,id)=>n+(window.RES_STAGING_ITEMS.find(x=>x.id===id)||{}).cost,0);
+  const bulk=st.picked.reduce((n,id)=>n+(window.RES_STAGING_ITEMS.find(x=>x.id===id)||{}).bulk,0);
+  window._resPanel(`<h2>🛋 Home staging</h2>
+    <p class="sub">Rozstaw meble i dekoracje tak, aby podkreślić zalety nieruchomości.</p>
+    <div style="max-width:580px;margin:0 auto">
+      <div style="background:#141210;border:1px solid #35291f;border-radius:9px;padding:10px;margin-bottom:9px;font-size:12.5px;color:#e2d8c4">
+        Styl nieruchomości: <b>${st.style}</b> · Budżet: <b>${spent.toLocaleString('pl')}/${st.budget.toLocaleString('pl')} zł</b><br>
+        Zajętość przestrzeni: <b>${bulk}/8</b> ${bulk>6?'<span style="color:#e08080">— robi się ciasno</span>':''}
+      </div>
+      <div class="shopgrid">
+        ${window.RES_STAGING_ITEMS.map(it=>{
+          const on=st.picked.indexOf(it.id)>=0;
+          return `<div class="sitem" style="${on?'border-color:#27ae60':''}">
+            <h3 style="font-size:12px">${it.em} ${it.n}</h3>
+            <div style="font-size:10.5px;color:#a8977e">${it.cost} zł · styl ${it.style} · miejsce ${it.bulk}</div>
+            <button class="cbtn" style="width:100%;margin-top:4px;font-size:11px" onclick="window._resStagingToggle('${it.id}')">${on?'Usuń':'Ustaw'}</button>
+          </div>`; }).join('')}
+      </div>
+      <button class="bbtn" style="width:100%;margin-top:9px" onclick="window._resStagingFinish()">Pokaż nieruchomość</button>
+    </div>`);
+};
+window._resStagingToggle=function(id){
+  const st=window._resStagingState; if(!st||st.done) return;
+  const i=st.picked.indexOf(id);
+  if(i>=0) st.picked.splice(i,1); else st.picked.push(id);
+  window._resStagingRender();
+};
+window._resStagingFinish=function(){
+  const st=window._resStagingState; if(!st||st.done) return; st.done=true;
+  const items=st.picked.map(id=>window.RES_STAGING_ITEMS.find(x=>x.id===id));
+  const spent=items.reduce((n,it)=>n+it.cost,0);
+  const bulk=items.reduce((n,it)=>n+it.bulk,0);
+  const inStyle=items.filter(it=>it.style===st.style).length;
+  let score=0;
+  if(spent<=st.budget) score+=25; else score-=15;                    /* budżet */
+  score+=Math.round((inStyle/Math.max(1,items.length))*30);          /* zgodność ze stylem */
+  if(bulk>=4&&bulk<=6) score+=25;                                    /* właściwe przejścia */
+  else if(bulk>6) score-=10;                                         /* wizualny chaos */
+  if(items.length>=4&&items.length<=6) score+=20;                    /* odpowiednia liczba dekoracji */
+  score=Math.max(0,Math.min(100,score));
+  const res=window._resDoGig('res_staging');
+  const bonus=Math.round((res.pay||0)*(score/100));
+  if(res.ok && bonus>0){ if(typeof earn==='function') earn(bonus,false); else G.money=(G.money||0)+bonus; }
+  window._resAdd('aestheticSense', score>=70?3:1);
+  window._resAdd('realEstateKnowledge', score>=70?3:1);
+  window._resAdd('employerRelationship', score>=70?2:0);
+  window._resStagingState=null;
+  if(typeof showMsg==='function') showMsg('🛋 Prezentacja gotowa. Ocena '+score+'/100 · łącznie '+(((res.pay||0)+bonus)).toLocaleString('pl')+' zł.'+(score>=70?' Eastwood Realty zapamiętało to nazwisko.':''), score>=60?'g':'i', 6500);
   window._resGigPanel();
 };
 window._resStoryPanel=function(){
@@ -65647,7 +65944,39 @@ window._resBuyParkline=function(){
 window._resAct=function(what){
   const r=window._resEnsure();
   const M=(t,c,d)=>{ if(typeof showMsg==='function') showMsg(t,c||'i',d||5000); };
+  /* §51: osiem kategorii budynków ma PEŁNE, chodzalne wnętrza — wejście zamiast panelu.
+     Panele funkcjonalne są nadal osiągalne, ale ze środka, przez konkretne strefy. */
+  if(window.RES_INTERIORS[what] && currentRoom==='residential'){ window._resEnterInterior(what); return; }
   switch(what){
+    case 'exit_interior': return window._resExitInterior();
+    /* akcje wywoływane ze stref wnętrz */
+    case 'shop_promo':      return window._resShopPromo();
+    case 'gossip':          return window._resGossip();
+    case 'story':           return window._resStoryPanel();
+    case 'gigs':            return window._resGigPanel();
+    case 'party':           return window._resPartyPanel();
+    case 'rent_video':      return window._resRentVideoBtn();
+    case 'pav_market':      return window._resMarketBtn();
+    case 'commerce_units':  return window._resCommercePanel();
+    case 'cloth_buy':       return window._resClothBuy();
+    case 'cloth_shopper':   return window._resClothAct('shopper');
+    case 'cloth_campaign':  return window._resClothAct('campaign');
+    case 'cloth_private':   return window._resClothAct('privateBuy');
+    case 'dine_willow':     return window._resDine('willow');
+    case 'dine_glass':      return window._resDine('glasshouse');
+    case 'meet_willow':     return window._resMeet('willow');
+    case 'meet_glass':      return window._resMeet('glasshouse');
+    case 'barber_cut':      return window._resBarberCut();
+    case 'gig_stock':       return window._resGigBtn('res_clean');
+    case 'gig_dish':        return window._resGigBtn('res_clean');
+    case 'gig_cater':       return window._resGigBtn('res_catering');
+    case 'gig_valet':       return window._resGigBtn('res_valet');
+    case 'gig_guest':       return window._resGigBtn('res_guest');
+    case 'gig_stand':       return window._resGigBtn('res_clean');
+    case 'gig_assembly':    return window._resGigBtn('res_assembly');
+    case 'gig_pool':        return window._resGigBtn('res_pool');
+    case 'gig_staging':     return window._resGigBtn('res_staging');
+    case 'gig_photo':       return window._resGigBtn('res_photo');
     case 'park_main_gate': case 'park_amphi': return window._resParkPanel();
     case 'park_to_woods': if(typeof changeRoom==='function') changeRoom('residential',1440,2020); return M('🌲 Pineglass Woods.','i',3500);
     case 'woods_station': window._resAdd('localTrust',1); return M('🌲 Leśna stacja terenowa: mapy szlaków, zgłoszenia po burzy i skrzynka na znaleziska.','i',6000);
@@ -65698,6 +66027,11 @@ window._resGossip=function(){
   const t=tips[Math.floor(Math.random()*tips.length)];
   window._resAdd('localTrust',1);
   if(typeof showMsg==='function') showMsg('🗣 '+t,'i',6000);
+};
+window._resBarberCut=function(){
+  if(typeof renderFryzjer==='function'){ if(typeof closeOverlay==='function') closeOverlay(); renderFryzjer(); if(typeof openOverlay==='function') openOverlay(); return; }
+  window._resAdd('localTrust',1);
+  if(typeof showMsg==='function') showMsg('💈 Świeże cięcie. Wyglądasz porządniej.','g',4200);
 };
 window._resBarber=function(){
   window._resPanel(`<h2>💈 BarberPoint</h2>
@@ -66032,6 +66366,157 @@ window._drawResSprite=function(id,sx,sy,w,h){
     default:
       X.fillStyle='#3b4a34'; X.fillRect(sx,sy,w,h); X.strokeStyle='#6f8a5c'; X.lineWidth=1; X.strokeRect(sx,sy,w,h);
   }
+};
+/* ── §51 CHODZALNE WNĘTRZA ────────────────────────────────────────────────────────────────────
+   „Pełne wnętrza otrzymują: nieruchomości do zakupu, wille fabularne, restauracje, sklepy,
+   Corner Basket, BarberPoint, Eastgate Commerce Center, Community Pavilion."
+   Jeden pokój `res_interior` przebudowywany per budynek — ten sam wzorzec, co Vesper House,
+   Marina i Stary Kwartał (`_vesperSyncObjects` / `_marinaSyncDeckObjects` / `_skSyncObjects`). */
+window.RES_INTERIORS={
+  res_corner_basket:{n:'Corner Basket', pal:'#2f4a34', zones:[
+    {id:'ri_shelves',  x:120, y:110, w:240,h:90, a:'res:corner_basket', p:'[E] 🛒 Regały ze sprzedażą', l:'Regały'},
+    {id:'ri_counter',  x:470, y:120, w:200,h:80, a:'res:shop_promo',    p:'[E] 🏷 Lada i promocje',     l:'Lada'},
+    {id:'ri_board',    x:760, y:110, w:150,h:90, a:'res:gossip',        p:'[E] 📌 Tablica ogłoszeń',    l:'Ogłoszenia'},
+    {id:'ri_cold',     x:120, y:330, w:200,h:110,a:null,                p:'',                            l:'Chłodnia'},
+    {id:'ri_stock',    x:470, y:330, w:220,h:110,a:'res:gig_stock',     p:'[E] 📦 Wykładanie towaru',   l:'Zaplecze'},
+    {id:'ri_story',    x:790, y:330, w:180,h:110,a:'res:story',         p:'[E] 📖 Sprawa sklepu',       l:'Właściciele'},
+  ]},
+  res_barberpoint:{n:'BarberPoint', pal:'#2a2230', zones:[
+    {id:'ri_chair1',   x:160, y:130, w:150,h:100,a:'res:barber_cut',  p:'[E] ✂️ Fotel — zmiana fryzury', l:'Fotel'},
+    {id:'ri_chair2',   x:390, y:130, w:150,h:100,a:'res:barber_cut',  p:'[E] ✂️ Drugi fotel',            l:'Fotel 2'},
+    {id:'ri_edge',     x:640, y:130, w:130,h:100,a:'res:gossip',      p:'[E] 💈 Elias „Edge" Venn',      l:'Edge'},
+    {id:'ri_wait',     x:160, y:350, w:300,h:110,a:null,              p:'',                               l:'Poczekalnia'},
+    {id:'ri_mirror',   x:560, y:350, w:220,h:110,a:null,              p:'',                               l:'Lustra'},
+  ]},
+  res_willow:{n:'Willow & Ember', pal:'#33301f', zones:[
+    {id:'ri_kitchen',  x:120, y:110, w:230,h:100,a:'res:gig_dish',   p:'[E] 🍽 Zmywak — zmiana',        l:'Otwarta kuchnia'},
+    {id:'ri_tables',   x:430, y:120, w:280,h:100,a:'res:dine_willow',p:'[E] 🍽 Stolik — posiłek',       l:'Sala'},
+    {id:'ri_terrace',  x:790, y:110, w:180,h:100,a:'res:meet_willow',p:'[E] 🤝 Taras — spotkanie',      l:'Taras'},
+    {id:'ri_private',  x:180, y:340, w:260,h:110,a:'res:gig_cater',  p:'[E] 🥂 Catering i prywatne kolacje', l:'Strefa prywatna'},
+    {id:'ri_garden',   x:540, y:340, w:280,h:110,a:null,             p:'',                                l:'Ogród'},
+  ]},
+  res_glasshouse:{n:'Glasshouse', pal:'#1e242b', zones:[
+    {id:'ri_bar',      x:400, y:110, w:280,h:100,a:'res:dine_glass', p:'[E] 🥂 Centralny bar',          l:'Bar'},
+    {id:'ri_room',     x:120, y:120, w:220,h:90, a:'res:meet_glass', p:'[E] 💼 Prywatny pokój',         l:'Prywatny pokój'},
+    {id:'ri_valet',    x:760, y:120, w:200,h:90, a:'res:gig_valet',  p:'[E] 🚗 Valet — zmiana',         l:'Valet'},
+    {id:'ri_dining',   x:260, y:340, w:320,h:110,a:'res:gig_guest',  p:'[E] 🎩 Obsługa prywatnego gościa', l:'Sala'},
+    {id:'ri_stone',    x:660, y:340, w:260,h:110,a:null,             p:'',                                l:'Minimalistyczny ogród'},
+  ]},
+  res_oakline:{n:'Oakline Outfitters', pal:'#2f3a2c', zones:[
+    {id:'ri_racks',    x:150, y:120, w:260,h:100,a:'res:cloth_buy',    p:'[E] 🛍 Wieszaki — przymierz',   l:'Wieszaki'},
+    {id:'ri_fit',      x:500, y:120, w:180,h:100,a:'res:cloth_buy',    p:'[E] 🪞 Kabina do mierzenia',    l:'Przymierzalnia'},
+    {id:'ri_stand',    x:760, y:120, w:190,h:100,a:'res:gig_stand',    p:'[E] 🧾 Praca na stoisku',       l:'Stoisko'},
+    {id:'ri_shopper',  x:220, y:350, w:250,h:110,a:'res:cloth_shopper',p:'[E] 👗 Personal shopper',      l:'Doradztwo'},
+    {id:'ri_camp',     x:580, y:350, w:280,h:110,a:'res:cloth_campaign',p:'[E] 📣 Kampania lokalna',     l:'Zaplecze'},
+  ]},
+  res_marlow:{n:'Marlow House', pal:'#2c2a34', zones:[
+    {id:'ri_premium',  x:150, y:120, w:260,h:100,a:'res:cloth_buy',     p:'[E] 🧥 Kolekcja premium',      l:'Premium'},
+    {id:'ri_event',    x:500, y:120, w:220,h:100,a:'res:cloth_buy',     p:'[E] 🎀 Stylizacje eventowe',   l:'Eventowe'},
+    {id:'ri_privbuy',  x:790, y:120, w:170,h:100,a:'res:cloth_private', p:'[E] 🎁 Prywatne zakupy dla NPC', l:'Zamówienia'},
+    {id:'ri_stand2',   x:250, y:350, w:250,h:110,a:'res:gig_stand',     p:'[E] 🧾 Praca na stoisku',      l:'Stoisko'},
+    {id:'ri_lounge',   x:600, y:350, w:280,h:110,a:null,                p:'',                              l:'Lounge'},
+  ]},
+  res_commerce:{n:'Eastgate Commerce Center', pal:'#2b3340', zones:[
+    {id:'ri_lobby',    x:120, y:110, w:240,h:100,a:null,             p:'',                              l:'Hol'},
+    {id:'ri_units',    x:430, y:110, w:300,h:100,a:'res:commerce_units',p:'[E] 🏬 Tablica lokali',      l:'Lokale'},
+    {id:'ri_delivery', x:800, y:110, w:170,h:100,a:null,             p:'',                              l:'Część dostawcza'},
+    {id:'ri_floor2',   x:180, y:340, w:300,h:110,a:'res:commerce_units',p:'[E] ⬆ Druga kondygnacja',    l:'Piętro'},
+    {id:'ri_office',   x:600, y:340, w:280,h:110,a:'res:gig_assembly',p:'[E] 🔧 Montaż wyposażenia',    l:'Zaplecze'},
+  ]},
+  res_pavilion:{n:'Eastwood Community Pavilion', pal:'#33402c', zones:[
+    {id:'ri_hall',     x:200, y:120, w:320,h:100,a:'res:pav_market',  p:'[E] 🧺 Weekendowy targ',        l:'Hala'},
+    {id:'ri_stage',    x:600, y:120, w:250,h:100,a:'res:park_amphi',  p:'[E] 🎶 Małe koncerty',          l:'Scena'},
+    {id:'ri_meet',     x:180, y:350, w:280,h:110,a:'res:story',       p:'[E] 📖 Zebranie mieszkańców',   l:'Zebrania'},
+    {id:'ri_gigs',     x:560, y:350, w:300,h:110,a:'res:gigs',        p:'[E] 🧰 Tablica zleceń',         l:'Zlecenia'},
+  ]},
+  res_parkline:{n:'Parkline Duplex', pal:'#33383f', zones:[
+    {id:'ri_living',   x:150, y:120, w:280,h:100,a:'res:realty',      p:'[E] 🏠 Warunki zakupu',         l:'Salon'},
+    {id:'ri_terrace2', x:520, y:120, w:230,h:100,a:null,              p:'',                               l:'Taras z widokiem'},
+    {id:'ri_studio',   x:800, y:120, w:170,h:100,a:'res:homegrid',    p:'[E] 🔨 Adaptacja na studio',    l:'Pokój do adaptacji'},
+    {id:'ri_bed',      x:200, y:350, w:250,h:110,a:null,              p:'',                               l:'Sypialnia'},
+    {id:'ri_garden2',  x:560, y:350, w:300,h:110,a:'res:greenridge',  p:'[E] 🌿 Ogród i taras',          l:'Ogród'},
+  ]},
+  res_villa_vale:{n:'Willa Simona Vale', pal:'#3a3f38', zones:[
+    {id:'ri_studio2',  x:180, y:120, w:300,h:100,a:'res:story',       p:'[E] 🎛 Studio odsłuchowe',      l:'Studio'},
+    {id:'ri_vale',     x:560, y:120, w:200,h:100,a:'res:story',       p:'[E] 👤 Simon Vale',             l:'Simon Vale'},
+    {id:'ri_pool2',    x:200, y:350, w:300,h:110,a:'res:gig_pool',    p:'[E] 🏊 Serwis basenu',          l:'Basen'},
+    {id:'ri_lounge2',  x:600, y:350, w:280,h:110,a:null,              p:'',                               l:'Salon'},
+  ]},
+  res_villa_empty:{n:'Pusta willa', pal:'#3a3f38', zones:[
+    {id:'ri_stage_h',  x:180, y:120, w:300,h:100,a:'res:gig_staging', p:'[E] 🛋 Home staging',           l:'Salon do prezentacji'},
+    {id:'ri_photo',    x:560, y:120, w:220,h:100,a:'res:gig_photo',   p:'[E] 📸 Sesja nieruchomości',    l:'Sesja'},
+    {id:'ri_emptypool',x:200, y:350, w:300,h:110,a:'res:gig_pool',    p:'[E] 🏊 Pusty basen',            l:'Basen'},
+    {id:'ri_board2',   x:620, y:350, w:260,h:110,a:'res:story',       p:'[E] 🏷 Tablica nieruchomości',  l:'Oferta'},
+  ]},
+  res_villa_event:{n:'Willa eventowa', pal:'#3a3f38', zones:[
+    {id:'ri_party',    x:200, y:120, w:320,h:100,a:'res:party',       p:'[E] 🎉 Prywatne wydarzenie',    l:'Impreza'},
+    {id:'ri_valet2',   x:600, y:120, w:220,h:100,a:'res:gig_valet',   p:'[E] 🚗 Valet',                  l:'Podjazd'},
+    {id:'ri_cater',    x:200, y:350, w:280,h:110,a:'res:gig_cater',   p:'[E] 🥂 Catering',               l:'Catering'},
+    {id:'ri_video',    x:580, y:350, w:300,h:110,a:'res:rent_video',  p:'[E] 🎬 Wynajem pod teledysk',   l:'Plan zdjęciowy'},
+  ]},
+};
+window._resSyncInterior=function(id){
+  const def=window.RES_INTERIORS[id]; if(!def) return false;
+  const objs=[];
+  def.zones.forEach(z=>objs.push({id:z.id, wx:z.x, wy:z.y, w:z.w, h:z.h, act:z.a, prompt:z.p, lbl:z.l}));
+  objs.push({id:'ri_exit', wx:600, wy:590, w:80, h:62, act:'res:exit_interior', prompt:'[E] 🚪 Wyjście', lbl:'Wyjście'});
+  ROOMS.res_interior={wT:27, hT:14, map:null, objects:objs, _resInteriorId:id};
+  window._resInteriorId=id;
+  return true;
+};
+window._resEnterInterior=function(id){
+  if(!window._resSyncInterior(id)) return false;
+  const poi=(window.RES_POI||[]).find(p=>p.id===id);
+  window._resReturnTo=poi?{wx:poi.wx+Math.round(poi.w/2)-14, wy:poi.wy+poi.h+18}:{wx:120, wy:700};
+  /* ⚠️ REGUŁA #1 (save'y graczy): zapamiętujemy, W KTÓRYM wnętrzu jest gracz i dokąd wraca.
+     Bez tego zapis zrobiony w środku budynku wczytywał się do pokoju, którego jeszcze nie ma
+     (pokój `res_interior` powstaje dopiero przy wejściu) — dokładnie ta sama klasa błędu,
+     co brak mapy dzielnicy przed `loadGame`. Wykrył to `audit_rooms` (ROOM_MISSING_OR_EMPTY). */
+  { const r=window._resEnsure(); r.interiorId=id; r.interiorReturn=window._resReturnTo; }
+  if(!G.visitedRooms) G.visitedRooms={};
+  G.visitedRooms.res_interior=true;
+  if(typeof startRoomFade==='function') startRoomFade('res_interior', 620, 520);
+  else if(typeof changeRoom==='function') changeRoom('res_interior', 620, 520);
+  return true;
+};
+/* Odtworzenie wnętrza po wczytaniu zapisu / przy starcie — pokój musi ISTNIEĆ, zanim
+   `loadGame` przywróci `currentRoom`. Domyślnie budujemy Corner Basket, żeby pokój nigdy
+   nie był pusty (audit_rooms wchodzi do niego na zimno). */
+window._resRestoreInterior=function(){
+  const r=(G&&G.residentialDistrict)?G.residentialDistrict:null;
+  const id=(r&&r.interiorId&&window.RES_INTERIORS[r.interiorId])?r.interiorId:'res_corner_basket';
+  window._resSyncInterior(id);
+  if(r&&r.interiorReturn) window._resReturnTo=r.interiorReturn;
+  return id;
+};
+window._resExitInterior=function(){
+  const r=window._resReturnTo||{wx:120, wy:700};
+  if(typeof startRoomFade==='function') startRoomFade('residential', r.wx, r.wy);
+  else if(typeof changeRoom==='function') changeRoom('residential', r.wx, r.wy);
+};
+/* Wnętrza mają WŁASNE meble — bez tego renderowałyby się jako szare boxy (lekcja v2.3.125). */
+window._drawResInteriorSprite=function(id,sx,sy,w,h){
+  const night=((G.timeOfDay||1)>=2);
+  const base=(c,b)=>{ X.fillStyle=c; X.fillRect(sx,sy,w,h); X.strokeStyle=b||'#5a6a52'; X.lineWidth=2; X.strokeRect(sx,sy,w,h); };
+  const lbl=(t)=>{ X.fillStyle='#dfe6d6'; X.font='bold 10px system-ui,Arial'; X.textAlign='center'; X.fillText(t, sx+w/2, sy+h+11); X.textAlign='left'; };
+  const room=ROOMS.res_interior||{};
+  const o=(room.objects||[]).find(x=>x.id===id);
+  const name=o?o.lbl:'';
+  if(/Regały|Wieszaki|Premium|Eventowe|Kolekcja/.test(name)){
+    base('#2c3a2c'); for(let i=0;i<4;i++){ X.fillStyle=['#8a5a3a','#5a7a8a','#7a5a8a','#8a8a5a'][i%4]; X.fillRect(sx+10+i*((w-20)/4), sy+12, (w-20)/4-8, h-24); } }
+  else if(/Lada|Bar/.test(name)){ base('#3a2f22','#8a6a3a'); X.fillStyle='#5a4632'; X.fillRect(sx+6,sy+h*0.30,w-12,h*0.34); }
+  else if(/Fotel/.test(name)){ base('#2a2230','#8a6a9a'); X.fillStyle='#4a3a52'; X.fillRect(sx+w*0.25,sy+h*0.22,w*0.5,h*0.6);
+    X.fillStyle='#6a5a72'; X.fillRect(sx+w*0.30,sy+h*0.10,w*0.4,h*0.16); }
+  else if(/Sala|Stolik|Poczekalnia|Lounge|Salon/.test(name)){ base('#33301f','#a8905a');
+    for(let i=0;i<3;i++){ X.fillStyle='#5a4632'; X.beginPath(); X.arc(sx+30+i*((w-60)/2), sy+h/2, 15,0,Math.PI*2); X.fill(); } }
+  else if(/Basen/.test(name)){ base('#1e3a48','#5aa0c0'); X.fillStyle='#3f89ad'; X.fillRect(sx+10,sy+10,w-20,h-20); }
+  else if(/Scena|Studio|Impreza/.test(name)){ base('#241f2c','#8a6ac0'); X.fillStyle='#3a2f4a'; X.fillRect(sx+10,sy+h*0.45,w-20,h*0.45);
+    X.fillStyle=night?'rgba(230,140,255,.55)':'rgba(200,180,220,.35)'; X.fillRect(sx+w*0.35,sy+8,w*0.3,h*0.3); }
+  else if(/Ogród|Taras|Zieleń/.test(name)){ base('#2f4a2c','#6fa15c');
+    for(let i=0;i<5;i++){ X.fillStyle='#3f7a34'; X.beginPath(); X.arc(sx+16+i*((w-32)/4), sy+h*0.6, 11,0,Math.PI*2); X.fill(); } }
+  else if(/Wyjście/.test(name)){ if(typeof drawInteriorExit==='function'){ drawInteriorExit(sx,sy,w,h); return; } base('#3a2f22','#c8a520'); }
+  else { base('#2f3a34'); }
+  if(name) lbl(name);
 };
 /* Dzienny tick dzielnicy — zamówienia remontowe i naturalne stygnięcie podejrzliwości. */
 window._resDailyTick=function(){
@@ -88178,6 +88663,10 @@ window.openCinematicFlythrough=(scenario)=>{
     if(!G._cinematicActive) return;
     if(shotIdx>=SHOTS.length){window._closeCinematic();return;}
     const s=SHOTS[shotIdx];
+    /* GUIDE FLYOVER §17: scenariusz dostaje informację o WCHODZĄCYM ujęciu, żeby móc wystawić
+       mikroscenę (aktorów) dokładnie tam, gdzie za chwilę stanie kamera. Hook jest generyczny —
+       przelot po Main City nie przekazuje scenariusza, więc jego działanie się nie zmienia. */
+    if(scenario && typeof scenario.onShot==='function'){ try{ scenario.onShot(s); }catch(_){} }
     /* v2.1.324 fix (user "gdy cofam z finalu kamera dalej lata"): cancel finale pan przy KAŻDYM _next.
        Jeśli nowy shot to finale → _startFinalePan() zaczyna od nowa.
        Jeśli inny shot (np. cofnięcie do TRANSPORT) → finale pan musi zatrzymać się. */
@@ -90997,6 +91486,17 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.134',date:'2026-08-14',cats:['beta-tester','fix','feature'],title:'🏡🕶 Wnętrza na przedmieściach, sceny w przelocie i dwie nowe minigry',
+ items:[
+  {t:'feature',d:'🏡 Budynki w Residential District można teraz zwiedzać od środka. Corner Basket, BarberPoint, obie restauracje, oba sklepy odzieżowe, Eastgate Commerce Center, Community Pavilion, Parkline Duplex i trzy wille mają własne wnętrza ze strefami, po których chodzisz i wchodzisz w interakcje — zamiast samego okienka z listą opcji.'},
+  {t:'feature',d:'🕶 Podczas oprowadzania po Underground naprawdę widać sceny, o których mówi Mason. W Starym Kwartale dwie postacie schodzą się, wymieniają pakunek i rozchodzą w przeciwne strony, a przy Lombardzie stoją dwa radiowozy na sygnałach, trzech policjantów i dwóch zatrzymywanych z rękami w górze. Jeśli akurat dzieje się tam coś naprawdę poważnego, gra pokazuje prawdziwe zdarzenie zamiast inscenizacji.'},
+  {t:'feature',d:'🏊 Serwis basenu to teraz pełna minigra na czas: zbierasz zanieczyszczenia, sprawdzasz trzy wskaźniki, szukasz uszkodzeń i rozstawiasz leżaki. Im lepszy wynik, tym wyższa wypłata — a przy naprawdę dobrym właściciele pytają o obsługę prywatnego eventu.'},
+  {t:'feature',d:'🛋 Home staging dostał własną mechanikę: masz budżet, styl nieruchomości i ograniczoną przestrzeń. Dobierasz meble i dekoracje tak, żeby pasowały do stylu, mieściły się w budżecie i nie zrobiły wizualnego chaosu.'},
+  {t:'feature',d:'📋 W Swaply doszła zakładka „Wiadomości" — wszystkie rozmowy z kupującymi w jednym miejscu, z wyróżnieniem tych, które czekają na Twoją decyzję.'},
+  {t:'fix',d:'💾 Gra zapisana wewnątrz budynku na przedmieściach wczytuje się teraz poprawnie do tego samego wnętrza.'},
+ ]
+ },
  {
  ver:'v2.3.133',date:'2026-08-13',cats:['beta-tester','fix','change'],title:'🚗🎓 Wyjście z auta, łatwiejsze dzielnice i porządki w telefonie',
  items:[
@@ -106095,6 +106595,10 @@ function loadGame(){
     }
     G._merchStatsSyncedV2153=true;
   }
+  /* PDF „Residential District" §51: po wczytaniu zapisu odtwórz WŁAŚCIWE wnętrze budynku —
+     gracz mógł zapisać grę w środku Corner Basket, restauracji czy willi. Bez tego wracałby
+     do pokoju z układem ostatnio zbudowanym w tej sesji albo do pustego. */
+  try{ if(typeof window._resRestoreInterior==='function') window._resRestoreInterior(); }catch(_){}
   /* PDF 13.08 U1/U2/U3 — migracja „grandfather" dla bramek po poradniku (REGUŁA #1).
      Kredyt/chwilówki/SessionBoard są od teraz zablokowane do końca poradnika. Zapis sprzed tej
      zmiany mógł mieć `_tutorialSeen=false` mimo dawno rozpoczętej kariery — odblokowujemy go
@@ -111992,6 +112496,9 @@ function loop(){
   _safe(()=>drawObjects(room),'drawObjects');
   if(currentRoom==='ulica'){_safe(()=>drawParkLife(),'drawParkLife');_safe(()=>drawCityLife(),'drawCityLife');_safe(()=>{if(typeof window._drawCityPolice==='function')window._drawCityPolice();},'cityPolice');_safe(()=>drawBirds(),'drawBirds');}
   else if(typeof DISTRICT_LIFE_CFG!=='undefined' && DISTRICT_LIFE_CFG[currentRoom]) _safe(()=>drawDistrictLife(),'drawDistrictLife'); /* N3 (v2.3.24): życie NPC w dzielnicach */
+  /* GUIDE FLYOVER §11/§17: mikrosceny przewodnika rysowane NAD życiem dzielnicy — testy T7/T9
+     wymagają, żeby gracz je realnie ZOBACZYŁ, a nie tylko żeby aktorzy byli zarezerwowani. */
+  if(currentRoom==='underground' && typeof window._ughDrawStagedScenes==='function') _safe(()=>window._ughDrawStagedScenes(),'ughStagedScenes');
   _safe(()=>drawPlayerCar(),'drawPlayerCar');
   _safe(()=>drawPlayerCamper(),'drawPlayerCamper'); /* E4b: sprite kampera podczas jazdy */
   _safe(()=>{ if(window._marinaIsPiloting&&window._marinaIsPiloting()) window._marinaDrawPiloting(); },'marinaPilot');
@@ -113598,6 +114105,9 @@ scaleGame();
    więc po każdym wczytaniu gry wygląda identycznie. Musi istnieć zanim loadGame przywróci
    `currentRoom`, inaczej zapis zrobiony w dzielnicy nie miałby do czego wrócić. */
 try{ if(typeof window._resBuildDistrict==='function') window._resBuildDistrict(); }catch(e){ console.error('residential build:',e); }
+/* Wnetrza dzielnicy: pokoj `res_interior` musi istniec od startu — inaczej zapis zrobiony
+   wewnatrz budynku wczytywalby sie do nieistniejacego pokoju (regula #1). */
+try{ if(typeof window._resRestoreInterior==='function') window._resRestoreInterior(); }catch(e){ console.error('residential interior:',e); }
 // v1.8.57: generowanie gwiazd i śniegu w menu (deterministyczne — wartości stałe między startami żeby nie migotały)
 (function _initMenuFx(){
   /* v2.1.744 (audyt): wersja w menu była zahardkodowana („v2.0.11") i nie aktualizowana od dziesiątek patchy → mylące UI (#3). Teraz czyta najnowszy wpis z PATCH_NOTES → nigdy się nie zestarzeje. */
