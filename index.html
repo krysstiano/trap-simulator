@@ -2045,7 +2045,10 @@ document.addEventListener('keydown', e => {
   /* v2.3.117 (PDF Uspr115 W5): klawisz O = Dziennik aktywności (10 ostatnich powiadomień).
      v2.3.122 (PDF Uspr v2.3.121): NIE podczas sesji wymagających klawiatury (Freestyle, Streaming) —
      tam „O" jest częścią rozgrywki (litera hasła / wpisywanie słów) i Dziennik zasłaniał ekran. */
-  if((e.key==='o'||e.key==='O') && !e.repeat && !(typeof window._kbSessionActive==='function' && window._kbSessionActive())){
+  /* PDF 13.08 „Błędy…" U8: dodatkowo 5-sekundowa karencja PO zakończeniu freestyle'u — samo
+     zniknięcie pól sesji nie wystarczało, bo litera „O" z ostatniego hasła docierała już po nim. */
+  if((e.key==='o'||e.key==='O') && !e.repeat && !(typeof window._kbSessionActive==='function' && window._kbSessionActive())
+     && !(window._fsJournalBlockUntil && Date.now()<window._fsJournalBlockUntil)){
     if(typeof window._openActivityLog==='function') window._openActivityLog();
   }
   // v1.8.86: Ctrl+S = ręczny zapis (zgłoszenie Ampera). Browser intercept zablokowany przez preventDefault.
@@ -11658,16 +11661,11 @@ function drawBusinessDecorations(){
       X.fillRect(sx-6,sy-12,26,18);
     }
   }
-  /* 2 banners "BUSINESS" */
-  const banners=[{wx:380,wy:380},{wx:980,wy:380}];
-  for(const b of banners){
-    const sx=wx2sx(b.wx),sy=wy2sy(b.wy);
-    if(sx<-50||sx>1330) continue;
-    X.fillStyle='#1a1a0a';X.fillRect(sx,sy,80,18);
-    X.fillStyle='#c8a520';X.fillRect(sx,sy,80,3);
-    X.font='bold 10px Arial';
-    X.fillStyle='#f4d35e';X.fillText('★ ELITE',sx+8,sy+13);
-  }
+  /* PDF 13.08 „Błędy…" U28 (user): usunięte dwa prostokąty z etykietą „★ ELITE", które wisiały
+     na jezdni Business District (@380,380 i @980,380 — 80×18 px, bez żadnego nośnika pod spodem).
+     To ta sama klasa artefaktu co „czerwony dywan w powietrzu" usunięty w v2.3.125: element
+     dekoracyjny rysowany na sztywnych współrzędnych, który po zmianach układu ulicy wylądował
+     na środku drogi. Neonowy szyld „★ ELITE" na FASADACH budynków zostaje bez zmian. */
   /* v2.3.125 (user: „czerwony dywan wisi w powietrzu obok Steakhouse"): usunięty — leżał @620,720 na gołym
      marmurze, bez żadnego wejścia pod spodem (relikt starego układu). Prestiżowe wejścia (Eclipse/Vesper) mają
      własne fasady rysowane per-budynek. */
@@ -15241,7 +15239,11 @@ function tryInteract(){
 //  GODZINY OTWARCIA
 // ═══════════════════════════════════════════════════════════════════
 const PLACE_HOURS={
-  'striptiz':        {o:20, c:4,  name:'Velvet Room'}, /* v2.1.919 PDF: nocny klub 20:00-04:00 (overnight); U7 v2.3.44 nazwa własna Velvet Room */
+  /* PDF 13.08 „Błędy…" U24: user prosi o godziny 22:00–05:00 („niemalże do samego rana").
+     ⚠️ W zgłoszeniu podane jako stan wyjściowy 23:00–04:00; w kodzie było 20:00–04:00.
+     Wdrażam WPROST podane docelowe okno 22:00–05:00 (zamknięcie realnie przesunięte o godzinę
+     później; otwarcie o 2 h później niż faktyczny stan kodu sprzed zmiany). */
+  'striptiz':        {o:22, c:5,  name:'Velvet Room'}, /* v2.1.919 PDF: 20:00-04:00; PDF 13.08 U24: 22:00-05:00 */
   'business_eclipse': {o:20, c:6, name:'Eclipse Noir'}, /* PDF new/4 §59 openHours: klub nocny 20:00-06:00; v2.3.116 przeniesiony do Business District */
   'business_aureum': {o:8, c:20, name:'Aureum Green Club'}, /* PDF Business/golf: pole golfowe czynne w dzień 8-20 */
   'coast_sunset': {o:9, c:2, name:'SUNSET PALMS'}, /* SUNSET PALMS §4: altana plażowa 09:00-02:00 (overnight) */
@@ -15413,7 +15415,7 @@ function handleAct(act,objId){
     else if(typeof startScrapMG==='function') startScrapMG();
     return;
   } else if(act==='striptiz'){
-    /* v2.1.930 (Vegan — przebudowa na budynek): wejście do klubu jako ROOM (jak kasyno). Godziny (20-04) egzekwowane wyżej przez isPlaceOpen/PLACE_HOURS. */
+    /* v2.1.930 (Vegan — przebudowa na budynek): wejście do klubu jako ROOM (jak kasyno). Godziny (PDF 13.08 U24: 22-05) egzekwowane wyżej przez isPlaceOpen/PLACE_HOURS. */
     if(typeof startRoomFade==='function'){ if(!G.visitedRooms)G.visitedRooms={}; G.visitedRooms.striptiz_club=true; startRoomFade('striptiz_club',600,520); }
     return;
   } else if(act==='striptiz:show'){
@@ -15524,9 +15526,14 @@ function handleAct(act,objId){
       const _firstEnter = !G._districtFirstEnterShown[districtId];
       const _doChangeRoom = ()=>{
         if(districtId==='underground' && ROOMS.underground){
-          /* v2.1.464 fix UX (analog v2.1.463): spawn 1200 zamiast 1280 — wcześniej player był 75 px od exit_under center (radius 90) → widział "[E] Wróć" od razu. Teraz 154 px = poza interaction radius. */
-          if(typeof changeRoom==='function') changeRoom('underground', 1200, 480);
-          else if(typeof startRoomFade==='function') startRoomFade('underground', 1200, 480);
+          /* v2.1.464 fix UX (analog v2.1.463): spawn 1200 zamiast 1280 — wcześniej player był 75 px od exit_under center (radius 90) → widział "[E] Wróć" od razu. Teraz 154 px = poza interaction radius.
+             PDF 13.08 „Błędy…" U21 (user): wysokość spawnu 480 → 430. Jezdnia Underground to pas
+             y488-552 (DISTRICT_ROAD_Y 520 ± DISTRICT_ROAD_HALF 32), a postać o wysokości 44 px
+             stojąca na wy=480 zajmowała y480-524, czyli WCHODZIŁA W JEZDNIĘ i mogła zostać
+             potrącona zaraz po wejściu do dzielnicy. Na wy=430 postać stoi na chodniku NAD
+             jezdnią (y430-474, 14 px zapasu) — ten sam pas, na którym parkuje domyślnie kamper. */
+          if(typeof changeRoom==='function') changeRoom('underground', 1200, 430);
+          else if(typeof startRoomFade==='function') startRoomFade('underground', 1200, 430);
         } else if(districtId==='coast' && ROOMS.coast){
           /* v2.1.463 fix UX: spawn 720,800 (NIE 900) — wcześniej player spawnował dokładnie w exit_coast (wx 660-780, wy 880-940), widząc od razu "[E] Wróć do miasta" confusingly. Teraz 100 px na N od exit. */
           if(typeof changeRoom==='function') changeRoom('coast', 1500, 1900);
@@ -16090,6 +16097,9 @@ window._parkingParkHere=function(kind){
     G._inCar=false; G._carsParked=(G._carsParked||0)+1;
     if(typeof showMsg==='function') showMsg('🅿️ Zaparkowałeś auto na parkingu. Podejdź do niego i naciśnij [V], żeby ruszyć.','g',4500);
   }
+  /* PDF 13.08 B4: gdy nie ma wolnego miejsca, pojazd ląduje dokładnie pod graczem (fallback
+     `{wx:P.wx,wy:P.wy}` wyżej) — wtedy trzeba odsunąć postać, żeby nie utknęła w bryle. */
+  if(typeof window._vehCollidesAt==='function' && window._vehCollidesAt(P.wx,P.wy) && typeof window._vehStepOutBeside==='function') window._vehStepOutBeside(kind);
   if(typeof saveGameSilent==='function') saveGameSilent();
   if(typeof window._parkingPanel==='function') window._parkingPanel();
 };
@@ -17844,6 +17854,13 @@ function changeRoom(id,wx,wy){
   if(typeof bgmAudio!=='undefined' && bgmAudio && !bgmAudio.paused){ window._bgmRoomDip(); }
   // Anti-stuck-key przy zmianie pokoju (focus może się przerwać przy fade)
   for(const k in K) delete K[k];
+  /* PDF 13.08 „Błędy…" U23: zanim opuścimy przestrzeń zewnętrzną, zapamiętaj gdzie stał gracz.
+     Dzięki temu znacznik „TY" na mapie miasta pokazuje jego położenie także wtedy, gdy siedzi
+     w budynku bez własnej mapy (Traphouse, sklep, studio) — wcześniej marker po prostu znikał,
+     bo współrzędne wnętrza nie mają sensu na mapie dzielnicy. */
+  if(typeof _carRoom==='function' && _carRoom(currentRoom) && currentRoom!==id && typeof P!=='undefined'){
+    G._lastOutdoor={room:currentRoom, wx:P.wx, wy:P.wy};
+  }
   currentRoom=id;
   if(id==='coast' && typeof window._marinaSyncCoastObjects==='function') window._marinaSyncCoastObjects();
   if(id==='boat_deck' && typeof window._marinaSyncDeckObjects==='function') window._marinaSyncDeckObjects(G.marina&&G.marina._activeInteriorId);
@@ -18622,9 +18639,18 @@ window._syConsult=function(rid,consultantId){
           zones:window.SY_ZONES.map(z=>z.id), variants:['A — minimum','B — rozsądny rozwój','C — docelowy projekt'],
           warnings:window._syPlanWarnings(rid)};
   p.consultationStatus='approved';
+  /* PDF 13.08 U13: zapamiętujemy KTÓRE konsultacje już się odbyły w tym lokalu — przycisk
+     danego konsultanta ma się po użyciu wyszarzyć i zmienić nazwę na „Przeprowadzono
+     konsultację". Lista per lokal, więc drugi lokal ma własny stan. */
+  if(!Array.isArray(p.consultDone)) p.consultDone=[];
+  if(p.consultDone.indexOf(consultantId)<0) p.consultDone.push(consultantId);
   if(typeof updateHUD==='function') updateHUD();
   if(typeof saveGameSilent==='function') saveGameSilent();
   return {ok:true,msg:c.name+' kończy oględziny i zatwierdza plan dla lokalu '+(room.name||rid)+'.'};
+};
+/* PDF 13.08 U13: czy konsultacja u tego konsultanta była już w tym lokalu wykonana. */
+window._syConsultUsed=function(rid,cid){
+  const p=window._syProp(rid); return !!(p&&Array.isArray(p.consultDone)&&p.consultDone.indexOf(cid)>=0);
 };
 window._syPlanWarnings=function(rid){
   const room=STUDIO_ROOMS[rid]||{}; const w=[];
@@ -18757,27 +18783,40 @@ window._syEngineerSkill=function(rid){
   return Math.round(st.reduce((m,s)=>Math.max(m,s.recordingSkill||40),0));
 };
 /* ── §9 ROLE PERSONELU ───────────────────────────────────────────────────────────────────────── */
+/* PDF 13.08 „Błędy…" U14 (user): obsada studia dostaje TWARDE stawki godzinowe i LIMIT etatów
+   na jeden lokal. Wcześniej stawka była udziałem w stawce lokalu, a rekrutacja nieograniczona —
+   gracz mógł zatrudnić nieskończenie wielu realizatorów, co user słusznie nazwał błędem.
+   Limity: realizator nagrań max 2, każda pozostała rola max 1 na lokal studyjny. */
 window.SY_ROLES=[
-  {id:'recording',  n:'Realizator nagrań',      duties:'prowadzenie sesji, gain staging jako abstrakcja, dobór mikrofonu, comping', stats:['recordingSkill','vocalSkill','clientHandling','speed'], share:0.34},
-  {id:'mix',        n:'Mix engineer',           duties:'edycja, miks, rewizje',                                                     stats:['mixSkill','translationSkill','revisionDiscipline'], share:0.36},
-  {id:'mastering',  n:'Mastering engineer',     duties:'finalna kontrola i eksport',                                                stats:['masteringSkill','monitoringSkill','consistency'], share:0.38},
-  {id:'assistant',  n:'Asystent',               duties:'przygotowanie sesji, kopia zapasowa, porządek i patching',                  stats:['reliability','technicalSupport','learning'], share:0.15},
-  {id:'manager',    n:'Studio manager',         duties:'rezerwacje, płatności, konflikty, obsada',                                  stats:['operationsSkill','negotiation','punctuality'], share:0.20},
-  {id:'tech',       n:'Technik',                duties:'instalacja, serwis, diagnoza awarii',                                       stats:['repairSkill','equipmentKnowledge'], share:0.22},
-  {id:'hospitality',n:'Sprzątanie / hospitality',duties:'przygotowanie przestrzeni i komfort klientów',                             stats:['cleanliness','serviceQuality'], share:0.10},
+  {id:'recording',  n:'Realizator nagrań',      duties:'prowadzenie sesji, gain staging jako abstrakcja, dobór mikrofonu, comping', stats:['recordingSkill','vocalSkill','clientHandling','speed'], share:0.34, rate:80,  max:2},
+  {id:'mix',        n:'Mix engineer',           duties:'edycja, miks, rewizje',                                                     stats:['mixSkill','translationSkill','revisionDiscipline'], share:0.36, rate:120, max:1},
+  {id:'mastering',  n:'Mastering engineer',     duties:'finalna kontrola i eksport',                                                stats:['masteringSkill','monitoringSkill','consistency'], share:0.38, rate:135, max:1},
+  {id:'assistant',  n:'Asystent',               duties:'przygotowanie sesji, kopia zapasowa, porządek i patching',                  stats:['reliability','technicalSupport','learning'], share:0.15, rate:25,  max:1},
+  {id:'manager',    n:'Studio manager',         duties:'rezerwacje, płatności, konflikty, obsada',                                  stats:['operationsSkill','negotiation','punctuality'], share:0.20, rate:70,  max:1},
+  {id:'tech',       n:'Technik',                duties:'instalacja, serwis, diagnoza awarii',                                       stats:['repairSkill','equipmentKnowledge'], share:0.22, rate:40,  max:1},
+  {id:'hospitality',n:'Sprzątanie / hospitality',duties:'przygotowanie przestrzeni i komfort klientów',                             stats:['cleanliness','serviceQuality'], share:0.10, rate:22,  max:1},
 ];
 window.syRole=function(id){ return window.SY_ROLES.find(r=>r.id===id)||null; };
+/* PDF 13.08 U14: ilu pracowników danej roli pracuje AKTUALNIE w tym lokalu. */
+window._syRoleCount=function(rid,roleId){
+  try{ window._syEnsure(); return (G.soundyard.staff||[]).filter(s=>s&&s.studioId===rid&&s.role===roleId).length; }catch(_){ return 0; }
+};
+/* PDF 13.08 U14: limit etatów danej roli na jeden lokal studyjny (2 dla realizatora, 1 dla reszty). */
+window._syRoleMax=function(roleId){ const r=window.syRole(roleId); return (r&&r.max)||1; };
 window._syHireStaff=function(rid,roleId,name){
   window._syEnsure(); const y=G.soundyard; const role=window.syRole(roleId);
   if(!role) return {ok:false,msg:'Nieznana rola.'};
   if(!window._syOwned(rid)) return {ok:false,msg:'Nie posiadasz tego lokalu.'};
+  /* PDF 13.08 U14: twardy limit etatów per rola i per lokal — koniec duplikowania obsady. */
+  const _have=window._syRoleCount(rid,roleId), _max=window._syRoleMax(roleId);
+  if(_have>=_max) return {ok:false,msg:'Masz już '+_have+'× '+role.n+' w tym lokalu. Limit na jeden lokal studyjny: '+_max+'.'};
   const s={employeeId:'sys'+y.staff.length+'_'+(G.day||0), role:roleId, name:name||(role.n+' '+(y.staff.length+1)),
     recordingSkill:40+Math.floor(Math.random()*35), mixingSkill:35+Math.floor(Math.random()*35),
     masteringSkill:30+Math.floor(Math.random()*35), clientHandling:40+Math.floor(Math.random()*40),
     reliability:50+Math.floor(Math.random()*40), fatigue:0,
-    /* Koszt pracownika jest UDZIAŁEM w stawce godzinowej lokalu, a nie sztywną kwotą. Inaczej obsługa
-       najmniejszego studia kosztowałaby więcej niż wynosi jego stawka i sesja zawsze schodziłaby do zera. */
-    hourlyCost:Math.max(40,Math.round(window._syRate(rid)*(role.share||0.3))), studioId:rid, activeSessionId:null};
+    /* PDF 13.08 U14: stawki są teraz KWOTAMI WPROST z dokumentu (80/120/135/25/70/40/22 zł/h),
+       a nie udziałem w stawce lokalu. `share` zostaje w danych roli jako wartość historyczna. */
+    hourlyCost:(role.rate||Math.max(40,Math.round(window._syRate(rid)*(role.share||0.3)))), studioId:rid, activeSessionId:null};
   y.staff.push(s);
   return {ok:true,msg:s.name+' dołącza do obsługi lokalu.',staff:s};
 };
@@ -19002,17 +19041,36 @@ window._syViewing=function(pid){
       <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
         ${owned?'<div style="flex:1;color:#7ec87e;font-size:12.5px;padding:8px">✅ Ten lokal już należy do Ciebie.</div>'
                :`<button class="bbtn" style="flex:1" ${(G.money||0)>=p.price?'':'disabled'} onclick="window._syBuyProperty('${p.id}')">Kup za ${p.price.toLocaleString('pl')} zł</button>`}
-        <button class="cbtn" style="flex:1" onclick="window._syWatch('${p.id}')">☆ Do obserwowanych</button>
-        <button class="cbtn" style="flex:1" onclick="renderBiuroNieruchomosci()">← Wróć</button>
+        <!-- PDF 13.08 U20: gwiazdka wypelniona na zolto, gdy oferta JEST obserwowana; ponowne
+             klikniecie odznacza i przywraca pusty symbol. Stan czytany z G.soundyard.watched. -->
+        <button class="cbtn" style="flex:1${window._syIsWatched(p.id)?';color:#f1c40f;border-color:#f1c40f':''}" onclick="window._syWatch('${p.id}')">${window._syIsWatched(p.id)?'★':'☆'} ${window._syIsWatched(p.id)?'Obserwowane':'Do obserwowanych'}</button>
+        <!-- PDF 13.08 U12: „Wroc" opuszcza panel ogledzin i wraca DO ROZGRYWKI. Wczesniej
+             podstawialo panel Biuro Nieruchomosci, ktorego gracz w tym miejscu nie otwieral. -->
+        <button class="cbtn" style="flex:1" onclick="window._syViewingBack()">← Wróć</button>
       </div>
     </div>`;
   if(typeof openOverlay==='function') openOverlay();
 };
+/* PDF 13.08 U20: jedno źródło prawdy o tym, czy oferta jest obserwowana. */
+window._syIsWatched=function(pid){
+  try{ window._syEnsure(); const w=G.soundyard&&G.soundyard.watched; return Array.isArray(w)&&w.indexOf(pid)>=0; }catch(_){ return false; }
+};
+/* PDF 13.08 U20: przycisk PRZEŁĄCZA obserwowanie (dodaj ↔ usuń) i od razu odświeża kartę,
+   żeby gwiazdka natychmiast zmieniła wygląd na żółtą/pustą. */
 window._syWatch=function(pid){
   window._syEnsure(); const y=G.soundyard;
   if(!Array.isArray(y.watched)) y.watched=[];
-  if(y.watched.indexOf(pid)<0) y.watched.push(pid);
-  if(typeof showMsg==='function') showMsg('☆ Lokal dodany do obserwowanych.','i',3500);
+  const i=y.watched.indexOf(pid);
+  if(i<0){ y.watched.push(pid); if(typeof showMsg==='function') showMsg('★ Lokal dodany do obserwowanych.','i',3200); }
+  else   { y.watched.splice(i,1); if(typeof showMsg==='function') showMsg('☆ Lokal usunięty z obserwowanych.','i',3200); }
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  if(typeof window._syViewing==='function') window._syViewing(pid);   /* przerysuj kartę = nowy stan gwiazdki */
+};
+/* PDF 13.08 U12: wyjście z oględzin DOWOLNEGO lokalu studyjnego (obecnego i przyszłego)
+   zamyka panel i oddaje sterowanie graczowi — bez podstawiania Biura Nieruchomości. */
+window._syViewingBack=function(){
+  if(typeof closeOverlay==='function') closeOverlay();
+  else { const ov=document.getElementById('overlay'); if(ov) ov.classList.remove('on'); }
 };
 /* §4.2 zakup tworzy instancję nieruchomości + voucher na obowiązkową konsultację bazową. */
 window._syBuyProperty=function(pid){
@@ -19030,7 +19088,12 @@ window._syBuyProperty=function(pid){
   if(typeof showMsg==='function') showMsg('🔑 Kupiłeś '+p.title+'. Lokal jest pusty — dostajesz voucher na obowiązkową konsultację bazową.','g',7000);
   if(typeof updateHUD==='function') updateHUD();
   if(typeof saveGameSilent==='function') saveGameSilent();
-  if(typeof renderBiuroNieruchomosci==='function') renderBiuroNieruchomosci();
+  /* PDF 13.08 B2 (zgłoszenie usera): po zakupie lokalu z oględzin gra podstawiała panel
+     „🏠 Biuro Nieruchomości" zamiast docelowego panelu kupionego studia. Teraz od razu
+     otwiera się panel TEGO lokalu (np. „🎚️ Studio M — Vocal Room"). Fallback na Biuro
+     zostaje tylko na wypadek braku panelu studia, żeby gracz nie utknął na pustym ekranie. */
+  if(typeof window._syStudioPanel==='function') window._syStudioPanel(p.roomId);
+  else if(typeof renderBiuroNieruchomosci==='function') renderBiuroNieruchomosci();
   return {ok:true};
 };
 /* [E] na budynku — karta lokalu (oględziny przed zakupem, panel po zakupie). */
@@ -19042,6 +19105,8 @@ window._syPropAct=function(pid){
 /* ── §8 SESSIONBOARD ─────────────────────────────────────────────────────────────────────────── */
 window._syAllStudios=function(){ return window.SY_COMPLEX_UNITS.concat(window.SY_EXTERNAL_UNITS).filter(rid=>window._syOwned(rid)); };
 window.renderSessionBoard=function(){
+  /* PDF 13.08 U3: bramka poradnika egzekwowana też w logice otwarcia aplikacji. */
+  if(!G._tutorialSeen && !!G._tutorial){ if(typeof showMsg==='function') showMsg('🎓 SessionBoard odblokujesz po ukończeniu podstawowego poradnika (8 kroków).','i',5200); return; }
   window._syEnsure();
   const ph=document.getElementById('ph-content'); if(!ph) return;
   document.getElementById('ph-title').textContent='🎚️ SessionBoard';
@@ -19335,7 +19400,9 @@ window._syConsultPanel=function(rid){
       <div style="color:#8fb8d8">${c.spec}</div>
       <div style="color:#9ab;font-size:11.5px;margin-top:3px">${c.scope}</div>
       <div class="pr" style="font-size:12px">${free?'<span style="color:#7ec87e">voucher (bezpłatnie)</span>':c.cost.toLocaleString('pl')+' zł'}</div>
-      <button class="bbtn" style="width:100%;margin-top:5px" onclick="window._syConsultBtn('${rid}','${c.id}')">Umów konsultację</button></div>`;
+      ${window._syConsultUsed(rid,c.id)
+        ? `<button class="bbtn" style="width:100%;margin-top:5px;opacity:.45;cursor:not-allowed" disabled>Przeprowadzono konsultację</button>`
+        : `<button class="bbtn" style="width:100%;margin-top:5px" onclick="window._syConsultBtn('${rid}','${c.id}')">Umów konsultację</button>`}</div>`;
   }).join('');
   el.innerHTML=`<h2>🧭 Konsultacje — ${(STUDIO_ROOMS[rid]||{}).name||rid}</h2>
     <p class="sub">Konsultant nie gwarantuje jakości. Ogranicza błędy projektowe i pomaga wykorzystać sprzęt zgodnie z metrażem.</p>
@@ -19415,7 +19482,11 @@ window._syStaffPanel=function(rid){
         Stawka: ${s.hourlyCost} zł/h ${s.activeSessionId?'<span style="color:#e8a020">· zajęty sesją</span>':'<span style="color:#7ec87e">· wolny</span>'}
       </div>`).join(''):'<div style="color:#9aa;font-size:12.5px;padding:8px 0">Brak obsady — bez realizatora studio nie przyjmie rezerwacji.</div>'}
       <h3 style="color:#7ec8e3;font-size:13px;margin:12px 0 6px">Zatrudnij</h3>
-      ${window.SY_ROLES.map(r=>`<button class="cbtn" style="width:100%;text-align:left;margin-bottom:5px;font-size:12px" onclick="window._syHireBtn('${rid}','${r.id}')">${r.n} — ${Math.max(40,Math.round(window._syRate(rid)*(r.share||0.3)))} zł/h<div style="font-size:11px;color:#8a939a">${r.duties}</div></button>`).join('')}
+      <!-- PDF 13.08 U14: stawki wprost z dokumentu + widoczny licznik etatow i blokada po limicie. -->
+      ${window.SY_ROLES.map(r=>{
+        const have=window._syRoleCount(rid,r.id), max=window._syRoleMax(r.id), full=have>=max;
+        return `<button class="cbtn" style="width:100%;text-align:left;margin-bottom:5px;font-size:12px${full?';opacity:.45;cursor:not-allowed':''}" ${full?'disabled':`onclick="window._syHireBtn('${rid}','${r.id}')"`}>${r.n} — ${r.rate} zł/h <span style="color:${full?'#e8a020':'#7ec87e'}">(${have}/${max})</span><div style="font-size:11px;color:#8a939a">${full?'Limit obsady tej roli w tym lokalu osiągnięty.':r.duties}</div></button>`;
+      }).join('')}
       <button class="cbtn" style="width:100%;margin-top:8px" onclick="window._syStudioPanel('${rid}')">← Wróć</button></div>`;
   if(typeof openOverlay==='function') openOverlay();
 };
@@ -44220,6 +44291,11 @@ window.buyCamper=function(modelId,source){
      i można się między nimi przesiadać. Trzeciego już nie kupimy. */
   if(!Array.isArray(c.garage)) c.garage=[];
   if(c.owned && c.garage.length>=1){ if(typeof showMsg==='function')showMsg('🚐 Masz już dwa kampery. Sprzedaj jednego, zanim kupisz kolejnego.','r',4500); return false; }
+  /* PDF 13.08 U16 / SWAPLY §4: poza limitem samych kamperów obowiązuje ŁĄCZNY limit floty (4). */
+  if(typeof window._vehCanAcquire==='function'){
+    const _chk=window._vehCanAcquire('camper');
+    if(!_chk.ok){ if(typeof showMsg==='function')showMsg('🚐 '+_chk.msg,'r',5500); return false; }
+  }
   if((G.money||0) < m.price){ if(typeof showMsg==='function')showMsg('Nie masz wystarczajaco gotowki (potrzeba '+m.price.toLocaleString('pl')+' zl).','r',4500); return false; }
   G.money -= m.price;
   /* U25: dotychczasowy kamper trafia do garażu (zachowuje stan, kamuflaż i historię zakupu). */
@@ -44329,7 +44405,10 @@ window.renderCamperShop=function(source,budget){
           <b style="font-size:15px;color:#d8c8a0">${(typeof carDisplayName==='function')?carDisplayName(o.name):o.name}</b>
           <span style="color:#e8a020;font-weight:700;white-space:nowrap">${o.price.toLocaleString('pl')} zł</span></div>
         <p style="font-size:11.5px;color:#9ab;margin:6px 0">Przebieg ${o.km.toLocaleString('pl')} km · stan <b style="color:${col}">${o.cond}%</b> · nowy w salonie ${(cc.price||0).toLocaleString('pl')} zł</p>
-        <button class="bbtn" style="width:100%" onclick="window._glBuyBtn('${o.id}');window.renderCamperShop('gravel','all')" ${(G.money||0)<o.price?'disabled':''}>Kup z placu</button>
+        <!-- PDF 13.08 U15: ten sam stan przycisku co w panelu placu — po zakupie „Zakupiono". -->
+        ${window._glHasLotCar()
+          ? `<button class="bbtn" style="width:100%;opacity:.45;cursor:not-allowed" disabled>Zakupiono</button>`
+          : `<button class="bbtn" style="width:100%" onclick="window._glBuyBtn('${o.id}');window.renderCamperShop('gravel','all')" ${(G.money||0)<o.price?'disabled':''}>Kup z placu</button>`}
       </div>`;
     };
     usedCarsSection=`<h3 style="color:#d8c8a0;font-size:14px;margin:16px 0 6px">🔧 Gravel Lot Motors — plac z używkami</h3>
@@ -46244,6 +46323,12 @@ window.buyCar=(name,speed,price)=>{
   const _carPrice=Math.floor(price*(1-_repDisc)*_holidayMult);
   // Jeśli ma już w garażu — przesiada się bez płacenia
   if(firstTime){
+    /* PDF 13.08 U16 / SWAPLY §4: limit floty sprawdzany PRZED pobraniem pieniędzy.
+       Przesiadka do auta już posiadanego limitu nie dotyczy — rośnie tylko realna flota. */
+    if(typeof window._vehCanAcquire==='function'){
+      const _chk=window._vehCanAcquire('car');
+      if(!_chk.ok){ if(typeof showMsg==='function') showMsg('🚗 '+_chk.msg,'r',6000); else notify('🚗 '+_chk.msg); return; }
+    }
     if(G.money<_carPrice){notify('Za mało pieniędzy!');return;}
     G.money-=_carPrice;
     G._ownedCars.push(name);
@@ -46926,10 +47011,16 @@ window._tryUnlockDistrict=(districtId)=>{
   if(G._unlockedDistricts.includes(districtId)){
     window._renderDistrictOverlay(districtId);return;
   }
+  /* PDF 13.08 „Błędy…" U5/U6/U7 (user — obniżenie progów wejścia do dzielnic):
+       • Underground: freestyle 20→6, wymóg SŁAWY całkowicie usunięty (fame:0),
+       • Business:   sława 300→50,
+       • Marina Coast: sława 200→50 ORAZ zarobki 150 000→50 000 zł.
+     ⚠️ Zmiana progów wymaga spójności w: podpowiedziach (smart hints), checkliście celów,
+     opisie „Dzielnice Miasta" w apce Mechaniki i tekstach SMS — sprawdzone i zsynchronizowane. */
   const REQS={
-    underground:{fame:50, freestyles:20, name:'🌑 Underground'}, /* v2.1.810 (user): freestyle 10→20 */
-    coast:{fame:200, totalEarned:150000, name:'🌊 Coast'},
-    business:{fame:300, name:'💼 Business'},
+    underground:{fame:0, freestyles:6, name:'🌑 Underground'}, /* v2.1.810: 10→20; PDF 13.08 U5: 20→6 + bez sławy */
+    coast:{fame:50, totalEarned:50000, name:'🌊 Coast'},       /* PDF 13.08 U7 */
+    business:{fame:50, name:'💼 Business'},                     /* PDF 13.08 U6 */
   };
   const req=REQS[districtId];
   if(!req){if(typeof showMsg==='function') showMsg('⚠️ Nieznana dzielnica','r');return;}
@@ -54558,7 +54649,9 @@ window._spEnsure=function(){
    ['lastMajorDealDay',-99],['lastVipSpawnDay',-99],['lastHostMessageDay',-99],
    ['lastMixerDay',-99],['lastPerformanceDay',-99],['lastSpecialSaturdayWeek',-99],
    ['scandalSignals',0],['networkingTriggerBonus',0],['vipSpawnBonus',0],
-   ['leadsCompleted',0],['leadsFailed',0],['connectionsMade',0],['mixersAttended',0]
+   ['leadsCompleted',0],['leadsFailed',0],['connectionsMade',0],['mixersAttended',0],
+   /* PDF 13.08 U27: ile ofert POD RZĄD gracz próbował negocjować (pamięć zachowań; save-safe default). */
+   ['negotiatedStreak',0]
   ].forEach(([k,d])=>{ if(typeof v[k]!=='number'||!isFinite(v[k])) v[k]=d; });
   if(v.bannedUntilDay!==null && (typeof v.bannedUntilDay!=='number'||!isFinite(v.bannedUntilDay))) v.bannedUntilDay=null;
   ['unlockedContacts','activeLeads','pendingReferrals'].forEach(k=>{ if(!Array.isArray(v[k])) v[k]=[]; });
@@ -55236,10 +55329,21 @@ window._spLeadDetail=function(id){
     <h2 style="margin:0 0 4px;color:#f0c060">📋 ${l.name}</h2>
     <div style="font-size:12px;color:#cfe4f2;background:#0a1c26;border-radius:8px;padding:10px;margin:8px 0;font-style:italic">${desc}</div>
     <div style="font-size:12px;color:#bcd8ec;margin-bottom:10px">💰 Stawka: <b>${(l.offerValue||0).toLocaleString('pl')} zł</b> · Ocena szans: <b style="color:${q>=60?'#7edc96':'#e0c060'}">${q}/100</b><br>Wymagania: sława ${l.requiredFame} · fani ${l.requiredFans.toLocaleString('pl')} · profesjonalizm ${l.requiredProfessionalism}</div>
+    <!-- PDF 13.08 U27: licznik prob negocjacji jest JAWNY, a po wyczerpaniu limitu (albo po
+         zamknieciu tematu przez NPC) oba przyciski targowania sa wyszarzone i nieklikalne. -->
+    ${(()=>{ const n=l.negotiations||0, max=window._SP_NEG_MAX;
+      const lock=l.negotiationLocked;
+      return `<div style="font-size:11.5px;color:${lock?'#e08080':(n>=max?'#e0c060':'#9fc4dc')};margin-bottom:8px">
+        ${lock?'🔒 NPC zamknął temat kwoty — możesz tylko przyjąć albo odrzucić.'
+              :`💬 Próby negocjacji: <b>${n}/${max}</b>${n>0?' · wynik bywa różny — stawka może pójść w górę albo w dół.':''}`}
+      </div>`; })()}
     <div style="display:flex;flex-direction:column;gap:7px">
       ${btn('✅ Przyjmij warunki','window._spAcceptLead(\''+l.id+'\')','#7edc96')}
-      ${btn('💬 Negocjuj większą stawkę','window._spNegotiateLead(\''+l.id+'\')','#e0c060')}
-      ${btn('🎨 Zaproponuj własny koncept','window._spCounterLead(\''+l.id+'\')','#7ec8e0')}
+      ${(()=>{ const g=window._spNegAllowed(l);
+        if(!g.ok) return `<button class="cbtn" style="text-align:left;color:#8a939a;border-color:#3a4248;opacity:.5;cursor:not-allowed" disabled>💬 Negocjuj większą stawkę — niedostępne</button>
+          <button class="cbtn" style="text-align:left;color:#8a939a;border-color:#3a4248;opacity:.5;cursor:not-allowed" disabled>🎨 Zaproponuj własny koncept — niedostępne</button>`;
+        return btn('💬 Negocjuj większą stawkę','window._spNegotiateLead(\''+l.id+'\')','#e0c060')+
+               btn('🎨 Zaproponuj własny koncept','window._spCounterLead(\''+l.id+'\')','#7ec8e0'); })()}
       ${btn('✖️ Odmów','window._spDeclineLead(\''+l.id+'\')','#c88')}
     </div>
   </div>`);
@@ -55274,27 +55378,74 @@ window._spAcceptLead=function(id){
     /* §43: niewywiązanie — kary + SMS */
     window._spFailLead(l);
   }
+  /* PDF 13.08 U27: pamięć zachowań — oferta domknięta PO negocjacjach przedłuża serię, oferta
+     przyjęta bez targowania ją zeruje. To ta seria decyduje o karnej obniżce przy trzeciej z rzędu. */
+  if((l.negotiations||0)>0) v.negotiatedStreak=(v.negotiatedStreak||0)+1;
+  else v.negotiatedStreak=0;
   v.activeLeads=v.activeLeads.filter(x=>x.id!==id);
   _spSave();
   window._spLeadsPanel();
 };
-window._spNegotiateLead=function(id){
+/* ═══ PDF 13.08 „Błędy…" U27 — OGRANICZNIK NEGOCJACJI W SUNSET PALMS ══════════════════════════
+   Wymagania usera, wdrożone 1:1:
+   • „Negocjuj większą stawkę" i „Zaproponuj własny koncept" łącznie MAX 3 razy na jedną ofertę;
+   • wynik jest niepewny — stawka rośnie o 5–10% ALBO spada o 5% (bo gracz dostał już najlepszą
+     możliwą propozycję i naciska ponad miarę);
+   • system PAMIĘTA zachowanie gracza: po dwóch negocjowanych ofertach POD RZĄD kolejna próba
+     kończy się obniżką 5–8% i zamyka możliwość dalszego podbijania — zostaje przyjąć albo odrzucić.
+   Licznik `negotiations` żyje na ofercie, a `negotiatedStreak` na stanie modułu (przeżywa zapis). */
+window._SP_NEG_MAX=3;
+window._spNegAllowed=function(l){
+  const v=window._spEnsure();
+  if((l.negotiations||0)>=window._SP_NEG_MAX) return {ok:false, why:'Limit trzech prób negocjacji dla tej oferty wyczerpany. Zostaje przyjąć warunki albo odmówić.'};
+  if(l.negotiationLocked) return {ok:false, why:'Po ostatniej rozmowie NPC zamknął temat kwoty. Możesz przyjąć finalną ofertę albo odrzucić.'};
+  return {ok:true};
+};
+/* wspólny rdzeń dla obu przycisków negocjacyjnych — jeden licznik, jedna pamięć zachowań */
+window._spNegotiateCore=function(id, kind){
   const v=window._spEnsure(); const l=v.activeLeads.find(x=>x.id===id); if(!l) return;
+  if(l.negotiations==null) l.negotiations=0;
+  const gate=window._spNegAllowed(l);
+  if(!gate.ok){ _spMsg('🚫 '+gate.why,'r',5200); window._spLeadDetail(id); return; }
+  l.negotiations++;
+  const streak=v.negotiatedStreak||0;
+  /* PAMIĘĆ: dwie negocjowane oferty pod rząd → ta próba już tylko obniża i kończy targowanie */
+  if(streak>=2){
+    const cut=Math.round(l.offerValue*(0.05+Math.random()*0.03));   /* 5–8% */
+    l.offerValue=Math.max(1,l.offerValue-cut);
+    l.negotiationLocked=true;
+    _spRelation(l.sourceNpcId,-1);
+    _spMsg(`💬 NPC pamięta, że targujesz się przy każdej ofercie. Stawka spada o ${cut.toLocaleString('pl')} zł i temat kwoty jest zamknięty — przyjmij albo odrzuć.`,'r',6500);
+    _spSave(); window._spLeadDetail(id); return;
+  }
+  /* zwykła próba: wzrost 5–10% albo obniżka 5% (gracz nie ma pewności, co się stanie) */
   const chance=35+_spProf()*2+(v.localBusinessTrust||0)*2;
-  if(Math.random()*100<chance){ const bump=Math.round(l.offerValue*(0.10+Math.random()*0.20)); l.offerValue+=bump; _spMsg(`💬 Wynegocjowałeś wyższą stawkę: +${bump.toLocaleString('pl')} zł.`,'g',4500); }
-  else { l.reputationRisk=_spClamp(l.reputationRisk+5,0,100); _spRelation(l.sourceNpcId,-1); _spMsg('💬 NPC nie ustąpił i lekko się usztywnił. Warunki bez zmian, trochę chłodniej.','i',4500); }
+  const bonusRoll=(kind==='concept')?((v.beachReputation||0)+(v.socialReading||0)>=6?12:0):0;
+  if(Math.random()*100 < chance+bonusRoll){
+    const bump=Math.round(l.offerValue*(0.05+Math.random()*0.05));  /* +5…10% */
+    l.offerValue+=bump;
+    if(kind==='concept') l.legitimacy=_spClamp((l.legitimacy||0)+5,0,100);
+    _spMsg(`${kind==='concept'?'🎨':'💬'} Udało się — stawka rośnie o ${bump.toLocaleString('pl')} zł.`,'g',4500);
+  } else {
+    const cut=Math.round(l.offerValue*0.05);                        /* −5% */
+    l.offerValue=Math.max(1,l.offerValue-cut);
+    l.reputationRisk=_spClamp((l.reputationRisk||0)+(kind==='concept'?10:5),0,100);
+    _spRelation(l.sourceNpcId,-1);
+    _spMsg(`${kind==='concept'?'🎨':'💬'} Dostałeś już najlepszą propozycję, jaką mieli. Naciskanie kosztowało ${cut.toLocaleString('pl')} zł.`,'i',5200);
+  }
+  if((l.negotiations||0)>=window._SP_NEG_MAX) _spMsg('ℹ️ To była trzecia i ostatnia próba negocjacji tej oferty.','i',4200);
   _spSave(); window._spLeadDetail(id);
 };
-window._spCounterLead=function(id){
-  const v=window._spEnsure(); const l=v.activeLeads.find(x=>x.id===id); if(!l) return;
-  /* własny koncept — wyższy upside gdy autentyczność (reputacja/social) wysoka, inaczej ryzyko „sztuczności" */
-  const auth=(v.beachReputation||0)+(v.socialReading||0);
-  if(auth>=6){ l.offerValue=Math.round(l.offerValue*1.15); l.legitimacy=_spClamp(l.legitimacy+5,0,100); _spMsg('🎨 Twój koncept trafił — NPC podniósł wartość i zaufanie.','g',4500); }
-  else { l.reputationRisk=_spClamp(l.reputationRisk+10,0,100); _spMsg('🎨 Koncept zabrzmiał zbyt „na siłę" — wzrosło ryzyko odbioru jako sztuczny.','i',4500); }
-  _spSave(); window._spLeadDetail(id);
-};
+window._spNegotiateLead=function(id){ window._spNegotiateCore(id,'rate'); };
+window._spCounterLead=function(id){ window._spNegotiateCore(id,'concept'); };
 window._spDeclineLead=function(id){
-  const v=window._spEnsure(); v.activeLeads=v.activeLeads.filter(x=>x.id!==id);
+  const v=window._spEnsure();
+  /* PDF 13.08 U27: odrzucenie po targowaniu też liczy się do serii — NPC pamięta styl rozmowy.
+     Oferta zamknięta BEZ negocjacji przerywa serię, bo „dwie negocjowane oferty pod rząd" musi
+     naprawdę oznaczać pod rząd. */
+  { const _l=v.activeLeads.find(x=>x.id===id);
+    if(_l){ if((_l.negotiations||0)>0) v.negotiatedStreak=(v.negotiatedStreak||0)+1; else v.negotiatedStreak=0; } }
+  v.activeLeads=v.activeLeads.filter(x=>x.id!==id);
   _spMsg('✖️ Odmówiłeś. Bez urazy — na Coast odmowa jest OK, cisza po „tak" już nie.','f',3800);
   _spSave(); window._spLeadsPanel();
 };
@@ -62965,7 +63116,20 @@ window._glEnsure=function(){
   if(g.day==null) g.day=-1;
   if(!Array.isArray(g.stock)) g.stock=[];
   if(!Array.isArray(g.bought)) g.bought=[];
+  if(g.ownedFromLot===undefined) g.ownedFromLot=null; /* PDF 13.08 U17: która używka z placu jest aktualnie w rękach gracza */
   return g;
+};
+/* PDF 13.08 U15/U17: czy gracz ma już auto kupione na tym placu.
+   Limit brzmi: JEDNA używka osobowa z Gravel Lot naraz — po kolejną można przyjść dopiero,
+   gdy poprzednia zniknie z rąk gracza (sprzedaż na Swaply albo rozbiórka w Metal Valley Yard;
+   plac swoich aut NIE odkupuje — patrz U16). */
+window._glHasLotCar=function(){
+  const g=window._glEnsure();
+  if(!g.ownedFromLot) return false;
+  const owned=Array.isArray(G._ownedCars)&&G._ownedCars.indexOf(g.ownedFromLot)>=0;
+  const active=!!(G.car&&G.car.name===g.ownedFromLot);
+  if(!owned&&!active){ g.ownedFromLot=null; return false; }   /* pojazd zniknął → limit zwolniony */
+  return true;
 };
 /* Deterministyczny generator na dobę — ta sama oferta po zapisie i wczytaniu. */
 window._glRng=function(seed){ let x=(seed>>>0)||1;
@@ -63017,10 +63181,41 @@ window._glRefresh=function(force){
   g.stock=picked; g.day=day;
   return g.stock;
 };
+/* ═══ PDF 13.08 „Błędy…" B5 — MIEJSCE POSTOJU POJAZDU KUPIONEGO W GRAVEL LOT MOTORS ═════════════
+   Zgłoszenie usera: „zakupiony pojazd pojawia się bezpośrednio na warstwie gracza lub pod nim,
+   co utrudnia poruszanie się pieszo, bądź innym pojazdem, którym gracz akurat przyjechał".
+   ROOT CAUSE: zakup ustawiał `G._inCar=true`, czyli wsadzał gracza do auta dokładnie tam, gdzie
+   stał — auto materializowało się na jego pozycji (a od v2.3.131 jest bryłą fizyczną, więc
+   dodatkowo blokowało pojazd, którym przyjechał).
+   FIX wg wskazania usera: pojazd staje PO LEWEJ STRONIE lokalu, 3–5 m od bryły budynku, a gracz
+   zostaje tam, gdzie był, i musi do auta podejść. Dotyczy KAŻDEGO pojazdu kupionego na placu,
+   niezależnie od typu i pochodzenia. Skala świata: auto ma 54 px przy realnych ~4,5 m,
+   więc 1 m ≈ 12 px → odsunięcie 48 px = ok. 4 m. */
+window._glParkSpot=function(kind){
+  const B=(ROOMS.underground&&ROOMS.underground.objects||[]).find(o=>o.id==='gravellot_underground');
+  /* środek docelowy: 4 m w lewo od lewej krawędzi hali, na wysokości jej środka */
+  const cx=(B?B.wx:900)-48, cy=(B?(B.wy+B.h/2):1015);
+  const base={wx:Math.round(cx-(typeof P!=='undefined'?P.w:28)/2), wy:Math.round(cy-(typeof P!=='undefined'?P.h:44)/2), room:'underground'};
+  /* jeśli miejsce zajęte (np. stoi tam już drugi pojazd gracza) — szukaj wolnego OBOK, dalej w lewo */
+  if(currentRoom==='underground' && typeof window._vehCollidesAt==='function'){
+    if(!window._vehCollidesAt(base.wx,base.wy)) return base;
+    for(let d=28; d<=180; d+=28){
+      for(const c of [{x:-d,y:0},{x:0,y:-d},{x:0,y:d},{x:-d,y:-d},{x:-d,y:d}]){
+        const tx=base.wx+c.x, ty=base.wy+c.y;
+        if(!window._vehCollidesAt(tx,ty)) return {wx:tx, wy:ty, room:'underground'};
+      }
+    }
+  }
+  return base;
+};
 window._glBuy=function(offerId){
   const g=window._glEnsure();
   const o=g.stock.find(x=>x.id===offerId);
   if(!o) return {ok:false,msg:'Tej sztuki już nie ma na placu.'};
+  /* PDF 13.08 U17: jedna używka z placu naraz. */
+  if(window._glHasLotCar()) return {ok:false,msg:'Masz już auto z tego placu. Korek nie odkupuje własnych sztuk — sprzedaj je na Swaply albo oddaj do Metal Valley Yard, wtedy wrócimy do rozmowy.'};
+  /* PDF 13.08 U16: łączny limit floty gracza (2 osobowe + 2 kampery, max 4). */
+  if(typeof window._vehCanAcquire==='function'){ const chk=window._vehCanAcquire('car'); if(!chk.ok) return {ok:false,msg:chk.msg}; }
   if((G.money||0)<o.price) return {ok:false,msg:`Za mało pieniędzy — potrzebujesz ${o.price.toLocaleString('pl')} zł.`};
   const cc=CAR_CATALOG.find(c=>c.name===o.name);
   if(!cc) return {ok:false,msg:'Korek nie może znaleźć dokumentów tego auta.'};
@@ -63034,11 +63229,15 @@ window._glBuy=function(offerId){
   /* v2.3.131 (PDF Uspr v2.3.130 U36): używka przyjeżdża w SWOIM kolorze — jednym, ustalonym dla tej sztuki. */
   G._carCond[o.name]={cond:o.cond,color:o.color||(G._carCond[o.name]||{}).color||null};
   G.car={name:o.name,speed:cc.speed,price:cc.price,condition:o.cond,color:o.color||(G._carCond[o.name]||{}).color||undefined};
-  G._inCar=true;
+  /* PDF 13.08 B5: gracz NIE ląduje w aucie — auto staje po lewej stronie placu, 3–5 m od hali. */
+  G._inCar=false;
+  G._carParkedAt=window._glParkSpot('car');
   g.stock=g.stock.filter(x=>x.id!==offerId);
   g.bought.push({name:o.name,day:G.day||1,price:o.price,cond:o.cond});
+  /* PDF 13.08 U17: znacznik „mam używkę z placu" — do limitu jednej sztuki naraz. */
+  g.ownedFromLot=o.name;
   const disp=(typeof carDisplayName==='function')?carDisplayName(o.name):o.name;
-  if(typeof notify==='function') notify(`🚗 ${disp} z drugiej ręki — stan ${o.cond}%. Serwis w Garage 77 doprowadzi go do porządku.`);
+  if(typeof notify==='function') notify(`🚗 ${disp} z drugiej ręki — stan ${o.cond}%. Auto czeka po LEWEJ stronie placu, kilka metrów od hali — podejdź i naciśnij [V].`);
   if(typeof updateHUD==='function') updateHUD();
   if(typeof window._vehStateEnsure==='function'){ try{ window._vehStateEnsure(); }catch(e){} }
   return {ok:true,msg:`Kupione: ${disp} za ${o.price.toLocaleString('pl')} zł (stan ${o.cond}%).`};
@@ -63058,7 +63257,10 @@ window._glUsedPanel=function(){
       <p style="font-size:11px;color:#9ab">Lakier: <span style="display:inline-block;width:12px;height:12px;background:${o.color||'#3a3a3a'};border:1px solid #555;border-radius:3px;vertical-align:middle"></span> <b>${o.colorName||'nieokreślony'}</b> <span style="color:#667">(jedyny egzemplarz w tym kolorze)</span></p>
       <p style="font-size:10px;color:#667">Nowy w salonie: ${(cc.price||0).toLocaleString('pl')} zł</p>
       <div class="pr" style="color:#d8c8a0">${o.price.toLocaleString('pl')} zł</div>
-      <button class="bbtn" style="width:100%;font-size:11px;padding:6px" onclick="window._glBuyBtn('${o.id}')" ${(G.money||0)<o.price?'disabled':''}>Kup z placu</button>
+      <!-- PDF 13.08 U15: po zakupie przycisk jest szary, nieklikalny i nazywa sie „Zakupiono". -->
+      ${window._glHasLotCar()
+        ? `<button class="bbtn" style="width:100%;font-size:11px;padding:6px;opacity:.45;cursor:not-allowed" disabled>Zakupiono</button>`
+        : `<button class="bbtn" style="width:100%;font-size:11px;padding:6px" onclick="window._glBuyBtn('${o.id}')" ${(G.money||0)<o.price?'disabled':''}>Kup z placu</button>`}
     </div>`;
   };
   document.getElementById('ov-content').innerHTML=`
@@ -63081,6 +63283,58 @@ window._glBuyBtn=function(id){
   window._glUsedPanel();
   const e=document.getElementById('gl-res'); if(e) e.textContent=r.msg;
 };
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VEHICLE OWNERSHIP MODULE START
+   PDF 13.08 „Błędy…" U16 + PDF „SWAPLY VEHICLE MARKETPLACE" §4:
+     • maks. 2 samochody osobowe, maks. 2 kampery, ŁĄCZNIE maks. 4 pojazdy;
+     • JEDNO źródło prawdy o własności — salony, komis i Swaply pytają ten serwis,
+       zamiast liczyć pojazdy własnymi licznikami (§22 „Źródło prawdy");
+     • aktywne ogłoszenie na Swaply NIE zwalnia slotu — pojazd wciąż należy do gracza,
+       dopóki sprzedaż nie zostanie sfinalizowana (§4);
+     • migracja legacy (§23): stary zapis ponad limitem NIE traci pojazdów — blokujemy
+       wyłącznie dalsze zakupy do czasu zejścia poniżej progu.
+   ═══════════════════════════════════════════════════════════════════════════ */
+window.VEHICLE_LIMITS={car:2, camper:2, combined:4};
+/* Lista posiadanych samochodów osobowych — aktywny + garaż, bez duplikatów. */
+window._vehOwnedCarNames=function(){
+  const out=[]; const seen={};
+  if(Array.isArray(G._ownedCars)) G._ownedCars.forEach(n=>{ if(n&&!seen[n]){seen[n]=1;out.push(n);} });
+  if(G.car&&G.car.name&&!seen[G.car.name]){ seen[G.car.name]=1; out.push(G.car.name); }
+  return out;
+};
+window._vehCountCars=function(){ return window._vehOwnedCarNames().length; };
+window._vehCountCampers=function(){
+  const c=G.camper; if(!c||!c.owned) return Array.isArray(c&&c.garage)?c.garage.length:0;
+  return 1+(Array.isArray(c.garage)?c.garage.length:0);
+};
+window._vehCountAll=function(){ return window._vehCountCars()+window._vehCountCampers(); };
+/* §4: czy gracz może nabyć KOLEJNY pojazd danej klasy. Zwraca {ok,msg,code}. */
+window._vehCanAcquire=function(kind){
+  const L=window.VEHICLE_LIMITS;
+  const cars=window._vehCountCars(), campers=window._vehCountCampers();
+  if(kind==='car' && cars>=L.car)
+    return {ok:false, code:'CAR_LIMIT_REACHED', msg:'Masz już '+cars+' samochody osobowe — to maksimum. Sprzedaj jeden na Swaply albo oddaj do Metal Valley Yard, żeby zrobić miejsce.'};
+  if(kind==='camper' && campers>=L.camper)
+    return {ok:false, code:'CAMPER_LIMIT_REACHED', msg:'Masz już '+campers+' kampery — to maksimum. Sprzedaj jednego na Swaply albo oddaj do Metal Valley Yard.'};
+  if((cars+campers)>=L.combined)
+    return {ok:false, code:'COMBINED_LIMIT_REACHED', msg:'Twoja flota liczy '+(cars+campers)+' pojazdy — łączny limit to '+L.combined+'. Najpierw pozbądź się któregoś.'};
+  return {ok:true, code:'OK', msg:''};
+};
+/* §23 „Krytyczna migracja limitu": stary zapis ponad limitem zachowuje pojazdy.
+   Nic nie kasujemy — odnotowujemy tylko fakt, żeby UI mogło to uczciwie wytłumaczyć. */
+window._vehLegacyOverCap=function(){
+  const L=window.VEHICLE_LIMITS;
+  return window._vehCountCars()>L.car || window._vehCountCampers()>L.camper || window._vehCountAll()>L.combined;
+};
+/* Czytelne podsumowanie floty — używane w panelach salonów i w Swaply. */
+window._vehFleetSummary=function(){
+  const L=window.VEHICLE_LIMITS;
+  return {cars:window._vehCountCars(), campers:window._vehCountCampers(), all:window._vehCountAll(),
+          maxCars:L.car, maxCampers:L.camper, maxAll:L.combined, overCap:window._vehLegacyOverCap()};
+};
+/* ═══════════════════ VEHICLE OWNERSHIP MODULE END ═══════════════════════════ */
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -66120,7 +66374,7 @@ window.buyApartment=(id,cost)=>{
   if(G._ownedApts.includes(id)){notify(`🏠 Już posiadasz ${CFG.APT_NAMES[id]||id} — bonus aktywny gdy to twoje najlepsze mieszkanie.`);return;}
   /* v2.3.117 (PDF Uspr115): blokada zakupu nieruchomości przy aktywnym długu chwilówki > 35 tys. zł — niezależnie od posiadanych środków. */
   const _paraDebt=(G.parabank&&typeof G.parabank.loan==='number')?G.parabank.loan:0;
-  if(_paraDebt>35000){showMsg(`🚫 Masz aktywny dług w Parabanku: ${_paraDebt.toLocaleString('pl')} zł. Nie kupisz nieruchomości, dopóki dług przekracza 35 000 zł — najpierw spłać go poniżej tego progu.`,'r',6500);return;}
+  if(_paraDebt>35000){showMsg(`🚫 Masz aktywny dług w SwiftCredit Group: ${_paraDebt.toLocaleString('pl')} zł. Nie kupisz nieruchomości, dopóki dług przekracza 35 000 zł — najpierw spłać go poniżej tego progu.`,'r',6500);return;}
   // Wymagania sprawdzamy zawsze (poziom/fanów/sławy)
   const req=APT_REQS[id]||{};
   if(req.level && G.level<req.level){showMsg(`🔒 Wymagany poziom ${req.level} (masz ${G.level}).`,'r');return;}
@@ -70389,6 +70643,10 @@ function startFreestyleMG(){
     if(_fsBoost>1){ score=Math.floor(score*_fsBoost); }
     /* v2.3.108 (PDF #12): dzień/godzina → wynik freestyle. Poza oknem optymalnym -30% (×0.70), weekend +15% (×1.15).
        Nakładane na score PRZED nagrodami i progiem — wszystkie efekty (rep/fani/kasa/ocena) skalują się razem. */
+    /* PDF 13.08 „Błędy…" U8 (user): przez 5 s po zakończeniu freestyle'u Dziennik aktywności
+       ([O]) jest zablokowany. Powód ze zgłoszenia: ostatnia litera hasła bywa „O", a jej
+       naciśnięcie tuż przed końcem sesji wyrzucało graczowi Dziennik na ekran zaraz po wyniku. */
+    window._fsJournalBlockUntil=Date.now()+5000;
     const _fsTimeBase=score;
     const _fsMod=(typeof _publicActivityScore==='function')?_publicActivityScore('freestyle',score):{finalScore:score,timeModifier:1,weekendModifier:1,isOptimal:true,isWeekend:false};
     score=_fsMod.finalScore;
@@ -75577,6 +75835,61 @@ window._vehExitKeepFacing=function(kind){
   if(kind==='camper'){ if(G._camperParkedAt) G._camperParkedAt.dir=d; }
   else { if(G._carParkedAt) G._carParkedAt.dir=d; }
 };
+/* ═══ PDF 13.08 „Błędy…" B4 — WYJŚCIE Z POJAZDU OBOK, NIE NA NIM ═══════════════════════════════
+   Zgłoszenie usera: „po wyjściu z dowolnego typu pojazdu gracz jest unieruchomiony w obiekcie
+   pojazdu, co uniemożliwia dalszą rozgrywkę".
+   ROOT CAUSE: w v2.3.131 zaparkowany pojazd gracza stał się bryłą FIZYCZNĄ
+   (`_otherOwnedVehicleRects` → lista kolizji w updatePlayer). Wyjście parkowało pojazd
+   DOKŁADNIE na pozycji gracza (`{wx:P.wx, wy:P.wy}`), więc w tej samej klatce wokół postaci
+   pojawiał się solidny prostokąt 54×30 (auto) / 62×38 (kamper) w pełni ją obejmujący —
+   kolizja w OBU osiach blokowała każdy kierunek ruchu. To ta sama klasa błędu co statyczne
+   punkty wyjścia z v2.3.110/v2.3.130: pozycja liczona bez sprawdzenia, co w niej stoi.
+   FIX: pojazd zostaje tam, gdzie go zatrzymano, a GRACZ jest odsuwany na wolne miejsce obok —
+   najpierw od strony kierowcy (w lewo względem kierunku jazdy), potem prawo/tył/przód,
+   a w ostateczności spirala. Dystans dobrany tak, by postać wyszła poza bryłę pojazdu, ale
+   została w promieniu ponownego wsiadania (80 px), więc od razu widzi „[V] Wsiądź". */
+window._vehCollidesAt=function(wx,wy){
+  try{
+    const room=ROOMS[currentRoom]; if(!room||!Array.isArray(room.objects)) return false;
+    const pw=P.w,ph=P.h; let list=[];
+    if(currentRoom==='ulica'){
+      list=room.objects.filter(o=>o.w>60&&o.h>60&&!o.id.startsWith('npc_')&&['bench','bench2','pond','skate','bboying','save','wardrobe','apt_cust','phone_home','freestyle_spot','parking'].indexOf(o.id)<0);
+      if(typeof DB_DECORATIVE!=='undefined') list=list.concat(DB_DECORATIVE);
+    } else {
+      list=room.objects.filter(o=>o.solid);
+    }
+    const _po=room.objects.find(o=>o.id==='parking');
+    if(_po&&typeof window._parkingCarRects==='function') list=list.concat(window._parkingCarRects(_po));
+    if(typeof window._otherOwnedVehicleRects==='function') list=list.concat(window._otherOwnedVehicleRects());
+    if(wx<0||wy<62||wx>room.wT*T-pw||wy>room.hT*T-ph-8) return true;
+    for(const b of list){ if(wx<b.wx+b.w&&wx+pw>b.wx&&wy<b.wy+b.h&&wy+ph>b.wy) return true; }
+    return false;
+  }catch(_){ return false; }
+};
+/* Znajdź wolny punkt obok właśnie zaparkowanego pojazdu. Wywoływane PO ustawieniu pozycji
+   postoju, żeby świeżo dodana bryła pojazdu też była brana pod uwagę w teście kolizji. */
+window._vehStepOutBeside=function(kind){
+  const dir=(typeof P!=='undefined'&&typeof P.dir==='number')?P.dir:0;
+  const gap=(kind==='camper')?52:46;               /* poza bryłę pojazdu, wciąż < 80 px = zasięg wsiadania */
+  /* wektory: 0=góra,1=prawo,2=dół,3=lewo (ten sam przelicznik co przy rysowaniu pojazdu) */
+  const V=[{x:0,y:-1},{x:1,y:0},{x:0,y:1},{x:-1,y:0}];
+  const left=V[(dir+3)%4], right=V[(dir+1)%4], back=V[(dir+2)%4], fwd=V[dir%4];
+  const order=[left,right,back,fwd];
+  const bx=P.wx, by=P.wy;
+  for(const v of order){
+    const tx=Math.round(bx+v.x*gap), ty=Math.round(by+v.y*gap);
+    if(!window._vehCollidesAt(tx,ty)){ P.wx=tx; P.wy=ty; return true; }
+  }
+  /* spirala ratunkowa — gdyby wszystkie cztery strony były zastawione */
+  for(let r=gap; r<=200; r+=14){
+    for(let a=0;a<360;a+=20){
+      const rad=a*Math.PI/180;
+      const tx=Math.round(bx+Math.cos(rad)*r), ty=Math.round(by+Math.sin(rad)*r);
+      if(!window._vehCollidesAt(tx,ty)){ P.wx=tx; P.wy=ty; return true; }
+    }
+  }
+  return false;
+};
 window._vehExitVehicle=function(kind){
   const st=window._vehGet(kind); st.engineOn=false; st.engineStartedThisSession=false; st.engineStoppedAfterDrive=false; st.seatbeltOn=false; /* §15: pasy auto-odpięte przy wyjściu */
   const _pdir=(typeof P!=='undefined'&&typeof P.dir==='number')?P.dir:0;/* U4: zapamiętaj ustawienie pojazdu */
@@ -75587,6 +75900,9 @@ window._vehExitVehicle=function(kind){
     const _ex=(G.gender==='f')?'Wyszłaś z pojazdu':'Wyszedłeś z pojazdu';
     if(typeof window._subtleMsg==='function') window._subtleMsg('🚶 '+_ex); else if(typeof showMsg==='function') showMsg('🚶 '+_ex,'i',3000);
   }
+  /* PDF 13.08 B4: dopiero TERAZ, gdy pojazd ma już swoją pozycję postoju (i tym samym bryłę
+     kolizji), odsuwamy gracza obok niego. Bez tego postać zostawała zamknięta w pojeździe. */
+  if(typeof window._vehStepOutBeside==='function') window._vehStepOutBeside(kind);
 };
 /* cykl akcji WEWNĄTRZ pojazdu (PDF §18). engineOn→zgaś (gdy stoi); engine-off → krótkie/długie (start/wyjście). */
 window._vehCycleInside=function(kind, isRepeat){
@@ -75673,13 +75989,16 @@ function _getPhoneFolders(){
       _phApp('⬢','NOX Route','#06080c','#1ad9c0',"renderNoxApp()", _tutLock, _tutLockMsg),
       /* v2.3.102 (PDF #7): S9 Agency (Signal Nine) — agencja marketingowa. Widoczna od początku; klik → panel z wymaganiami dopóki nie spełnisz warunków (singiel/freestyle/posty). */
       /* PDF SOUNDYARD §8: aplikacja SessionBoard obejmuje WSZYSTKIE studia gracza, także te poza kompleksem. */
-      _phApp('🎚️','SessionBoard','#0a1a16','#2ecc71',"renderSessionBoard()"),
+      /* PDF 13.08 U3: SessionBoard wyszarzony i niedostępny do ukończenia 8-krokowego poradnika
+         nowej gry (ten sam wzorzec blokady co Wytwórnia / S9 Agency / NOX Route). */
+      _phApp('🎚️','SessionBoard','#0a1a16','#2ecc71',"renderSessionBoard()", _tutLock, _tutLockMsg),
       _phApp('📡','S9 Agency','#0a1420','#3498db',"(function(){var p=document.getElementById('phone');if(p&&p.classList.contains('on')&&typeof togglePhone==='function')togglePhone();if(typeof window.renderS9Agency==='function')window.renderS9Agency();})()", _tutLock, _tutLockMsg),
     ]},
     finance:{em:'💰',label:'Finanse',preview:['🏦','💸','💰','📈'],apps:[
       _phApp('🏦','Bank','#12100a','#f1c40f',"renderPhoneApp('bank')"),
       /* v2.1.921 (PDF — alt-banki): Parabank/chwilówka — szybka pożyczka z gorszymi warunkami. Zawsze widoczny (opcja awaryjna). */
-      _phApp('🏧',`Parabank${G.parabank&&G.parabank.loan>0?' ⚠':''}`,'#1a0a0a','#e67e22',"renderPhoneApp('parabank')"),
+      /* PDF 13.08 U4: kafelek aplikacji pod nową nazwą własną (klucz apki bez zmian). */
+      _phApp('🏧',`SwiftCredit${G.parabank&&G.parabank.loan>0?' ⚠':''}`,'#1a0a0a','#e67e22',"renderPhoneApp('parabank')"),
       _phApp('💸',`Rachunki${G.bills?.pending?.length>0?' ('+G.bills.pending.length+')':''}`,'#1a0a0a','#e74c3c',"renderPhoneApp('bills')"),
       /* v2.1.252: Pasywne dochody apka (PLAN_NOC Faza 24) — konsolidacja źródeł (Loopify/AurumWave/Radio/Merch/Bank/Rentals) z /tick i /dzień + szacowany dzienny. */
       _phApp('💰','Pasywne dochody','#0a1a0a','#27ae60',"renderPhonePassive()"),
@@ -75733,7 +76052,9 @@ function _getPhoneFolders(){
       /* v2.1.348 Faza AD: Mechaniki z top-level shortcuts → Pomoc folder. */
       _phApp('📖','Mechaniki','#0a1f25','#00bcd4',"renderPhoneMechanics(true)"),
       _phApp('💡','Wskazówki','#100c02','#f1c40f',"renderHintHistory()"),
-      _phApp('⌨️','Sterowanie','#0a1525','#7ec8e3',"closePhone();showHelp()"),
+      /* PDF 13.08 U11: zapamiętujemy, że panel otwarto z telefonu — przycisk „Powrót" ma wtedy
+         wrócić do rozgrywki i pokazać folder Pomoc, a nie wyrzucić gracza do menu gry. */
+      _phApp('⌨️','Sterowanie','#0a1525','#7ec8e3',"window._helpFromPhone=true;closePhone();showHelp()"),
       _phApp('🎥','Przelot po mieście','#0a1a3a','#3498db',"closePhone();window.openCinematicFlythrough()"),
       /* v2.1.106: Patch Notes phone app (Wave 6 K51 ghost app — wcześniej PATCH_NOTES const z 444+ wpisami istniała ale brak phone app) */
       _phApp('📋','Patch Notes','#0a151a','#9b59b6',"window.renderPhonePatchNotes&&window.renderPhonePatchNotes()"),
@@ -76778,7 +77099,10 @@ function renderPhoneApp(app){
         ${G.managementDeal?'<div style="font-size:12px;color:#7ec87e;margin-top:4px">Menadżer aktywny: x1.2 zarobki</div>':''}
       </div>
       ${G.bank.loan>0?`<div style="background:#1a0a0a;border-radius:8px;padding:12px;margin-bottom:10px"><div style="color:#e74c3c;font-size:14px">Kredyt: ${G.bank.loan} zł do spłaty</div><button class="bbtn" onclick="repayLoan()" style="margin-top:8px">Spłać 100 zł</button></div>`:''}
-      <button class="bbtn" onclick="takeLoan()" style="margin-bottom:10px" ${G.bank.loan>0?'disabled':''}>💳 Weź kredyt (1000 zł, 1200 zł do spłaty + 1%/dzień odsetek)</button> <!-- v2.1.133 -->
+      <!-- PDF 13.08 U1: kredyt niedostępny do ukończenia 8-krokowego poradnika nowej gry. -->
+      ${window._tutorialDone&&window._tutorialDone()
+        ? `<button class="bbtn" onclick="takeLoan()" style="margin-bottom:10px" ${G.bank.loan>0?'disabled':''}>💳 Weź kredyt (1000 zł, 1200 zł do spłaty + 1%/dzień odsetek)</button> <!-- v2.1.133 -->`
+        : `<button class="bbtn" onclick="window._tutorialGateMsg('Kredyt bankowy')" style="margin-bottom:10px;opacity:.45;cursor:not-allowed">🎓 Kredyt dostępny po ukończeniu poradnika</button>`}
 
       <div style="font-size:12px;color:#27ae60;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📈 Inwestycje <span style="color:#aab;font-size:10px;letter-spacing:0">(${stInvs.length}/${BANK_INVEST_MAX} aktywnych)</span></div>
       ${(()=>{
@@ -76822,7 +77146,10 @@ function renderPhoneApp(app){
     const MAX_DEBT=40000;
     ph.innerHTML=`<div class="ph-screen">
       <div style="background:linear-gradient(135deg,#1a0a05,#0a0a0a);border:2px solid #e67e22;border-radius:10px;padding:14px;margin-bottom:10px">
-        <div style="font-size:18px;font-weight:700;color:#e67e22">🏧 Parabank — chwilówki</div>
+        <!-- PDF 13.08 U4: nazwa własna zmieniona na SwiftCredit Group (chwilowki).
+             Klucze techniczne parabank / G.parabank ZOSTAJA — sama zmiana nazwy nie moze
+             zepsuc zapisow graczy z aktywnym dlugiem (regula #1). -->
+        <div style="font-size:18px;font-weight:700;color:#e67e22">🏧 SwiftCredit Group (chwilówki)</div>
         <div style="font-size:11px;color:#caa;margin-top:4px;line-height:1.5">Szybka gotówka bez pytań — ale drogo. Każda pożyczka to <strong>+50% prowizji</strong> od ręki i brutalne <strong>3% dziennie</strong> odsetek. Spłaca się sama, gdy uzbierasz całość. Dla naprawdę zdesperowanych.</div>
       </div>
       ${loan>0?`<div style="background:#1a0505;border:1px solid #e74c3c;border-radius:8px;padding:12px;margin-bottom:10px">
@@ -76834,8 +77161,10 @@ function renderPhoneApp(app){
         </div>
       </div>`:''}
       <div style="font-size:12px;color:#888;margin-bottom:6px">💸 Weź chwilówkę (limit długu ${MAX_DEBT.toLocaleString('pl')} zł):</div>
-      ${tiers.map(t=>`<button class="bbtn" style="width:100%;margin-bottom:6px" onclick="_parabankBorrow(${t.a},${t.d})" ${(loan+t.d>MAX_DEBT)?'disabled':''}>Pożycz ${t.a.toLocaleString('pl')} zł → ${t.d.toLocaleString('pl')} zł do spłaty</button>`).join('')}
-      <div style="font-size:10px;color:#667;margin-top:6px">Porównanie: Bank daje 1000 zł (1200 do spłaty, 1%/dobę). Parabank — dużo więcej kasy od ręki, ale 3%/dobę. Spłacaj szybko!</div>
+      ${(window._tutorialDone&&window._tutorialDone())
+        ? tiers.map(t=>`<button class="bbtn" style="width:100%;margin-bottom:6px" onclick="_parabankBorrow(${t.a},${t.d})" ${(loan+t.d>MAX_DEBT)?'disabled':''}>Pożycz ${t.a.toLocaleString('pl')} zł → ${t.d.toLocaleString('pl')} zł do spłaty</button>`).join('')
+        : tiers.map(t=>`<button class="bbtn" style="width:100%;margin-bottom:6px;opacity:.45;cursor:not-allowed" onclick="window._tutorialGateMsg('Chwilówki w SwiftCredit Group')">🎓 Pożycz ${t.a.toLocaleString('pl')} zł — po ukończeniu poradnika</button>`).join('')}
+      <div style="font-size:10px;color:#667;margin-top:6px">Porównanie: Bank daje 1000 zł (1200 do spłaty, 1%/dobę). SwiftCredit Group — dużo więcej kasy od ręki, ale 3%/dobę. Spłacaj szybko!</div>
     </div>`;
   } else if(app==='bills'){
     if(!G.bills) G.bills={pending:[],history:[],evicted:false};
@@ -77859,7 +78188,7 @@ const GAME_MECHANICS=[
   {id:'districts', em:'🗺', name:'Dzielnice Miasta', color:'#9b59b6',
    short:'3 dzielnice — Underground, Coast, Business — endgame content.',
    desc:'Miasto ma 3 dodatkowe dzielnice odblokowywane wymogami gameplay: Underground (gritty street culture), Coast (luksusowe wybrzeże VIP-ów), Business (korporacyjna strefa). Każda ma własną bramę na krawędzi mapy, której odblokowanie wymaga osiągnięcia konkretnych progresji (sława/zarobki/freestyle). Po unlocku gracz wchodzi w overlay z miejscami dzielnicy.',
-   how:['• 🌑 Underground: 50 sławy + 20 freestyle (zachodnia krawędź mapy przez chodnik H3)','• 🌊 Coast: 200 sławy + 150 000 zł zarobione łącznie (południowa krawędź przez V3)','• 💼 Business: 300 sławy (północna krawędź przez V3) — endgame tier','• Smart hints przy 80% progu wymogu — wiesz kiedy jesteś blisko','• Side storyline "Dzielnice Miasta" — 4 questy progresywne'],
+   how:['• 🌑 Underground: 6 freestyle, bez wymogu sławy (zachodnia krawędź mapy przez chodnik H3)','• 🌊 Coast: 50 sławy + 50 000 zł zarobione łącznie (południowa krawędź przez V3)','• 💼 Business: 50 sławy (północna krawędź przez V3)','• Smart hints przy 80% progu wymogu — wiesz kiedy jesteś blisko','• Side storyline "Dzielnice Miasta" — 4 questy progresywne'], /* PDF 13.08 U5/U6/U7 */
    unlocks:['• Każda dzielnica → cinematic + SMS milestone + 50 XP eksploracji pierwszej wizyty','• Achievement HARD "Władca Miasta" (2000 zł) — odblokuj wszystkie 3','• Side storyline questy: dd1 (1.5k zł + 8 fame) → dd2 (3k + 15 fame) → dd3 (5k + 25 fame) → dd4 Władca Miasta (10k + 40 fame + 5 skill)','• Save compat: gracze z Rezydencją (mansion) auto-unlock Business; z Mega Villa → auto Coast','• Underground = freestyle/cypher culture, Coast = luksus/yacht, Business = label HQ/Fortuno/Bank inwestycyjny (Faza B/C/D content pending)'],
   },
 ];
@@ -78983,7 +79312,9 @@ window._uwLastManTone=function(opt){
   else if(opt==='C'){ u.kantarPatience=Math.max(0,(u.kantarPatience||10)-2); u.questHintClarity='medium'; }
   else { window._uwAddStat('kantar_trust',-2); u.questHintClarity='medium'; }
   const camWarn=(opt==='B');
-  const lead='Damian. Wszyscy wołają na niego „Brokat". Promotor, kręci się tam, gdzie błyszczy. Znajdziesz go w Kasyno Royale — na parterze, przy automatach. '+(camWarn?'I jedno: tam wszędzie są kamery. Bez fajerwerków.':'Zagadaj, przypomnij o długu. Reszta zależy od ciebie.');
+  /* PDF 13.08 „Błędy…" U25: kwestia przepisana 1:1 na wersję usera (dosadniejszy, uliczny ton).
+     Wariant bez ostrzeżenia o kamerach zachowuje dotychczasowe zakończenie. */
+  const lead='Damian. Wołają na niego „Brokat". Śliski, pożałowania godny promotor. Kręci się tam, gdzie błyszczy. Znajdziesz go w Kasynie Royale. Strzelam, że na parterze, przy automatach. '+(camWarn?'A, no i jeszcze jedno: kamery. Tam jest jak w ulu, także bez fajerwerków, kowboju.':'Zagadaj, przypomnij o długu. Reszta zależy od ciebie.');
   window._uwShowDlg(lead,[
     {text:'„Jasne. Parter, automaty. Idę.”', fn:()=>window._uwLastManGo('go')},
     {text:'„Kamery? Spokojnie, bez scen.”', fn:()=>window._uwLastManGo('careful')},
@@ -79200,7 +79531,9 @@ window._uwFinalizeIntro=function(){
   /* v2.3.52 (user „spam smsów po zadaniach Kantara"): §14 zapowiedzi-hooki (gang/chop-shop/faktury/muzyka)
      NIE lecą naraz (było 4-5 SMS w jednej sekundzie = spam). KOLEJKUJ — _underworldTick dostarcza 1/dzień. */
   if(!Array.isArray(u._pendingKantarSms)) u._pendingKantarSms=[];
-  if(u.pathChosen==='B') u._pendingKantarSms.push('Ktoś z dzielnicy może się do Ciebie odezwać. Nie dzwoń pierwszy. Jak się odezwie „Sierżant" albo „Bryła" — to ode mnie.');
+  /* PDF 13.08 „Błędy…" U26: treść SMS-a od Kantara skrócona do wersji usera — bez wymieniania
+     ksywek „Sierżant"/„Bryła", które zdradzały więcej, niż powinny na tym etapie. */
+  if(u.pathChosen==='B') u._pendingKantarSms.push('Ktoś z dzielnicy może się do Ciebie odezwać. Pamiętaj, by nie dzwonić pierwszy.');
   u._pendingKantarSms.push('Znam gościa, który robi z auta wspomnienie. Nie pytaj. Na razie nie masz wiedzy, żeby zrozumieć ten temat.');
   u._pendingKantarSms.push('Jak będziesz miał kiedyś firmę, nie rób jej dla logo. Rób ją dla faktur. Logo jest dla ludzi. Faktury są dla problemów.');
   u._pendingKantarSms.push('Muzyka to dobry parawan, jeśli umiesz śpiewać ciszę. Ale jak będziesz rapował o wszystkim, co robisz, to nie będę musiał cię karać. Zrobisz to sam.');
@@ -79975,7 +80308,18 @@ window.renderSMSConversation=function(contactId){
             }).join('')+'</div>';
             return `${_replyCounter}${_tbtns}`;
           }
-          return `<div style="background:#0a1a0a;border:1px solid #1a4a1a;border-radius:6px;padding:8px 10px;font-size:11px;color:#7ec87e;text-align:center;font-style:italic">✓ Ustalone. Zajrzyj do wątku pobocznego i wejdź na miejsce turnieju.</div>`;
+          /* PDF 13.08 B3: druga część naprawy — zanim powiemy graczowi, że „nie ma co odpowiadać",
+             sprawdzamy registry kontaktu po replySet wiadomości. Każdy zestaw, który realnie
+             istnieje (dziś: maya_intro_a / maya_intro_b), dostaje swoje przyciski odpowiedzi. */
+          const _regM=window._smsRegistryFor(contactId);
+          if(_regM && _rs){
+            const _mids=Object.keys(_regM).filter(k=>_regM[k] && _regM[k].set===_rs);
+            if(_mids.length) return `${_replyCounter}`+window._smsRichButtons(contactId,_mids);
+          }
+          /* Dopiero gdy dla tej wiadomości NAPRAWDĘ nie ma zestawu odpowiedzi — neutralna nota.
+             Wcześniej stał tu komunikat „✓ Ustalone. Zajrzyj do wątku pobocznego i wejdź na miejsce
+             turnieju", który twierdził, że coś ustalono, choć gracz nie zdążył nic odpowiedzieć. */
+          return `<div style="background:#12161c;border:1px solid #2a3238;border-radius:6px;padding:8px 10px;font-size:11px;color:#9aa;text-align:center;font-style:italic">Ta wiadomość nie wymaga odpowiedzi.</div>`;
         }
         /* Gym Bro — v2.3.102 (PDF #8-2): kontekstowe odpowiedzi wg replySet (reminder/good/over/milestone). */
         if(contactId==='gymbro' && typeof window._GYMBRO_REPLIES==='object'){
@@ -80728,7 +81072,12 @@ window._ZBYSZEK_REPLIES={
 /* v2.3.122 (PDF „Moduł dedykowanych reply-setów SMS"): mapa zestaw → nadawca oraz wspólny wybór
    rejestru odpowiedzi. Dzięki temu dodanie nadawcy wymaga zmiany w JEDNYM miejscu, a nie w dwóch
    osobnych łańcuchach warunków (wcześniejsza asymetria: jeden łańcuch miał fallback, drugi nie). */
-window._smsDedicatedSets={'kamil_first_income':'kamil','kamil_career_step_five':'kamil','kamil_three_freestyles':'kamil','kamil_street_rep_30':'kamil','kamil_level_five':'kamil','kamil_total_income_50k':'kamil','kamil_cash_100k':'kamil','kamil_ghostwriting_leak':'kamil','kamil_eclipse_scandal':'kamil','kamil_city_crash':'kamil','producer_five_tracks':'producent','producer_ghostwriting_leak':'producent','marcin_first_concert':'marcin','marcin_five_concerts':'marcin','marcin_tv_new_year':'marcin','marcin_duplex_purchase':'marcin','marcin_mansion_purchase':'marcin','marcin_mega_villa':'marcin','marcin_signed_street_talent':'marcin','marcin_lifetime_achievement':'marcin','marcin_phantom_mc_signed':'marcin','marcin_underground_unlock':'marcin','marcin_coast_unlock':'marcin','marcin_ghostwriting_leak':'marcin','marcin_eclipse_breakthrough':'marcin','marcin_aureum_green_intro':'marcin','marcin_golf_lead_consultation':'marcin','marcin_city_crash':'marcin','manager_fame_50_intro':'manager','manager_haters_1000_pr':'manager','manager_bad_business_offer':'manager','manager_business_district_unlock':'manager','sponsor_global_brand_interest':'sponsor','sponsor_100k_fans_partnership':'sponsor','sponsor_luxury_brand_interest':'sponsor','label_major_offer_intro':'label','label_major_contract_active':'label','label_global_deal_active':'label','label_limited_press_cd':'label','fan_1000_followers':'fan','fan_10k_concert':'fan','fan_star_collab_pressure':'fan','fan_bus_175':'fan','fan_karol_autograph':'fan','wiktor_street_rep_50':'wiktor','wiktor_drip_80':'wiktor','zbyszek_first_thousand_discount':'zbyszek','zbyszek_donut_promo':'zbyszek'};
+window._smsDedicatedSets={'kamil_first_income':'kamil','kamil_career_step_five':'kamil','kamil_three_freestyles':'kamil','kamil_street_rep_30':'kamil','kamil_level_five':'kamil','kamil_total_income_50k':'kamil','kamil_cash_100k':'kamil','kamil_ghostwriting_leak':'kamil','kamil_eclipse_scandal':'kamil','kamil_city_crash':'kamil','producer_five_tracks':'producent','producer_ghostwriting_leak':'producent','marcin_first_concert':'marcin','marcin_five_concerts':'marcin','marcin_tv_new_year':'marcin','marcin_duplex_purchase':'marcin','marcin_mansion_purchase':'marcin','marcin_mega_villa':'marcin','marcin_signed_street_talent':'marcin','marcin_lifetime_achievement':'marcin','marcin_phantom_mc_signed':'marcin','marcin_underground_unlock':'marcin','marcin_coast_unlock':'marcin','marcin_ghostwriting_leak':'marcin','marcin_eclipse_breakthrough':'marcin','marcin_aureum_green_intro':'marcin','marcin_golf_lead_consultation':'marcin','marcin_city_crash':'marcin','manager_fame_50_intro':'manager','manager_haters_1000_pr':'manager','manager_bad_business_offer':'manager','manager_business_district_unlock':'manager','sponsor_global_brand_interest':'sponsor','sponsor_100k_fans_partnership':'sponsor','sponsor_luxury_brand_interest':'sponsor','label_major_offer_intro':'label','label_major_contract_active':'label','label_global_deal_active':'label','label_limited_press_cd':'label','fan_1000_followers':'fan','fan_10k_concert':'fan','fan_star_collab_pressure':'fan','fan_bus_175':'fan','fan_karol_autograph':'fan','wiktor_street_rep_50':'wiktor','wiktor_drip_80':'wiktor','zbyszek_first_thousand_discount':'zbyszek','zbyszek_donut_promo':'zbyszek',
+/* PDF 13.08 „Błędy…" B3 (user: „kontakt korespondencyjny z Mayą jest niemożliwy"): brakowało tu
+   rejestracji zestawów PIERWSZEGO kontaktu organizatorki. Bez wpisu gałąź dedykowana nie łapała,
+   rozmowa spadała do gałęzi `maya_voss`, a ta znała wyłącznie `tour_invite`/`tour_rules` — więc
+   zamiast trzech odpowiedzi gracz dostawał zafałszowany komunikat „✓ Ustalone…". */
+'maya_intro_a':'maya_voss','maya_intro_b':'maya_voss'};
 window._smsRegistryFor=function(contactId){
   switch(contactId){
     case 'fan': return window._FAN_REPLIES;
@@ -84066,6 +84415,8 @@ window.investLokata=(amount, days)=>{
   renderPhoneApp('bank');
 };
 window.takeLoan=()=>{
+  /* PDF 13.08 U1: bramka poradnika egzekwowana też w logice, nie tylko w wyglądzie przycisku. */
+  if(window._tutorialDone && !window._tutorialDone()){ window._tutorialGateMsg('Kredyt bankowy'); return; }
   if(G.bank.loan>0) return;
   G.money+=1000;G.bank.loan=1200;
   G._loansTaken=(G._loansTaken||0)+1; // tracker dla osiągnięcia "Pożyczka"
@@ -84073,6 +84424,8 @@ window.takeLoan=()=>{
 };
 /* v2.1.921 (PDF — alt-banki): Parabank/chwilówka. Pożyczka = instant kasa + 50% prowizji do długu (limit 40k). Odsetki 3%/dobę + auto-spłata w nextPeriod. */
 window._parabankBorrow=(amount,debt)=>{
+  /* PDF 13.08 U2: chwilówki zablokowane do końca podstawowego poradnika (bramka też w logice). */
+  if(window._tutorialDone && !window._tutorialDone()){ window._tutorialGateMsg('Chwilówki w SwiftCredit Group'); return; }
   if(!G.parabank||typeof G.parabank!=='object') G.parabank={loan:0};
   if(G.parabank.loan+debt>40000){if(typeof showMsg==='function')showMsg('🏧 Przekroczyłbyś limit długu (40 000 zł). Najpierw spłać.','r',4500);return;}
   G.money+=amount; G.parabank.loan+=debt;
@@ -84915,34 +85268,52 @@ window.openCinematicFlythrough=()=>{
     if(isNew){
       o=document.createElement('div');
       o.id='cinem-overlay';
-      o.style.cssText='position:fixed;left:50%;bottom:60px;transform:translateX(-50%) translateY(40px) scale(.92);background:linear-gradient(135deg,rgba(10,10,30,.96),rgba(20,10,40,.96));border:2px solid #c8a520;border-radius:14px;padding:22px 36px;max-width:720px;text-align:center;z-index:9997;box-shadow:0 12px 48px rgba(0,0,0,.7),0 0 40px rgba(200,165,32,.5);opacity:0;transition:opacity .7s cubic-bezier(.2,.7,.3,1),transform .7s cubic-bezier(.2,.7,.3,1)';
+      /* PDF 13.08 „Błędy…" U18 (user): okno z tekstami przeniesione w LEWY DOLNY RÓG ekranu
+         i dostało cieńszą obwódkę (2 px → 1 px). Rozmiar, kolory i krój tekstu BEZ ZMIAN —
+         chodziło wyłącznie o odsłonięcie prezentowanych lokacji na środku kadru.
+         U19: `overflow:hidden` + animowane `max-height`/`max-width` dają płynne zwijanie. */
+      o.style.cssText='position:fixed;left:24px;bottom:24px;transform:translateY(40px) scale(.92);background:linear-gradient(135deg,rgba(10,10,30,.96),rgba(20,10,40,.96));border:1px solid #c8a520;border-radius:14px;padding:22px 36px;max-width:720px;max-height:640px;overflow:hidden;text-align:center;z-index:9997;box-shadow:0 12px 48px rgba(0,0,0,.7),0 0 40px rgba(200,165,32,.5);opacity:0;transition:opacity .7s cubic-bezier(.2,.7,.3,1),transform .7s cubic-bezier(.2,.7,.3,1),max-height .45s cubic-bezier(.2,.7,.3,1),max-width .45s cubic-bezier(.2,.7,.3,1),padding .45s cubic-bezier(.2,.7,.3,1)';
       document.body.appendChild(o);
     } else if(isTopicChange){
       o.style.opacity='0';
-      o.style.transform='translateX(-50%) translateY(20px) scale(.96)';
+      o.style.transform='translateY(20px) scale(.96)';
     }
     const renderHTML=()=>{
       /* v2.1.310 fix: na finałowym topicu pokazuj epicki CTA button + ukryj counter.
          v2.1.316 fix: pokazuj CTA OD PIERWSZEGO shotu finalnego topica (NIE tylko ostatniego) — user feedback "kamera lata w tle, gracz ma mieć możliwość przejścia do gry". */
       const isEpicFinale = s.isFinaleTopic;
+      /* PDF 13.08 U19: dwa subtelne przyciski na zagięciu krawędzi okna.
+         • ⌃/⌄ — zwija okno do mniejszego prostokąta z SAMĄ lokacją i opisem (bez nagłówka kategorii,
+           emoji i licznika), ponowne kliknięcie przywraca pełną treść;
+         • • — najmniejszy wariant: wyłącznie aktualnie prezentowana lokacja z jej etykietą.
+         Wybrany stan obowiązuje dla WSZYSTKICH kolejnych okien przelotu, tak jak prosił user. */
+      const _st=window._cinemBoxState||'full';
+      const _btns=isEpicFinale?'':`
+        <div style="position:absolute;top:6px;right:8px;display:flex;gap:4px;z-index:2">
+          <button title="Zwiń do lokacji i opisu" onclick="window._cinemBoxToggle('compact')" style="background:rgba(200,165,32,.14);border:1px solid rgba(200,165,32,.45);color:#c8a520;width:20px;height:20px;line-height:1;border-radius:5px;cursor:pointer;font-family:inherit;font-size:11px;padding:0">${_st==='full'?'⌄':'⌃'}</button>
+          <button title="Zwiń do samej lokacji" onclick="window._cinemBoxToggle('mini')" style="background:rgba(200,165,32,.09);border:1px solid rgba(200,165,32,.3);color:#c8a520;width:20px;height:20px;line-height:1;border-radius:5px;cursor:pointer;font-family:inherit;font-size:9px;padding:0">${_st==='mini'?'□':'▪'}</button>
+        </div>`;
       o.innerHTML=`
-        <div style="font-size:${isEpicFinale?'80px':'62px'};margin-bottom:10px;animation:emojiFloat 2s ease-in-out infinite;text-shadow:0 0 ${isEpicFinale?'60':'30'}px rgba(200,165,32,${isEpicFinale?'.95':'.7'})">${s.em}</div>
-        <h2 style="color:#c8a520;font-size:${isEpicFinale?'34px':'26px'};letter-spacing:3px;margin:0 0 8px;text-shadow:0 0 20px rgba(200,165,32,.6)">${s.title}</h2>
+        ${_btns}
+        <div id="cinem-em" style="font-size:${isEpicFinale?'80px':'62px'};margin-bottom:10px;animation:emojiFloat 2s ease-in-out infinite;text-shadow:0 0 ${isEpicFinale?'60':'30'}px rgba(200,165,32,${isEpicFinale?'.95':'.7'})">${s.em}</div>
+        <h2 id="cinem-title" style="color:#c8a520;font-size:${isEpicFinale?'34px':'26px'};letter-spacing:3px;margin:0 0 8px;text-shadow:0 0 20px rgba(200,165,32,.6)">${s.title}</h2>
         ${isEpicFinale?'':`<div id="cinem-place-label" style="color:#fff;font-size:14px;font-weight:700;margin-bottom:10px;letter-spacing:2px;background:rgba(200,165,32,.18);display:inline-block;padding:4px 14px;border-radius:14px;border:1px solid rgba(200,165,32,.4);transition:opacity .3s">📍 ${s.placeLabel} <span style="opacity:.6;font-weight:400">(${s.placeIdx+1}/${s.placeCount})</span></div>`}
-        <div style="color:#e8e8f0;font-size:${isEpicFinale?'15px':'14px'};line-height:1.65">${s.desc}</div>
+        <div id="cinem-desc" style="color:#e8e8f0;font-size:${isEpicFinale?'15px':'14px'};line-height:1.65">${s.desc}</div>
         ${isEpicFinale?`
           <div style="margin-top:16px;padding:14px 22px;background:linear-gradient(135deg,rgba(241,196,15,.18),rgba(233,30,140,.12));border:1px solid rgba(241,196,15,.5);border-radius:12px">
             <div style="color:#f1c40f;font-size:13px;font-weight:700;letter-spacing:2px">🎤 To koniec wprowadzenia, zaczynaj kiedy będziesz gotowy.</div>
           </div>
           <button onclick="window._closeCinematic()" style="margin-top:16px;background:linear-gradient(135deg,#f1c40f,#e91e8c);color:#000;border:none;padding:16px 44px;font-size:18px;font-weight:900;letter-spacing:3px;border-radius:12px;cursor:pointer;box-shadow:0 8px 30px rgba(241,196,15,.5);font-family:inherit;text-transform:uppercase;animation:emojiFloat 2.5s ease-in-out infinite">▶ ZACZYNAM</button>
-        `:`<div style="margin-top:12px;color:#778;font-size:11px;letter-spacing:1px">Topic ${s.topicIdx+1}/${TOPICS.length}</div>`}`;
+        `:`<div id="cinem-counter" style="margin-top:12px;color:#778;font-size:11px;letter-spacing:1px">Topic ${s.topicIdx+1}/${TOPICS.length}</div>`}`;
+      /* PDF 13.08 U19: po każdym renderze przywróć aktualnie wybrany stopień zwinięcia. */
+      if(typeof window._cinemApplyBoxState==='function') window._cinemApplyBoxState();
     };
     if(isTopicChange){
       setTimeout(()=>{
         renderHTML();
         requestAnimationFrame(()=>{
           o.style.opacity='1';
-          o.style.transform='translateX(-50%) translateY(0) scale(1)';
+          o.style.transform='translateY(0) scale(1)'; /* PDF 13.08 U18: bez centrowania — okno w lewym dolnym rogu */
         });
       }, isNew ? 50 : 350);
     } else {
@@ -84958,6 +85329,45 @@ window.openCinematicFlythrough=()=>{
       }
     }
     _lastRenderedTopicIdx = s.topicIdx;
+  };
+  /* ═══ PDF 13.08 „Błędy…" U19 — trzy stopnie okna narracji przelotu ═══════════════════════════
+     full    — pełna treść (emoji, nagłówek kategorii, lokacja, opis, licznik),
+     compact — TYLKO lokacja + opis (bez nagłówka kategorii, emoji i licznika),
+     mini    — najmniejszy wariant: sama aktualnie prezentowana lokacja z etykietą.
+     Elementy nie znikają z DOM — dostają zerową wysokość i przezroczystość, dzięki czemu zmiana
+     rozmiaru okna jest PŁYNNĄ animacją w obie strony (a nie skokiem po przebudowie treści). */
+  window._cinemBoxState=window._cinemBoxState||'full';
+  window._cinemApplyBoxState=function(){
+    const o=document.getElementById('cinem-overlay'); if(!o) return;
+    const st=window._cinemBoxState||'full';
+    const hide=(el,on)=>{ if(!el) return;
+      el.style.transition='max-height .45s cubic-bezier(.2,.7,.3,1),opacity .3s,margin .45s';
+      el.style.overflow='hidden';
+      el.style.maxHeight=on?'0px':'400px';
+      el.style.opacity=on?'0':'1';
+      el.style.marginTop=on?'0':'';
+      el.style.marginBottom=on?'0':'';
+    };
+    hide(document.getElementById('cinem-em'),      st!=='full');
+    hide(document.getElementById('cinem-title'),   st!=='full');
+    hide(document.getElementById('cinem-counter'), st!=='full');
+    hide(document.getElementById('cinem-desc'),    st==='mini');
+    o.style.maxHeight = (st==='full')?'640px':(st==='compact'?'260px':'96px');
+    o.style.maxWidth  = (st==='full')?'720px':(st==='compact'?'560px':'420px');
+    o.style.padding   = (st==='full')?'22px 36px':(st==='compact'?'16px 26px':'12px 20px');
+  };
+  window._cinemBoxToggle=function(mode){
+    const cur=window._cinemBoxState||'full';
+    /* ten sam przycisk zwija i rozwija — drugie kliknięcie wraca do pełnej treści */
+    window._cinemBoxState=(cur===mode)?'full':mode;
+    const o=document.getElementById('cinem-overlay');
+    /* przerysuj same ikony przycisków, resztę animuje _cinemApplyBoxState */
+    if(o){
+      const b=o.querySelectorAll('button[onclick*="_cinemBoxToggle"]');
+      if(b[0]) b[0].textContent=(window._cinemBoxState==='full')?'⌄':'⌃';
+      if(b[1]) b[1].textContent=(window._cinemBoxState==='mini')?'□':'▪';
+    }
+    window._cinemApplyBoxState();
   };
   /* v2.1.319: custom path animation dla isFinaleTopic — kamera leci po obwodzie miasta płynnie BEZ przeskoków.
      8 waypointów, animacja przez requestAnimationFrame, total ~30s loop, BEZ highlights. */
@@ -85136,7 +85546,8 @@ window.openCinematicFlythrough=()=>{
     }
     if(window._cinemCam){window._cinemCam.active=false;window._cinemCam.highlight=null;window._cinemCam.hlOpacity=0;window._cinemCam.targetZoom=1;}
     const ov=document.getElementById('cinem-overlay');
-    if(ov){ov.style.opacity='0';ov.style.transform='translateX(-50%) translateY(40px) scale(.9)';setTimeout(()=>ov.remove(),600);}
+    /* PDF 13.08 U18: okno stoi w lewym dolnym rogu, więc animacja wyjścia nie centruje już w poziomie. */
+    if(ov){ov.style.opacity='0';ov.style.transform='translateY(40px) scale(.9)';setTimeout(()=>ov.remove(),600);}
     const lt=document.getElementById('cinem-letterbox-top');const lb=document.getElementById('cinem-letterbox-bot');
     if(lt){lt.style.transition='opacity .8s,height .8s';lt.style.opacity='0';lt.style.height='0';setTimeout(()=>lt.remove(),800);}
     if(lb){lb.style.transition='opacity .8s,height .8s';lb.style.opacity='0';lb.style.height='0';setTimeout(()=>lb.remove(),800);}
@@ -85151,6 +85562,13 @@ window.openCinematicFlythrough=()=>{
     }
     if(typeof saveGameSilent==='function') saveGameSilent();
     if(typeof showMsg==='function') setTimeout(()=>showMsg('🎬 Przelot zakończony. Powodzenia w grze!','g',5000),900);
+    /* PDF 13.08 „Błędy…" U22 (user): wskazówka od 🛈 TrapInfo o Dzienniku aktywności ma przyjść
+       OD RAZU po zakończeniu przelotu nad miastem, a nie po z góry ustalonym czasie gry —
+       przelot jest momentem, w którym gracz właśnie zobaczył serię zielonych okien informacyjnych. */
+    if(G._activityLogTipAt){
+      G._activityLogTipAt=null;
+      setTimeout(()=>{ try{ if(typeof _smsTriggerOnce==='function') _smsTriggerOnce('activity_log_tip','trapinfo','📖 Wskazówka: wszystkie zielone okna informacyjne zapisują się w Dzienniku aktywności. Jeśli przegapisz komunikat, otwórz Dziennik klawiszem O (albo w panelu postaci, pod Punktami umiejętności) i przeczytaj 10 ostatnich powiadomień na spokojnie.'); }catch(_){} }, 2600);
+    }
     /* v2.1.335 Faza AE: po zakończeniu intro/przelotu → auto-prompt leaderboard onboarding (jeśli gracz nie dołączył).
        v2.1.953 (PDF #16): „Dołącz do społeczności" dopiero PO ukończeniu/pominięciu PORADNIKA (G._tutorialSeen) — nie zaśmiecaj
        ekranu na starcie wieloma oknami naraz. Poll czeka aż poradnik gotowy I żaden overlay/minigra nie blokuje. Reguła #15: NIE jeśli shown/skipped/dołączył. */
@@ -85427,12 +85845,12 @@ const ONBOARDING_STEPS = [
   {id:'fame20',   label:'Zdobądź 20 sławy',              hint:'Wydawaj utwory i graj — sława (⭐) otwiera koncerty i dzielnice.',        done:()=>(G.fame||0)>=20},
   {id:'concert',  label:'Zagraj pierwszy koncert',       hint:'Przy sławie 20+ zagraj koncert (Sala Koncertowa / u Marcina).',          done:()=>(G.events?.performed||0)>=1},
   {id:'apt',      label:'Wyprowadź się z Traphouse',     hint:'Biuro Nieruchomości — kup własne mieszkanie, lepsze warunki.',           done:()=>G.apartment&&G.apartment!=='traphouse'},
-  {id:'district', label:'Odblokuj dzielnicę Underground',hint:'50 sławy + 20 freestyle → brama na zachodniej krawędzi mapy ([E]).',     done:()=>Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes('underground')},
+  {id:'district', label:'Odblokuj dzielnicę Underground',hint:'6 freestyle → brama na zachodniej krawędzi mapy ([E]). Sława nie jest tu wymagana.',     done:()=>Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes('underground')}, /* PDF 13.08 U5 */
   /* v2.1.561 P4 rozbudowa: kroki mid-game (bridge early→mid). Po nich onboarding się kończy i oddaje pałeczkę „Drodze do GOAT" w telefonie. Pola zweryfikowane. */
   {id:'fans1k',   label:'Zdobądź 1000 fanów',            hint:'Pierwszy duży próg rozpoznawalności. Koncerty, virale i regularne wydawanie muzyki.', done:()=>(G.fans||0)>=1000},
   {id:'car',      label:'Kup pierwsze auto',             hint:'Salon samochodowy — szybszy ruch po mieście i status. Najpierw uzbieraj kasę.',      done:()=>!!G.car},
   {id:'sponsor',  label:'Podpisz pierwszego sponsora',   hint:'Przy sławie 200+ marki same się odezwą (skrzynka sponsorów). Stały dzienny przychód.', done:()=>((G.activeSponsors?.length||0)+(G.sponsorHistory?.length||0))>=1},
-  {id:'coast',    label:'Odblokuj dzielnicę Coast',      hint:'200 sławy + 150 000 zł zarobione → brama Coast. Luksusowe wybrzeże dla top artystów.', done:()=>Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes('coast')},
+  {id:'coast',    label:'Odblokuj dzielnicę Coast',      hint:'50 sławy + 50 000 zł zarobione → brama Coast. Luksusowe wybrzeże dla top artystów.', done:()=>Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes('coast')}, /* PDF 13.08 U7 */
 ];
 /* v2.1.553 P4.3: mapowanie kroku → nazwa budynku/miejsca celu ("📍 Idź do" w widgecie). Kroki-statystyki (fans/fame/level) bez wpisu — hint wystarcza. Wariant DOM (kanał odczytu niestabilny → canvas-strzałka niemożliwa do bezpiecznej weryfikacji #9). */
 const ONBOARDING_LOC = {
@@ -85975,9 +86393,10 @@ const SMART_HINTS=[
   /* v2.1.335 Faza AE: smart hint przypominający o tablicy wyników gdy gracz pominął ONBOARDING lub uciekł z modal bez decyzji. Standardowy hint pattern — pokazuje się raz na playthrough (G._hintShown_lb_reminder gate). Cond: (skipped LUB shown ale brak globalNick) — pokrywa oba scenariusze. */
   {id:'lb_reminder', cond:()=>(G._lbOnboardingSkipped||G._lbOnboardingShown) && !G.globalNick && (G.day-(G._lbLastHintDay||0))>=5 && !G._hintShown_lb_reminder, msg:'🌍 Możesz dołączyć do tablicy wyników z Telefon → 🌐 Online → 🌍 Tablica wyników. Porównaj się z innymi graczami w 5 kategoriach.'},
   /* v2.1.370 Faza E TIER 5: smart hints dla bramek dzielnic przy 80% progu wymogu — gracz wie że jest blisko unlock + gdzie iść. */
-  {id:'district_underground_close', cond:()=>!G._hintShown_district_underground_close && !(Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes('underground')) && (G.fame||0)>=40 && (G.careers?.raper?.freestyles||0)>=16, msg:'🌑 Underground District blisko! Wymóg: 50 sławy + 20 freestyle (masz '+(Math.floor(G.fame||0))+' sławy, '+(G.careers?.raper?.freestyles||0)+' freestyle). Brama na zachodniej krawędzi mapy przez chodnik H3.'},
-  {id:'district_coast_close', cond:()=>!G._hintShown_district_coast_close && !(Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes('coast')) && (G.fame||0)>=160 && (G.totalEarned||0)>=120000, msg:'🌊 Coast District blisko! Wymóg: 200 sławy + 150 000 zł zarobione (masz '+(Math.floor(G.fame||0))+' sławy, '+(G.totalEarned||0).toLocaleString('pl')+' zł). Brama na południowej krawędzi V3.'},
-  {id:'district_business_close', cond:()=>!G._hintShown_district_business_close && !(Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes('business')) && (G.fame||0)>=240, msg:'💼 Business District blisko! Wymóg: 300 sławy (masz '+(Math.floor(G.fame||0))+'). Brama na północnej krawędzi V3.'},
+  /* PDF 13.08 U5/U6/U7: progi obniżone — podpowiedzi „blisko" nadal odpalają się przy ~80% wymogu. */
+  {id:'district_underground_close', cond:()=>!G._hintShown_district_underground_close && !(Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes('underground')) && (G.careers?.raper?.freestyles||0)>=5, msg:'🌑 Underground District blisko! Wymóg: 6 freestyle (masz '+(G.careers?.raper?.freestyles||0)+'). Sława nie jest potrzebna. Brama na zachodniej krawędzi mapy przez chodnik H3.'},
+  {id:'district_coast_close', cond:()=>!G._hintShown_district_coast_close && !(Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes('coast')) && (G.fame||0)>=40 && (G.totalEarned||0)>=40000, msg:'🌊 Coast District blisko! Wymóg: 50 sławy + 50 000 zł zarobione (masz '+(Math.floor(G.fame||0))+' sławy, '+(G.totalEarned||0).toLocaleString('pl')+' zł). Brama na południowej krawędzi V3.'},
+  {id:'district_business_close', cond:()=>!G._hintShown_district_business_close && !(Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes('business')) && (G.fame||0)>=40, msg:'💼 Business District blisko! Wymóg: 50 sławy (masz '+(Math.floor(G.fame||0))+'). Brama na północnej krawędzi V3.'},
   /* v2.1.491 Faza AN.7 Round 2: gracze nie wiedzą że Plantation odblokowana przy trap lvl 10. Hint when close. */
   {id:'plantation_close', cond:()=>!G._hintShown_plantation_close && G.trap?.unlocked && (G.trap?.level||1)>=3 && (G.trap?.level||1)<5, msg:'🌿 Plantacja blisko odblokowania (Trap Lvl 5+, masz '+(G.trap?.level||1)+'). Sprzedawaj więcej recept aby awansować. Plantacja = większa, profesjonalna uprawa (po starcie w Kamperze).'},
   {id:'plantation_unlocked', cond:()=>!G._hintShown_plantation_unlocked && G.trap?.unlocked && (G.trap?.level||1)>=5 && (G.grow?.totalHarvested||0)===0, msg:'🌿 Plantacja UNLOCKED (lvl 5)! Idź do Underground → Plantacja (prawy dolny róg). Wcześniej możesz uprawiać też w Kamperze (2 doniczki, Tier 0). Posadź roślinę: kup nasionko (30 zł) + ziemię (25 zł), podejdź do doniczki i naciśnij E (minigra sadzenia).'},
@@ -86513,11 +86932,24 @@ function openFullMap(districtId){
     const dot=document.getElementById('fmap-player-dot');
     const lbl=document.getElementById('fmap-player-lbl');
     if(!dot||!lbl) return;
-    /* v2.3.30/v2.3.113: marker „TY" tylko gdy oglądasz mapę dzielnicy, w której NAPRAWDĘ jesteś — inaczej P = współrzędne innej lokacji (mylący). */
-    if(typeof currentRoom!=='undefined' && currentRoom!==_md){ dot.style.display='none'; lbl.style.display='none'; return; }
+    /* v2.3.30/v2.3.113: marker „TY" tylko gdy oglądasz mapę dzielnicy, w której NAPRAWDĘ jesteś — inaczej P = współrzędne innej lokacji (mylący).
+       PDF 13.08 „Błędy…" U23 (user): gdy gracz siedzi W BUDYNKU bez własnej mapy (Traphouse,
+       sklep, studio), marker ma być nadal widoczny — w miejscu, w którym gracz wszedł do środka.
+       Bierzemy zapamiętaną ostatnią pozycję zewnętrzną (_lastOutdoor) i pokazujemy marker na mapie
+       TEJ dzielnicy. Współrzędnych wnętrza nadal NIE pokazujemy, bo na mapie miasta nic nie znaczą. */
+    let _mx=P.wx, _my=P.wy, _inside=false;
+    if(typeof currentRoom!=='undefined' && currentRoom!==_md){
+      const lo=G._lastOutdoor;
+      if(lo && lo.room===_md && typeof lo.wx==='number'){ _mx=lo.wx; _my=lo.wy; _inside=true; }
+      else { dot.style.display='none'; lbl.style.display='none'; return; }
+    }
     dot.style.display=''; lbl.style.display='';
+    /* we wnętrzu znacznik jest lekko przygaszony — to pozycja budynku, nie ruch gracza na ulicy */
+    dot.style.opacity=_inside?'0.72':'1';
+    lbl.style.opacity=_inside?'0.72':'1';
+    lbl.title=_inside?'Jesteś w budynku w tym miejscu':'Twoja pozycja';
     const scale=baseScale*_mapZoom;
-    const px=P.wx*scale, py=P.wy*scale;
+    const px=_mx*scale, py=_my*scale;
     dot.style.left=px+'px';
     dot.style.top=py+'px';
     lbl.style.left=px+'px';
@@ -86538,11 +86970,18 @@ function openFullMap(districtId){
      (we wnętrzu P = współrzędne wnętrza, marker ukryty). Po renderMap canvas jest już wymiarowany. */
   window._centerMapOnPlayer=function(){
     if(!sc) return false;
-    if(typeof currentRoom!=='undefined' && currentRoom!==_md) return false;
     if(typeof P==='undefined') return false;
+    /* PDF 13.08 U23: we wnętrzu centrujemy na zapamiętanym miejscu wejścia do budynku —
+       spójnie ze znacznikiem „TY", który od teraz też jest tam widoczny. */
+    let _cx=P.wx, _cy=P.wy;
+    if(typeof currentRoom!=='undefined' && currentRoom!==_md){
+      const lo=G._lastOutdoor;
+      if(lo && lo.room===_md && typeof lo.wx==='number'){ _cx=lo.wx; _cy=lo.wy; }
+      else return false;
+    }
     const scale=baseScale*_mapZoom;
-    sc.scrollLeft=Math.max(0, P.wx*scale - sc.clientWidth/2);
-    sc.scrollTop =Math.max(0, P.wy*scale - sc.clientHeight/2);
+    sc.scrollLeft=Math.max(0, _cx*scale - sc.clientWidth/2);
+    sc.scrollTop =Math.max(0, _cy*scale - sc.clientHeight/2);
     return true;
   };
   _centerMapOnPlayer();
@@ -86829,6 +87268,21 @@ const TUTORIAL_STEPS=[
    • Zwija się do małej pigułki na dole (klik = rozwiń) — NIGDY nie blokuje gry, nie wraca natrętnie.
    • "Pomiń poradnik" = agency. Ukończenie wszystkich → +200 zł bonus + cinematic. Stan: G._tutorial {step, collapsed}. */
 function _coachRemove(){ document.getElementById('tutorial-popup')?.remove(); document.getElementById('tutorial-pill')?.remove(); }
+/* PDF 13.08 „Błędy…" U1/U2/U3 — jedno źródło prawdy dla bramek „po poradniku".
+   User: kredyt w Banku, chwilówki w SwiftCredit Group i aplikacja SessionBoard mają być
+   niedostępne, dopóki gracz nie ukończy podstawowego 8-krokowego poradnika nowej gry.
+   ⚠️ REGUŁA #1 (save'y graczy): stare zapisy sprzed tej zmiany nie miały powodu ustawiać
+   `_tutorialSeen`, więc dokładamy „grandfather" na DOWÓD realnej progresji (patrz migracja
+   w loadGame) — nikt zaawansowany nie traci nagle dostępu do banku. */
+window._tutorialDone=function(){
+  if(G._tutorialSeen) return true;
+  if(G._tutorial && typeof TUTORIAL_STEPS!=='undefined' && G._tutorial.step>=TUTORIAL_STEPS.length) return true;
+  return false;
+};
+/* Wspólny komunikat odmowy — ta sama treść w każdym z trzech miejsc. */
+window._tutorialGateMsg=function(co){
+  if(typeof showMsg==='function') showMsg('🎓 '+co+' odblokujesz po ukończeniu podstawowego poradnika (8 kroków). Dokończ go — zajmie chwilę.','i',5200);
+};
 function _tutFinish(){
   if(G._tutorialSeen) return;
   G._tutorialSeen=true; _coachRemove();
@@ -87424,11 +87878,28 @@ function showHelp(){
         </div>
       </div>
     </div>
-    <div style="text-align:center;margin-top:14px"><button onclick="restartTutorial()" style="background:#0a1525;border:1px solid #3498db;color:#7ec8e3;padding:8px 18px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px">💡 Pokaż tutorial od nowa</button></div>
-    <button class="cbtn" onclick="closeOverlay();document.getElementById('menu').style.display='flex'">← Wróć do menu</button>
+    <!-- PDF 13.08 U10: pole „Pokaz tutorial od nowa" usuniete z tej sekcji jako zbedne.
+         Tutorial nadal mozna wznowic z telefonu: Pomoc → Tutorial. -->
+    <!-- PDF 13.08 U11: przycisk nazywa sie „Powrot" i wraca DO ROZGRYWKI, a nie do menu gry;
+         gdy panel otwarto z telefonu (folder Pomoc), telefon wraca dokladnie do tego folderu. -->
+    <button class="cbtn" onclick="window._helpBack()">Powrót</button>
   `;
   _openMenuOverlay();
 }
+/* PDF 13.08 U11: powrót z panelu „Sterowanie".
+   Z telefonu (folder Pomoc) → zamknij panel i pokaż z powrotem folder Pomoc w grze.
+   Z menu głównego (gra jeszcze nie trwa) → wróć do menu, bo nie ma do czego wracać. */
+window._helpFromPhone=false;
+window._helpBack=function(){
+  if(typeof closeOverlay==='function') closeOverlay();
+  if(window._helpFromPhone){
+    window._helpFromPhone=false;
+    const ph=document.getElementById('phone');
+    if(ph){ ph.classList.add('on'); if(typeof renderPhoneFolder==='function') renderPhoneFolder('help'); }
+    return;
+  }
+  const m=document.getElementById('menu'); if(m) m.style.display='flex';
+};
 
 // ═══════════════════════════════════════════════════════════════════
 //  PATCH NOTES — historia zmian gry
@@ -87763,6 +88234,32 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.133',date:'2026-08-13',cats:['beta-tester','fix','change'],title:'🚗🎓 Wyjście z auta, łatwiejsze dzielnice i porządki w telefonie',
+ items:[
+  {t:'fix',d:'🚗 Po wyjściu z auta lub kampera nie utkniesz już w pojeździe. Wcześniej postać zostawała dokładnie w miejscu, w którym pojazd się materializował, i nie dało się ruszyć w żadną stronę. Teraz wysiadasz obok pojazdu — od strony kierowcy, jeśli jest tam miejsce — i od razu widzisz podpowiedź, żeby wsiąść z powrotem.'},
+  {t:'fix',d:'🖼 Wróciliśmy do poprzedniego sposobu skalowania obrazu. Nowy system z ostatniej aktualizacji rozjeżdżał panele i teksty w trakcie gry, więc scena znów ma stały rozmiar. Ostrość obrazu na Full HD, 1440p i 4K zostaje bez zmian.'},
+  {t:'fix',d:'🎚 Po kupnie lokalu studyjnego otwiera się panel TEGO studia, a nie Biuro Nieruchomości. Przycisk „Wróć" w oględzinach wraca teraz po prostu do gry — w żadnym z tych miejsc nie wyskoczy już panel, którego nie otwierałeś.'},
+  {t:'fix',d:'💃 Można wreszcie odpisać Mai Voss. Pierwsza wiadomość od organizatorki nie miała podpiętych odpowiedzi, więc gra pokazywała komunikat „Ustalone", mimo że nic nie zostało ustalone. Teraz dostajesz trzy realne opcje odpowiedzi, a Maya reaguje na wybraną.'},
+  {t:'fix',d:'🔧 Auto kupione na placu Gravel Lot Motors staje po lewej stronie hali, kilka metrów od budynku. Wcześniej pojawiało się dokładnie pod postacią i blokowało zarówno gracza, jak i pojazd, którym przyjechał.'},
+  {t:'change',d:'🌑 Dzielnice są dużo łatwiej dostępne. Underground otwiera 6 freestyle’ów i nie wymaga już żadnej sławy. Business District wymaga 50 sławy zamiast 300, a Marina Coast 50 sławy i 50 tys. zł zarobków zamiast 200 sławy i 150 tys. zł.'},
+  {t:'change',d:'🎓 Kredyt w banku, chwilówki i aplikacja SessionBoard są niedostępne, dopóki nie skończysz podstawowego poradnika. Nowy gracz nie wpadnie już w długi, zanim zrozumie zasady. Zapisy z rozpoczętą karierą działają normalnie.'},
+  {t:'change',d:'🏧 Parabank nazywa się teraz SwiftCredit Group (chwilówki). Warunki bez zmian — nazwa nowa.'},
+  {t:'change',d:'🏠 Nowa gra zaczyna się od razu w Traphouse, bez chwili na chodniku i przenoszenia do środka.'},
+  {t:'change',d:'🌑 Wchodząc do Underground District stajesz na chodniku, a nie na środku jezdni.'},
+  {t:'change',d:'👥 W studiu można zatrudnić najwyżej dwóch realizatorów nagrań i po jednym pracowniku z pozostałych ról. Stawki godzinowe są teraz stałe: realizator 80 zł, mix 120 zł, mastering 135 zł, asystent 25 zł, manager 70 zł, technik 40 zł, sprzątanie 22 zł.'},
+  {t:'change',d:'🚗 Możesz mieć maksymalnie dwa samochody osobowe i dwa kampery — łącznie cztery pojazdy. Z placu Gravel Lot Motors kupisz jedną używkę naraz. Starsze zapisy z większą flotą niczego nie tracą, po prostu nie dokupią kolejnych aut.'},
+  {t:'change',d:'🌅 W SUNSET PALMS jedną ofertę wynegocjujesz najwyżej trzy razy, a wynik nie jest pewny: stawka może wzrosnąć o 5–10% albo spaść o 5%. Jeśli targujesz się przy każdej kolejnej okazji, NPC to zapamięta i przy trzeciej z rzędu obetnie stawkę oraz zamknie temat.'},
+  {t:'ui',d:'🎬 Okno z opisami w przelocie nad miastem przeniosło się do lewego dolnego rogu i ma cieńszą ramkę, więc nie zasłania prezentowanych miejsc. Dwa małe przyciski na jego krawędzi zwijają je płynnie: najpierw do samej lokacji z opisem, potem do samej nazwy lokacji.'},
+  {t:'ui',d:'⭐ Gwiazdka „Do obserwowanych" przy ofercie lokalu świeci się teraz na żółto, gdy oferta jest obserwowana, i gaśnie po odznaczeniu.'},
+  {t:'ui',d:'🧭 Przycisk konsultacji w studiu wyszarza się po skorzystaniu z usługi i zmienia nazwę na „Przeprowadzono konsultację". Przycisk „Kup z placu" po zakupie pokazuje „Zakupiono".'},
+  {t:'ui',d:'🗺 Znacznik „TY" na mapie miasta jest widoczny także wtedy, gdy siedzisz w budynku — pokazuje miejsce, w którym wszedłeś do środka.'},
+  {t:'ui',d:'⌨ Panel Sterowanie stracił zbędne pole „Pokaż tutorial od nowa", a przycisk powrotu nazywa się „Powrót" i wraca do gry, otwierając folder Pomoc w telefonie.'},
+  {t:'ui',d:'📖 Dziennik aktywności nie otworzy się przez 5 sekund po freestyle’u — litera „O" z ostatniego hasła nie wyrzuci Ci go już na ekran. Wskazówka od TrapInfo o Dzienniku przychodzi teraz od razu po przelocie nad miastem.'},
+  {t:'ui',d:'💃 Velvet Room działa od 22:00 do 5:00.'},
+  {t:'ui',d:'💼 Z ulic Business District zniknęły wiszące w powietrzu prostokąty z napisem „ELITE".'},
+ ]
+ },
  {
  ver:'v2.3.132',date:'2026-08-10',cats:['beta-tester','fix'],title:'🖼 Pełny ekran na każdych proporcjach monitora',
  items:[
@@ -101800,11 +102297,12 @@ const SIDE_STORYLINES={
   districts:{
     name:'🗺 Dzielnice Miasta', color:'#9b59b6',
     quests:[
-      {id:'dd1', em:'🌑', name:'Brama Underground', desc:'Odblokuj Underground District (50 sławy + 20 freestyle) — zagraj 20 freestyle\'ów',
+      /* PDF 13.08 U5/U6/U7: obniżone progi wejścia do dzielnic — opisy zsynchronizowane z REQS. */
+      {id:'dd1', em:'🌑', name:'Brama Underground', desc:'Odblokuj Underground District — zagraj 6 freestyle\'ów (sława niewymagana)',
         check:()=>Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes('underground'), reward:{money:1500,fame:8,xp:60,skillPts:1}},
-      {id:'dd2', em:'🌊', name:'Brama Coast', desc:'Odblokuj Coast District (200 sławy + 150 000 zł zarobione)',
+      {id:'dd2', em:'🌊', name:'Brama Coast', desc:'Odblokuj Coast District (50 sławy + 50 000 zł zarobione)',
         check:()=>Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes('coast'), reward:{money:3000,fame:15,xp:80,skillPts:2}},
-      {id:'dd3', em:'💼', name:'Brama Business', desc:'Odblokuj Business District (300 sławy) — top tier',
+      {id:'dd3', em:'💼', name:'Brama Business', desc:'Odblokuj Business District (50 sławy)',
         check:()=>Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes('business'), reward:{money:5000,fame:25,xp:100,skillPts:3}},
       {id:'dd4', em:'👑', name:'Władca Miasta', desc:'Odblokuj wszystkie 3 dzielnice — masz dostęp do całego miasta',
         check:()=>['underground','coast','business'].every(d=>Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes(d)), reward:{money:10000,fame:40,xp:200,skillPts:5}},
@@ -102016,7 +102514,7 @@ const CAREER_TRACKS={
     {id:'life_dogtoys', em:'🦴', name:'Rozpieszczony pupil', desc:'Kup wszystkie 4 zabawki w sklepie zoologicznym — Twój zwierzak ma wszystko, czego trzeba.', check:()=>(G.dog?.toysOwned||[]).length>=4, reward:{money:3000,fame:5,xp:60,skillPts:1}},
     {id:'life_dogcute', em:'💕', name:'Rasowy ulubieniec', desc:'Osiągnij 80 słodkości u pupila (poziom + zabawki + opieka) — najsłodszy zwierzak w mieście.', check:()=>(G.dog?.slodkosc||0)>=80, reward:{money:4000,fame:8,xp:70,skillPts:1}},
     {id:'life_drip50', em:'💎', name:'Drip 50', desc:'Osiągnij 50 punktów dripu — Twój styl robi wrażenie w całym mieście.', check:()=>(G.drip||0)>=50, reward:{money:2500,fame:10,xp:50,skillPts:1}},
-    {id:'life_district_ug', em:'🌑', name:'Brama Underground', desc:'Odblokuj Underground District (sława + freestyle\'e) — pierwsza nowa dzielnica.', check:()=>Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes('underground'), reward:{money:1500,fame:8,xp:60,skillPts:1}},
+    {id:'life_district_ug', em:'🌑', name:'Brama Underground', desc:'Odblokuj Underground District (6 freestyle\'ów) — pierwsza nowa dzielnica.', /* PDF 13.08 U5 */ check:()=>Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes('underground'), reward:{money:1500,fame:8,xp:60,skillPts:1}},
     {id:'life_district_coast', em:'🌊', name:'Brama Coast', desc:'Odblokuj Marina Coast — luksusowe wybrzeże dla topowych artystów.', check:()=>Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes('coast'), reward:{money:3000,fame:15,xp:80,skillPts:2}},
     {id:'life_forma100', em:'🥇', name:'Perfekcyjna forma', desc:'Maksymalna forma 100 — legendarny stan ciała.', check:()=>(G.forma||0)>=100, reward:{money:10000,fame:15,xp:100,skillPts:2}},
     {id:'life_drip100', em:'👑', name:'Ikona stylu', desc:'Osiągnij 100 punktów dripu — zostań ikoną stylu w mieście.', check:()=>(G.drip||0)>=100, reward:{money:8000,fame:20,xp:100,skillPts:2}},
@@ -102815,6 +103313,17 @@ function loadGame(){
       G.merchStore.totalLifetimeSold=_maxSold;
     }
     G._merchStatsSyncedV2153=true;
+  }
+  /* PDF 13.08 U1/U2/U3 — migracja „grandfather" dla bramek po poradniku (REGUŁA #1).
+     Kredyt/chwilówki/SessionBoard są od teraz zablokowane do końca poradnika. Zapis sprzed tej
+     zmiany mógł mieć `_tutorialSeen=false` mimo dawno rozpoczętej kariery — odblokowujemy go
+     na DOWÓD progresji, a nie „bo stary": wykonana praca dorywcza, poziom 2+, drugi dzień gry,
+     zarobione 1000 zł albo już zaciągnięty kredyt. Nowa gra nie spełnia żadnego z tych warunków. */
+  if(!G._tutorialSeen && !G._tutGateMigratedV133){
+    const _adv = (G._jobsCompleted||0)>=1 || (G.level||1)>=2 || (G.day||1)>=2 ||
+                 (G.totalEarned||0)>=1000 || ((G.bank&&G.bank.loan)||0)>0 || ((G.parabank&&G.parabank.loan)||0)>0;
+    if(_adv) G._tutorialSeen=true;
+    G._tutGateMigratedV133=true;
   }
   // v1.8.43: migracja defaultów dla pól dodanych w v1.8.41-42 — stare zapisy nie miały tych pól
   if(!G._tutStat) G._tutStat={};
@@ -103722,8 +104231,12 @@ function _introTraphouseFridge(){
     if(G._fridgeIntroDone) return;
     G._fridgeIntroDone=true;
     G._fridgeTutorialGlow=true;
-    /* fade pokoju = efekt cut-scenki; spawn tuż przed lodówką w kuchni (fridge wx600,wy130 → stań 618,235, w zasięgu [E]) */
-    if(typeof startRoomFade==='function'){ startRoomFade('mieszkanie',618,235); }
+    /* fade pokoju = efekt cut-scenki; spawn tuż przed lodówką w kuchni (fridge wx600,wy130 → stań 618,235, w zasięgu [E])
+       PDF 13.08 U9: przy NOWEJ GRZE gracz jest już w Traphouse od pierwszej klatki — wtedy nie
+       robimy żadnego przejścia, żeby nie było widocznej „sztucznej teleportacji". Zostają same
+       komunikaty powitalne. Wejście z innego pokoju (np. z wczytanego zapisu) działa jak dotąd. */
+    if(currentRoom==='mieszkanie'){ P.wx=618; P.wy=235; try{updateCamera();}catch(_){} }
+    else if(typeof startRoomFade==='function'){ startRoomFade('mieszkanie',618,235); }
     else { currentRoom='mieszkanie'; P.wx=618; P.wy=235; try{updateCamera();}catch(_){} }
     setTimeout(()=>{ try{ if(typeof showMsg==='function') showMsg('🏠 Witaj w swoim traphouse! Po podróży burczy Ci w brzuchu (głód 30) i brakuje sił (energia 60). 🧊 Podejdź do podświetlonej lodówki i naciśnij [E] — zjedz lub wypij coś.'); }catch(e){} }, 1100);
     /* v2.3.12 (UX-B): drugi toast — gdzie jest wyjście (drzwi 'Wyjście z budynku' wx655,wy600 = DÓŁ pokoju; spawn w kuchni u góry). Pomaga nowemu graczowi nie błądzić. */
@@ -103773,11 +104286,13 @@ function startGame(){
   lastClockReal=Date.now(); /* v2.1.854 (Vegan): świeży zegar na wejściu do gry — anti-skok gameMin */
   window._gameStarted=true; // v1.8.41: flaga in-game (storyline pill widoczny tylko po starcie gry)
   window._sessionStartMs=Date.now(); // v2.1.222: play-time tracker session start
-  currentRoom='ulica';
-  // Spawn przy mieszkaniu gracza (traphouse domyślnie, górna część mapy, wejście od południa)
-  const _aptSpawn={traphouse:{wx:170,wy:325},basic:{wx:170,wy:325},premium:{wx:170,wy:325},luxury:{wx:170,wy:325}};
-  const _sp=_aptSpawn[G.apartment]||_aptSpawn.traphouse;
-  P.wx=_sp.wx;P.wy=_sp.wy;
+  /* PDF 13.08 „Błędy…" U9 (user): postać z nowej gry ma pojawiać się OD RAZU w Traphouse,
+     a nie na chodniku przed budynkiem, żeby zaraz potem zostać sztucznie teleportowaną do środka.
+     Startujemy więc bezpośrednio w pokoju „mieszkanie" (= Traphouse na starcie), na tej samej
+     pozycji przy lodówce, na którą wcześniej przenosiła cutscenka. Przelot nad miastem nadal
+     odpala się przy PIERWSZYM wyjściu na ulicę (flaga _pendingIntroFlythrough) — bez zmian. */
+  currentRoom='mieszkanie';
+  P.wx=618; P.wy=235;
   cityPeds.length=0;cityCars.length=0;dashingAnimals.length=0;
   try{initCityLife();}catch(e){console.error('initCityLife failed:',e);}
   try{initParkLife();}catch(e){console.error('initParkLife failed:',e);}
@@ -110140,6 +110655,14 @@ try{
        transformacją zamiast wychodzić poza ekran. Tekst pozostaje wektorowy (bez utraty ostrości),
        a kliknięcia w kanwy minigier liczone są z `getBoundingClientRect`, więc działają bez zmian. */
 
+/* ── (0) PRZEŁĄCZNIK ADAPTACYJNEJ SCENY (v2.3.132) ───────────────────────────────────────────
+   PDF 13.08 „Błędy…" B1: user zgłosił rozjeżdżanie się paneli interakcyjnych, tekstów i ekranu
+   gry podczas aktywnej rozgrywki i poprosił o powrót do poprzednich ustawień oraz TYMCZASOWE
+   wyłączenie systemu z v2.3.132. Flaga zostaje w kodzie, żeby dało się go włączyć jednym
+   przestawieniem, gdy układ UI zostanie przeliczony na zmienny rozmiar sceny.
+   false = scena stała 1280×720 (zachowanie z v2.3.131 i wcześniejszych). */
+window._ADAPTIVE_VIEW=false;
+
 /* ── (1) OSTROŚĆ ─────────────────────────────────────────────────────────────────────────────── */
 window._scaleStage=1;                       /* aktualna skala sceny (transform na #wrap) */
 window._autoRenderScale=function(){
@@ -110238,10 +110761,14 @@ function scaleGame(){
     /* Skala dobrana tak, żeby świat NIGDY nie był mniejszy niż zaprojektowane 1280x720.
        Nadmiar ekranu (proporcje inne niż 16:9) zamieniamy na dodatkową widoczną przestrzeń
        zamiast czarnych pasów. Górne ograniczenie chroni przed absurdalnie szeroką sceną
-       na monitorach panoramicznych — tam resztę nadal dopełnia wyśrodkowanie. */
+       na monitorach panoramicznych — tam resztę nadal dopełnia wyśrodkowanie.
+       ⚠️ PDF 13.08 B1 (user): „powrócić do poprzednich ustawień i tymczasowo wyłączyć nowy
+       system skalowania ekranu z v2.3.132" — adaptacyjna scena rozjeżdżała panele i teksty
+       podczas rozgrywki. Przy `_ADAPTIVE_VIEW=false` scena wraca do stałych 1280×720
+       (stan sprzed v2.3.132); ostrość kanwy z v2.3.131 (`_autoRenderScale`) ZOSTAJE. */
     const s=Math.min(window.innerWidth/1280,window.innerHeight/720);
-    const SW=Math.max(1280,Math.min(2400,Math.round(window.innerWidth/s)));
-    const SH=Math.max(720, Math.min(1500,Math.round(window.innerHeight/s)));
+    const SW=window._ADAPTIVE_VIEW?Math.max(1280,Math.min(2400,Math.round(window.innerWidth/s))):1280;
+    const SH=window._ADAPTIVE_VIEW?Math.max(720, Math.min(1500,Math.round(window.innerHeight/s))):720;
     VIEW_W=SW; VIEW_H=SH; VIEW_VH=SH-62;
     el.style.width=SW+'px';
     el.style.height=SH+'px';
