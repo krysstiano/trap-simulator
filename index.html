@@ -3243,6 +3243,10 @@ const ROOMS = {
       {id:'gate_underground',wx:0,   wy:2784, w:96,  h:384, act:'gate:underground', prompt:'[E] 🌑 Brama Underground', lbl:''},
       {id:'gate_coast',      wx:3360,wy:3408, w:384, h:192, act:'gate:coast',       prompt:'[E] 🌊 Brama Coast',       lbl:''},
       {id:'gate_business',   wx:3360,wy:0,    w:384, h:192, act:'gate:business',    prompt:'[E] 💼 Brama Business',    lbl:''},
+      /* PDF „Residential District" §1/§2: dzielnica na WSCHODNIEJ granicy mapy, dostępna niemal od
+         początku gry — bez kosztu, bez wymogu sławy i bez progresu Nielegalnego Frontu.
+         Brama na wschodniej krawędzi, na wysokości poziomej drogi H2 (wy 1920-2112). */
+      {id:'gate_residential',wx:4704,wy:1824, w:96,  h:384, act:'gate:residential', prompt:'[E] 🏡 Brama Residential', lbl:''},
     ]
   },
 
@@ -4216,6 +4220,11 @@ function drawSprite(id,sx,sy,w,h){
   if(id&&(id.indexOf('vw_')===0||id==='npc_eve_rook')){ if(typeof window._drawVantageSprite==='function'){ window._drawVantageSprite(id,sx,sy,w,h); X.restore(); return; } }
   /* VANTAGE WORKS V2 (oględziny): strefy wnętrza i Eve Rook mają własne meble/sylwetkę — bez tego szare boxy. */
   if(id&&(id.indexOf('vwi_')===0||id==='npc_vw_eve')){ if(typeof window._drawVwiSprite==='function'){ window._drawVwiSprite(id,sx,sy,w,h); X.restore(); return; } }
+  /* RESIDENTIAL DISTRICT: posesje, POI, park i las mają własne renderery — bez tego byłyby szarymi
+     boxami (lekcja v2.3.125). `reslot_*` rysuje dom z dachem, podjazdem, garażem i dekoracjami. */
+  if(id&&id.indexOf('reslot_')===0){ if(typeof window._drawResLotById==='function'){ window._drawResLotById(id,sx,sy,w,h); X.restore(); return; } }
+  if(id&&(id.indexOf('res_')===0||id.indexOf('park_')===0||id.indexOf('woods_')===0)&&currentRoom==='residential'){
+    if(typeof window._drawResSprite==='function'){ window._drawResSprite(id,sx,sy,w,h); X.restore(); return; } }
   /* PINEGLASS WOODS: strefy `pgw_*` i leśniczy → dedykowany renderer (bez tego szare boxy). */
   if(id&&(id.indexOf('pgw_')===0||id==='npc_pgw_ranger'||id==='exit_pgw')){ if(typeof window._drawPgwSprite==='function'){ window._drawPgwSprite(id,sx,sy,w,h); X.restore(); return; } }
   /* Terminal SUBTERRA — własny sprite, żeby nie renderował się jako szary box (lekcja v2.3.125). */
@@ -4325,6 +4334,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'gate_underground': drawDistrictGate(sx,sy,w,h,'underground','#1a0a0a','#c0392b','🌑');break;
     case 'gate_coast':       drawDistrictGate(sx,sy,w,h,'coast','#0a2a3a','#3498db','🌊');break;
     case 'gate_business':    drawDistrictGate(sx,sy,w,h,'business','#1a1a0a','#c8a520','💼');break;
+    case 'gate_residential': drawDistrictGate(sx,sy,w,h,'residential','#16240f','#7ec87e','🏡');break; /* PDF Residential §1 */
     /* v2.1.384 Faza B' Underground new map (user 2026-05-28 wymóg 1): underground district building draws */
     case 'exit_under':              drawUndergroundExitGate(sx,sy,w,h);break;
     case 'piwnica_underground':     drawPiwnica(sx,sy,w,h);break;
@@ -5537,6 +5547,7 @@ function drawRoomDecorations(){
   else if(currentRoom==='underground') drawUndergroundDecorations();
   else if(currentRoom==='coast'){ if(typeof drawCoastWater==='function') drawCoastWater(); drawCoastDecorations(); if(typeof drawMarinaHarbor==='function') drawMarinaHarbor(); if(typeof window._drawMarinaPortLife==='function') window._drawMarinaPortLife(); }
   else if(currentRoom==='business') drawBusinessDecorations();
+  else if(currentRoom==='residential'){ if(typeof window._resDrawGround==='function') window._resDrawGround(); } /* PDF Residential §11/§14/§17 */
   else if(currentRoom==='casino_lux') drawCasinoLuxDecorations(); /* v2.1.577: 3. piętro Diamond Lounge — żyrandole/złote akcenty */
   else if(currentRoom==='casino_royal') drawCasinoRoyalDecorations(); /* v2.1.589: 4. piętro Royal Penthouse — panorama miasta/platyna */
   else if(currentRoom==='striptiz_club') drawStriptizDecorations(); /* v2.1.930: klub striptiz — parkiet/neony/disco */
@@ -15524,6 +15535,19 @@ function handleAct(act,objId){
        v2.1.384 Faza B' Underground new map: po unlock → fizyczna mapa (NIE overlay).
        Underground ma fizyczną mapę ROOMS.underground. Coast/Business pozostają overlay UI (v2.1.376) dopóki Faza C'/D' new maps dodane. */
     const districtId=act.split(':')[1];
+    /* PDF „Residential District" §2: dzielnica NIE ma kosztu, progu sławy ani zadania wprowadzającego —
+       otwiera się po ukończeniu podstawowego poradnika i od razu wpuszcza gracza do środka. */
+    if(districtId==='residential'){
+      if(typeof window._resBuildDistrict==='function') window._resBuildDistrict();
+      if(!window._resCanAccess()){
+        if(typeof showMsg==='function') showMsg('🏡 Wschodnie przedmieścia otworzą się po ukończeniu podstawowego poradnika.','i',5200);
+        return;
+      }
+      window._resTryUnlock();
+      const r=window._resEnsure(); r.visits=(r.visits||0)+1;
+      if(typeof changeRoom==='function') changeRoom('residential', 120, 700);
+      return;
+    }
     if(Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes(districtId)){
       /* N6 (v2.3.25, PDF „Najnowsza"): WJAZD autem do dzielnicy — auto „wjeżdża" z graczem (poprzednio parkowało przy bramie).
          Obecność auta w dzielnicy (warunek kradzieży N7) wyprowadzimy z `G._inCar` / `_carParkRoom()`. */
@@ -15590,6 +15614,17 @@ function handleAct(act,objId){
     const _po=act.slice('police_opt:'.length);
     if(_po==='phone'){ if(typeof window._policeCellPhone==='function') window._policeCellPhone(); }
     else if(typeof window._policeDetentionOpt==='function') window._policeDetentionOpt(_po);
+  } else if(act&&act.indexOf('res:')===0){
+    /* PDF „Residential District": jeden prefiks aktów dzielnicy.
+       ⚠️ Każdy nowy prefiks MUSI mieć własną gałąź w handleAct (lekcja v2.3.129). */
+    if(typeof window._resAct==='function') window._resAct(act.slice(4));
+    else if(typeof showMsg==='function') showMsg('🏡 Dzielnica jeszcze się ładuje — spróbuj za chwilę.','i',3200);
+  } else if(act&&act.indexOf('gotoDistrict:')===0){
+    /* Przejście z Residential do sąsiedniej dzielnicy (§1: przedmieścia łączą miasto z Business). */
+    const _d=act.slice('gotoDistrict:'.length);
+    if(_d==='business' && Array.isArray(G._unlockedDistricts) && G._unlockedDistricts.includes('business')){
+      if(typeof changeRoom==='function') changeRoom('business', 720, 60);
+    } else if(typeof showMsg==='function') showMsg('💼 Business District nie jest jeszcze odblokowany (50 sławy).','i',4500);
   } else if(act&&act.indexOf('ughGuide:')===0){
     /* GUIDE FLYOVER §4/§6: przewodnik odpowiada TYLKO na świadomą interakcję gracza.
        ⚠️ LEKCJA v2.3.129: każdy nowy prefiks aktu MUSI mieć własną gałąź w handleAct. */
@@ -31057,6 +31092,7 @@ function nextPeriod(){
     if(typeof window._updateCryptoPrices==='function') window._updateCryptoPrices();
     if(typeof window._updateMetalsPrices==='function') window._updateMetalsPrices(); /* v2.1.872: kruszec — dzienny tick cen */
     if(typeof window._olxTick==='function') window._olxTick(); /* v2.1.888: Swaply — kupiec zjawia się po 1-3 dniach (resolve ogłoszeń) */
+    if(typeof window._resDailyTick==='function') window._resDailyTick(); /* PDF Residential §28: zamówienia HomeGrid/Greenridge dojrzewają w czasie */
     if(G.crypto && G.crypto.holdings){
       for(const coinId of Object.keys(G.crypto.holdings)){
         const h=G.crypto.holdings[coinId];
@@ -64694,6 +64730,1242 @@ window._drawMasonHale=function(sx,sy,w,h){
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   RESIDENTIAL DISTRICT — MODULE START
+   PDF „Moduł dzielnicy Residential District, czyli rozbudowane wschodnie przedmieścia,
+   park, las, osiedla willowe i lokalne historie" (§1-§58).
+   Dzielnica leży na WSCHODNIEJ granicy mapy i stanowi przejście Main City → Business District.
+   §54 „Kryteria odbioru mapy" są tu twardym wymogiem: żadnej dzielnicy z kilku skopiowanych
+   domów, park NIE może być powiększoną kopią parku miejskiego, las NIE może być kilkoma
+   identycznymi drzewami, drogi mają prowadzić do posesji, a podjazdy kończyć się garażami.
+   ═══════════════════════════════════════════════════════════════════════════ */
+window.RES_ID='residential_district';
+/* §53 definicja dzielnicy */
+window.RES_DISTRICT={
+  id:'residential_district', displayName:'Residential District',
+  mapScaleRelativeToMainCity:0.50, mapPosition:'east_of_main_city',
+  unlockedByDefaultAfterTutorial:true,
+  connectionPoints:['main_city_east_gate','business_district_west_parkway'],
+  zones:['eastwood_gateway','old_orchard','meadowline_estates','cypress_ridge','eastwood_commons','pineglass_woods','eastgate_commercial'],
+};
+/* §5 sześć podstref + Eastgate. Prostokąty w pikselach świata (mapa 3360×2592 = ~50% powierzchni
+   mapy głównego miasta 4800×3600, zgodnie z §1 i §56.2). */
+window.RES_ZONES=[
+  {id:'eastwood_gateway',   n:'Eastwood Gateway',       x:0,    y:0,    w:620,  h:2592},
+  {id:'old_orchard',        n:'Old Orchard',            x:620,  y:0,    w:700,  h:1120},
+  {id:'meadowline_estates', n:'Meadowline Estates',     x:620,  y:1120, w:1300, h:1472},
+  {id:'cypress_ridge',      n:'Cypress Ridge',          x:2060, y:0,    w:1300, h:1040},
+  {id:'eastwood_commons',   n:'Eastwood Commons Park',  x:1320, y:0,    w:740,  h:1900},
+  {id:'pineglass_woods',    n:'Pineglass Woods',        x:1320, y:1900, w:740,  h:692},
+  {id:'eastgate_commercial',n:'Eastgate',               x:2060, y:1040, w:1300, h:1552},
+];
+window._resZoneAt=function(wx,wy){
+  for(const z of window.RES_ZONES){ if(wx>=z.x&&wx<z.x+z.w&&wy>=z.y&&wy<z.y+z.h) return z; }
+  return null;
+};
+/* ── §12 KATALOGI RÓŻNORODNOŚCI ────────────────────────────────────────────────────────────────
+   Dokument żąda minimum: 16 brył, 10 dachów, 12 elewacji, 12 ogrodów, 14 ogrodzeń,
+   10 podjazdów, 8 garaży, 12 zestawów dekoracji. Poniżej dokładnie te zbiory. */
+window.RES_SHAPES=[
+  {id:'cottage_narrow',w:104,h:88},{id:'cottage_wide',w:150,h:86},{id:'split_level',w:138,h:100},
+  {id:'ranch_long',w:172,h:80},{id:'twostorey_box',w:118,h:112},{id:'l_shaped',w:158,h:104},
+  {id:'gabled_deep',w:126,h:118},{id:'porch_front',w:144,h:92},{id:'terrace_row',w:96,h:96},
+  {id:'modern_flat',w:160,h:96},{id:'villa_wide',w:196,h:118},{id:'villa_court',w:210,h:134},
+  {id:'bungalow',w:132,h:76},{id:'attic_house',w:112,h:104},{id:'duplex_pair',w:180,h:98},
+  {id:'workers_brick',w:100,h:80},
+];
+window.RES_ROOFS=[
+  {id:'dark_gable',c:'#2f3238'},{id:'red_tile',c:'#7d3b2a'},{id:'grey_hip',c:'#4a4f57'},
+  {id:'flat_modern',c:'#31353b'},{id:'green_shingle',c:'#33452f'},{id:'brown_shake',c:'#4a3a28'},
+  {id:'slate_steep',c:'#3a4450'},{id:'terracotta',c:'#8a4a30'},{id:'black_mansard',c:'#22252a'},
+  {id:'copper_patina',c:'#3f6b5c'},
+];
+window.RES_FACADES=[
+  {id:'warm_brick',c:'#8d5a44'},{id:'white_render',c:'#cfc9bd'},{id:'grey_render',c:'#9aa0a6'},
+  {id:'timber_clad',c:'#7a5c3c'},{id:'sand_stone',c:'#bfa87e'},{id:'pale_yellow',c:'#c8b06a'},
+  {id:'olive_paint',c:'#7f8a5c'},{id:'blue_siding',c:'#5f7d94'},{id:'red_brick_old',c:'#7a4034'},
+  {id:'concrete_raw',c:'#8e8e88'},{id:'cream_plaster',c:'#d8cdb4'},{id:'dark_wood',c:'#4f3d2c'},
+];
+window.RES_YARDS=['front_lawn_back_garden','gravel_front','hedged_square','open_grass','paved_court',
+  'flower_beds','vegetable_patch','rock_garden','shaded_trees','pool_yard','play_yard','minimal_lawn'];
+window.RES_FENCES=['low_wood','white_picket','iron_rail','stone_wall','hedge_dense','chain_link',
+  'brick_pillars','tall_privacy','mixed_hedge_rail','open_none','concrete_panel','wire_mesh',
+  'timber_slat','ornamental_iron'];
+window.RES_DRIVEWAYS=['curved_paving','straight_concrete','gravel_strip','brick_herringbone',
+  'twin_track','asphalt_short','stone_slab','shared_lane','circular_turn','narrow_side'];
+window.RES_GARAGES=['attached_single','attached_double','detached_single','detached_double',
+  'carport','integrated_under','none','workshop_shed'];
+window.RES_DECOR=['bike_by_garage','bins','parcel_at_door','garden_toys','grill','garden_furniture',
+  'tools','flower_pots','small_greenhouse','firewood_stack','trampoline','dog_house'];
+/* §13: elementy losowane w obrębie posesji (dokument wymienia ich ponad trzydzieści). */
+window.RES_PROPS=['rower','pojemniki na odpady','paczka przy drzwiach','zabawki ogrodowe','grill',
+  'meble ogrodowe','narzędzia','kwiaty','drzewka','mała szklarnia','skład drewna','dekoracje sezonowe',
+  'remont','kamienie wokół roślin','ściółka','leżaki','hamak','palenisko','worek na śmieci','trampolina',
+  'piaskownica','huśtawka','buda dla psa','donice z recyklingu','zrębki drzewne','zraszacz ogrodowy',
+  'studzienki ozdobne','figurki ozdobne','solarne lampy LED','fontanna ogrodowa','biżuteria ogrodowa',
+  'rzeźba ogrodowa','tablica „na sprzedaż"','tablica „wynajmę"'];
+/* §12 „Zasada sąsiedztwa": dwa sąsiadujące budynki nie mogą powtarzać kombinacji bryły+dachu,
+   ani elewacji+ogrodu+podjazdu. Samo odbicie, zmiana koloru czy przesunięcie okna to NIE jest
+   nowa konstrukcja — dlatego porównujemy identyfikatory cech, nie wygląd. */
+window._resValidatePlacement=function(building, nearby){
+  for(const n of (nearby||[])){
+    if(building.baseShapeId===n.baseShapeId && building.roofTypeId===n.roofTypeId) return false;
+    if(building.facadeMaterialId===n.facadeMaterialId && building.yardLayoutId===n.yardLayoutId
+       && building.drivewayTypeId===n.drivewayTypeId) return false;
+  }
+  return true;
+};
+/* Udział wspólnych cech dwóch posesji — §12 „maksymalne podobieństwo 25-35%". */
+window._resSimilarity=function(a,b){
+  const keys=['baseShapeId','roofTypeId','facadeMaterialId','yardLayoutId','fenceTypeId','drivewayTypeId','garageTypeId'];
+  let same=0; keys.forEach(k=>{ if(a[k]===b[k]) same++; });
+  return same/keys.length;
+};
+/* Deterministyczny RNG — ta sama dzielnica po każdym wczytaniu gry. */
+window._resRng=function(seed){ let x=(seed>>>0)||7; return ()=>{ x^=x<<13;x>>>=0;x^=x>>17;x^=x<<5;x>>>=0; return x/4294967296; }; };
+/* ── GENERATOR POSESJI (§13) ──────────────────────────────────────────────────────────────────
+   Każda posesja dostaje pełny zestaw cech i przechodzi walidację sąsiedztwa; przy kolizji
+   cech losujemy ponownie (do 24 prób), więc sąsiedzi nigdy nie są „tym samym domem inaczej". */
+window._resMakeLot=function(rng, idx, zoneId, x, y, opts){
+  const pick=a=>a[Math.floor(rng()*a.length)%a.length];
+  const o=opts||{};
+  const shapePool=o.shapes||window.RES_SHAPES;
+  for(let att=0; att<24; att++){
+    const sh=pick(shapePool);
+    const lot={
+      lotId:zoneId+'_'+String(1000+idx).slice(1),
+      zoneId:zoneId, wx:x, wy:y,
+      baseShapeId:sh.id, w:sh.w, h:sh.h,
+      roofTypeId:pick(window.RES_ROOFS).id,
+      facadeMaterialId:pick(window.RES_FACADES).id,
+      yardLayoutId:pick(window.RES_YARDS),
+      fenceTypeId:pick(window.RES_FENCES),
+      drivewayTypeId:pick(window.RES_DRIVEWAYS),
+      garageTypeId:pick(window.RES_GARAGES),
+      decorSetId:pick(window.RES_DECOR),
+      poolType:(o.pools&&rng()<0.55)?'rect':null,
+      gardenCondition:Math.round(35+rng()*64),
+      residentProfileId:o.profile||'middle_income_family',
+      vehicleSlots:1+Math.floor(rng()*2),
+      props:[],
+      activeQuestId:null, interactable:false,
+    };
+    /* §13: 2-4 losowe elementy w obrębie posesji */
+    const pc=2+Math.floor(rng()*3);
+    for(let i=0;i<pc;i++){ const p=pick(window.RES_PROPS); if(lot.props.indexOf(p)<0) lot.props.push(p); }
+    if(window._resValidatePlacement(lot, o.nearby||[])) return lot;
+  }
+  return null;
+};
+/* ── §11 UKŁAD DRÓG ────────────────────────────────────────────────────────────────────────────
+   Sześć nazwanych dróg + ronda. Ruch i sterowanie pojazdami zostają zgodne z głównym miastem —
+   różni się WYŁĄCZNIE układ przestrzenny (§11, §54). */
+window.RES_ROADS=[
+  {id:'eastwood_avenue',   n:'Eastwood Avenue',   axis:'h', at:700,  half:96, from:0,    to:3360, lanes:2, desc:'główne połączenie z Main City'},
+  {id:'business_parkway',  n:'Business Parkway',  axis:'h', at:2180, half:96, from:2060, to:3360, lanes:2, desc:'połączenie z Business District'},
+  {id:'commons_boulevard', n:'Commons Boulevard', axis:'v', at:1280, half:64, from:0,    to:2592, lanes:2, desc:'droga wzdłuż parku'},
+  {id:'cypress_drive',     n:'Cypress Drive',     axis:'v', at:2600, half:56, from:0,    to:1040, lanes:2, desc:'droga do osiedla willowego'},
+  {id:'orchard_lane',      n:'Orchard Lane',      axis:'v', at:900,  half:40, from:0,    to:1120, lanes:1, desc:'starsza, węższa droga przez Old Orchard'},
+  {id:'forest_edge_road',  n:'Forest Edge Road',  axis:'h', at:1900, half:56, from:1320, to:2060, lanes:1, desc:'droga na granicy parku i lasu'},
+  /* §11 „spokojniejsze ulice osiedlowe" i „drogi serwisowe przy Eastgate" — bez nich część posesji
+     w Eastwood Gateway nie miałaby dojazdu, co łamie kryterium odbioru §54 („drogi nie prowadzą
+     logicznie do posesji"). Wykryte przez sędziego, nie na oko. */
+  {id:'gateway_lane',      n:'Gateway Lane',      axis:'v', at:430,  half:44, from:660,  to:2592, lanes:1, desc:'spokojna ulica osiedlowa Eastwood Gateway'},
+  {id:'eastgate_service',  n:'Eastgate Service Road', axis:'v', at:2300, half:40, from:1040, to:2592, lanes:1, desc:'droga serwisowa przy Eastgate'},
+];
+/* §11 „krótkie ronda" — trzy węzły na skrzyżowaniach głównych osi. */
+window.RES_ROUNDABOUTS=[{wx:1280,wy:700,r:78},{wx:2600,wy:700,r:70},{wx:2600,wy:2180,r:64}];
+/* §11 natężenie ruchu w ciągu doby */
+window.RES_TRAFFIC_BY_HOUR=[
+  {from:5.5, to:9,  mult:1.25, n:'duży ruch w stronę miasta i Business District'},
+  {from:9,   to:14, mult:0.85, n:'umiarkowany ruch lokalny i dostawy'},
+  {from:14,  to:18, mult:1.20, n:'większy ruch powrotny'},
+  {from:18,  to:22, mult:1.05, n:'ruch restauracyjny, parkowy i prywatne wizyty'},
+  {from:22,  to:25, mult:0.35, n:'mały ruch, dostawy nocne i domówki'},
+  {from:0,   to:5.5,mult:0.30, n:'noc — pojedyncze pojazdy'},
+];
+window._resTrafficMult=function(){
+  const hh=(typeof gameMin==='number'?gameMin:720)/60;
+  for(const b of window.RES_TRAFFIC_BY_HOUR){ if(hh>=b.from&&hh<b.to) return b.mult; }
+  return 1;
+};
+/* ── §14 EASTWOOD COMMONS PARK — własny układ, NIE kopia parku miejskiego (§54) ────────────────
+   Park miejski ma 672×384 px. Tutejszy zajmuje 740×1900 = ponad czterokrotnie większą
+   powierzchnię (§14) i ma 22 własne części funkcjonalne. */
+window.RES_PARK_PARTS=[
+  {id:'park_main_gate',  n:'Główne wejście',            wx:1380, wy:60,   w:120, h:70},
+  {id:'park_alley',      n:'Aleja drzew',               wx:1360, wy:150,  w:160, h:230},
+  {id:'park_pond',       n:'Duży staw',                 wx:1600, wy:220,  w:340, h:230},
+  {id:'park_bridge_a',   n:'Mostek północny',           wx:1660, wy:206,  w:90,  h:26},
+  {id:'park_bridge_b',   n:'Mostek południowy',         wx:1800, wy:446,  w:90,  h:26},
+  {id:'park_run_track',  n:'Trasa biegowa i rowerowa',  wx:1350, wy:500,  w:660, h:60},
+  {id:'park_botanic',    n:'Ogród botaniczny',          wx:1360, wy:590,  w:250, h:190},
+  {id:'park_picnic',     n:'Polana piknikowa',          wx:1660, wy:600,  w:300, h:180},
+  {id:'park_gazebo',     n:'Altana eventowa',           wx:1400, wy:820,  w:150, h:120},
+  {id:'park_amphi',      n:'Mały amfiteatr',            wx:1620, wy:820,  w:300, h:190},
+  {id:'park_dogrun',     n:'Wybieg dla psów',           wx:1360, wy:980,  w:200, h:160},
+  {id:'park_outgym',     n:'Siłownia zewnętrzna',       wx:1620, wy:1050, w:180, h:130},
+  {id:'park_court',      n:'Boisko wielofunkcyjne',     wx:1840, wy:1050, w:170, h:170},
+  {id:'park_tennis',     n:'Korty tenisowe',            wx:1360, wy:1180, w:230, h:170},
+  {id:'park_quiet',      n:'Strefa spokojna',           wx:1650, wy:1250, w:200, h:150},
+  {id:'park_food',       n:'Punkt gastronomiczny',      wx:1880, wy:1260, w:130, h:110},
+  {id:'park_wc',         n:'Toalety',                   wx:1880, wy:1400, w:100, h:90},
+  {id:'park_depot',      n:'Magazyn obsługi parku',     wx:1360, wy:1400, w:140, h:110},
+  {id:'park_view',       n:'Punkt widokowy',            wx:1600, wy:1450, w:150, h:110},
+  {id:'park_to_woods',   n:'Ścieżka do Pineglass Woods',wx:1620, wy:1620, w:160, h:130},
+  {id:'park_season',     n:'Teren pod wydarzenia sezonowe',wx:1360,wy:1590,w:210, h:180},
+  {id:'park_pingpong',   n:'Stół do ping-ponga',        wx:1840, wy:1600, w:110, h:90},
+  {id:'park_hoops',      n:'Kosze wolnostojące',        wx:1840, wy:1720, w:120, h:110},
+];
+/* §17 PINEGLASS WOODS — układ leśny (osobna podstrefa, wizualnie łączy się z parkiem). */
+window.RES_WOODS_PARTS=[
+  {id:'woods_main_path', n:'Główna ścieżka',        wx:1380, wy:1960, w:160, h:520},
+  {id:'woods_side_a',    n:'Boczna trasa wschodnia',wx:1620, wy:1990, w:120, h:240},
+  {id:'woods_side_b',    n:'Boczna trasa zachodnia',wx:1560, wy:2300, w:120, h:220},
+  {id:'woods_hill',      n:'Niewielkie wzniesienie',wx:1800, wy:1990, w:180, h:170},
+  {id:'woods_view',      n:'Punkt widokowy',        wx:1840, wy:2190, w:120, h:100},
+  {id:'woods_glade',     n:'Polana',                wx:1600, wy:2130, w:170, h:140},
+  {id:'woods_wall',      n:'Stary kamienny mur',    wx:1360, wy:2320, w:170, h:40},
+  {id:'woods_stream',    n:'Strumień',              wx:1700, wy:2400, w:300, h:44},
+  {id:'woods_bridge',    n:'Mały drewniany most',   wx:1790, wy:2388, w:80,  h:68},
+  {id:'woods_service',   n:'Zamknięta droga techniczna',wx:1940,wy:2000,w:70, h:400},
+  {id:'woods_station',   n:'Leśna stacja terenowa', wx:1380, wy:2400, w:150, h:120},
+  {id:'woods_storm',     n:'Miejsce uszkodzone po burzy',wx:1620,wy:2440,w:150,h:110},
+];
+/* ── POI z własnym, ręcznie zaprojektowanym budynkiem (§12 „Budynki interakcyjne") ───────────── */
+window.RES_POI=[
+  {id:'res_corner_basket', n:'Corner Basket',              wx:120,  wy:2180, w:180, h:150, act:'res:corner_basket', prompt:'[E] 🧺 Corner Basket'},
+  {id:'res_barberpoint',   n:'BarberPoint',                wx:760,  wy:1560, w:150, h:130, act:'res:barberpoint',   prompt:'[E] 💈 BarberPoint'},
+  {id:'res_realty',        n:'Eastwood Realty',            wx:980,  wy:1560, w:160, h:130, act:'res:realty',        prompt:'[E] 🏠 Eastwood Realty'},
+  {id:'res_pavilion',      n:'Eastwood Community Pavilion',wx:1080, wy:1900, w:190, h:150, act:'res:pavilion',      prompt:'[E] 🎪 Community Pavilion'},
+  {id:'res_parkline',      n:'Parkline Duplex',            wx:1360, wy:1800, w:200, h:150, act:'res:parkline',      prompt:'[E] 🏡 Parkline Duplex'},
+  {id:'res_commerce',      n:'Eastgate Commerce Center',   wx:2360, wy:1300, w:420, h:300, act:'res:commerce',      prompt:'[E] 🏬 Eastgate Commerce Center'},
+  {id:'res_crownline',     n:'Crownline Auto Gallery',     wx:2900, wy:1320, w:330, h:230, act:'res:crownline',     prompt:'[E] 🚙 Crownline Auto Gallery'},
+  {id:'res_willow',        n:'Willow & Ember',             wx:2380, wy:1720, w:230, h:170, act:'res:willow',        prompt:'[E] 🍽 Willow & Ember'},
+  {id:'res_glasshouse',    n:'Glasshouse',                 wx:2700, wy:1720, w:230, h:170, act:'res:glasshouse',    prompt:'[E] 🥂 Glasshouse'},
+  {id:'res_oakline',       n:'Oakline Outfitters',         wx:3020, wy:1720, w:170, h:150, act:'res:oakline',       prompt:'[E] 👕 Oakline Outfitters'},
+  {id:'res_marlow',        n:'Marlow House',               wx:3020, wy:1930, w:170, h:150, act:'res:marlow',        prompt:'[E] 🧥 Marlow House'},
+  {id:'res_greenridge',    n:'Greenridge Garden Center',   wx:2380, wy:1980, w:260, h:180, act:'res:greenridge',    prompt:'[E] 🌿 Greenridge Garden Center'},
+  {id:'res_homegrid',      n:'HomeGrid Renovations',       wx:2700, wy:1980, w:230, h:180, act:'res:homegrid',      prompt:'[E] 🔨 HomeGrid Renovations'},
+  {id:'res_villa_vale',    n:'Willa Simona Vale',          wx:2180, wy:200,  w:250, h:170, act:'res:villa_vale',    prompt:'[E] 🎛 Willa — otwarte okno'},
+  {id:'res_villa_empty',   n:'Pusta willa',                wx:2600, wy:200,  w:250, h:170, act:'res:villa_empty',   prompt:'[E] 🏚 Pusta willa'},
+  {id:'res_villa_event',   n:'Willa eventowa',             wx:3020, wy:200,  w:250, h:170, act:'res:villa_event',   prompt:'[E] 🥂 Willa — prywatne wydarzenie'},
+];
+/* ── BUDOWA MAPY ──────────────────────────────────────────────────────────────────────────────
+   Domy generowane deterministycznie z walidacją sąsiedztwa (§12). Nie każdy dom ma wnętrze —
+   ale KAŻDY ma logiczną posesję, podjazd, ogrodzenie i dekoracje (§51, §56.12). */
+window._resBuildDistrict=function(){
+  if(window.__resBuilt && ROOMS.residential) return ROOMS.residential;
+  const objs=[];
+  /* wyjścia: zachód → Main City, wschód → Business District */
+  objs.push({id:'res_exit_west', wx:0,    wy:604, w:56, h:192, act:'goto:ulica:4640:1980', prompt:'[E] ⬅ Main City', lbl:'Do miasta'});
+  objs.push({id:'res_exit_east', wx:3304, wy:2084, w:56, h:192, act:'gotoDistrict:business', prompt:'[E] ➡ Business District', lbl:'Business'});
+  objs.push({id:'res_welcome_sign', wx:150, wy:560, w:170, h:70, act:null, prompt:'', lbl:'WELCOME TO EASTWOOD'});
+  objs.push({id:'res_bus_stop',  wx:360, wy:820, w:90,  h:60, act:'res:bus_stop', prompt:'[E] 🚌 Przystanek', lbl:'Przystanek'});
+  objs.push({id:'res_fuel',      wx:170, wy:900, w:150, h:120, act:'res:fuel', prompt:'[E] ⛽ Punkt serwisowy', lbl:'Serwis'});
+  objs.push({id:'res_parcel',    wx:330, wy:2180, w:70, h:70, act:'res:parcel', prompt:'[E] 📦 Paczkomaty', lbl:'Paczkomaty'});
+  objs.push({id:'res_parking_gw', wx:120, wy:2400, w:280, h:120, act:null, prompt:'', lbl:'Parking'});
+  objs.push({id:'res_parking_eg', wx:2380, wy:1140, w:400, h:120, act:null, prompt:'', lbl:'Parking Eastgate'});
+  /* POI z ręcznie projektowanym wyglądem */
+  window.RES_POI.forEach(p=>objs.push({id:p.id, wx:p.wx, wy:p.wy, w:p.w, h:p.h, act:p.act, prompt:p.prompt, lbl:p.n}));
+  /* park i las — elementy dekoracyjno-funkcjonalne, klikalne przez panel parku */
+  window.RES_PARK_PARTS.forEach(p=>objs.push({id:p.id, wx:p.wx, wy:p.wy, w:p.w, h:p.h,
+    act:(p.id==='park_amphi'||p.id==='park_to_woods'||p.id==='park_main_gate')?('res:'+p.id):null,
+    prompt:(p.id==='park_amphi')?'[E] 🎶 Amfiteatr — Parkline Sessions':((p.id==='park_to_woods')?'[E] 🌲 Przejdź do Pineglass Woods':((p.id==='park_main_gate')?'[E] 🌳 Eastwood Commons':'')), lbl:p.n}));
+  window.RES_WOODS_PARTS.forEach(p=>objs.push({id:p.id, wx:p.wx, wy:p.wy, w:p.w, h:p.h,
+    act:(p.id==='woods_station')?'res:woods_station':null,
+    prompt:(p.id==='woods_station')?'[E] 🌲 Leśna stacja terenowa':'', lbl:p.n}));
+  /* ── posesje mieszkalne ── */
+  const rng=window._resRng(20260813);
+  const lots=[]; let idx=0;
+  /* ⚠️ ŻELAZNA REGUŁA #8 (zero tolerancji dla nachodzenia) + §54: posesja NIE MOŻE wejść w bryłę
+     już postawionego obiektu. Sprawdzamy kolizję z KAŻDYM dotychczasowym obiektem (POI, parking,
+     wcześniejsze domy) z marginesem oddechu — kolidującą działkę po prostu pomijamy. */
+  const GAP=14;
+  const collides=(x,y,w,h)=>objs.some(o=>{
+    if(!o||o.w<24||o.h<24) return false;
+    if(o.id.indexOf('park_')===0||o.id.indexOf('woods_')===0) return false;
+    return x-GAP < o.wx+o.w && x+w+GAP > o.wx && y-GAP < o.wy+o.h && y+h+GAP > o.wy;
+  });
+  const place=(zoneId, x, y, opts)=>{
+    const nearby=lots.filter(l=>Math.abs(l.wx-x)<330 && Math.abs(l.wy-y)<300);
+    const lot=window._resMakeLot(rng, idx++, zoneId, x, y, Object.assign({nearby:nearby}, opts||{}));
+    if(!lot) return null;
+    if(collides(lot.wx, lot.wy, lot.w, lot.h)) return null;   /* miejsce zajęte — bez wciskania na siłę */
+    lots.push(lot);
+    objs.push({id:'reslot_'+lot.lotId, wx:lot.wx, wy:lot.wy, w:lot.w, h:lot.h,
+      act:null, prompt:'', lbl:'', _resLot:lot});
+    return lot;
+  };
+  /* Old Orchard — najstarsza część: małe ceglane domy, nieregularne działki (§7) */
+  const orchardShapes=window.RES_SHAPES.filter(s=>['cottage_narrow','cottage_wide','workers_brick','bungalow','attic_house','terrace_row','gabled_deep','porch_front'].indexOf(s.id)>=0);
+  for(let r=0;r<4;r++) for(let c=0;c<3;c++)
+    place('old_orchard', 660+c*215+Math.floor(rng()*22), 60+r*250+Math.floor(rng()*26), {shapes:orchardShapes, profile:'older_resident'});
+  /* Meadowline Estates — największa część mieszkalna, regularna siatka (§8) */
+  const meadowShapes=window.RES_SHAPES.filter(s=>['split_level','ranch_long','twostorey_box','l_shaped','porch_front','bungalow','duplex_pair','gabled_deep','modern_flat','cottage_wide'].indexOf(s.id)>=0);
+  for(let r=0;r<5;r++) for(let c=0;c<5;c++){
+    const x=660+c*238, y=1180+r*250;
+    if(x>1240&&x<1340) continue;                 /* nie wchodzimy na Commons Boulevard */
+    place('meadowline_estates', x+Math.floor(rng()*16), y+Math.floor(rng()*18), {shapes:meadowShapes, profile:'middle_income_family'});
+  }
+  /* Cypress Ridge — wille i baseny (§9) */
+  const villaShapes=window.RES_SHAPES.filter(s=>['villa_wide','villa_court','modern_flat','ranch_long','l_shaped'].indexOf(s.id)>=0);
+  for(let r=0;r<3;r++) for(let c=0;c<4;c++){
+    const x=2120+c*300, y=420+r*210;
+    if(x>2540&&x<2680) continue;                 /* Cypress Drive */
+    place('cypress_ridge', x, y, {shapes:villaShapes, profile:'wealthy_owner', pools:true});
+  }
+  /* Eastwood Gateway — pierwsze, mniejsze domy przy wjeździe (§6) */
+  for(let r=0;r<4;r++)
+    place('eastwood_gateway', 120+Math.floor(rng()*40), 1080+r*230, {shapes:orchardShapes, profile:'gateway_resident'});
+  window.RES_LOTS=lots;
+  ROOMS.residential={ wT:70, hT:54, map:null, objects:objs };
+  window.__resBuilt=true;
+  return ROOMS.residential;
+};
+/* ── §35 REPUTACJA DZIELNICOWA ────────────────────────────────────────────────────────────────── */
+window._resEnsure=function(){
+  if(!G.residentialDistrict||typeof G.residentialDistrict!=='object') G.residentialDistrict={};
+  const r=G.residentialDistrict;
+  [['visits',0],['localTrust',0],['residentialReputation',0],['communitySupport',0],
+   ['neighborhoodSuspicion',0],['parkReputation',0],['businessConnections',0],['villaConnections',0],
+   ['gigsCompleted',0],['noiseComplaints',0],['artistCommunity',0],['neighborhoodTrust',0],
+   ['aestheticSense',0],['realEstateKnowledge',0],['employerRelationship',0],
+   ['lastSessionDay',-99],['lastMarketWeek',-99],['lastPartyDay',-99]
+  ].forEach(([k,d])=>{ if(typeof r[k]!=='number'||!isFinite(r[k])) r[k]=d; });
+  ['propertiesOwned','unlockedContacts','completedStorylines','activeStories'].forEach(k=>{ if(!Array.isArray(r[k])) r[k]=[]; });
+  if(!r.stories||typeof r.stories!=='object') r.stories={};
+  if(!r.homeUpgrades||typeof r.homeUpgrades!=='object') r.homeUpgrades={};
+  if(typeof r.unlocked!=='boolean') r.unlocked=false;
+  return r;
+};
+window._resAdd=function(key, delta){
+  const r=window._resEnsure();
+  r[key]=Math.max(0, Math.min(100, (r[key]||0)+delta));
+  return r[key];
+};
+/* §2 ODBLOKOWANIE — zaraz po podstawowym poradniku, BEZ kosztu, sławy i progresu Nielegalnego Frontu. */
+window._resCanAccess=function(){
+  return !!(window._tutorialDone && window._tutorialDone());
+};
+window._resTryUnlock=function(){
+  const r=window._resEnsure();
+  if(r.unlocked) return true;
+  if(!window._resCanAccess()) return false;
+  r.unlocked=true;
+  if(typeof addNotif==='function') addNotif('🗺 ODBLOKOWANO NOWĄ DZIELNICĘ — Residential District. Wschodnie przedmieścia są już dostępne: domy i wille, lokalne sklepy, park oraz las, prace dorywcze, nieruchomości, usługi i prywatne wydarzenia.');
+  if(typeof showMsg==='function') showMsg('🏡 Residential District otwarty. Brama na wschodniej krawędzi miasta.','g',7000);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return true;
+};
+/* §33 profil City Pulse dzielnicy */
+window.RES_PULSE_PROFILE={
+  basePedestrianDensity:0.72, baseTrafficDensity:0.68,
+  morningCommuterMultiplier:1.25, afternoonReturnMultiplier:1.20, eveningParkMultiplier:1.15,
+  weekendLeisureMultiplier:1.30, retailAttractorMultiplier:1.10, parkAttractorMultiplier:1.45,
+  restaurantAttractorMultiplier:1.25, fameRecognitionMultiplier:0.75, policePresenceMultiplier:0.65,
+  complaintSensitivityMultiplier:1.35, neighborhoodSuspicionMultiplier:1.20,
+};
+/* §49 profil policji: mniej patroli bez celu, ale mieszkańcy zgłaszają znacznie częściej. */
+window.RES_POLICE_PROFILE={
+  patrolPresenceMultiplier:0.60, patrolStayTimeMultiplier:0.70, responseTimeMultiplier:0.85,
+  randomCheckChance:0.35, noiseComplaintResponseMultiplier:1.40,
+  propertyIncidentResponseMultiplier:1.35, neighborhoodReportMultiplier:1.50,
+};
+/* §34 SYSTEM SKARG NA HAŁAS — wzór 1:1 z dokumentu. */
+window._resNoiseComplaintChance=function(ev){
+  const r=window._resEnsure(); ev=ev||{};
+  let chance=(ev.baseNoiseLevel||0)*0.35;
+  chance+=(ev.durationHours||0)*4;
+  chance+=(G.infamy||0)*0.10;
+  chance+=(ev.guestCount||0)*0.25;
+  if(ev.locationZone==='cypress_ridge') chance+=8;
+  const hh=(typeof gameMin==='number'?gameMin:720)/60;
+  if(hh>=22) chance+=15;
+  chance-=(r.residentialReputation||0)*2;
+  return Math.max(0, Math.min(80, Math.round(chance)));
+};
+window._resResolveNoise=function(ev){
+  const r=window._resEnsure();
+  const chance=window._resNoiseComplaintChance(ev);
+  const roll=Math.random()*100;
+  if(roll>=chance) return {complaint:false, chance:chance};
+  r.noiseComplaints++;
+  window._resAdd('residentialReputation',-4);
+  window._resAdd('neighborhoodSuspicion',+5);
+  const patrol=Math.random()*100 < chance*window.RES_POLICE_PROFILE.noiseComplaintResponseMultiplier*0.4;
+  if(typeof addNotif==='function') addNotif('🔊 Sąsiedzi zgłosili hałas'+(patrol?' — pod dom podjechał patrol.':'. Skarga poszła do zarządcy.'));
+  return {complaint:true, chance:chance, patrol:patrol, interrupted:patrol};
+};
+/* §43-§45 GIGI DZIELNICY. Sześć dostępnych od początku + siedem odblokowywanych reputacją. */
+window.RES_GIGS=[
+  {id:'res_mow',    em:'🌿', n:'Koszenie trawników',        pay:[90,190],  diff:'Łatwa',   en:6, rep:0,  fx:{localTrust:1}},
+  {id:'res_rake',   em:'🍂', n:'Grabienie liści',           pay:[80,170],  diff:'Łatwa',   en:5, rep:0,  fx:{localTrust:1}},
+  {id:'res_dogs',   em:'🐕', n:'Wyprowadzanie psów',        pay:[70,150],  diff:'Łatwa',   en:4, rep:0,  fx:{localTrust:1,communitySupport:1}},
+  {id:'res_clean',  em:'🧹', n:'Sprzątanie domu',           pay:[110,230], diff:'Średnia', en:7, rep:0,  fx:{localTrust:1}},
+  {id:'res_move',   em:'📦', n:'Przeprowadzka',             pay:[200,420], diff:'Trudna',  en:9, rep:0,  fx:{localTrust:2}},
+  {id:'res_courier',em:'🚴', n:'Kurier lokalny',            pay:[90,180],  diff:'Łatwa',   en:5, rep:0,  fx:{localTrust:1}},
+  {id:'res_pool',   em:'🏊', n:'Serwis basenu',             pay:[200,420], diff:'Średnia', en:7, rep:12, fx:{villaConnections:2,employerRelationship:1}, minigame:true},
+  {id:'res_assembly',em:'🔧',n:'Montaż wyposażenia',        pay:[180,360], diff:'Średnia', en:7, rep:10, fx:{localTrust:2}},
+  {id:'res_staging',em:'🛋', n:'Przygotowanie nieruchomości do sprzedaży', pay:[250,500], diff:'Trudna', en:8, rep:14, fx:{aestheticSense:2,realEstateKnowledge:2}, minigame:true},
+  {id:'res_catering',em:'🍽',n:'Prywatny catering',         pay:[240,470], diff:'Trudna',  en:8, rep:18, fx:{villaConnections:2,businessConnections:1}},
+  {id:'res_valet',  em:'🚗', n:'Valet na willowym evencie', pay:[220,430], diff:'Średnia', en:6, rep:20, fx:{villaConnections:3}},
+  {id:'res_photo',  em:'📸', n:'Sesja nieruchomości',       pay:[230,450], diff:'Średnia', en:6, rep:16, fx:{realEstateKnowledge:2,businessConnections:1}},
+  {id:'res_guest',  em:'🎩', n:'Opiekun prywatnego gościa', pay:[260,520], diff:'Trudna',  en:7, rep:24, fx:{villaConnections:3,businessConnections:2}},
+];
+window._resGigPool=function(){
+  const r=window._resEnsure();
+  return window.RES_GIGS.filter(g=>(r.residentialReputation||0)>=(g.rep||0));
+};
+window._resDoGig=function(id){
+  const r=window._resEnsure();
+  const g=window.RES_GIGS.find(x=>x.id===id); if(!g) return {ok:false,msg:'Nie ma takiego zlecenia.'};
+  if((r.residentialReputation||0)<(g.rep||0)) return {ok:false,msg:'To zlecenie otwiera się przy reputacji '+g.rep+' w dzielnicy.'};
+  if((G.energy||0)<g.en) return {ok:false,msg:'Za mało energii (potrzeba '+g.en+').'};
+  G.energy=Math.max(0,(G.energy||0)-g.en);
+  const pay=g.pay[0]+Math.floor(Math.random()*(g.pay[1]-g.pay[0]+1));
+  if(typeof earn==='function') earn(pay,false); else G.money=(G.money||0)+pay;
+  r.gigsCompleted++;
+  window._resAdd('residentialReputation',+2);
+  for(const k in (g.fx||{})) window._resAdd(k, g.fx[k]);
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return {ok:true, pay:pay, msg:g.em+' '+g.n+' — '+pay.toLocaleString('pl')+' zł. Reputacja w dzielnicy rośnie.'};
+};
+/* §16 PARKLINE SESSIONS — małe wydarzenia muzyczne w amfiteatrze. */
+window._resSessionCheck=function(){
+  const r=window._resEnsure();
+  const day=G.day||1;
+  const published=((G.tracks&&G.tracks.length)||0)+((G.releasedTracks&&G.releasedTracks.length)||0)+(G.singlesReleased||0);
+  const reasons=[];
+  if(published<1) reasons.push('musisz mieć przynajmniej jeden opublikowany utwór');
+  if(G._concertBan||G._resBan) reasons.push('masz aktywny ban na występy');
+  if(day-(r.lastSessionDay||-99)<4) reasons.push('cooldown 4 dni od ostatniego występu');
+  if((G.energy||0)<25) reasons.push('jesteś zbyt zmęczony');
+  return {ok:reasons.length===0, reasons:reasons};
+};
+window._resPlaySession=function(){
+  const r=window._resEnsure();
+  const chk=window._resSessionCheck();
+  if(!chk.ok) return {ok:false,msg:'Zgłoszenie odrzucone: '+chk.reasons.join(', ')+'.'};
+  r.lastSessionDay=G.day||1;
+  G.energy=Math.max(0,(G.energy||0)-20);
+  /* §16 ryzyka: słaby występ, problem techniczny, skarga na hałas, pogoda, mała publiczność */
+  const risks=[];
+  const weather=(G.weather||0);
+  if(weather===2||weather===5) risks.push('niesprzyjająca pogoda');
+  if(Math.random()<0.15) risks.push('problem techniczny');
+  if(Math.random()<0.12) risks.push('zbyt mała publiczność');
+  const quality=Math.max(5, 55+(r.parkReputation||0)*0.4+((G.skills&&G.skills.scena)||0)*3-risks.length*18+Math.floor(Math.random()*20));
+  const good=quality>=55;
+  if(!good) risks.push('słaby występ');
+  const fans=good?(20+Math.floor(Math.random()*70)):(2+Math.floor(Math.random()*10));
+  if(typeof addFans==='function') addFans(fans); else G.fans=(G.fans||0)+fans;
+  window._resAdd('parkReputation', good?+5:+1);
+  window._resAdd('residentialReputation', good?+3:0);
+  window._resAdd('artistCommunity', +2);
+  const noise=window._resResolveNoise({baseNoiseLevel:38, durationHours:2, guestCount:24, locationZone:'eastwood_commons'});
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return {ok:true, good:good, fans:fans, risks:risks, noise:noise,
+    msg:(good?'🎶 Dobry set w Eastwood Commons. ':'🎶 Set przeszedł bez echa. ')+'+'+fans+' fanów.'+(risks.length?(' Problemy: '+risks.join(', ')+'.'):'')+(noise.complaint?' Zgłoszono hałas.':'')};
+};
+/* §30 WEEKENDOWY TARG — sobota 08:00-15:00, raz na tydzień gry. */
+window._resMarketOpen=function(){
+  const day=G.day||1;
+  const dow=(typeof _dayOfWeek==='function')?_dayOfWeek():((day-1)%7);
+  const hh=(typeof gameMin==='number'?gameMin:720)/60;
+  return {open:(dow===5)&&hh>=8&&hh<15, dow:dow, hh:hh};
+};
+window._resMarketVisit=function(){
+  const r=window._resEnsure();
+  const st=window._resMarketOpen();
+  if(!st.open) return {ok:false,msg:'Eastwood Weekend Market działa w soboty 08:00–15:00.'};
+  const week=Math.floor(((G.day||1)-1)/7);
+  if(r.lastMarketWeek===week) return {ok:false,msg:'Byłeś już na tym targu w tym tygodniu.'};
+  r.lastMarketWeek=week;
+  window._resAdd('localTrust',+2); window._resAdd('communitySupport',+1);
+  const fake=Math.random()<0.28;
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return {ok:true, fake:fake,
+    msg:'🧺 Weekendowy targ: lokalna żywność, rękodzieło, winyle, rośliny i drobne wyposażenie domu.'+(fake?' Jeden ze sprzedawców próbował wcisnąć podróbkę — rozpoznałeś ją.':'')};
+};
+/* §36 DOMÓWKI I PRYWATNE WYDARZENIA */
+window.RES_PARTY_TYPES=[
+  {id:'house',   n:'Zwykła domówka',        guests:12, noise:30, mood:8},
+  {id:'big',     n:'Duża domówka',          guests:34, noise:52, mood:12},
+  {id:'grill',   n:'Grill',                 guests:14, noise:24, mood:9},
+  {id:'pool',    n:'Impreza przy basenie',  guests:26, noise:44, mood:12},
+  {id:'bday',    n:'Urodziny',              guests:18, noise:34, mood:10},
+  {id:'dinner',  n:'Kolacja biznesowa',     guests:8,  noise:12, mood:6},
+  {id:'sponsor', n:'Wydarzenie sponsorskie',guests:22, noise:28, mood:7},
+  {id:'listen',  n:'Prywatny listening party',guests:16,noise:26, mood:11},
+  {id:'closed',  n:'Zamknięty występ',      guests:20, noise:40, mood:13},
+  {id:'photo',   n:'Sesja fotograficzna',   guests:9,  noise:10, mood:5},
+];
+window._resAttendParty=function(typeId, mode){
+  const r=window._resEnsure();
+  const t=window.RES_PARTY_TYPES.find(x=>x.id===typeId)||window.RES_PARTY_TYPES[0];
+  const zone=(mode==='villa')?'cypress_ridge':'meadowline_estates';
+  G.energy=Math.max(0,(G.energy||0)-10);
+  if(typeof G.stress==='number') G.stress=Math.min(100,(G.stress||0)+t.mood);
+  const out={type:t.n, effects:[]};
+  if(mode==='set'){ window._resAdd('artistCommunity',+3); window._resAdd('parkReputation',+2); out.effects.push('zagrałeś krótki set'); }
+  if(mode==='guests'){ window._resAdd('villaConnections',+2); out.effects.push('poznałeś gości'); }
+  if(mode==='help'){ window._resAdd('communitySupport',+2); window._resAdd('localTrust',+2); out.effects.push('pomogłeś przy evencie'); }
+  if(mode==='hosts'){ window._resAdd('residentialReputation',+2); out.effects.push('rozmowa z gospodarzami'); }
+  window._resAdd('businessConnections', (zone==='cypress_ridge')?2:1);
+  const noise=window._resResolveNoise({baseNoiseLevel:t.noise, durationHours:3, guestCount:t.guests, locationZone:zone});
+  out.noise=noise;
+  /* §36 mediaRisk — nagrania z prywatnej imprezy potrafią wypłynąć */
+  if(Math.random()<0.18){ out.media=true; if(typeof G.mediaRisk==='number') G.mediaRisk=Math.min(100,G.mediaRisk+3); }
+  r.lastPartyDay=G.day||1;
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return out;
+};
+/* §37-§42 SIDE-STORY — sześć lokalnych historii, każda z własnymi decyzjami i skutkami. */
+window.RES_STORIES=[
+  {id:'quiet_after_22', n:'Cisza po dwudziestej drugiej', desc:'Lokalni muzycy organizują Parkline Sessions, ale część mieszkańców chce ograniczenia wydarzeń.',
+   choices:[
+     {id:'artists',    t:'Poprzyj wydarzenia',        fx:{artistCommunity:8, parkReputation:6, neighborhoodTrust:-6}},
+     {id:'residents',  t:'Poprzyj mieszkańców',       fx:{communitySupport:8, artistCommunity:-6}},
+     {id:'compromise', t:'Znajdź kompromis',          fx:{localTrust:7, parkReputation:4, communitySupport:4}, unlock:'better_events'},
+   ]},
+  {id:'old_orchard', n:'Stare Sady', desc:'Deweloper chce wyburzyć część starszych domów i wybudować zamknięte osiedle.',
+   choices:[
+     {id:'protect',  t:'Poprzyj ochronę części dzielnicy', fx:{localTrust:8, communitySupport:6, businessConnections:-4}},
+     {id:'develop',  t:'Poprzyj nową inwestycję',          fx:{businessConnections:9, localTrust:-6}},
+     {id:'negotiate',t:'Wynegocjuj mniejszy projekt',      fx:{localTrust:5, businessConnections:5}, unlock:'orchard_balance'},
+   ]},
+  {id:'open_window', n:'Dom z otwartym oknem', desc:'W jednej z willi mieszka były producent muzyczny Simon Vale. Z posesji słychać niedokończony utwór.',
+   choices:[
+     {id:'listen',  t:'Posłuchaj i odezwij się',      fx:{villaConnections:5, artistCommunity:4}},
+     {id:'task',    t:'Wykonaj dla niego drobne zadanie', fx:{villaConnections:7, employerRelationship:4}, unlock:'vale_session'},
+     {id:'leave',   t:'Nie przeszkadzaj',             fx:{}},
+   ]},
+  {id:'corner_basket', n:'Corner Basket kontra sieć', desc:'Właściciele sklepu stają przed ryzykiem zamknięcia — duża sieć planuje punkt obok.',
+   choices:[
+     {id:'promo',    t:'Pomóż w reklamie',                 fx:{localTrust:7, employerRelationship:5}, unlock:'basket_grows'},
+     {id:'supplier', t:'Znajdź dostawcę',                  fx:{localTrust:5, businessConnections:4}},
+     {id:'connect',  t:'Połącz sklep z Eastgate Commerce Center', fx:{businessConnections:7, localTrust:3}, unlock:'basket_expands'},
+     {id:'ignore',   t:'Zignoruj sprawę',                  fx:{localTrust:-4}},
+   ]},
+  {id:'empty_villa', n:'Pusta willa', desc:'Jedna willa w Cypress Ridge stoi nieużywana: zamknięta brama, pusty basen, tablica nieruchomości.',
+   choices:[
+     {id:'prepare', t:'Przygotuj dom do sprzedaży', fx:{realEstateKnowledge:6, aestheticSense:4, employerRelationship:4}},
+     {id:'shoot',   t:'Zrób sesję zdjęciową',       fx:{aestheticSense:5, businessConnections:3}},
+     {id:'investor',t:'Poznaj zainteresowanego inwestora', fx:{businessConnections:7, villaConnections:4}, unlock:'villa_for_sale'},
+   ]},
+  {id:'neighbour_watches', n:'Sąsiad patrzy', desc:'Przy wysokiej podejrzliwości jeden z mieszkańców zaczyna obserwować Twoją aktywność.',
+   requires:{neighborhoodSuspicion:35},
+   choices:[
+     {id:'calm',    t:'Porozmawiaj spokojnie',   fx:{neighborhoodSuspicion:-10, localTrust:3}},
+     {id:'explain', t:'Wyjaśnij swoją obecność', fx:{neighborhoodSuspicion:-7}},
+     {id:'sorry',   t:'Przeproś za hałas',       fx:{neighborhoodSuspicion:-6, residentialReputation:2}},
+     {id:'ignore',  t:'Zignoruj',                fx:{neighborhoodSuspicion:4}},
+     {id:'aggro',   t:'Zachowaj się agresywnie', fx:{neighborhoodSuspicion:12, residentialReputation:-8}, police:true},
+   ]},
+];
+window._resStoryChoose=function(storyId, choiceId){
+  const r=window._resEnsure();
+  const s=window.RES_STORIES.find(x=>x.id===storyId); if(!s) return {ok:false,msg:'Nie ma takiego wątku.'};
+  if(s.requires){ for(const k in s.requires) if((r[k]||0)<s.requires[k]) return {ok:false,msg:'Ten wątek jeszcze się nie zaczął.'}; }
+  if(r.completedStorylines.indexOf(storyId)>=0) return {ok:false,msg:'Ten wątek jest już domknięty.'};
+  const c=s.choices.find(x=>x.id===choiceId); if(!c) return {ok:false,msg:'Nie ma takiej decyzji.'};
+  for(const k in (c.fx||{})) window._resAdd(k, c.fx[k]);
+  r.completedStorylines.push(storyId);
+  r.stories[storyId]=choiceId;
+  if(c.unlock && r.unlockedContacts.indexOf(c.unlock)<0) r.unlockedContacts.push(c.unlock);
+  /* §42: agresja podnosi też zainteresowanie służb */
+  if(c.police){ G.heat=Math.min(100,(G.heat||0)+6); if(typeof G.policeInterest==='number') G.policeInterest=Math.min(100,G.policeInterest+8); }
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return {ok:true, msg:'Decyzja zapisana: '+c.t+'.', unlock:c.unlock||null};
+};
+/* §48 INTEGRACJA Z NIELEGALNYM FRONTEM — warunek 1:1 z dokumentu, celowo wąski. */
+window._resCanTriggerShadowLead=function(npc){
+  const r=window._resEnsure();
+  const u=G.underworldIntro||{};
+  return !!(u.introCompleted===true && (u.kantarTrust||0)>=4 &&
+            npc && (npc.shadowAffinity||0)>=65 && (r.neighborhoodSuspicion||0)<60);
+};
+/* §47 INTEGRACJA Z SOCIAL MEDIAMI — gotowe treści postów. */
+window.RES_SOCIAL={
+  session:  {app:'FrameUp',  t:'{ksywka} zagrał mały set w Eastwood Commons. Bez wielkiej sceny, za to blisko ludzi. Dobrze wyszło'},
+  house:    {app:'ChirpNet', t:'Nowy dom na przedmieściach? Artysta coraz dalej od bloku, ale podobno bliżej własnego studia.'},
+  cleanup:  {app:'FrameUp',  t:'Czy to normalna akcja lokalna, czy kampania wizerunkowa?'},
+  poolparty:{app:'ViewGrid', t:'Nagrania z Cypress Ridge krążą po sieci. Prywatny event nie był tak prywatny, jak zakładali na wstępie organizatorzy.'},
+};
+window._resPostSocial=function(key){
+  const d=window.RES_SOCIAL[key]; if(!d) return null;
+  const nick=(G.name||G.nick||'Artysta');
+  const text=d.t.replace('{ksywka}', nick);
+  if(typeof addNotif==='function') addNotif('📱 '+d.app+': '+text);
+  return {app:d.app, text:text};
+};
+/* §28 HOMEGRID — zamówienia remontowe realizowane w czasie (§28 „Zakup działa jako zamówienie"). */
+window.RES_HOME_UPGRADES=[
+  {id:'home_studio_t2', n:'Adaptacja pokoju na studio', cost:85000, days:3, fx:'własne home studio'},
+  {id:'storage_expand', n:'Rozbudowa magazynu domowego',cost:24000, days:2, fx:'więcej miejsca'},
+  {id:'facade_swap',    n:'Wymiana elewacji',           cost:38000, days:3, fx:'lepszy prestiż posesji'},
+  {id:'interior_reno',  n:'Remont wnętrz',              cost:52000, days:4, fx:'lepsza regeneracja'},
+  {id:'security',       n:'Montaż zabezpieczeń',        cost:19000, days:1, fx:'mniejsze ryzyko incydentu'},
+  {id:'pool_build',     n:'Budowa basenu',              cost:120000,days:6, fx:'basen na posesji'},
+  {id:'garage_mod',     n:'Modernizacja garażu',        cost:31000, days:2, fx:'lepsze miejsce dla pojazdów'},
+  {id:'house_repair',   n:'Naprawa domu',               cost:16000, days:2, fx:'usunięcie usterek'},
+];
+window.RES_GARDEN_UPGRADES=[
+  {id:'garden_basic',  n:'Ogród podstawowy',      cost:6000,  days:1, fx:'porządek na posesji'},
+  {id:'garden_modern', n:'Ogród nowoczesny',      cost:18000, days:2, fx:'prestiż + nastrój'},
+  {id:'relax_zone',    n:'Strefa relaksu',        cost:12000, days:2, fx:'lepsza regeneracja'},
+  {id:'terrace',       n:'Taras',                 cost:22000, days:2, fx:'miejsce na spotkania'},
+  {id:'greenhouse',    n:'Mała szklarnia',        cost:9000,  days:1, fx:'własne rośliny'},
+  {id:'deco_light',    n:'Dekoracyjne oświetlenie',cost:5000, days:1, fx:'lepszy klimat wieczorem'},
+  {id:'garden_furn',   n:'Meble ogrodowe',        cost:7000,  days:1, fx:'komfort gości'},
+];
+window._resOrderUpgrade=function(propertyId, upgradeId){
+  const r=window._resEnsure();
+  const def=window.RES_HOME_UPGRADES.concat(window.RES_GARDEN_UPGRADES).find(x=>x.id===upgradeId);
+  if(!def) return {ok:false,msg:'Nie ma takiego ulepszenia.'};
+  if((G.money||0)<def.cost) return {ok:false,msg:'Brakuje '+(def.cost-(G.money||0)).toLocaleString('pl')+' zł.'};
+  const key=propertyId+'::'+upgradeId;
+  if(r.homeUpgrades[key]) return {ok:false,msg:'To ulepszenie jest już zamówione albo gotowe.'};
+  G.money-=def.cost; if(typeof spent==='function') try{ spent(def.cost); }catch(_){}
+  r.homeUpgrades[key]={propertyId:propertyId, upgradeId:upgradeId, cost:def.cost,
+    orderedOnDay:(G.day||1), completionDay:(G.day||1)+def.days, status:'ordered'};
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return {ok:true, msg:def.n+' zamówione. Realizacja za '+def.days+' '+(def.days===1?'dzień':'dni')+'.'};
+};
+window._resUpgradeTick=function(){
+  const r=window._resEnsure(); let done=0;
+  for(const k in r.homeUpgrades){
+    const o=r.homeUpgrades[k];
+    if(o.status==='ordered' && (G.day||1)>=o.completionDay){
+      o.status='installed'; done++;
+      window._resAdd('residentialReputation',+2);
+      if(typeof addNotif==='function') addNotif('🔨 HomeGrid: zamówienie gotowe — zmiana jest już widoczna na posesji.');
+    }
+  }
+  return done;
+};
+/* §50 POGODA I PORY ROKU — wpływ wizualny i na aktywność dzielnicy. */
+window._resSeasonProfile=function(){
+  const s=(typeof getSeason==='function')?getSeason():{id:1};
+  const w=(G.weather||0);
+  return {
+    rain:(w===2||w===5), season:s.id,
+    parkNpcMult:(w===2||w===5)?0.45:(s.id===1?1.25:(s.id===3?0.6:1.0)),
+    trafficMult:(w===2||w===5)?1.2:1.0,
+    muddyForest:(w===2||w===5),
+    poolsActive:(s.id===1),
+    seasonalGig:(s.id===3)?'res_rake_snow':((s.id===2)?'res_rake':'res_mow'),
+  };
+};
+/* §51 LOD — trzy poziomy symulacji zależne od odległości od gracza. */
+window._resSimLevel=function(wx,wy){
+  if(currentRoom!=='residential') return 'background';
+  const d=Math.hypot((P.wx||0)-wx,(P.wy||0)-wy);
+  if(d<900) return 'full';
+  if(d<1900) return 'simplified';
+  return 'background';
+};
+window._resUpdateSimulation=function(){
+  const out={full:0,simplified:0,background:0};
+  (window.RES_LOTS||[]).forEach(l=>{ out[window._resSimLevel(l.wx,l.wy)]++; });
+  return out;
+};
+/* ── RYSOWANIE (§54: drogi prowadzą do posesji, podjazdy kończą się garażami) ─────────────────── */
+window._resFacadeColor=function(id){ const f=window.RES_FACADES.find(x=>x.id===id); return f?f.c:'#9a9a92'; };
+window._resRoofColor=function(id){ const r=window.RES_ROOFS.find(x=>x.id===id); return r?r.c:'#3a3f46'; };
+/* Tło dzielnicy: trawa, strefy, drogi, ronda, park, las. */
+window._resDrawGround=function(){
+  const room=ROOMS.residential; if(!room) return;
+  const W=room.wT*T, H=room.hT*T;
+  const g=X.createLinearGradient(0,62,0,VIEW_H);
+  g.addColorStop(0,'#3f5236'); g.addColorStop(1,'#2c3a27');
+  X.fillStyle=g; X.fillRect(0,62,VIEW_W,VIEW_VH);
+  /* strefy — subtelne różnice odcienia, żeby przedmieścia nie były jednym zielonym kobiercem */
+  const zc={eastwood_gateway:'#44543a', old_orchard:'#4a5537', meadowline_estates:'#41533a',
+            cypress_ridge:'#46583c', eastwood_commons:'#3d6035', pineglass_woods:'#25391f',
+            eastgate_commercial:'#4a4c46'};
+  window.RES_ZONES.forEach(z=>{
+    const sx=wx2sx(z.x), sy=wy2sy(z.y);
+    if(sx>VIEW_W||sy>VIEW_H||sx+z.w<0||sy+z.h<0) return;
+    X.fillStyle=zc[z.id]||'#41533a'; X.fillRect(sx,sy,z.w,z.h);
+  });
+  /* las — gęste, RÓŻNE drzewa (kryterium §54: nie kilka identycznych) */
+  const wz=window.RES_ZONES.find(z=>z.id==='pineglass_woods');
+  if(wz){
+    const rng=window._resRng(4242);
+    for(let i=0;i<260;i++){
+      const tx=wz.x+rng()*wz.w, ty=wz.y+rng()*wz.h;
+      const sx=wx2sx(tx), sy=wy2sy(ty);
+      if(sx<-40||sx>VIEW_W+40||sy<20||sy>VIEW_H+40) continue;
+      const r=7+rng()*11, tone=Math.floor(rng()*4);
+      X.fillStyle=['#1f3a1c','#274a20','#2f5a26','#1a3018'][tone];
+      X.beginPath(); X.arc(sx,sy,r,0,Math.PI*2); X.fill();
+      X.fillStyle='#3a2b1c'; X.fillRect(sx-2,sy+r-3,4,7);
+    }
+  }
+  /* drogi */
+  window.RES_ROADS.forEach(rd=>{
+    X.fillStyle='#3a3d40';
+    if(rd.axis==='h'){ const sy=wy2sy(rd.at-rd.half); X.fillRect(wx2sx(rd.from),sy,rd.to-rd.from,rd.half*2);
+      X.fillStyle='#c8c4be';
+      for(let x=rd.from+20;x<rd.to;x+=64){ const sx=wx2sx(x); if(sx>-30&&sx<VIEW_W+30) X.fillRect(sx,wy2sy(rd.at)-2,28,4); }
+    } else { const sx=wx2sx(rd.at-rd.half); X.fillRect(sx,wy2sy(rd.from),rd.half*2,rd.to-rd.from);
+      X.fillStyle='#c8c4be';
+      for(let y=rd.from+20;y<rd.to;y+=64){ const sy=wy2sy(y); if(sy>20&&sy<VIEW_H+30) X.fillRect(wx2sx(rd.at)-2,sy,4,28); }
+    }
+  });
+  /* ronda (§11) */
+  window.RES_ROUNDABOUTS.forEach(rb=>{
+    const sx=wx2sx(rb.wx), sy=wy2sy(rb.wy);
+    if(sx<-140||sx>VIEW_W+140) return;
+    X.fillStyle='#3a3d40'; X.beginPath(); X.arc(sx,sy,rb.r,0,Math.PI*2); X.fill();
+    X.fillStyle='#4e6b3f'; X.beginPath(); X.arc(sx,sy,rb.r*0.45,0,Math.PI*2); X.fill();
+    X.strokeStyle='#c8c4be'; X.lineWidth=2; X.beginPath(); X.arc(sx,sy,rb.r*0.72,0,Math.PI*2); X.stroke();
+  });
+  /* staw parkowy */
+  const pond=window.RES_PARK_PARTS.find(p=>p.id==='park_pond');
+  if(pond){ const sx=wx2sx(pond.wx), sy=wy2sy(pond.wy);
+    X.fillStyle='#2f5d72'; X.beginPath(); X.ellipse(sx+pond.w/2,sy+pond.h/2,pond.w/2,pond.h/2,0,0,Math.PI*2); X.fill();
+    X.strokeStyle='#4b7f96'; X.lineWidth=3; X.stroke(); }
+};
+/* Posesja: dom, dach, podjazd zakończony garażem, ogrodzenie i dekoracje. */
+window._resDrawLot=function(o,sx,sy,w,h){
+  const L=o._resLot; if(!L) return;
+  /* podjazd — prowadzi OD drogi DO garażu (kryterium odbioru §54) */
+  X.fillStyle='#7b7a74'; X.fillRect(sx+w*0.62, sy+h-6, w*0.24, 26);
+  /* garaż */
+  if(L.garageTypeId!=='none'){
+    X.fillStyle='#5c5f63'; X.fillRect(sx+w*0.60, sy+h*0.52, w*0.30, h*0.46);
+    X.fillStyle='#8d9198'; X.fillRect(sx+w*0.63, sy+h*0.62, w*0.24, h*0.30);
+  }
+  /* bryła + dach */
+  X.fillStyle=window._resFacadeColor(L.facadeMaterialId);
+  X.fillRect(sx, sy+h*0.30, w*0.60, h*0.70);
+  X.fillStyle=window._resRoofColor(L.roofTypeId);
+  X.beginPath(); X.moveTo(sx-4, sy+h*0.32); X.lineTo(sx+w*0.30, sy+h*0.04); X.lineTo(sx+w*0.62, sy+h*0.32); X.closePath(); X.fill();
+  /* okna i drzwi */
+  X.fillStyle='rgba(240,236,200,'+(((G.timeOfDay||1)>=2)?0.85:0.5)+')';
+  X.fillRect(sx+w*0.08, sy+h*0.46, w*0.14, h*0.18);
+  X.fillRect(sx+w*0.34, sy+h*0.46, w*0.14, h*0.18);
+  X.fillStyle='#4a3524'; X.fillRect(sx+w*0.24, sy+h*0.72, w*0.13, h*0.28);
+  /* ogrodzenie */
+  if(L.fenceTypeId!=='open_none'){
+    X.strokeStyle=(L.fenceTypeId==='hedge_dense'||L.fenceTypeId==='mixed_hedge_rail')?'#3d6b34':'#8a8272';
+    X.lineWidth=2; X.strokeRect(sx-6, sy+h*0.26, w+12, h*0.80);
+  }
+  /* basen (Cypress Ridge) */
+  if(L.poolType){ X.fillStyle='#3f89ad'; X.fillRect(sx+w*0.64, sy+h*0.12, w*0.28, h*0.30);
+    X.strokeStyle='#cfe6f2'; X.lineWidth=2; X.strokeRect(sx+w*0.64, sy+h*0.12, w*0.28, h*0.30); }
+  /* dekoracje posesji */
+  const d=L.decorSetId;
+  if(d==='bins'){ X.fillStyle='#2f5f34'; X.fillRect(sx+w*0.02,sy+h*0.86,10,14); X.fillRect(sx+w*0.12,sy+h*0.86,10,14); }
+  else if(d==='bike_by_garage'){ X.strokeStyle='#c8c8c8'; X.lineWidth=2; X.beginPath(); X.arc(sx+w*0.70,sy+h*0.94,6,0,Math.PI*2); X.arc(sx+w*0.82,sy+h*0.94,6,0,Math.PI*2); X.stroke(); }
+  else if(d==='flower_pots'){ X.fillStyle='#b4553a'; X.fillRect(sx+w*0.20,sy+h*0.92,9,9); X.fillStyle='#d24b6a'; X.fillRect(sx+w*0.20,sy+h*0.88,9,5); }
+  else if(d==='grill'){ X.fillStyle='#2b2b2b'; X.fillRect(sx+w*0.66,sy+h*0.02,16,10); }
+  else if(d==='trampoline'){ X.fillStyle='#1f2b3a'; X.beginPath(); X.ellipse(sx+w*0.78,sy+h*0.06,16,9,0,0,Math.PI*2); X.fill(); }
+  else if(d==='garden_toys'){ X.fillStyle='#e0b33a'; X.fillRect(sx+w*0.06,sy+h*0.90,8,8); X.fillStyle='#5aa6d8'; X.fillRect(sx+w*0.16,sy+h*0.90,8,8); }
+  else if(d==='firewood_stack'){ X.fillStyle='#6a4a2c'; for(let i=0;i<4;i++) X.fillRect(sx+w*0.90, sy+h*0.70+i*6, 12, 5); }
+  else if(d==='small_greenhouse'){ X.fillStyle='rgba(200,235,240,.6)'; X.fillRect(sx+w*0.88,sy+h*0.30,18,22); }
+  else if(d==='dog_house'){ X.fillStyle='#7a4a2a'; X.fillRect(sx+w*0.90,sy+h*0.86,16,13); }
+  else if(d==='parcel_at_door'){ X.fillStyle='#c8a870'; X.fillRect(sx+w*0.30,sy+h*0.96,10,8); }
+  else if(d==='garden_furniture'){ X.fillStyle='#8a7a5a'; X.fillRect(sx+w*0.04,sy+h*0.16,20,6); }
+  else if(d==='tools'){ X.fillStyle='#9aa0a6'; X.fillRect(sx+w*0.92,sy+h*0.60,4,18); }
+};
+/* ── PANELE (§15, §18-§30, §43) ────────────────────────────────────────────────────────────────── */
+window._resPanel=function(html){
+  const el=document.getElementById('ov-content'); if(!el) return;
+  el.innerHTML=html; if(typeof openOverlay==='function') openOverlay();
+};
+window._resParkPanel=function(){
+  const r=window._resEnsure();
+  const sp=window._resSeasonProfile();
+  const traffic=window._resTrafficMult();
+  const ruch=traffic>=1.2?'duży':(traffic>=0.9?'umiarkowany':'niewielki');
+  const chk=window._resSessionCheck();
+  const B=(lbl,fn)=>`<button class="cbtn" style="width:100%;text-align:left;font-size:12.5px;margin-bottom:5px" onclick="${fn}">${lbl}</button>`;
+  window._resPanel(`<h2>🌳 EASTWOOD COMMONS</h2>
+    <p class="sub">Dzisiejszy ruch: ${ruch}${sp.rain?' · pada — mniej ludzi w parku':''}</p>
+    <div style="max-width:600px;margin:0 auto">
+      <div style="background:#0d1a10;border-left:3px solid #4e8b40;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#cde0c8;margin-bottom:10px">
+        Wydarzenia: <b>Parkline Sessions — 18:00</b> (amfiteatr)<br>
+        Reputacja w parku: <b>${Math.round(r.parkReputation)}</b> · zaufanie sąsiedzkie: <b>${Math.round(r.localTrust)}</b>
+      </div>
+      ${B('🚶 Spacer','window._resParkAct(\'walk\')')}
+      ${B('🏃 Trasa biegowa','window._resParkAct(\'run\')')}
+      ${B('🏋 Siłownia zewnętrzna','window._resParkAct(\'gym\')')}
+      ${B('🏀 Koszykówka','window._resParkAct(\'hoops\')')}
+      ${B('🐕 Wybieg dla psów','window._resParkAct(\'dogs\')')}
+      ${B('🎶 Sprawdź scenę'+(chk.ok?'':' <span style="color:#c88;font-size:11px">— '+chk.reasons[0]+'</span>'),'window._resParkAct(\'stage\')')}
+      ${B('🎥 Nagraj materiał','window._resParkAct(\'content\')')}
+      ${B('🧺 Odpocznij na polanie','window._resParkAct(\'picnic\')')}
+      ${B('🌲 Przejdź do Pineglass Woods','window._resParkAct(\'woods\')')}
+      ${B('📅 Sprawdź wydarzenia','window._resParkAct(\'events\')')}
+      <button class="cbtn" style="width:100%;margin-top:8px" onclick="closeOverlay()">← Wróć</button>
+    </div>`);
+};
+window._resParkAct=function(what){
+  const r=window._resEnsure();
+  const msg=(t,c)=>{ if(typeof showMsg==='function') showMsg(t,c||'i',5200); };
+  if(what==='walk'){ G.energy=Math.max(0,(G.energy||0)-3); if(typeof G.stress==='number') G.stress=Math.min(100,G.stress+6); window._resAdd('parkReputation',1); msg('🚶 Spokojny spacer aleją drzew. Nastrój w górę.','g'); }
+  else if(what==='run'){ G.energy=Math.max(0,(G.energy||0)-8); if(typeof G.fitness==='number') G.fitness=Math.min(100,G.fitness+2); window._resAdd('parkReputation',1); msg('🏃 Trasa biegowa wokół stawu. Forma w górę.','g'); }
+  else if(what==='gym'){ G.energy=Math.max(0,(G.energy||0)-10); if(typeof G.fitness==='number') G.fitness=Math.min(100,G.fitness+3); msg('🏋 Trening na siłowni zewnętrznej.','g'); }
+  else if(what==='hoops'){ G.energy=Math.max(0,(G.energy||0)-7); window._resAdd('localTrust',1); msg('🏀 Kilka rzutów z sąsiadami. Ludzie zaczynają Cię kojarzyć.','g'); }
+  else if(what==='dogs'){ window._resAdd('communitySupport',1); msg('🐕 Wybieg dla psów — najlepsze miejsce na lokalne plotki.','i'); }
+  else if(what==='stage'){ const res=window._resPlaySession(); msg((res.ok?'':'⛔ ')+res.msg, res.ok?(res.good?'g':'i'):'r'); if(res.ok&&res.good) window._resPostSocial('session'); }
+  else if(what==='content'){ window._resAdd('parkReputation',2); if(typeof G.socialBuzz==='number') G.socialBuzz=Math.min(1e9,(G.socialBuzz||0)+4); msg('🎥 Zieleń i staw wyszły dobrze w kadrze — materiał gotowy.','g'); }
+  else if(what==='picnic'){ G.energy=Math.min(100,(G.energy||0)+6); if(typeof G.stress==='number') G.stress=Math.min(100,G.stress+8); msg('🧺 Polana piknikowa. Regeneracja.','g'); }
+  else if(what==='woods'){ if(typeof closeOverlay==='function') closeOverlay(); if(typeof changeRoom==='function') changeRoom('residential',1440,2020); msg('🌲 Pineglass Woods — ciszej, chłodniej, mniej miasta.','i'); return; }
+  else if(what==='events'){ const mk=window._resMarketOpen();
+    msg('📅 Parkline Sessions: amfiteatr, 18:00. Weekendowy targ przy Community Pavilion: soboty 08:00–15:00'+(mk.open?' — trwa TERAZ.':'.'),'i',7000); }
+  if(typeof updateHUD==='function') updateHUD();
+  window._resParkPanel();
+};
+window._resGigPanel=function(){
+  const r=window._resEnsure();
+  const pool=window._resGigPool();
+  const locked=window.RES_GIGS.filter(g=>(r.residentialReputation||0)<(g.rep||0));
+  window._resPanel(`<h2>🧰 Zlecenia — Residential District</h2>
+    <p class="sub">Reputacja w dzielnicy: ${Math.round(r.residentialReputation)} · wykonane zlecenia: ${r.gigsCompleted}</p>
+    <div style="max-width:600px;margin:0 auto">
+      ${pool.map(g=>`<div style="background:#0f1a12;border:1px solid #23361f;border-radius:8px;padding:9px;margin-bottom:6px">
+        <div style="font-weight:700;font-size:13px;color:#cde0c8">${g.em} ${g.n}</div>
+        <div style="font-size:11px;color:#8fa889">~${g.pay[0]}–${g.pay[1]} zł · ${g.diff} · energia ${g.en}${g.minigame?' · minigra':''}</div>
+        <button class="cbtn" style="width:100%;margin-top:5px;font-size:11.5px" onclick="window._resGigBtn('${g.id}')">Weź zlecenie</button>
+      </div>`).join('')}
+      ${locked.length?`<div style="font-size:11.5px;color:#7a8a74;margin-top:8px">🔒 Odblokujesz reputacją: ${locked.map(g=>g.em+' '+g.n+' ('+g.rep+')').join(' · ')}</div>`:''}
+      <button class="cbtn" style="width:100%;margin-top:10px" onclick="closeOverlay()">← Wróć</button>
+    </div>`);
+};
+window._resGigBtn=function(id){
+  const res=window._resDoGig(id);
+  if(typeof showMsg==='function') showMsg((res.ok?'✅ ':'⛔ ')+res.msg, res.ok?'g':'r', 5200);
+  window._resGigPanel();
+};
+window._resStoryPanel=function(){
+  const r=window._resEnsure();
+  const avail=window.RES_STORIES.filter(s=>{
+    if(r.completedStorylines.indexOf(s.id)>=0) return false;
+    if(s.requires){ for(const k in s.requires) if((r[k]||0)<s.requires[k]) return false; }
+    return true;
+  });
+  window._resPanel(`<h2>📖 Lokalne historie</h2>
+    <p class="sub">Spokojna ulica też ma własne konflikty, ambicje i tajemnice.</p>
+    <div style="max-width:620px;margin:0 auto">
+      ${avail.length?avail.map(s=>`<div style="background:#101a14;border:1px solid #25361f;border-radius:8px;padding:10px;margin-bottom:7px">
+        <div style="font-weight:700;color:#cde0c8;font-size:13px">${s.n}</div>
+        <div style="font-size:12px;color:#9ab095;margin:4px 0 6px;line-height:1.5">${s.desc}</div>
+        ${s.choices.map(c=>`<button class="cbtn" style="width:100%;text-align:left;font-size:11.5px;margin-bottom:4px" onclick="window._resStoryBtn('${s.id}','${c.id}')">${c.t}</button>`).join('')}
+      </div>`).join(''):'<div style="font-size:12.5px;color:#8a9a86">Na razie nic nowego się nie dzieje. Wróć, gdy popracujesz w dzielnicy.</div>'}
+      ${r.completedStorylines.length?`<div style="font-size:11.5px;color:#7a8a74;margin-top:8px">Domknięte wątki: ${r.completedStorylines.length}/${window.RES_STORIES.length}</div>`:''}
+      <button class="cbtn" style="width:100%;margin-top:10px" onclick="closeOverlay()">← Wróć</button>
+    </div>`);
+};
+window._resStoryBtn=function(sid,cid){
+  const res=window._resStoryChoose(sid,cid);
+  if(typeof showMsg==='function') showMsg((res.ok?'📖 ':'⛔ ')+res.msg, res.ok?'g':'r',5200);
+  window._resStoryPanel();
+};
+/* §20 Eastgate Commerce Center — pięć rozmiarów; JEDEN lokal = JEDEN typ działalności (§20). */
+window.RES_COMMERCE_UNITS=[
+  {id:'local_s',   n:'Local S',        area:45,  price:180000},
+  {id:'local_m',   n:'Local M',        area:90,  price:340000},
+  {id:'local_l',   n:'Local L',        area:180, price:620000},
+  {id:'corner',    n:'Corner Unit',    area:260, price:880000},
+  {id:'anchor',    n:'Eastgate Anchor',area:420, price:1400000},
+];
+window.RES_COMMERCE_BIZ=['sklep z merchem','butik','punkt wysyłkowy','małe studio kreatywne',
+  'sklep muzyczny','kawiarnia','sklep z wyposażeniem wnętrz','biuro usługowe','front „Nielegalnego Frontu"'];
+/* §20: gracz z dwiema powierzchniami NIE MOŻE dublować tego samego typu działalności, a tylko
+   JEDNA z nich może odpowiadać za działalność nielegalną — druga musi być legalna. */
+window._resCommerceCanRun=function(unitId, bizType){
+  const r=window._resEnsure();
+  const owned=r.propertiesOwned.filter(p=>p.kind==='commerce');
+  const dup=owned.some(p=>p.id!==unitId && p.biz===bizType);
+  if(dup) return {ok:false, msg:'Ten sam typ działalności prowadzisz już w innym lokalu. Powtórki nie przejdą.'};
+  const illegal=(bizType==='front „Nielegalnego Frontu"');
+  if(illegal){
+    if(((G.trap&&G.trap.level)||0)<10) return {ok:false, msg:'Front wymaga 10. poziomu kariery Trap.'};
+    const hasIllegal=owned.some(p=>p.id!==unitId && p.biz==='front „Nielegalnego Frontu"');
+    if(hasIllegal) return {ok:false, msg:'Tylko JEDEN z Twoich lokali może odpowiadać za działalność nielegalną — drugi musi być legalny.'};
+  }
+  return {ok:true};
+};
+window._resBuyCommerce=function(unitId, bizType){
+  const r=window._resEnsure();
+  const u=window.RES_COMMERCE_UNITS.find(x=>x.id===unitId); if(!u) return {ok:false,msg:'Brak lokalu.'};
+  const chk=window._resCommerceCanRun(unitId,bizType); if(!chk.ok) return chk;
+  if((G.money||0)<u.price) return {ok:false,msg:'Brakuje '+(u.price-(G.money||0)).toLocaleString('pl')+' zł.'};
+  G.money-=u.price; if(typeof spent==='function') try{ spent(u.price); }catch(_){}
+  r.propertiesOwned.push({kind:'commerce', id:unitId, n:u.n, area:u.area, biz:bizType,
+    equipped:false, staff:0, day:(G.day||1)});
+  window._resAdd('businessConnections',+4);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return {ok:true, msg:u.n+' kupiony. Lokal wymaga wyposażenia, personelu i realnych operacji — sam z siebie nie zarabia.'};
+};
+/* §25/§26 Parkline Duplex + Eastwood Realty */
+window.RES_PARKLINE={id:'parkline_duplex', n:'Parkline Duplex', price:640000,
+  plus:['widok na park','mniejszy hałas','lepsza regeneracja','dostęp do tras treningowych'],
+  minus:['dłuższy dojazd do części klubowej','większa wrażliwość sąsiadów na hałas','mniejszy socialBuzz z lokalizacji']};
+window._resBuyParkline=function(){
+  const r=window._resEnsure();
+  if(r.propertiesOwned.some(p=>p.id==='parkline_duplex')) return {ok:false,msg:'Parkline Duplex już należy do Ciebie.'};
+  const P=window.RES_PARKLINE;
+  if((G.money||0)<P.price) return {ok:false,msg:'Brakuje '+(P.price-(G.money||0)).toLocaleString('pl')+' zł.'};
+  G.money-=P.price; if(typeof spent==='function') try{ spent(P.price); }catch(_){}
+  r.propertiesOwned.push({kind:'home', id:'parkline_duplex', n:P.n, day:(G.day||1)});
+  window._resAdd('residentialReputation',+6);
+  window._resPostSocial('house');
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return {ok:true, msg:'🏡 Parkline Duplex kupiony. Spokojniej, bliżej parku, dalej od klubów.'};
+};
+/* Dyspozytor akcji dzielnicy — jeden prefiks `res:` (reguła: każdy nowy prefiks ma gałąź w handleAct). */
+window._resAct=function(what){
+  const r=window._resEnsure();
+  const M=(t,c,d)=>{ if(typeof showMsg==='function') showMsg(t,c||'i',d||5000); };
+  switch(what){
+    case 'park_main_gate': case 'park_amphi': return window._resParkPanel();
+    case 'park_to_woods': if(typeof changeRoom==='function') changeRoom('residential',1440,2020); return M('🌲 Pineglass Woods.','i',3500);
+    case 'woods_station': window._resAdd('localTrust',1); return M('🌲 Leśna stacja terenowa: mapy szlaków, zgłoszenia po burzy i skrzynka na znaleziska.','i',6000);
+    case 'corner_basket': return window._resCornerBasket();
+    case 'barberpoint':   return window._resBarber();
+    case 'realty':        return window._resRealty();
+    case 'pavilion':      return window._resPavilion();
+    case 'parkline':      { const res=window._resBuyParklinePanel(); return res; }
+    case 'commerce':      return window._resCommercePanel();
+    case 'crownline':     return window._resCrownline();
+    case 'willow':        return window._resRestaurant('willow');
+    case 'glasshouse':    return window._resRestaurant('glasshouse');
+    case 'oakline':       return M('👕 Oakline Outfitters — casual, sportowe, kurtki, odzież na co dzień i akcesoria. Integruje się z systemem Drip.','i',6000);
+    case 'marlow':        return M('🧥 Marlow House — smart casual, styl premium, ubrania do restauracji i stylizacje eventowe.','i',6000);
+    case 'greenridge':    return window._resGreenridge();
+    case 'homegrid':      return window._resHomegrid();
+    case 'villa_vale':    return window._resStoryPanel();
+    case 'villa_empty':   return window._resStoryPanel();
+    case 'villa_event':   return window._resPartyPanel();
+    case 'bus_stop':      return M('🚌 Przystanek Eastwood Gateway. Autobusy w stronę centrum i Business District.','i',4500);
+    case 'fuel':          return M('⛽ Mały punkt serwisowy przy wjeździe. Tankowanie i drobne naprawy.','i',4500);
+    case 'parcel':        return M('📦 Paczkomaty przy Corner Basket — najczęstszy powód, dla którego kurierzy tu zaglądają.','i',4500);
+    default:              return M('🏡 To miejsce jeszcze się urządza.','i',3500);
+  }
+};
+window._resCornerBasket=function(){
+  const r=window._resEnsure();
+  const B=(l,f)=>`<button class="cbtn" style="width:100%;text-align:left;font-size:12.5px;margin-bottom:5px" onclick="${f}">${l}</button>`;
+  window._resPanel(`<h2>🧺 Corner Basket</h2>
+    <p class="sub">Sklep na rogu Eastwood Gateway. Właściciele znają tu wszystkich.</p>
+    <div style="max-width:560px;margin:0 auto">
+      ${B('🛒 Zwykłe zakupy','window._resShopBuy()')}
+      ${B('🏷 Lokalne promocje','window._resShopPromo()')}
+      ${B('📦 Krótkie zlecenie — dostawa','window._resGigBtn(\'res_courier\')')}
+      ${B('🧾 Wykładanie towaru','window._resGigBtn(\'res_clean\')')}
+      ${B('📌 Tablica ogłoszeń i lokalne plotki','window._resGossip()')}
+      ${B('📖 Sprawa sklepu: „Corner Basket kontra sieć"','window._resStoryPanel()')}
+      <button class="cbtn" style="width:100%;margin-top:8px" onclick="closeOverlay()">← Wróć</button>
+    </div>`);
+};
+window._resShopBuy=function(){ if(typeof showMsg==='function') showMsg('🛒 Podstawowe zakupy zrobione. Właścicielka dorzuca radę o tym, kto w okolicy szuka rąk do pracy.','g',5000); window._resAdd('localTrust',1); };
+window._resShopPromo=function(){ if(typeof showMsg==='function') showMsg('🏷 Dziś taniej pieczywo i owoce. Mała zniżka dla stałych klientów.','g',4500); };
+window._resGossip=function(){
+  const r=window._resEnsure();
+  const tips=['Ktoś z Cypress Ridge szuka obsługi na prywatny event.','Na Orchard Lane remontują dom — przyda się pomoc.',
+    'W parku znów będzie scena. Podobno szukają kogoś na krótki set.','Sąsiedzi z Meadowline narzekają na hałas po dwudziestej drugiej.',
+    'Pusta willa znów ma tablicę nieruchomości.'];
+  const t=tips[Math.floor(Math.random()*tips.length)];
+  window._resAdd('localTrust',1);
+  if(typeof showMsg==='function') showMsg('🗣 '+t,'i',6000);
+};
+window._resBarber=function(){
+  window._resPanel(`<h2>💈 BarberPoint</h2>
+    <p class="sub">Elias „Edge" Venn — towarzyski, spostrzegawczy, zna wielu mieszkańców.</p>
+    <div style="max-width:560px;margin:0 auto">
+      <div style="background:#141118;border-left:3px solid #b08a4a;border-radius:8px;padding:11px 13px;font-size:12.5px;color:#e2d8c4;line-height:1.6;margin-bottom:10px">
+        „Na przedmieściach każdy wie coś o każdym. Różnica polega na tym, że tutaj ludzie rozmawiają o tym ciszej i przy ciut droższej kawie."
+      </div>
+      <button class="cbtn" style="width:100%;text-align:left;margin-bottom:5px" onclick="if(typeof renderFryzjer==='function'){closeOverlay();renderFryzjer();if(typeof openOverlay==='function')openOverlay();}else{window._resAdd('localTrust',1);showMsg('💈 Świeże cięcie. Wyglądasz porządniej.','g',4200);}">✂️ Zmiana fryzury i stylizacji</button>
+      <button class="cbtn" style="width:100%;text-align:left;margin-bottom:5px" onclick="window._resGossip()">🗣 Lokalne informacje</button>
+      <button class="cbtn" style="width:100%;margin-top:8px" onclick="closeOverlay()">← Wróć</button>
+    </div>`);
+};
+window._resRealty=function(){
+  const r=window._resEnsure();
+  const owns=r.propertiesOwned.some(p=>p.id==='parkline_duplex');
+  window._resPanel(`<h2>🏠 EASTWOOD REALTY</h2>
+    <p class="sub">Mara Welles — pośredniczka nieruchomości.</p>
+    <div style="max-width:600px;margin:0 auto">
+      <div style="background:#101620;border-left:3px solid #7ec8e3;border-radius:8px;padding:11px 13px;font-size:12.5px;color:#dde;line-height:1.6;margin-bottom:10px">
+        „Kupując dom na przedmieściach, bierzesz cały pakiet: dojazdy, sąsiadów, ogród i ludzi, którzy patrzą. A tutaj patrzą zawsze."
+      </div>
+      <div style="background:#0d1420;border:1px solid #1e3450;border-radius:8px;padding:10px;margin-bottom:8px">
+        <div style="font-weight:700;color:#cdd">🏡 ${window.RES_PARKLINE.n} — ${window.RES_PARKLINE.price.toLocaleString('pl')} zł</div>
+        <div style="font-size:11.5px;color:#9ab;margin:4px 0">Południowa krawędź Eastwood Commons. Dwie kondygnacje, taras, prywatne miejsce parkingowe, widok na park.</div>
+        <div style="font-size:11px;color:#7ec87e">+ ${window.RES_PARKLINE.plus.join(' · ')}</div>
+        <div style="font-size:11px;color:#c89">− ${window.RES_PARKLINE.minus.join(' · ')}</div>
+        ${owns?'<div style="color:#7ec87e;font-size:12px;margin-top:6px">✅ Już należy do Ciebie.</div>'
+              :`<button class="cbtn" style="width:100%;margin-top:6px" onclick="window._resBuyParklineBtn()">Kup</button>`}
+      </div>
+      <button class="cbtn" style="width:100%;text-align:left;margin-bottom:5px" onclick="window._resShowHouses()">🔍 Przegląd domów i willi</button>
+      <button class="cbtn" style="width:100%;text-align:left;margin-bottom:5px" onclick="window._resValuation()">📊 Wycena posiadanych nieruchomości</button>
+      <button class="cbtn" style="width:100%;text-align:left;margin-bottom:5px" onclick="window._resAct('district_info')">ℹ️ Informacje o dzielnicy</button>
+      <button class="cbtn" style="width:100%;margin-top:8px" onclick="closeOverlay()">← Wróć</button>
+    </div>`);
+};
+window._resBuyParklineBtn=function(){ const res=window._resBuyParkline();
+  if(typeof showMsg==='function') showMsg((res.ok?'':'⛔ ')+res.msg, res.ok?'g':'r',6000); window._resRealty(); };
+window._resBuyParklinePanel=function(){ return window._resRealty(); };
+window._resShowHouses=function(){
+  const lots=(window.RES_LOTS||[]);
+  const byZone={};
+  lots.forEach(l=>{ byZone[l.zoneId]=(byZone[l.zoneId]||0)+1; });
+  const z=window.RES_ZONES.map(zz=>zz.n+': '+(byZone[zz.id]||0)).filter(s=>!/: 0$/.test(s)).join(' · ');
+  if(typeof showMsg==='function') showMsg('🔍 W ofercie i w okolicy: '+z+'. Wille Cypress Ridge sprzedają się przez kontakty, nie przez ogłoszenia.','i',7000);
+};
+window._resValuation=function(){
+  const r=window._resEnsure();
+  if(!r.propertiesOwned.length){ if(typeof showMsg==='function') showMsg('📊 Nie masz jeszcze nieruchomości w tej dzielnicy.','i',4200); return; }
+  const list=r.propertiesOwned.map(p=>p.n).join(', ');
+  if(typeof showMsg==='function') showMsg('📊 Twoje nieruchomości w dzielnicy: '+list+'. Wartość rośnie z reputacją i stanem okolicy.','i',6000);
+};
+window._resPavilion=function(){
+  const mk=window._resMarketOpen();
+  const B=(l,f)=>`<button class="cbtn" style="width:100%;text-align:left;font-size:12.5px;margin-bottom:5px" onclick="${f}">${l}</button>`;
+  window._resPanel(`<h2>🎪 EASTWOOD COMMUNITY PAVILION</h2>
+    <p class="sub">Zebrania, targi, warsztaty i sąsiedzkie spory w jednym miejscu.</p>
+    <div style="max-width:560px;margin:0 auto">
+      ${B('🧺 Weekendowy targ'+(mk.open?' <span style="color:#7ec87e">— otwarty</span>':' <span style="color:#8a8">— soboty 08:00–15:00</span>'),'window._resMarketBtn()')}
+      ${B('📖 Lokalne historie i decyzje','window._resStoryPanel()')}
+      ${B('🧰 Tablica zleceń dzielnicy','window._resGigPanel()')}
+      ${B('🎉 Prywatne wydarzenia i domówki','window._resPartyPanel()')}
+      <button class="cbtn" style="width:100%;margin-top:8px" onclick="closeOverlay()">← Wróć</button>
+    </div>`);
+};
+window._resMarketBtn=function(){ const res=window._resMarketVisit();
+  if(typeof showMsg==='function') showMsg((res.ok?'':'⛔ ')+res.msg, res.ok?'g':'r',6000); window._resPavilion(); };
+window._resPartyPanel=function(){
+  const opts=window.RES_PARTY_TYPES.map(t=>`<option value="${t.id}">${t.n}</option>`).join('');
+  window._resPanel(`<h2>🎉 Prywatne wydarzenia</h2>
+    <p class="sub">Domówki, grille, kolacje biznesowe i eventy w Cypress Ridge.</p>
+    <div style="max-width:560px;margin:0 auto">
+      <select id="res-party-type" style="width:100%;background:#0d1520;border:1px solid #2a3a50;color:#cdd;border-radius:6px;padding:7px;font-family:inherit;font-size:12.5px;margin-bottom:8px">${opts}</select>
+      <button class="cbtn" style="width:100%;text-align:left;margin-bottom:5px" onclick="window._resPartyBtn('guest')">Wejdź jako gość</button>
+      <button class="cbtn" style="width:100%;text-align:left;margin-bottom:5px" onclick="window._resPartyBtn('set')">Zagraj krótki set</button>
+      <button class="cbtn" style="width:100%;text-align:left;margin-bottom:5px" onclick="window._resPartyBtn('hosts')">Porozmawiaj z gospodarzami</button>
+      <button class="cbtn" style="width:100%;text-align:left;margin-bottom:5px" onclick="window._resPartyBtn('guests')">Poznaj gości</button>
+      <button class="cbtn" style="width:100%;text-align:left;margin-bottom:5px" onclick="window._resPartyBtn('help')">Pomóż przy evencie</button>
+      <button class="cbtn" style="width:100%;text-align:left;margin-bottom:5px" onclick="closeOverlay()">Wyjdź przed końcem</button>
+      <button class="cbtn" style="width:100%;margin-top:8px" onclick="closeOverlay()">← Wróć</button>
+    </div>`);
+};
+window._resPartyBtn=function(mode){
+  const sel=document.getElementById('res-party-type');
+  const t=sel?sel.value:'house';
+  const villa=(currentRoom==='residential'&&P.wy<1040&&P.wx>2060);
+  const out=window._resAttendParty(t, mode);
+  let msg='🎉 '+out.type+'. '+(out.effects.length?out.effects.join(', ')+'. ':'');
+  if(out.noise&&out.noise.complaint) msg+='Sąsiedzi zgłosili hałas'+(out.noise.patrol?' i przyjechał patrol.':'.');
+  if(out.media){ msg+=' Nagranie z imprezy krąży po sieci.'; window._resPostSocial('poolparty'); }
+  if(typeof showMsg==='function') showMsg(msg, out.noise&&out.noise.complaint?'r':'g', 7000);
+  if(typeof updateHUD==='function') updateHUD();
+};
+window._resCommercePanel=function(){
+  const r=window._resEnsure();
+  const owned=r.propertiesOwned.filter(p=>p.kind==='commerce');
+  window._resPanel(`<h2>🏬 EASTGATE COMMERCE CENTER</h2>
+    <p class="sub">Powierzchnie handlowo-usługowe — dwukondygnacyjny obiekt z parkingiem klientów i osobną częścią dostawczą.</p>
+    <div style="max-width:620px;margin:0 auto">
+      <div style="font-size:11.5px;color:#8fa889;margin-bottom:8px">Zasada: dwa Twoje lokale nie mogą prowadzić tej samej działalności, a tylko JEDEN może odpowiadać za front nielegalny — drugi musi być legalny.</div>
+      ${window.RES_COMMERCE_UNITS.map(u=>{
+        const has=owned.find(p=>p.id===u.id);
+        return `<div style="background:#101a14;border:1px solid #25361f;border-radius:8px;padding:9px;margin-bottom:6px">
+          <div style="font-weight:700;color:#cde0c8;font-size:13px">${u.n} — ${u.area} m² · ${u.price.toLocaleString('pl')} zł</div>
+          ${has?`<div style="color:#7ec87e;font-size:12px;margin-top:4px">✅ Twój lokal · działalność: ${has.biz}</div>`
+               :`<div style="display:flex;gap:5px;margin-top:5px">
+                  <select id="res-biz-${u.id}" style="flex:1;background:#0d1520;border:1px solid #2a3a50;color:#cdd;border-radius:5px;padding:5px;font-family:inherit;font-size:11.5px">
+                    ${window.RES_COMMERCE_BIZ.map(b=>`<option value="${b}">${b}</option>`).join('')}
+                  </select>
+                  <button class="cbtn" style="font-size:11.5px;padding:5px 9px" onclick="window._resBuyCommerceBtn('${u.id}')">Kup</button>
+                </div>`}
+        </div>`; }).join('')}
+      <button class="cbtn" style="width:100%;margin-top:8px" onclick="closeOverlay()">← Wróć</button>
+    </div>`);
+};
+window._resBuyCommerceBtn=function(id){
+  const sel=document.getElementById('res-biz-'+id);
+  const res=window._resBuyCommerce(id, sel?sel.value:window.RES_COMMERCE_BIZ[0]);
+  if(typeof showMsg==='function') showMsg((res.ok?'🏬 ':'⛔ ')+res.msg, res.ok?'g':'r',6500);
+  window._resCommercePanel();
+};
+window._resCrownline=function(){
+  window._resPanel(`<h2>🚙 CROWNLINE AUTO GALLERY</h2>
+    <p class="sub">Niski, szeroki showroom z zielonym dziedzińcem i neonem, który świeci o każdej porze.</p>
+    <div style="max-width:580px;margin:0 auto">
+      <div style="font-size:12.5px;color:#cde0c8;line-height:1.6;background:#101a14;border-radius:8px;padding:10px;margin-bottom:9px">
+        Crownline specjalizuje się w crossoverach, SUV-ach, sedanach premium, autach rodzinnych, większych pojazdach, samochodach lifestyle i wybranych vanach. CityDrive pozostaje bardziej uniwersalnym salonem miejskim.
+      </div>
+      <button class="cbtn" style="width:100%;text-align:left;margin-bottom:5px" onclick="if(typeof renderSalon==='function'){closeOverlay();renderSalon();if(typeof openOverlay==='function')openOverlay();}else{showMsg('🚙 Katalog jeszcze się ładuje.','i',3200);}">🚗 Zakup i porównanie modeli</button>
+      <button class="cbtn" style="width:100%;text-align:left;margin-bottom:5px" onclick="if(typeof window._avOpenCompare==='function'){window._avOpenCompare();}else{showMsg('⚖️ Porównywarka niedostępna.','i',3200);}">⚖️ Porównywarka AutoVista 360</button>
+      <button class="cbtn" style="width:100%;text-align:left;margin-bottom:5px" onclick="window._resGigBtn('res_valet')">🅿️ Gig: valet i przygotowanie pojazdu</button>
+      <button class="cbtn" style="width:100%;margin-top:8px" onclick="closeOverlay()">← Wróć</button>
+    </div>`);
+};
+window._resRestaurant=function(which){
+  const isW=(which==='willow');
+  const gigs=isW?[['res_clean','🍽 Zmywak'],['res_catering','🥂 Catering'],['res_assembly','🪑 Przygotowanie sali'],['res_guest','🧥 Szatnia podczas wydarzenia']]
+                :[['res_clean','🍽 Zmywak premium'],['res_valet','🚗 Valet'],['res_guest','🎩 Obsługa prywatnego gościa'],['res_catering','🥂 Event-staff']];
+  window._resPanel(`<h2>${isW?'🍽 WILLOW &amp; EMBER':'🥂 GLASSHOUSE'}</h2>
+    <p class="sub">${isW?'Garden Dining — ogród, cegła, jasne drewno, otwarta kuchnia i taras.':'Modern Residential Dining — geometryczna bryła, przeszklenia, ciemny kamień, centralny bar.'}</p>
+    <div style="max-width:560px;margin:0 auto">
+      <button class="cbtn" style="width:100%;text-align:left;margin-bottom:5px" onclick="window._resDine('${which}')">🍽 Posiłek i poprawa nastroju</button>
+      <button class="cbtn" style="width:100%;text-align:left;margin-bottom:5px" onclick="window._resMeet('${which}')">${isW?'🤝 Prywatne spotkanie / networking':'💼 Kolacja biznesowa i sponsorzy'}</button>
+      ${gigs.map(([id,l])=>`<button class="cbtn" style="width:100%;text-align:left;margin-bottom:5px" onclick="window._resGigBtn('${id}')">${l}</button>`).join('')}
+      ${isW?'':'<div style="font-size:11px;color:#8fa889;margin-top:4px">Stawki bywają wyższe, ale wymagają lepszej reputacji wykonawcy.</div>'}
+      <button class="cbtn" style="width:100%;margin-top:8px" onclick="closeOverlay()">← Wróć</button>
+    </div>`);
+};
+window._resDine=function(which){
+  const cost=(which==='willow')?180:340;
+  if((G.money||0)<cost){ if(typeof showMsg==='function') showMsg('💸 Brakuje '+(cost-(G.money||0))+' zł.','r',4000); return; }
+  G.money-=cost; if(typeof spent==='function') try{ spent(cost); }catch(_){}
+  G.hunger=Math.min(100,(G.hunger||0)+45);
+  if(typeof G.stress==='number') G.stress=Math.min(100,G.stress+10);
+  window._resAdd('residentialReputation',+1);
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof showMsg==='function') showMsg('🍽 Dobry posiłek. Głód zaspokojony, nastrój w górę.','g',4500);
+};
+window._resMeet=function(which){
+  const r=window._resEnsure();
+  window._resAdd('businessConnections',+3);
+  if(which!=='willow') window._resAdd('villaConnections',+2);
+  const lead=Math.random()<((r.businessConnections||0)>25?0.45:0.22);
+  if(typeof showMsg==='function') showMsg('🤝 Spotkanie przy stole. Kontakty biznesowe rosną.'+(lead?' Ktoś wspomniał o konkretnej propozycji — odezwą się.':''),'g',6000);
+  if(lead) window._resAdd('businessConnections',+2);
+};
+window._resGreenridge=function(){
+  window._resPanel(`<h2>🌿 GREENRIDGE GARDEN CENTER</h2>
+    <p class="sub">Rośliny, dekoracje, meble tarasowe i drobne ulepszenia posesji.</p>
+    <div style="max-width:580px;margin:0 auto">
+      ${window.RES_GARDEN_UPGRADES.map(u=>`<div style="background:#101a14;border:1px solid #25361f;border-radius:8px;padding:8px;margin-bottom:5px;display:flex;gap:8px;align-items:center">
+        <div style="flex:1"><div style="font-weight:700;color:#cde0c8;font-size:12.5px">${u.n}</div>
+        <div style="font-size:11px;color:#8fa889">${u.cost.toLocaleString('pl')} zł · ${u.days} ${u.days===1?'dzień':'dni'} · ${u.fx}</div></div>
+        <button class="cbtn" style="font-size:11px;padding:5px 9px" onclick="window._resOrderBtn('${u.id}')">Zamów</button></div>`).join('')}
+      <button class="cbtn" style="width:100%;text-align:left;margin-top:6px" onclick="window._resGigBtn('res_mow')">🌿 Gig: prace sezonowe i załadunek</button>
+      <button class="cbtn" style="width:100%;margin-top:8px" onclick="closeOverlay()">← Wróć</button>
+    </div>`);
+};
+window._resHomegrid=function(){
+  window._resPanel(`<h2>🔨 HOMEGRID RENOVATIONS</h2>
+    <p class="sub">Remonty i rozbudowy. Zakup działa jak zamówienie i wymaga czasu.</p>
+    <div style="max-width:580px;margin:0 auto">
+      ${window.RES_HOME_UPGRADES.map(u=>`<div style="background:#141210;border:1px solid #35291f;border-radius:8px;padding:8px;margin-bottom:5px;display:flex;gap:8px;align-items:center">
+        <div style="flex:1"><div style="font-weight:700;color:#e2d8c4;font-size:12.5px">${u.n}</div>
+        <div style="font-size:11px;color:#a8977e">${u.cost.toLocaleString('pl')} zł · ${u.days} ${u.days===1?'dzień':'dni'} · ${u.fx}</div></div>
+        <button class="cbtn" style="font-size:11px;padding:5px 9px" onclick="window._resOrderBtn('${u.id}')">Zamów</button></div>`).join('')}
+      <button class="cbtn" style="width:100%;margin-top:8px" onclick="closeOverlay()">← Wróć</button>
+    </div>`);
+};
+window._resOrderBtn=function(upgradeId){
+  const r=window._resEnsure();
+  const prop=(r.propertiesOwned.find(p=>p.kind==='home')||{id:'parkline_duplex_01'});
+  const res=window._resOrderUpgrade(prop.id, upgradeId);
+  if(typeof showMsg==='function') showMsg((res.ok?'🔨 ':'⛔ ')+res.msg, res.ok?'g':'r',5500);
+};
+/* Renderer posesji po ID obiektu (mapowanie id → dane działki). */
+window._drawResLotById=function(id,sx,sy,w,h){
+  const room=ROOMS.residential; if(!room) return;
+  const o=room.objects.find(x=>x.id===id);
+  if(o&&o._resLot) window._resDrawLot(o,sx,sy,w,h);
+};
+/* Renderer POI, części parku i lasu — każdy obiekt ma własny, rozpoznawalny wygląd (§12). */
+window._drawResSprite=function(id,sx,sy,w,h){
+  const night=((G.timeOfDay||1)>=2);
+  const box=(fill,stroke)=>{ X.fillStyle=fill; X.fillRect(sx,sy,w,h); if(stroke){ X.strokeStyle=stroke; X.lineWidth=2; X.strokeRect(sx,sy,w,h);} };
+  const label=(t,c)=>{ X.fillStyle=c||'#e8e4d8'; X.font='bold 10px system-ui,Arial'; X.textAlign='center';
+    X.fillText(t, sx+w/2, sy+h+11); X.textAlign='left'; };
+  const win=(n)=>{ X.fillStyle=night?'rgba(248,226,150,.9)':'rgba(190,215,230,.75)';
+    for(let i=0;i<n;i++) X.fillRect(sx+10+i*((w-20)/n), sy+h*0.42, Math.max(8,(w-20)/n-8), h*0.22); };
+  switch(id){
+    case 'res_corner_basket': box('#2f4a34','#6fa15c'); X.fillStyle='#d9c47a'; X.fillRect(sx,sy,w,12); win(3); label('Corner Basket','#cfe0c0'); break;
+    case 'res_barberpoint':   box('#2a2230','#b08a4a'); X.fillStyle='#c0392b'; X.fillRect(sx+w/2-5,sy+6,10,h*0.34); win(2); label('BarberPoint','#e2d8c4'); break;
+    case 'res_realty':        box('#1d2a38','#7ec8e3'); win(3); label('Eastwood Realty','#cfe2f5'); break;
+    case 'res_pavilion':      box('#33402c','#8fbf6a'); X.fillStyle='#5a4a34'; X.beginPath(); X.moveTo(sx-6,sy+14); X.lineTo(sx+w/2,sy-8); X.lineTo(sx+w+6,sy+14); X.closePath(); X.fill(); label('Community Pavilion','#d8e6c8'); break;
+    case 'res_parkline':      box('#33383f','#9fb6c8'); X.fillStyle='#2a2f35'; X.fillRect(sx,sy,w,10); win(4); X.fillStyle='#6d7c88'; X.fillRect(sx+w*0.05,sy+h*0.70,w*0.9,6); label('Parkline Duplex','#d6e2ee'); break;
+    case 'res_commerce':      box('#2b3340','#9ab7cf'); X.fillStyle='#1f2630'; X.fillRect(sx,sy+h*0.48,w,4); win(6); label('Eastgate Commerce Center','#d6e2ee'); break;
+    case 'res_crownline':     box('#243028','#cbb26a'); X.fillStyle='rgba(190,225,240,.55)'; X.fillRect(sx+8,sy+h*0.30,w-16,h*0.42);
+                              X.fillStyle=night?'rgba(255,225,130,.95)':'rgba(210,180,90,.9)'; X.fillRect(sx+w*0.18,sy+6,w*0.64,12); label('Crownline Auto Gallery','#e6dcb4'); break;
+    case 'res_willow':        box('#33301f','#b9a05a'); X.fillStyle='#5d7a3a'; X.fillRect(sx-4,sy+h-10,w+8,10); win(3); label('Willow & Ember','#e6dcc0'); break;
+    case 'res_glasshouse':    box('#1e242b','#8fb3c8'); X.fillStyle='rgba(200,230,245,.5)'; X.fillRect(sx+6,sy+8,w-12,h-20); label('Glasshouse','#d8e8f2'); break;
+    case 'res_oakline':       box('#2f3a2c','#9ec27a'); win(2); label('Oakline Outfitters','#d8e6c8'); break;
+    case 'res_marlow':        box('#2c2a34','#b39ad0'); win(2); label('Marlow House','#e0d8ec'); break;
+    case 'res_greenridge':    box('#28402a','#7fc06a'); for(let i=0;i<5;i++){ X.fillStyle='#4e8b40'; X.beginPath(); X.arc(sx+16+i*((w-30)/4), sy+h-16, 9,0,Math.PI*2); X.fill(); } label('Greenridge Garden Center','#d0e8c0'); break;
+    case 'res_homegrid':      box('#3a3026','#c89a5a'); X.fillStyle='#8a6a3a'; X.fillRect(sx+8,sy+h*0.24,w-16,8); label('HomeGrid Renovations','#e8d8b8'); break;
+    case 'res_villa_vale': case 'res_villa_empty': case 'res_villa_event': {
+      box('#3a3f38','#cfd6c8'); X.fillStyle='#2c322c'; X.beginPath(); X.moveTo(sx-6,sy+18); X.lineTo(sx+w/2,sy-6); X.lineTo(sx+w+6,sy+18); X.closePath(); X.fill();
+      win(4); X.fillStyle='#3f89ad'; X.fillRect(sx+w*0.66,sy+h*0.74,w*0.28,h*0.20);
+      label(id==='res_villa_vale'?'Willa Simona Vale':(id==='res_villa_empty'?'Pusta willa':'Willa eventowa'),'#e0e6d8'); break; }
+    case 'res_welcome_sign':  box('#243a20','#9fc27a'); X.fillStyle='#e8f0d8'; X.font='bold 11px system-ui,Arial'; X.textAlign='center';
+                              X.fillText('WELCOME TO EASTWOOD', sx+w/2, sy+h*0.42); X.font='9px system-ui,Arial'; X.fillText('Residential District', sx+w/2, sy+h*0.72); X.textAlign='left'; break;
+    case 'res_bus_stop':      box('#26323c','#8fb3c8'); X.fillStyle='#cfe2f5'; X.fillRect(sx+4,sy+4,w-8,6); label('Przystanek','#cfe2f5'); break;
+    case 'res_fuel':          box('#2e2a26','#d0a050'); X.fillStyle='#c0392b'; X.fillRect(sx+w*0.2,sy+h*0.3,w*0.6,10); label('Serwis','#e8d8b8'); break;
+    case 'res_parcel':        box('#2a2f3a','#9ab7cf'); for(let i=0;i<3;i++){ X.fillStyle='#3d4756'; X.fillRect(sx+5,sy+6+i*((h-12)/3), w-10, (h-12)/3-4); } label('Paczkomaty','#cfe2f5'); break;
+    case 'res_parking_gw': case 'res_parking_eg':
+      X.fillStyle='#4a4d50'; X.fillRect(sx,sy,w,h); X.strokeStyle='#c8c4be'; X.lineWidth=2;
+      for(let i=1;i<5;i++){ X.beginPath(); X.moveTo(sx+i*(w/5),sy+6); X.lineTo(sx+i*(w/5),sy+h-6); X.stroke(); } break;
+    /* części parku */
+    case 'park_pond': break;                        /* staw rysowany w tle */
+    case 'park_amphi': X.fillStyle='#5a5348'; X.beginPath(); X.arc(sx+w/2,sy+h,w/2,Math.PI,0); X.fill();
+      X.fillStyle='#3c3830'; X.beginPath(); X.arc(sx+w/2,sy+h,w/3,Math.PI,0); X.fill(); label('Amfiteatr','#e0e8d0'); break;
+    case 'park_gazebo': X.fillStyle='#6a5a3a'; X.fillRect(sx+w*0.1,sy+h*0.4,w*0.8,h*0.6);
+      X.fillStyle='#8a7a4a'; X.beginPath(); X.moveTo(sx,sy+h*0.42); X.lineTo(sx+w/2,sy); X.lineTo(sx+w,sy+h*0.42); X.closePath(); X.fill(); label('Altana','#e0e8d0'); break;
+    case 'park_tennis': case 'park_court':
+      X.fillStyle=(id==='park_tennis')?'#3f6b4a':'#4a5a6a'; X.fillRect(sx,sy,w,h);
+      X.strokeStyle='#e8ecec'; X.lineWidth=2; X.strokeRect(sx+4,sy+4,w-8,h-8);
+      X.beginPath(); X.moveTo(sx+w/2,sy+4); X.lineTo(sx+w/2,sy+h-4); X.stroke(); label(id==='park_tennis'?'Korty':'Boisko','#dfe8e0'); break;
+    case 'park_botanic': X.fillStyle='#3d6b34'; X.fillRect(sx,sy,w,h);
+      for(let i=0;i<8;i++){ X.fillStyle=['#c95d7a','#d8a13a','#8fbf5a','#b06fc9'][i%4]; X.beginPath(); X.arc(sx+14+(i%4)*((w-28)/3), sy+18+Math.floor(i/4)*((h-36)/1), 7,0,Math.PI*2); X.fill(); }
+      label('Ogród botaniczny','#d8e8c8'); break;
+    case 'park_run_track': X.fillStyle='#8a6a4a'; X.fillRect(sx,sy,w,h);
+      X.strokeStyle='rgba(255,255,255,.35)'; X.lineWidth=1; X.beginPath(); X.moveTo(sx,sy+h/2); X.lineTo(sx+w,sy+h/2); X.stroke(); break;
+    case 'park_dogrun': case 'park_outgym': case 'park_picnic': case 'park_quiet': case 'park_season':
+      X.fillStyle='#446b38'; X.fillRect(sx,sy,w,h); X.strokeStyle='#6f9c5c'; X.lineWidth=2; X.strokeRect(sx,sy,w,h);
+      label({park_dogrun:'Wybieg dla psów',park_outgym:'Siłownia',park_picnic:'Polana piknikowa',park_quiet:'Strefa spokojna',park_season:'Wydarzenia sezonowe'}[id],'#d8e8c8'); break;
+    case 'park_main_gate': X.fillStyle='#4e6b3f'; X.fillRect(sx,sy,w,h); X.fillStyle='#e8f0d8'; X.font='bold 10px system-ui,Arial'; X.textAlign='center';
+      X.fillText('EASTWOOD COMMONS', sx+w/2, sy+h/2+3); X.textAlign='left'; break;
+    case 'park_food': case 'park_wc': case 'park_depot': case 'park_view': case 'park_pingpong': case 'park_hoops': case 'park_to_woods':
+      X.fillStyle='#4a5a40'; X.fillRect(sx,sy,w,h); X.strokeStyle='#87a878'; X.lineWidth=2; X.strokeRect(sx,sy,w,h);
+      label({park_food:'Gastronomia',park_wc:'Toalety',park_depot:'Magazyn parku',park_view:'Punkt widokowy',park_pingpong:'Ping-pong',park_hoops:'Kosze',park_to_woods:'→ Pineglass Woods'}[id],'#d8e8c8'); break;
+    case 'park_alley': X.fillStyle='#3f6034'; X.fillRect(sx,sy,w,h);
+      for(let i=0;i<5;i++){ X.fillStyle='#2b4a24'; X.beginPath(); X.arc(sx+16,sy+18+i*((h-30)/4),11,0,Math.PI*2); X.arc(sx+w-16,sy+18+i*((h-30)/4),11,0,Math.PI*2); X.fill(); } break;
+    case 'park_bridge_a': case 'park_bridge_b': case 'woods_bridge':
+      X.fillStyle='#7a5a34'; X.fillRect(sx,sy,w,h); X.strokeStyle='#5a4024'; X.lineWidth=2; X.strokeRect(sx,sy,w,h); break;
+    /* las */
+    case 'woods_stream': X.fillStyle='#3a6f86'; X.fillRect(sx,sy,w,h); break;
+    case 'woods_main_path': case 'woods_side_a': case 'woods_side_b': case 'woods_service':
+      X.fillStyle='#5a4a34'; X.fillRect(sx,sy,w,h); break;
+    case 'woods_wall': X.fillStyle='#6a6a60'; X.fillRect(sx,sy,w,h); break;
+    case 'woods_station': X.fillStyle='#3a3020'; X.fillRect(sx,sy,w,h); X.strokeStyle='#8a7a4a'; X.lineWidth=2; X.strokeRect(sx,sy,w,h); label('Stacja terenowa','#d8d0b0'); break;
+    case 'woods_hill': X.fillStyle='#33512a'; X.beginPath(); X.ellipse(sx+w/2,sy+h/2,w/2,h/2,0,0,Math.PI*2); X.fill(); break;
+    case 'woods_glade': X.fillStyle='#4e7a3f'; X.beginPath(); X.ellipse(sx+w/2,sy+h/2,w/2,h/2,0,0,Math.PI*2); X.fill(); break;
+    case 'woods_view': case 'woods_storm':
+      X.fillStyle='#3d5233'; X.fillRect(sx,sy,w,h); X.strokeStyle='#7a9a68'; X.lineWidth=2; X.strokeRect(sx,sy,w,h);
+      label(id==='woods_view'?'Punkt widokowy':'Uszkodzenia po burzy','#cfe0c0'); break;
+    default:
+      X.fillStyle='#3b4a34'; X.fillRect(sx,sy,w,h); X.strokeStyle='#6f8a5c'; X.lineWidth=1; X.strokeRect(sx,sy,w,h);
+  }
+};
+/* Dzienny tick dzielnicy — zamówienia remontowe i naturalne stygnięcie podejrzliwości. */
+window._resDailyTick=function(){
+  if(!G.residentialDistrict) return 0;
+  const r=window._resEnsure();
+  const done=window._resUpgradeTick();
+  if((r.neighborhoodSuspicion||0)>0) window._resAdd('neighborhoodSuspicion',-1);
+  return done;
+};
+/* ═══════════════════ RESIDENTIAL DISTRICT — MODULE END ══════════════════════ */
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
    PINEGLASS WOODS MODULE START — v2.3.129
    PDF „Rozszerzony katalog odzieżowy…":
      §4.7 — NorthArc Stormguard ma wymaganie „Pineglass Woods" oraz bonus „+8% las i teren".
@@ -89674,6 +90946,15 @@ const PATCH_NOTES = [
   {t:'feature',d:'💬 Do ogłoszeń piszą prawdziwie różni ludzie — każdy z własnym nickiem, charakterem i stylem rozmowy, od rzeczowych po wulgarnych. Odpowiadasz jedną z gotowych opcji, a kupujący odpisuje po chwili, nie natychmiast. Część znika bez słowa. Około 80% tych, którzy złożą ofertę, próbuje zbić cenę — możesz przyjąć, odrzucić albo dać kontrofertę, najwyżej trzy razy.'},
   {t:'feature',d:'🔑 Wystawiony pojazd zostaje Twój i normalnie nim jeździsz. Znika dopiero w chwili, gdy sam zatwierdzisz sprzedaż — a jeśli akurat nim jedziesz, gra poczeka, aż zaparkujesz. Pieniądze i przekazanie auta dzieją się w jednej operacji, więc nie da się stracić pojazdu bez zapłaty ani odwrotnie.'},
   {t:'feature',d:'♻️ Auta z Gravel Lot Motors nie wracają na plac, ale możesz je sprzedać na Swaply albo oddać do Metal Valley Yard. Jednego pojazdu nie sprzedasz dwiema drogami naraz — przy oddawaniu na złom gra anuluje ogłoszenie i uprzedza, że opłata nie wraca.'},
+  {t:'feature',d:'🏡 Nowa dzielnica: Residential District — Wschodnie Przedmieścia. Brama stoi na wschodniej krawędzi miasta i otwiera się zaraz po ukończeniu podstawowego poradnika: bez opłat, bez wymogu sławy, bez dodatkowych zadań. Dzielnica ma około połowy powierzchni głównego miasta i prowadzi dalej, do Business District.'},
+  {t:'feature',d:'🌳 Eastwood Commons Park jest ponad cztery razy większy od parku w mieście i ma własny układ: staw z dwoma mostkami, aleję drzew, trasę biegową, ogród botaniczny, amfiteatr, wybieg dla psów, korty, boisko, siłownię zewnętrzną, polanę piknikową i punkt widokowy. Od południa przechodzi w las Pineglass Woods ze strumieniem, polaną, starym murem i miejscem uszkodzonym po burzy.'},
+  {t:'feature',d:'🏘 Przedmieścia dzielą się na sześć części: Eastwood Gateway przy wjeździe, historyczne Old Orchard, największe Meadowline Estates, willowe Cypress Ridge z basenami, park z lasem oraz handlowe Eastgate. Domy nie są kopiami jednego budynku — każdy ma własną bryłę, dach, elewację, ogród, ogrodzenie, podjazd zakończony garażem i drobiazgi na posesji.'},
+  {t:'feature',d:'🧰 W dzielnicy czeka trzynaście zleceń. Sześć dostajesz od razu: koszenie trawników, grabienie liści, wyprowadzanie psów, sprzątanie, przeprowadzki i kurier. Kolejne — serwis basenu, catering, valet na willowym evencie, sesje nieruchomości czy opieka nad prywatnym gościem — otwierają się, gdy zbudujesz reputację u mieszkańców.'},
+  {t:'feature',d:'🎶 W amfiteatrze odbywają się Parkline Sessions — małe koncerty dla lokalnej publiczności. Potrzebujesz opublikowanego utworu, sił i odstępu czterech dni. Występ potrafi się nie udać: pogoda, awaria sprzętu, za mała widownia albo skarga na hałas.'},
+  {t:'feature',d:'🔊 Sąsiedzi naprawdę słuchają. Głośne domówki, dużo gości i późna pora zwiększają szansę skargi, a w Cypress Ridge jeszcze bardziej. Dobra reputacja w dzielnicy tę szansę obniża. Skarga potrafi ściągnąć patrol i przerwać imprezę.'},
+  {t:'feature',d:'🏬 Eastgate Commerce Center wynajmuje pięć wielkości lokali — od 45 do 420 m². Dwa Twoje lokale nie mogą prowadzić tej samej działalności, a tylko jeden może być frontem nielegalnego biznesu; drugi musi zostać legalny.'},
+  {t:'feature',d:'🏠 Eastwood Realty sprzedaje Parkline Duplex przy południowej krawędzi parku: ciszej, lepsza regeneracja i dostęp do tras treningowych, ale dalej do klubów i wrażliwsi sąsiedzi. Greenridge Garden Center i HomeGrid Renovations przyjmują zamówienia na ogród i remonty — każde wymaga czasu, zanim będzie gotowe.'},
+  {t:'feature',d:'📖 Dzielnica ma sześć własnych historii: spór o ciszę po dwudziestej drugiej, walkę o Stare Sady, byłego producenta w willi z otwartym oknem, Corner Basket kontra sieć handlowa, zmieniającą się pustą willę i sąsiada, który zaczyna Cię obserwować. Każda kończy się Twoją decyzją i realnymi skutkami.'},
   {t:'feature',d:'🕶 Przy bramie Underground District stoi Mason Hale — lokalny przewodnik. Zagadaj do niego, a zabierze Cię na kinowy przelot po dzielnicy: piętnaście miejsc po kolei, z komentarzem o tym, po co tam wchodzić i czym to grozi. Przelot NIE włącza się sam — startuje tylko wtedy, gdy sam o to poprosisz.'},
   {t:'feature',d:'🗺 Po oprowadzeniu Mason zostaje przewodnikiem na stałe. Możesz go pytać o muzykę, ulicę, dealera, VANTAGE WORKS, pojazdy, parkingi i o niego samego, a przy powtórce skraca odpowiedź. Możesz też poprosić o krótszy przelot: tylko muzyka, tylko biznes albo tylko ulica.'},
   {t:'feature',d:'🌱 W trasie pojawia się „Adaptowana piwnica uprawowa" — pozostałość po dawnej państwowej hali. Przelot pokazuje ją jako nieruchomość DO KUPIENIA, a po zakupie ten sam punkt pokazuje już stan POSIADANY. Sam przelot niczego nie kupuje ani nie odblokowuje.'},
@@ -112221,6 +113502,10 @@ function scaleGame(){
 }
 window.addEventListener('resize',scaleGame);
 scaleGame();
+/* PDF „Residential District": mapa dzielnicy budowana RAZ przy starcie — deterministycznie,
+   więc po każdym wczytaniu gry wygląda identycznie. Musi istnieć zanim loadGame przywróci
+   `currentRoom`, inaczej zapis zrobiony w dzielnicy nie miałby do czego wrócić. */
+try{ if(typeof window._resBuildDistrict==='function') window._resBuildDistrict(); }catch(e){ console.error('residential build:',e); }
 // v1.8.57: generowanie gwiazd i śniegu w menu (deterministyczne — wartości stałe między startami żeby nie migotały)
 (function _initMenuFx(){
   /* v2.1.744 (audyt): wersja w menu była zahardkodowana („v2.0.11") i nie aktualizowana od dziesiątek patchy → mylące UI (#3). Teraz czyta najnowszy wpis z PATCH_NOTES → nigdy się nie zestarzeje. */
