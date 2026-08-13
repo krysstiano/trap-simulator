@@ -30759,6 +30759,10 @@ function tickDecay(){
     G._activityLogTipAt=null;
     if(typeof _smsTriggerOnce==='function') _smsTriggerOnce('activity_log_tip','trapinfo','📖 Wskazówka: wszystkie zielone okna informacyjne zapisują się w Dzienniku aktywności. Jeśli przegapisz komunikat, otwórz Dziennik klawiszem O (albo w panelu postaci, pod Punktami umiejętności) i przeczytaj 10 ostatnich powiadomień na spokojnie.');
   }
+  /* SWAPLY §6/§11: cykl życia ogłoszeń pojazdów liczony w minutach gry (moderacja 3 h, odblokowanie
+     sprzedaży po 3 dniach, wygaśnięcie po 7 dniach od publikacji, harmonogram zapytań kupujących).
+     Tick musi chodzić częściej niż raz na dobę, dlatego siedzi w tickDecay, a nie w nextPeriod. */
+  if(typeof window._swTick==='function'){ try{ window._swTick(); }catch(_){} }
   // Generuj dzienne zadanie jeśli brak — NIE nadpisuj jeśli ukończone i nieodebrane
   if(!G.dailyQuest) generateDailyQuest();
   // Ekipa — cotygodniowe koszty (co 28 decayTick = ok. 1 cykl dnia)
@@ -44311,6 +44315,16 @@ window.buyCamper=function(modelId,source){
   { const _crNow=(typeof _carRoom==='function')&&_carRoom(currentRoom); G._camperParkedAt = _crNow ? {wx:P.wx, wy:P.wy, room:currentRoom} : {wx:1120, wy:430, room:'underground'}; G._inCamper=false; }/* v2.3.100: park domyślny NAD jezdnią (był wy:540 = pas aut → auta przenikały) */
   if(!Array.isArray(c.history)) c.history=[];
   c.history.push({day:G.day||0, ev:'buy', model:modelId, price:m.price});
+  /* SWAPLY §5/§5.1: kamper też dostaje stabilne ID instancji i własny snapshot wartości.
+     Z Gravel Lot obowiązuje zakaz zwrotu do placu; Swaply i Metal Valley Yard zostają otwarte. */
+  if(typeof window._vehCamperUid==='function' && typeof window._swSetProvenance==='function'){
+    c.uid=null; const _uid=window._vehCamperUid(c);
+    window._swSetProvenance(_uid,{
+      acquisitionSourceType:(source==='gravel')?'used_lot':'dealer',
+      acquisitionSourceId:(source==='gravel')?'gravel_lot_motors':'citydrive_motors',
+      acquisitionPrice:m.price, resaleReferenceValueSnapshot:m.price,
+      canSellBackToSource:(source!=='gravel'), canListOnSwaply:true, canUseMetalValleyYard:true});
+  }
   if(typeof showMsg==='function') showMsg('🚐 Kupiles '+m.name+' za '+m.price.toLocaleString('pl')+' zl. Wybierz pierwszy postoj kampera.','g',6000);
   /* E4 discoverability: nowy właściciel uczy się o jeździe (klawisz K) — kamper ma fizyczną pozycję na mapie. */
   if(typeof notify==='function') notify('🚐 Aby jeździć kamperem: podejdź do niego na mapie (marker 🚐) i naciśnij K. Do budynków kamperem nie wjedziesz — wtedy K, żeby wysiąść.');
@@ -46332,6 +46346,12 @@ window.buyCar=(name,speed,price)=>{
     if(G.money<_carPrice){notify('Za mało pieniędzy!');return;}
     G.money-=_carPrice;
     G._ownedCars.push(name);
+    /* SWAPLY §5: snapshot wartości referencyjnej zapisywany PRZY NABYCIU — nie przeliczamy go
+       później z aktualnej oferty salonu, bo zmiana ekonomii ruszyłaby limit istniejącego auta. */
+    if(typeof window._swSetProvenance==='function') window._swSetProvenance(name,{
+      acquisitionSourceType:'dealer', acquisitionSourceId:'citydrive_motors',
+      acquisitionPrice:_carPrice, resaleReferenceValueSnapshot:price,
+      canSellBackToSource:true, canListOnSwaply:true, canUseMetalValleyYard:true});
   }
   /* v2.1.894: garaż per-auto — zapisz stan techniczny + kolor obecnego auta przed przesiadką, przywróć dla wybranego (lub 100% fresh). */
   G._carCond=G._carCond||{};
@@ -57456,6 +57476,10 @@ window._vwBuyUnit=function(defId){
   if(v.reserved===defId) v.reserved=null;
   v.history.push({day:G.day||1,type:'zakup',text:'Zakup lokalu '+d.name+' za '+d.price.toLocaleString('pl')+' zł.'});
   if(typeof checkAchievements==='function') checkAchievements();
+  /* PDF „Korespondencja … z NPC Eve Rook" §4: wiadomość idzie DOPIERO tutaj — po pomyślnej
+     finalizacji zakupu i przypisaniu instancji lokalu (u.id) do gracza. Rezerwacja (_vwReserve)
+     ani nieudana transakcja (wcześniejsze `return`) nie mogą tego uruchomić. */
+  if(typeof window._eveOnUnitPurchased==='function'){ try{ window._eveOnUnitPurchased(u.id,defId); }catch(_){} }
   return {ok:true,msg:'Zakupiono '+d.name+'. Lokal jest pusty i wymaga adaptacji.',unitId:u.id};
 };
 window._vwReserve=function(defId){
@@ -63236,6 +63260,12 @@ window._glBuy=function(offerId){
   g.bought.push({name:o.name,day:G.day||1,price:o.price,cond:o.cond});
   /* PDF 13.08 U17: znacznik „mam używkę z placu" — do limitu jednej sztuki naraz. */
   g.ownedFromLot=o.name;
+  /* SWAPLY §5 „Reguła Gravel Lot Motors": snapshot wartości TEJ sztuki zapisany przy nabyciu.
+     Zakaz odsprzedaży dotyczy zwrotu DO PLACU — Swaply i Metal Valley Yard pozostają dozwolone. */
+  if(typeof window._swSetProvenance==='function') window._swSetProvenance(o.name,{
+    acquisitionSourceType:'used_lot', acquisitionSourceId:'gravel_lot_motors',
+    acquisitionPrice:o.price, resaleReferenceValueSnapshot:o.price,
+    canSellBackToSource:false, canListOnSwaply:true, canUseMetalValleyYard:true});
   const disp=(typeof carDisplayName==='function')?carDisplayName(o.name):o.name;
   if(typeof notify==='function') notify(`🚗 ${disp} z drugiej ręki — stan ${o.cond}%. Auto czeka po LEWEJ stronie placu, kilka metrów od hali — podejdź i naciśnij [V].`);
   if(typeof updateHUD==='function') updateHUD();
@@ -63283,6 +63313,142 @@ window._glBuyBtn=function(id){
   window._glUsedPanel();
   const e=document.getElementById('gl-res'); if(e) e.textContent=r.msg;
 };
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EVE ROOK — KORESPONDENCJA PO ZAKUPIE LOKALU (MODULE START)
+   PDF „Korespondencja po zakupie lokalu VANTAGE WORKS z NPC Eve Rook":
+     §1 trzy podstawowe odpowiedzi gracza · §2 osiem wariantów dodatkowych
+     §3 odpowiedzi zależne od KUPIONEGO lokalu · §4 notatka systemowa.
+   Zasady z §4, wdrożone dosłownie:
+     • wiadomość wychodzi DOPIERO po pomyślnej finalizacji zakupu i przypisaniu
+       instancji lokalu do gracza — nie po rezerwacji ani po nieudanej transakcji;
+     • odpowiedzi NIE przyznają punktów przyjaźni; ustawiają ukryte preferencje
+       fitOutPriority / equipmentConsultationRequested / budgetMode / handoverIntent /
+       preferredCommissioningStyle;
+     • prośba o pomoc przy wyposażeniu uruchamia następny krok systemowy (konsultacja);
+     • odbiór kluczy „później" NIE blokuje dostępu do lokalu — własność wynika z trwałego
+       stanu, recepcja jest wyłącznie warstwą immersyjną;
+     • neutralne „dziękuję" kończy wątek, pytanie/wybór priorytetu dostaje odpowiedź.
+   ═══════════════════════════════════════════════════════════════════════════ */
+window._eveEnsure=function(){
+  if(!G.eveRook||typeof G.eveRook!=='object') G.eveRook={};
+  const e=G.eveRook;
+  if(e.lastPurchasedUnitId===undefined) e.lastPurchasedUnitId=null;   /* propertyInstanceId gracza */
+  if(e.lastPurchasedDefId===undefined) e.lastPurchasedDefId=null;     /* propertyDefinitionId */
+  if(e.fitOutPriority===undefined) e.fitOutPriority=null;
+  if(typeof e.equipmentConsultationRequested!=='boolean') e.equipmentConsultationRequested=false;
+  if(e.budgetMode===undefined) e.budgetMode=null;
+  if(e.handoverIntent===undefined) e.handoverIntent=null;
+  if(e.preferredCommissioningStyle===undefined) e.preferredCommissioningStyle=null;
+  if(!Array.isArray(e.threadHistory)) e.threadHistory=[];
+  return e;
+};
+/* §3 — rekomendacja Eve zależna od konkretnego lokalu (teksty 1:1 z dokumentu). */
+window._EVE_UNIT_ADVICE={
+  office_start_70:     'Najpierw trzy stanowiska, mała sala spotkań i podstawowe zaplecze. W tym lokalu najważniejsze jest, żeby nie zabrać sobie przestrzeni zbyt dużą liczbą dodatków.',
+  office_core_135:     'W takim razie zaczęłabym od sześciu stanowisk, gabinetu, recepcji wewnętrznej i komputera zarządzającego. Archiwum i część reprezentacyjną można dopracować zaraz później.',
+  hybrid_works_240:    'To dokładnie przewaga tego lokalu. Najpierw uruchomimy biuro, podstawowy magazyn i jedną strefę operacyjną, żeby lokal od razu pracował jako całość.',
+  hybrid_plus_360:     'Możemy, ale proponuję uruchomić je etapami. Najpierw jedna stabilna linia pracy i zaplecze, potem druga. Inaczej łatwo ponieść podwójne koszty, zanim pojawi się na nie realne wykorzystanie.',
+  production_hall_520: 'I słusznie. W tej hali priorytetem są przepływ, strefa przyjęcia dostaw, magazyn, biuro kierownika i infrastruktura pod moduły. Część reprezentacyjna może zostać skromna.',
+  industrial_floor_900:'Tak, i właśnie tak bym rekomendowała. Podzielimy piętro na aktywne i rezerwowe strefy, dzięki czemu koszty wyposażenia będą rosły razem z firmą, a nie przed nią.',
+  vantage_hq_1450:     'W Headquarters nie trzeba wybierać między jednym a drugim. Najpierw uruchomimy funkcje zarządcze, recepcję, gabinet i board room, a dopiero potem dopracujemy warstwę reprezentacyjną oraz strefy gościnne.',
+};
+/* §1 + §2 — jedenaście odpowiedzi gracza. `adv:true` = odpowiedź, do której Eve dokleja
+   rekomendację właściwą dla kupionego lokalu (§3/§4 „kontekst konkretnego lokalu").
+   `silent:true` = neutralne domknięcie wątku, bez kolejnej wiadomości Eve (§4). */
+window._EVE_REPLIES={
+  /* ── §1 trzy podstawowe ── */
+  eve_p_handover:{set:'eve_purchase', label:'Odbiorę klucze i przejdę lokal na spokojnie',
+    text:'Dziękuję. Odbiorę klucze i najpierw przejdę lokal jeszcze raz już na spokojnie.',
+    pref:{handoverIntent:'collect_now', preferredCommissioningStyle:'measured'},
+    reply:'Oczywiście. Karta będzie przygotowana w recepcji. Po odbiorze ma Pan już pełny dostęp do zakupionej powierzchni. Proszę tylko dać znać, kiedy będzie Pan chciał przejść do wyposażenia.'},
+  eve_p_help:{set:'eve_purchase', label:'Przyda mi się Pani pomoc przy wyposażeniu',
+    text:'Przy wyposażeniu przyda mi się Pani pomoc. Od czego najlepiej zacząć?', adv:true, consult:true,
+    pref:{equipmentConsultationRequested:true, fitOutPriority:'functional_first'},
+    reply:'Najpierw od rzeczy, które uruchamiają lokal funkcjonalnie: stanowisk pracy, podstawowego zaplecza, dostępu i systemu zarządzającego. Resztę można dokładać etapami, zamiast od razu zamrażać pieniądze w dekoracji.'},
+  eve_p_budget:{set:'eve_purchase', label:'Rozsądny wariant na start, bez przepalania budżetu',
+    text:'Klucze odbiorę później. Proszę mi tylko przygotować rozsądny wariant wyposażenia na start, bez przepalania budżetu.',
+    pref:{budgetMode:'lean', handoverIntent:'collect_later', preferredCommissioningStyle:'staged'},
+    reply:'Jasne. Przygotuję wariant minimalny i rozwojowy, żeby mógł Pan porównać koszt wejścia z konfiguracją, która zostawia więcej miejsca na dalszy rozwój.'},
+  /* ── §2 osiem wariantów dodatkowych ── */
+  eve_p_tech:{set:'eve_purchase', label:'Najpierw dostęp, stanowiska i system zarządzający',
+    text:'Najpierw chcę ogarnąć dostęp, stanowiska i system zarządzający. Wystrój może poczekać.',
+    pref:{fitOutPriority:'infrastructure', preferredCommissioningStyle:'technical'},
+    reply:'To dobra kolejność. Najpierw infrastruktura i funkcje krytyczne, później komfort i reprezentacja. Dzięki temu lokal zacznie pracować, zanim zacznie wyglądać.'},
+  eve_p_repr:{set:'eve_purchase', label:'Najpierw wejście, gabinet i miejsce spotkań',
+    text:'Najpierw chcę dopracować wejście, gabinet i miejsce spotkań. Klient ma od razu widzieć, że trafił do konkretnej firmy.',
+    pref:{fitOutPriority:'front_of_house', preferredCommissioningStyle:'representative'},
+    reply:'W takim razie priorytetem będzie strefa frontowa i spotkaniowa. Dopilnujemy, żeby wyglądała dobrze, ale nie zabrała budżetu potrzebnego na właściwą pracę lokalu.'},
+  eve_p_oper:{set:'eve_purchase', label:'Najpierw to, na czym firma ma zarabiać',
+    text:'Najpierw uruchamiamy to, na czym firma ma zarabiać. Resztę zrobię później.',
+    pref:{fitOutPriority:'operational', preferredCommissioningStyle:'operational'},
+    reply:'Rozsądnie. Skupię rekomendacje na strefach, które faktycznie zwiększają możliwości operacyjne lokalu.'},
+  eve_p_min:{set:'eve_purchase', label:'Wolę mniej rzeczy, ale sensownie rozmieszczonych',
+    text:'Nie chcę go zagracić. Wolę mniej rzeczy, ale sensownie rozmieszczonych.',
+    pref:{fitOutPriority:'flow', preferredCommissioningStyle:'minimal'},
+    reply:'To zwykle działa lepiej. Przygotuję propozycję z naciskiem na przepływ między strefami i pozostawienie rezerwy pod późniejsze moduły.'},
+  eve_p_now:{set:'eve_purchase', label:'Klucze biorę teraz, zaczynam urządzać od razu',
+    text:'Klucze biorę teraz. Chcę zacząć urządzać lokal od razu.',
+    pref:{handoverIntent:'collect_now', preferredCommissioningStyle:'immediate'},
+    reply:'W porządku. Recepcja wyda Panu komplet dostępu. Po wejściu może Pan rozpocząć konfigurację lokalu i wrócić do mnie, gdy będzie potrzebna rekomendacja wyposażenia.'},
+  eve_p_cautious:{set:'eve_purchase', label:'Po zakupie wolę chwilę odetchnąć z wydatkami',
+    text:'Po zakupie wolę chwilę odetchnąć z wydatkami. Nie chcę wyczyścić konta samym wyposażeniem.',
+    pref:{budgetMode:'conservative', preferredCommissioningStyle:'staged'},
+    reply:'To rozsądne. Lokal nie traci wartości tylko dlatego, że nie jest urządzony pierwszego dnia. Lepiej uruchamiać go etapami i zachować płynność.'},
+  eve_p_three:{set:'eve_purchase', label:'Proszę o trzy warianty: minimum, środek, pełne',
+    text:'Proszę przygotować mi trzy warianty: minimum, rozsądny środek i pełne wyposażenie.', consult:true,
+    pref:{equipmentConsultationRequested:true, budgetMode:'compare_variants'},
+    reply:'Przygotuję trzy poziomy, ale każdy oprę na możliwościach konkretnego lokalu, żeby wariant premium nie był po prostu dłuższą listą drogich rzeczy.'},
+  eve_p_revisit:{set:'eve_purchase', label:'Mogę przejść lokal jeszcze raz, już po zakupie?',
+    text:'Mogę jeszcze raz przejść lokal z Panią, już po zakupie, zanim zacznę go urządzać?', adv:true,
+    pref:{handoverIntent:'revisit', preferredCommissioningStyle:'planning'},
+    reply:'Tak. Teraz możemy potraktować przejście inaczej. Nie jako sprzedażowe oględziny, tylko jako planowanie funkcji i wyposażenia stref.'},
+  eve_p_thanks:{set:'eve_purchase', label:'Dziękuję. Odezwę się, jak będę czegoś potrzebował', silent:true,
+    text:'Dziękuję. Odezwę się, jak będę czegoś potrzebował.',
+    pref:{handoverIntent:'neutral'}, reply:''},
+};
+/* §4 trigger — wywoływane WYŁĄCZNIE z udanej finalizacji zakupu lokalu. */
+window._eveOnUnitPurchased=function(unitId, defId){
+  const e=window._eveEnsure();
+  if(!unitId||!defId) return false;                 /* brak instancji = brak wiadomości */
+  e.lastPurchasedUnitId=unitId; e.lastPurchasedDefId=defId;
+  const d=(typeof window._vwUnitDef==='function')?window._vwUnitDef(defId):null;
+  const nm=(d&&d.name)||'zakupiony lokal';
+  /* tekst bazowy pozostaje uniwersalny, ale niesie kontekst konkretnego lokalu (§4) */
+  const txt='Gratuluję decyzji. Klucze i karta dostępu do '+nm+' czekają w recepcji, a ja zostaję do dyspozycji przy wyposażeniu.';
+  const send=()=>{
+    if(typeof window._smsSend==='function') window._smsSend('eve_rook',txt,{bypass:true,replySet:'eve_purchase'});
+    else if(typeof showMsg==='function') showMsg('👩‍💼 Eve Rook: '+txt,'i',6500);
+  };
+  setTimeout(send,2600);
+  e.threadHistory.push({day:G.day||1, unitId:unitId, defId:defId, ev:'base_message'});
+  return true;
+};
+/* Reakcja Eve na wybraną odpowiedź — z doklejoną rekomendacją per lokal, gdy pytanie tego dotyczy. */
+window._eveHandleReply=function(opt){
+  if(!opt) return;
+  const e=window._eveEnsure();
+  if(opt.pref) for(const k in opt.pref) e[k]=opt.pref[k];
+  e.threadHistory.push({day:G.day||1, ev:'player_reply', pref:opt.pref||null});
+  /* §4: neutralne podziękowanie zamyka wątek — Eve nie odpisuje. */
+  if(opt.silent) return;
+  let reply=opt.reply||'';
+  if(opt.adv){
+    const adv=window._EVE_UNIT_ADVICE[e.lastPurchasedDefId];
+    if(adv) reply=adv;                               /* §3: odpowiedź właściwa dla TEGO lokalu */
+  }
+  if(!reply) return;
+  const send=()=>{ if(typeof window._smsPushNpcReply==='function') window._smsPushNpcReply('eve_rook',reply);
+    else if(typeof window._smsSend==='function') window._smsSend('eve_rook',reply,{bypass:true}); };
+  setTimeout(send,1800);
+  /* §4: prośba o pomoc przy wyposażeniu uruchamia następny krok systemowy — konsultację Eve. */
+  if(opt.consult){
+    e.equipmentConsultationRequested=true;
+    setTimeout(()=>{ try{ if(typeof addNotif==='function') addNotif('👩‍💼 Eve Rook przygotowała rekomendację wyposażenia — otwórz rynek VANTAGE WORKS i porozmawiaj z nią na miejscu.'); }catch(_){} }, 3200);
+  }
+};
+/* ═══════════════════ EVE ROOK MODULE END ═══════════════════════════════════ */
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -63334,7 +63500,758 @@ window._vehFleetSummary=function(){
   return {cars:window._vehCountCars(), campers:window._vehCountCampers(), all:window._vehCountAll(),
           maxCars:L.car, maxCampers:L.camper, maxAll:L.combined, overCap:window._vehLegacyOverCap()};
 };
+/* Stabilne identyfikatory instancji pojazdów (SWAPLY §26: „Nie używać indeksu pojazdu z listy
+   jako identyfikatora. Wyłącznie stabilne vehicleInstanceId").
+   Auta: nazwa z CAR_CATALOG jest już trwałym kluczem zapisu (G._ownedCars, G._carCond).
+   Kampery: dokładamy `uid` przy pierwszym kontakcie — indeks w garażu przesuwa się przy sprzedaży. */
+window._vehCamperUid=function(obj){
+  if(!obj||typeof obj!=='object') return null;
+  if(!obj.uid) obj.uid='cmp_'+((G.day||1))+'_'+Math.floor(Math.random()*1e6).toString(36);
+  return obj.uid;
+};
+window._vehListInstances=function(){
+  const out=[];
+  window._vehOwnedCarNames().forEach(n=>{
+    const active=!!(G.car&&G.car.name===n);
+    const cond=active?(G.car.condition==null?100:G.car.condition)
+                     :((G._carCond&&G._carCond[n]&&G._carCond[n].cond!=null)?G._carCond[n].cond:100);
+    out.push({id:n, kind:'car', vehicleClass:'car', name:(typeof carDisplayName==='function')?carDisplayName(n):n,
+              rawName:n, condition:cond, isActive:active});
+  });
+  const c=G.camper;
+  if(c&&c.owned){
+    const m=(typeof window._camperModelById==='function')?(window._camperModelById(c.model)||{}):{};
+    out.push({id:window._vehCamperUid(c), kind:'camper', vehicleClass:'camper', name:m.name||'Kamper',
+              rawName:c.model, condition:(c.condition==null?100:c.condition), isActive:true});
+  }
+  if(c&&Array.isArray(c.garage)) c.garage.forEach(g=>{
+    const m=(typeof window._camperModelById==='function')?(window._camperModelById(g.model)||{}):{};
+    out.push({id:window._vehCamperUid(g), kind:'camper', vehicleClass:'camper', name:(m.name||'Kamper')+' (garaż)',
+              rawName:g.model, condition:(g.condition==null?100:g.condition), isActive:false});
+  });
+  return out;
+};
+window._vehInstanceById=function(id){ return window._vehListInstances().find(v=>v.id===id)||null; };
 /* ═══════════════════ VEHICLE OWNERSHIP MODULE END ═══════════════════════════ */
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SWAPLY VEHICLE MARKETPLACE — MODULE START
+   PDF „SWAPLY VEHICLE MARKETPLACE, czyli moduł sprzedaży pojazdów online" (33 kryteria odbioru).
+   Rozszerza ISTNIEJĄCĄ aplikację Swaply o kategorię pojazdów — nie tworzy drugiego marketplace'u,
+   drugiego systemu własności ani osobnego portfela (§22, §29, §31).
+   Czas: 3 h / 3 dni / 7 dni liczone w MINUTACH GRY (§1 „Ważna interpretacja czasu").
+   ═══════════════════════════════════════════════════════════════════════════ */
+window.SWAPLY_FEE=200;                    /* §7  opłata publikacyjna, pobierana też przy relistingu */
+window.SWAPLY_TIMING={
+  moderationDurationGameMinutes:180,      /* §6  publikacja po 3 h czasu gry */
+  saleUnlockDelayGameMinutes:4320,        /* §6  brak finalizacji przed 3. dniem od wysłania */
+  listingLifetimeGameMinutes:10080,       /* §6  7 dni ważności OD PUBLIKACJI */
+};
+/* Jeden kanoniczny zegar gry: gameMin liczy minuty w dobie i zeruje się przy G.day++ (§29). */
+window._swMinute=function(){
+  const d=(typeof G!=='undefined'&&G.day)?G.day:1;
+  const m=(typeof gameMin==='number'&&isFinite(gameMin))?gameMin:0;
+  return (d-1)*1440+m;
+};
+window._swEnsure=function(){
+  if(!G.swaplyVeh||typeof G.swaplyVeh!=='object') G.swaplyVeh={};
+  const s=G.swaplyVeh;
+  if(!Array.isArray(s.listings)) s.listings=[];
+  if(!Array.isArray(s.threads))  s.threads=[];
+  if(!Array.isArray(s.offers))   s.offers=[];
+  if(typeof s.seq!=='number') s.seq=0;
+  if(typeof s.version!=='number') s.version=1;
+  if(!s.provenance||typeof s.provenance!=='object') s.provenance={};
+  return s;
+};
+window._swId=function(prefix){ const s=window._swEnsure(); s.seq++; return prefix+String(10000+s.seq).slice(1); };
+
+/* ── §5 POCHODZENIE POJAZDU I LIMIT CENY ────────────────────────────────────────────────────────
+   Snapshot wartości referencyjnej zapisujemy PRZY NABYCIU i nigdy nie przeliczamy z aktualnej
+   oferty salonu — inaczej aktualizacja ekonomii zmieniałaby limit istniejącego auta. */
+window._swSetProvenance=function(vehId, data){
+  const s=window._swEnsure();
+  if(!vehId) return null;
+  s.provenance[vehId]=Object.assign({
+    acquisitionSourceType:'other', acquisitionSourceId:'', acquiredAtGameMinute:window._swMinute(),
+    acquisitionPrice:0, resaleReferenceValueSnapshot:0,
+    canSellBackToSource:true, canListOnSwaply:true, canUseMetalValleyYard:true,
+  }, data||{});
+  return s.provenance[vehId];
+};
+/* §5.1: brak snapshotu w starym zapisie → migracja z najlepszej dostępnej wartości KANONICZNEJ
+   (katalog), nie z ceny dynamicznej. */
+window._swProvenance=function(vehId){
+  const s=window._swEnsure();
+  if(s.provenance[vehId]) return s.provenance[vehId];
+  const inst=window._vehInstanceById(vehId);
+  let ref=0, src='other', srcId='';
+  if(inst&&inst.kind==='car'){
+    const cc=(typeof CAR_CATALOG!=='undefined')?CAR_CATALOG.find(x=>x.name===inst.rawName):null;
+    ref=(cc&&cc.price)||0; src='dealer'; srcId='citydrive_motors';
+  } else if(inst&&inst.kind==='camper'){
+    const m=(typeof window._camperModelById==='function')?window._camperModelById(inst.rawName):null;
+    ref=(m&&m.price)||0; src='dealer'; srcId=(m&&m.source==='gravel')?'gravel_lot_motors':'citydrive_motors';
+  }
+  return window._swSetProvenance(vehId,{acquisitionSourceType:src, acquisitionSourceId:srcId,
+    acquisitionPrice:ref, resaleReferenceValueSnapshot:ref, _migrated:true});
+};
+window._swRefValue=function(vehId){ const p=window._swProvenance(vehId); return (p&&p.resaleReferenceValueSnapshot)||0; };
+/* §5: formularz nie przyjmie kwoty wyższej niż limit przypisany do TEJ sztuki. */
+window._swValidatePrice=function(vehId, price){
+  const p=Number(price);
+  if(!isFinite(p)||p<=0) return {ok:false, code:'INVALID_PRICE', msg:'Podaj poprawną cenę większą od zera.'};
+  const lim=window._swRefValue(vehId);
+  if(lim>0 && p>lim) return {ok:false, code:'PRICE_ABOVE_VEHICLE_LIMIT',
+    msg:'Maksymalna cena dla tego pojazdu: '+lim.toLocaleString('pl')+' zł.'};
+  return {ok:true, code:'OK', msg:''};
+};
+/* ── §6 CYKL ŻYCIA OGŁOSZENIA ─────────────────────────────────────────────────────────────────── */
+window.SWAPLY_STATES=['DRAFT','MODERATION_PENDING','PUBLISHED_PROCESSING','PUBLISHED_SELLABLE',
+  'OFFER_PENDING_PLAYER','NEGOTIATING','SALE_READY','SOLD','EXPIRED','CANCELLED','INVALIDATED'];
+window._swListingFor=function(vehId){
+  const s=window._swEnsure();
+  return s.listings.find(l=>l.vehicleInstanceId===vehId &&
+    ['SOLD','EXPIRED','CANCELLED','INVALIDATED'].indexOf(l.status)<0)||null;
+};
+window._swListingById=function(id){ const s=window._swEnsure(); return s.listings.find(l=>l.listingId===id)||null; };
+/* §7 + §25: opłata pobierana ATOMOWO, dokładnie raz na ogłoszenie. */
+window._swSubmitListing=function(vehId, price){
+  const s=window._swEnsure();
+  const inst=window._vehInstanceById(vehId);
+  if(!inst) return {ok:false, code:'NOT_OWNED', msg:'Nie posiadasz tego pojazdu.'};
+  const prov=window._swProvenance(vehId);
+  if(prov && prov.canListOnSwaply===false) return {ok:false, code:'NOT_LISTABLE', msg:'Tego pojazdu nie da się wystawić na Swaply.'};
+  if(window._swListingFor(vehId)) return {ok:false, code:'ALREADY_LISTED', msg:'Ten pojazd ma już aktywne ogłoszenie.'};
+  const v=window._swValidatePrice(vehId, price);
+  if(!v.ok) return v;
+  if((G.money||0)<window.SWAPLY_FEE) return {ok:false, code:'NO_FUNDS',
+    msg:'Publikacja kosztuje '+window.SWAPLY_FEE+' zł — brakuje środków.'};
+  /* commit: najpierw opłata, potem rekord — obie operacje w jednym przebiegu, bez stanu pośredniego */
+  G.money-=window.SWAPLY_FEE;
+  if(typeof spent==='function') try{ spent(window.SWAPLY_FEE); }catch(_){}
+  const t=window.SWAPLY_TIMING, now=window._swMinute();
+  const listing={
+    listingId:window._swId('SWL-'), vehicleInstanceId:vehId, vehicleClass:inst.vehicleClass,
+    vehicleName:inst.name, sourceSnapshot:{type:prov.acquisitionSourceType, id:prov.acquisitionSourceId},
+    referenceValueSnapshot:window._swRefValue(vehId), listingPrice:Math.round(Number(price)),
+    listingFeePaid:window.SWAPLY_FEE, status:'MODERATION_PENDING',
+    submittedAtGameMinute:now,
+    publishedAtGameMinute:now+t.moderationDurationGameMinutes,
+    saleUnlockedAtGameMinute:now+t.saleUnlockDelayGameMinutes,
+    expiresAtGameMinute:now+t.moderationDurationGameMinutes+t.listingLifetimeGameMinutes,
+    inquiryScheduleSeed:0, inquirySchedule:null, threadIds:[],
+    acceptedOfferId:null, finalSalePrice:null, soldAtGameMinute:null, version:1,
+  };
+  listing.inquiryScheduleSeed=window._swHash(listing.listingId+':'+listing.publishedAtGameMinute);
+  s.listings.push(listing);
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return {ok:true, code:'OK', msg:'Ogłoszenie wysłane do moderacji. Publikacja za 3 godziny czasu gry.', listing:listing};
+};
+/* §18: anulowanie dozwolone przed sprzedażą; opłata NIE wraca. */
+window._swCancelListing=function(listingId, silentMode){
+  const l=window._swListingById(listingId);
+  if(!l) return {ok:false, msg:'Nie ma takiego ogłoszenia.'};
+  if(l.status==='SOLD') return {ok:false, msg:'Ten pojazd został już sprzedany.'};
+  l.status='CANCELLED';
+  window._swCloseThreads(l,'CLOSED_CANCELLED');
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  if(!silentMode && typeof showMsg==='function') showMsg('📋 Ogłoszenie anulowane. Opłata 200 zł nie jest zwracana.','i',4500);
+  return {ok:true, msg:'Ogłoszenie anulowane.'};
+};
+window._swCloseThreads=function(listing, state){
+  const s=window._swEnsure();
+  s.threads.forEach(t=>{ if(t.listingId===listing.listingId) t.state=state||'CLOSED'; });
+  s.offers.forEach(o=>{ if(o.listingId===listing.listingId && o.status==='ACTIVE') o.status='VOID'; });
+};
+/* ── deterministyczny RNG: ten sam wynik po zapisie i wczytaniu (§11, §25) ── */
+window._swHash=function(str){
+  let h=2166136261>>>0;
+  const s=String(str);
+  for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619)>>>0; }
+  return h>>>0;
+};
+window._swRand=function(seed){
+  let x=(seed>>>0)||1;
+  return ()=>{ x^=x<<13;x>>>=0; x^=x>>17; x^=x<<5;x>>>=0; return x/4294967296; };
+};
+/* ── §10 GENERATOR UŻYTKOWNIKÓW ─────────────────────────────────────────────────────────────────
+   Nickname, persona, styl, cierpliwość i strategia ceny ustalane RAZ dla threadId i stałe w całym
+   wątku. Generator nie używa nazw ważnych NPC ani ksywek artystów fabularnych (§10.1). */
+window.SWAPLY_PERSONAS=[
+  {id:'technical_bargainer', neg:0.90, initial:0.78, reserve:0.90, delay:[60,180],  ghost:0.05, profanity:0, tones:['techniczny','poważny']},
+  {id:'hard_haggler',        neg:0.98, initial:0.66, reserve:0.84, delay:[30,90],   ghost:0.08, profanity:1, tones:['cyniczny','wulgarny']},
+  {id:'straight_buyer',      neg:0.35, initial:0.94, reserve:1.00, delay:[40,120],  ghost:0.02, profanity:0, tones:['poważny']},
+  {id:'camper_nerd',         neg:0.75, initial:0.82, reserve:0.93, delay:[60,150],  ghost:0.05, profanity:0, tones:['techniczny','poważny']},
+  {id:'cynic',               neg:0.85, initial:0.74, reserve:0.88, delay:[50,140],  ghost:0.10, profanity:0, tones:['cyniczny','zabawny']},
+  {id:'impulsive',           neg:0.55, initial:0.90, reserve:0.98, delay:[20,60],   ghost:0.12, profanity:0, tones:['szybki']},
+  {id:'flaky_user',          neg:0.80, initial:0.70, reserve:0.86, delay:[90,300],  ghost:0.35, profanity:0, tones:['szybki','cyniczny']},
+  {id:'practical_driver',    neg:0.70, initial:0.85, reserve:0.94, delay:[45,130],  ghost:0.04, profanity:0, tones:['poważny','zabawny']},
+];
+window._SW_NICK={
+  first:['Darek','Mark','Michal','Krzysiek','Billy','Anissa','Kamil','Roman','Sylwia','Bartek','Wojtek','Ewa'],
+  car:['Diesel','Van','Turbo','Kombi','Felga','Silnik','Kabel','Beton'],
+  adj:['nocny','krzywa','rudy','szybki','cichy','stary','mokry'],
+  drv:['kierowca','garage','driver','mechanik','przewoz'],
+  dist:['Eastwood','Orchard','Cypress','Meadow','Harbor','Ridge'],
+};
+window._swBuyerProfile=function(threadId){
+  const r=window._swRand(window._swHash(threadId+':buyer'));
+  const P=window.SWAPLY_PERSONAS;
+  const persona=P[Math.floor(r()*P.length)%P.length];
+  const N=window._SW_NICK;
+  const pick=a=>a[Math.floor(r()*a.length)%a.length];
+  const num=()=>String(60+Math.floor(r()*39));
+  const forms=[
+    ()=>pick(N.first)+'_'+num(),
+    ()=>pick(N.car)+pick(N.first),
+    ()=>pick(N.adj)+'_'+pick(N.drv),
+    ()=>pick(N.dist)+num(),
+    ()=>'user-'+String(10000+Math.floor(r()*89999)),
+  ];
+  const nickname=forms[Math.floor(r()*forms.length)%forms.length]();
+  return {buyerProfileId:'SWBUY-'+window._swHash(threadId).toString(36).slice(0,6), nickname:nickname,
+    personaId:persona.id, toneTags:persona.tones, negotiationEnabled:r()<persona.neg,
+    initialOfferFactor:persona.initial, reservationPriceFactor:persona.reserve,
+    replyDelayProfile:persona.delay, ghostChance:persona.ghost, profanityLevel:persona.profanity};
+};
+/* ── §11 MAŁA CZĘSTOTLIWOŚĆ ZAPYTAŃ ─────────────────────────────────────────────────────────────
+   Atrakcyjność liczona z ceny względem limitu i stanu pojazdu. Harmonogram jest DETERMINISTYCZNY
+   dla listingId — przeładowanie zapisu go nie zmienia (§25). */
+window._swAttractiveness=function(listing){
+  const ref=listing.referenceValueSnapshot||1;
+  const ratio=listing.listingPrice/ref;                    /* im niżej ceny, tym atrakcyjniej */
+  const inst=window._vehInstanceById(listing.vehicleInstanceId);
+  const cond=inst?(inst.condition==null?100:inst.condition):100;
+  if(ratio<=0.75 && cond>=55) return 'wysoka';
+  if(ratio>=0.95 || cond<35)  return 'niska';
+  return 'srednia';
+};
+window._swBuildInquirySchedule=function(listing){
+  const rnd=window._swRand(listing.inquiryScheduleSeed||window._swHash(listing.listingId));
+  const attr=window._swAttractiveness(listing);
+  const range={wysoka:[3,5], srednia:[2,4], niska:[0,2]}[attr];
+  const count=range[0]+Math.floor(rnd()*(range[1]-range[0]+1));
+  const start=listing.publishedAtGameMinute+360;           /* pierwszy kontakt nie wcześniej niż 6 h */
+  const end=listing.expiresAtGameMinute-240;
+  const minGap=600;                                        /* min. 10 h czasu gry między wątkami */
+  const out=[]; let cursor=start;
+  for(let i=0;i<count;i++){
+    if(cursor>=end) break;
+    const room=Math.max(0,end-cursor-(count-i-1)*minGap);
+    cursor+=Math.floor(rnd()*Math.max(1,room/Math.max(1,count-i)));
+    out.push(Math.round(cursor));
+    cursor+=minGap;
+  }
+  return out;
+};
+/* ── §13 BIBLIOTEKA PYTAŃ I ODPOWIEDZI ──────────────────────────────────────────────────────────
+   requiredDataTags: szablon wolno użyć TYLKO, gdy gra faktycznie ma dane, o które pyta kupujący.
+   Gra nie przechowuje przebiegu ani książki serwisowej — takich pytań w bibliotece NIE MA (§13.1). */
+window.SWAPLY_QUESTIONS=[
+  {tone:'poważny', tags:[], q:'Cześć. Aktualne? Jaki jest ogólny stan auta?',
+   a:['Aktualne. Stan taki jak w ogłoszeniu.','Tak. Co dokładnie chcesz wiedzieć?','Aktualne, ale cena jest do małej rozmowy.']},
+  {tone:'poważny', tags:[], q:'Dzień dobry. Jest coś, o czym powinienem wiedzieć przed przyjazdem?',
+   a:['Wszystko istotne wpisałem w ogłoszeniu.','Nic, co dyskwalifikowałoby auto. Mogę powiedzieć więcej na czacie.','Jest parę drobiazgów, ale bez niespodzianek.']},
+  {tone:'poważny', tags:[], q:'Jest możliwość obejrzenia pojazdu przed zakupem? Jestem zainteresowany.',
+   a:['Jasne, możemy się umówić.','Można obejrzeć. Najpierw ustalmy, czy cena Ci odpowiada.','Tak. Jak jesteś zdecydowany, dogadamy szczegóły.']},
+  {tone:'techniczny', tags:['condition'], q:'Coś stuka, świeci albo wymaga roboty?',
+   a:['Nic ponad to, co pokazuje opisowy stan pojazdu.','Jest parę rzeczy, ale jeździ normalnie.','Najpierw powiedz, ile chcesz dać.']},
+  {tone:'techniczny', tags:['condition'], q:'Silnik bierze olej? Skrzynia pracuje normalnie? Jak z zawieszeniem?',
+   a:['Skrzynia pracuje normalnie, reszta zgodnie ze stanem auta.','Nie zauważyłem niczego niepokojącego.','To nie jest salonówka. Parę rzeczy ma prawo już czuć wiek.']},
+  {tone:'cyniczny', tags:[], q:'Cena jak za złoto, a zderzak wygląda jak po wojnie. Zejdziesz?',
+   a:['Zejdę, ale bez kabaretu.','Zderzak nie płaci rachunków. Podaj ofertę.','Nie. Cena już jest policzona.']},
+  {tone:'cyniczny', tags:[], q:'To auto ma jakieś zalety poza tym, że jeszcze stoi na kołach?',
+   a:['Ma. Na przykład tę, że nie musisz go kupować.','Przyjedź na oględziny to może odkryjesz drugą.','Za tę cenę dostajesz auto, a nie objawienie pańskie.']},
+  {tone:'wulgarny', tags:[], q:'za tyle to ja mam dwa. Napisz ile realnie chcesz za ten wóz, bez pierdolenia',
+   a:['To kup dwa. Moja cena jest w ogłoszeniu.','Dawaj konkretną kwotę.','Albo rozmawiamy jak ludzie albo wypierdalaj']},
+  {tone:'wulgarny', tags:[], q:'co tu kurwa tyle kosztuje? Przecież to nie jest nowe auto',
+   a:['Nikt nie mówił, że jest nowe.','Kosztuje tyle, ile wpisałem. Jak masz ofertę to pisz.','Jak szukasz za pół darmo to zły adres kolego']},
+  {tone:'zabawny', tags:[], q:'Klima działa czy tylko szyby w dół i wiara w Boga Wszechmogącego?',
+   a:['Działa, wiara opcjonalna.','Zależy od auta. Pytaj konkretnie.','Za dobrą cenę nawet wiatr dorzucę.']},
+  {tone:'zabawny', tags:[], q:'Pytanie kluczowe: radio gra głośniej niż zawieszenie?',
+   a:['Na razie radio prowadzi w konkurencji.','Jak podkręcisz wystarczająco, to na pewno.','Przyjedź, posłuchasz jednego i drugiego.']},
+  {tone:'szybki', tags:[], q:'Biorę, jeśli aktualne. Cena bez zmian?',
+   a:['Aktualne. Cena jak w ogłoszeniu.','Aktualne, możesz rzucić ofertę.','Tak, ale nie trzymam w nieskończoność.']},
+  {tone:'szybki', tags:[], q:'Ile najmniej i zamykamy temat?',
+   a:['Podaj swoją ofertę.','Niewiele mniej niż w ogłoszeniu.','Jak jesteś zdecydowany, możemy się dogadać.']},
+  {tone:'techniczny', tags:['camper'], q:'Co dokładnie jest na wyposażeniu w środku? Da się tam spać na dłużej?',
+   a:['Wyposażenie zgodne z opisem modelu.','Da się. To kamper, nie namiot.','Przyjedź, obejrzysz zabudowę na miejscu.']},
+];
+/* §13.1: filtr data-aware — pytania o kamper tylko dla kamperów, o stan tylko gdy gra go liczy. */
+window._swQuestionsFor=function(listing){
+  const inst=window._vehInstanceById(listing.vehicleInstanceId);
+  const isCamper=!!(inst&&inst.kind==='camper');
+  const hasCond=!!(inst&&typeof inst.condition==='number');
+  return window.SWAPLY_QUESTIONS.filter(q=>{
+    if(q.tags.indexOf('camper')>=0 && !isCamper) return false;
+    if(q.tags.indexOf('condition')>=0 && !hasCond) return false;
+    return true;
+  });
+};
+/* ── §9/§12 WĄTEK KUPUJĄCEGO I NEGOCJACJE ───────────────────────────────────────────────────── */
+window._swCreateThread=function(listing){
+  const s=window._swEnsure();
+  const threadId=window._swId('SWTH-');
+  const buyer=window._swBuyerProfile(threadId);
+  const rnd=window._swRand(window._swHash(threadId+':q'));
+  const pool=window._swQuestionsFor(listing);
+  const tonePool=pool.filter(q=>buyer.toneTags.indexOf(q.tone)>=0);
+  const src=(tonePool.length?tonePool:pool);
+  const q=src[Math.floor(rnd()*src.length)%src.length];
+  const thread={
+    threadId:threadId, listingId:listing.listingId, vehicleInstanceId:listing.vehicleInstanceId,
+    buyerProfileId:buyer.buyerProfileId, buyerNickname:buyer.nickname, personaId:buyer.personaId,
+    buyer:buyer, negotiationEnabled:buyer.negotiationEnabled, state:'INQUIRY_OPEN',
+    lastMessageAtGameMinute:window._swMinute(), pendingReplyDueAtActiveRealMs:null,
+    currentOfferAmount:null, negotiationRound:0, maxNegotiationRounds:3,
+    messages:[{from:'buyer', text:q.q, tone:q.tone, at:window._swMinute()}],
+    playerOptions:q.a.slice(), playerResponseHistory:[],
+  };
+  s.threads.push(thread);
+  listing.threadIds.push(threadId);
+  /* §15: powiadomienie idzie ISTNIEJĄCYM kanałem, z routingiem do konkretnego wątku Swaply. */
+  window._swNotify(thread, q.q);
+  return thread;
+};
+/* §12: około 80% wątków dochodzących do etapu OFERTY negocjuje cenę. */
+window._swShouldNegotiate=function(threadId){
+  const r=window._swRand(window._swHash(threadId+':negotiation'));
+  return r()<0.80;
+};
+window._swMakeOffer=function(thread){
+  const s=window._swEnsure();
+  const listing=window._swListingById(thread.listingId); if(!listing) return null;
+  const b=thread.buyer;
+  const negotiates=window._swShouldNegotiate(thread.threadId) && b.negotiationEnabled;
+  const raw=negotiates?Math.round(listing.listingPrice*b.initialOfferFactor):listing.listingPrice;
+  const amount=Math.max(100, Math.min(listing.listingPrice, Math.round(raw/100)*100));
+  const offer={offerId:window._swId('SWO-'), threadId:thread.threadId, listingId:listing.listingId,
+    buyerProfileId:thread.buyerProfileId, amount:amount, status:'ACTIVE',
+    createdAtGameMinute:window._swMinute(),
+    expiresAtGameMinute:Math.min(listing.expiresAtGameMinute, window._swMinute()+2880),
+    negotiationRound:thread.negotiationRound};
+  s.offers.push(offer);
+  thread.currentOfferAmount=amount;
+  thread.state='OFFER_MADE';
+  thread.messages.push({from:'buyer', text:(negotiates
+      ?'Dam '+amount.toLocaleString('pl')+' zł i przyjeżdżam.'
+      :'Biorę za '+amount.toLocaleString('pl')+' zł, cena z ogłoszenia mi pasuje.'), at:window._swMinute()});
+  if(listing.status==='PUBLISHED_SELLABLE'||listing.status==='PUBLISHED_PROCESSING') listing.status='OFFER_PENDING_PLAYER';
+  window._swNotify(thread, thread.messages[thread.messages.length-1].text);
+  return offer;
+};
+/* §12.1: gracz kontruje — kwota nigdy powyżej listingPrice ani powyżej limitu pojazdu; max 3 rundy. */
+window._swCounter=function(threadId, amount){
+  const s=window._swEnsure();
+  const t=s.threads.find(x=>x.threadId===threadId); if(!t) return {ok:false,msg:'Brak wątku.'};
+  const l=window._swListingById(t.listingId); if(!l) return {ok:false,msg:'Brak ogłoszenia.'};
+  if(t.negotiationRound>=t.maxNegotiationRounds) return {ok:false,code:'MAX_ROUNDS',msg:'To już trzecia runda — kupujący nie będzie dalej licytował.'};
+  const amt=Math.round(Number(amount)||0);
+  if(!isFinite(amt)||amt<=0) return {ok:false,code:'INVALID',msg:'Podaj poprawną kwotę.'};
+  if(amt>l.listingPrice) return {ok:false,code:'ABOVE_LISTING',msg:'Kontroferta nie może przekraczać ceny z ogłoszenia ('+l.listingPrice.toLocaleString('pl')+' zł).'};
+  if(amt>l.referenceValueSnapshot && l.referenceValueSnapshot>0) return {ok:false,code:'ABOVE_LIMIT',msg:'Kontroferta nie może przekraczać limitu pojazdu.'};
+  t.negotiationRound++;
+  t.messages.push({from:'me', text:'Moja cena: '+amt.toLocaleString('pl')+' zł.', at:window._swMinute()});
+  const reserve=Math.round(l.listingPrice*t.buyer.reservationPriceFactor);
+  const rnd=window._swRand(window._swHash(t.threadId+':counter'+t.negotiationRound));
+  const roll=rnd();
+  if(amt<=reserve){
+    /* kupujący akceptuje kontrę — to ona staje się finalSalePrice */
+    const off=s.offers.find(o=>o.threadId===t.threadId&&o.status==='ACTIVE');
+    if(off){ off.amount=amt; off.status='ACCEPTED_BY_BUYER'; }
+    t.currentOfferAmount=amt; t.state='BUYER_ACCEPTED';
+    t.messages.push({from:'buyer', text:'Dobra, niech będzie '+amt.toLocaleString('pl')+' zł. Kiedy odbieram?', at:window._swMinute()});
+    if(l.status!=='SOLD') l.status='SALE_READY';
+    window._swNotify(t, t.messages[t.messages.length-1].text);
+    return {ok:true, code:'ACCEPTED', msg:'Kupujący zgodził się na '+amt.toLocaleString('pl')+' zł.'};
+  }
+  if(roll<t.buyer.ghostChance){
+    t.state='GHOSTED';
+    t.messages.push({from:'system', text:'Kupujący przestał odpisywać.', at:window._swMinute()});
+    return {ok:true, code:'GHOST', msg:'Cisza. Kupujący zniknął.'};
+  }
+  if(t.negotiationRound>=t.maxNegotiationRounds){
+    t.state='REJECTED';
+    t.messages.push({from:'buyer', text:'To nie dogadamy się. Powodzenia ze sprzedażą.', at:window._swMinute()});
+    return {ok:true, code:'REJECTED', msg:'Kupujący odrzucił kontrofertę.'};
+  }
+  const bump=Math.round((reserve-(t.currentOfferAmount||0))*0.45/100)*100;
+  const next=Math.max(t.currentOfferAmount||0, Math.min(reserve, (t.currentOfferAmount||0)+Math.max(100,bump)));
+  t.currentOfferAmount=next;
+  const off=s.offers.find(o=>o.threadId===t.threadId&&o.status==='ACTIVE');
+  if(off){ off.amount=next; off.negotiationRound=t.negotiationRound; }
+  t.messages.push({from:'buyer', text:'Tyle nie dam. Moje ostatnie: '+next.toLocaleString('pl')+' zł.', at:window._swMinute()});
+  window._swNotify(t, t.messages[t.messages.length-1].text);
+  return {ok:true, code:'COUNTERED', msg:'Kupujący podbił do '+next.toLocaleString('pl')+' zł.'};
+};
+/* §15: transport powiadomień to ISTNIEJĄCY system — nie budujemy drugiej animacji ani innego toastu. */
+window._swNotify=function(thread, text){
+  const preview=String(text||'').slice(0,90);
+  try{
+    if(typeof window._slbPush==='function') window._slbPush({app:'swaply', icon:'📋', title:thread.buyerNickname, text:preview});
+    else if(typeof addNotif==='function') addNotif('📋 Swaply · '+thread.buyerNickname+': '+preview);
+    if(typeof showMsg==='function' && !(document.getElementById('phone')||{}).classList?.contains('on'))
+      showMsg('📋 Swaply — '+thread.buyerNickname+': '+preview,'i',5200);
+  }catch(_){}
+  window._swLastNotifyRoute={app:'swaply', screen:'vehicle_listing_chat', listingId:thread.listingId, threadId:thread.threadId};
+};
+/* ── §6/§11/§17 TICK CYKLU ŻYCIA ───────────────────────────────────────────────────────────────
+   Przeliczany ze stanu zegara, więc wczytanie zapisu ustawia stany bez „lawiny powiadomień" (§23).
+   Wątki tworzymy tylko dla terminów, które właśnie minęły — nie generujemy ich ponownie. */
+window._swTick=function(){
+  const s=window._swEnsure(); const now=window._swMinute();
+  let dirty=false;
+  s.listings.forEach(l=>{
+    if(['SOLD','CANCELLED','EXPIRED','INVALIDATED'].indexOf(l.status)>=0) return;
+    /* pojazd zniknął z rąk gracza inną drogą (rozbiórka, skrypt fabularny) → ogłoszenie nieważne */
+    if(!window._vehInstanceById(l.vehicleInstanceId)){
+      l.status='INVALIDATED'; window._swCloseThreads(l,'CLOSED_INVALIDATED'); dirty=true; return;
+    }
+    if(l.status==='MODERATION_PENDING' && now>=l.publishedAtGameMinute){
+      l.status='PUBLISHED_PROCESSING';
+      l.inquirySchedule=window._swBuildInquirySchedule(l);
+      l._firedInquiries=0;
+      if(typeof addNotif==='function') addNotif('📋 Swaply: ogłoszenie „'+l.vehicleName+'" przeszło moderację i jest widoczne.');
+      dirty=true;
+    }
+    if(l.status==='PUBLISHED_PROCESSING' && now>=l.saleUnlockedAtGameMinute){
+      l.status='PUBLISHED_SELLABLE';
+      if(typeof addNotif==='function') addNotif('📋 Swaply: od teraz możesz sfinalizować sprzedaż „'+l.vehicleName+'".');
+      dirty=true;
+    }
+    if(now>=l.expiresAtGameMinute){
+      l.status='EXPIRED'; window._swCloseThreads(l,'CLOSED_EXPIRED');
+      if(typeof addNotif==='function') addNotif('📋 Swaply: ogłoszenie „'+l.vehicleName+'" wygasło. Wystaw ponownie za '+window.SWAPLY_FEE+' zł.');
+      dirty=true; return;
+    }
+    /* nowe wątki kupujących wg deterministycznego harmonogramu */
+    if(Array.isArray(l.inquirySchedule)){
+      const fired=l._firedInquiries||0;
+      for(let i=fired;i<l.inquirySchedule.length;i++){
+        if(l.inquirySchedule[i]<=now){ window._swCreateThread(l); l._firedInquiries=i+1; dirty=true; }
+        else break;
+      }
+    }
+    /* wątek dojrzewa do oferty po ~4 h czasu gry od pytania */
+    s.threads.filter(t=>t.listingId===l.listingId && t.state==='INQUIRY_OPEN').forEach(t=>{
+      if(now-t.lastMessageAtGameMinute>=240 && t.playerResponseHistory.length>0){ window._swMakeOffer(t); dirty=true; }
+    });
+  });
+  if(dirty && typeof saveGameSilent==='function') saveGameSilent();
+  return dirty;
+};
+/* Odpowiedź gracza w wątku — jedna z gotowych opcji (§13). */
+window._swReply=function(threadId, idx){
+  const s=window._swEnsure();
+  const t=s.threads.find(x=>x.threadId===threadId); if(!t) return {ok:false,msg:'Brak wątku.'};
+  const txt=(t.playerOptions||[])[idx]; if(txt==null) return {ok:false,msg:'Nie ma takiej odpowiedzi.'};
+  t.messages.push({from:'me', text:txt, at:window._swMinute()});
+  t.playerResponseHistory.push(idx);
+  t.lastMessageAtGameMinute=window._swMinute();
+  t.playerOptions=[];
+  /* §14: kupujący nie odpowiada natychmiast — opóźnienie zależne od persony. Ghost możliwy. */
+  const d=t.buyer.replyDelayProfile||[40,120];
+  const rnd=window._swRand(window._swHash(t.threadId+':reply'+t.playerResponseHistory.length));
+  if(rnd()<t.buyer.ghostChance){
+    t.state='GHOSTED';
+    t.messages.push({from:'system', text:'Kupujący przestał odpisywać.', at:window._swMinute()});
+    return {ok:true, code:'GHOST', msg:'Wysłano. Kupujący może się już nie odezwać.'};
+  }
+  const ms=(d[0]+Math.floor(rnd()*(d[1]-d[0])))*1000;
+  t.pendingReplyDueAtActiveRealMs=Date.now()+Math.min(ms, 25000);
+  setTimeout(()=>{ try{
+    if(t.state!=='INQUIRY_OPEN') return;
+    const l=window._swListingById(t.listingId); if(!l) return;
+    if(['SOLD','EXPIRED','CANCELLED','INVALIDATED'].indexOf(l.status)>=0) return;
+    window._swMakeOffer(t);
+  }catch(_){} }, Math.min(ms, 25000));
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return {ok:true, code:'SENT', msg:'Wysłano odpowiedź.'};
+};
+/* ── §16 FINALIZACJA — ATOMOWA ─────────────────────────────────────────────────────────────────
+   Kolejność jest krytyczna (§16 „Kolejność jest krytyczna"): najpierw walidacja, potem USUNIĘCIE
+   WŁASNOŚCI, dopiero na końcu wypłata. Nigdy odwrotnie — inaczej przerwanie stworzyłoby
+   duplikację wartości albo utratę auta bez zapłaty. */
+window._swAcceptOffer=function(threadId){
+  const s=window._swEnsure();
+  const t=s.threads.find(x=>x.threadId===threadId); if(!t) return {ok:false,msg:'Brak wątku.'};
+  const l=window._swListingById(t.listingId); if(!l) return {ok:false,msg:'Brak ogłoszenia.'};
+  const now=window._swMinute();
+  if(now<l.saleUnlockedAtGameMinute) return {ok:false, code:'SALE_LOCKED',
+    msg:'Sprzedaż będzie możliwa dopiero 3 dni po wysłaniu ogłoszenia.'};
+  if(now>=l.expiresAtGameMinute) return {ok:false, code:'LISTING_EXPIRED', msg:'Ogłoszenie wygasło.'};
+  if(!t.currentOfferAmount) return {ok:false, code:'NO_OFFER', msg:'Ten kupujący nie złożył jeszcze oferty.'};
+  const off=s.offers.find(o=>o.threadId===t.threadId && ['ACTIVE','ACCEPTED_BY_BUYER'].indexOf(o.status)>=0);
+  if(!off) return {ok:false, code:'NO_OFFER', msg:'Oferta już nieaktualna.'};
+  l.status='SALE_READY'; l.acceptedOfferId=off.offerId;
+  /* §8: nie wolno despawnować auta spod jadącego gracza — czekamy na bezpieczne zaparkowanie. */
+  const inst=window._vehInstanceById(l.vehicleInstanceId);
+  const driving=(inst&&inst.kind==='car'&&G._inCar&&G.car&&G.car.name===inst.rawName)||
+                (inst&&inst.kind==='camper'&&G._inCamper&&inst.isActive);
+  if(driving) return {ok:false, code:'VEHICLE_IN_USE',
+    msg:'Kupujący czeka. Zakończ jazdę i zaparkuj pojazd, potem potwierdź sprzedaż.'};
+  return window._swCommitSale(l.listingId, off.offerId);
+};
+window._swCommitSale=function(listingId, offerId){
+  const s=window._swEnsure();
+  const l=window._swListingById(listingId); if(!l) return {ok:false,msg:'Brak ogłoszenia.'};
+  const off=s.offers.find(o=>o.offerId===offerId); if(!off) return {ok:false,msg:'Brak oferty.'};
+  if(off.status==='CONSUMED'||l.status==='SOLD') return {ok:false, code:'ALREADY', msg:'Ta sprzedaż została już rozliczona.'};
+  if(l.status!=='SALE_READY') return {ok:false, code:'INVALID_LISTING_STATE', msg:'Ogłoszenie nie jest gotowe do finalizacji.'};
+  const inst=window._vehInstanceById(l.vehicleInstanceId);
+  if(!inst) return {ok:false, code:'NOT_OWNED', msg:'Nie posiadasz już tego pojazdu.'};
+  const driving=(inst.kind==='car'&&G._inCar&&G.car&&G.car.name===inst.rawName)||(inst.kind==='camper'&&G._inCamper&&inst.isActive);
+  if(driving) return {ok:false, code:'VEHICLE_IN_USE', msg:'Najpierw wysiądź i zaparkuj pojazd.'};
+  const price=off.amount;
+  /* 1) usunięcie własności */
+  const removed=window._swRemoveOwnership(l.vehicleInstanceId);
+  if(!removed) return {ok:false, code:'REMOVE_FAILED', msg:'Nie udało się przekazać pojazdu — sprzedaż wstrzymana.'};
+  /* 2) dopiero teraz pieniądze */
+  G.money=(G.money||0)+price;
+  if(typeof earn==='function') try{ earn(0,false); }catch(_){}
+  /* 3) domknięcie stanu */
+  off.status='CONSUMED';
+  l.status='SOLD'; l.finalSalePrice=price; l.soldAtGameMinute=window._swMinute();
+  window._swCloseThreads(l,'CLOSED_SOLD');
+  if(typeof updateHUD==='function') updateHUD();
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  if(typeof addNotif==='function') addNotif('📋 Swaply: sprzedano '+l.vehicleName+' za '+price.toLocaleString('pl')+' zł.');
+  return {ok:true, code:'SOLD', msg:'Sprzedano '+l.vehicleName+' za '+price.toLocaleString('pl')+' zł.', price:price};
+};
+/* Usunięcie pojazdu z własności — przez ten sam stan, którym operuje reszta gry (§22). */
+window._swRemoveOwnership=function(vehId){
+  const inst=window._vehInstanceById(vehId); if(!inst) return false;
+  if(inst.kind==='car'){
+    const n=inst.rawName;
+    if(Array.isArray(G._ownedCars)) G._ownedCars=G._ownedCars.filter(x=>x!==n);
+    if(G._carCond) delete G._carCond[n];
+    if(G.car&&G.car.name===n){
+      G.car=null; G._inCar=false; G._carParkedAt=null;
+      const rest=(G._ownedCars||[])[0];
+      if(rest){ const cc=(typeof CAR_CATALOG!=='undefined')?CAR_CATALOG.find(x=>x.name===rest):null;
+        if(cc) G.car={name:rest,speed:cc.speed,price:cc.price,condition:((G._carCond&&G._carCond[rest]&&G._carCond[rest].cond)||100)}; }
+    }
+    const g=(typeof window._glEnsure==='function')?window._glEnsure():null;
+    if(g&&g.ownedFromLot===n) g.ownedFromLot=null;   /* PDF 13.08 U17: slot używki z placu zwolniony */
+    return true;
+  }
+  const c=G.camper; if(!c) return false;
+  if(c.owned && window._vehCamperUid(c)===vehId){
+    if(Array.isArray(c.garage)&&c.garage.length){
+      const nxt=c.garage.shift();
+      c.model=nxt.model; c.condition=nxt.condition; c.camouflage=nxt.camouflage; c.uid=nxt.uid||null;
+      window._vehCamperUid(c);
+    } else { c.owned=false; c.model=null; G._inCamper=false; G._camperParkedAt=null; }
+    return true;
+  }
+  if(Array.isArray(c.garage)){
+    const i=c.garage.findIndex(x=>x&&x.uid===vehId);
+    if(i>=0){ c.garage.splice(i,1); return true; }
+  }
+  return false;
+};
+/* ── §17 RELISTING ────────────────────────────────────────────────────────────────────────────── */
+window._swRelist=function(vehId, price){
+  const s=window._swEnsure();
+  const old=s.listings.filter(l=>l.vehicleInstanceId===vehId).pop();
+  const p=(price!=null)?price:(old?old.listingPrice:0);
+  return window._swSubmitListing(vehId,p);   /* nowy listingId, nowa opłata, nowa moderacja */
+};
+/* ── §19 INTEGRACJA Z METAL VALLEY YARD ────────────────────────────────────────────────────────
+   Wzajemna blokada: nie da się jednocześnie sprzedać na Swaply i oddać do rozbiórki (§25). */
+window._swBlocksScrapping=function(vehId){
+  const l=window._swListingFor(vehId);
+  if(!l) return null;
+  if(l.status==='SALE_READY') return {blocked:true,
+    msg:'Kupujący ze Swaply czeka na finalizację. Najpierw odrzuć jego ofertę, potem wracaj z pojazdem na złom.'};
+  return {blocked:false, warn:'Ten pojazd ma aktywne ogłoszenie na Swaply — oddanie na złom je anuluje. Opłata 200 zł nie wraca.', listingId:l.listingId};
+};
+window._swCancelForOtherChannel=function(vehId){
+  const l=window._swListingFor(vehId);
+  if(l && l.status!=='SALE_READY'){ window._swCancelListing(l.listingId,true); return true; }
+  return false;
+};
+window._swRejectOffer=function(threadId){
+  const s=window._swEnsure();
+  const t=s.threads.find(x=>x.threadId===threadId); if(!t) return {ok:false,msg:'Brak wątku.'};
+  const l=window._swListingById(t.listingId);
+  s.offers.forEach(o=>{ if(o.threadId===threadId&&o.status!=='CONSUMED') o.status='REJECTED'; });
+  t.state='REJECTED'; t.currentOfferAmount=null;
+  if(l&&l.status==='SALE_READY'){ l.status=(window._swMinute()>=l.saleUnlockedAtGameMinute)?'PUBLISHED_SELLABLE':'PUBLISHED_PROCESSING'; l.acceptedOfferId=null; }
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return {ok:true, msg:'Oferta odrzucona.'};
+};
+/* Lista pojazdów kwalifikujących się do wystawienia (§7). */
+window._swListable=function(){
+  return window._vehListInstances().filter(v=>{
+    const p=window._swProvenance(v.id);
+    if(p&&p.canListOnSwaply===false) return false;
+    if(window._swListingFor(v.id)) return false;
+    if(typeof window._vehInRepair==='function' && window._vehInRepair(v.kind)) return false;
+    return true;
+  });
+};
+/* ── §20 UI/UX — zakładki, karta ogłoszenia, panel statusu, czat ────────────────────────────── */
+window._swFmtLeft=function(mins){
+  if(mins<=0) return 'teraz';
+  const d=Math.floor(mins/1440), h=Math.floor((mins%1440)/60);
+  if(d>0) return d+' d '+h+' h';
+  const m=Math.round(mins%60);
+  return h>0?(h+' h '+m+' min'):(m+' min');
+};
+window._swStatusLabel=function(l){
+  const now=window._swMinute();
+  switch(l.status){
+    case 'MODERATION_PENDING':   return 'Moderacja · publikacja za '+window._swFmtLeft(l.publishedAtGameMinute-now);
+    case 'PUBLISHED_PROCESSING': return 'Przetwarzanie · sprzedaż za '+window._swFmtLeft(l.saleUnlockedAtGameMinute-now);
+    case 'PUBLISHED_SELLABLE':   return 'Aktywne · sprzedaż możliwa';
+    case 'OFFER_PENDING_PLAYER': return 'Oferta czeka na Twoją decyzję';
+    case 'SALE_READY':           return 'Gotowe do finalizacji';
+    case 'SOLD':                 return 'Sprzedane';
+    case 'EXPIRED':              return 'Wygasłe';
+    case 'CANCELLED':            return 'Anulowane';
+    case 'INVALIDATED':          return 'Nieważne (pojazd zniknął)';
+    default: return l.status;
+  }
+};
+window._swPhoneTab=function(tab){ G._swTab=tab||'listings'; if(typeof renderPhoneApp==='function') renderPhoneApp('olx'); };
+/* Ekran „Sprzedaj" — formularz wystawienia (§7). */
+window._swSellHTML=function(){
+  const list=window._swListable();
+  if(!list.length) return '<div style="font-size:12px;color:#667;padding:8px 0">Nie masz pojazdu, który dałoby się teraz wystawić. Pojazd w naprawie albo z aktywnym ogłoszeniem nie kwalifikuje się.</div>';
+  return list.map(v=>{
+    const lim=window._swRefValue(v.id);
+    const prov=window._swProvenance(v.id);
+    const src=(prov.acquisitionSourceId==='gravel_lot_motors')?'Gravel Lot Motors':(prov.acquisitionSourceId==='citydrive_motors'?'CityDrive Motors':'inne źródło');
+    const inp='swsell_'+String(v.id).replace(/[^a-zA-Z0-9_]/g,'');
+    return `<div style="background:#0a1220;border:1px solid #1a2a3a;border-radius:8px;padding:9px;margin-bottom:6px">
+      <div style="font-weight:700;font-size:13px;color:#cdd">${v.kind==='camper'?'🚐':'🚗'} ${v.name}</div>
+      <div style="font-size:11px;color:#8a9aa8;margin:3px 0">Źródło: ${src} · stan ${Math.round(v.condition)}%</div>
+      <div style="font-size:11px;color:#7ec8e3">Maksymalna cena dla tego pojazdu: <b>${lim.toLocaleString('pl')} zł</b></div>
+      <div style="display:flex;gap:5px;margin-top:6px;align-items:center">
+        <input id="${inp}" type="number" min="1" max="${lim}" value="${Math.round(lim*0.85)}" style="flex:1;background:#0d1520;border:1px solid #2a3a50;color:#cdd;border-radius:5px;padding:5px 7px;font-family:inherit;font-size:12px">
+        <button class="cbtn" style="padding:5px 9px;font-size:11px;color:#7ec87e;border-color:#27ae60" onclick="window._swSellBtn('${v.id}','${inp}')">Wystaw — ${window.SWAPLY_FEE} zł</button>
+      </div>
+      <div style="font-size:10px;color:#667;margin-top:5px;line-height:1.5">Opłata publikacyjna ${window.SWAPLY_FEE} zł · publikacja po 3 h czasu gry · sprzedaż możliwa dopiero 3 dni od wysłania · ogłoszenie wygasa 7 dni po publikacji.</div>
+    </div>`;
+  }).join('');
+};
+window._swSellBtn=function(vehId, inputId){
+  const el=document.getElementById(inputId);
+  const price=el?Number(el.value):0;
+  const r=window._swSubmitListing(vehId, price);
+  if(typeof showMsg==='function') showMsg((r.ok?'📋 ':'⛔ ')+r.msg, r.ok?'g':'r', 5200);
+  window._swPhoneTab('listings');
+};
+/* Ekran „Moje ogłoszenia" — karta ogłoszenia + panel statusu sprzedaży (§20.2/§20.3). */
+window._swListingsHTML=function(){
+  const s=window._swEnsure();
+  const act=s.listings.filter(l=>['SOLD','CANCELLED'].indexOf(l.status)<0);
+  if(!act.length) return '<div style="font-size:12px;color:#667;padding:8px 0">Brak ogłoszeń pojazdów. Przejdź do zakładki „Sprzedaj".</div>';
+  const now=window._swMinute();
+  return act.map(l=>{
+    const threads=s.threads.filter(t=>t.listingId===l.listingId);
+    const best=s.offers.filter(o=>o.listingId===l.listingId&&['ACTIVE','ACCEPTED_BY_BUYER'].indexOf(o.status)>=0)
+                       .reduce((m,o)=>Math.max(m,o.amount),0);
+    const unread=threads.filter(t=>['INQUIRY_OPEN','OFFER_MADE','BUYER_ACCEPTED'].indexOf(t.state)>=0).length;
+    return `<div style="background:#0a1220;border:1px solid ${l.status==='SALE_READY'?'#27ae60':'#1a2a3a'};border-radius:8px;padding:9px;margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:13px;color:#cdd">${l.vehicleClass==='camper'?'🚐':'🚗'} ${l.vehicleName}</div>
+          <div style="font-size:11px;color:#8a9aa8">${window._swStatusLabel(l)}</div>
+        </div>
+        <div style="text-align:right"><div style="font-weight:700;color:#2ecc71;font-size:13px">${l.listingPrice.toLocaleString('pl')} zł</div>
+        <div style="font-size:10px;color:#667">limit ${l.referenceValueSnapshot.toLocaleString('pl')} zł</div></div>
+      </div>
+      <div style="font-size:11px;color:#9ab;margin-top:5px;line-height:1.6">
+        Wygasa za: <b>${window._swFmtLeft(l.expiresAtGameMinute-now)}</b> · Wiadomości: <b>${threads.length}</b>${unread?' ('+unread+' aktywnych)':''}<br>
+        ${best?('Najlepsza oferta: <b style="color:#f1c40f">'+best.toLocaleString('pl')+' zł</b>'):'Brak ofert.'}
+      </div>
+      <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap">
+        ${threads.length?`<button class="cbtn" style="flex:1;padding:4px 8px;font-size:11px" onclick="window._swPhoneTab('msg:${l.listingId}')">Otwórz wiadomości</button>`:''}
+        ${l.status==='EXPIRED'?`<button class="cbtn" style="flex:1;padding:4px 8px;font-size:11px;color:#7ec87e;border-color:#27ae60" onclick="window._swRelistBtn('${l.vehicleInstanceId}',${l.listingPrice})">Wystaw ponownie — ${window.SWAPLY_FEE} zł</button>`
+          :`<button class="cbtn" style="padding:4px 8px;font-size:11px;color:#caa;border-color:#7e2a2a" onclick="window._swCancelBtn('${l.listingId}')">Anuluj</button>`}
+      </div>
+    </div>`;
+  }).join('');
+};
+window._swCancelBtn=function(id){ const r=window._swCancelListing(id); window._swPhoneTab('listings'); return r; };
+window._swRelistBtn=function(vehId,price){
+  const r=window._swRelist(vehId,price);
+  if(typeof showMsg==='function') showMsg((r.ok?'📋 ':'⛔ ')+r.msg, r.ok?'g':'r', 5000);
+  window._swPhoneTab('listings');
+};
+/* Ekran czatu z kupującym (§9): wiadomość → 3 gotowe odpowiedzi → opóźniona reakcja. */
+window._swThreadsHTML=function(listingId){
+  const s=window._swEnsure();
+  const threads=s.threads.filter(t=>t.listingId===listingId);
+  if(!threads.length) return '<div style="font-size:12px;color:#667">Brak wiadomości.</div>';
+  return threads.map(t=>{
+    const msgs=t.messages.map(m=>`<div style="margin:3px 0;font-size:11.5px;color:${m.from==='me'?'#7ec8e3':(m.from==='system'?'#8a8':'#cdd')};text-align:${m.from==='me'?'right':'left'}">${m.from==='me'?'Ty: ':(m.from==='system'?'':'')}${m.text}</div>`).join('');
+    let actions='';
+    if(t.state==='INQUIRY_OPEN'&&(t.playerOptions||[]).length){
+      actions=(t.playerOptions||[]).map((o,i)=>`<button class="cbtn" style="width:100%;text-align:left;font-size:11px;padding:5px 7px;margin-bottom:3px" onclick="window._swReplyBtn('${t.threadId}',${i},'${listingId}')">${o}</button>`).join('');
+    } else if(t.state==='OFFER_MADE'||t.state==='BUYER_ACCEPTED'){
+      const cid='swc_'+t.threadId.replace(/[^a-zA-Z0-9]/g,'');
+      actions=`<div style="display:flex;gap:4px;margin-bottom:4px">
+          <button class="cbtn" style="flex:1;font-size:11px;padding:5px;color:#7ec87e;border-color:#27ae60" onclick="window._swAcceptBtn('${t.threadId}','${listingId}')">Przyjmij ${(t.currentOfferAmount||0).toLocaleString('pl')} zł</button>
+          <button class="cbtn" style="flex:1;font-size:11px;padding:5px;color:#caa;border-color:#7e2a2a" onclick="window._swRejectBtn('${t.threadId}','${listingId}')">Odrzuć</button>
+        </div>
+        <div style="display:flex;gap:4px">
+          <input id="${cid}" type="number" placeholder="Twoja kontra" style="flex:1;background:#0d1520;border:1px solid #2a3a50;color:#cdd;border-radius:5px;padding:4px 6px;font-family:inherit;font-size:11px">
+          <button class="cbtn" style="font-size:11px;padding:4px 8px" onclick="window._swCounterBtn('${t.threadId}','${cid}','${listingId}')">Kontra (${t.negotiationRound}/${t.maxNegotiationRounds})</button>
+        </div>`;
+    } else {
+      actions=`<div style="font-size:11px;color:#778;font-style:italic">${t.state==='GHOSTED'?'Kupujący ucichł.':(t.state==='REJECTED'?'Rozmowa zakończona.':'Wątek zamknięty.')}</div>`;
+    }
+    return `<div style="background:#0a1220;border:1px solid #1a2a3a;border-radius:8px;padding:9px;margin-bottom:6px">
+      <div style="font-weight:700;font-size:12.5px;color:#5dade2">${t.buyerNickname}</div>
+      <div style="border-top:1px solid #1a2a3a;margin:5px 0;padding-top:5px">${msgs}</div>
+      ${actions}</div>`;
+  }).join('');
+};
+window._swReplyBtn=function(tid,idx,lid){ const r=window._swReply(tid,idx);
+  if(typeof showMsg==='function'&&r.code==='GHOST') showMsg('📋 '+r.msg,'i',4200);
+  window._swPhoneTab('msg:'+lid); };
+window._swAcceptBtn=function(tid,lid){ const r=window._swAcceptOffer(tid);
+  if(typeof showMsg==='function') showMsg((r.ok?'📋 ':'⛔ ')+r.msg, r.ok?'g':'r', 6000);
+  window._swPhoneTab(r.ok?'listings':('msg:'+lid)); };
+window._swRejectBtn=function(tid,lid){ window._swRejectOffer(tid); window._swPhoneTab('msg:'+lid); };
+window._swCounterBtn=function(tid,inputId,lid){
+  const el=document.getElementById(inputId);
+  const r=window._swCounter(tid, el?Number(el.value):0);
+  if(typeof showMsg==='function') showMsg((r.ok?'📋 ':'⛔ ')+r.msg, r.ok?'i':'r', 5000);
+  window._swPhoneTab('msg:'+lid); };
+/* Historia (§20.1) */
+window._swHistoryHTML=function(){
+  const s=window._swEnsure();
+  const done=s.listings.filter(l=>['SOLD','CANCELLED','EXPIRED'].indexOf(l.status)>=0).slice(-12).reverse();
+  if(!done.length) return '<div style="font-size:12px;color:#667">Brak historii sprzedaży pojazdów.</div>';
+  return done.map(l=>`<div style="background:#0a1220;border-radius:6px;padding:7px;margin-bottom:4px;font-size:11.5px;color:#9ab">
+    ${l.vehicleClass==='camper'?'🚐':'🚗'} <b style="color:#cdd">${l.vehicleName}</b> — ${window._swStatusLabel(l)}
+    ${l.finalSalePrice?(' · <b style="color:#2ecc71">'+l.finalSalePrice.toLocaleString('pl')+' zł</b>'):''}</div>`).join('');
+};
+/* Cały blok pojazdowy wstrzykiwany do istniejącej aplikacji Swaply. */
+window._swVehiclePanelHTML=function(){
+  const tab=G._swTab||'listings';
+  const fleet=(typeof window._vehFleetSummary==='function')?window._vehFleetSummary():null;
+  const T=(id,lbl)=>`<button class="cbtn" style="flex:1;padding:5px 4px;font-size:11px;${(tab===id||tab.indexOf(id+':')===0)?'color:#7ec8e3;border-color:#3a6a8a;background:#0e1c2c':''}" onclick="window._swPhoneTab('${id}')">${lbl}</button>`;
+  let body='';
+  if(tab==='sell') body=window._swSellHTML();
+  else if(tab==='history') body=window._swHistoryHTML();
+  else if(tab.indexOf('msg:')===0) body=`<button class="cbtn" style="font-size:11px;padding:4px 8px;margin-bottom:6px" onclick="window._swPhoneTab('listings')">← Ogłoszenia</button>`+window._swThreadsHTML(tab.slice(4));
+  else body=window._swListingsHTML();
+  return `<div style="background:#0a1525;border:1px solid #2a5a8a;border-radius:8px;padding:10px;margin-bottom:10px">
+    <div style="font-size:14px;font-weight:700;color:#5dade2;margin-bottom:3px">🚗 Swaply — pojazdy</div>
+    <div style="font-size:11px;color:#8a9aa8;line-height:1.5;margin-bottom:7px">Sprzedaj auto lub kampera prywatnie. Wystawiony pojazd nadal jest Twój i możesz nim jeździć aż do finalizacji sprzedaży.${fleet?` Flota: <b>${fleet.cars}/${fleet.maxCars}</b> aut · <b>${fleet.campers}/${fleet.maxCampers}</b> kamperów (łącznie ${fleet.all}/${fleet.maxAll}).`:''}</div>
+    <div style="display:flex;gap:4px;margin-bottom:8px">${T('listings','Moje ogłoszenia')}${T('sell','Sprzedaj')}${T('history','Historia')}</div>
+    ${body}
+  </div>`;
+};
+/* ═══════════════════ SWAPLY VEHICLE MARKETPLACE — MODULE END ════════════════ */
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -68477,6 +69394,19 @@ window._canScrapVehicle=function(veh){
   if(isActive && G._inCar) return {ok:false, reason:'driving'};
   return {ok:true};
 };
+/* SWAPLY §19/§25: wzajemna blokada Swaply ↔ Metal Valley Yard. Pojazd z ofertą czekającą na
+   decyzję gracza (SALE_READY) nie może pójść na złom, dopóki oferta nie zostanie odrzucona —
+   inaczej ta sama instancja zostałaby skonsumowana dwa razy. Aktywne, „zwykłe" ogłoszenie
+   wolno anulować, ale gracz musi to wiedzieć: opłata 200 zł nie wraca. */
+window._swScrapGuard=function(veh){
+  if(!veh) return {ok:true};
+  const vehId=(veh.kind==='camper')?((typeof window._vehCamperUid==='function')?window._vehCamperUid(G.camper):null):veh.id;
+  if(!vehId||typeof window._swBlocksScrapping!=='function') return {ok:true};
+  const g=window._swBlocksScrapping(vehId);
+  if(g&&g.blocked) return {ok:false, reason:'swaply_sale_ready', msg:g.msg};
+  if(g&&g.warn) return {ok:true, warn:g.warn, vehId:vehId};
+  return {ok:true, vehId:vehId};
+};
 /* NPC Rysiek „Prasa" Walczak — szorstki, techniczny, cyniczny (styl RÓŻNY od Korka, §5/§12). */
 window._RYSIEK_NPC={name:'Rysiek „Prasa"', emoji:'♻️'};
 window._ryszekDialog=function(){
@@ -68632,6 +69562,16 @@ window._confirmVehicleScrap=function(){
   const s=window._mvSession; if(!s) return; window._metalValleyEnsure();
   const v=s.veh; const chk=window._canScrapVehicle(v);
   if(!chk.ok){ if(typeof showMsg==='function') showMsg(window._scrapBlockMsg(chk.reason,v),'r',5500); return; }
+  /* SWAPLY §19: pojazd z ofertą oczekującą na decyzję gracza nie idzie na złom; „zwykłe"
+     ogłoszenie jest automatycznie anulowane, żeby jedna instancja nie została sprzedana dwa razy. */
+  if(typeof window._swScrapGuard==='function'){
+    const sg=window._swScrapGuard(v);
+    if(!sg.ok){ if(typeof showMsg==='function') showMsg('📋 '+sg.msg,'r',6500); return; }
+    if(sg.warn && sg.vehId && typeof window._swCancelForOtherChannel==='function'){
+      window._swCancelForOtherChannel(sg.vehId);
+      if(typeof addNotif==='function') addNotif('📋 Swaply: ogłoszenie tego pojazdu zostało anulowane, bo trafił do rozbiórki. Opłata 200 zł nie wraca.');
+    }
+  }
   if(v.kind==='camper'){
     G.camper.owned=false; G.camper.partsAtMetalValley=true; /* ghost #7 aktywowany */
     G.camper.activeCamperId=null; G._camperParkedAt=null; G._inCamper=false; G.camper.destroyed=false;
@@ -77769,6 +78709,8 @@ function renderPhoneApp(app){
         <div style="font-size:18px;font-weight:700;color:#5dade2">📋 Swaply — Ogłoszenia</div>
         <div style="font-size:11px;color:#9ab;margin-top:4px;line-height:1.5">Sprzedaj sprzęt, kosztowności i kradzione z premią <strong style="color:#2ecc71">+30%</strong> ponad wartość — ale kupiec zjawia się po <strong>1-3 dniach</strong>. (Lombard płaci od ręki pełną wartość, anonimowo.) ⚠️ Kradzione na Swaply = ryzyko, że kupiec to tajniak (konfiskata + zniesławienie).</div>
       </div>
+      <!-- SWAPLY VEHICLE MARKETPLACE: kategoria pojazdow doklejona do ISTNIEJACEJ apki (nie nowy marketplace). -->
+      ${(typeof window._swVehiclePanelHTML==='function')?window._swVehiclePanelHTML():''}
       <div style="font-size:12px;color:#888;margin-bottom:6px">🟢 Aktywne ogłoszenia (${_lst.length}):</div>
       ${_lst.length?_lst.map(l=>{
         const _left=Math.max(0,(l.sellsDay||0)-(G.day||0));
@@ -81077,7 +82019,10 @@ window._smsDedicatedSets={'kamil_first_income':'kamil','kamil_career_step_five':
    rejestracji zestawów PIERWSZEGO kontaktu organizatorki. Bez wpisu gałąź dedykowana nie łapała,
    rozmowa spadała do gałęzi `maya_voss`, a ta znała wyłącznie `tour_invite`/`tour_rules` — więc
    zamiast trzech odpowiedzi gracz dostawał zafałszowany komunikat „✓ Ustalone…". */
-'maya_intro_a':'maya_voss','maya_intro_b':'maya_voss'};
+'maya_intro_a':'maya_voss','maya_intro_b':'maya_voss',
+/* PDF „Korespondencja po zakupie lokalu VANTAGE WORKS z NPC Eve Rook": zestaw odpowiedzi
+   na wiadomość powitalną po finalizacji zakupu (11 wariantów z §1 i §2). */
+'eve_purchase':'eve_rook'};
 window._smsRegistryFor=function(contactId){
   switch(contactId){
     case 'fan': return window._FAN_REPLIES;
@@ -81094,6 +82039,7 @@ window._smsRegistryFor=function(contactId){
     case 'zbyszek': return window._ZBYSZEK_REPLIES;
     case 'rysiek': return window._RYSIEK_REPLIES;
     case 'maya_voss': return window._MAYA_REPLIES;/* PDF „Maya Voss” §3: trzy odpowiedzi gracza na wariant A i B *//* v2.3.131 (PDF Uspr v2.3.130 U6): decyzja o kasacji przez SMS */
+    case 'eve_rook': return window._EVE_REPLIES;  /* PDF „Korespondencja po zakupie lokalu VANTAGE WORKS" §1-§2 */
     default: return null;
   }
 };
@@ -81382,7 +82328,10 @@ window._smsRichReply=function(contactId,replyId){
      Kamil ma linijkę wyżej. Pozostali (fan, wytwórnia, Wiktor, Zbyszek) nie mieli takiej ścieżki i reakcja
      przepadała — tu jest wspólne domknięcie dla wszystkich pozostałych kontaktów. */
   /* PDF „Maya Voss” §6: reakcja Mayi jest OPӏNIONA o 60 s aktywnej gry — wysyła ją moduł, nie wspólny fallback. */
-  const _handledBySender=(contactId==='kamil'||contactId==='sponsor'||contactId==='marcin'||contactId==='manager'||contactId==='producent'||contactId==='crew'||contactId==='nolan'||contactId==='maya_voss');
+  /* PDF „Korespondencja … Eve Rook" §3/§4: reakcja Eve zależy od KUPIONEGO lokalu i nie zawsze
+     powstaje (neutralne „dziękuję" kończy wątek) — wysyła ją własny handler, nie wspólny fallback. */
+  if(contactId==='eve_rook' && typeof window._eveHandleReply==='function') window._eveHandleReply(opt);
+  const _handledBySender=(contactId==='kamil'||contactId==='sponsor'||contactId==='marcin'||contactId==='manager'||contactId==='producent'||contactId==='crew'||contactId==='nolan'||contactId==='maya_voss'||contactId==='eve_rook');
   if(!_handledBySender && opt.reply && typeof window._smsPushNpcReply==='function') window._smsPushNpcReply(contactId,opt.reply);
   if(typeof renderSMSConversation==='function') renderSMSConversation(contactId);
   if(typeof saveGameSilent==='function') saveGameSilent();
@@ -88258,6 +89207,11 @@ const PATCH_NOTES = [
   {t:'ui',d:'📖 Dziennik aktywności nie otworzy się przez 5 sekund po freestyle’u — litera „O" z ostatniego hasła nie wyrzuci Ci go już na ekran. Wskazówka od TrapInfo o Dzienniku przychodzi teraz od razu po przelocie nad miastem.'},
   {t:'ui',d:'💃 Velvet Room działa od 22:00 do 5:00.'},
   {t:'ui',d:'💼 Z ulic Business District zniknęły wiszące w powietrzu prostokąty z napisem „ELITE".'},
+  {t:'feature',d:'🚗 Swaply sprzedaje teraz także pojazdy. W aplikacji pojawiły się zakładki „Moje ogłoszenia", „Sprzedaj" i „Historia": wybierasz auto albo kampera, wpisujesz cenę (nie wyższą niż wartość przypisana do tej sztuki) i płacisz 200 zł za publikację. Ogłoszenie pojawia się po 3 godzinach gry, sprzedaż odblokowuje się po 3 dniach, a całość wygasa 7 dni po publikacji — wtedy możesz wystawić ponownie za kolejne 200 zł.'},
+  {t:'feature',d:'💬 Do ogłoszeń piszą prawdziwie różni ludzie — każdy z własnym nickiem, charakterem i stylem rozmowy, od rzeczowych po wulgarnych. Odpowiadasz jedną z gotowych opcji, a kupujący odpisuje po chwili, nie natychmiast. Część znika bez słowa. Około 80% tych, którzy złożą ofertę, próbuje zbić cenę — możesz przyjąć, odrzucić albo dać kontrofertę, najwyżej trzy razy.'},
+  {t:'feature',d:'🔑 Wystawiony pojazd zostaje Twój i normalnie nim jeździsz. Znika dopiero w chwili, gdy sam zatwierdzisz sprzedaż — a jeśli akurat nim jedziesz, gra poczeka, aż zaparkujesz. Pieniądze i przekazanie auta dzieją się w jednej operacji, więc nie da się stracić pojazdu bez zapłaty ani odwrotnie.'},
+  {t:'feature',d:'♻️ Auta z Gravel Lot Motors nie wracają na plac, ale możesz je sprzedać na Swaply albo oddać do Metal Valley Yard. Jednego pojazdu nie sprzedasz dwiema drogami naraz — przy oddawaniu na złom gra anuluje ogłoszenie i uprzedza, że opłata nie wraca.'},
+  {t:'feature',d:'🏢 Po zakupie lokalu w VANTAGE WORKS odzywa się Eve Rook. Możesz odpowiedzieć na jedenaście sposobów — od „odbiorę klucze i przejdę lokal na spokojnie" po prośbę o trzy warianty wyposażenia — a jej rada zależy od tego, KTÓRY lokal kupiłeś. Zwykłe podziękowanie po prostu kończy rozmowę.'},
  ]
  },
  {
