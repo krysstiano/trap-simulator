@@ -64760,15 +64760,30 @@ window._ughHub=function(){
       </div>
       <div style="margin-top:6px"><button class="cbtn" style="width:100%;font-size:11px;color:#8a939a" onclick="G._ughPage=(G._ughPage||0)+1;window._ughHub()">▸ inne tematy</button></div>
       <div style="font-size:12px;color:#7ec8e3;margin:12px 0 6px">🎬 Przeloty tematyczne</div>
+      <!-- §14.9 „Wezel: powtorka" — Mason ma tu WLASNE odpowiedzi, nie sam start przelotu. -->
       <div style="display:flex;flex-direction:column;gap:6px">
-        <button class="cbtn" style="text-align:left;font-size:12px" onclick="closeOverlay();window._ughStartTour('full')">„Przelecisz całość jeszcze raz?" — pełna trasa</button>
-        <button class="cbtn" style="text-align:left;font-size:12px" onclick="closeOverlay();window._ughStartTour('music')">„Pokaż mi tylko miejsca związane z muzyką."</button>
-        <button class="cbtn" style="text-align:left;font-size:12px" onclick="closeOverlay();window._ughStartTour('business')">„Pokaż mi tylko sekcje biznesowe."</button>
-        <button class="cbtn" style="text-align:left;font-size:12px" onclick="closeOverlay();window._ughStartTour('street')">„Pokaż mi ulicę."</button>
+        <button class="cbtn" style="text-align:left;font-size:12px" onclick="window._ughReplayPick('full')">„Przelecisz całość jeszcze raz?"</button>
+        <button class="cbtn" style="text-align:left;font-size:12px" onclick="window._ughReplayPick('music')">„Pokaż mi tylko miejsca związane z muzyką."</button>
+        <button class="cbtn" style="text-align:left;font-size:12px" onclick="window._ughReplayPick('business')">„Pokaż mi tylko sekcje biznesowe."</button>
+        <button class="cbtn" style="text-align:left;font-size:12px" onclick="window._ughReplayPick('street')">„Pokaż mi ulicę."</button>
       </div>
       <button class="cbtn" style="width:100%;margin-top:12px" onclick="closeOverlay()">← Wróć</button>
     </div>`;
   if(typeof openOverlay==='function') openOverlay();
+};
+/* §14.9 WĘZEŁ „POWTÓRKA" — każdy wybór przelotu ma własną kwestię Masona (1:1 z dokumentu).
+   Wcześniej przyciski od razu startowały przelot, więc te trzy odpowiedzi nigdy nie padały. */
+window.UGH_REPLAY_LINES={
+  full:     '„Pewnie. Tylko tym razem nie udawaj turysty."',
+  business: '„Vantage, Gravel i miejsca, które karmią kontakty. Krótsza trasa."',
+  music:    '„Piwnica, Cypher, Mural i Zajazd. Cztery przystanki, zero wykładu."',
+  street:   '„Kwartał, baraki, dealer i zaułek. Tam się mieszka, nie zwiedza."',
+};
+window._ughReplayPick=function(kind){
+  const line=window.UGH_REPLAY_LINES[kind]||window.UGH_REPLAY_LINES.full;
+  if(typeof closeOverlay==='function') closeOverlay();
+  window._ughSay(line);
+  setTimeout(()=>{ try{ window._ughStartTour(kind); }catch(_){} }, 1200);
 };
 window._ughAsk=function(id){
   const s=window._ughEnsure();
@@ -91487,6 +91502,13 @@ window._s9AfterDeal=function(npcId,priceTier){
 };
 const PATCH_NOTES = [
  {
+ ver:'v2.3.135',date:'2026-08-14',cats:['beta-tester','fix'],title:'🗺 Znacznik na mapie od pierwszej minuty i odpowiedzi Masona przy powtorce',
+ items:[
+  {t:'fix',d:'🗺 Znacznik „TY" na mapie miasta dziala teraz od pierwszej minuty nowej gry. Poniewaz gra zaczyna sie juz w srodku Traphouse, mapa nie miala wczesniej punktu odniesienia i znacznik sie nie pokazywal, dopoki nie wyszedles na ulice.'},
+  {t:'fix',d:'🕶 Mason odpowiada wlasnymi slowami, gdy prosisz go o powtorke oprowadzania. Wczesniej wybor od razu uruchamial przelot, wiec jego kwestie przy tej rozmowie nigdy nie padaly.'},
+ ]
+ },
+ {
  ver:'v2.3.134',date:'2026-08-14',cats:['beta-tester','fix','feature'],title:'🏡🕶 Wnętrza na przedmieściach, sceny w przelocie i dwie nowe minigry',
  items:[
   {t:'feature',d:'🏡 Budynki w Residential District można teraz zwiedzać od środka. Corner Basket, BarberPoint, obie restauracje, oba sklepy odzieżowe, Eastgate Commerce Center, Community Pavilion, Parkline Duplex i trzy wille mają własne wnętrza ze strefami, po których chodzisz i wchodzisz w interakcje — zamiast samego okienka z listą opcji.'},
@@ -107578,6 +107600,11 @@ function startGame(){
      odpala się przy PIERWSZYM wyjściu na ulicę (flaga _pendingIntroFlythrough) — bez zmian. */
   currentRoom='mieszkanie';
   P.wx=618; P.wy=235;
+  /* PDF 13.08 U23 wymienia Traphouse jako przykład budynku, w którym znacznik „TY" ma być
+     widoczny. Po zmianie U9 nowa gra zaczyna się JUŻ W ŚRODKU, więc gracz nigdy nie był na
+     zewnątrz i marker nie miałby czego pokazać. Ustawiamy punkt odniesienia na chodnik przed
+     Traphouse (ten sam, którego używa wyjście z mieszkania). */
+  G._lastOutdoor={room:'ulica', wx:170, wy:325};
   cityPeds.length=0;cityCars.length=0;dashingAnimals.length=0;
   try{initCityLife();}catch(e){console.error('initCityLife failed:',e);}
   try{initParkLife();}catch(e){console.error('initParkLife failed:',e);}
