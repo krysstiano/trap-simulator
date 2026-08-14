@@ -5550,6 +5550,7 @@ function drawRoomDecorations(){
   else if(currentRoom==='coast'){ if(typeof drawCoastWater==='function') drawCoastWater(); drawCoastDecorations(); if(typeof drawMarinaHarbor==='function') drawMarinaHarbor(); if(typeof window._drawMarinaPortLife==='function') window._drawMarinaPortLife(); }
   else if(currentRoom==='business') drawBusinessDecorations();
   else if(currentRoom==='residential'){ if(typeof window._resDrawGround==='function') window._resDrawGround(); } /* PDF Residential §11/§14/§17 */
+  else if(currentRoom==='res_interior'){ if(typeof window._resDrawInteriorGround==='function') window._resDrawInteriorGround(); } /* §51: podłoga i ściany wnętrza */
   else if(currentRoom==='casino_lux') drawCasinoLuxDecorations(); /* v2.1.577: 3. piętro Diamond Lounge — żyrandole/złote akcenty */
   else if(currentRoom==='casino_royal') drawCasinoRoyalDecorations(); /* v2.1.589: 4. piętro Royal Penthouse — panorama miasta/platyna */
   else if(currentRoom==='striptiz_club') drawStriptizDecorations(); /* v2.1.930: klub striptiz — parkiet/neony/disco */
@@ -64841,7 +64842,11 @@ window._ughDrawStagedScenes=function(){
   if(currentRoom!=='underground') return;
   const el=(Date.now()-st.t0)/1000;
   if(el>14){ window._ughStaged=null; return; }          /* §16 hard timeout ujęcia */
-  const sx=wx2sx(st.wx), sy=wy2sy(st.wy);
+  /* §9: „dwa radiowozy stoją PRZY CHODNIKU" — sceny uliczne rysujemy PRZED fasadą, a nie na niej.
+     Kotwica ujęcia to środek budynku, więc uliczne inscenizacje schodzą niżej, na poziom chodnika. */
+  const STREET={bust:78, exchange:64, group:58, dancers:52, painter:44};
+  const dy=STREET[st.kind]||0;
+  const sx=wx2sx(st.wx), sy=wy2sy(st.wy)+dy;
   if(sx<-260||sx>VIEW_W+260||sy<-200||sy>VIEW_H+200) return;
   const P2=(x,y,cloth,hair)=>{                            /* prosta sylwetka NPC */
     X.fillStyle='rgba(0,0,0,.30)'; X.beginPath(); X.ellipse(x,y+22,10,4,0,0,Math.PI*2); X.fill();
@@ -65096,23 +65101,23 @@ window.RES_PARK_PARTS=[
   {id:'park_bridge_a',   n:'Mostek północny',           wx:1660, wy:206,  w:90,  h:26},
   {id:'park_bridge_b',   n:'Mostek południowy',         wx:1800, wy:446,  w:90,  h:26},
   {id:'park_run_track',  n:'Trasa biegowa i rowerowa',  wx:1350, wy:500,  w:660, h:60},
-  {id:'park_botanic',    n:'Ogród botaniczny',          wx:1360, wy:590,  w:250, h:190},
-  {id:'park_picnic',     n:'Polana piknikowa',          wx:1660, wy:600,  w:300, h:180},
-  {id:'park_gazebo',     n:'Altana eventowa',           wx:1400, wy:820,  w:150, h:120},
-  {id:'park_amphi',      n:'Mały amfiteatr',            wx:1620, wy:820,  w:300, h:190},
-  {id:'park_dogrun',     n:'Wybieg dla psów',           wx:1360, wy:980,  w:200, h:160},
-  {id:'park_outgym',     n:'Siłownia zewnętrzna',       wx:1620, wy:1050, w:180, h:130},
-  {id:'park_court',      n:'Boisko wielofunkcyjne',     wx:1840, wy:1050, w:170, h:170},
-  {id:'park_tennis',     n:'Korty tenisowe',            wx:1360, wy:1180, w:230, h:170},
-  {id:'park_quiet',      n:'Strefa spokojna',           wx:1650, wy:1250, w:200, h:150},
-  {id:'park_food',       n:'Punkt gastronomiczny',      wx:1880, wy:1260, w:130, h:110},
-  {id:'park_wc',         n:'Toalety',                   wx:1880, wy:1400, w:100, h:90},
-  {id:'park_depot',      n:'Magazyn obsługi parku',     wx:1360, wy:1400, w:140, h:110},
-  {id:'park_view',       n:'Punkt widokowy',            wx:1600, wy:1450, w:150, h:110},
-  {id:'park_to_woods',   n:'Ścieżka do Pineglass Woods',wx:1620, wy:1620, w:160, h:130},
-  {id:'park_season',     n:'Teren pod wydarzenia sezonowe',wx:1360,wy:1590,w:210, h:180},
-  {id:'park_pingpong',   n:'Stół do ping-ponga',        wx:1840, wy:1600, w:110, h:90},
-  {id:'park_hoops',      n:'Kosze wolnostojące',        wx:1840, wy:1720, w:120, h:110},
+  {id:'park_botanic',    n:'Ogród botaniczny',          wx:1360, wy:812,  w:250, h:170},
+  {id:'park_picnic',     n:'Polana piknikowa',          wx:1690, wy:812,  w:300, h:170},
+  {id:'park_gazebo',     n:'Altana eventowa',           wx:1360, wy:1002, w:150, h:120},
+  {id:'park_amphi',      n:'Mały amfiteatr',            wx:1620, wy:1002, w:300, h:180},
+  {id:'park_dogrun',     n:'Wybieg dla psów',           wx:1360, wy:1200, w:200, h:150},
+  {id:'park_outgym',     n:'Siłownia zewnętrzna',       wx:1600, wy:1200, w:180, h:130},
+  {id:'park_court',      n:'Boisko wielofunkcyjne',     wx:1830, wy:1200, w:170, h:150},
+  {id:'park_tennis',     n:'Korty tenisowe',            wx:1360, wy:1380, w:230, h:150},
+  {id:'park_quiet',      n:'Strefa spokojna',           wx:1620, wy:1380, w:190, h:140},
+  {id:'park_food',       n:'Punkt gastronomiczny',      wx:1850, wy:1380, w:130, h:110},
+  {id:'park_wc',         n:'Toalety',                   wx:1860, wy:1540, w:100, h:90},
+  {id:'park_depot',      n:'Magazyn obsługi parku',     wx:1360, wy:1560, w:140, h:110},
+  {id:'park_view',       n:'Punkt widokowy',            wx:1560, wy:1560, w:150, h:110},
+  {id:'park_to_woods',   n:'Ścieżka do Pineglass Woods',wx:1620, wy:1700, w:160, h:120},
+  {id:'park_season',     n:'Teren pod wydarzenia sezonowe',wx:1360,wy:1690,w:200, h:140},
+  {id:'park_pingpong',   n:'Stół do ping-ponga',        wx:1730, wy:1560, w:110, h:90},
+  {id:'park_hoops',      n:'Kosze wolnostojące',        wx:1830, wy:1690, w:120, h:110},
 ];
 /* §17 PINEGLASS WOODS — układ leśny (osobna podstrefa, wizualnie łączy się z parkiem). */
 window.RES_WOODS_PARTS=[
@@ -65639,16 +65644,103 @@ window._resDrawLot=function(o,sx,sy,w,h){
     X.fillStyle='#5c5f63'; X.fillRect(sx+w*0.60, sy+h*0.52, w*0.30, h*0.46);
     X.fillStyle='#8d9198'; X.fillRect(sx+w*0.63, sy+h*0.62, w*0.24, h*0.30);
   }
-  /* bryła + dach */
-  X.fillStyle=window._resFacadeColor(L.facadeMaterialId);
-  X.fillRect(sx, sy+h*0.30, w*0.60, h*0.70);
-  X.fillStyle=window._resRoofColor(L.roofTypeId);
-  X.beginPath(); X.moveTo(sx-4, sy+h*0.32); X.lineTo(sx+w*0.30, sy+h*0.04); X.lineTo(sx+w*0.62, sy+h*0.32); X.closePath(); X.fill();
-  /* okna i drzwi */
-  X.fillStyle='rgba(240,236,200,'+(((G.timeOfDay||1)>=2)?0.85:0.5)+')';
-  X.fillRect(sx+w*0.08, sy+h*0.46, w*0.14, h*0.18);
-  X.fillRect(sx+w*0.34, sy+h*0.46, w*0.14, h*0.18);
-  X.fillStyle='#4a3524'; X.fillRect(sx+w*0.24, sy+h*0.72, w*0.13, h*0.28);
+  /* ── BRYŁA ZALEŻNA OD `baseShapeId` ──────────────────────────────────────────────────────────
+     §12 wprost zabrania, by „odbicie budynku, zmiana koloru albo przesunięcie jednego okna"
+     uchodziło za nową konstrukcję. Pierwsza wersja renderera rysowała KAŻDY dom tym samym
+     prostokątem z trójkątnym dachem — dane miały różne bryły, obraz nie. Wykrył to dopiero
+     obejrzany zrzut ekranu, nie asercja. Każdy z 16 typów ma teraz własną geometrię:
+     inny obrys, inna forma dachu, inna liczba kondygnacji i własne detale. */
+  const F=window._resFacadeColor(L.facadeMaterialId), R=window._resRoofColor(L.roofTypeId);
+  const night=((G.timeOfDay||1)>=2);
+  const glass='rgba(240,236,200,'+(night?0.85:0.5)+')';
+  const bx=sx, bw=w*0.60;                       /* pas bryły (reszta to podjazd/garaż) */
+  const win=(x,y,ww,hh)=>{ X.fillStyle=glass; X.fillRect(x,y,ww,hh); };
+  const door=(x,y,ww,hh)=>{ X.fillStyle='#4a3524'; X.fillRect(x,y,ww,hh);
+    X.fillStyle='#caa870'; X.fillRect(x+ww-4, y+hh*0.45, 2.5, 3); };
+  const gable=(x,y,ww,peak)=>{ X.fillStyle=R; X.beginPath(); X.moveTo(x-4,y); X.lineTo(x+ww/2,y-peak); X.lineTo(x+ww+4,y); X.closePath(); X.fill(); };
+  const hip=(x,y,ww,peak)=>{ X.fillStyle=R; X.beginPath(); X.moveTo(x-4,y); X.lineTo(x+ww*0.26,y-peak); X.lineTo(x+ww*0.74,y-peak); X.lineTo(x+ww+4,y); X.closePath(); X.fill(); };
+  const flat=(x,y,ww)=>{ X.fillStyle=R; X.fillRect(x-4,y-7,ww+8,7); };
+  const chimney=(x,y)=>{ X.fillStyle='#6a5a4a'; X.fillRect(x,y,7,13); };
+  const body=(x,y,ww,hh)=>{ X.fillStyle=F; X.fillRect(x,y,ww,hh); };
+  const S=L.baseShapeId;
+  if(S==='cottage_narrow'){                       /* wąski, stromy dach dwuspadowy */
+    body(bx+bw*0.16, sy+h*0.34, bw*0.68, h*0.66); gable(bx+bw*0.16, sy+h*0.34, bw*0.68, h*0.30);
+    win(bx+bw*0.28, sy+h*0.46, bw*0.16, h*0.15); win(bx+bw*0.56, sy+h*0.46, bw*0.16, h*0.15);
+    door(bx+bw*0.40, sy+h*0.74, bw*0.20, h*0.26); chimney(bx+bw*0.68, sy+h*0.14);
+  } else if(S==='cottage_wide'){                  /* szeroki, niski dwuspadowy */
+    body(bx, sy+h*0.42, bw, h*0.58); gable(bx, sy+h*0.42, bw, h*0.24);
+    win(bx+bw*0.10, sy+h*0.52, bw*0.18, h*0.15); win(bx+bw*0.40, sy+h*0.52, bw*0.18, h*0.15);
+    win(bx+bw*0.70, sy+h*0.52, bw*0.18, h*0.15); door(bx+bw*0.42, sy+h*0.76, bw*0.16, h*0.24);
+  } else if(S==='split_level'){                   /* dwie bryły na różnych poziomach */
+    body(bx, sy+h*0.46, bw*0.52, h*0.54); flat(bx, sy+h*0.46, bw*0.52);
+    body(bx+bw*0.52, sy+h*0.28, bw*0.48, h*0.72); gable(bx+bw*0.52, sy+h*0.28, bw*0.48, h*0.22);
+    win(bx+bw*0.08, sy+h*0.56, bw*0.16, h*0.14); win(bx+bw*0.62, sy+h*0.40, bw*0.16, h*0.14);
+    door(bx+bw*0.30, sy+h*0.74, bw*0.15, h*0.26);
+  } else if(S==='ranch_long'){                    /* długi, bardzo niski */
+    body(bx, sy+h*0.52, bw, h*0.48); flat(bx, sy+h*0.52, bw);
+    for(let i=0;i<4;i++) win(bx+bw*(0.07+i*0.23), sy+h*0.60, bw*0.14, h*0.13);
+    door(bx+bw*0.46, sy+h*0.78, bw*0.14, h*0.22);
+  } else if(S==='twostorey_box'){                 /* wysoki sześcian, dach kopertowy */
+    body(bx+bw*0.08, sy+h*0.26, bw*0.84, h*0.74); hip(bx+bw*0.08, sy+h*0.26, bw*0.84, h*0.20);
+    win(bx+bw*0.18, sy+h*0.34, bw*0.22, h*0.14); win(bx+bw*0.58, sy+h*0.34, bw*0.22, h*0.14);
+    win(bx+bw*0.18, sy+h*0.58, bw*0.22, h*0.14); door(bx+bw*0.58, sy+h*0.72, bw*0.18, h*0.28);
+  } else if(S==='l_shaped'){                      /* rzut w kształcie L */
+    body(bx, sy+h*0.40, bw*0.56, h*0.60); gable(bx, sy+h*0.40, bw*0.56, h*0.20);
+    body(bx+bw*0.52, sy+h*0.58, bw*0.48, h*0.42); flat(bx+bw*0.52, sy+h*0.58, bw*0.48);
+    win(bx+bw*0.10, sy+h*0.50, bw*0.16, h*0.13); win(bx+bw*0.64, sy+h*0.66, bw*0.18, h*0.12);
+    door(bx+bw*0.32, sy+h*0.76, bw*0.14, h*0.24);
+  } else if(S==='gabled_deep'){                   /* szczyt frontem, głęboka bryła */
+    body(bx+bw*0.12, sy+h*0.36, bw*0.76, h*0.64); gable(bx+bw*0.12, sy+h*0.36, bw*0.76, h*0.34);
+    win(bx+bw*0.34, sy+h*0.22, bw*0.30, h*0.10);  /* okno w szczycie */
+    win(bx+bw*0.20, sy+h*0.50, bw*0.22, h*0.14); win(bx+bw*0.56, sy+h*0.50, bw*0.22, h*0.14);
+    door(bx+bw*0.40, sy+h*0.76, bw*0.18, h*0.24);
+  } else if(S==='porch_front'){                   /* ganek na słupkach */
+    body(bx, sy+h*0.38, bw, h*0.62); gable(bx, sy+h*0.38, bw, h*0.22);
+    X.fillStyle='#8a7a5a'; X.fillRect(bx, sy+h*0.72, bw, 5);
+    X.fillRect(bx+bw*0.06, sy+h*0.74, 4, h*0.26); X.fillRect(bx+bw*0.90, sy+h*0.74, 4, h*0.26);
+    win(bx+bw*0.14, sy+h*0.48, bw*0.20, h*0.14); win(bx+bw*0.62, sy+h*0.48, bw*0.20, h*0.14);
+    door(bx+bw*0.42, sy+h*0.76, bw*0.16, h*0.24);
+  } else if(S==='terrace_row'){                   /* segment szeregowca ze ścianami granicznymi */
+    body(bx+bw*0.10, sy+h*0.30, bw*0.80, h*0.70); flat(bx+bw*0.10, sy+h*0.30, bw*0.80);
+    X.fillStyle='#7a736a'; X.fillRect(bx+bw*0.06, sy+h*0.30, 4, h*0.70); X.fillRect(bx+bw*0.90, sy+h*0.30, 4, h*0.70);
+    win(bx+bw*0.24, sy+h*0.40, bw*0.24, h*0.14); win(bx+bw*0.24, sy+h*0.60, bw*0.24, h*0.14);
+    door(bx+bw*0.58, sy+h*0.72, bw*0.18, h*0.28);
+  } else if(S==='modern_flat'){                   /* płaski dach, duże przeszklenia */
+    body(bx, sy+h*0.34, bw, h*0.66); flat(bx, sy+h*0.34, bw);
+    X.fillStyle=glass; X.fillRect(bx+bw*0.08, sy+h*0.42, bw*0.52, h*0.26);
+    win(bx+bw*0.68, sy+h*0.42, bw*0.24, h*0.12);
+    door(bx+bw*0.70, sy+h*0.74, bw*0.16, h*0.26);
+  } else if(S==='villa_wide'){                    /* willa z dwoma skrzydłami */
+    body(bx, sy+h*0.44, bw*0.28, h*0.56); flat(bx, sy+h*0.44, bw*0.28);
+    body(bx+bw*0.26, sy+h*0.32, bw*0.48, h*0.68); hip(bx+bw*0.26, sy+h*0.32, bw*0.48, h*0.18);
+    body(bx+bw*0.72, sy+h*0.44, bw*0.28, h*0.56); flat(bx+bw*0.72, sy+h*0.44, bw*0.28);
+    X.fillStyle=glass; X.fillRect(bx+bw*0.32, sy+h*0.44, bw*0.36, h*0.20);
+    door(bx+bw*0.44, sy+h*0.76, bw*0.14, h*0.24);
+  } else if(S==='villa_court'){                   /* willa z dziedzińcem */
+    body(bx, sy+h*0.34, bw*0.34, h*0.66); flat(bx, sy+h*0.34, bw*0.34);
+    body(bx+bw*0.66, sy+h*0.34, bw*0.34, h*0.66); flat(bx+bw*0.66, sy+h*0.34, bw*0.34);
+    body(bx+bw*0.30, sy+h*0.34, bw*0.40, h*0.22); flat(bx+bw*0.30, sy+h*0.34, bw*0.40);
+    X.fillStyle='#6d7a63'; X.fillRect(bx+bw*0.34, sy+h*0.60, bw*0.32, h*0.36);  /* dziedziniec */
+    win(bx+bw*0.06, sy+h*0.46, bw*0.20, h*0.14); win(bx+bw*0.74, sy+h*0.46, bw*0.20, h*0.14);
+  } else if(S==='bungalow'){                      /* niski, szeroki, płytki dach */
+    body(bx+bw*0.04, sy+h*0.50, bw*0.92, h*0.50); hip(bx+bw*0.04, sy+h*0.50, bw*0.92, h*0.16);
+    win(bx+bw*0.14, sy+h*0.60, bw*0.20, h*0.13); win(bx+bw*0.60, sy+h*0.60, bw*0.20, h*0.13);
+    door(bx+bw*0.42, sy+h*0.78, bw*0.14, h*0.22);
+  } else if(S==='attic_house'){                   /* stromy dach z lukarną */
+    body(bx+bw*0.10, sy+h*0.52, bw*0.80, h*0.48); gable(bx+bw*0.10, sy+h*0.52, bw*0.80, h*0.40);
+    X.fillStyle=R; X.fillRect(bx+bw*0.40, sy+h*0.26, bw*0.20, h*0.14);  /* lukarna */
+    win(bx+bw*0.43, sy+h*0.29, bw*0.14, h*0.08);
+    win(bx+bw*0.18, sy+h*0.60, bw*0.18, h*0.13); door(bx+bw*0.46, sy+h*0.76, bw*0.16, h*0.24);
+  } else if(S==='duplex_pair'){                   /* bliźniak — dwa lustrzane wejścia */
+    body(bx, sy+h*0.40, bw, h*0.60); gable(bx, sy+h*0.40, bw, h*0.22);
+    X.fillStyle='#7a736a'; X.fillRect(bx+bw*0.49, sy+h*0.40, 3, h*0.60);
+    win(bx+bw*0.10, sy+h*0.50, bw*0.16, h*0.13); win(bx+bw*0.62, sy+h*0.50, bw*0.16, h*0.13);
+    door(bx+bw*0.28, sy+h*0.76, bw*0.14, h*0.24); door(bx+bw*0.60, sy+h*0.76, bw*0.14, h*0.24);
+  } else {                                        /* workers_brick — mały ceglany z kominem */
+    body(bx+bw*0.14, sy+h*0.44, bw*0.72, h*0.56); gable(bx+bw*0.14, sy+h*0.44, bw*0.72, h*0.22);
+    chimney(bx+bw*0.72, sy+h*0.26);
+    win(bx+bw*0.24, sy+h*0.54, bw*0.18, h*0.14); door(bx+bw*0.52, sy+h*0.74, bw*0.16, h*0.26);
+  }
   /* ogrodzenie */
   if(L.fenceTypeId!=='open_none'){
     X.strokeStyle=(L.fenceTypeId==='hedge_dense'||L.fenceTypeId==='mixed_hedge_rail')?'#3d6b34':'#8a8272';
@@ -66517,21 +66609,79 @@ window._drawResInteriorSprite=function(id,sx,sy,w,h){
   const room=ROOMS.res_interior||{};
   const o=(room.objects||[]).find(x=>x.id===id);
   const name=o?o.lbl:'';
+  /* wspólne meble — używane przez „domyślną" strefę, żeby ŻADNA nie została gołym boxem */
+  const glow=night?'rgba(248,226,150,.85)':'rgba(206,226,238,.7)';
+  const counter=(c)=>{ X.fillStyle=c||'#5a4632'; X.fillRect(sx+8, sy+h*0.34, w-16, h*0.26);
+    X.fillStyle='#3a2c1e'; X.fillRect(sx+8, sy+h*0.60, w-16, 5); };
+  const seats=(n,c)=>{ for(let i=0;i<n;i++){ X.fillStyle=c||'#5a4632';
+    X.beginPath(); X.arc(sx+22+i*((w-44)/Math.max(1,n-1||1)), sy+h*0.62, 11,0,Math.PI*2); X.fill(); } };
+  const crates=(n)=>{ for(let i=0;i<n;i++){ X.fillStyle=['#7a5a34','#6a5a44','#8a6a44'][i%3];
+    X.fillRect(sx+12+i*((w-24)/n), sy+h*0.46, (w-24)/n-8, h*0.40); } };
+  const desks=(n)=>{ for(let i=0;i<n;i++){ X.fillStyle='#4a4a52';
+    X.fillRect(sx+12+i*((w-24)/n), sy+h*0.40, (w-24)/n-10, h*0.24);
+    X.fillStyle=glow; X.fillRect(sx+18+i*((w-24)/n), sy+h*0.44, ((w-24)/n-22), h*0.10); } };
   if(/Regały|Wieszaki|Premium|Eventowe|Kolekcja/.test(name)){
     base('#2c3a2c'); for(let i=0;i<4;i++){ X.fillStyle=['#8a5a3a','#5a7a8a','#7a5a8a','#8a8a5a'][i%4]; X.fillRect(sx+10+i*((w-20)/4), sy+12, (w-20)/4-8, h-24); } }
-  else if(/Lada|Bar/.test(name)){ base('#3a2f22','#8a6a3a'); X.fillStyle='#5a4632'; X.fillRect(sx+6,sy+h*0.30,w-12,h*0.34); }
+  else if(/Lada|Bar/.test(name)){ base('#3a2f22','#8a6a3a'); counter('#5a4632');
+    for(let i=0;i<3;i++){ X.fillStyle='#c8b06a'; X.fillRect(sx+16+i*28, sy+h*0.20, 7, h*0.12); } }
   else if(/Fotel/.test(name)){ base('#2a2230','#8a6a9a'); X.fillStyle='#4a3a52'; X.fillRect(sx+w*0.25,sy+h*0.22,w*0.5,h*0.6);
     X.fillStyle='#6a5a72'; X.fillRect(sx+w*0.30,sy+h*0.10,w*0.4,h*0.16); }
-  else if(/Sala|Stolik|Poczekalnia|Lounge|Salon/.test(name)){ base('#33301f','#a8905a');
-    for(let i=0;i<3;i++){ X.fillStyle='#5a4632'; X.beginPath(); X.arc(sx+30+i*((w-60)/2), sy+h/2, 15,0,Math.PI*2); X.fill(); } }
-  else if(/Basen/.test(name)){ base('#1e3a48','#5aa0c0'); X.fillStyle='#3f89ad'; X.fillRect(sx+10,sy+10,w-20,h-20); }
+  else if(/Sala|Stolik|Poczekalnia|Lounge|Salon/.test(name)){ base('#33301f','#a8905a'); seats(3,'#5a4632'); }
+  else if(/Basen/.test(name)){ base('#1e3a48','#5aa0c0'); X.fillStyle='#3f89ad'; X.fillRect(sx+10,sy+10,w-20,h-20);
+    X.strokeStyle='rgba(255,255,255,.35)'; X.lineWidth=1; X.beginPath(); X.moveTo(sx+14,sy+h/2); X.lineTo(sx+w-14,sy+h/2); X.stroke(); }
   else if(/Scena|Studio|Impreza/.test(name)){ base('#241f2c','#8a6ac0'); X.fillStyle='#3a2f4a'; X.fillRect(sx+10,sy+h*0.45,w-20,h*0.45);
     X.fillStyle=night?'rgba(230,140,255,.55)':'rgba(200,180,220,.35)'; X.fillRect(sx+w*0.35,sy+8,w*0.3,h*0.3); }
-  else if(/Ogród|Taras|Zieleń/.test(name)){ base('#2f4a2c','#6fa15c');
+  else if(/Ogród|Taras|Zieleń|Dziedziniec/.test(name)){ base('#2f4a2c','#6fa15c');
     for(let i=0;i<5;i++){ X.fillStyle='#3f7a34'; X.beginPath(); X.arc(sx+16+i*((w-32)/4), sy+h*0.6, 11,0,Math.PI*2); X.fill(); } }
+  /* ── strefy, które wcześniej trafiały do „domyślnego" szarego boxu ── */
+  else if(/kuchnia/i.test(name)){ base('#2b3238','#7f8f96'); counter('#8b9198');
+    for(let i=0;i<3;i++){ X.fillStyle='#3d454c'; X.fillRect(sx+14+i*((w-28)/3), sy+h*0.16, (w-28)/3-10, h*0.14); }
+    X.fillStyle=glow; X.fillRect(sx+w*0.42, sy+h*0.38, w*0.16, h*0.10); }
+  else if(/prywatn|Prywatny pokój|Zebrania/i.test(name)){ base('#2e2a24','#9a8a6a');
+    X.fillStyle='#5a4632'; X.fillRect(sx+w*0.18, sy+h*0.34, w*0.64, h*0.26); seats(2,'#6a5540'); }
+  else if(/Hol|Recepcja/i.test(name)){ base('#232a33','#8fa3b8'); counter('#3f4a56');
+    X.fillStyle=glow; X.fillRect(sx+w*0.10, sy+h*0.14, w*0.80, h*0.12); }
+  else if(/dostawcz|Zaplecze|Magazyn/i.test(name)){ base('#2a2620','#8a7a5a'); crates(4); }
+  else if(/Lokale|Piętro|Stoisko|Zamówienia|Doradztwo/i.test(name)){ base('#252c34','#8fa3b8'); desks(3); }
+  else if(/Sypialnia/i.test(name)){ base('#2a2732','#8a7f9a');
+    X.fillStyle='#4a4356'; X.fillRect(sx+w*0.16, sy+h*0.30, w*0.68, h*0.52);
+    X.fillStyle='#cfd6e0'; X.fillRect(sx+w*0.20, sy+h*0.34, w*0.60, h*0.14); }
+  else if(/adaptacj|Pokój do adaptacji/i.test(name)){ base('#2f2a22','#a8905a');
+    X.fillStyle='#6a5a3a'; X.fillRect(sx+10, sy+h*0.62, w-20, 8);
+    X.fillStyle='#8a7a4a'; X.fillRect(sx+w*0.20, sy+h*0.26, w*0.18, h*0.34); }
+  else if(/Lustra|Przymierzalnia/i.test(name)){ base('#262231','#9a8ab0');
+    for(let i=0;i<3;i++){ X.fillStyle='rgba(210,225,240,.55)'; X.fillRect(sx+14+i*((w-28)/3), sy+h*0.22, (w-28)/3-12, h*0.52); } }
+  else if(/Podjazd|Valet/i.test(name)){ base('#2b2b2f','#8a8a92');
+    X.fillStyle='#4a4a52'; X.fillRect(sx+12, sy+h*0.40, w-24, h*0.30);
+    X.strokeStyle='#c8c4be'; X.lineWidth=2; X.beginPath(); X.moveTo(sx+w/2,sy+8); X.lineTo(sx+w/2,sy+h-8); X.stroke(); }
+  else if(/Catering|Plan zdjęciowy|Sesja|Oferta/i.test(name)){ base('#2c2a24','#9a8a6a'); crates(3); }
+  else if(/Ogłoszenia|Właściciele|Edge|Simon Vale/i.test(name)){ base('#2a2620','#a08a5a');
+    X.fillStyle='#6a5a3a'; X.fillRect(sx+10, sy+10, w-20, h-20);
+    X.fillStyle='#d8ccb0'; for(let i=0;i<4;i++) X.fillRect(sx+18+ (i%2)*((w-36)/2), sy+20+Math.floor(i/2)*((h-40)/2), (w-40)/2, (h-46)/2); }
+  else if(/Chłodnia/i.test(name)){ base('#233038','#7fa0b0');
+    for(let i=0;i<3;i++){ X.fillStyle='#35505c'; X.fillRect(sx+12+i*((w-24)/3), sy+12, (w-24)/3-8, h-24);
+      X.fillStyle='rgba(200,235,245,.35)'; X.fillRect(sx+16+i*((w-24)/3), sy+18, (w-24)/3-16, h*0.30); } }
+  else if(/Hala/i.test(name)){ base('#2b3326','#7fa15c'); crates(4); }
+  else if(/Zlecenia/i.test(name)){ base('#26302a','#7fa17a'); desks(2); }
   else if(/Wyjście/.test(name)){ if(typeof drawInteriorExit==='function'){ drawInteriorExit(sx,sy,w,h); return; } base('#3a2f22','#c8a520'); }
-  else { base('#2f3a34'); }
+  else { /* ostatnia deska ratunku: NIGDY goły box — zawsze jakieś meble */
+    base('#2f3a34'); desks(2); }
   if(name) lbl(name);
+};
+/* Podłoga i ściany wnętrza — bez tego strefy wisiały na czarnym tle (lekcja v2.3.125). */
+window._resDrawInteriorGround=function(){
+  const room=ROOMS.res_interior; if(!room) return;
+  const def=window.RES_INTERIORS[room._resInteriorId]||{};
+  const W=room.wT*T, H=room.hT*T;
+  const g=X.createLinearGradient(0,62,0,VIEW_H);
+  g.addColorStop(0, def.pal||'#2b3330'); g.addColorStop(1,'#14181a');
+  X.fillStyle=g; X.fillRect(0,62,VIEW_W,VIEW_VH);
+  /* deski podłogi */
+  X.strokeStyle='rgba(255,255,255,.045)'; X.lineWidth=1;
+  for(let y=120;y<H;y+=34){ const sy=wy2sy(y); if(sy>56&&sy<VIEW_H){ X.beginPath(); X.moveTo(wx2sx(0),sy); X.lineTo(wx2sx(W),sy); X.stroke(); } }
+  /* ściany: górna listwa i boczne krawędzie pokoju */
+  X.fillStyle='rgba(0,0,0,.30)'; X.fillRect(wx2sx(0), wy2sy(0), W, 26);
+  X.fillStyle='rgba(255,255,255,.05)'; X.fillRect(wx2sx(0), wy2sy(26), W, 4);
 };
 /* Dzienny tick dzielnicy — zamówienia remontowe i naturalne stygnięcie podejrzliwości. */
 window._resDailyTick=function(){
@@ -91501,6 +91651,15 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.136',date:'2026-08-14',cats:['beta-tester','fix','ui'],title:'🏘 Domy na przedmiesciach naprawde sie roznia, park bez aut na trawie',
+ items:[
+  {t:'fix',d:'🏘 Domy w Residential District rzeczywiscie roznia sie budowa, a nie tylko kolorem. Szesnascie typow ma teraz wlasny ksztalt: plaskie dachy, blizniaki z dwoma wejsciami, domy pietrowe, ganki na slupkach, szeregowce ze scianami granicznymi, wille z dziedzincem i poddasza z lukarna.'},
+  {t:'fix',d:'🌳 Ogrod botaniczny i polana piknikowa nie leza juz na jezdni Eastwood Avenue. Wczesniej samochody przejezdzaly przez srodek parku — teraz droga omija wszystkie jego czesci.'},
+  {t:'ui',d:'🛋 Wnetrza budynkow na przedmiesciach dostaly podloge, sciany i meble w kazdej strefie. Kuchnia ma blat i sprzety, strefa prywatna stol z siedziskami, chlodnia witryny, a zaplecze skrzynie — zamiast pustych prostokatow.'},
+  {t:'fix',d:'🚔 Podczas oprowadzania po Underground radiowozy i zatrzymani stoja przy chodniku przed Lombardem, a nie na jego dachu.'},
+ ]
+ },
  {
  ver:'v2.3.135',date:'2026-08-14',cats:['beta-tester','fix'],title:'🗺 Znacznik na mapie od pierwszej minuty i odpowiedzi Masona przy powtorce',
  items:[
