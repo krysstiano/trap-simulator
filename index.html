@@ -15004,7 +15004,8 @@ function updatePlayer(){
     /* KOLIZJE Tier C §9: kamper z ciężko uszkodzonym zawieszeniem (<40%) ściąga na bok (bez podwójnej kary prędkości). */
     if(typeof window._vehSteerDrift==='function'){ const _dr=window._vehSteerDrift('camper'); dx+=_dr; }
     /* zużycie kampera od jazdy (analog auta, większy próg = wolniej się zużywa per dystans). */
-    const _CAMPER_WEAR_PX=7000;
+    /* PDF 20.08 U48: dystans między ubytkami sprawności zależy od modelu (topowy — o 15% dłuższy). */
+    const _CAMPER_WEAR_PX=(typeof window._camperWearPx==='function')?window._camperWearPx():7000;
     G._camperWearDist=(G._camperWearDist||0)+Math.abs(dx)+Math.abs(dy);
     if(G._camperWearDist>=_CAMPER_WEAR_PX){ const _wn=Math.floor(G._camperWearDist/_CAMPER_WEAR_PX); G._camperWearDist-=_wn*_CAMPER_WEAR_PX; if(G.camper.condition==null)G.camper.condition=100; G.camper.condition=Math.max(0,G.camper.condition-_wn); }
   }
@@ -44421,12 +44422,47 @@ window._camperModelByName=function(n){ return (typeof CAMPER_MODELS!=='undefined
    • modyfikator kondycji MNIEJSZY niż auto (0.15 vs 0.20 — ciężki pojazd mniej zyskuje);
    • widthMul 1.3 = szerszy sprite/kolizja (używane w E4b/E4c).
    Efektywny boost ~1.17..1.30 (faster than walking 1.0, slower than cars ~1.38+). Pure helper (tylko ensure). */
+/* ═══ PDF 20.08 U48 — NORTHVAN PILGRIM 2004 JEST SZYBSZY I MNIEJ AWARYJNY ════════════
+   User: najdroższy kamper z Gravel Lot Motors ma być „szybszy w poruszaniu się nim o 10% oraz o 15%
+   mniej awaryjny względem tańszych pojazdów kempingowych” (Rumbler / Vanton / Arko).
+   Przewaga liczona jest OD DANYCH tańszych modeli, więc pozostaje prawdziwa nawet po zmianie ich
+   parametrów — nie jest wpisaną na sztywno liczbą. */
+window.CAMPER_TOP_GRAVEL='northvan_pilgrim_2004';
+window.CAMPER_CHEAP_GRAVEL=['rumbler_nomad_88','vanton_drifter_91','arko_trailbox_96'];
+window._camperSpeedBaseOf=function(m){
+  const tier=(m&&typeof m.cond==='number')?Math.max(0,Math.min(1,(m.cond-55)/40)):0;
+  return 1.08+0.06*tier;
+};
+window._camperCheapSpeedBase=function(){
+  let best=0;
+  window.CAMPER_CHEAP_GRAVEL.forEach(function(id){ const mm=window._camperModelById(id); if(mm) best=Math.max(best,window._camperSpeedBaseOf(mm)); });
+  return best||1.08;
+};
+/* Efektywna awaryjność modelu — dla topowego kampera co najmniej 15% niższa niż u najlepszego z tańszych. */
+window._camperBreakdownRate=function(modelId){
+  const m=window._camperModelById(modelId)||{};
+  let br=(typeof m.breakdown==='number')?m.breakdown:3;
+  if(modelId===window.CAMPER_TOP_GRAVEL){
+    let minCheap=Infinity;
+    window.CAMPER_CHEAP_GRAVEL.forEach(function(id){ const mm=window._camperModelById(id); if(mm&&typeof mm.breakdown==='number') minCheap=Math.min(minCheap,mm.breakdown); });
+    if(isFinite(minCheap)) br=Math.min(br, minCheap*0.85);
+  }
+  return br;
+};
+/* Dystans, po którym kamper traci punkt sprawności — topowy model jeździ o 15% dłużej między usterkami. */
+window.CAMPER_WEAR_PX_BASE=7000;
+window._camperWearPx=function(){
+  const c=(G&&G.camper)?G.camper:{};
+  if(c.model===window.CAMPER_TOP_GRAVEL) return Math.round(window.CAMPER_WEAR_PX_BASE/0.85);
+  return window.CAMPER_WEAR_PX_BASE;
+};
 window._camperDriveParams=function(){
   if(typeof window._camperEnsure==='function') window._camperEnsure();
   const c=(G&&G.camper)?G.camper:{};
   const m=window._camperModelById(c.model)||{};
-  const tier=(typeof m.cond==='number')?Math.max(0,Math.min(1,(m.cond-55)/40)):0; /* cond 55..95 -> tier 0..1 */
-  const speedBase=1.08+0.06*tier;
+  let speedBase=window._camperSpeedBaseOf(m);
+  /* PDF 20.08 U48: topowy kamper z komisu jest o 10% szybszy od najlepszego z tańszych modeli. */
+  if(m.id===window.CAMPER_TOP_GRAVEL) speedBase=window._camperCheapSpeedBase()*1.10;
   const cond=(c.condition==null)?100:c.condition;
   const speed=speedBase*(1+0.15*(cond/100));
   return { speed:speed, speedBase:speedBase, widthMul:1.6 };/* v2.3.100 (user: kamper za mały) 1.3→1.6 */
@@ -44456,6 +44492,8 @@ window.buyCamper=function(modelId,source){
   c.owned=true; c.model=modelId; c.condition=m.cond||70; c.camouflage=m.camouflage||10; c.destroyed=false; c.daysInLoc=0;
   c.partsAtMetalValley=false; /* v2.3.108 PDF#11: nowy kamper — wyczyść ghost-flagę po ew. poprzedniej rozbiórce */
   /* v2.3.102 (PDF #6): zapis źródła zakupu — odkup u Korka tylko dla kamperów z Gravel Lot (po 14 dniach, 50%). */
+  /* PDF 20.08 U45/U46: 3 minuty po zakupie PIERWSZEGO kampera odzywa się Mason Hale. */
+  if(typeof window._masonOnCamperBought==='function'){ try{ window._masonOnCamperBought(modelId); }catch(_){} }
   c.purchaseDay=G.day||0; c.purchasePrice=m.price; c.sourceShop=(source==='gravel')?'gravel_lot_motors':(source==='citydrive'?'citydrive_motors':(source||'')); c.sellerNpc=(source==='gravel')?'korek':''; c.soldBack=false; c.stolen=false;
   /* E4d (silnik jazdy): spawn fizycznej pozycji kampera na mapie (do wsiadania klawiszem K). Kupujesz w pokoju jezdnym → tam; inaczej domyślnie underground. */
   /* PDF 13.08 B5: „dowolny pojazd zakupiony z placu w obiekcie Gravel Lot Motors" — a więc TAKŻE
@@ -44555,7 +44593,7 @@ window.renderCamperShop=function(source,budget){
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
         <b style="font-size:15px;color:#7ec8e3">${window._shopIco(m.emoji)} ${m.name}</b><span style="color:#e8a020;font-weight:700;white-space:nowrap">${m.price.toLocaleString('pl')} zł</span></div>
       <p style="font-size:12.5px;color:#99a;margin:6px 0">${m.desc}</p>
-      <div style="font-size:11.5px;color:#778;margin-bottom:8px">📦 Pojemność ${window._camperTier(m.storage)} · 🧪 Zaplecze ${window._camperTier(m.labCap)} · 🔧 Awaryjność ${window._camperTier(m.breakdown)} · ✨ Jakość ${100+(m.qualityMod||0)}/100</div>
+      <div style="font-size:11.5px;color:#778;margin-bottom:8px">📦 Pojemność ${window._camperTier(m.storage)} · 🧪 Zaplecze ${window._camperTier(m.labCap)} · 🔧 Awaryjność ${window._camperTier((typeof window._camperBreakdownRate==='function')?window._camperBreakdownRate(m.id):m.breakdown)} · ✨ Jakość ${100+(m.qualityMod||0)}/100</div>
       <button class="bbtn" style="width:100%" ${dis?'disabled':''} onclick="window.buyCamper('${m.id}','${source}');window.renderCamperShop('${source}','${budget||''}')">${label}</button>
     </div>`;
   }).join('');
@@ -60819,18 +60857,12 @@ window._vwiTickEve=function(dt){
     window._vwiSay(z.n+'. '+line, 6200);
     s.visited[z.id]=1;
   } else if(s.state==='RECOVERY_REPOSITION') s.state='PRESENTING_ZONE';
-  /* §6.2 ustąp graczowi — dystans zależny od szerokości pomieszczenia, nie stała */
-  if(typeof P!=='undefined'){
-    const keep=e.keep||58;
-    const pd=Math.hypot((P.wx+14)-(e.x+17),(P.wy+22)-(e.y+28));
-    if(pd<keep){ const a=Math.atan2((e.y+28)-(P.wy+22),(e.x+17)-(P.wx+14));
-      e.x+=Math.cos(a)*keep*dt*2.2; e.y+=Math.sin(a)*keep*dt*2.2; }
-    /* §6.2 nie wchodź w drzwi ani windę przed graczem — cofnij się o krok i przepuść */
-    if(window._vwiBlocksDoor(e.x,e.y)){
-      const pInDoor=window._vwiBlocksDoor(P.wx-17,P.wy-28);
-      if(!pInDoor){ e.y-=60*dt*2.5; } else { e.x+=(e.x>P.wx?1:-1)*60*dt*2.5; }
-    }
-  }
+  /* ═══ PDF 20.08 U44 — EVE NIE REAGUJE FIZYCZNIE NA GRACZA ══════════════════════
+     User: „postac NPC Eve Rook przy oględzinach lokalu … nie reagowała na postać gracza, czyli nie
+     odsuwała się, nie trzęsła się, ani nie wymijała postaci gracza w żaden sposób”.
+     ⚠ To Świadomie UNIEWAŻNIA regułę §6.2 z poprzedniego dokumentu (ustępowanie z drogi i dystans
+     oczekiwania) — nowsze zgłoszenie usera ma pierwszeństwo. Eve po prostu prowadzi trasę
+     i prezentuje strefy, niezależnie od tego, jak blisko stanie gracz. */
   /* w trybie prowadzonym: gdy gracz dołączy do strefy, ruszamy dalej */
   if(s.state==='PRESENTING_ZONE'&&(s.mode==='guided'||s.mode==='quick')&&typeof P!=='undefined'){
     const z=s.layout.zones[s.zoneIdx];
@@ -60968,9 +61000,13 @@ window._vwiFollowUp=function(defId,bought){
   let txt;
   if(bought)        txt='Gratuluję decyzji. Klucze i karta dostępu czekają w recepcji, a ja zostaję do dyspozycji przy wyposażeniu.';
   else if(short)    txt='Dopisałam '+d.name+' do Pana listy. Gdyby pojawiło się zainteresowanie z innej strony, uprzedzę Pana wcześniej.';
-  else if(!seenAll) txt='Nie obejrzał Pan całego lokalu. Proszę wpaść jeszcze raz — najwięcej mówi przejście między strefami, nie sama karta oferty.';
+  /* PDF 20.08 U42 (user): pełniejsza, bardziej osobista treść wiadomości po niedokończonych oględzinach. */
+  else if(!seenAll) txt='Witam, z tej strony Eve Rook, przeglądaliśmy wspólnie lokal, który Pana zainteresował. Nie obejrzał Pan całego lokalu! Jeśli Pan zechce, proszę wpaść jeszcze raz. Najwięcej powie przejście między poszczególnymi strefami, bo sama karta oferty nie bywa często przekonująca.';
   else              txt='Dziękuję za wizytę w '+d.name+'. Gdyby chciał Pan porównać ten układ z innym, wystarczy wrócić do korytarza lokali pokazowych.';
-  const send=()=>{ if(typeof window._smsSend==='function') window._smsSend('eve_rook',txt,{bypass:true});
+  /* PDF 20.08 U43: wiadomość o niedokończonych oględzinach ma cztery własne odpowiedzi gracza.
+     Pozostałe wiadomości Eve dostają zestaw z U56 zamiast generycznych przycisków przyjaźni. */
+  const _rs=(!bought && !short && !seenAll) ? 'eve_incomplete' : 'eve_generic';
+  const send=()=>{ if(typeof window._smsSend==='function') window._smsSend('eve_rook',txt,{bypass:true,replySet:_rs});
     else if(typeof showMsg==='function') showMsg('👩‍💼 Eve Rook: '+txt,'i',6000); };
   setTimeout(send,2600);
 };
@@ -63854,7 +63890,9 @@ window._EVE_UNIT_ADVICE={
   industrial_floor_900:'Tak, i właśnie tak bym rekomendowała. Podzielimy piętro na aktywne i rezerwowe strefy, dzięki czemu koszty wyposażenia będą rosły razem z firmą, a nie przed nią.',
   vantage_hq_1450:     'W Headquarters nie trzeba wybierać między jednym a drugim. Najpierw uruchomimy funkcje zarządcze, recepcję, gabinet i board room, a dopiero potem dopracujemy warstwę reprezentacyjną oraz strefy gościnne.',
 };
-/* §1 + §2 — jedenaście odpowiedzi gracza. `adv:true` = odpowiedź, do której Eve dokleja
+/* PDF 20.08 U41 (user): z jedenastu wariantów zostają CZTERY wskazane w zgłoszeniu — nadmiar kwestii
+   zasłaniał treść samej wiadomości od Eve. Reszta usunięta z systemu gry.
+   §1 + §2 — odpowiedzi gracza. `adv:true` = odpowiedź, do której Eve dokleja
    rekomendację właściwą dla kupionego lokalu (§3/§4 „kontekst konkretnego lokalu").
    `silent:true` = neutralne domknięcie wątku, bez kolejnej wiadomości Eve (§4). */
 window._EVE_REPLIES={
@@ -63867,46 +63905,41 @@ window._EVE_REPLIES={
     text:'Przy wyposażeniu przyda mi się Pani pomoc. Od czego najlepiej zacząć?', adv:true, consult:true,
     pref:{equipmentConsultationRequested:true, fitOutPriority:'functional_first'},
     reply:'Najpierw od rzeczy, które uruchamiają lokal funkcjonalnie: stanowisk pracy, podstawowego zaplecza, dostępu i systemu zarządzającego. Resztę można dokładać etapami, zamiast od razu zamrażać pieniądze w dekoracji.'},
-  eve_p_budget:{set:'eve_purchase', label:'Rozsądny wariant na start, bez przepalania budżetu',
-    text:'Klucze odbiorę później. Proszę mi tylko przygotować rozsądny wariant wyposażenia na start, bez przepalania budżetu.',
-    pref:{budgetMode:'lean', handoverIntent:'collect_later', preferredCommissioningStyle:'staged'},
-    reply:'Jasne. Przygotuję wariant minimalny i rozwojowy, żeby mógł Pan porównać koszt wejścia z konfiguracją, która zostawia więcej miejsca na dalszy rozwój.'},
-  /* ── §2 osiem wariantów dodatkowych ── */
-  eve_p_tech:{set:'eve_purchase', label:'Najpierw dostęp, stanowiska i system zarządzający',
-    text:'Najpierw chcę ogarnąć dostęp, stanowiska i system zarządzający. Wystrój może poczekać.',
-    pref:{fitOutPriority:'infrastructure', preferredCommissioningStyle:'technical'},
-    reply:'To dobra kolejność. Najpierw infrastruktura i funkcje krytyczne, później komfort i reprezentacja. Dzięki temu lokal zacznie pracować, zanim zacznie wyglądać.'},
-  eve_p_repr:{set:'eve_purchase', label:'Najpierw wejście, gabinet i miejsce spotkań',
-    text:'Najpierw chcę dopracować wejście, gabinet i miejsce spotkań. Klient ma od razu widzieć, że trafił do konkretnej firmy.',
-    pref:{fitOutPriority:'front_of_house', preferredCommissioningStyle:'representative'},
-    reply:'W takim razie priorytetem będzie strefa frontowa i spotkaniowa. Dopilnujemy, żeby wyglądała dobrze, ale nie zabrała budżetu potrzebnego na właściwą pracę lokalu.'},
   eve_p_oper:{set:'eve_purchase', label:'Najpierw to, na czym firma ma zarabiać',
     text:'Najpierw uruchamiamy to, na czym firma ma zarabiać. Resztę zrobię później.',
     pref:{fitOutPriority:'operational', preferredCommissioningStyle:'operational'},
     reply:'Rozsądnie. Skupię rekomendacje na strefach, które faktycznie zwiększają możliwości operacyjne lokalu.'},
-  eve_p_min:{set:'eve_purchase', label:'Wolę mniej rzeczy, ale sensownie rozmieszczonych',
-    text:'Nie chcę go zagracić. Wolę mniej rzeczy, ale sensownie rozmieszczonych.',
-    pref:{fitOutPriority:'flow', preferredCommissioningStyle:'minimal'},
-    reply:'To zwykle działa lepiej. Przygotuję propozycję z naciskiem na przepływ między strefami i pozostawienie rezerwy pod późniejsze moduły.'},
-  eve_p_now:{set:'eve_purchase', label:'Klucze biorę teraz, zaczynam urządzać od razu',
-    text:'Klucze biorę teraz. Chcę zacząć urządzać lokal od razu.',
-    pref:{handoverIntent:'collect_now', preferredCommissioningStyle:'immediate'},
-    reply:'W porządku. Recepcja wyda Panu komplet dostępu. Po wejściu może Pan rozpocząć konfigurację lokalu i wrócić do mnie, gdy będzie potrzebna rekomendacja wyposażenia.'},
-  eve_p_cautious:{set:'eve_purchase', label:'Po zakupie wolę chwilę odetchnąć z wydatkami',
-    text:'Po zakupie wolę chwilę odetchnąć z wydatkami. Nie chcę wyczyścić konta samym wyposażeniem.',
-    pref:{budgetMode:'conservative', preferredCommissioningStyle:'staged'},
-    reply:'To rozsądne. Lokal nie traci wartości tylko dlatego, że nie jest urządzony pierwszego dnia. Lepiej uruchamiać go etapami i zachować płynność.'},
-  eve_p_three:{set:'eve_purchase', label:'Proszę o trzy warianty: minimum, środek, pełne',
-    text:'Proszę przygotować mi trzy warianty: minimum, rozsądny środek i pełne wyposażenie.', consult:true,
-    pref:{equipmentConsultationRequested:true, budgetMode:'compare_variants'},
-    reply:'Przygotuję trzy poziomy, ale każdy oprę na możliwościach konkretnego lokalu, żeby wariant premium nie był po prostu dłuższą listą drogich rzeczy.'},
-  eve_p_revisit:{set:'eve_purchase', label:'Mogę przejść lokal jeszcze raz, już po zakupie?',
-    text:'Mogę jeszcze raz przejść lokal z Panią, już po zakupie, zanim zacznę go urządzać?', adv:true,
-    pref:{handoverIntent:'revisit', preferredCommissioningStyle:'planning'},
-    reply:'Tak. Teraz możemy potraktować przejście inaczej. Nie jako sprzedażowe oględziny, tylko jako planowanie funkcji i wyposażenia stref.'},
   eve_p_thanks:{set:'eve_purchase', label:'Dziękuję. Odezwę się, jak będę czegoś potrzebował', silent:true,
     text:'Dziękuję. Odezwę się, jak będę czegoś potrzebował.',
     pref:{handoverIntent:'neutral'}, reply:''},
+  /* ═══ PDF 20.08 U56 — KONIEC GENERYCZNYCH ODPOWIEDZI U EVE ROOK ══════════════════
+     User: usunąć „Dzięki (+1 przyjaźń)”, „Wpadnę (+3 przyjaźń)” i „Ignoruj (-1 przyjaźń)”, a w ich
+     miejsce dać trzy kwestie w języku tej rozmowy. Zestaw obsługuje wiadomości Eve, które nie mają
+     własnego, dedykowanego zestawu — wcześniej to właśnie one pokazywały przyciski „przyjaźni”. */
+  eve_g_thanks:{set:'eve_generic', label:'Dziękuję!',
+    text:'Bardzo Pani dziękuję za przeprowadzenie całego procesu sprzedażowego. Pozdrawiam.',
+    reply:'To była przyjemność. Gdyby cokolwiek wymagało wyjaśnienia — proszę pisać bez wahania.'},
+  eve_g_support:{set:'eve_generic', label:'Chętnie skorzystam ze wsparcia',
+    text:'Teraz dopiero się zacznie… Chyba skorzystam z Pani dyspozycji, przyda się każda pomocna dłoń.',
+    pref:{equipmentConsultationRequested:true},
+    reply:'W takim razie zostaję w kontakcie. Proszę dać znać, od której strony chce Pan zacząć — resztę poukładamy po kolei.'},
+  eve_g_ignore:{set:'eve_generic', label:'Zignoruj', silent:true,
+    text:'', reply:''},
+  /* ═══ PDF 20.08 U43 — ODPOWIEDZI NA WIADOMOŚĆ O NIEDOKOŃCZONYCH OGLĘDZINACH ══════════
+     Cztery warianty wprost z dokumentu; „Zignoruj” nie wywołuje odpowiedzi zwrotnej i nie wpływa
+     na fabułę ani na relację z Eve. */
+  eve_i_return:{set:'eve_incomplete', label:'Wrócę sprawdzić jeszcze raz',
+    text:'Wrócę. Chcę zobaczyć, jak wygląda całość, zanim podejmę decyzję.',
+    pref:{handoverIntent:'revisit'},
+    reply:'To dobry ruch. Proszę dać znać, kiedy Pan wpadnie — przejdziemy lokal strefa po strefie, bez pośpiechu.'},
+  eve_i_missed:{set:'eve_incomplete', label:'Czy coś przeoczyłem?',
+    text:'Co konkretnie miałem przeoczyć?',
+    reply:'Przede wszystkim przejścia między strefami i to, jak lokal pracuje w całości. Metraż i lista pomieszczeń tego nie oddają.'},
+  eve_i_specifics:{set:'eve_incomplete', label:'Najpierw potrzebuję przedstawienia konkretów',
+    text:'Dobrze. Wpadnę jeszcze raz, ale tym razem proszę mi pokazać konkrety i to, czego przede wszystkim nie pokazuje Pani oferta.',
+    pref:{preferredCommissioningStyle:'technical'},
+    reply:'Rozumiem i doceniam takie podejście. Przygotuję przejście pod kątem funkcji, ograniczeń i kosztów, których karta oferty nie pokazuje.'},
+  eve_i_ignore:{set:'eve_incomplete', label:'Zignoruj', silent:true, text:'', reply:''},
 };
 /* §4 trigger — wywoływane WYŁĄCZNIE z udanej finalizacji zakupu lokalu. */
 window._eveOnUnitPurchased=function(unitId, defId){
@@ -82370,7 +82403,9 @@ const SMS_CONTACTS={
   kantar:    {name:'Numer zastrzeżony',         em:'📵', color:'#9b59b6', physical:true}, /* v2.3.38 moduł „Numer zastrzeżony" — nadawca SMS (broker Kantar w Velvet Room); name→„Kantar” po ukończeniu questa (mutowane w TIER 8) */
   knox:      {name:'Knox „Towline” Mercer',     em:'🛻', color:'#e67e22', physical:false}, /* nowy PDF Fizyczne kolizje: holownik/wraki, usługi powtarzalne (menu w renderSMSConversation) */
   nolan:     {name:'Captain Nolan Reed',        em:'⚓', color:'#00b4d8', physical:false}, /* PDF Marina Coast §6/§25: kapitan portowy — cumowanie, paliwo, serwis, eventy, ostrzeżenia */
-  eve_rook:  {name:'Eve Rook (Vantage Works)', em:'🏢', color:'#7ec8e3', physical:true}, /* VANTAGE V2 §18 P7: follow-up po oględzinach */
+  eve_rook:  {name:'Eve Rook (Vantage Works)', em:'🏢', color:'#7ec8e3', physical:true},
+  /* PDF 20.08 U45/U46: Mason Hale pisze po zakupie pierwszego kampera. */
+  mason_hale:{name:'Mason Hale (Under)',       em:'🕶', color:'#c08858', physical:true}, /* VANTAGE V2 §18 P7: follow-up po oględzinach */
   sierra:    {name:'Sierra „Sunny” Bell',        em:'🌅', color:'#f0a860', physical:true}, /* SUNSET PALMS §21-22: gospodyni altany — przypomnienia, leady, referrale */
   rysiek:    {name:'Rysiek „Prasa”',              em:'♻️', color:'#95a5a6', physical:true}, /* v2.3.131 (PDF Uspr v2.3.130 U6): właściciel Metal Valley Yard — decyzja o kasacji, rozliczenia */
 };
@@ -82519,7 +82554,8 @@ window._mayaDeliverReply=function(){
   const m=window._mayaEnsure();
   if(m.state!=='maya_reply_pending'||m.mayaReplyDelivered) return false;
   if(!window._mayaSafeMoment()) return false;
-  if(typeof window._smsPushNpcReply==='function') window._smsPushNpcReply('maya_voss',m._pendingText||'');
+  /* PDF 20.08 U47: Maya ma WŁASNE, celowe opóźnienie (60 s aktywnej rozgrywki) — dostarczamy wprost. */
+  if(typeof window._smsPushNpcReplyNow==='function') window._smsPushNpcReplyNow('maya_voss',m._pendingText||'');
   else if(typeof _smsSend==='function') _smsSend('maya_voss',m._pendingText||'',{bypass:true});
   m.mayaReplyDelivered=true;
   /* §4: premia relacji JEDNORAZOWA — wczytanie zapisu nie może jej naliczyć drugi raz. */
@@ -84999,9 +85035,57 @@ window._smsDedicatedSets={'kamil_first_income':'kamil','kamil_career_step_five':
 'maya_intro_a':'maya_voss','maya_intro_b':'maya_voss',
 /* PDF „Korespondencja po zakupie lokalu VANTAGE WORKS z NPC Eve Rook": zestaw odpowiedzi
    na wiadomość powitalną po finalizacji zakupu (11 wariantów z §1 i §2). */
-'eve_purchase':'eve_rook'};
+'eve_purchase':'eve_rook',
+/* PDF 20.08 U43/U56: dwa nowe zestawy Eve Rook. BEZ tego wpisu gałąź dedykowana nie łapie i gracz
+   dostaje generyczne przyciski „przyjaźni” — dokładnie to, na co zwrócił uwagę user. */
+'eve_generic':'eve_rook','eve_incomplete':'eve_rook',
+/* PDF 20.08 U45/U46: zestawy odpowiedzi na wiadomości Masona po zakupie kampera. */
+'mason_camper':'mason_hale','mason_camper_top':'mason_hale'};
+/* ═══ PDF 20.08 U45/U46 — MASON HALE PISZE PO ZAKUPIE PIERWSZEGO KAMPERA ════════════
+   Dwie wersje wiadomości: zwykła (Rumbler / Vanton / Arko) i osobna dla najdroższego modelu
+   z Gravel Lot Motors (Northvan Pilgrim 2004). Wiadomość wychodzi 3 minuty po zakupie, a każda
+   odpowiedź Masona przychodzi z 40-sekundowym opóźnieniem (wspólna kolejka U47). */
+window._MASON_REPLIES={
+  mason_c_sleep:{set:'mason_camper', label:'Spokojnie. Kupiłem go głównie do spania, ziomeczku!',
+    text:'Spokojnie. Kupiłem go głównie do spania, ziomeczku!',
+    reply:'Jasne. Każdy pierdoli, że kupił kampera do spania, dopóki nie ogarnie, ile tematu można upchać za tylnymi drzwiami 😉'},
+  mason_c_better:{set:'mason_camper', label:'Myślę, że da się go wykorzystać znacznie lepiej',
+    text:'Myślę, że da się go wykorzystać znacznie lepiej.',
+    reply:'Dlatego napisałem. To co kupiłeś daje zajebistą swobodę, ale pamiętaj o możliwościach jakie płyną z inwestycji. Chociaż nie każdy musi to wykorzystywać.'},
+  mason_c_biz:{set:'mason_camper', label:'Czyli co? Teraz jestem już mobilnym biznesmenem?',
+    text:'Czyli co? Teraz jestem już mobilnym biznesmenem?',
+    reply:'Nie rozpędzaj się, młody. Na razie jesteś właścicielem budy z łóżkiem. Biznesmenem nazwiesz się dopiero wtedy, gdy ten złom zacznie pracować na Ciebie, a nie odwrotnie. Jak chcesz pogadać to wpadnij pod bramę dzielnicy.'},
+  mason_t_splurge:{set:'mason_camper_top', label:'Trzeba było zaszaleć!',
+    text:'Trzeba było zaszaleć! Nie kupuje się kampera co tydzień 😎',
+    reply:'No i zajebiście. Raz się żyje. Najdroższa rzecz w takim sprzęcie to fakt samego zakupu, a pomysł, na który wpadniesz po zakupie 😉'},
+  mason_t_plans:{set:'mason_camper_top', label:'Mam wobec niego plany',
+    text:'Mam wobec niego konkretne plany, nie będzie robił przecież za dekorację na ulicy…',
+    reply:'No właśnie tego się obawiałem. Ludzie rzadko kupują taką budę tylko po to, żeby spać wygodniej.'},
+  mason_t_afford:{set:'mason_camper_top', label:'Stać mnie było',
+    text:'Skoro mogłem sobie na niego pozwolić, to czemu miałem brać coś tańszego?',
+    reply:'Argument trudny do obalenia. Pieniądze wydane na głupoty przynajmniej czasem wyglądają dobrze na zdjęciach.'},
+};
+/* §U45/U46 — wyzwalacz po zakupie PIERWSZEGO kampera. Modele tanie i najdroższy mają osobne treści. */
+window.MASON_CAMPER_DELAY_MS=180000;
+window._masonOnCamperBought=function(modelId){
+  if(typeof G==='undefined') return false;
+  if(G._masonCamperSmsSent) return false;      /* tylko po PIERWSZYM kamperze */
+  const top=(modelId==='northvan_pilgrim_2004');
+  const cheap=(modelId==='rumbler_nomad_88'||modelId==='vanton_drifter_91'||modelId==='arko_trailbox_96');
+  if(!top && !cheap) return false;             /* modele z CityDrive nie mają tej korespondencji */
+  G._masonCamperSmsSent=true;
+  const txt=top
+    ? 'O kurwa! Nieżle sprzęt sobie sprawiłeś. Teraz nie tylko spanie będzie komfortowe w terenie 😎'
+    : 'No proszę a jednak się skusiłeś! Teraz przynajmniej masz gdzie spać w terenie 😉';
+  if(typeof window._smsScheduleNpc==='function'){
+    window._smsScheduleNpc('mason_hale', txt, top?'mason_camper_top':'mason_camper', window.MASON_CAMPER_DELAY_MS);
+    return true;
+  }
+  return false;
+};
 window._smsRegistryFor=function(contactId){
   switch(contactId){
+    case 'mason_hale': return window._MASON_REPLIES;
     case 'fan': return window._FAN_REPLIES;
     case 'kamil': return window._KAMIL_REPLIES;
     case 'gymbro': return window._GYMBRO_REPLIES;
@@ -85140,8 +85224,10 @@ window._smsKamilJobsAction=function(){
 /* ═══ v2.3.109 (PDF15): Sponsor odzieżowy — obsługa odpowiedzi + oferta/negocjacja + follow-up ═══ */
 window._sponsorPushNpc=function(text,replySet){
   if(typeof _smsSend!=='function') return;
+  /* PDF 20.08 U47: odpowiedzi sponsora też przychodzą z 40-sekundowym opóźnieniem. */
+  if(typeof window._smsPushNpcReply==='function'){ window._smsPushNpcReply('sponsor',text,replySet); return; }
   _smsSend('sponsor',text,replySet?{bypass:true,replySet}:{bypass:true});
-  if(!replySet){ const conv=G.sms&&G.sms.conversations&&G.sms.conversations['sponsor']; if(conv&&conv.length) conv[conv.length-1]._replied=true; } /* terminalna odpowiedź — bez kolejnych przycisków */
+  if(!replySet){ const conv=G.sms&&G.sms.conversations&&G.sms.conversations['sponsor']; if(conv&&conv.length) conv[conv.length-1]._replied=true; }
 };
 window._sponsorHandleReply=function(opt){
   if(typeof _5pdfEnsure==='function') _5pdfEnsure();
@@ -85194,10 +85280,49 @@ window._sponsorNegotiate=function(){
   else { s.negPay=750; s.negDone=true; window._sponsorPushNpc('Za mocno naciskasz jak na start. Bez raisu — zostaje bazowe 750 zł. Bierzesz, czy odpuszczamy?','sponsor_offer'); }
 };
 /* ═══ v2.3.109 (PDF17): Marcin (Organizator) — obsługa odpowiedzi + side-questy Media Training / Śniadaniówka ═══ */
-window._smsPushNpcReply=function(contactId,text,replySet){
+/* ═══ PDF 20.08 U47 — ODPOWIEDZI NPC PRZYCHODZĄ PO 40 SEKUNDACH ═══════════════════
+   User: „opoźnić wszystkie wiadomości SMS od kontaktów NPC, które … są ukazywane w korespondencji
+   od razu po kliknięciu wyboru sposobu odpowiedzi przez gracza … opoźnienie 40 sekund”.
+   Kontakty z WŁASNYM, celowym opóźnieniem (Maya Voss, Numer zastrzeżony, Swaply) korzystają z
+   `_smsPushNpcReplyNow` i nie są opóźniane po raz drugi.
+   Kolejka żyje w zapisie (`G._smsPendingReplies`), więc odpowiedź nie ginie po przeładowaniu gry —
+   zaległe pozycje dostarczane są zaraz po wczytaniu. */
+window._SMS_REPLY_DELAY_MS=40000;
+window._smsPushNpcReplyNow=function(contactId,text,replySet){
   if(typeof _smsSend!=='function') return;
   _smsSend(contactId,text,replySet?{bypass:true,replySet}:{bypass:true});
   if(!replySet){ const conv=G.sms&&G.sms.conversations&&G.sms.conversations[contactId]; if(conv&&conv.length) conv[conv.length-1]._replied=true; }
+};
+window._smsPendingEnsure=function(){
+  if(typeof G==='undefined') return null;
+  if(!Array.isArray(G._smsPendingReplies)) G._smsPendingReplies=[];
+  return G._smsPendingReplies;
+};
+window._smsPendingTick=function(){
+  const q=window._smsPendingEnsure(); if(!q||!q.length) return;
+  const now=Date.now();
+  for(let i=0;i<q.length;i++){
+    const it=q[i];
+    if(!it){ q.splice(i,1); i--; continue; }
+    if(now>=(it.dueMs||0)){
+      q.splice(i,1); i--;
+      try{ window._smsPushNpcReplyNow(it.contactId,it.text,it.replySet||undefined); }catch(_){}
+    }
+  }
+};
+if(!window._smsPendingTimer){
+  window._smsPendingTimer=setInterval(function(){ try{ window._smsPendingTick(); }catch(_){} }, 1000);
+}
+window._smsScheduleNpc=function(contactId,text,replySet,delayMs){
+  if(typeof _smsSend!=='function') return;
+  const q=window._smsPendingEnsure();
+  const d=(typeof delayMs==='number')?delayMs:window._SMS_REPLY_DELAY_MS;
+  if(!q){ setTimeout(function(){ window._smsPushNpcReplyNow(contactId,text,replySet); }, d); return; }
+  q.push({contactId:contactId, text:text, replySet:replySet||null, dueMs:Date.now()+d});
+  if(q.length>30) q.shift();
+};
+window._smsPushNpcReply=function(contactId,text,replySet){
+  window._smsScheduleNpc(contactId,text,replySet,window._SMS_REPLY_DELAY_MS);
 };
 window._marcinHandleReply=function(opt){
   if(typeof _5pdfEnsure==='function') _5pdfEnsure();
