@@ -15175,7 +15175,10 @@ function getNear(){
       continue;
     }
     /* v2.1.374 Faza A Round 2 fix TIER 5: bramki dzielnic = "przejścia" jak parking (open area detection). Standardowa door-margin logic getNear dawała impossible-to-reach areas dla bramek (np. underground wy 2784-3168 doorY=3168, gracz na chodniku H3 north wy=2790 BYŁ poza vNear). Teraz bramka aktywna z każdej strony w margin 50px. */
-    if(obj.id==='gate_underground'||obj.id==='gate_coast'||obj.id==='gate_business'){
+    /* PDF 20.08 B1 (user): brama Residential działała TYLKO od góry/dołu, bo nie było jej na tej
+       liście i wpadała w logikę drzwi budynku. Warunek jest teraz GENERYCZNY (`gate_*`), więc każda
+       kolejna brama dzielnicy od razu zachowuje się jak pozostałe — z ulicy i z każdej strony. */
+    if(obj.id.indexOf('gate_')===0){
       const margin=50;
       if(px>obj.wx-margin && px<obj.wx+obj.w+margin && py>obj.wy-margin && py<obj.wy+obj.h+margin) return obj.id;
       continue;
@@ -15694,7 +15697,8 @@ function handleAct(act,objId){
        pokrywaja wszystkie 11 stacji kamper/lab/plantacja. Usuwam wadliwy forward. */
     if(act==='kamper_stash_view' && typeof window._renderTrapStashInline==='function') window._renderTrapStashInline();
     else if(act==='kamper_safe_view'){ /* v2.3.126 (PDF Uspr v2.3.124 B2): act był 'camper_safe_view' (z C) — NIE wpadał do bloku kamper_/lab_ (z K) → interakcja MARTWA (brak reakcji na [E]). Ujednolicono do 'kamper_safe_view'. Kupiony → podgląd (sekcja sejfu); niekupiony → wybór modelu (v2.3.125) */
-      if(window._camperHasStash&&window._camperHasStash()){ if(typeof window._renderTrapStashInline==='function') window._renderTrapStashInline(); }
+      /* PDF 20.08 B2: sejf ma WLASNY panel (_renderCamperSafeInline), nie panel skrzyni. */
+      if(window._camperHasStash&&window._camperHasStash()){ if(typeof window._renderCamperSafeInline==='function') window._renderCamperSafeInline(); }
       else if(typeof window._camperStashBuyPanel==='function'){ window._camperStashBuyPanel(); }
       else { window._camperBuyStash&&window._camperBuyStash('standard'); }
     }
@@ -19112,8 +19116,10 @@ window._syWatch=function(pid){
   window._syEnsure(); const y=G.soundyard;
   if(!Array.isArray(y.watched)) y.watched=[];
   const i=y.watched.indexOf(pid);
-  if(i<0){ y.watched.push(pid); if(typeof showMsg==='function') showMsg('★ Lokal dodany do obserwowanych.','i',3200); }
-  else   { y.watched.splice(i,1); if(typeof showMsg==='function') showMsg('☆ Lokal usunięty z obserwowanych.','i',3200); }
+  /* PDF 20.08 U35 (user): ZERO komunikatów przy zmianie statusu obserwowania — gracz widzi
+     zmianę gwiazdki i obwódki przycisku, zielone okno informacyjne było zbędne. */
+  if(i<0) y.watched.push(pid);
+  else    y.watched.splice(i,1);
   if(typeof saveGameSilent==='function') saveGameSilent();
   if(typeof window._syViewing==='function') window._syViewing(pid);   /* przerysuj kartę = nowy stan gwiazdki */
 };
@@ -26051,6 +26057,8 @@ window._legalRetainerDailyTick=function(){
 };
 window._openLegalPanel=function(){
   if(!G.trap||!G.trap.unlocked) return; _legalEnsure();
+  /* PDF 20.08 U55: zespol prawny dopiero po zakupie wlasnego lokalu w VANTAGE WORKS. */
+  if(typeof window._vwOwnsUnit==='function' && !window._vwOwnsUnit() && !(G.trap.legalTeam&&Object.keys(G.trap.legalTeam).some(k=>G.trap.legalTeam[k]))){ if(typeof showMsg==='function') showMsg('⚖️ Prawnicy i ksiegowi obsluguja firme z adresem — najpierw kup lokal w VANTAGE WORKS.','r',4500); return; }
   const _mg=document.getElementById('mg-job');const _mc=document.getElementById('mg-job-content'); if(!_mg||!_mc) return;
   const rows=LEGAL_TEAM.map(l=>{ const has=_hasLegal(l.id); const lvlOk=(G.trap.level||1)>=l.reqLvl; return `<div style="background:#0e1018;border:1px solid ${has?'#27ae60':lvlOk?'#3a4a6a':'#333'};border-radius:7px;padding:9px;margin-bottom:6px;${lvlOk?'':'opacity:0.55'}">
     <div style="display:flex;justify-content:space-between;align-items:center"><strong style="font-size:12px;color:${has?'#7ec87e':'#9bd'}">${l.emoji} ${l.name}</strong><span style="font-size:10px;color:#f1c40f">${has?'✅ w zespole':l.hire.toLocaleString('pl')+' zł'}</span></div>
@@ -26229,6 +26237,8 @@ function _trapHasFront(){ return !!(G.trap&&G.trap.front&&G.trap.front.type); }
 function _trapFrontPaperTrail(){ return _trapHasFront()?(G.trap.front.paperTrailQuality||0):0; }
 window._openFrontPanel=function(){
   if(!G.trap||!G.trap.unlocked) return;
+  /* PDF 20.08 U54: legalny front od 10. poziomu kariery Trap. */
+  if((G.trap.level||1)<10 && !(typeof _trapHasFront==='function'&&_trapHasFront())){ if(typeof showMsg==='function') showMsg('🏢 Legalny front zakladasz od 10. poziomu kariery Trap.','r',4500); return; }
   const _mg=document.getElementById('mg-job');const _mc=document.getElementById('mg-job-content');
   if(!_mg||!_mc) return;
   const cur=G.trap.front;
@@ -26560,6 +26570,8 @@ window._chooseOrgModel=function(modelId){
 };
 window._openOrgPanel=function(){
   if(!G.trap||!G.trap.unlocked) return;
+  /* PDF 20.08 U55: model organizacyjny dopiero po zakupie wlasnego lokalu w VANTAGE WORKS. */
+  if(typeof window._vwOwnsUnit==='function' && !window._vwOwnsUnit() && !G.trap.orgModel){ if(typeof showMsg==='function') showMsg('🏗 Model organizacyjny ustala sie dla konkretnej firmy — najpierw kup lokal w VANTAGE WORKS.','r',4500); return; }
   const _mg=document.getElementById('mg-job');const _mc=document.getElementById('mg-job-content'); if(!_mg||!_mc) return;
   const cur=G.trap.orgModel;
   _mc.innerHTML=`<div style="background:#14120a;border:2px solid #c8a520;border-radius:10px;padding:16px;max-width:560px;margin:0 auto;color:#fff;max-height:88vh;overflow-y:auto">
@@ -26751,6 +26763,8 @@ window._buyLabUpgrade=function(key){
 /* v2.1.793 — UNIFIED panel ulepszeń: Anti-Raid + Uprawa + Lab (zastępuje _renderRaidUpgrades). */
 window._renderUpgrades=function(){
   _growEnsure(); G.trap=G.trap||{}; G.trap.upgrades=G.trap.upgrades||{}; G.labUpgrades=G.labUpgrades||{};
+  /* PDF 20.08 U37: sklep ulepszen wymaga wlasnego zaplecza produkcji. */
+  if(typeof window._trapUpgradeShopOpen==='function' && !window._trapUpgradeShopOpen()){ if(typeof showMsg==='function') showMsg('🛡 Sklep ulepszen otwiera sie, gdy masz wlasne zaplecze produkcji — kamper albo przejety lokal uprawowy.','r',5000); return; }
   const _mg=document.getElementById('mg-job');const _mc=document.getElementById('mg-job-content');
   if(!_mg||!_mc) return;
   const _cards=(map,state,buyFn,isBg)=>Object.entries(map).map(([k,u])=>{
@@ -47525,6 +47539,48 @@ window._camperStashMove=function(dir, bucket, key){
 
 /* v2.1.482 KAMPER/LAB station modals — buy ingredients / cook minigame / sell on street.
    USER FEEDBACK: "Mają być animacje, minigry, wymagana akcja gracza, a nie tylko naciskanie interakcji". */
+/* ═══ PDF 20.08 B2 — SEJF (STASH) MA WŁASNY PANEL ════════════════════════
+   Zgłoszenie usera: każdy zakupiony sejf (Stash) w kamperze pokazywał po interakcji panel
+   skrzyni. Skrzynia i Sejf to dwa odrębne systemy, więc [E] na sejfie otwiera TEN panel —
+   wyłącznie zawartość sejfu, jego model i limit. Skrzynia występuje tu tylko jako druga
+   strona przekładania towaru, nigdy jako treść panelu. */
+window._renderCamperSafeInline=function(){
+  const _mg=document.getElementById('mg-job');const _mc=document.getElementById('mg-job-content');
+  if(!_mg||!_mc) return;
+  if(typeof window._camperSafeEnsure==='function') window._camperSafeEnsure();
+  const model=(typeof window._camperStashModel==='function')?window._camperStashModel():null;
+  if(!model){ if(typeof window._camperStashBuyPanel==='function') window._camperStashBuyPanel(); return; }
+  const tot=window._camperSafeTotal(), cap=window._camperSafeCap();
+  const ITEMS=[['surowce','traw','🌿 Trawa'],['surowce','krysztal','💎 Kryształ'],['surowce','prosz','❄️ Proszek (sur.)'],['surowce','chem','🧴 Prekursor'],['products','joint','🚬 Joint'],['products','shard','💠 Shard'],['products','powder','⚪ Proszek'],['products','mix','🌟 Mix'],['products','lsd','🧪 LSD'],['products','ecstasy','💊 Ecstasy'],['products','mushrooms','🍄 Grzyby']];
+  const safeV=(b,k)=> b==='products'?((G.camperSafe&&G.camperSafe.products&&G.camperSafe.products[k])||0):((G.camperSafe&&G.camperSafe[k])||0);
+  const chestV=(b,k)=> b==='products'?((G.trapInv&&G.trapInv.products&&G.trapInv.products[k])||0):((G.trapInv&&G.trapInv[k])||0);
+  const rows=ITEMS.filter(it=>safeV(it[0],it[1])>0||chestV(it[0],it[1])>0).map(it=>{
+    const sv=safeV(it[0],it[1]), cv=chestV(it[0],it[1]);
+    return `<div style="display:flex;align-items:center;font-size:11.5px;background:#15120a;padding:5px 8px;border-radius:4px;margin-bottom:3px">
+      <span style="flex:1">${it[2]}</span>
+      <span style="color:#c8b88a;margin-right:6px">🔒 <b>${sv}</b></span>
+      <button class="cbtn" style="font-size:10px;padding:2px 6px;margin:0 2px;width:auto" ${cv<1||window._camperSafeFull()?'disabled':''} onclick="window._camperStashMove('toSafe','${it[0]}','${it[1]}');window._renderCamperSafeInline()" title="Ze skrzyni do sejfu">←📦</button>
+      <button class="cbtn" style="font-size:10px;padding:2px 6px;margin:0 2px;width:auto" ${sv<1||window._trapChestFull()?'disabled':''} onclick="window._camperStashMove('toChest','${it[0]}','${it[1]}');window._renderCamperSafeInline()" title="Z sejfu do skrzyni">📦→</button>
+      <span style="color:#8a94a4;margin-left:6px;font-size:10.5px">w skrzyni: ${cv}</span>
+    </div>`;
+  }).join('');
+  const models=(typeof CAMPER_STASH_MODELS!=='undefined')?CAMPER_STASH_MODELS:[];
+  const top=models[models.length-1];
+  const canUp=top&&model.id!==top.id;
+  _mc.innerHTML=`<div style="background:#12100a;border:2px solid #c8a520;border-radius:10px;padding:18px;max-width:540px;margin:0 auto;color:#f0e8d8">
+    <h2 style="color:#e8d08a;margin-top:0;text-align:center">${model.emoji||'🔒'} ${model.name} <span style="font-size:12px;color:${tot>=cap?'#e07070':'#9ab'};font-weight:600">(${tot}/${cap})</span></h2>
+    <div style="color:#c8b88a;font-size:12.5px;margin-bottom:10px;text-align:center;line-height:1.55">Sejf zamontowany w kamperze. To <b>osobny magazyn</b> — jego zawartość i limit nie sumują się ze <b>Skrzynią</b>, która jest odrębną stacją.</div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-bottom:10px;font-size:11.5px">
+      <div style="background:#1a1505;padding:8px;border-radius:5px;text-align:center">Zajęte<br><strong style="color:#e8d08a;font-size:18px">${tot}</strong></div>
+      <div style="background:#1a1505;padding:8px;border-radius:5px;text-align:center">Wolne<br><strong style="color:#7ec87e;font-size:18px">${Math.max(0,cap-tot)}</strong></div>
+    </div>
+    <h3 style="color:#e8d08a;font-size:13px;margin:10px 0 4px 0">🔒 Zawartość sejfu</h3>
+    ${rows||'<div style="font-size:11.5px;color:#8a94a4;padding:6px">Sejf jest pusty. Przełóż tu towar ze skrzyni przyciskiem ←📦.</div>'}
+    ${canUp?`<button class="cbtn" style="width:100%;margin-top:10px;border-color:#c8a520;color:#e8d08a" onclick="window._camperStashBuyPanel&&window._camperStashBuyPanel()">⬆️ Wymień sejf na większy model</button>`:'<div style="margin-top:10px;font-size:11px;color:#7ec87e;text-align:center">✅ Największy dostępny model sejfu.</div>'}
+    <button class="cbtn" style="margin-top:12px;width:100%" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Wyjdź</button>
+  </div>`;
+  _mg.classList.add('on');
+};
 window._renderTrapStashInline=function(){
   const _mg=document.getElementById('mg-job');const _mc=document.getElementById('mg-job-content');
   if(!_mg||!_mc) return;
@@ -57518,6 +57574,20 @@ window._vwGrandfather=function(){
 window._vwUnit=function(id){ const v=window._vwEnsure(); return v.units.find(u=>u.id===(id||v.activeUnit))||null; };
 window._vwActive=function(){ return window._vwUnit(null); };
 window._vwHasAny=function(){ const v=window._vwEnsure(); return v.units.length>0; };
+/* PDF 20.08 U55: jedno źródło prawdy „czy gracz ma własny lokal w VANTAGE WORKS" — używane
+   przez bramki w panelu kariery Trap (model organizacyjny, zespół prawny). */
+window._vwOwnsUnit=function(){ try{ return window._vwEnsure().units.length>0; }catch(_){ return false; } };
+/* PDF 20.08 U37: sklep ulepszeń („Ulepszenia & ochrona") ma sens dopiero, gdy jest CO ulepszać —
+   czyli gdy gracz ma własne zaplecze produkcji: kamper albo przejęty lokal uprawowy/laboratorium. */
+window._trapUpgradeShopOpen=function(){
+  try{
+    if(typeof G==='undefined') return false;
+    if(G.camper && G.camper.owned) return true;
+    if(G.subterra && (G.subterra.owned===true || G.subterra.state==='OWNED')) return true;
+    if(G.lab && (G.lab.tier||0)>=1) return true;
+    return false;
+  }catch(_){ return false; }
+};
 /* §1/§102.1-2 — poziom 10 kariery Trap odblokowuje TYLKO rynek */
 window._vwAccessState=function(){
   const v=window._vwEnsure();
@@ -57533,13 +57603,16 @@ window._vwBuyUnit=function(defId){
   const v=window._vwEnsure(); const d=window._vwUnitDef(defId);
   if(!d) return {ok:false,msg:'Ta powierzchnia nie jest dostępna.'};
   if(!window._vwMarketUnlocked()) return {ok:false,msg:'Rynek powierzchni otwiera się dopiero na 10. poziomie kariery Trap.'};
+  /* PDF 20.08 U61 (user): „gracz mógł zakupić i posiadać tylko jeden lokal w module VANTAGE WORKS na raz".
+     Sprawdzenie PRZED pobraniem pieniędzy — inaczej drugi zakup zabrałby gotówkę i odbił się komunikatem. */
+  if(v.units.length) return {ok:false,msg:'Posiadasz już lokal. Aby kupić inny, najpierw sprzedaj obecny.'};
   if((G.money||0)<d.price) return {ok:false,msg:'Nie masz wystarczających środków — brakuje '+(d.price-(G.money||0)).toLocaleString('pl')+' zł.'};
-  /* §98: kolejny lokal dopiero po przerwie */
-  if(v.units.length){ const g=(typeof window._vwFarmGuard==='function')?window._vwFarmGuard('buyUnit'):null; if(g) return {ok:false,msg:g}; }
   G.money-=d.price;
   if(typeof window._vwCdSet==='function') window._vwCdSet('buyUnit',3);
   const u=window._vwUnitEnsure({id:'vw_'+defId+'_'+(v.units.length+1),defId:defId});
   u.status=VW_STATES.OWNED_SHELL; u.stage=1;
+  /* PDF 20.08 U60: dzień zakupu = podstawa 7-dniowej karencji na odsprzedaż. */
+  u.purchaseDay=G.day||1; u.purchasePrice=d.price;
   v.units.push(u); if(!v.activeUnit) v.activeUnit=u.id;
   if(v.reserved===defId) v.reserved=null;
   v.history.push({day:G.day||1,type:'zakup',text:'Zakup lokalu '+d.name+' za '+d.price.toLocaleString('pl')+' zł.'});
@@ -57552,6 +57625,8 @@ window._vwBuyUnit=function(defId){
 };
 window._vwReserve=function(defId){
   const v=window._vwEnsure(); const d=window._vwUnitDef(defId); if(!d) return {ok:false,msg:'Brak lokalu.'};
+  /* PDF 20.08 U61: rezerwacja innej powierzchni też jest zablokowana, dopóki gracz ma własny lokal. */
+  if(v.units.length) return {ok:false,msg:'Posiadasz już lokal. Rezerwacja innej powierzchni będzie możliwa po jego sprzedaży.'};
   const fee=Math.round(d.price*0.01);
   if((G.money||0)<fee) return {ok:false,msg:'Rezerwacja kosztuje '+fee.toLocaleString('pl')+' zł.'};
   G.money-=fee; v.reserved=defId; v.reservedUntilDay=(G.day||1)+7;
@@ -57560,10 +57635,50 @@ window._vwReserve=function(defId){
 window._vwWatch=function(defId){ const v=window._vwEnsure(); const i=v.watched.indexOf(defId);
   if(i>=0) v.watched.splice(i,1); else v.watched.push(defId); };
 
+/* ═══ PDF 20.08 U60 — odsprzedaż lokalu losowej agencji ══════════════════════════════════════
+   „Zakupionego lokalu nie będzie można sprzedać przez co najmniej 7 dni od dnia zakupu.
+    Kwota … nie więcej niż ¾ kwoty całkowitej, którą poniósł za początkowe kupno lokalu."
+   Stawka startowa = 75% ceny zakupu, obniżana o czas posiadania i eksploatację (zużycie,
+   ekspozycja kontrolna, napięcie w zespole). Dolne ograniczenie 45%, żeby wycena nie spadała
+   w nieskończoność (reguła #11 — gładka pochodna, brak wrażenia odbierania). */
+window.VW_AGENCIES=['Northcrest Property Group','Halberd Estates','Vantage Asset Partners','Merrow & Kline Nieruchomości','Ridgeway Commercial'];
+window._vwSellQuote=function(unitId){
+  const v=window._vwEnsure(); const u=window._vwUnit(unitId); if(!u) return null;
+  const d=window._vwUnitDef(u.defId)||{}; const base=u.purchasePrice||d.price||0;
+  const day=G.day||1; const bought=u.purchaseDay||day;
+  const held=Math.max(0,day-bought);
+  const wearWeeks=Math.floor(held/7);
+  const exposure=(u.compliance&&u.compliance.exposure)||0;
+  const tension=(u.workforce&&u.workforce.tension)||0;
+  let pct=0.75 - wearWeeks*0.01 - (exposure/100)*0.08 - (tension/100)*0.04;
+  pct=Math.max(0.45,Math.min(0.75,pct));
+  return {unitId:u.id, name:d.name||'Lokal', base:base, held:held,
+          canSell:held>=7, daysLeft:Math.max(0,7-held),
+          pct:pct, amount:Math.round(base*pct)};
+};
+window._vwSellUnit=function(unitId){
+  const v=window._vwEnsure(); const q=window._vwSellQuote(unitId);
+  if(!q) return {ok:false,msg:'Nie posiadasz tego lokalu.'};
+  if(!q.canSell) return {ok:false,msg:'Lokal można odsprzedać najwcześniej po 7 dniach od zakupu — zostało '+q.daysLeft+' dni.'};
+  const idx=v.units.findIndex(x=>x.id===q.unitId); if(idx<0) return {ok:false,msg:'Nie posiadasz tego lokalu.'};
+  const agency=window.VW_AGENCIES[Math.floor(Math.random()*window.VW_AGENCIES.length)];
+  v.units.splice(idx,1);
+  if(v.activeUnit===q.unitId) v.activeUnit=v.units.length?v.units[0].id:null;
+  G.money=(G.money||0)+q.amount;
+  v.history.push({day:G.day||1,type:'sprzedaż',text:'Odsprzedano lokal '+q.name+' agencji '+agency+' za '+q.amount.toLocaleString('pl')+' zł ('+Math.round(q.pct*100)+'% ceny zakupu).'});
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return {ok:true,msg:'Sprzedano '+q.name+' agencji '+agency+' za '+q.amount.toLocaleString('pl')+' zł.'};
+};
+/* PDF 20.08 B3: konkretna pozycja garażu / magazynu kupowana JEDEN raz. */
+window._vwGarageOwned=function(gid){ const v=window._vwEnsure(); return v.garage.some(g=>g.defId===gid); };
+window._vwStorageOwned=function(sid){ const v=window._vwEnsure(); return v.storage.some(s=>s.defId===sid); };
+
 /* §14/§15 Garaż i magazyny — OSOBNE zakupy, osobne kontenery */
 window._vwBuyGarage=function(gid){
   const v=window._vwEnsure(); const g=VW_GARAGE.find(x=>x.id===gid); if(!g) return {ok:false,msg:'Brak opcji.'};
   if(!window._vwHasAny()) return {ok:false,msg:'Miejsce w garażu można kupić dopiero razem z lokalem w budynku.'};
+  /* PDF 20.08 B3 (user, „błąd rażący"): każdą pozycję garażu kupuje się TYLKO RAZ. */
+  if(window._vwGarageOwned(gid)) return {ok:false,msg:'Tę pozycję garażu już posiadasz — można ją kupić tylko raz.'};
   if((G.money||0)<g.price) return {ok:false,msg:'Brak środków — '+g.price.toLocaleString('pl')+' zł.'};
   G.money-=g.price; v.garage.push({id:'g_'+gid+'_'+(v.garage.length+1),defId:gid,day:G.day||1});
   return {ok:true,msg:'Kupiono: '+g.name+'.'};
@@ -57571,6 +57686,8 @@ window._vwBuyGarage=function(gid){
 window._vwBuyStorage=function(sid){
   const v=window._vwEnsure(); const s=VW_STORAGE.find(x=>x.id===sid); if(!s) return {ok:false,msg:'Brak opcji.'};
   if(!window._vwHasAny()) return {ok:false,msg:'Komórkę można kupić dopiero razem z lokalem w budynku.'};
+  /* PDF 20.08 B3: każda komórka magazynowa B2 kupowana TYLKO RAZ. */
+  if(window._vwStorageOwned(sid)) return {ok:false,msg:'Tę komórkę magazynową już posiadasz — można ją kupić tylko raz.'};
   if((G.money||0)<s.price) return {ok:false,msg:'Brak środków — '+s.price.toLocaleString('pl')+' zł.'};
   G.money-=s.price;
   const id='st_'+sid+'_'+(v.storage.length+1);
@@ -58202,7 +58319,11 @@ window._vwTourStep=function(i){
 /* §16 Porównanie · §13 karty lokali */
 window._vwUnitCard=function(defId,compact){
   const d=window._vwUnitDef(defId); if(!d) return ''; const v=window._vwEnsure();
-  const owned=v.units.some(u=>u.defId===defId);
+  const mine=v.units.find(u=>u.defId===defId);
+  const owned=!!mine;
+  const myUnitId=mine?mine.id:'';
+  /* PDF 20.08 U61: „hasOther" = gracz posiada JAKIŚ inny lokal → ta pozycja jest niedostępna. */
+  const hasOther=!owned && v.units.length>0;
   const watched=v.watched.indexOf(defId)>=0;
   const afford=(G.money||0)>=d.price;
   return `<div class="sitem" style="border-color:${owned?'#7ec87e':'#1a2535'}">
@@ -58214,33 +58335,111 @@ window._vwUnitCard=function(defId,compact){
     <div class="pr" style="font-size:13px">${d.price.toLocaleString('pl')} zł</div>
     ${owned?'<div class="owned">✅ Twój lokal</div>':''}
     ${compact?'':`<div style="display:flex;gap:5px;margin-top:5px;flex-wrap:wrap">
-      <button class="bbtn" style="flex:1;font-size:11px;padding:5px" onclick="window._vwBuyBtn('${defId}')" ${owned||!afford?'disabled':''}>${owned?'Posiadany':'Kup'}</button>
-      <button class="cbtn" style="flex:1;font-size:11px;padding:5px" onclick="window._vwReserveBtn('${defId}')" ${owned?'disabled':''}>Rezerwuj</button>
-      <button class="cbtn" style="flex:1;font-size:11px;padding:5px;color:#7ec8e3" onclick="window._vwInspectBtn('${defId}')">👁 Oględziny</button>
-      <button class="cbtn" style="font-size:11px;padding:5px 7px;color:${watched?'#f0c040':'#667'}" onclick="window._vwWatch('${defId}');window._vwMarketPanel('units')" title="Obserwuj ofertę">⭐</button>
+      ${(()=>{ /* PDF 20.08 U61: gdy gracz ma już lokal, pozostałe pozycje mają NIEAKTYWNY przycisk
+                  z etykietą „Posiadasz już lokal" (a nie „Kup"). Posiadana pozycja dostaje „Sprzedaj". */
+        if(owned){ const q=(typeof window._vwSellQuote==='function')?window._vwSellQuote(myUnitId):null;
+          return `<button class="bbtn" style="flex:1;font-size:11px;padding:5px;width:auto" disabled>Posiadany</button>
+          <button class="cbtn" style="flex:1;font-size:11px;padding:5px;width:auto;color:${q&&q.canSell?'#e8a020':'#667'};border-color:${q&&q.canSell?'#e8a020':'#2a3a50'}" onclick="window._vwSellBtn('${defId}')" title="${q?(q.canSell?('Wycena agencji: '+q.amount.toLocaleString('pl')+' zł'):('Odsprzedaż możliwa za '+q.daysLeft+' dni')):''}">Sprzedaj</button>`; }
+        if(hasOther) return `<button class="bbtn" style="flex:1;font-size:11px;padding:5px;width:auto" disabled>Posiadasz już lokal</button>
+          <button class="cbtn" style="flex:1;font-size:11px;padding:5px;width:auto" disabled>Rezerwuj</button>`;
+        return `<button class="bbtn" style="flex:1;font-size:11px;padding:5px;width:auto" onclick="window._vwBuyBtn('${defId}')" ${!afford?'disabled':''}>Kup</button>
+          <button class="cbtn" style="flex:1;font-size:11px;padding:5px;width:auto" onclick="window._vwReserveBtn('${defId}')">Rezerwuj</button>`;
+      })()}
+      <button class="cbtn" style="flex:1;font-size:11px;padding:5px;width:auto;color:#7ec8e3" onclick="window._vwInspectBtn('${defId}')">👁 Oględziny</button>
+      <button class="cbtn" style="font-size:11px;padding:5px 9px;width:auto;color:${watched?'#f0c040':'#8a94a4'};border-color:${watched?'#f0c040':'#2a3a50'}" onclick="window._vwWatchBtn('${defId}')" title="${watched?'Przestań obserwować ofertę':'Obserwuj ofertę'}">${watched?'★':'☆'}</button>
     </div>`}
   </div>`;
 };
-window._vwBuyBtn=function(defId){ const r=window._vwBuyUnit(defId); window._vwMarketPanel('units');
-  const el=document.getElementById('vw-res'); if(el) el.textContent=r.msg; };
-window._vwReserveBtn=function(defId){ const r=window._vwReserve(defId); window._vwMarketPanel('units');
-  const el=document.getElementById('vw-res'); if(el) el.textContent=r.msg; };
+/* PDF 20.08 U38: kliknięcie gwiazdki przełącza obserwowanie i od razu przerysowuje listę —
+   obserwowana oferta wskakuje na pierwsze miejsce, a gwiazdka zmienia się na wypełnioną. */
+window._vwWatchBtn=function(defId){ window._vwWatch(defId); window._vwMarketPanel('units'); };
+window._vwSellBtn=function(defId){
+  const v=window._vwEnsure(); const u=v.units.find(x=>x.defId===defId); if(!u) return;
+  const q=window._vwSellQuote(u.id); if(!q) return;
+  if(!q.canSell){ const el=document.getElementById('vw-res'); if(el) el.textContent='Lokal można odsprzedać najwcześniej po 7 dniach od zakupu — zostało '+q.daysLeft+' dni.'; return; }
+  window._vwConfirmDialog({
+    title:'Sprzedaż lokalu', name:q.name,
+    desc:'Odsprzedaż losowej agencji nieruchomości. Wycena uwzględnia czas posiadania i eksploatację lokalu — to '+Math.round(q.pct*100)+'% ceny zakupu ('+q.base.toLocaleString('pl')+' zł).',
+    question:'Czy chcesz sprzedać '+q.name+' za '+q.amount.toLocaleString('pl')+' zł?',
+    amount:q.amount,
+    onOk:function(){ const r=window._vwSellUnit(u.id); window._vwMarketPanel('units'); const el=document.getElementById('vw-res'); if(el) el.textContent=r.msg; }
+  });
+};
+/* ═══ PDF 20.08 U39/U40 — okno dialogowe potwierdzenia zakupu / rezerwacji ════════════════════
+   „Okno ma za zadanie uchronienie gracza przed przypadkowym, lub nieprzemyślanym zakupem."
+   Układ wg dokumentu: nazwa, opis, WYTŁUSZCZONA kwota, pytanie, a pod nim „Potwierdź" (zielone
+   okienko, lewa-dolna strona) i „Odrzuć" (napis na czerwonym tle, prawa strona). */
+window._vwConfirmDialog=function(o){
+  document.getElementById('vw-confirm')?.remove();
+  const m=document.createElement('div');
+  m.id='vw-confirm';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:10050;display:flex;align-items:center;justify-content:center;animation:bdFadeIn .2s';
+  m.innerHTML=`
+    <div style="background:linear-gradient(135deg,#0d1420,#141a28);border:1px solid #2a3a50;border-radius:14px;padding:20px 22px;max-width:460px;width:88%;box-shadow:0 18px 60px rgba(0,0,0,.7)">
+      <div style="color:#7ec8e3;font-size:12px;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">${o.title||'Potwierdzenie'}</div>
+      <div id="vw-confirm-name" style="color:#e8e8f0;font-size:17px;font-weight:800;margin-bottom:6px">${o.name||''}</div>
+      <div style="color:#9ab;font-size:12.5px;line-height:1.6;margin-bottom:10px">${o.desc||''}</div>
+      <div style="color:#f1c40f;font-size:20px;font-weight:900;margin-bottom:10px">${(o.amount||0).toLocaleString('pl')} zł</div>
+      <div id="vw-confirm-q" style="color:#dde;font-size:13.5px;line-height:1.55;margin-bottom:16px">${o.question||''}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <button id="vw-confirm-ok" style="background:#1d7a3a;color:#eaffea;border:1px solid #29a854;border-radius:9px;padding:11px 20px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit">Potwierdź</button>
+        <button id="vw-confirm-no" style="background:#8c1f22;color:#ffecec;border:1px solid #b8332f;border-radius:9px;padding:11px 20px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit">Odrzuć</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const close=()=>{ m.remove(); };
+  m.querySelector('#vw-confirm-ok').onclick=()=>{ close(); if(typeof o.onOk==='function') o.onOk(); };
+  m.querySelector('#vw-confirm-no').onclick=close;
+};
+window._vwBuyBtn=function(defId){
+  const d=window._vwUnitDef(defId); if(!d) return;
+  window._vwConfirmDialog({
+    title:'Zakup lokalu', name:d.name, desc:d.purpose,
+    question:'Czy chcesz potwierdzić zakup '+d.name+' w kwocie '+d.price.toLocaleString('pl')+' zł?',
+    amount:d.price,
+    onOk:function(){ const r=window._vwBuyUnit(defId); window._vwMarketPanel('units');
+      const el=document.getElementById('vw-res'); if(el) el.textContent=r.msg; }
+  });
+};
+window._vwReserveBtn=function(defId){
+  const d=window._vwUnitDef(defId); if(!d) return;
+  const fee=Math.round(d.price*0.01);
+  window._vwConfirmDialog({
+    title:'Rezerwacja lokalu', name:d.name, desc:d.purpose+' Rezerwacja obowiązuje 7 dni.',
+    question:'Czy chcesz potwierdzić rezerwację '+d.name+' w kwocie '+fee.toLocaleString('pl')+' zł?',
+    amount:fee,
+    onOk:function(){ const r=window._vwReserve(defId); window._vwMarketPanel('units');
+      const el=document.getElementById('vw-res'); if(el) el.textContent=r.msg; }
+  });
+};
 window._vwMarketPanel=function(tab){
   const v=window._vwEnsure(); tab=tab||'units';
   if(typeof openOverlay==='function') openOverlay();
   let body='';
-  if(tab==='units') body=`<div class="shopgrid">${VW_UNITS.map(u=>window._vwUnitCard(u.id)).join('')}</div>
+  if(tab==='units'){
+    /* PDF 20.08 U38: oferty obserwowane („żółta gwiazdka") idą na POCZĄTEK listy, niezależnie
+       od ich pierwotnego położenia. Kolejność pozostałych bez zmian (stabilne sortowanie). */
+    const _ordered=VW_UNITS.slice().sort((a,b)=>((v.watched.indexOf(b.id)>=0)?1:0)-((v.watched.indexOf(a.id)>=0)?1:0));
+    /* PDF 20.08 B3/U59: po zakupie przycisk staje się szary i zmienia treść na „Kupiono". */
+    const _gBtn=(g)=>{ const own=window._vwGarageOwned(g.id);
+      return own?`<button class="cbtn" style="font-size:11px;padding:5px;width:auto;color:#8a94a4;border-color:#39424f;background:#2a2f38" disabled>Kupiono</button>`
+                :`<button class="bbtn" style="font-size:11px;padding:5px;width:auto" onclick="window._vwBuyGarageBtn('${g.id}')" ${(G.money||0)<g.price||!window._vwHasAny()?'disabled':''}>Kup</button>`; };
+    const _sBtn=(s)=>{ const own=window._vwStorageOwned(s.id);
+      return own?`<button class="cbtn" style="font-size:11px;padding:5px;width:auto;color:#8a94a4;border-color:#39424f;background:#2a2f38" disabled>Kupiono</button>`
+                :`<button class="bbtn" style="font-size:11px;padding:5px;width:auto" onclick="window._vwBuyStorageBtn('${s.id}')" ${(G.money||0)<s.price||!window._vwHasAny()?'disabled':''}>Kup</button>`; };
+    body=`<div class="shopgrid">${_ordered.map(u=>window._vwUnitCard(u.id)).join('')}</div>
     <h3 style="color:#e8a020;margin:16px 0 6px;font-size:14px">🚗 Garaż B1 — kupowany osobno</h3>
     <div class="shopgrid">${VW_GARAGE.map(g=>`<div class="sitem"><h3 style="font-size:13px">${g.name}</h3><p style="font-size:11px">${g.note}</p>
       <p style="font-size:10px;color:#9ab">Pojazdy: ${g.cars}${g.delivery?' · obsługa dostaw':''}</p>
       <div class="pr" style="font-size:12px">${g.price.toLocaleString('pl')} zł</div>
-      <button class="bbtn" style="font-size:11px;padding:5px" onclick="window._vwBuyGarageBtn('${g.id}')" ${(G.money||0)<g.price||!window._vwHasAny()?'disabled':''}>Kup</button></div>`).join('')}</div>
+      ${_gBtn(g)}</div>`).join('')}</div>
     <h3 style="color:#8a6ae0;margin:16px 0 6px;font-size:14px">📦 Magazyny B2 — osobny stan każdej komórki</h3>
     <div class="shopgrid">${VW_STORAGE.map(s=>`<div class="sitem"><h3 style="font-size:13px">${s.name}</h3>
       <p style="font-size:11px">${s.area} m² · pojemność ${s.cap.toLocaleString('pl')} jednostek</p>
       ${s.has?`<p style="font-size:10px;color:#8fb8d8">${s.has.join(', ')}.</p>`:''}
       <div class="pr" style="font-size:12px">${s.price.toLocaleString('pl')} zł</div>
-      <button class="bbtn" style="font-size:11px;padding:5px" onclick="window._vwBuyStorageBtn('${s.id}')" ${(G.money||0)<s.price||!window._vwHasAny()?'disabled':''}>Kup</button></div>`).join('')}</div>`;
+      ${_sBtn(s)}</div>`).join('')}</div>`;
+  }
   else if(tab==='compare'){
     const rows=[['Powierzchnia',u=>u.area+' m²'],['Cena',u=>u.price.toLocaleString('pl')+' zł'],['Stanowiska biurowe',u=>u.office],
       ['Magazyn',u=>(u.warehouse?u.warehouse.toLocaleString('pl'):'brak')],['Sloty operacyjne',u=>u.slots],
@@ -58271,7 +58470,9 @@ window._vwMarketPanel=function(tab){
     <div style="margin-bottom:10px">${tb('units','📋 Lokale')}${tb('compare','⚖️ Porównanie')}${tb('prices','💰 Ceny')}${tb('terms','📄 Warunki')}</div>
     ${body}
     <div class="res" id="vw-res">Gotówka: ${(G.money||0).toLocaleString('pl')} zł</div>
-    <button class="cbtn" onclick="closeOverlay()">← Wróć</button>`;
+    <!-- PDF 20.08 U58: „Wróć" w zakładkach Lokale/Porównanie/Ceny/Warunki NIE zamyka całego
+         panelu VANTAGE WORKS, tylko wraca do jego panelu głównego. -->
+    <button class="cbtn" onclick="window._vwBuildingPanel&&window._vwBuildingPanel()">← Wróć</button>`;
 };
 window._vwBuyGarageBtn=function(id){ const r=window._vwBuyGarage(id); window._vwMarketPanel('units'); const el=document.getElementById('vw-res'); if(el) el.textContent=r.msg; };
 window._vwBuyStorageBtn=function(id){ const r=window._vwBuyStorage(id); window._vwMarketPanel('units'); const el=document.getElementById('vw-res'); if(el) el.textContent=r.msg; };
@@ -60454,8 +60655,10 @@ window._vwiDecisionPanel=function(){
     ${owned?'<div style="color:#7ec87e;font-size:12px;margin-bottom:6px">✅ Ten lokal już należy do Ciebie — oględziny służą teraz przeglądowi i zarządzaniu.</div>':''}
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
       ${owned?'<button class="bbtn" style="width:auto;font-size:12px;padding:6px 12px" onclick="window._vwiManageOwned()">Zarządzaj lokalem</button>':''}
-      <button class="bbtn" style="width:auto;font-size:12px;padding:6px 12px;display:${owned?'none':'inline-block'}" onclick="window._vwiDecide('buy')" ${(G.money||0)<d.price?'disabled':''}>Kup lokal</button>
-      <button class="cbtn" style="font-size:12px;padding:6px 10px;display:${owned?'none':'inline-block'}" onclick="window._vwiDecide('reserve')">Zarezerwuj</button>
+      <!-- PDF 20.08 U61: oględziny wolno prowadzić zawsze, ale gdy gracz ma już lokal, NIE mogą
+           doprowadzić do zakupu — przyciski są nieaktywne i mówią wprost dlaczego. -->
+      <button class="bbtn" style="width:auto;font-size:12px;padding:6px 12px;display:${owned?'none':'inline-block'}" onclick="window._vwiDecide('buy')" ${(window._vwEnsure().units.length&&!owned)?'disabled':((G.money||0)<d.price?'disabled':'')}>${(window._vwEnsure().units.length&&!owned)?'Posiadasz już lokal':'Kup lokal'}</button>
+      <button class="cbtn" style="font-size:12px;padding:6px 10px;display:${owned?'none':'inline-block'}" onclick="window._vwiDecide('reserve')" ${(window._vwEnsure().units.length&&!owned)?'disabled':''}>Zarezerwuj</button>
       <button class="cbtn" style="font-size:12px;padding:6px 10px;color:${short?'#f0c040':'#9ab'}" onclick="window._vwiDecide('short')">${short?'Na shortliście':'Dodaj do shortlisty'}</button>
       <button class="cbtn" style="font-size:12px;padding:6px 10px" onclick="window._vwiCompareMemory()">Porównaj z innym</button>
       <button class="cbtn" style="font-size:12px;padding:6px 10px" onclick="closeOverlay()">Obejrzyj ponownie</button>
@@ -80935,15 +81138,24 @@ function renderPhoneApp(app){
               return `<div style="margin-top:7px;border-top:1px solid #3a2a5a;padding-top:6px">
                 <div style="font-size:11px;color:${hasF?(susp?'#e08050':'#7ec87e'):'#9ab'}">🏢 Front: ${hasF?`<strong>${fr.name}</strong> (${_frontDef(fr.type)?.name||fr.type})${susp?' ⚠️ zawieszony (brak kasy)':''}`:'brak — produkcja bez przykrywki'}</div>
                 ${recommend?`<div style="font-size:9px;color:#e0a060;margin:2px 0">⚠️ Laboratorium tej klasy aż prosi się o legalną przykrywkę — bez frontu naloty są częstsze.</div>`:''}
-                <button class="cbtn" style="width:100%;padding:5px;font-size:10px;color:#7ec8e3;border-color:#3a5a7a;margin-top:3px" onclick="window._openFrontPanel()">🏢 ${hasF?'Zmień front':'Załóż legalny front'}</button>
+                ${(()=>{ /* PDF 20.08 U54: „Załóż legalny front" otwiera się dopiero na 10. poziomie
+                    kariery Trap — tym samym progu, który otwiera rynek lokali VANTAGE WORKS. */
+                  const lvlF=(G.trap.level||1);
+                  if(!hasF && lvlF<10) return `<button class="cbtn" style="width:100%;padding:5px;font-size:10px;color:#8a94a4;border-color:#39424f;margin-top:3px" disabled>🔒 Załóż legalny front — wymóg: 10. poziom kariery Trap (masz ${lvlF})</button>`;
+                  return `<button class="cbtn" style="width:100%;padding:5px;font-size:10px;color:#7ec8e3;border-color:#3a5a7a;margin-top:3px" onclick="window._openFrontPanel()">🏢 ${hasF?'Zmień front':'Załóż legalny front'}</button>`;
+                })()}
               </div>`;})()}
             ${(typeof _orgDef==='function')?(()=>{ const o=_orgDef(); return `<div style="margin-top:7px;border-top:1px solid #3a2a5a;padding-top:6px">
                 <div style="font-size:11px;color:${o?'#f1c40f':'#9ab'}">🏗 Model: ${o?`<strong>${o.emoji} ${o.name}</strong>`:'nie wybrany (neutralny)'}</div>
-                <button class="cbtn" style="width:100%;padding:5px;font-size:10px;color:#f1c40f;border-color:#7a6420;margin-top:3px" onclick="window._openOrgPanel()">🏗 ${o?'Zmień model organizacyjny':'Wybierz model organizacyjny'}</button>
+                ${(typeof window._vwOwnsUnit==='function'&&!window._vwOwnsUnit()&&!o)
+                  ? `<button class="cbtn" style="width:100%;padding:5px;font-size:10px;color:#8a94a4;border-color:#39424f;margin-top:3px" disabled>🔒 Wybierz model organizacyjny — wymóg: własny lokal w VANTAGE WORKS</button>`
+                  : `<button class="cbtn" style="width:100%;padding:5px;font-size:10px;color:#f1c40f;border-color:#7a6420;margin-top:3px" onclick="window._openOrgPanel()">🏗 ${o?'Zmień model organizacyjny':'Wybierz model organizacyjny'}</button>`}
               </div>`;})():''}
             ${(typeof _openLegalPanel==='function')?(()=>{ _legalEnsure&&_legalEnsure(); const n=G.trap.legalTeam?Object.keys(G.trap.legalTeam).filter(k=>G.trap.legalTeam[k]).length:0; return `<div style="margin-top:7px;border-top:1px solid #2a3a5a;padding-top:6px">
                 <div style="font-size:11px;color:${n>0?'#9bd':'#9ab'}">⚖️ Zespół prawny: ${n>0?`<strong>${n} ${n===1?'osoba':'os.'}</strong>`:'brak'}</div>
-                <button class="cbtn" style="width:100%;padding:5px;font-size:10px;color:#9bd;border-color:#3a4a6a;margin-top:3px" onclick="window._openLegalPanel()">⚖️ Prawnicy i księgowi (Joanna, Maksymilian, Nadia...)</button>
+                ${(typeof window._vwOwnsUnit==='function'&&!window._vwOwnsUnit()&&n===0)
+                  ? `<button class="cbtn" style="width:100%;padding:5px;font-size:10px;color:#8a94a4;border-color:#39424f;margin-top:3px" disabled>🔒 Prawnicy i księgowi — wymóg: własny lokal w VANTAGE WORKS</button>`
+                  : `<button class="cbtn" style="width:100%;padding:5px;font-size:10px;color:#9bd;border-color:#3a4a6a;margin-top:3px" onclick="window._openLegalPanel()">⚖️ Prawnicy i księgowi (Joanna, Maksymilian, Nadia...)</button>`}
               </div>`;})():''}
           </div>`;})()}
         ${(G.trap.level||1)>=15?`<div style="background:#1a0a14;border-radius:6px;padding:10px;margin-bottom:10px;border:1px solid #c0392b">
@@ -80962,7 +81174,9 @@ function renderPhoneApp(app){
           <div style="font-size:10px;color:#ccd;margin-bottom:6px">
             ${(()=>{const r=Object.keys(RAID_UPGRADES).filter(k=>k==='bodyguard'?(G.trap.upgrades?.bodyguard||0)>0:G.trap.upgrades?.[k]).length;const g=Object.keys(GROW_UPGRADES).filter(k=>G.grow?.upgrades?.[k]).length;const l=Object.keys(LAB_UPGRADES).filter(k=>G.labUpgrades?.[k]).length;return `🛡 Anti-Raid ${r}/${Object.keys(RAID_UPGRADES).length} · 🌿 Uprawa ${g}/${Object.keys(GROW_UPGRADES).length} · ⚗️ Lab ${l}/${Object.keys(LAB_UPGRADES).length}`;})()}
           </div>
-          <button class="cbtn" style="width:100%;padding:5px;font-size:11px;color:#f1c40f;border-color:#c8a520" onclick="window._renderUpgrades()">🛡 Otwórz sklep ulepszeń</button>
+          ${(typeof window._trapUpgradeShopOpen==='function'&&!window._trapUpgradeShopOpen())
+            ? `<button class="cbtn" style="width:100%;padding:5px;font-size:11px;color:#8a94a4;border-color:#39424f" disabled>🔒 Sklep ulepszeń — wymóg: własne zaplecze produkcji (kamper albo lokal uprawowy)</button>`
+            : `<button class="cbtn" style="width:100%;padding:5px;font-size:11px;color:#f1c40f;border-color:#c8a520" onclick="window._renderUpgrades()">🛡 Otwórz sklep ulepszeń</button>`}
         </div>
         <div style="font-size:11px;color:#888;padding:6px;background:#0a1220;border-radius:4px">
           💡 Bust risk skaluje level (lvl 15 = -56%). Po buscie -1000 zł + 1 dzień jail.
