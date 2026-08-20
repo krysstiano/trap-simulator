@@ -2963,7 +2963,7 @@ const DB_DECORATIVE=[
   // CENTRAL wy=672 — Z1 (po fryzjerze): skwer(285-415) + DB(590-660)
   {wx:285,wy:672,w:135,h:155,c:'#1e3a1e'},  // SKWER zielony — między sklep a fryzjer
   {wx:590,wy:672,w:70,h:155,c:'#1e2820'},
-  // CENTRAL wy=672 — Z2: merch_studio(1100-1260) + DB(1280-1430) + LUKA na Zbyszka(1430-1640) + DB(1660-1810) + (gap 90) + szpital(1900-2048)
+  // CENTRAL wy=672 — Z2: merch_studio(1100-1260) + DB(1280-1430) + LUKA na Frankiego(1430-1640) + DB(1660-1810) + (gap 90) + szpital(1900-2048)
   {wx:1280,wy:672,w:150,h:155,c:'#1c2832'},
   {wx:1660,wy:672,w:150,h:155,c:'#28201a'},
   // CENTRAL wy=672 — Z3: DB(2510-2670) + sala_konce(2700-2870) + DB(2880-2950 z gap 10|10) + IKEA(2960-3108) + DB(3118-3182 z gap 10|8) + targ(3190-3338)
@@ -3161,7 +3161,7 @@ const ROOMS = {
       {id:'parking',      wx:1056, wy:1548, w:1056,h:145, act:'parking:info',           prompt:'[E] 🅿️ Parking',               lbl:''},
       // NPCs w strefie centralnej (v2.1.6: rozrzucone)
       {id:'npc_producer', wx:1850, wy:308, w:34,h:56, act:'npc:producer',              prompt:'[E] Producent — Majkel',        lbl:''}, /* H1 north (288-384) — po prawej Studia */
-      {id:'npc_vendor',   wx:1528, wy:735, w:34,h:56, act:'npc:vendor',               prompt:'[E] Kebab Kingpin — Zbyszek',  lbl:'', actRadius:150}, /* D5 (PDF v2.3.45): nazwa „Kebab Kingpin". v2.3.102 (PDF #8-6): wy720→735 — niżej, bliżej budynków mieszkalnych */
+      {id:'npc_vendor',   wx:1528, wy:735, w:34,h:56, act:'npc:vendor',               prompt:'[E] Kebab Kingpin — Frankie',  lbl:'', actRadius:150}, /* D5 (PDF v2.3.45): nazwa „Kebab Kingpin". v2.3.102 (PDF #8-6): wy720→735 — niżej, bliżej budynków mieszkalnych */
       /* v2.1.66 Amper: Crew przesunięte żeby h:56 mieściło się w chodniku H2 (1824-1920). Wcześniej wy:1870 + 56 = 1926 wystawało na drogę H2 (1920-2112). */
       {id:'npc_crew',     wx:2499, wy:1781,w:34,h:56, act:'npc:crew',                  prompt:'[E] Rekrutuj ekipę',            lbl:''}, /* v2.1.202 [Amper]: przesunięty z (2400,1860) → (2499,1781) per user request (P.wx/P.wy z konsoli). Pozycja: chodnik H2 north sidewalk (wy 1776-1872) tuż na wschód od V2 wsch chodnik (wx 2496+). */
       // ── STREFA POŁUDNIOWA wy=2208 (dół=2363, dotyka H2 south sidewalk wy=2207) ──
@@ -15132,7 +15132,7 @@ function updatePlayer(){
         if((G.fans||0)<5000) txt=`🔒 Studio Projektowania — wymaga 5000 fanów (masz ${(G.fans||0).toLocaleString('pl')})`;
         else txt='[E] Studio Projektowania';
       }
-      /* J2 (user): kebab zamknięty — Zbyszek niewidzialny, więc prompt NIE może udawać „[E] interakcji z nim";
+      /* J2 (user): kebab zamknięty — Frankie niewidzialny, więc prompt NIE może udawać „[E] interakcji z nim";
          pokaż jasno, że buda zamknięta + godziny (bez [E], styl jak inne „niedostępne"). */
       if(obj.act==='npc:vendor' && typeof isPlaceOpen==='function'){
         const _ko=isPlaceOpen('npc:vendor');
@@ -15247,7 +15247,7 @@ function getNear(){
        Pomijamy w wykrywaniu dopóki nieodblokowana — spójnie z rysowaniem i interakcją. */
     if(obj.id==='hof_statue'&&!G._hasHallOfFameStatue) continue;
     if(obj.id==='npc_brokat' && !(typeof window._uwZ3Active==='function'&&window._uwZ3Active())) continue; /* v2.3.38: Brokat tylko w oknie Z3 */
-    if(obj.act==='npc:vendor' && typeof isPlaceOpen==='function' && !isPlaceOpen('npc:vendor').open) continue; /* v2.3.102 (PDF #8-6): budka Zbyszka bez highlight/prompt/[E] po godzinach — Zbyszka wtedy nie ma */
+    if(obj.act==='npc:vendor' && typeof isPlaceOpen==='function' && !isPlaceOpen('npc:vendor').open) continue; /* v2.3.102 (PDF #8-6): budka Frankiego bez highlight/prompt/[E] po godzinach — Frankiego wtedy nie ma */
     if(!obj.act) continue; // pomiń dekoracyjne (lampy, krzewy, kosz)
     const isParkObj=['fountain','pond','skate','bboying','freestyle_spot','apt2_fountain'].includes(obj.id);
     const isDecorOnly=!obj.act || obj.id.startsWith('park_lamp')||obj.id.startsWith('park_bush')||obj.id==='park_trash';
@@ -15255,7 +15255,7 @@ function getNear(){
     if(isBuilding) continue; // już sprawdzone
     const dx=px-(obj.wx+obj.w/2);
     const dy=py-(obj.wy+obj.h/2);
-    // Per-object actRadius (np. Zbyszek przy budce kebabu = 140 zeby zlapac z chodnika)
+    // Per-object actRadius (np. Frankie przy budce kebabu = 140 zeby zlapac z chodnika)
     const r=obj.actRadius||90;
     if(Math.hypot(dx,dy)<r) return obj.id;
   }
@@ -15339,11 +15339,11 @@ const PLACE_HOURS={
   // Studio/merch — pełnowymiarowy "internet" 24h (tworzenie)
   'goto:studio':     {o:0,  c:24, name:'Studio'},
   'goto:merch_studio':{o:0, c:24, name:'Studio Merch'},
-  // D5 (PDF v2.3.45): Kebab Kingpin — Zbyszek pracuje 10:00-22:00 (wcześniej był 24/7).
+  // D5 (PDF v2.3.45): Kebab Kingpin — Frankie pracuje 10:00-22:00 (wcześniej był 24/7).
   'npc:vendor':      {o:9, c:24, name:'Kebab Kingpin'}, /* v2.3.83 (user): 09:00–00:00 (było 10–22) */
 };
 // Shifty jedzeniowe — co najmniej JEDNO miejsce zawsze otwarte (sklep spożywczy 24/7).
-// Pozostałe: pizzeria 11-24, restauracja 12-24, targ 7-15, Zbyszek 24/7 (NPC) — pokrywają cały dzień.
+// Pozostałe: pizzeria 11-24, restauracja 12-24, targ 7-15, Frankie 24/7 (NPC) — pokrywają cały dzień.
 function isPlaceOpen(act){
   const key=act.split(':').slice(0,2).join(':');
   const h=PLACE_HOURS[key];
@@ -15931,8 +15931,8 @@ function handleAct(act,objId){
   } else if(act.startsWith('job:')){
     openJobOverlay(act.slice(4));
   } else if(act.startsWith('npc:')){
-    /* D5 (PDF v2.3.45): Kebab Kingpin — Zbyszek pracuje 10:00-22:00; poza godzinami budka zamknięta. */
-    if(act==='npc:vendor'){ const _ko=isPlaceOpen('npc:vendor'); if(!_ko.open){ showMsg(`🌯 ${_ko.name} zamknięte — Zbyszek pracuje ${_ko.opensAt}–${_ko.closesAt}`,'r'); return; } }
+    /* D5 (PDF v2.3.45): Kebab Kingpin — Frankie pracuje 10:00-22:00; poza godzinami budka zamknięta. */
+    if(act==='npc:vendor'){ const _ko=isPlaceOpen('npc:vendor'); if(!_ko.open){ showMsg(`🌯 ${_ko.name} zamknięte — Frankie pracuje ${_ko.opensAt}–${_ko.closesAt}`,'r'); return; } }
     openNPCDialogue(act.slice(4));
   } else if(act==='casino:enter' || act==='enter_casino'){
     /* v2.1.701 (user: kasyno NIE jest powiązane z karierą rapera — nie trzeba być raperem żeby wejść).
@@ -17987,7 +17987,7 @@ function changeRoom(id,wx,wy){
     /* v2.1.123: Wave 3 K33 — addFame Prestige aware */
     if(typeof addFame==='function') addFame(2); else G.fame=Math.min(500,(G.fame||0)+2);
     if(typeof addXP==='function') addXP(5);
-    if(typeof addNotif==='function') addNotif(`🗺️ Nowe miejsce odkryte: ${({mieszkanie:'Twój dom',ulica:'Ulica miasta',studio:'Studio nagrań',silownia:'Siłownia',sala:'Sala koncertowa',casino:'Kasyno',mediamarkt:'VoltHouse',muzyczny:'Sklep muzyczny',ubrania:'Drip District',fryzjer:'Fryzjer',restauracja:'Restauracja',kebab:'Kebab Zbyszka',hospital:'Szpital'})[id]||id}! +2 sławy, +5 XP`);
+    if(typeof addNotif==='function') addNotif(`🗺️ Nowe miejsce odkryte: ${({mieszkanie:'Twój dom',ulica:'Ulica miasta',studio:'Studio nagrań',silownia:'Siłownia',sala:'Sala koncertowa',casino:'Kasyno',mediamarkt:'VoltHouse',muzyczny:'Sklep muzyczny',ubrania:'Drip District',fryzjer:'Fryzjer',restauracja:'Restauracja',kebab:'Kebab Frankiego',hospital:'Szpital'})[id]||id}! +2 sławy, +5 XP`);
     if(ROOM_TIPS[id]) setTimeout(()=>showMsg(ROOM_TIPS[id]),600);
   }
   // CINEMATIC SIŁOWNI #1 — pierwsze wejście (NIE auto-close, wymusza klik gracza)
@@ -29976,7 +29976,7 @@ const NPC_DATA = {
     ],
   },
   vendor: {
-    name:'🌮 Sprzedawca uliczny — Zbyszek',
+    name:'🌮 Sprzedawca uliczny — Frankie',
     lines:[
       'Yo! Mam tutaj coś pysznego i tanio!',
       'Najlepsze jedzenie na ulicy, prosto z garnka!',
@@ -29984,21 +29984,21 @@ const NPC_DATA = {
     ],
     opts:[
       // Po zakupie okno NIE zamyka się — gracz może kupić kolejne rzeczy. Tylko "Wyjdź" zamyka.
-      // BALANS #20: Zbyszek = ulica = tani ale daje mniej + drobna kara HP
-      // (porównaj: Energetyk sklepowy 22 zł +50 energia -2 HP — Zbyszek powinien być GORSZY za niższą cenę)
+      // BALANS #20: Frankie = ulica = tani ale daje mniej + drobna kara HP
+      // (porównaj: Energetyk sklepowy 22 zł +50 energia -2 HP — Frankie powinien być GORSZY za niższą cenę)
       {text:'Kup kebab (10 zł, +35 najedzenia, +3 energia, -1 HP)', fn:()=>{
-        // v1.8.97: Przyjaźń ze Zbyszkiem — zniżki proporcjonalne do poziomu przyjaźni
+        // v1.8.97: Przyjaźń ze Frankiem — zniżki proporcjonalne do poziomu przyjaźni
         const _zFM=typeof getFriendshipBonus==='function'?getFriendshipBonus('zbyszek'):1;
         const _kebabPrice=Math.max(5,Math.floor(10/_zFM));
         if(G.money<_kebabPrice){showMsg('Za mało pieniędzy!','r');return;}
         /* v2.1.600: modal śmierci (-1 HP) jeśli zabije; potem gate przejedzenia. Pieniądze pobrane PO confirm */
-        window._healthGate(1, 'Kebab Zbyszka', ()=>{
-        window._eatWithGate(35, 'Kebab Zbyszka', ()=>{
+        window._healthGate(1, 'Kebab Frankiego', ()=>{
+        window._eatWithGate(35, 'Kebab Frankiego', ()=>{
           G.money-=_kebabPrice;G.hunger=eatFood(35);G.energy=clampStat('energy', G.energy+3);G.health=clampStat('health', G.health-1);
-          // v1.8.26: licznik kebabów dla side questu "Stały klient" (Zbyszek 10 kebabów)
+          // v1.8.26: licznik kebabów dla side questu "Stały klient" (Frankie 10 kebabów)
           G._kebabBought=(G._kebabBought||0)+1;
           if(typeof addFriendship==='function')addFriendship('zbyszek',1);
-          progressQuest('eat');notify('🌮 Kebab Zbyszka! +35 najedzenia, +3 energia, -1 HP'+(_zFM>1?' ('+_kebabPrice+' zł — zniżka przyjaźni)':''));updateHUD();openNPCDialogue('vendor');
+          progressQuest('eat');notify('🌮 Kebab Frankiego! +35 najedzenia, +3 energia, -1 HP'+(_zFM>1?' ('+_kebabPrice+' zł — zniżka przyjaźni)':''));updateHUD();openNPCDialogue('vendor');
         });
         });
       }},
@@ -30007,21 +30007,21 @@ const NPC_DATA = {
         const _soupPrice=Math.max(4,Math.floor(8/_zFM));
         if(G.money<_soupPrice){showMsg('Za mało pieniędzy!','r');return;}
         /* v2.1.322: _eatWithGate przed zakupem */
-        window._eatWithGate(30, 'Zupa Zbyszka', ()=>{
+        window._eatWithGate(30, 'Zupa Frankiego', ()=>{
           G.money-=_soupPrice;G.hunger=eatFood(30);G.stress=clamp(G.stress+5,0,100);
-          G._kebabBought=(G._kebabBought||0)+1; // v1.8.47: każdy zakup u Zbyszka liczy się do side questu "Stały klient"
+          G._kebabBought=(G._kebabBought||0)+1; // v1.8.47: każdy zakup u Frankiego liczy się do side questu "Stały klient"
           if(typeof addFriendship==='function')addFriendship('zbyszek',1);
-          progressQuest('eat');notify('🍲 Zupa Zbyszka! +30 najedzenia, +5 nastrój'+(_zFM>1?' ('+_soupPrice+' zł — zniżka przyjaźni)':''));updateHUD();openNPCDialogue('vendor');
+          progressQuest('eat');notify('🍲 Zupa Frankiego! +30 najedzenia, +5 nastrój'+(_zFM>1?' ('+_soupPrice+' zł — zniżka przyjaźni)':''));updateHUD();openNPCDialogue('vendor');
         });
       }},
-      /* v2.1.228 audit-fix #53: Energetyk u Zbyszka miał inne wartości niż sklepowy (22 zł +50/-2/-5 vs 8 zł +20/-1/0). User: "inne wartości" = mylące. Teraz: ten sam energetyk, tylko taniej u Zbyszka (8 vs 22 zł). */
+      /* v2.1.228 audit-fix #53: Energetyk u Frankiego miał inne wartości niż sklepowy (22 zł +50/-2/-5 vs 8 zł +20/-1/0). User: "inne wartości" = mylące. Teraz: ten sam energetyk, tylko taniej u Frankiego (8 vs 22 zł). */
       {text:'Kup energetyk (10 zł, +50 energia, -2 HP, -5 stres)', fn:()=>{
         const _zFM=typeof getFriendshipBonus==='function'?getFriendshipBonus('zbyszek'):1;
         const _enerPrice=Math.max(5,Math.floor(10/_zFM));
         if(G.money<_enerPrice){showMsg('Za mało pieniędzy!','r');return;}
         window._healthGate(2,'Energetyk',()=>{
         G.money-=_enerPrice;G.energy=clampStat('energy', G.energy+50);G.health=clampStat('health', G.health-2);G.stress=clamp(G.stress-5,0,100);
-        G._kebabBought=(G._kebabBought||0)+1; // v1.8.47: każdy zakup u Zbyszka liczy się do side questu
+        G._kebabBought=(G._kebabBought||0)+1; // v1.8.47: każdy zakup u Frankiego liczy się do side questu
         if(typeof addFriendship==='function')addFriendship('zbyszek',1);
         notify('⚡ Energetyk! +50 energia, -2 HP, -5 stres'+(_zFM>1?' ('+_enerPrice+' zł — zniżka przyjaźni)':''));updateHUD();openNPCDialogue('vendor');
         });
@@ -30043,13 +30043,13 @@ const NPC_DATA = {
               emoji:'🌮',
               title:'TWÓJ PIERWSZY BIZNES',
               subtitle:'Budka kebab Royal',
-              tagline:'Pasywny dochód płynie. Zbyszek zostaje wspólnikiem.',
+              tagline:'Pasywny dochód płynie. Frankie zostaje wspólnikiem.',
               accentColor:'#f1c40f',accent2:'#e67e22',duration:5500
             });
           }
         };
         if(typeof gameConfirm==='function'){
-          gameConfirm('Kupić budkę kebab od Zbyszka za 18 000 zł?\n\nDochód: losowo 200-600 zł/dzień (przelew rano).\nROI: ~45 dni.', _buy);
+          gameConfirm('Kupić budkę kebab od Frankiego za 18 000 zł?\n\nDochód: losowo 200-600 zł/dzień (przelew rano).\nROI: ~45 dni.', _buy);
         } else {
           _buy();
         }
@@ -30066,7 +30066,7 @@ const NPC_DATA = {
             emoji:'🌮',
             title:'TWÓJ PIERWSZY BIZNES',
             subtitle:'Budka kebab Royal',
-            tagline:'Zbyszek pracuje · Ty bierzesz zysk · losowo 200-600 zł / dzień',
+            tagline:'Frankie pracuje · Ty bierzesz zysk · losowo 200-600 zł / dzień',
             accentColor:'#f39c12',
             accent2:'#e67e22',
             duration:4500,
@@ -30076,7 +30076,7 @@ const NPC_DATA = {
             }
           });
         } else {
-          showMsg('🌮 Zbyszek zostaje jako menadżer — będzie sprzedawał, a Ty bierzesz zysk!','g',6000);
+          showMsg('🌮 Frankie zostaje jako menadżer — będzie sprzedawał, a Ty bierzesz zysk!','g',6000);
         }
       }},
       /* v2.1.228 audit-fix #62: Side quest button — gdy ukończony, pokaż "(już odebrane — nagroda XYZ)" zamiast clickable button.
@@ -30103,17 +30103,17 @@ const NPC_DATA = {
             if(q.reward.money) earn(q.reward.money,false);
             if(q.reward.stress) G.stress=clamp(G.stress+q.reward.stress,0,100);
             G._sideQuestsCompleted=(G._sideQuestsCompleted||0)+1;
-            showMsg(`📋 ${q.name} — wykonane! Zbyszek dorzucił Ci +${q.reward.money} zł od stałego klienta.`,'g',5000);
+            showMsg(`📋 ${q.name} — wykonane! Frankie dorzucił Ci +${q.reward.money} zł od stałego klienta.`,'g',5000);
           } else {
-            notify(`📋 ${q.desc}: ${p}/${q.target}. Kupuj kebaby/zupy/energetyki u Zbyszka aż zbierzesz 10.`);
+            notify(`📋 ${q.desc}: ${p}/${q.target}. Kupuj kebaby/zupy/energetyki u Frankiego aż zbierzesz 10.`);
           }
           closeNPCDlg();
         }
       },
       /* v2.1.870 (PDF): tajne suplementy — wymaga przyjaźni 25+, dostępność „raz na jakiś czas".
-         v2.1.938 (Vegan „zniknęła kompletnie opcja"): opcja ZAWSZE widoczna (grey-lock przy <25 zażyłości — jak apki telefonu), nie znika. Pokazuje wymóg + jak go spełnić (bywaj/kupuj u Zbyszka → addFriendship +1). */
-      {text:()=>{const f=G.npcFriendship?.zbyszek||0; return f<25?`🔒 Tajne suplementy — Zbyszek Ci nie ufa (zażyłość ${f}/25)`:(_zbyszekSuppsAvailable()?'💊 „Mam coś ekstra…" — tajne suplementy':'💊 Tajne suplementy — dziś brak towaru (wpadnij innego dnia)');},
-       fn:()=>{ const f=G.npcFriendship?.zbyszek||0; if(f<25){ if(typeof notify==='function')notify(`💊 Zbyszek: „Jeszcze Cię słabo znam (zażyłość ${f}/25). Bywaj częściej, kupuj u mnie kebaby/zupy — jak nabierzemy zaufania, pokażę Ci coś ekstra."`); return; } if(!_zbyszekSuppsAvailable()){ if(typeof notify==='function')notify('💊 Zbyszek: Dziś nie mam towaru. Wpadnij innego dnia — czasem mam, czasem nie.'); return; } closeNPCDlg(); window._openZbyszekSupps(); }},
+         v2.1.938 (Vegan „zniknęła kompletnie opcja"): opcja ZAWSZE widoczna (grey-lock przy <25 zażyłości — jak apki telefonu), nie znika. Pokazuje wymóg + jak go spełnić (bywaj/kupuj u Frankiego → addFriendship +1). */
+      {text:()=>{const f=G.npcFriendship?.zbyszek||0; return f<25?`🔒 Tajne suplementy — Frankie Ci nie ufa (zażyłość ${f}/25)`:(_zbyszekSuppsAvailable()?'💊 „Mam coś ekstra…" — tajne suplementy':'💊 Tajne suplementy — dziś brak towaru (wpadnij innego dnia)');},
+       fn:()=>{ const f=G.npcFriendship?.zbyszek||0; if(f<25){ if(typeof notify==='function')notify(`💊 Frankie: „Jeszcze Cię słabo znam (zażyłość ${f}/25). Bywaj częściej, kupuj u mnie kebaby/zupy — jak nabierzemy zaufania, pokażę Ci coś ekstra."`); return; } if(!_zbyszekSuppsAvailable()){ if(typeof notify==='function')notify('💊 Frankie: Dziś nie mam towaru. Wpadnij innego dnia — czasem mam, czasem nie.'); return; } closeNPCDlg(); window._openFrankieSupps(); }},
       {text:'Wyjdź', fn:closeNPCDlg},
     ]
   },
@@ -71442,18 +71442,26 @@ function _startConstructionGame(){
         const diff=Math.abs(beamY-beamTarget);
         /* v2.3.131 (PDF Uspr v2.3.130 U27): 6 belek zamiast 3 — punkty skalowane w proporcji 3/6,
            żeby pełne zlecenie płaciło tę samą kwotę co przed zmianą. */
+        /* ═══ PDF 20.08 U2 — OCENA UŁOŻENIA BELKI ZNÓW DZIAŁA ═════════════════════
+           Zgłoszenie usera: „belki … nie pokazują już oznaczenia ›Idealnie‹ … teraz pokazuje się
+           wyłącznie status ›Ujdzie +6pkt‹ nawet wtedy, gdy gracz układa je w sposób idealny”.
+           PRZYCZYNA: przy przejściu z 3 na 6 belek punkty zostały połowione (ptsRaw*0.5), ale progi
+           etykiet i efektów dalej porównywały wartość PO połowieniu z 20 i 12 — więc żaden warunek nie
+           był już spełniony i każda belka dostawała najniższy komunikat. Teraz ocena liczy się z
+           dokładności ułożenia (ptsRaw), a komunikat pokazuje LICZBĘ REALNIE PRZYZNANĄ. */
         const ptsRaw=diff<15?20:diff<30?12:6; const pts=ptsRaw*0.5; totalScore+=pts;beamPlaced++;taskDone++;beamSuccessFlash=30;
         addFloor(ptsRaw);
         // Iskry przy spawaniu belki — dużo dla idealnego, mniej dla dobrego
-        const bxC=W/2;emitSparks(bxC-80,beamY+11,pts>=20?20:12,'#ffe066');
-        emitSparks(bxC+80,beamY+11,pts>=20?20:12,'#ffe066');
-        if(pts>=20)emitSparks(bxC,beamY+11,15,'#fff');
+        const bxC=W/2;emitSparks(bxC-80,beamY+11,ptsRaw>=20?20:12,'#ffe066');
+        emitSparks(bxC+80,beamY+11,ptsRaw>=20?20:12,'#ffe066');
+        if(ptsRaw>=20)emitSparks(bxC,beamY+11,15,'#fff');
         sfxSparks();sfxMetal();
-        if(pts>=20)setTimeout(()=>sfxSparkle(),200);
+        if(ptsRaw>=20)setTimeout(()=>sfxSparkle(),200);
         beamY=270;
         const undoBtn=document.getElementById('con-undo');if(undoBtn)undoBtn.style.display='';
         const res=document.getElementById('con-result');
-        if(res){res.style.color=pts>=20?'#f1c40f':pts>=12?'#27ae60':'#f39c12';res.textContent=pts>=20?'⚡ Idealnie! +20pkt':pts>=12?'✅ Dobra! +12pkt':'👷 Ujdzie +6pkt';}
+        if(res){res.style.color=ptsRaw>=20?'#f1c40f':ptsRaw>=12?'#27ae60':'#f39c12';
+          res.textContent=(ptsRaw>=20?'⚡ Idealnie! +':ptsRaw>=12?'✅ Dobra! +':'👷 Ujdzie +')+pts+'pkt';}
         updateProgress();
         if(taskDone>=task.total){over=true;cancelAnimationFrame(raf);_finConstruction();}
       }
@@ -82005,13 +82013,13 @@ const GAME_MECHANICS=[
   {id:'energy', em:'⚡', name:'Energia', color:'#f39c12',
    short:'Siła do działania — odpoczywaj!',
    desc:'Energia jest potrzebna do każdej akcji — praca, koncert, sport, nagrania. Większe akcje wymagają więcej energii. Gdy energia spadnie do zera, zaczynasz tracić zdrowie.',
-   how:['• Sen w swoim mieszkaniu (najwięcej energii)','• Jedzenie w restauracji lub u Zbyszka','• Kawa, napoje energetyczne'],
+   how:['• Sen w swoim mieszkaniu (najwięcej energii)','• Jedzenie w restauracji lub u Frankiego','• Kawa, napoje energetyczne'],
    unlocks:['• Energia 0 → tracisz zdrowie','• Większość akcji wymaga min. 10-30 energii (przy braku — akcja zablokowana)','• Maks 100. Dodatkowo +10 gdy forma 100, +10 gdy kondycja 100 (maks teoretyczny 120)'],
   },
   {id:'hunger', em:'🍔', name:'Najedzenie', color:'#e67e22', itut:'food',
    short:'Musisz jeść — inaczej osłabniesz.',
    desc:'Najedzenie powoli spada wraz z upływem czasu. Gdy dojdzie do zera, tracisz zdrowie. Jedz regularnie żeby utrzymać dobrą kondycję.',
-   how:['• Restauracja (eleganckie posiłki)','• U Zbyszka (kebab, szybkie jedzenie)','• Sklep spożywczy + targ (zakupy)','• Pizzeria, bary i fast food'],
+   how:['• Restauracja (eleganckie posiłki)','• U Frankiego (kebab, szybkie jedzenie)','• Sklep spożywczy + targ (zakupy)','• Pizzeria, bary i fast food'],
    unlocks:['• Najedzenie 0 → tracisz zdrowie','• Maks 100. Dodatkowo +10 gdy forma 100, +10 gdy kondycja 100 (maks teoretyczny 120)','• Uważaj na przejedzenie!'],
   },
   {id:'overeat', em:'🍕', name:'Przejedzenie', color:'#c0392b',
@@ -82386,7 +82394,7 @@ const SMS_CONTACTS={
   marcin:    {name:'Marcin (Organizator)',    em:'🎤', color:'#9b59b6', physical:true},
   producent: {name:'Majkel (Producent)',       em:'🎚️', color:'#e67e22', physical:true}, /* PDF Producent: konkretny NPC (Majkel istnieje jako fizyczny producent w Studio) zamiast bezosobowego „Producent" */
   kamil:     {name:'Kamil (Stary kumpel)',    em:'👊', color:'#27ae60', physical:false},
-  zbyszek:   {name:'Zbyszek (Kebab)',          em:'🌮', color:'#f1c40f', physical:true},
+  zbyszek:   {name:'Frankie (Kebab)',          em:'🌮', color:'#f1c40f', physical:true},
   /* v2.1.228 audit-fix #46: Manager BYL physical:false ale istnieje fizyczny NPC `npc_manager` na chodniku H1 south (wx:1950, wy:596, przed Szpitalem) — gracz tam podpisuje kontrakt menadżerski. SMS "Czekam pod salą koncertową" było spójne, ale UI błędnie pokazywało "Kontakt tylko przez telefon". */
   manager:   {name:'Menadżer (Kamil)',         em:'🤵', color:'#c8a520', physical:true},
   label:     {name:'Label A&R',                em:'🏢', color:'#bdc3c7', physical:false},
@@ -83721,7 +83729,7 @@ window._smsCheckTriggers=function(){
   const concerts=G.events?.performed||0;
   // — Onboarding: pierwsza wypłata
   if(G.totalEarned>=100) _smsTriggerOnce('first_money','kamil','siema kolego! widziałem ze juz zarabiasz. nie zapomnij ze mam zlecenia jak bedziesz potrzebowal kasy 💰',{replySet:'kamil_first_income'});
-  if(G.totalEarned>=1000 && (typeof isPlaceOpen!=='function'||isPlaceOpen('npc:vendor').open)) _smsTriggerOnce('1k_earned','zbyszek',`Hej ${G.name||'kolego'}, jak idzie biznes? Wpadnij na kebaba, mam dla Ciebie zniżkę 🌮`,{replySet:'zbyszek_first_thousand_discount'}); /* v2.3.102 (PDF #8): Zbyszek pisze tylko w godzinach pracy budki */
+  if(G.totalEarned>=1000 && (typeof isPlaceOpen!=='function'||isPlaceOpen('npc:vendor').open)) _smsTriggerOnce('1k_earned','zbyszek',`Hej ${G.name||'kolego'}, jak idzie biznes? Wpadnij na kebaba, mam dla Ciebie zniżkę 🌮`,{replySet:'zbyszek_first_thousand_discount'}); /* v2.3.102 (PDF #8): Frankie pisze tylko w godzinach pracy budki */
   // — Pierwszy freestyle
   /* v2.1.336 Faza K (user 2026-05-27 "'ostro spaliłeś' brzmi jak coś negatywnego"): zamiana na pozytywny slang. */
   if(freestyles>=1) _smsTriggerOnce('first_freestyle','kamil','widzialem ten freestyle na ulicy 🔥 zajechałeś ostro! tak trzymaj',{replySet:'freestyle'});
@@ -85010,7 +85018,7 @@ window._WIKTOR_REPLIES={
   wiktor_drip_80_o1:{set:'wiktor_drip_80', label:'Różowa kurtka zostaje poza tą sesją', text:'Spokojnie, różowa kurtka dziś odpoczywa. Nie musimy testować tolerancji całego miasta naraz', fx:{"wiktorHumor":1,"wiktorRelationship":1,"dripConsistency":1}, reply:'Dziękuję. Moje manekiny właśnie odetchnęły z ulgą Wpadnij, bo mam tu coś, co utrzyma poziom bez wywoływania alarmu. Potestujesz'},
   wiktor_drip_80_o2:{set:'wiktor_drip_80', label:'Jak ją dobrze ogarnę, jeszcze przeprosisz', text:'Jak dobrze zbuduję outfit wokół tej śmiesznej różowej kurtki, jeszcze będziesz ją stawiał na środku sklepu', fx:{"fashionConfidence":1,"authenticity":1,"wiktorRespect":1}, reply:'Lubię pewność siebie. Jeśli dowieziesz bez wyglądania jak marker, przyznam Ci rację publicznie'},
   wiktor_drip_80_o3:{set:'wiktor_drip_80', label:'Co byś jeszcze zmienił w moim looku?', text:'Drip 80 brzmi dobrze, no ale co dalej? Co najbardziej odstaje: kolory, warstwy, buty czy spójność?', fx:{"dripAwareness":2,"visualIdentity":1,"wiktorTrust":1}, action:'showDripAudit', reply:'Najbardziej spójność między sceną a miastem. Masz dobre elementy, tylko czasem wyglądają jak trzy różne pomysły naraz. Warto to dopracować'},
-  wiktor_drip_80_o4:{set:'wiktor_drip_80', label:'Okładka magazynu? Najpierw okładka singla 11. Zbyszek (Kebab) senderId: zbyszek • liczba nowych reply-setów: 2', text:'Magazyn może poczekać. Najpierw chcę zrobić outfit, który udźwignie okładkę następnego singla.', fx:{"careerFocus":1,"visualIdentity":2,"wiktorRelationship":1}, action:'createSingleCoverOutfitLead', reply:'No i to jest konkret. Dobierzemy coś pod kolorystykę i klimat numeru, a nie pod przypadkowy trend. U nas tak się pogrywa, dobrze wiesz'},
+  wiktor_drip_80_o4:{set:'wiktor_drip_80', label:'Okładka magazynu? Najpierw okładka singla', text:'Magazyn może poczekać. Najpierw chcę zrobić outfit, który udźwignie okładkę następnego singla.', fx:{"careerFocus":1,"visualIdentity":2,"wiktorRelationship":1}, action:'createSingleCoverOutfitLead', reply:'No i to jest konkret. Dobierzemy coś pod kolorystykę i klimat numeru, a nie pod przypadkowy trend. U nas tak się pogrywa, dobrze wiesz'},
 };
 window._ZBYSZEK_REPLIES={
   /* ── v2.3.122 (PDF „Moduł dedykowanych reply-setów SMS") — dedykowane odpowiedzi ── */
@@ -85427,7 +85435,7 @@ window._smsRichReply=function(contactId,replyId){
   if(contactId==='nolan' && typeof window._marinaHandleReply==='function') window._marinaHandleReply(opt);
   /* v2.3.122 (PDF „Moduł dedykowanych reply-setów SMS", §13.3): KAŻDA odpowiedź ma osobną reakcję nadawcy.
      Nadawcy z własnym handlerem (Marcin, menadżer, producent, sponsor, ekipa, kapitan) wysyłają ją sami,
-     Kamil ma linijkę wyżej. Pozostali (fan, wytwórnia, Wiktor, Zbyszek) nie mieli takiej ścieżki i reakcja
+     Kamil ma linijkę wyżej. Pozostali (fan, wytwórnia, Wiktor, Frankie) nie mieli takiej ścieżki i reakcja
      przepadała — tu jest wspólne domknięcie dla wszystkich pozostałych kontaktów. */
   /* PDF „Maya Voss” §6: reakcja Mayi jest OPӏNIONA o 60 s aktywnej gry — wysyła ją moduł, nie wspólny fallback. */
   /* PDF „Korespondencja … Eve Rook" §3/§4: reakcja Eve zależy od KUPIONEGO lokalu i nie zawsze
@@ -85874,7 +85882,7 @@ window.renderPhoneFriendships=function(){
     {id:'wiktor',em:'💼',name:'Wiktor',role:'Zleceniodawca',loc:'Chodnik H1 north — przy Traphouse (NW)',bonus:'-5% ceny w Drip District (przy 50+ przyjaźń)'},
     {id:'producent',em:'🎼',name:'Producent (Majkel)',role:'Wytwórnia muzyczna',loc:'Chodnik H1 north — po prawej Studia',bonus:'Lepsze tantiemy z tracków'},
     {id:'manager',em:'🤵',name:'Kamil (Menadżer)',role:'Menadżer kariery',loc:'Chodnik H1 south — przed Szpitalem',bonus:'×1.2 do wszystkich zarobków po podpisaniu managementu'},
-    {id:'zbyszek',em:'🌮',name:'Zbyszek',role:'Sprzedawca uliczny',loc:'Centrum — Kebab Kingpin',bonus:'Zniżki na kebab/zupę/energetyk (kup = +1 przyjaźń)'},
+    {id:'zbyszek',em:'🌮',name:'Frankie',role:'Sprzedawca uliczny',loc:'Centrum — Kebab Kingpin',bonus:'Zniżki na kebab/zupę/energetyk (kup = +1 przyjaźń)'},
     {id:'crew',em:'🎧',name:'Crew (DJ/Grafik/Hype)',role:'Ekipa muzyczna',loc:'Chodnik H2 north — środek dolny',bonus:'+15% zarobki koncertów (×Marcin)'},
     /* v2.1.228 audit-fix #48: Marcin był przeniesiony w v2.1.66 z H3 north → H1 south (obok Sali Koncertowej, wx:2920, wy:596) — opis w NPC list nie zaktualizowano. */
     {id:'marcin',em:'🎤',name:'Marcin',role:'Organizator koncertów',loc:'Chodnik H1 south — obok Sali Koncertowej',bonus:'+15% zarobki z koncertów (kombinuje z Crew, cap 2×)'},
@@ -85939,7 +85947,7 @@ window.renderPhoneNPCMap=function(highlightId){
     {id:'wiktor',   em:'💼',name:'Wiktor',         wx:317, wy:336, desc:'Chodnik H1 north — wschód od Traphouse'},
     {id:'producent',em:'🎼',name:'Majkel',         wx:1867,wy:336, desc:'Chodnik H1 north — po prawej Studia'},
     {id:'manager',  em:'🤵',name:'Kamil (Menadżer)',wx:1950,wy:596,desc:'Chodnik H1 south — przed Szpitalem'},
-    {id:'zbyszek',  em:'🌮',name:'Zbyszek',        wx:1545,wy:748, desc:'Centrum — Kebab Kingpin'},
+    {id:'zbyszek',  em:'🌮',name:'Frankie',        wx:1545,wy:748, desc:'Centrum — Kebab Kingpin'},
     {id:'crew',     em:'🎧',name:'Crew',           wx:2499,wy:1781,desc:'Chodnik H2 north — wschód od V2 (centrum miasta)'}, /* v2.1.202 [Amper]: sync z ROOMS.ulica.objects npc_crew (2400,1860)→(2499,1781) */
     {id:'marcin',   em:'🎤',name:'Marcin',         wx:2937,wy:624, desc:'Chodnik H1 south — obok Sali Koncertowej'},
     {id:'fan',      em:'🎤',name:'Fan',            wx:1217,wy:3120,desc:'Chodnik H3 south — fan przy Drip District'},
@@ -86496,7 +86504,7 @@ function renderPhonePassive(){
   const RENTAL_RATES = {traphouse:35, basic:112, premium:280, luxury:700, duplex:1680, mansion:4200, mega_villa:8400}; /* v2.1.724: SYNC z faktyczną wypłatą nextPeriod() _rates. v2.1.856 (rebalans Vegan): wynajem ×1.4 (duplex1200→1680/mansion3000→4200/mega_villa6000→8400). */
   const rentalsActive = Object.entries(G.rentals||{}).filter(([k,v])=>v===true);
   const rentalsDaily = rentalsActive.reduce((sum,[k])=>sum+(RENTAL_RATES[k]||0),0);
-  /* Kebab budka (Zbyszek) — losowo 200-600 zł/dzień jeśli kupiona (v2.1.943); panel pokazuje średnią (~400). */
+  /* Kebab budka (Frankie) — losowo 200-600 zł/dzień jeśli kupiona (v2.1.943); panel pokazuje średnią (~400). */
   const kebabDaily = G.kebabStand?.owned?400:0; /* v2.1.546 FIX (regula #7): realny stan to G.kebabStand.owned. v2.1.943: dochód losowy 200-600 → panel pokazuje średnią 400 (realna wypłata rnd w ticku). */
   /* Sponsor Inbox active deals */
   const _spDeals = (G.activeSponsors||[]);
@@ -86584,7 +86592,7 @@ function renderPhonePassive(){
         ${bankActive>0?_row('🏦','Lokaty bankowe',null,bankDaily,`${bankActive} aktywnych`):''}
         ${rentalsActive.length>0?_row('🏠','Wynajem mieszkań',null,rentalsDaily,`${rentalsActive.length} mieszkań`):''}
         ${studioRental>0?_row('🎚️','Wynajem studia',null,studioRental,'godziny rezerwowane'):''}
-        ${kebabDaily>0?_row('🌯','Budka kebab',null,kebabDaily,'Wspólnik Zbyszek · losowo 200-600 zł'):''}
+        ${kebabDaily>0?_row('🌯','Budka kebab',null,kebabDaily,'Wspólnik Frankie · losowo 200-600 zł'):''}
         ${sponsorDaily>0?_row('💼','Sponsorzy',null,sponsorDaily,`${_spDeals.length} aktywne kontrakty`):''}
         ${(merchTick+bankDaily+rentalsDaily+kebabDaily+sponsorDaily+studioRental)===0?`<div style="color:#99a;font-size:12px;font-style:italic;padding:6px 10px">Brak — projektuj merch, inwestuj w banku, wynajmuj mieszkania, kup budkę kebab.</div>`:''}
       </div>
@@ -88192,7 +88200,7 @@ window.doPrestige=()=>{
   G._dialogProgress={};
   /* v2.1.123: Wave 8 W80 — storyline _startDay marker (wymóg 2 dni delay przed quest checks żeby gracz nie zaliczał automaticznie z persisted fans/followers). */
   /* v2.1.100: PEŁNY persist reset — Wave 1+5+7+8 znalazły 12 obiektów które persistowały. */
-  /* G.npcFriendship — friendship Wiktora/Zbyszka/Kamila/Marcina/Producenta resetuje się żeby gracz zaczynał od zera */
+  /* G.npcFriendship — friendship Wiktora/Frankiego/Kamila/Marcina/Producenta resetuje się żeby gracz zaczynał od zera */
   if(G.npcFriendship) G.npcFriendship={};
   /* G.dailyQuest — Wave 6 K53: persist quest metadata z poprzedniego playthrough = ghost */
   G.dailyQuest=null;
@@ -89169,7 +89177,7 @@ window.openCinematicFlythrough=(scenario)=>{
   window._cinemCam={active:true,targetX:cam.x,targetY:cam.y,highlight:null,targetZoom:1.0,hlOpacity:0,hlPhase:0,lerpMul:1};
   cam.zoom=1.0;
   /* v1.9.99: POPRAWNE pozycje (verified z ROOMS.ulica.objects):
-     - Zbyszek (kebab): npc_vendor wx:1528 wy:720 → centrum 1545,748 (BYŁO 1180,752 = Studio Merch!)
+     - Frankie (kebab): npc_vendor wx:1528 wy:720 → centrum 1545,748 (BYŁO 1180,752 = Studio Merch!)
      - Wszystkie pozycje wybrałem na podstawie wx+w/2, wy+h/2 z ROOMS.ulica.objects
      "panSweep:true" w topic = jeden płynny przelot przez places z ciągłym zoomem (nie osobne zoomy per budynek) */
   const TOPICS=[
@@ -89192,7 +89200,7 @@ window.openCinematicFlythrough=(scenario)=>{
     },
     {
       em:'🛒', title:'JEDZENIE I PICIE',
-      desc:'Sklep Spożywczy (codzienne zakupy), Zbyszek (street food + przyjaźń), Restauracja (eleganckie posiłki), Targ (świeże produkty), Pizzeria (na wynos).',
+      desc:'Sklep Spożywczy (codzienne zakupy), Frankie (street food + przyjaźń), Restauracja (eleganckie posiłki), Targ (świeże produkty), Pizzeria (na wynos).',
       places:[
         {wx:184, wy:749, label:'SKLEP SPOŻYWCZY', zoom:1.7},
         {wx:1545, wy:748, label:'ZBYSZEK (KEBAB)', zoom:1.8}, /* FIX: 1180 → 1545 (npc_vendor) */
@@ -89834,7 +89842,7 @@ window.openIntroduction=()=>{
     {em:'💪',title:'Forma i Kondycja',body:'<b style="color:#00bcd4">💪 Forma 0-100</b> — siłownia: bench press, treadmill, cable. Forma 100 daje +10 max do zdrowia/energii/głodu. Bez treningu 3+ dni → spada 10-20%/dzień.<br><br><b>Skill Kondycja</b> (drzewko) spowalnia spadek energii (-8%/pkt, max -40%).<br><br><b>Skill Apetyt</b> spowalnia głód, <b>Odporność</b> chroni zdrowie.'},
     {em:'🎯',title:'Drzewko umiejętności + Ulepszenia + Ewolucje',body:'8 gałęzi skill tree dla rapera: Flow, Teksty, Produkcja, Realizacja, Mikser, Autopromocja, Biznes, Scena. (Kondycja jest w głównym drzewku umiejętności — to stat fizyczny.) Każda kariera ma własne drzewko.<br><br>Wydawaj <b style="color:#f1c40f">Skill Points</b> (z lvl up) na bonusy 1-5.<br><br><b>Ulepszenia (Power-Ups)</b> dodają bonusy kumulatywnie: 1. Ulepszenie = +30%, 2. = +60%, 3. = +100% (max 3 Ulepszenia per skill).<br><br><b>Ewolucje</b> — zaawansowane bonusy odblokowywane po max skill+Ulepszenia (3 evo per gałąź: Strateg / Master / Specjalista).'},
     {em:'📋',title:'Linia fabularna + Side stories',body:'<b>Główna linia</b> — milestone fanów: 100 → 250 → 500 → 1000. Po 1000 odblokowują się kolejne ścieżki (kariery, sponsorzy, label).<br><br><b>Linie boczne</b> (7): Drip, Forma, Mieszkanie, Vloger, Beatmaker, Gamer, Nielegalny Front — każda z własnymi questami i nagrodami.<br><br><b>Daily Quests</b> od Wiktora — codzienne mini-zadania (+XP, +zł).'},
-    {em:'🤝',title:'NPC i Przyjaźnie',body:'7 stałych NPC w mieście. Każdy z poziomem przyjaźni 0-100. Wyższy poziom → większy bonus do związanych mechanik (np. Zbyszek = zniżki, Marcin = +zarobki koncertów).<br><br>Buduj przez: zakupy, side quests, SMS odpowiedzi, prezenty.<br><br>Telefon → 🤝 NPC → Przyjaźnie pokazuje wszystko.'},
+    {em:'🤝',title:'NPC i Przyjaźnie',body:'7 stałych NPC w mieście. Każdy z poziomem przyjaźni 0-100. Wyższy poziom → większy bonus do związanych mechanik (np. Frankie = zniżki, Marcin = +zarobki koncertów).<br><br>Buduj przez: zakupy, side quests, SMS odpowiedzi, prezenty.<br><br>Telefon → 🤝 NPC → Przyjaźnie pokazuje wszystko.'},
     {em:'⭐',title:'Prestige (po endgame)',body:'Po osiągnięciu wysokiego poziomu + 100K+ fanów odblokujesz <b style="color:#c8a520">PRESTIGE</b>: reset poziomu, ale permanentny bonus +2% kasa (cap 20%), +3% sława per rank.<br><br>Max Prestige 10. Po każdym ranku możesz wybrać inną ścieżkę kariery i grać dalej.'},
     {em:'🚀',title:'Gotowy do startu!',body:'<b>Sterowanie:</b> WASD = ruch · E = interakcja · P = telefon · M = mapa · Esc = pauza · Ctrl+S = save<br><br><b style="color:#f1c40f">Wybierz swoją ścieżkę:</b> Pizzeria, Kurier, Carwash, Construction, Zmywak (prace dorywcze)... albo idź do Wiktora po zlecenie, do Studio na pierwszy track, albo w Galaxy żeby kupić sprzęt. Wybór należy do Ciebie. Powodzenia! 🎤<br><br><div style="background:linear-gradient(135deg,rgba(200,165,32,.2),rgba(241,196,15,.1));border:1px solid #c8a520;padding:14px;border-radius:10px;margin-top:12px;color:#f1c40f;font-weight:700;text-align:center">🎬 Po zamknięciu zobaczysz <b>PRZELOT KAMERĄ PO MIEŚCIE</b> — pokażemy Ci kluczowe lokacje z lotu ptaka.</div>'}
   ];
@@ -90177,7 +90185,7 @@ window._INTERACTIVE_TUTORIALS = {
       {room:'ulica', px:184, py:840, wx:184, wy:749, zoom:1.5, r:260, title:'🍔 Jedzenie — podstawy', body:'Pasek głodu (🍔) spada z czasem. Gdy dojdzie do zera — tracisz zdrowie. Pokażę Ci na mapie, gdzie i jak zdobyć jedzenie.'},
       {room:'ulica', px:184, py:840, wx:184, wy:749, zoom:1.75, r:200, title:'🛒 Sklep Spożywczy', body:'Podejdź do Sklepu Spożywczego i naciśnij [E], by wejść. Kupujesz tu jedzenie na zapas — trafia do lodówki w Twoim domu.'},
       {room:'mieszkanie', px:600, py:270, wx:630, wy:175, zoom:1.5, r:140, title:'🧊 Lodówka w domu', body:'W swoim mieszkaniu (Traphouse) masz lodówkę. Podejdź [E] i zjedz — to napełnia pasek głodu. Trzymaj go wysoko, by zachować zdrowie i energię!'},
-      {room:'ulica', px:1545, py:820, wx:1528, wy:720, zoom:1.75, r:210, title:'🌯 Jedzenie na mieście', body:'Nie masz zapasów? Zjedz od ręki na mieście: Zbyszek (kebab), Restauracja, Pizzeria, Targ. Szybciej, choć zwykle drożej niż ze sklepu.'},
+      {room:'ulica', px:1545, py:820, wx:1528, wy:720, zoom:1.75, r:210, title:'🌯 Jedzenie na mieście', body:'Nie masz zapasów? Zjedz od ręki na mieście: Frankie (kebab), Restauracja, Pizzeria, Targ. Szybciej, choć zwykle drożej niż ze sklepu.'},
     ],
     endRoom:'ulica', endPx:1545, endPy:820,
   },
@@ -90597,7 +90605,7 @@ const SMART_HINTS=[
   {id:'prestige_unlock', cond:()=>G.level>=15 && (G.fans||0)>=100000 && (G.prestige||0)===0 && !G._hintShown_prestige_unlock, msg:'⭐ PRESTIGE dostępny! Zresetuj poziom z permanentnym bonusem. Telefon → Statystyki → Prestige.'},
   {id:'low_health', cond:()=>G.health<25 && G.health>0 && !G._hintShown_lowhealth_today, msg:'❤️ KRYTYCZNE ZDROWIE! Idź do szpitala (centrum miasta) lub jedz/śpij. Inaczej trafisz do szpitala — koszt leczenia 500 zł.'},
   {id:'low_energy', cond:()=>G.energy<20 && !G._hintShown_lowenergy_today, msg:'⚡ Niska energia. Idź spać w łóżku w mieszkaniu — szybkie 100% regeneracji.'},
-  {id:'low_hunger', cond:()=>G.hunger<25 && !G._hintShown_lowhunger_today, msg:'🍔 Spada głód! Opcje: lodówka (kupne), restauracja, kebab Zbyszka, stół (śniadanie), albo 🔥 płyta indukcyjna — domowe gotowanie daje NAJWIĘKSZE bonusy (głód + zdrowie + nastrój + zwrot energii). Kup składniki w sklepie/na targu i ugotuj!'},
+  {id:'low_hunger', cond:()=>G.hunger<25 && !G._hintShown_lowhunger_today, msg:'🍔 Spada głód! Opcje: lodówka (kupne), restauracja, kebab Frankiego, stół (śniadanie), albo 🔥 płyta indukcyjna — domowe gotowanie daje NAJWIĘKSZE bonusy (głód + zdrowie + nastrój + zwrot energii). Kup składniki w sklepie/na targu i ugotuj!'},
   {id:'has_save_money', cond:()=>G.money>=20000 && !G._hintShown_has_save_money, msg:'💰 Masz 20k+ zł — pomyśl o inwestycjach (Telefon → Bank), kupnie samochodu, lub Apartamentu Premium.'},
   {id:'first_singiel', cond:()=>(G.studioTracks?.length||0)===0 && G.fame>=15 && !G._hintShown_first_singiel, msg:'🎵 Nagraj swój pierwszy singiel! Dwa miejsca: 🏠 Traphouse (Home Studio — demo od ręki, taniej) albo 🎙️ Studio nagrań (komputer z DAW — pełny singiel). Zarabiaj royalties pasywnie.'},
   /* v2.1.335 Faza AE: smart hint przypominający o tablicy wyników gdy gracz pominął ONBOARDING lub uciekł z modal bez decyzji. Standardowy hint pattern — pokazuje się raz na playthrough (G._hintShown_lb_reminder gate). Cond: (skipped LUB shown ale brak globalNick) — pokrywa oba scenariusze. */
@@ -90797,7 +90805,7 @@ function _refreshMapNpcs(){
     'npc_manager':{name:'🤵 Manager',emoji:'🤵',minZoom:1.8}, /* v2.3.117 (PDF Uspr115 W8): Manager stoi obok Nova Cura — na oddalonej mapie priorytet ma znacznik centrum medycznego; Manager pojawia się dopiero po przybliżeniu (zoom ≥180%). */
     'npc_booking':{name:'📅 Booking Agent',emoji:'📅'},
     'npc_producer':{name:'🎧 Producent',emoji:'🎧'},
-    'npc_vendor':{name:'🥙 Zbyszek (kebab)',emoji:'🥙'},
+    'npc_vendor':{name:'🥙 Frankie (kebab)',emoji:'🥙'},
     'npc_crew':{name:'👥 Rekrutuj ekipę',emoji:'👥'},
   };
   for(const obj of ROOMS.ulica.objects){
@@ -91474,7 +91482,7 @@ const TUTORIAL_STEPS=[
    goal:'Otwórz mapę (M) i zobacz gdzie jesteś',
    done:()=>(G._tutStat?.mapOpened||0)>0},
   {icon:'🍔',color:'#e74c3c',title:'Jedz i pij',
-   body:'<strong>Lodówka</strong> w mieszkaniu jest darmowa (po zakupie jedzenia w sklepie spożywczym). Możesz też zjeść przy stole, u Zbyszka (kebab), w pizzerii, restauracji albo jedzenie z ekwipunku (klawisz I) — wszystko zaspokaja głód i zalicza ten punkt.',
+   body:'<strong>Lodówka</strong> w mieszkaniu jest darmowa (po zakupie jedzenia w sklepie spożywczym). Możesz też zjeść przy stole, u Frankiego (kebab), w pizzerii, restauracji albo jedzenie z ekwipunku (klawisz I) — wszystko zaspokaja głód i zalicza ten punkt.',
    goal:'Zjedz coś — lodówka, stół, kebab, pizzeria, restauracja albo ekwipunek',
    done:()=>(G._tutStat?.ate||0)>0},
   {icon:'💼',color:'#f39c12',title:'Pierwsza wypłata',
@@ -92099,7 +92107,7 @@ function showHelp(){
           <div>📺 Kup kamerę i mikrofon żeby awansować</div>
           <div>👥 Rekrutuj ekipę u NPC na ulicy</div>
           <div>📋 Wiktor (❓) daje dzienne zlecenia</div>
-          <div>🌮 Zbyszek (🌮) sprzedaje tanie jedzenie na ulicy</div>
+          <div>🌮 Frankie (🌮) sprzedaje tanie jedzenie na ulicy</div>
           <div>📅 Marcin (📅) — Booking Agent — rezerwuje koncerty</div>
           <div>🎤 Idź na koncert żeby zdobyć sławę i fanów</div>
           <div>📱 Telefon — Loopify, ViewGrid, Merch, Bank</div>
@@ -92778,7 +92786,7 @@ const PATCH_NOTES = [
   {t:'new',d:'👥 Z czasem możesz zebrać własną ekipę — ale dopiero, gdy naprawdę na to zapracujesz. Sam ją nazwiesz, wybierzesz jej profil i ludzi, a potem będziesz zlecać zadania i czytać raporty: co się udało, kto się wysypał, ile to kosztowało spokoju. Ekipa daje pieniądze, ale podnosi zainteresowanie policji, psuje wizerunek u sponsorów i potrafi się rozpaść od środka.'},
   {t:'new',d:'🥃 Na podwórku poznasz cztery ważne osoby: Bursta, który wprowadza w lokalne układy, Lenny’ego, który czyta sytuacje lepiej niż ktokolwiek, „Szkło" — konkurenta, który uważa Kwartał za swój, i Ciotkę Mirę. Każde z nich reaguje na to, jak się zachowujesz, a kontakt z zastrzeżonego numeru komentuje Twoją ostrożność albo jej brak.'},
   {t:'new',d:'📱 Wielka rozbudowa korespondencji SMS: 48 wiadomości, na które wcześniej dało się odpisać tylko suchym „Dzięki", ma teraz własne, pisane pod sytuację odpowiedzi — po cztery do wyboru, w sumie prawie dwieście. Każda mówi coś innego: od twardej negocjacji, przez postawienie granicy, po żart. Nadawca odpowiada na Twój konkretny wybór własną wiadomością, a rozmowa realnie wpływa na relację, zaufanie i Twoje podejście do kariery.'},
-  {t:'new',d:'📱 Odpowiadać możesz teraz także wytwórni, Wiktorowi z Drip District i Zbyszkowi z budki — wcześniej ci nadawcy w ogóle nie mieli własnych odpowiedzi. Rozdzieliliśmy też wyraźnie starego kumpla Kamila od Kamila menadżera: to dwa osobne kontakty z osobnym tonem i osobną historią rozmów.'},
+  {t:'new',d:'📱 Odpowiadać możesz teraz także wytwórni, Wiktorowi z Drip District i Frankiemu z budki — wcześniej ci nadawcy w ogóle nie mieli własnych odpowiedzi. Rozdzieliliśmy też wyraźnie starego kumpla Kamila od Kamila menadżera: to dwa osobne kontakty z osobnym tonem i osobną historią rozmów.'},
   {t:'fix',d:'🚗 Siedząc w aucie lub kamperze z zgaszonym silnikiem nie obrócisz już pojazdu klawiszami ruchu. Wcześniej samochód kręcił się w miejscu mimo wyłączonego silnika. Na piechotę obracasz się oczywiście normalnie.'},
   {t:'new',d:'🚦 Kierowcy w mieście zaczęli zwracać uwagę na Ciebie i na siebie nawzajem. Gdy stoisz autem na światłach, NPC zatrzymują się za Tobą i trzymają odstęp zamiast wjeżdżać w zderzak. Jeśli wtargniesz na jezdnię pieszo, kierowca hamuje i odbija w bok, żeby Cię ominąć — ale gdy wejdziesz mu tuż pod koła, i tak Cię potrąci.'},
   {t:'new',d:'🚨 Auta NPC potrafią teraz zderzyć się także między sobą. Wtedy oba stają na jezdni, na miejsce przyjeżdża radiowóz, spisuje protokół i notatkę ze zdarzenia, a po wszystkim uczestnicy zjeżdżają na bok i ruch wraca do normy.'},
@@ -93186,7 +93194,7 @@ const PATCH_NOTES = [
   {t:'change',d:'Aplikacja do planowania tras w telefonie odblokowuje się dopiero, gdy masz już laboratorium i zatrudnioną ekipę.'},
   {t:'change',d:'Producent zleci Ci hurtową produkcję bitów dopiero, gdy kupisz komputer z oprogramowaniem muzycznym w sklepie BeatPoint.'},
   {t:'fix',d:'W dzielnicy Underground rzadziej dochodzi do napadów — było ich zdecydowanie za dużo.'},
-  {t:'fix',d:'Zbyszek (budka z kebabem) pisze do Ciebie SMS-y tylko w godzinach, w których jego budka jest otwarta.'},
+  {t:'fix',d:'Frankie (budka z kebabem) pisze do Ciebie SMS-y tylko w godzinach, w których jego budka jest otwarta.'},
   {t:'fix',d:'Powiadomienie o demonetyzacji nie pojawi się, dopóki nie opublikujesz kilku filmów — początkujący twórca nie ma jeszcze czego demonetyzować.'},
   {t:'change',d:'Krok fabularny „Debiutancki singiel" pokazuje teraz na mapie dwa miejsca: studio nagraniowe oraz Twój Traphouse (możesz nagrać demo także w domu).'},
   {t:'ui',d:'Wyczyszczono interfejs: usunięto ikonki-emoji z menu pauzy oraz z przycisku telefonu w rogu ekranu. W trybie przelotu nad miastem poprawiono nazwę sklepu na VoltHouse.'},
@@ -93200,7 +93208,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'Pogoda jest teraz spójna między dzielnicami — jeśli w mieście pada, pada też w Underground, na wybrzeżu i w dzielnicy biznesowej. Wcześniej zmiana dzielnicy pozornie „resetowała" pogodę.'},
   {t:'change',d:'Kamperem możesz teraz zaparkować na miejskich parkingach, tak samo jak autem.'},
   {t:'fix',d:'Panel śledzenia wątku pobocznego nie zasłania już panelu „Cele" — ustawia się pod nim i przesuwa w dół, gdy rozwiniesz listę celów.'},
-  {t:'fix',d:'Budka z kebabem (Zbyszek) nie podświetla się już po godzinach zamknięcia — zamknięta, nie reaguje na interakcję. Sama budka jest teraz solidną przeszkodą (nie przenikasz przez nią) i stoi nieco niżej, bliżej budynków.'},
+  {t:'fix',d:'Budka z kebabem (Frankie) nie podświetla się już po godzinach zamknięcia — zamknięta, nie reaguje na interakcję. Sama budka jest teraz solidną przeszkodą (nie przenikasz przez nią) i stoi nieco niżej, bliżej budynków.'},
   {t:'change',d:'Duże ławki na ulicach miasta (te, na których siadają przechodnie) są teraz wyraźnie mniejsze i nie zajmują już większości szerokości chodnika. Ławki w parku zostają bez zmian.'},
   {t:'feature',d:'Nowa agencja marketingowa „S9 Agency" (Signal Nine) — dostępna z telefonu. Pomaga rozwijać zasięgi, wizerunek i sprzedaż. Odblokujesz współpracę po opublikowaniu utworu, kilku sesjach freestyle i postach w social mediach. Oferuje kampanie promocyjne (od spokojnych, lokalnych po ryzykowne i kontrowersyjne), shorty, live z fanami oraz gaszenie kryzysów wizerunkowych — każdy wybór ma swoje korzyści i ryzyka.'},
   {t:'feature',d:'Agencja pokazuje też ciemniejszą stronę show-biznesu i ma swoje drugie dno — dostępne dopiero po godzinach i tylko dla graczy, którzy zaszli już w pewne rejony miasta. Uważaj: to medialni ludzie, a każdy nieostrożny ruch podnosi ryzyko afery.'},
@@ -93349,7 +93357,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'Dzielnica Dripu: szyldy butików są czytelniejsze i mają własne, spójne nazwy.'},
   {t:'fix',d:'Znaki STOP i napis na nich są teraz większe i lepiej czytelne.'},
   {t:'fix',d:'Targ ma urealnione (nieco wyższe) ceny — wciąż najtańsze jedzenie w grze.'},
-  {t:'fix',d:'Buda z kebabem u Zbyszka jest otwarta 09:00–00:00, a komunikaty pokazują właściwe godziny.'},
+  {t:'fix',d:'Buda z kebabem u Frankiego jest otwarta 09:00–00:00, a komunikaty pokazują właściwe godziny.'},
   {t:'fix',d:'W Underground komis pojazdów ma wreszcie prawdziwy budynek zamiast szarego prostokąta.'},
   {t:'fix',d:'Po nieudanym napadzie komunikaty są opisane po ludzku, bez technicznych nazw.'},
  ]
@@ -93594,7 +93602,7 @@ const PATCH_NOTES = [
  {t:'feature',d:'Oferty koncertów od Marcina zależą teraz od dnia tygodnia — w weekend (piątek, sobota) propozycje występów przychodzą znacznie częściej, a w środku tygodnia częściej trafiają inne oferty (radio, sponsorzy). Łączna liczba ofert się nie zmienia — zmienia się ich charakter.'},
  {t:'change',d:'Park żyje rytmem dnia: na ławkach przesiadują ludzie tylko za dnia (8:00–21:00) i przy dobrej pogodzie — nocą oraz podczas opadów ławki są puste, a ruch pieszych w mieście wyraźnie rzednie nocą.'},
  {t:'feature',d:'Postacie na ulicy mają teraz swój rytm: Fan pojawia się co kilka dni po południu (13:00–21:00), a Promotor codziennie w godzinach 12:00–22:00. Gdy pada deszcz, oboje chowają się przed pogodą.'},
- {t:'change',d:'Budka z kebabem Zbyszka ma teraz nazwę „Kebab Kingpin" i działa w godzinach 10:00–22:00 — po zamknięciu lokal jest ciemny i opuszcza roletę, a Zbyszek wraca rano. Miasto zaczyna żyć swoim rytmem.'},
+ {t:'change',d:'Budka z kebabem Frankiego ma teraz nazwę „Kebab Kingpin" i działa w godzinach 10:00–22:00 — po zamknięciu lokal jest ciemny i opuszcza roletę, a Frankie wraca rano. Miasto zaczyna żyć swoim rytmem.'},
  {t:'feature',d:'Do gry doszedł system dni tygodnia — w pasku informacyjnym u góry widać teraz dzień tygodnia (Pn-Nd). To fundament pod bardziej żywy rytm miasta: w kolejnych usprawnieniach ruch, koncerty i nocne życie zaczną zależeć od dnia.'},
  {t:'feature',d:'Nad mapą miasta pojawił się przycisk „Legenda" — po kliknięciu pokazuje rozpiskę wszystkich miejsc i postaci na mapie, pogrupowanych w kategorie z kolorami.'},
  {t:'change',d:'Pełna mapa miasta (klawisz M) otwiera się teraz wyśrodkowana na Twojej aktualnej pozycji, zamiast od rogu — od razu widzisz, gdzie jesteś.'},
@@ -94396,12 +94404,12 @@ const PATCH_NOTES = [
  ver:'v2.1.944',date:'2026-06-15',cats:['beta-tester','Vegan','fix'],reporter:'Vegan',title:'📖 Poradnik — poprawki: sława 0-500 i „Jedz i pij" zalicza wszystkie posiłki',
  items:[
  {t:'fix',d:'⭐ We wprowadzeniu była błędna informacja „Sława (0-100)" — w grze sława sięga 500. Poprawione na „Sława (0-500)".'},
- {t:'fix',d:'🍔 Cel poradnika „Jedz i pij" zaliczał się tylko po otwarciu lodówki. Teraz liczy KAŻDY posiłek — kebab u Zbyszka, pizzeria, restauracja, stół, jedzenie z ekwipunku, danie z kasyna i ugotowane samodzielnie.'},
+ {t:'fix',d:'🍔 Cel poradnika „Jedz i pij" zaliczał się tylko po otwarciu lodówki. Teraz liczy KAŻDY posiłek — kebab u Frankiego, pizzeria, restauracja, stół, jedzenie z ekwipunku, danie z kasyna i ugotowane samodzielnie.'},
  {t:'fix',d:'🏆 Osiągnięcie „Łakomczuch" (zjedz 100 razy) również liczy teraz wszystkie źródła jedzenia, nie tylko lodówkę.'},
  ],
  },
  {
- ver:'v2.1.943',date:'2026-06-15',cats:['beta-tester','Vegan','balance'],reporter:'Vegan',title:'🌯 Budka kebab Zbyszka — droższa (18k) i z realistycznym, zmiennym zarobkiem',
+ ver:'v2.1.943',date:'2026-06-15',cats:['beta-tester','Vegan','balance'],reporter:'Vegan',title:'🌯 Budka kebab Frankiego — droższa (18k) i z realistycznym, zmiennym zarobkiem',
  items:[
  {t:'balance',d:'🌯 Budka kebab kosztuje teraz 18 000 zł (było 8 000) — poważniejsza inwestycja biznesowa.'},
  {t:'balance',d:'💰 Dzienny zarobek z budki nie jest już stały — to losowa kwota między 200 a 600 zł (realistyczny, wahający się obrót). Panel Pasywnych dochodów pokazuje średnią ~400 zł i zakres.'},
@@ -94444,10 +94452,10 @@ const PATCH_NOTES = [
  ],
  },
  {
- ver:'v2.1.938',date:'2026-06-15',cats:['beta-tester','Vegan','fix'],reporter:'Vegan',title:'🏖 Mega Villa z napisem · Zbyszek: suplementy znów widoczne · pełny Lumpeks · JYSK przy Mebloland',
+ ver:'v2.1.938',date:'2026-06-15',cats:['beta-tester','Vegan','fix'],reporter:'Vegan',title:'🏖 Mega Villa z napisem · Frankie: suplementy znów widoczne · pełny Lumpeks · JYSK przy Mebloland',
  items:[
  {t:'fix',d:'🏖 Mega Villa ma teraz wyraźny napis na elewacji (wcześniej był złoty na złotym dachu — praktycznie niewidoczny).'},
- {t:'fix',d:'💊 Tajne suplementy u Zbyszka już nie znikają — opcja jest ZAWSZE widoczna; przy zbyt małej zażyłości pokazuje się jako zablokowana z informacją ile brakuje (zażyłość zdobywasz kupując u Zbyszka). Koniec znikania.'},
+ {t:'fix',d:'💊 Tajne suplementy u Frankiego już nie znikają — opcja jest ZAWSZE widoczna; przy zbyt małej zażyłości pokazuje się jako zablokowana z informacją ile brakuje (zażyłość zdobywasz kupując u Frankiego). Koniec znikania.'},
  {t:'fix',d:'🛍️ Nazwa PEPCO zmieniona na Lumpeks już WSZĘDZIE (sklep, mapa, podpowiedzi, lista zmian).'},
  {t:'change',d:'🛒 JYSK przesunięty bliżej Mebloland, a mały blok dekoracyjny przeniesiony pomiędzy Salę Koncertową a JYSK — równe odstępy w rzędzie.'},
  ],
@@ -94753,7 +94761,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.1.896',date:'2026-06-14',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'🎬 Interaktywny poradnik (cut-scenki) — przelot kamerą uczy NA mapie',
  items:[
- {t:'feature',d:'🎬 Nowy typ poradnika: zamiast samego tekstu gra przenosi Cię „do innego wymiaru" i pokazuje rzecz NA mapie. Pierwszy temat — JEDZENIE: kamera teleportuje gracza pod Sklep Spożywczy, potem do lodówki w mieszkaniu (Traphouse), na końcu pod budkę z kebabem Zbyszka. Każdy etap ma podświetlony obiekt (pulsujące pierścienie + przyciemnione tło) i krótki opis z przyciskami „Dalej →" / „Pomiń".'},
+ {t:'feature',d:'🎬 Nowy typ poradnika: zamiast samego tekstu gra przenosi Cię „do innego wymiaru" i pokazuje rzecz NA mapie. Pierwszy temat — JEDZENIE: kamera teleportuje gracza pod Sklep Spożywczy, potem do lodówki w mieszkaniu (Traphouse), na końcu pod budkę z kebabem Frankiego. Każdy etap ma podświetlony obiekt (pulsujące pierścienie + przyciemnione tło) i krótki opis z przyciskami „Dalej →" / „Pomiń".'},
  {t:'feature',d:'▶️ Uruchamiasz go w Telefon → folder Pomoc → 📖 Mechaniki → „Najedzenie" → przycisk „🎬 Pokaż interaktywnie na mapie". Po zakończeniu (lub „Pomiń"/ESC) gra wraca do normalnego widoku — kamera, pokój i pauza są przywracane tak, jak były przed poradnikiem.'},
  {t:'fix',d:'🧼 Podczas każdej cut-scenki (poradnik oraz wstępny przelot kamerą) skróty klawiszowe i interakcje są teraz zablokowane — nie da się otworzyć telefonu (P), ekwipunku (I) ani wejść do budynku [E] „pod spodem" sceny. Koniec nakładania się okien na cut-scenkę — czystszy obraz.'},
  {t:'fix',d:'⎋ ESC poprawnie kończy interaktywny poradnik (wcześniej w trybie pauzy ESC mógł tylko zdjąć pauzę). Stan poradnika jest też czyszczony przy wczytaniu zapisu — żadnych „zawieszonych" scen po wczytaniu gry.'},
@@ -94777,7 +94785,7 @@ const PATCH_NOTES = [
  ver:'v2.1.893',date:'2026-06-14',cats:['beta-tester','Vegan','fix'],reporter:'Vegan',title:'🏭 Fabryka merchu — wyjaśnienie materiałów (Premium vs Luxury) + drobne poprawki',
  items:[
  {t:'fix',d:'🏭 Fabryka merchu (ulepszenia): dodane jasne wyjaśnienie materiałów. Standard (cena ×1.0, jakość 1/3, popyt ×1.0) · Premium (6 000 zł — cena ×1.6, jakość 2/3, popyt ×0.9) · Luxury (20 000 zł, wymaga Premium — cena ×2.5, jakość 3/3, popyt ×0.7). To wybór marża vs wolumen: wyższy materiał = większy zarobek na sztuce, ale mniej sztuk się sprzedaje. Luxury daje największą marżę (dla lojalnych fanów), ale nie kupisz go „od razu" — najpierw Premium. Opisy ulepszeń też doprecyzowane.'},
- {t:'fix',d:'🥢 Zbyszek (Sprzedawca uliczny) — „Mam coś ekstra… tajne suplementy" znikało bez pokazania panelu — to był ten sam błąd niewidocznych okien, naprawiony w v2.1.891. Teraz panel suplementów pokazuje się poprawnie. (Nagłówek „Fabryka – ulepszenia" oczyszczony z apostrofu — był nieszkodliwy, ale dla porządku.)'},
+ {t:'fix',d:'🥢 Frankie (Sprzedawca uliczny) — „Mam coś ekstra… tajne suplementy" znikało bez pokazania panelu — to był ten sam błąd niewidocznych okien, naprawiony w v2.1.891. Teraz panel suplementów pokazuje się poprawnie. (Nagłówek „Fabryka – ulepszenia" oczyszczony z apostrofu — był nieszkodliwy, ale dla porządku.)'},
  ],
  },
  {
@@ -94915,10 +94923,10 @@ const PATCH_NOTES = [
  ],
  },
  {
- ver:'v2.1.870',date:'2026-06-14',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'💊 Tajne suplementy Zbyszka (przyjaźń → towar)',
+ ver:'v2.1.870',date:'2026-06-14',cats:['beta-tester','Vegan','feature'],reporter:'Vegan',title:'💊 Tajne suplementy Frankiego (przyjaźń → towar)',
  items:[
- {t:'feature',d:'💊 Zbyszek z budki kebaba — przy odpowiednim poziomie przyjaźni (25+) zaczyna sprzedawać „po cichu" suplementy i środki na receptę: Yohimbina+SARM, peptydy (BPC-157/TB-500), SARM (MK-677/Ostaryna), Test E + HGH. Każdy daje realny, długi boost: skok kondycji (forma — m.in. większy zasięg postów IG), zdrowia, energii oraz czasowy bonus +20–40% XP. Im wyższa przyjaźń, tym lepszy (i droższy) towar — od 600 do 3800 zł.'},
- {t:'info',d:'🤫 Dostępność „raz na jakiś czas" — Zbyszek nie zawsze ma towar (przy bliskiej przyjaźni 80+ ma zawsze). Buduj przyjaźń kupując u niego jedzenie; opcja pojawia się w budce dopiero gdy was poznał.'},
+ {t:'feature',d:'💊 Frankie z budki kebaba — przy odpowiednim poziomie przyjaźni (25+) zaczyna sprzedawać „po cichu" suplementy i środki na receptę: Yohimbina+SARM, peptydy (BPC-157/TB-500), SARM (MK-677/Ostaryna), Test E + HGH. Każdy daje realny, długi boost: skok kondycji (forma — m.in. większy zasięg postów IG), zdrowia, energii oraz czasowy bonus +20–40% XP. Im wyższa przyjaźń, tym lepszy (i droższy) towar — od 600 do 3800 zł.'},
+ {t:'info',d:'🤫 Dostępność „raz na jakiś czas" — Frankie nie zawsze ma towar (przy bliskiej przyjaźni 80+ ma zawsze). Buduj przyjaźń kupując u niego jedzenie; opcja pojawia się w budce dopiero gdy was poznał.'},
  ],
  },
  {
@@ -96741,7 +96749,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.1.546',date:'2026-05-31',cats:['fix'],title:'🌯 Pasywne dochody — budka kebab wreszcie widoczna w panelu',
  items:[
- {t:'fix',d:'🌯 Budka kebab (wspólnik Zbyszek) jest teraz poprawnie pokazywana w panelu Pasywnych dochodów wraz z kwotą +300 zł/dzień. Wcześniej panel zawsze pokazywał 0 zł z budki, mimo że codzienna wypłata działała normalnie.'},
+ {t:'fix',d:'🌯 Budka kebab (wspólnik Frankie) jest teraz poprawnie pokazywana w panelu Pasywnych dochodów wraz z kwotą +300 zł/dzień. Wcześniej panel zawsze pokazywał 0 zł z budki, mimo że codzienna wypłata działała normalnie.'},
  ],
  },
  {
@@ -98875,7 +98883,7 @@ const PATCH_NOTES = [
  ver:'v2.1.240',date:'2026-05-24',cats:['feature'],title:'🎭 Markizy dodane nad Sklepem Muzycznym i Sklepem Wiktora (Ubrania)',
  items:[
   {t:'feature',d:'🎵 Sklep Muzyczny dostał niebieską markizę nad wejściem.'},
-  {t:'feature',d:'👗 Sklep Wiktora (Ubrania) dostał różową markizę pasującą do jego stylu. Pozostałe sklepy (spożywczy, pizzeria, supermarket, myjnia, restauracja, kebab Zbyszka) miały markizy już wcześniej.'},
+  {t:'feature',d:'👗 Sklep Wiktora (Ubrania) dostał różową markizę pasującą do jego stylu. Pozostałe sklepy (spożywczy, pizzeria, supermarket, myjnia, restauracja, kebab Frankiego) miały markizy już wcześniej.'},
   {t:'info',d:'🎨 **LUXURY shops** (Luvio/Chassé/Hermel/Goccia/Valenca) ZACHOWUJĄ marble facade + gold border + accent stripe ZAMIAST kolorowej markizy — designerski wybór (premium aesthetics).'},
  ]
  },
@@ -99013,7 +99021,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'🐛 **Avidt fix #50**: "Pudłów" → poprawna polska gramatyka 3-formowa (1 pudło / 2-4 pudła / 5+ pudeł). Analogicznie trafień. ViewGrid minigame result line.'},
   {t:'fix',d:'🐛 **Avidt fix #51**: HUD overlap przy 1000+ fanach — czas/dzień nachodził na 4-cyfrową liczbę fanów. Margin-right hfollow 8→175px + max-width 120→150px. Dla 1000-99999 fanów wszystko czytelne.'},
   {t:'fix',d:'🐛 **Avidt fix #52**: Kondycja desc rozdzielony — głównie energia (-8%/lvl), drobny bonus prędkości (+2%/lvl). Dla dedykowanej prędkości — Bieg (kategoria fizyczne). User: "nie wiem czy to ma sens" — teraz jasne.'},
-  {t:'fix',d:'🐛 **Avidt fix #53**: Energetyk u Zbyszka miał inne wartości (8 zł +20/-1/0) niż sklepowy (22 zł +50/-2/-5). User: mylące. Teraz: ten sam produkt, taniej u Zbyszka (10 vs 22 zł).'},
+  {t:'fix',d:'🐛 **Avidt fix #53**: Energetyk u Frankiego miał inne wartości (8 zł +20/-1/0) niż sklepowy (22 zł +50/-2/-5). User: mylące. Teraz: ten sam produkt, taniej u Frankiego (10 vs 22 zł).'},
   {t:'fix',d:'🐛 **Avidt fix #54**: Stół — gracz przypadkowo dostawał przejedzenie. Teraz: gameConfirm w grze pyta "Na pewno zjeść? +X przejedzenia, konsekwencje..." gdy hunger+22>100.'},
   {t:'fix',d:'🐛 **Avidt fix #55**: SMS quick reply UI — bezsensowne odpowiedzi (np. "Wpadnę" dla fana SMS). Teraz: per-typ kontakt context-aware (fan: "Dzięki za support / Wkrótce track / Ignoruj", system/bank: "OK", phone-only: "Dzięki / Zadzwoń", fizyczne: "Dzięki / Wpadnę / Ignoruj"). Plus licznik niedopowiedzianych + preview następnej wiadomości — user widzi że każde kliknięcie odpowiada osobnej wiadomości (Kamil 3 SMS-y = 3 osobne odpowiedzi).'},
   {t:'fix',d:'🐛 Naprawiony błąd monetyzacji reklam — panel pokazywał „undefined zł” i psuł zapis. Teraz działa poprawnie: jasny status monetyzacji (zablokowana/aktywna), szacowany dzienny zarobek oraz widoczny wymóg 1000 subskrybentów.'},
@@ -100736,7 +100744,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.1.6',date:'2026-05-15',cats:['feature','bugfix','visual'],title:'🗺 NPC rozrzuceni po całej mapie + przepisana minimapa (wszystkie budynki) + folder NPC fix',
  items:[
-  {t:'change',d:'**Nowe rozmieszczenie 8 NPC** — wcześniej WSZYSCY stali na chodniku H1 south wy=590-720 (blisko siebie, w jednej linii). Teraz rozrzuceni po 5 różnych chodnikach: **Wiktor** (NW, H1 north przy Traphouse), **Majkel** (N środek, H1 north po prawej Studia), **Manager Kamil** (środek, H1 south przed Szpitalem), **Zbyszek** (centrum, kebab), **Crew** (S środek, H2 north), **Marcin** (SE, H3 north przy Drip District), **Fan** (S, H3 south przy Drip), **Casino Promo** (NE, H1 south przed Kasynem). Każdy w innym miejscu — gracz musi się przejść po mieście.'},
+  {t:'change',d:'**Nowe rozmieszczenie 8 NPC** — wcześniej WSZYSCY stali na chodniku H1 south wy=590-720 (blisko siebie, w jednej linii). Teraz rozrzuceni po 5 różnych chodnikach: **Wiktor** (NW, H1 north przy Traphouse), **Majkel** (N środek, H1 north po prawej Studia), **Manager Kamil** (środek, H1 south przed Szpitalem), **Frankie** (centrum, kebab), **Crew** (S środek, H2 north), **Marcin** (SE, H3 north przy Drip District), **Fan** (S, H3 south przy Drip), **Casino Promo** (NE, H1 south przed Kasynem). Każdy w innym miejscu — gracz musi się przejść po mieście.'},
   {t:'fix',d:'🗺️ Mapa miasta w telefonie przepisana: wszystkie 32 budynki narysowane jako spójne prostokąty w trzech pasach miasta i Dzielnicy Dripu. Wcześniej było tylko 8 kolorowych kropek („niektóre w różnych kolorach nie wiadomo czemu”) — teraz jest czytelnie i spójnie.'},
   {t:'fix',d:'📱 Folder „NPC” w telefonie pokazywał w podglądzie 3 ikony, choć w środku były 2 aplikacje (Przyjaźnie i Mapa). Podgląd poprawiony, by się zgadzał.'},
   {t:'change',d:'Panel "🤝 Przyjaźnie z NPC" zaktualizowane opisy lokacji każdego NPC do nowych pozycji (np. Wiktor: "Chodnik H1 north — przy Traphouse (NW)", Crew: "Chodnik H2 north — środek dolny"). Notatka pod listą zaktualizowana: "Kamil (Stary kumpel), Label, Sponsor" tylko SMS (Fan ma teraz fizyczną pozycję).'},
@@ -100816,7 +100824,7 @@ const PATCH_NOTES = [
  {
  ver:'v2.0.31',date:'2026-05-15',cats:['feature'],title:'📍 Podgląd mapy NPC po wyborze "Wpadnę" w SMS + pulsujący highlight',
  items:[
-  {t:'feature',d:'Po wybraniu odpowiedzi **🚶 Wpadnę** w SMS od NPC (Wiktor/Marcin/Zbyszek/Kamil/Producent) wyskakuje krótkie pytanie "📍 Pokazać gdzie znaleźć [NPC] na mapie miasta?". Klik Tak → otwiera się telefon → Mapa NPC z pulsującą złotą obwódką wokół ikony NPC + złotym banerem u góry "📍 [NPC] oczekuje wizyty — podejdź w mieście (max 2 dni)". Wcześniej gracz dostawał tylko notification w cieniu — teraz wie dokładnie gdzie iść.'},
+  {t:'feature',d:'Po wybraniu odpowiedzi **🚶 Wpadnę** w SMS od NPC (Wiktor/Marcin/Frankie/Kamil/Producent) wyskakuje krótkie pytanie "📍 Pokazać gdzie znaleźć [NPC] na mapie miasta?". Klik Tak → otwiera się telefon → Mapa NPC z pulsującą złotą obwódką wokół ikony NPC + złotym banerem u góry "📍 [NPC] oczekuje wizyty — podejdź w mieście (max 2 dni)". Wcześniej gracz dostawał tylko notification w cieniu — teraz wie dokładnie gdzie iść.'},
   {t:'feature',d:'Podświetlanie NPC na mapie: wybrany bohater pulsuje złotą obwódką (powiększa się i świeci), a jego wpis na liście pod mapą też się wyróżnia kolorem i strzałką.'},
   {t:'change',d:'Walidacja: dla NPC bez fizycznej lokacji (manager/label/sponsor/bank/system/fan) pytanie nie wyskakuje — tylko 5 visitowalnych NPC obsługuje podgląd mapy.'},
  ]
@@ -101080,7 +101088,7 @@ const PATCH_NOTES = [
  {
  ver:'v1.9.99',date:'2026-05-14',cats:['bugfix','visual'],title:'🎬 Przelot kamerą v3: HUD off + wolniejszy płynny ruch + poprawne pozycje + Drip pan sweep',
  items:[
-  {t:'fix',d:'Kebab Zbyszka — przelot mówił o kebabie ALE zoomował na Studio Merch! Powód: pozycja w cinematic była wx:1180 (Studio Merch), powinno być wx:1545 (npc_vendor). Zweryfikowane pozycje WSZYSTKICH 30+ budynków z ROOMS.ulica.objects.'},
+  {t:'fix',d:'Kebab Frankiego — przelot mówił o kebabie ALE zoomował na Studio Merch! Powód: pozycja w cinematic była wx:1180 (Studio Merch), powinno być wx:1545 (npc_vendor). Zweryfikowane pozycje WSZYSTKICH 30+ budynków z ROOMS.ulica.objects.'},
   {t:'fix',d:'HUD widoczny podczas przelotu (ucięty w połowie). Teraz body.cinematic-active CSS ukrywa #hud, #minimap-wrap, #quest-widget, #hclock, #ms-track-pill, #hphone (opacity 0 + pointer-events none). Pure cinematic experience.'},
   {t:'change',d:'Kamera ZNACZNIE wolniejsza — adaptacyjne tempo dist>500 = 0.04, 150-500 = 0.025, <150 = 0.012 (poprzednio 0.075/0.045/0.025). Lerp zoom 0.04 → 0.025. Czas per place 2400-2800 → 3500-4000ms. Czas zoom-in po dotarciu 1100 → 1600ms.'},
   {t:'feature',d:'DRIP DISTRICT jako PAN SWEEP — zamiast 8 osobnych zoomów per butik, kamera płynnie przelatuje przez 5 waypoints: górny rząd LV→Goccia, dolny rząd Valenca→Strada, finalnie cała dzielnica (zoom out). lerpMul=0.6 = wolniejsze 40% niż normal. Highlight delikatny (40% opacity, r:300) nie pełne podświetlenie. To samo dla PRAC DORYWCZYCH (wszystkie 6 prac na tej samej linii).'},
@@ -101194,7 +101202,7 @@ const PATCH_NOTES = [
  ver:'v1.9.89',date:'2026-05-14',cats:['bugfix','feature','visual'],title:'🎬 Przelot po mieście — PRAWDZIWY cinematic: kamera rusza + podświetlenie + opisy',
  items:[
   {t:'fix',d:'Krytyczny bug: podczas przelotu po mieście kamera w ogóle się nie ruszała (wyskakiwały tylko opisy). Powód: pauza gry blokowała update kamery. Teraz kamera płynnie przelatuje filmowym tempem między lokacjami nawet przy spauzowanej grze.'},
-  {t:'feature',d:'Cinematic flythrough: 11 ujęć (Traphouse, Sklep, Zbyszek, Studio, Siłownia, Sala Koncertowa, Szpital, Drip District, Kasyno, Prace Dorywcze, Cel). Każde z czarnymi pasami kinowymi (letterbox), świecącym pierścieniem podświetlającym lokację, animowanym tytułem i opisem mechaniki.'},
+  {t:'feature',d:'Cinematic flythrough: 11 ujęć (Traphouse, Sklep, Frankie, Studio, Siłownia, Sala Koncertowa, Szpital, Drip District, Kasyno, Prace Dorywcze, Cel). Każde z czarnymi pasami kinowymi (letterbox), świecącym pierścieniem podświetlającym lokację, animowanym tytułem i opisem mechaniki.'},
   {t:'feature',d:'Highlight: złoty pulsujący okrąg + lekki glow w centrum + przyciemnione tło wokół. Wizualnie kieruje wzrok gracza na konkretny budynek.'},
   {t:'change',d:'Poradnik: wraca na poprzednią pozycję (bottom 80px), ale teraz automatycznie ukrywa się gdy pojawia się powiadomienie (toast u dołu). Po zniknięciu toastu wraca. Zero nakładania.'},
  ]
@@ -101211,7 +101219,7 @@ const PATCH_NOTES = [
  {
  ver:'v1.9.87',date:'2026-05-14',cats:['feature','gameplay'],title:'🎥 CINEMATIC FLYTHROUGH — aerial camera przelot po mieście',
  items:[
-  {t:'feature',d:'Nowy tryb: PRZELOT PO MIEŚCIE (freecam). Kamera płynnie przelatuje przez 9 kluczowych lokalizacji (Traphouse, Zbyszek, Studio, Sala Koncertowa, Siłownia, Szpital, Drip District, Kasyno, Cel). Każda lokacja z animowaną etykietą + opisem mechaniki.'},
+  {t:'feature',d:'Nowy tryb: PRZELOT PO MIEŚCIE (freecam). Kamera płynnie przelatuje przez 9 kluczowych lokalizacji (Traphouse, Frankie, Studio, Sala Koncertowa, Siłownia, Szpital, Drip District, Kasyno, Cel). Każda lokacja z animowaną etykietą + opisem mechaniki.'},
   {t:'feature',d:'Dostęp z tutorialu Wprowadzenie (przycisk "🎬 PRZELOT PO MIEŚCIE") oraz telefon → Pomoc → 🎥 Przelot po mieście. Pomijalny przyciskiem "Pomiń przelot ✕" w prawym górnym rogu.'},
   {t:'change',d:'🎬 Przelot kamery używa teraz płynnego, filmowego przesuwania i wyśrodkowuje widok na wybranym miejscu.'},
   {t:'change',d:'Pauzuje grę podczas przelotu (z preserve poprzedniego stanu _paused). Po zakończeniu wraca do gry.'},
@@ -101220,7 +101228,7 @@ const PATCH_NOTES = [
  {
  ver:'v1.9.86',date:'2026-05-14',cats:['bugfix'],title:'🤝 NPC_DATA ↔ SMS_CONTACTS key mapping',
  items:[
-  {t:'fix',d:'💬 Naprawione zaliczanie zapowiedzianej przez SMS wizyty u Zbyszka (sprzedawcy ulicznego) — teraz podejście do niego jest poprawnie rozpoznawane.'},
+  {t:'fix',d:'💬 Naprawione zaliczanie zapowiedzianej przez SMS wizyty u Frankiego (sprzedawcy ulicznego) — teraz podejście do niego jest poprawnie rozpoznawane.'},
  ]
  },
  {
@@ -101579,7 +101587,7 @@ const PATCH_NOTES = [
  {
  ver:'v1.9.42',date:'2026-05-14',cats:['bugfix','balance'],title:'🎯 Zadania poboczne NPC + opisy umiejetnosci — naprawione wyplaty i 2 mylace opisy',
  items:[
-  {t:'fix',d:'Zadania poboczne NPC (Kamil, Majkel, Zbyszek, Marcin) wyplacaly nagrody z pominieciem mnoznika Prestizu. Teraz uwzgledniaja go poprawnie.'},
+  {t:'fix',d:'Zadania poboczne NPC (Kamil, Majkel, Frankie, Marcin) wyplacaly nagrody z pominieciem mnoznika Prestizu. Teraz uwzgledniaja go poprawnie.'},
   {t:'change',d:'Skill Flow 3 "Multisylabowe" — opis mówił "Odblokowanie trudniejszych freestylów" ale tej mechaniki nie ma w kodzie. Zmieniono opis na faktyczny efekt: +10% jakości nagrań rapowych.'},
   {t:'change',d:'Skill Mikser 3 "Miksowanie dla innych" — opis obiecywał "Zlecenia na miks od innych artystów" ale tego systemu nie ma. Zmieniono opis: +9 punktów jakości do nagrań.'},
  ]
@@ -101609,7 +101617,7 @@ const PATCH_NOTES = [
  ver:'v1.9.39',date:'2026-05-14',cats:['bugfix','gameplay'],title:'🤝 Przyjaźnie żywe + daily quest Prestige + fanfara audio',
  items:[
   {t:'fix',d:'Nagroda z zadania dziennego (od Wiktora) pomijala mnoznik Prestizu. Teraz naliczana jest poprawnie.'},
-  {t:'feature',d:'Przyjaźń ze Zbyszkiem (sprzedawca uliczny): KAŻDY zakup (kebab/zupa/energetyk) podnosi przyjaźń +1. Wcześniej system zniżek istniał ale poziom przyjaźni nigdy nie rósł — efekt cosmetic.'},
+  {t:'feature',d:'Przyjaźń ze Frankiem (sprzedawca uliczny): KAŻDY zakup (kebab/zupa/energetyk) podnosi przyjaźń +1. Wcześniej system zniżek istniał ale poziom przyjaźni nigdy nie rósł — efekt cosmetic.'},
   {t:'feature',d:'Przyjaźń z Wiktorem (zleceniodawca): odbiór nagrody dziennej +5 przyjaźni. Wcześniej system był ghostem — odczytywany przy Drip District ale nigdy nie inkrementowany.'},
   {t:'change',d:'Daily quest też zalicza się jako side quest do osiągnięcia "Wielokierunkowy" (3 ukończone). Wcześniej był pomijany w trackerze.'},
   {t:'feature',d:'Avido: cinematic Prestige ma teraz fanfarę dźwiękową (podwójny sparkle) zamiast cisza.'},
@@ -101948,7 +101956,7 @@ const PATCH_NOTES = [
  {t:'feature',d:'Nowa apka 💬 Wiadomości w telefonie (top-level shortcut z licznikiem nieprzeczytanych). NPC piszą do Ciebie SMS na podstawie postępu w grze — Kamil reaguje na zarobki/freestyle, Producent na pierwsze tracki, Marcin na koncerty, Wiktor na rep uliczną, Sponsorzy na sławę i drip, A&R Major Label przy 3 trackach, Northcrest Bank przy 50k zł, fani przy 1k/10k/100k followersów.'},
  {t:'feature',d:'Konwersacje z chat-style bubbles (Ty po prawej z niebieskim tłem, NPC po lewej z ciemnym). Powiadomienie przychodzi do 🔔 oraz licznik unread na ikonie SMS. Klikasz konwersację → markuje jako przeczytane → możesz odpowiedzieć quick reply (👍 Dzięki / 🚶 Wpadnę / ⏳ Później).'},
  {t:'feature',d:'21 różnych SMS-ów wyzwalanych przez kamienie milowe: 100 zł, 1 tys. zł, 50 tys. zł, pierwszy freestyle, pierwszy utwór, 3 utwory, pierwszy koncert, 5 koncertów, sława 25/50/75, fani 1 tys./10 tys./100 tys., reputacja 50, drip 100, Prestiż 1, 5. krok fabuły oraz kontrakt z wytwórnią. Każda wiadomość przychodzi tylko raz na całą rozgrywkę.'},
- {t:'feature',d:'11 kontaktów: Wiktor (Drip District 👔), Marcin (Organizator 🎤), Producent 🎚️, Kamil (Stary kumpel 👊), Zbyszek (Kebab 🌮), Menadżer 🤵, Label A&R 🏢, Sponsor 💼, Northcrest Bank 🏦, TrapSimulator 📱, Fan nr 1 ❤️. Każdy z własnym kolorem akcentu w UI.'},
+ {t:'feature',d:'11 kontaktów: Wiktor (Drip District 👔), Marcin (Organizator 🎤), Producent 🎚️, Kamil (Stary kumpel 👊), Frankie (Kebab 🌮), Menadżer 🤵, Label A&R 🏢, Sponsor 💼, Northcrest Bank 🏦, TrapSimulator 📱, Fan nr 1 ❤️. Każdy z własnym kolorem akcentu w UI.'},
  {t:'change',d:'Gra zapisuje się automatycznie po otwarciu konwersacji, dzięki czemu licznik nieprzeczytanych wiadomości nie znika po odświeżeniu. Stare zapisy bez wiadomości wczytują się bez problemu.'},
  ]
  },
@@ -102061,11 +102069,11 @@ const PATCH_NOTES = [
  ver:'v1.8.97',date:'2026-05-14',cats:['critical','bugfix','gameplay','balance'],title:'🎯 GRUBY AUDYT cd. — Prestige fame, NPC przyjaźń, akcesoria muzyczne, skill tree',
  items:[
  {t:'fix',d:'KRYTYCZNY: Prestige obiecywał +3% sławy za rangę, ale bonus nie działał. Naprawione — sława z koncertu i singla realnie podbita przez Prestige (po Prestige 5 = +15% sławy na stałe).'},
- {t:'fix',d:'KRYTYCZNY: System przyjaźni NPC (Marcin, Wiktor, Producent, Zbyszek, Crew) tracił sens — punkty rosły, powiadomienia "Bonusy aktywne / VIP traktowanie" pojawiały się, ale tylko Fan miał realny bonus. Pozostałe NPC były czysto kosmetyczne. Naprawione: każdy NPC daje teraz konkretny bonus zgodny z rolą.'},
+ {t:'fix',d:'KRYTYCZNY: System przyjaźni NPC (Marcin, Wiktor, Producent, Frankie, Crew) tracił sens — punkty rosły, powiadomienia "Bonusy aktywne / VIP traktowanie" pojawiały się, ale tylko Fan miał realny bonus. Pozostałe NPC były czysto kosmetyczne. Naprawione: każdy NPC daje teraz konkretny bonus zgodny z rolą.'},
  {t:'change',d:'Przyjaźń z Marcinem (organizator koncertów) i Crew — zarobki z koncertu mnożą się przez ich bonusy przyjaźni (+5% / +15% / +30% / +50%).'},
  {t:'change',d:'Przyjaźń z Producentem — sława z każdego wydanego singla podbita (+5% / +15% / +30% / +50%).'},
  {t:'change',d:'Przyjaźń z Wiktorem — sklep ubrań Drip District daje dodatkową zniżkę proporcjonalną do poziomu przyjaźni.'},
- {t:'change',d:'Przyjaźń ze Zbyszkiem — kebab/zupa/energetyk taniej u Zbyszka (powiadomienie pokazuje cenę z zniżką przyjaźni).'},
+ {t:'change',d:'Przyjaźń ze Frankiem — kebab/zupa/energetyk taniej u Frankiego (powiadomienie pokazuje cenę z zniżką przyjaźni).'},
  {t:'fix',d:'KRYTYCZNY: Akcesoria muzyczne kupione w sklepie nigdy nie działały: 🎤 Statyw mikrofonowy, 🔵 Pop filtr, 🎡 Koszyk antywibracyjny, 💍 Selfie Ring — wszystkie flagi były ustawiane przy zakupie ale żaden kod jakości tracka/vlog/postu IG ich nie czytał. Naprawione: statyw +3, popfiltr +2, koszyk +4 do jakości nagrania, ring +8% do vlogu i posta IG.'},
  {t:'fix',d:'KRYTYCZNY: Skill Teksty 3 "Albumy sprzedają się o 30% lepiej" — nigdy nie działało. Naprawione: wydanie albumu (releaseAlbum) realnie +30% wypłaty i słuchaczy Loopify przy lvl 3 Teksty.'},
  {t:'fix',d:'KRYTYCZNY: Skill Teksty 4 "Co 5. track automatycznie staje się hitem (+200% streamów)" — nigdy nie działało. Naprawione: co 5. wydany singiel dostaje 3× streamów (oznaczenie hit:true).'},
@@ -102447,7 +102455,7 @@ const PATCH_NOTES = [
  ver:'v1.8.55',date:'2026-05-13',cats:['system','feature'],title:'Terapia raz dziennie · migracja zapisów dla nowych trackerów',
  items:[
  {t:'fix',d:'Terapia w szpitalu nie miała limitu — gracz mógł wpisać 200 zł, klikając wielokrotnie, dopóki nastrój nie osiągnął 100. Teraz dostępna raz dziennie, jak inne usługi szpitalne.'},
- {t:'fix',d:'Stare zapisy (sprzed v1.8.44) nie miały pól dla trackera fryzury, ukończonych zadań pomocniczych, zakupów u Zbyszka i wyłączonej (na razie) liczby przejazdów autobusem. Bez tych pól nowe osiągnięcia mogły pozostać "nieosiągalne" dla wczytanych starszych zapisów — teraz domyślnie 0.'},
+ {t:'fix',d:'Stare zapisy (sprzed v1.8.44) nie miały pól dla trackera fryzury, ukończonych zadań pomocniczych, zakupów u Frankiego i wyłączonej (na razie) liczby przejazdów autobusem. Bez tych pól nowe osiągnięcia mogły pozostać "nieosiągalne" dla wczytanych starszych zapisów — teraz domyślnie 0.'},
  ]
  },
  {
@@ -102501,9 +102509,9 @@ const PATCH_NOTES = [
  ]
  },
  {
- ver:'v1.8.47',date:'2026-05-13',cats:['gameplay'],title:'Każdy zakup u Zbyszka liczy się do side questu',
+ ver:'v1.8.47',date:'2026-05-13',cats:['gameplay'],title:'Każdy zakup u Frankiego liczy się do side questu',
  items:[
- {t:'fix',d:'Side quest "Stały klient" (Zbyszek) liczył tylko zakup kebabów, ignorował zupy dnia i energetyki. Teraz każdy zakup u Zbyszka (3 produkty) liczy się do progresu 10/10.'},
+ {t:'fix',d:'Side quest "Stały klient" (Frankie) liczył tylko zakup kebabów, ignorował zupy dnia i energetyki. Teraz każdy zakup u Frankiego (3 produkty) liczy się do progresu 10/10.'},
  ]
  },
  {
@@ -102517,7 +102525,7 @@ const PATCH_NOTES = [
  {
  ver:'v1.8.45',date:'2026-05-13',cats:['gameplay','feature'],title:'Side questy NPC odbieralne · 3 nowe linie fabularne · 14 osiągnięć · gig 800 zł',
  items:[
- {t:'fix',d:'Side questy NPC (Kamil — 50k zł, Majkel — 3 tracki, Zbyszek — 10 kebabów) były wcześniej zdefiniowane, ale brak było opcji dialogowej u tych NPC — nie dało się ich odebrać. Teraz każdy z 3 NPC ma w dialogu dostępną opcję "Sprawdź zadanie i odbierz nagrodę" z licznikiem postępu.'},
+ {t:'fix',d:'Side questy NPC (Kamil — 50k zł, Majkel — 3 tracki, Frankie — 10 kebabów) były wcześniej zdefiniowane, ale brak było opcji dialogowej u tych NPC — nie dało się ich odebrać. Teraz każdy z 3 NPC ma w dialogu dostępną opcję "Sprawdź zadanie i odbierz nagrodę" z licznikiem postępu.'},
  {t:'feature',d:'Dodane 3 nowe boczne linie fabularne: Hazard (Kasyno Royal — 5 kroków od pierwszych żetonów do "Króla kasyna"), Social Media (od pierwszego posta IG/tweeta do globalnej sławy), Biznes (od kebab budki do magnata 500k zł).'},
  {t:'feature',d:'+14 osiągnięć: pierwszy track, 10 tracków, drip 50/100, pierwszy outfit/fryzura, hardcore fan, forma 30/75, 3 zadania pomocnicze ukończone, 25 freestyle, fontanna 15×, 5-day streak, autobus 10× (przyszłość).'},
  {t:'fix',d:'Choice event "Niespodziewany gig" — opis mówił o 800 zł, kod dawał 400. Naprawione na 800 zł (zgodne z trudnością koncertu na żywo).'},
@@ -102680,7 +102688,7 @@ const PATCH_NOTES = [
  ver:'v1.8.26',date:'2026-05-13',cats:['gameplay','balance','bugfix'],title:'Bity i misje — drobne luki uzupełnione',
  items:[
  {t:'fix',d:'Wydany singiel jako instrumental (Loopify/AurumWave) rejestruje się teraz w licznikach kariery i historii utworów — wcześniej zwiększały się tylko słuchacze.'},
- {t:'fix',d:'Misja "Stały klient" od Zbyszka (kup 10 kebabów) — każdy zakup teraz prawidłowo liczy się do postępu.'},
+ {t:'fix',d:'Misja "Stały klient" od Frankiego (kup 10 kebabów) — każdy zakup teraz prawidłowo liczy się do postępu.'},
  {t:'fix',d:'Losowe wydarzenia (oferta sponsorska, awaria sprzętu, zaproszenie na festiwal) — limit 1× dziennie, koniec spamu wydarzeń.'},
  ]
  },
@@ -102778,7 +102786,7 @@ const PATCH_NOTES = [
  {t:'change',d:'Penthouse w nocy — sylwetki tancerzy w oknach zamiast "skaczących odważników". Owalne głowy, ruchome ręce, wielokolorowa kula dyskotekowa.'},
  {t:'new',d:'Cinematic przy zakupie studia — wielki overlay "STUDIO NAGRAŃ" przy pierwszej transakcji.'},
  {t:'new',d:'Inteligentne podpowiedzi — wskazówki pojawiają się tylko gdy nie wykonujesz akcji przez 45 sekund, max raz na 5 minut. Koniec spamu tych samych tipów.'},
- {t:'new',d:'BUDKA KEBABU — Zbyszek sprzedaje swoją budkę za 8 000 zł. Po zakupie pasywny dochód automatycznie przelewany rano.'},
+ {t:'new',d:'BUDKA KEBABU — Frankie sprzedaje swoją budkę za 8 000 zł. Po zakupie pasywny dochód automatycznie przelewany rano.'},
  {t:'fix',d:'Parking — auta różnej długości (sedan, hatchback, SUV, kombi) zamiast jednakowych "limuzyn". Miejsca równo rozłożone na całej szerokości — zero dziur po prawej.'},
  {t:'new',d:'Pipeline studia bit→wokal→miks→master — po zapisaniu jednego etapu komputer automatycznie sugeruje następny krok. Naturalna ścieżka tworzenia utworu.'},
  {t:'new',d:'Wnętrze studia — pulsujący neon "ON AIR" nad kabiną nagrań, 2 studyjne monitory na statywach z diodami, 3 plakaty muzyczne z odznakami platynowymi.'},
@@ -104090,9 +104098,9 @@ const PATCH_NOTES = [
  ]
  },
  {
- ver:'v0.9.42',date:'2026-05-09',cats:['balance'],title:'Audyt — Zbyszek balans + osłabienie random rewards',
+ ver:'v0.9.42',date:'2026-05-09',cats:['balance'],title:'Audyt — Frankie balans + osłabienie random rewards',
  items:[
- {t:'change',d:'Zbyszek (uliczny) — REBALANS zgodnie z user feedback "energetyk 6zł/+30 vs sklepowy 22zł/+50/-2HP nielogiczne". Teraz Zbyszek = TANI ALE GORSZY: kebab 12zł→10zł +40→+35 głód +5→+3 energii -1HP, zupa 35→30 głód +8→+5 nastrój, energetyk 6→8zł +30→+20 energii -1HP. Sklep zachowuje przewagę.'},
+ {t:'change',d:'Frankie (uliczny) — REBALANS zgodnie z user feedback "energetyk 6zł/+30 vs sklepowy 22zł/+50/-2HP nielogiczne". Teraz Frankie = TANI ALE GORSZY: kebab 12zł→10zł +40→+35 głód +5→+3 energii -1HP, zupa 35→30 głód +8→+5 nastrój, energetyk 6→8zł +30→+20 energii -1HP. Sklep zachowuje przewagę.'},
  {t:'change',d:'RANDOM_EVENTS rebalans (anti-grind): Fan donation chance 0.02→0.012, kwota 50-500→30-180. TV interview chance 0.004→0.003, fanów 500-2000→200-800, kasy 500-1500→200-700. Późnogamerski grind nie złamie ekonomii.'},
  ]
  },
@@ -104119,7 +104127,7 @@ const PATCH_NOTES = [
  items:[
  {t:'fix',d:'Storyline krok 2 — opis "między a Salą" niezrozumiały. Teraz: "centralna ulica miasta, naprzeciwko Sali Koncertowej" (bez technical IDs).'},
  {t:'change',d:'HUD: powrót do "Dzień X" zamiast skrótu "D.X" (czytelniej). Layout dostosowany — 11px font, mute, — overlap=false przy "Dzień 99 23:59".'},
- {t:'change',d:'Budka kebab (Zbyszek) — z 110×80 na 160×115 (+45%). Większy markiza, większy napis "🌯 KEBAB" 14px (z 11px).'},
+ {t:'change',d:'Budka kebab (Frankie) — z 110×80 na 160×115 (+45%). Większy markiza, większy napis "🌯 KEBAB" 14px (z 11px).'},
  {t:'fix',d:'Przechodnie w parku znikali, gdy mijali fontannę lub breakdance — przez złą kolejność rysowania. Teraz są widoczni na wierzchu, nad obiektami parku.'},
  ]
  },
@@ -104216,7 +104224,7 @@ const PATCH_NOTES = [
  ver:'v0.9.27',date:'2026-05-09',cats:['gameplay','feature'],title:'Godziny otwarcia — jedzenie 24/7 dostępne',
  items:[
  {t:'add',d:'PLACE_HOURS rozszerzony o jedzenie (sklep spożywczy 24/7, restauracja 12-24, pizzeria 11-24, targ 7-15) i pozostałe miejsca (warsztat, mediamarkt, ubrania, biuro nieruchomości, sala koncertowa, szpital 24/7, radio 24/7).'},
- {t:'fix',d:'Gracz ZAWSZE może coś zjeść — sklep spożywczy 24/7 + Zbyszek (NPC) 24/7. Test: każda z 24 godzin ma min. 1 miejsce jedzeniowe otwarte.'},
+ {t:'fix',d:'Gracz ZAWSZE może coś zjeść — sklep spożywczy 24/7 + Frankie (NPC) 24/7. Test: każda z 24 godzin ma min. 1 miejsce jedzeniowe otwarte.'},
  {t:'add',d:'Dodano też godziny dla prac dorywczych (carwash 8-20, pizza 11-24, zmywak 12-24) zgodnie z normalnym dniem pracy.'},
  ]
  },
@@ -104346,9 +104354,9 @@ const PATCH_NOTES = [
  ]
  },
  {
- ver:'v0.9.8',date:'2026-05-09',cats:['bugfix','gameplay'],title:'Zbyszek + Crew — okno nie zamyka się po zakupie',
+ ver:'v0.9.8',date:'2026-05-09',cats:['bugfix','gameplay'],title:'Frankie + Crew — okno nie zamyka się po zakupie',
  items:[
- {t:'fix',d:'🥙 U Zbyszka (sprzedawcy ulicznego) okno dialogu zostaje otwarte po zakupie kebaba, zupy czy energetyka — możesz kupić wszystkie 3 produkty bez wielokrotnego zaczynania rozmowy. Zamyka je tylko „Wyjdź”.'},
+ {t:'fix',d:'🥙 U Frankiego (sprzedawcy ulicznego) okno dialogu zostaje otwarte po zakupie kebaba, zupy czy energetyka — możesz kupić wszystkie 3 produkty bez wielokrotnego zaczynania rozmowy. Zamyka je tylko „Wyjdź”.'},
  {t:'fix',d:'Rekrutacja Crew (grafik/DJ/hype): tak samo — po rekrutacji okno zostaje otwarte, można od razu rekrutować kolejnych członków.'},
  ]
  },
@@ -104482,7 +104490,7 @@ const PATCH_NOTES = [
  {t:'fix',d:'Defensywne: startConcertMG/startBeatSequencerMG/startInfluencerPostMG/startCookingMG odtwarzają minigra-content jeśli zostało usunięte'},
  {t:'fix',d:'HUD: Lvl indicator + skill points były ucięte pod awatarem — przeniesione jako badge na dole awatara z tłem'},
  {t:'fix',d:'HUD: Ikona ustawień dźwięku 🔊 zasłaniała zegar — przesunięta bliżej telefonu, mniejsza, większy padding HUD'},
- {t:'change',d:'NPC Zbyszek (kebab) — interakcja łapie się z chodnika (actRadius:150 zamiast domyślnego 90) — nie trzeba wchodzić w budkę'},
+ {t:'change',d:'NPC Frankie (kebab) — interakcja łapie się z chodnika (actRadius:150 zamiast domyślnego 90) — nie trzeba wchodzić w budkę'},
  {t:'add',d:'🔧 Zasięg interakcji z obiektami można teraz łatwiej dostrajać dla poszczególnych obiektów.'},
  ]
  },
@@ -104599,7 +104607,7 @@ const PATCH_NOTES = [
  {t:'add',d:'Cykl dzień/noc, system pogody (słońce/deszcz/śnieg/mgła/burza)'},
  {t:'add',d:'Daily quests + achievements + random events + radio'},
  {t:'add',d:'Kreator postaci, sklep z ubraniami, fryzjer'},
- {t:'add',d:'NPC z dialogami (Wiktor, Marcin, Kamil, Zbyszek, Producent)'},
+ {t:'add',d:'NPC z dialogami (Wiktor, Marcin, Kamil, Frankie, Producent)'},
  ]
  },
 ];
@@ -106200,7 +106208,7 @@ function getFriendshipBonus(npcId){
   if(f>=25) return 1.05;
   return 1.0;
 }
-/* v2.1.870 (PDF): Tajne suplementy Zbyszka — przy zaprzyjaźnieniu sprzedaje (okresowo) towary
+/* v2.1.870 (PDF): Tajne suplementy Frankiego — przy zaprzyjaźnieniu sprzedaje (okresowo) towary
    na receptę / SARM-y / peptydy → realny, długi boost zdrowotno-kondycyjny (drogie!).
    Efekty NIE-ghost: +forma (żywy stat: +0.5%/pkt do zasięgu IG), +health, +energy, buff 'xp' (getBuffMult('xp') czytane w addXP). */
 const ZBYSZEK_SUPPS=[
@@ -106216,7 +106224,7 @@ function _zbyszekSuppsAvailable(){
   if(G._zbyszekSuppRollDay!==G.day){ G._zbyszekSuppRollDay=G.day; G._zbyszekSuppAvail = Math.random() < (f>=50?0.7:0.5); }
   return !!G._zbyszekSuppAvail;
 }
-window._openZbyszekSupps=function(){
+window._openFrankieSupps=function(){
   const mg=document.getElementById('mg-job'); const mc=document.getElementById('mg-job-content');
   if(!mg||!mc) return;
   const f=G.npcFriendship?.zbyszek||0;
@@ -106231,21 +106239,21 @@ window._openZbyszekSupps=function(){
       <div style="font-size:11px;color:#aab;margin-bottom:6px">+${s.forma} kondycja · +${s.health} zdrowie · +${s.energy} energia · XP ×${s.xpMult} (${Math.round(s.durSec/60)} min)</div>
       ${locked
         ? `<div style="font-size:11px;color:#e07070">🔒 Wymaga przyjaźni ${s.minF}+ (masz ${f})</div>`
-        : `<button class="bbtn" ${tooPoor?'disabled':''} style="width:100%" onclick="window._buyZbyszekSupp('${s.id}')">${tooPoor?'Za mało kasy':'Kup po znajomości'}</button>`}
+        : `<button class="bbtn" ${tooPoor?'disabled':''} style="width:100%" onclick="window._buyFrankieSupp('${s.id}')">${tooPoor?'Za mało kasy':'Kup po znajomości'}</button>`}
     </div>`;
   }).join('');
   mc.innerHTML=`<div style="background:#101a0a;border:2px solid #5a8a2a;border-radius:10px;padding:16px;max-width:480px;margin:0 auto;max-height:85vh;overflow-y:auto;color:#dfe">
-    <h2 style="color:#9acd32;margin-top:0;text-align:center">💊 Towar Zbyszka (po cichu)</h2>
+    <h2 style="color:#9acd32;margin-top:0;text-align:center">💊 Towar Frankiego (po cichu)</h2>
     <div style="font-size:11px;color:#8aa57a;text-align:center;margin-bottom:10px">„Tylko między nami, co?" — im wyższa przyjaźń, tym lepszy towar. Drogie, ale działa na długo.</div>
     ${rows}
     <button class="cbtn" style="width:100%;margin-top:6px" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Zamknij</button>
   </div>`;
   mg.classList.add('on');
 };
-window._buyZbyszekSupp=function(id){
+window._buyFrankieSupp=function(id){
   const s=ZBYSZEK_SUPPS.find(x=>x.id===id); if(!s) return;
   const f=G.npcFriendship?.zbyszek||0;
-  if(f<s.minF){ if(typeof showMsg==='function')showMsg('🔒 Za niska przyjaźń ze Zbyszkiem.','r'); return; }
+  if(f<s.minF){ if(typeof showMsg==='function')showMsg('🔒 Za niska przyjaźń ze Frankiem.','r'); return; }
   if((G.money||0)<s.price){ if(typeof showMsg==='function')showMsg('Za mało pieniędzy!','r'); return; }
   G.money-=s.price;
   G.forma=Math.min(100,(G.forma||0)+s.forma);
@@ -106255,7 +106263,7 @@ window._buyZbyszekSupp=function(id){
   if(typeof addFriendship==='function') addFriendship('zbyszek',2);
   if(typeof updateHUD==='function') updateHUD();
   if(typeof showMsg==='function') showMsg(`${s.em} ${s.name} — wzięte! +${s.forma} kondycja · +${s.health} zdrowie · +${s.energy} energia · XP ×${s.xpMult} na ${Math.round(s.durSec/60)} min.`,'g',5200);
-  window._openZbyszekSupps(); /* re-render: kasa/locki */
+  window._openFrankieSupps(); /* re-render: kasa/locki */
 };
 // Side quests od różnych NPC
 const SIDE_QUESTS={
@@ -106270,7 +106278,7 @@ const SIDE_QUESTS={
     {id:'p_3tracks', name:'Pięć singli', desc:'Nagraj 5 tracków (Home Studio lub Studio)', target:5, type:'tracks', reward:{money:12000,fame:20}},
   ],
   zbyszek:[
-    {id:'z_buy20kebab', name:'Stały klient', desc:'Kup 10 razy u Zbyszka', target:10, type:'kebab', reward:{money:1000,stress:30}},
+    {id:'z_buy20kebab', name:'Stały klient', desc:'Kup 10 razy u Frankiego', target:10, type:'kebab', reward:{money:1000,stress:30}},
   ],
 };
 function getSideQuestProgress(quest){
@@ -106510,7 +106518,7 @@ const SIDE_STORYLINES={
   business:{
     name:'💼 Linia Biznesu', color:'#27ae60',
     quests:[
-      {id:'bi1', em:'🌮', name:'Pierwszy biznes', desc:'Kup budkę kebab Zbyszka (8000 zł)',
+      {id:'bi1', em:'🌮', name:'Pierwszy biznes', desc:'Kup budkę kebab Frankiego (8000 zł)',
         check:()=>G.kebabStand?.owned===true, reward:{money:1000,xp:30}},
       {id:'bi2', em:'🏠', name:'Wynajem mieszkania', desc:'Wynajmij swoje pierwsze mieszkanie jako pasywny dochód',
         check:()=>{const r=G.rentals||{};return Object.keys(r).some(k=>r[k]===true);}, reward:{money:2000,xp:40}},
@@ -106749,7 +106757,7 @@ const CAREER_TRACKS={
   biznes:{ name:'Biznes', emoji:'💼', color:'#27ae60', desc:'Pieniądz robiący pieniądz — krypto, inwestycje, wynajem, własne biznesy i wytwórnia. Ścieżka dla tych, którzy myślą kapitałem.', steps:[
     {id:'biz_crypto', em:'💱', name:'Pierwszy trade krypto', desc:'Wykonaj pierwszy zakup na giełdzie krypto — początek portfela.', check:()=>(G.trader?.tradesCount||0)>=1, reward:{money:400,xp:30}},
     {id:'biz_invest', em:'🏦', name:'Pierwsza inwestycja', desc:'Ulokuj pierwsze pieniądze w banku — pasywny zysk zaczyna pracować.', check:()=>(G.bank?.investHistory?.length||0)>=1||(G.bank?.totalInvestmentProfit||0)>0, reward:{money:1000,xp:40}},
-    {id:'biz_kebab', em:'🌮', name:'Pierwszy własny biznes', desc:'Kup budkę kebab Zbyszka — pierwsze własne źródło pasywnego dochodu.', check:()=>G.kebabStand?.owned===true, reward:{money:1500,fame:3,xp:50}},
+    {id:'biz_kebab', em:'🌮', name:'Pierwszy własny biznes', desc:'Kup budkę kebab Frankiego — pierwsze własne źródło pasywnego dochodu.', check:()=>G.kebabStand?.owned===true, reward:{money:1500,fame:3,xp:50}},
     {id:'biz_crypto10k', em:'📈', name:'10 000 zł zysku z krypto', desc:'Zarób łącznie 10 000 zł na krypto — trading zaczyna się opłacać.', check:()=>(G.trader?.totalProfit||0)>=10000, reward:{money:5000,fame:5,xp:70,skillPts:1}},
     {id:'biz_diversify', em:'🌈', name:'Dywersyfikacja', desc:'Trzymaj jednocześnie 4 różne kryptowaluty — nie trzymasz wszystkich jajek w jednym koszyku.', check:()=>Object.keys(G.crypto?.holdings||{}).filter(k=>(G.crypto.holdings[k]?.qty||0)>0).length>=4, reward:{money:5000,xp:80,skillPts:1}},
     {id:'biz_rental', em:'🏘', name:'Pierwszy najem', desc:'Wynajmij swoje mieszkanie — pasywny dochód z nieruchomości co miesiąc.', check:()=>{const r=G.rentals||{};return Object.keys(r).some(k=>r[k]===true);}, reward:{money:2000,xp:50}},
@@ -114989,11 +114997,26 @@ window._autoRenderScale=function(){
 /* ── (2) PANELE ZAWSZE W CAŁOŚCI NA EKRANIE ──────────────────────────────────────────────────── */
 window._FIT_PAIRS=[['overlay','ov-content'],['mg-job','mg-job-content']];
 window._FIT_MIN=0.52;                       /* poniżej tego progu wolimy przewijanie niż mikrodruk */
+/* ═══ PDF 20.08 U3 — POWRÓT DO JEDNAKOWEJ SKALI PANELI I LIST ════════════════════
+   User: „usunąć skalowanie i wrócić do poprzednich ustawień, czyli żeby listy i panele, które
+   powinny być przewijane, miały być tak przewijane, czyli każdy panel i lista ma mieć ten sam
+   poziom skalowania, bez powiększania ani oddalania widoku”.
+   Flaga zostaje w kodzie — gdyby kiedyś wrócić do dopasowywania rozmiarem, wystarczy `true`.
+   Przy `false` funkcja nadal DZIAŁA: zdejmuje ewentualną starą transformację i pilnuje, żeby zbyt
+   długi panel dostał pasek przewijania (a nie został ściśnięty). */
+window._FIT_SCALING=false;
 window._fitOverlay=function(){
   window._FIT_PAIRS.forEach(([boxId,inId])=>{
     const box=document.getElementById(boxId), el=document.getElementById(inId);
     if(!box||!el) return;
     if(box.offsetParent===null){ el.style.transform=''; el.style.marginBottom=''; return; }
+    if(!window._FIT_SCALING){
+      /* jednakowa skala dla każdego panelu = brak transformacji; nadmiar treści → przewijanie */
+      if(el.style.transform){ el.style.transform=''; }
+      if(el.style.marginBottom){ el.style.marginBottom=''; }
+      box.style.overflowY='auto';
+      return;
+    }
     /* pomiar ZAWSZE bez wcześniejszej transformacji — inaczej skala nakłada się na siebie */
     el.style.transform=''; el.style.marginBottom='';
     const cs=getComputedStyle(box);
