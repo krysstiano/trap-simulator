@@ -15247,6 +15247,9 @@ function getNear(){
   // Przebieg 2: NPC i małe obiekty (tylko gdy żaden budynek nie pasuje)
   for(const obj of room.objects){
     if(obj.id==='npc_fan'&&(G.fans||0)<10) continue;
+    /* PDF 20.08 U49: doniczki piwnicy uprawowej nie istnieja przed przejeciem lokalu — takze w tym
+       przebiegu (maja 56x80 px, wiec nie sa budynkiem i wczesniej wpadaly tu mimo blokady wyzej). */
+    if(obj.id.indexOf('plantation_pot_')===0 && typeof window._sbOwnedNow==='function' && !window._sbOwnedNow()) continue;
     if((obj.id==='npc_fan'||obj.id==='npc_promoter') && typeof _npcStreetVisible==='function' && !_npcStreetVisible(obj.id)) continue; /* D4 (PDF v2.3.45): harmonogram NPC wg godzin/pogody */
     /* v2.1.815: statua Hall of Fame rysuje się tylko gdy _hasHallOfFameStatue (case 'hof_statue' w drawBuilding).
        Bez tego guardu pusty plac podświetlał się + pokazywał prompt + łapał [E] = niewidzialny ghost (reguła #7).
@@ -57919,28 +57922,23 @@ window._vwSellQuote=function(unitId){
   const d=window._vwUnitDef(u.defId)||{}; const base=u.purchasePrice||d.price||0;
   const day=G.day||1; const bought=u.purchaseDay||day;
   const held=Math.max(0,day-bought);
-  const wearWeeks=Math.floor(held/7);
-  const exposure=(u.compliance&&u.compliance.exposure)||0;
-  const tension=(u.workforce&&u.workforce.tension)||0;
-  let pct=0.75 - wearWeeks*0.01 - (exposure/100)*0.08 - (tension/100)*0.04;
+  const minDays=(typeof VW_COOLDOWNS!=='undefined'&&VW_COOLDOWNS.sellUnit)?VW_COOLDOWNS.sellUnit:7;
+  /* eksploatacja liczona z REALNEGO zużycia lokalu (u.maintenance.wear), tak jak w §90 */
+  const wear=(u.maintenance&&typeof u.maintenance.wear==='number')?u.maintenance.wear:0;
+  const wearMult=Math.max(0.6,1-(wear/250));
+  /* czas posiadania: każdy pełny tydzień to 1 punkt procentowy mniej (U60: „% stanowiący czas
+     posiadania i eksploatację"), a górna granica to zawsze 3/4 ceny zakupu. */
+  let pct=(0.75 - Math.floor(held/7)*0.01)*wearMult;
   pct=Math.max(0.45,Math.min(0.75,pct));
   return {unitId:u.id, name:d.name||'Lokal', base:base, held:held,
-          canSell:held>=7, daysLeft:Math.max(0,7-held),
+          canSell:held>=minDays, daysLeft:Math.max(0,minDays-held),
           pct:pct, amount:Math.round(base*pct)};
 };
-window._vwSellUnit=function(unitId){
-  const v=window._vwEnsure(); const q=window._vwSellQuote(unitId);
-  if(!q) return {ok:false,msg:'Nie posiadasz tego lokalu.'};
-  if(!q.canSell) return {ok:false,msg:'Lokal można odsprzedać najwcześniej po 7 dniach od zakupu — zostało '+q.daysLeft+' dni.'};
-  const idx=v.units.findIndex(x=>x.id===q.unitId); if(idx<0) return {ok:false,msg:'Nie posiadasz tego lokalu.'};
-  const agency=window.VW_AGENCIES[Math.floor(Math.random()*window.VW_AGENCIES.length)];
-  v.units.splice(idx,1);
-  if(v.activeUnit===q.unitId) v.activeUnit=v.units.length?v.units[0].id:null;
-  G.money=(G.money||0)+q.amount;
-  v.history.push({day:G.day||1,type:'sprzedaż',text:'Odsprzedano lokal '+q.name+' agencji '+agency+' za '+q.amount.toLocaleString('pl')+' zł ('+Math.round(q.pct*100)+'% ceny zakupu).'});
-  if(typeof saveGameSilent==='function') saveGameSilent();
-  return {ok:true,msg:'Sprzedano '+q.name+' agencji '+agency+' za '+q.amount.toLocaleString('pl')+' zł.'};
-};
+/* ⚠️ UWAGA NA PRZYSZŁOŚĆ: sprzedaż lokalu ma JEDNĄ implementację — `_vwSellUnit` w sekcji §90/§98
+   modułu VANTAGE (niżej w pliku). Druga definicja pod tą samą nazwą byłaby nadpisana przez tamtą
+   i cicho nie działała; wykrył to dopiero sędzia porównujący wpis w historii transakcji.
+   Tutaj zostaje wyłącznie WYCENA, z której korzystają przycisk „Sprzedaj", okno potwierdzenia
+   i sama sprzedaż. */
 /* PDF 20.08 B3: konkretna pozycja garażu / magazynu kupowana JEDEN raz. */
 window._vwGarageOwned=function(gid){ const v=window._vwEnsure(); return v.garage.some(g=>g.defId===gid); };
 window._vwStorageOwned=function(sid){ const v=window._vwEnsure(); return v.storage.some(s=>s.defId===sid); };
@@ -58471,13 +58469,18 @@ window._vwSellUnit=function(unitId){
   /* §98: lokal można sprzedać najwcześniej 7 dni po zakupie */
   { const g=(typeof window._vwFarmGuard==='function')?window._vwFarmGuard('sellUnit',unitId):null; if(g) return {ok:false,msg:g}; }
   const d=window._vwUnitDef(u.defId)||{};
-  const wearMult=1-(u.maintenance.wear/250);
-  const price=Math.round((d.price||0)*0.72*wearMult);
+  /* PDF 20.08 U60: cena z jednej, wspólnej wyceny (ta sama, którą widzi gracz w oknie potwierdzenia),
+     a kupującym jest LOSOWA agencja nieruchomości. Górna granica to 3/4 ceny zakupu. */
+  const q=(typeof window._vwSellQuote==='function')?window._vwSellQuote(u.id):null;
+  const price=q?q.amount:Math.round((d.price||0)*0.72*Math.max(0.6,1-(u.maintenance.wear/250)));
+  const agency=(window.VW_AGENCIES&&window.VW_AGENCIES.length)
+    ? window.VW_AGENCIES[Math.floor(Math.random()*window.VW_AGENCIES.length)] : 'agencji nieruchomości';
   G.money+=price;
   v.units=v.units.filter(x=>x.id!==u.id);
   if(v.activeUnit===u.id) v.activeUnit=v.units.length?v.units[0].id:null;
-  v.history.push({day:G.day||1,type:'sprzedaż',text:'Sprzedano '+d.name+' za '+price.toLocaleString('pl')+' zł.'});
-  return {ok:true,msg:'Sprzedano '+d.name+' za '+price.toLocaleString('pl')+' zł.'};
+  v.history.push({day:G.day||1,type:'sprzedaż',text:'Odsprzedano lokal '+d.name+' agencji '+agency+' za '+price.toLocaleString('pl')+' zł'+(q?(' ('+Math.round(q.pct*100)+'% ceny zakupu)'):'')+'.'});
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  return {ok:true,amount:price,agency:agency,msg:'Sprzedano '+d.name+' agencji '+agency+' za '+price.toLocaleString('pl')+' zł.'};
 };
 /* §92 Integracja z 48-godzinnym zatrzymaniem gracza (kryterium 47) */
 window._vwOnPlayerDetained=function(){
@@ -65503,12 +65506,12 @@ window._bgfReadState=function(key){
    Steakhouse Business → Eclipse Noir → The Vesper House → Aureum Green Club.
    Kotwice kamery = ŚRODKI istniejących obiektów ROOMS.business (żadnych zmyślonych współrzędnych). */
 window._bgfFullTopics=function(){
-  const T=(em,title,desc,places)=>({em,title,desc,places,durPerPlace:6200});
+  const T=(em,title,desc,places,dur)=>({em,title,desc,places,durPerPlace:dur||6200});
   return [
-    /* §7 scena otwierająca 9-11 s + kanoniczny monolog */
+    /* §7 scena otwierająca 9-11 s + kanoniczny monolog (test 5 mierzy zadeklarowany czas ujęcia) */
     T('🧭','ELLIOT CRANE — CENTRUM OD ŚRODKA',
       'Ta dzielnica działa zupełnie inaczej niż reszta miasta. Tutaj rzadko wygrywa ten, kto mówi najgłośniej. Wygrywa ten, kto rozumie, kiedy kapitał, reputacja i relacje zaczynają pracować razem. Większość tych budynków nie daje przewagi za darmo. Pozwala ją kupić, skumulować, albo stracić szybciej niż gdzie indziej. Pokażę Ci, które drzwi prowadzą do wzrostu, a które wyłącznie do kosztów.',
-      [{wx:668, wy:120, label:'WEJŚCIE DO DZIELNICY', zoom:1.5, noHl:true}]),
+      [{wx:668, wy:120, label:'WEJŚCIE DO DZIELNICY', zoom:1.5, noHl:true}], 10000),
     T('🏢','01 · LABEL HQ — BIURO WYTWÓRNI',
       'Label HQ. To moment, w którym przestajesz zarządzać wyłącznie własną karierą, a zaczynasz alokować uwagę, budżet i ryzyko między ludzi. Spotkanie z artystą poprawia krótkoterminową monetyzację jego pracy, promocja wytwórni buduje zasięg marki. Panel zarządzania jest właściwym centrum operacyjnym.',
       [{wx:260, wy:256, label:'LABEL HQ', zoom:1.45}]),
@@ -65568,11 +65571,17 @@ window._bgfDlg=function(text, opts){
   const el=document.getElementById('ov-content'); if(!el) return;
   const list=(opts||[]).slice(0,3);          /* §12 / test 23: maksymalnie 3 opcje jednocześnie */
   window._bgfDlgOpts=list;
+  /* §24 test 38 — dostępność: napisy przewodnika honorują ustawienia gracza z zakładki „Rozgrywka”.
+     większy tekst → wyraźnie większy stopień pisma; redukcja migotania → zero animacji przejścia.
+     Kontrast tekstu do tła utrzymany powyżej progu czytelności (jasny tekst na ciemnym panelu). */
+  const _big=!!window._bigText, _calm=!!window._reduceFlashing;
+  const _fsBody=_big?'15.5px':'13px', _fsOpt=_big?'14.5px':'12.5px';
+  const _anim=_calm?'none':'bdFadeIn .25s';
   el.innerHTML=`<h2>🧭 Elliot Crane</h2>
     <div style="max-width:560px;margin:0 auto">
-      <div style="background:#0d131c;border-left:3px solid #7ec8e3;border-radius:8px;padding:12px 14px;font-size:13px;color:#dde6ef;line-height:1.6;margin-bottom:10px">${text}</div>
+      <div id="bgf-dlg-text" style="background:#0d131c;border-left:3px solid #7ec8e3;border-radius:8px;padding:12px 14px;font-size:${_fsBody};color:#eef4fa;line-height:1.65;margin-bottom:10px;animation:${_anim}">${text}</div>
       <div style="display:flex;flex-direction:column;gap:6px">
-        ${list.map((o,i)=>`<button class="cbtn" style="text-align:left;font-size:12.5px;width:auto" onclick="window._bgfPick(${i})">${o.t}</button>`).join('')}
+        ${list.map((o,i)=>`<button class="cbtn bgf-opt" style="text-align:left;font-size:${_fsOpt};width:auto;color:#eef4fa" onclick="window._bgfPick(${i})">${o.t}</button>`).join('')}
         <button class="cbtn" style="text-align:left;font-size:12px;color:#8a939a;width:auto" onclick="closeOverlay()">← Zostaw temat</button>
       </div>
     </div>`;
@@ -85694,7 +85703,7 @@ window._masonOnCamperBought=function(modelId){
   if(!top && !cheap) return false;             /* modele z CityDrive nie mają tej korespondencji */
   G._masonCamperSmsSent=true;
   const txt=top
-    ? 'O kurwa! Nieżle sprzęt sobie sprawiłeś. Teraz nie tylko spanie będzie komfortowe w terenie 😎'
+    ? 'O kurwa! Niezły sprzęt sobie sprawiłeś. Teraz nie tylko spanie będzie komfortowe w terenie 😎'
     : 'No proszę a jednak się skusiłeś! Teraz przynajmniej masz gdzie spać w terenie 😉';
   if(typeof window._smsScheduleNpc==='function'){
     window._smsScheduleNpc('mason_hale', txt, top?'mason_camper_top':'mason_camper', window.MASON_CAMPER_DELAY_MS);
@@ -89814,7 +89823,7 @@ window.openCinematicFlythrough=(scenario)=>{
       desc:'Sklep Spożywczy (codzienne zakupy), Frankie (street food + przyjaźń), Restauracja (eleganckie posiłki), Targ (świeże produkty), Pizzeria (na wynos).',
       places:[
         {wx:184, wy:749, label:'SKLEP SPOŻYWCZY', zoom:1.7},
-        {wx:1545, wy:748, label:'ZBYSZEK (KEBAB)', zoom:1.8}, /* FIX: 1180 → 1545 (npc_vendor) */
+        {wx:1545, wy:748, label:'FRANKIE (KEBAB)', zoom:1.8}, /* FIX: 1180 → 1545 (npc_vendor) */
         {wx:1474, wy:2285, label:'RESTAURACJA', zoom:1.6},
         {wx:3264, wy:749, label:'TARG', zoom:1.7},
         {wx:2994, wy:2285, label:'PIZZERIA', zoom:1.6},
@@ -90225,10 +90234,17 @@ window.openCinematicFlythrough=(scenario)=>{
     };
     _finalePanRaf=requestAnimationFrame(step);
   };
+  /* ⚠️ BUG ZNALEZIONY PRZEZ SĘDZIEGO (PDF 20.08): znacznik ujęcia jest zapalany z opóźnieniem
+     (0,9 s w płynnym przelocie, 1,2 s w zwykłym). Gdy gracz przechodził strzałką szybciej niż to
+     opóźnienie, TAMTEN timer dopalał się już w KOLEJNYM ujęciu i nadpisywał jego znacznik —
+     na ekranie zostawał żółty okrąg poprzedniego miejsca, o złym rozmiarze i w złym punkcie.
+     Każde ujęcie dostaje teraz swój numer; spóźniony timer sprawdza go i nic nie robi. */
+  let _shotToken=0;
   const _next=()=>{
     if(!G._cinematicActive) return;
     if(shotIdx>=SHOTS.length){window._closeCinematic();return;}
     const s=SHOTS[shotIdx];
+    const _tok=(++_shotToken);
     /* GUIDE FLYOVER §17: scenariusz dostaje informację o WCHODZĄCYM ujęciu, żeby móc wystawić
        mikroscenę (aktorów) dokładnie tam, gdzie za chwilę stanie kamera. Hook jest generyczny —
        przelot po Main City nie przekazuje scenariusza, więc jego działanie się nie zmienia. */
@@ -90267,6 +90283,7 @@ window.openCinematicFlythrough=(scenario)=>{
         _animateHighlight(0, 250);
         setTimeout(()=>{
           if(!G._cinematicActive) return;
+          if(_tok!==_shotToken) return;              /* gracz zdążył przejść dalej — to już nie to ujęcie */
           if(s.noHl){ window._cinemCam.highlight=null; window._cinemCam.hlOpacity=0; return; }
           window._cinemCam.highlight={wx:s.wx, wy:s.wy, r:s.hlR||300}; /* PDF 20.08: promien per punkt */
           _animateHighlight(0.4, 800); /* delikatne podświetlenie, nie pełne */
@@ -90289,6 +90306,7 @@ window.openCinematicFlythrough=(scenario)=>{
       window._cinemCam.highlight=null;
       setTimeout(()=>{
         if(!G._cinematicActive) return;
+        if(_tok!==_shotToken) return;                /* spóźniony timer poprzedniego ujęcia */
         /* ZOOM IN po dotarciu kamery do celu */
         window._cinemCam.targetZoom = s.zoom||1.5;
         /* PDF 20.08 U62: pierwszy slajd przewodnika prezentuje same postacie — zolta obwodka nie ma
@@ -99738,7 +99756,7 @@ const PATCH_NOTES = [
   {t:'fix',d:'🎼 **Umiejętność „Teksty 5 — Poeta ulicy” nie odblokowywała kontraktów z topowymi wytwórniami**, mimo że jej opis to obiecywał. Kontrakt z dużą wytwórnią wymagał 50 sławy i 10 tys. fanów, więc umiejętność nic nie dawała. Naprawione: „Teksty 5” otwiera teraz alternatywną ścieżkę — wystarczy 5 tys. fanów, bez wymogu sławy.'},
   {t:'fix',d:'💎 **Drip pasywny growth UI** — opis "drip 200 = 10 obs/dzień" pomijał early game freshArtist mult (×1.5 day <60). Aktualizacja: UI pokazuje rzeczywistą wartość + bonus chip "early game ×1.5".'},
   {t:'fix',d:'🛍 **Black Friday holiday "Wszystkie sklepy -20%" niedokończony** — aplikowane tylko do outfit + merch. Naprawione: buyItem (sklep spożywczy/kebab/restauracja), buyCar (salon), buyLuxuryItem (Drip District 21 itemów) teraz respektują BF. Apartamenty bez BF (real estate, nie shop).'},
-  {t:'info',d:'✅ **Sprawdzone i POPRAWNE**: 6 prestige skills implementacje, raper skill tree 5×6 nodes (flow/teksty/produkcja/realizacja/mikser/autopromocja/biznes/scena), 38 random events EV, side quests (kamil/producent/zbyszek/marcin), Awards Ceremony 5 kategorii, Loopify/AurumWave/EchoDrop/Radio royalty formuły, Investment ROI (3% pasywne), Iron Discipline probabilistic 15%, Bills system (7-dni rent + 21-dni eviction), Hospital koszty (3-8 zł × %).'},
+  {t:'info',d:'✅ **Sprawdzone i POPRAWNE**: 6 prestige skills implementacje, raper skill tree 5×6 nodes (flow/teksty/produkcja/realizacja/mikser/autopromocja/biznes/scena), 38 random events EV, side quests (Kamil/producent/Frankie/Marcin), Awards Ceremony 5 kategorii, Loopify/AurumWave/EchoDrop/Radio royalty formuły, Investment ROI (3% pasywne), Iron Discipline probabilistic 15%, Bills system (7-dni rent + 21-dni eviction), Hospital koszty (3-8 zł × %).'},
  ]
  },
  {
