@@ -4540,8 +4540,12 @@ function drawSprite(id,sx,sy,w,h){
     case 'plantation_pot_0': case 'plantation_pot_1': case 'plantation_pot_2': case 'plantation_pot_3': case 'plantation_pot_4': case 'plantation_pot_5': drawGrowPot(sx,sy,w,h,id);break; /* v2.1.790 FAZA 2 */
     /* v2.3.131 (PDF Uspr v2.3.130 U23): dopóki gracz nie kupi wyposażenia FINISH w terminalu SUBTERRA,
        w tych miejscach stoi oznaczone PUSTE stanowisko (a nie gotowy sprzęt, którego nikt nie kupił). */
-    case 'plant_drying':  if(typeof window._sbStationReady==='function'&&!window._sbStationReady('plant_drying')){ drawSubterraEmptyBay(sx,sy,w,h,'Suszenie'); } else drawDryingRack(sx,sy,w,h); break;
-    case 'plant_pack':    if(typeof window._sbStationReady==='function'&&!window._sbStationReady('plant_pack')){ drawSubterraEmptyBay(sx,sy,w,h,'Pakowanie'); } else drawPackingStation(sx,sy,w,h); break;
+    /* PDF 20.08 U51: dopoki lokal nie zostal przejety, oba stanowiska sa NIEWIDOCZNE (nie ma nawet
+       obrysu „wolne stanowisko”). Po przejeciu wracaja: pusty box do czasu zakupu sprzetu, potem sprzet. */
+    case 'plant_drying':  if(typeof window._sbOwnedNow==='function'&&!window._sbOwnedNow()){ break; }
+                          if(typeof window._sbHasFinishGear==='function'&&!window._sbHasFinishGear()){ drawSubterraEmptyBay(sx,sy,w,h,'Suszenie'); } else drawDryingRack(sx,sy,w,h); break;
+    case 'plant_pack':    if(typeof window._sbOwnedNow==='function'&&!window._sbOwnedNow()){ break; }
+                          if(typeof window._sbHasFinishGear==='function'&&!window._sbHasFinishGear()){ drawSubterraEmptyBay(sx,sy,w,h,'Pakowanie'); } else drawPackingStation(sx,sy,w,h); break;
     case 'exit_plantacja': drawInteriorExit(sx,sy,w,h);break;
     case 'lab_cook_shard':                  drawCrystallizationStation(sx,sy,w,h);break;
     case 'lab_cook_powder':                 drawFiltrationStation(sx,sy,w,h);break;
@@ -10414,8 +10418,19 @@ function drawGrowPot(sx,sy,w,h,id){
     if(Array.isArray(arr)) pot=arr[_idx];
   }catch(e){}
   /* v2.1.790 FAZA 2 — niekupiony slot na Plantacji = placeholder „⊕ kup". */
+  /* PDF 20.08 U49: w Adaptowanej piwnicy uprawowej przed przejeciem lokalu NIE MA zadnych doniczek
+     — ani postawionych, ani obwodek zachecajacych do kupna. */
+  if(_site==='plantation' && typeof window._sbOwnedNow==='function' && !window._sbOwnedNow()) return;
   if(_site==='plantation' && _idx>=((G.grow&&G.grow.potsOwned)||1)){
-    const cx2=sx+w/2; X.setLineDash([5,4]); X.strokeStyle='rgba(126,200,126,0.5)'; X.lineWidth=2;
+    const cx2=sx+w/2;
+    /* PDF 20.08 U51: po przejeciu lokalu sekcje kupna doniczki delikatnie PULSUJA na zielono pod
+       warstwa obwodki — czytelna sugestia, ze mozna dokupic kolejne stanowisko uprawne. */
+    if(_site==='plantation'){
+      const _pul=0.10+Math.sin(Date.now()/520)*0.06;
+      X.fillStyle='rgba(80,210,110,'+Math.max(0.04,_pul).toFixed(3)+')';
+      X.fillRect(sx+w*0.14,sy+h*0.50,w*0.72,h*0.46);
+    }
+    X.setLineDash([5,4]); X.strokeStyle='rgba(126,200,126,0.5)'; X.lineWidth=2;
     X.strokeRect(sx+w*0.18,sy+h*0.55,w*0.64,h*0.38); X.setLineDash([]);
     X.textAlign='center';
     X.font=`bold ${Math.round(h*0.24)}px Arial`; X.lineWidth=3; X.lineJoin='round'; X.strokeStyle='rgba(0,0,0,0.7)';
@@ -11566,12 +11581,15 @@ function drawPlantacjaInteriorDecorations(){
   X.fillStyle='#222a26'; X.fillRect(wx2sx(0),wy2sy(H-14),W,14);
   /* profesjonalne lampy do uprawy nad kolumnami doniczek + stożek światła */
   const _t=Date.now()/600;
+  /* PDF 20.08 U51: trzy lampy świeca dopiero, gdy gracz przejmie lokal. Przed przejeciem wisza
+     zgaszone — bez stozka swiatla i z ciemnymi diodami. */
+  const _lampsOn=(typeof window._sbOwnedNow!=='function')||window._sbOwnedNow();
   for(const lx of [118,358,598]){
     const sx=wx2sx(lx), sy=wy2sy(140);
     X.strokeStyle='#444'; X.lineWidth=2; X.beginPath(); X.moveTo(sx,wy2sy(16)); X.lineTo(sx,sy); X.stroke();
-    X.fillStyle='rgba(190,150,255,0.10)'; X.beginPath(); X.moveTo(sx-26,sy+12); X.lineTo(sx-95,wy2sy(540)); X.lineTo(sx+95,wy2sy(540)); X.lineTo(sx+26,sy+12); X.closePath(); X.fill();
-    X.fillStyle='#2a2a30'; X.fillRect(sx-28,sy,56,12); X.fillStyle='#9a9aa5'; X.fillRect(sx-24,sy+11,48,3);
-    X.fillStyle=`rgba(225,185,255,${0.6+Math.sin(_t+lx)*0.18})`; for(let i=-1;i<=1;i++){X.beginPath();X.arc(sx+i*14,sy+7,3.5,0,Math.PI*2);X.fill();}
+    if(_lampsOn){ X.fillStyle='rgba(190,150,255,0.10)'; X.beginPath(); X.moveTo(sx-26,sy+12); X.lineTo(sx-95,wy2sy(540)); X.lineTo(sx+95,wy2sy(540)); X.lineTo(sx+26,sy+12); X.closePath(); X.fill(); }
+    X.fillStyle='#2a2a30'; X.fillRect(sx-28,sy,56,12); X.fillStyle=_lampsOn?'#9a9aa5':'#4a4a52'; X.fillRect(sx-24,sy+11,48,3);
+    X.fillStyle=_lampsOn?`rgba(225,185,255,${0.6+Math.sin(_t+lx)*0.18})`:'rgba(70,66,80,0.9)'; for(let i=-1;i<=1;i++){X.beginPath();X.arc(sx+i*14,sy+7,3.5,0,Math.PI*2);X.fill();}
   }
   /* filtr węglowy + wentylacja (prawy górny róg) */
   const fsx=wx2sx(1040), fsy=wy2sy(40); X.fillStyle='#333'; X.fillRect(fsx,fsy,22,70); X.strokeStyle='#555'; X.lineWidth=1; X.strokeRect(fsx,fsy,22,70); for(let i=0;i<5;i++){X.strokeStyle='#444';X.beginPath();X.moveTo(fsx,fsy+10+i*12);X.lineTo(fsx+22,fsy+10+i*12);X.stroke();}
@@ -15160,6 +15178,9 @@ function getNear(){
     if(obj.id==='velvet_parking' && !(typeof window._uwZ2Active==='function'&&window._uwZ2Active())) continue; /* v2.3.38: parking Z2 tylko gdy aktywne */
     /* v2.3.131 (PDF Uspr v2.3.130 U23): stanowiska SUBTERRA działają dopiero po zakupie wyposażenia w terminalu. */
     if((obj.id==='plant_drying'||obj.id==='plant_pack') && typeof window._sbStationReady==='function' && !window._sbStationReady(obj.id)) continue;
+    /* PDF 20.08 U49: przed przejeciem lokalu doniczki w piwnicy uprawowej nie istnieja — nie ma ich
+       na ekranie, wiec nie moga tez reagowac na [E]. */
+    if(obj.id.indexOf('plantation_pot_')===0 && typeof window._sbOwnedNow==='function' && !window._sbOwnedNow()) continue;
     const isParkObj=['fountain','pond','skate','bboying','freestyle_spot','apt2_fountain'].includes(obj.id);
     const isDecorOnly=!obj.act || obj.id.startsWith('park_lamp')||obj.id.startsWith('park_bush')||obj.id==='park_trash';
     const isBuilding=obj.w>60&&obj.h>60&&!obj.id.startsWith('npc_')&&!isParkObj&&!isDecorOnly;
@@ -22407,6 +22428,22 @@ function _trapMarketChip(id){
 /* v2.1.481 Faza AN.7 — PLANTATION GROW LOOP minigame (user feedback: real grow process). */
 const GROW_PRICES={seed:30,soil:25,fert:35,pot2:800,pot3:2500};
 const GROW_STAGE_EMOJI=['⬛','🌱','🌿','🍃','🌾'];
+/* ═══ PDF 20.08 U50 — AUTORSKI SYMBOL DONICZKI (zamiast internetowego emoji) ════════════
+   User: „symbol ma być minimalistyczny, wizualizujący białe kontury i obrys doniczki, z której
+   wyrasta mała roślinka”. Rysowany wektorowo (SVG), więc skaluje się bez utraty ostrości i nie
+   zależy od kroju emoji w systemie gracza. Używany WYŁĄCZNIE w panelach uprawowych:
+   panelu kupna nowej doniczki i panelu samej doniczki (plantacja/kamper). */
+window._potGlyphSVG=function(px,color){
+  const s=Math.max(12,px||46), c=color||'#ffffff';
+  return '<svg viewBox="0 0 48 48" width="'+s+'" height="'+s+'" role="img" aria-label="Doniczka" style="display:inline-block;vertical-align:middle">'
+    +'<g fill="none" stroke="'+c+'" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">'
+    +'<path d="M13 27 h22 l-2.6 13.5 a2.5 2.5 0 0 1 -2.5 2 h-11.8 a2.5 2.5 0 0 1 -2.5 -2 z"/>'
+    +'<path d="M11 22.5 h26 a1.6 1.6 0 0 1 1.6 1.6 v1.3 a1.6 1.6 0 0 1 -1.6 1.6 h-26 a1.6 1.6 0 0 1 -1.6 -1.6 v-1.3 a1.6 1.6 0 0 1 1.6 -1.6 z"/>'
+    +'<path d="M24 22 v-8"/>'
+    +'<path d="M24 16.5 c-5 0 -7.5 -2.6 -7.8 -7 c4.6 -0.3 7.4 2 7.8 7 z"/>'
+    +'<path d="M24 18.8 c4.3 0 6.5 -2.2 6.8 -6 c-4 -0.3 -6.4 1.7 -6.8 6 z"/>'
+    +'</g></svg>';
+};
 const GROW_STAGE_NAME=['Pusta','Sadzonka','Wegetacja','Kwitnienie','Gotowa do zbioru'];
 
 /* ═══ v2.1.782 FAZA 1 — PRZESTRZENNY redesign uprawy (doniczki per-lokacja) ═══
@@ -22703,6 +22740,13 @@ window._growBuy=function(item){
 /* v2.1.790 FAZA 2 — kupowalne doniczki na Plantacji (max 6, drabinka cen). _growBuyPot deleguje (legacy modal). */
 window._growBuySlot=function(site){
   _growEnsure();
+  /* PDF 20.08 U49: w Adaptowanej piwnicy uprawowej nie mozna dokupywac doniczek, dopoki gracz
+     nie przejmie lokalu na wlasnosc (przycisk Przejmij lokal w terminalu SUBTERRA). */
+  if(site==='plantation' && typeof window._sbOwnedNow==='function' && !window._sbOwnedNow()){
+    if(typeof showMsg==='function') showMsg('Najpierw przejmij lokal w terminalu SUBTERRA — dopiero wtedy postawisz tu doniczki.','r',4500);
+    return false;
+  }
+
   if(site!=='plantation'){ if(typeof showMsg==='function') showMsg('🪴 Dodatkowe doniczki kupisz na Plantacji (lvl 5).','i',3500); return false; }
   const owned=G.grow.potsOwned||1;
   if(owned>=6){ if(typeof showMsg==='function') showMsg('🪴 Masz już maksymalną liczbę doniczek (6) na Plantacji.','i',3000); return false; }
@@ -22718,6 +22762,13 @@ window._growBuyPot=function(){ if(window._growBuySlot('plantation')) _growReopen
 /* v2.3.89 F1-b (user „kupno doniczki = ładne okienko, nie samo E"): panel potwierdzenia zamiast instant-buy. */
 window._growBuyPotPanel=function(site){
   _growEnsure();
+  /* PDF 20.08 U49: w Adaptowanej piwnicy uprawowej nie mozna dokupywac doniczek, dopoki gracz
+     nie przejmie lokalu na wlasnosc (przycisk Przejmij lokal w terminalu SUBTERRA). */
+  if(site==='plantation' && typeof window._sbOwnedNow==='function' && !window._sbOwnedNow()){
+    if(typeof showMsg==='function') showMsg('Najpierw przejmij lokal w terminalu SUBTERRA — dopiero wtedy postawisz tu doniczki.','r',4500);
+    return;
+  }
+
   if(site!=='plantation'){ if(typeof showMsg==='function') showMsg('🪴 Dodatkowe doniczki kupisz na Plantacji (lvl 5).','i',3500); return; }
   const owned=G.grow.potsOwned||1;
   if(owned>=6){ if(typeof showMsg==='function') showMsg('🪴 Masz już maksymalną liczbę doniczek (6) na Plantacji.','i',3000); return; }
@@ -22725,7 +22776,7 @@ window._growBuyPotPanel=function(site){
   const _mg=document.getElementById('mg-job'),_mc=document.getElementById('mg-job-content'); if(!_mg||!_mc) return;
   const afford=(G.money||0)>=cost;
   _mc.innerHTML=`<div style="background:#0a1810;border:2px solid #27ae60;border-radius:12px;padding:22px;max-width:380px;margin:0 auto;text-align:center;color:#dfeede">
-    <div style="font-size:46px;margin-bottom:4px">🪴</div>
+    <div style="margin-bottom:6px">${window._potGlyphSVG(46)}</div>
     <h2 style="color:#52be80;margin:0 0 6px;font-size:20px">Nowa doniczka</h2>
     <p style="color:#9cbb9c;font-size:13px;line-height:1.5;margin-bottom:14px">Dokup <b>${owned+1}. stanowisko</b> uprawne na Plantacji (max 6). Więcej doniczek = więcej roślin rosnących naraz.</p>
     <div style="background:#06120a;border:1px solid #1a3a22;border-radius:8px;padding:12px;margin-bottom:16px">
@@ -22734,7 +22785,7 @@ window._growBuyPotPanel=function(site){
       <div style="font-size:11px;color:${afford?'#7ec87e':'#e07a7a'}">Masz: ${(G.money||0).toLocaleString('pl')} zł</div>
     </div>
     <div style="display:flex;gap:10px">
-      <button onclick="window._growBuyPotConfirm()" ${afford?'':'disabled'} style="flex:1;background:${afford?'linear-gradient(135deg,#27ae60,#1a7838)':'#2a2a2a'};color:#fff;border:none;padding:12px;border-radius:8px;font-weight:800;cursor:${afford?'pointer':'not-allowed'};font-family:inherit;font-size:14px">${afford?'🪴 Kup za '+cost.toLocaleString('pl')+' zł':'Za mało gotówki'}</button>
+      <button onclick="window._growBuyPotConfirm()" ${afford?'':'disabled'} style="flex:1;background:${afford?'linear-gradient(135deg,#27ae60,#1a7838)':'#2a2a2a'};color:#fff;border:none;padding:12px;border-radius:8px;font-weight:800;cursor:${afford?'pointer':'not-allowed'};font-family:inherit;font-size:14px">${afford?'Kup za '+cost.toLocaleString('pl')+' zł':'Za mało gotówki'}</button>
       <button onclick="window._growCloseBuyPanel()" style="flex:0 0 auto;background:#2a1a1a;color:#caa;border:1px solid #4a2a2a;padding:12px 18px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:14px">Anuluj</button>
     </div></div>`;
   _mg.classList.add('on');
@@ -22899,7 +22950,7 @@ window._renderPotPanel=function(site,idx){
         <button class="cbtn" style="flex:1;min-width:80px;font-size:12px;padding:7px" onclick="window._growFertilize('${site}',${idx})" ${(G.grow.inv.fert<1||pot.fert>=100)?'disabled':''}>🧪 Nawóź</button>
         ${pot.stage>=4?`<button class="cbtn" style="flex:1 100%;background:#27ae60;color:#fff;font-weight:800;border-color:#1e7a44;font-size:14px;padding:10px;margin-top:4px" onclick="window._growHarvest('${site}',${idx})">🌾 ŚCINAJ — zbierz plon</button>`:''}
       </div>`
-    :`<div style="text-align:center;font-size:54px;margin:6px 0;opacity:.4">🪴</div>
+    :`<div style="text-align:center;margin:6px 0;opacity:.55">${window._potGlyphSVG(54)}</div>
       <div style="color:#888;font-size:12px;text-align:center;margin-bottom:6px">Pusta doniczka</div>
       <div style="font-size:11px;color:#8a9;text-align:center;margin-bottom:10px">Posadź nasionko → rośnie <b>~${_growDays} ${_growDays===1?'dzień':'dni'}</b> (codziennie podlewaj 💧 + nawóź 🧪) → ścinaj mokre topy.</div>
       <button class="cbtn" style="width:100%;font-size:12px;padding:9px" onclick="window._growPlant('${site}',${idx})" ${(G.grow.inv.seeds<1||G.grow.inv.soil<1)?'disabled':''}>Posadź (−1 nasionko, −1 ziemia)</button>`;
@@ -29657,7 +29708,7 @@ const NPC_DATA = {
   /* v2.3.105 (user): Producent w Piwnicy — postać „crackheada", nerwowa/gadatliwa, ale zna się na bitach.
      Prowadzi nagrania za opłatą (panel renderPiwnicaStudio). Tier pośredni: lepszy niż traphouse, gorszy niż studio. */
   piwnicaProducer: {
-    name:'🎧 Ziutek — producent z piwnicy',
+    name:'🎧 Jimmy – producent z piwnicy',
     lines: [
       'Ej, ej… masz kasę? To siadaj, nagramy coś grubego, tylko szybko, bo mnie nosi.',
       'Te bity… ja je czuję w kościach, ziom. Za odpowiednią cenę dam ci najgrubszy.',
@@ -29671,13 +29722,14 @@ const NPC_DATA = {
         else if(typeof showMsg==='function') showMsg('🎙️ Producent szykuje sprzęt… spróbuj za chwilę.','i',3000);
       }},
       {text:()=>`💬 Pogadaj o ulicy (+respekt undergroundu)`, cond:()=>true, fn:()=>{
-        if(G._lastPiwnicaTalkDay===G.day){showMsg('🎧 Ziutek już się dziś wygadał. Wróć jutro.','r',3000);closeNPCDlg();return;}
+        if(G._lastPiwnicaTalkDay===G.day){showMsg('🎧 Jimmy już się dziś wygadał. Wróć jutro.','r',3000);closeNPCDlg();return;}
         G._lastPiwnicaTalkDay=G.day;
         G._underworldRespect=Math.min(100,(G._underworldRespect||0)+2);
         if(typeof addXP==='function') addXP(6);
         closeNPCDlg();
-        if(typeof notify==='function') notify('🌑 Pogadałeś z Ziutkiem — +2 respekt undergroundu, +XP');
+        if(typeof notify==='function') notify('🌑 Pogadałeś z Jimmym — +2 respekt undergroundu, +XP');
       }},
+      {text:()=>window._jimmyOptLabel(), cond:()=>true, fn:()=>{ closeNPCDlg(); if(typeof window._jimmyTradePanel==='function') window._jimmyTradePanel(); }},
       {text:'Wyjdź', fn:()=>{ closeNPCDlg(); }},
     ],
   },
@@ -32034,6 +32086,12 @@ function rollNpcRobberyAgainstPlayer(loc, hour){
   _theftStateEnsure();
   loc=loc||(typeof currentRoom!=='undefined'?currentRoom:'ulica'); hour=(typeof hour==='number')?hour:_theftHour();
   if(G._theft.robbedDay===G.day) return false; /* raz na dobę */
+  /* PDF 20.08 U23 (user): w Underground District zdarzenie ma wypadac najwyzej RAZ NA GODZINE
+     aktywnej rozgrywki. Limit dobowy powyzej zostaje, ten dokłada twardy odstep czasu gry. */
+  if(loc==='underground'){
+    const _lastRob=(G._theft&&G._theft.robbedAtMs)||0;
+    if(_lastRob && (Date.now()-_lastRob)<3600000) return false;
+  }
   const night=(hour>=22||hour<6);
   const risk=DISTRICT_THEFT_RISK[loc]||DISTRICT_THEFT_RISK.ulica;
   let score=0;
@@ -32050,6 +32108,7 @@ function rollNpcRobberyAgainstPlayer(loc, hour){
   score=Math.max(0,Math.min(0.85,score));
   if(Math.random()>=score) return false;
   G._theft.robbedDay=G.day;
+  G._theft.robbedAtMs=Date.now(); /* PDF 20.08 U23: znacznik do limitu 1/godzine */
   const pool=NPC_ROBBER_TYPES.slice(0, loc==='underground'?6:4);
   const npc=pool[Math.floor(Math.random()*pool.length)];
   const cash=Math.min(G.money||0, rnd(npc.cashMin,npc.cashMax));
@@ -47581,6 +47640,147 @@ window._renderCamperSafeInline=function(){
   </div>`;
   _mg.classList.add('on');
 };
+/* ═══ PDF 20.08 U53 — JIMMY: SPRZEDAŻ I NEGOCJACJA TOWARU W PIWNICY ═════════════════
+   Zasady wprost z dokumentu:
+   • przedmiot handlu: Shard (kryształ), Joint oraz LSD (Kwas),
+   • producent NIE zawsze chce coś kupić,
+   • czasem kupi dopiero po wydaniu kawałka na EchoDrop,
+   • ilość nigdy większa niż 2 porcje dziennie, w większości pojedyncze porcje kryształu,
+   • cena wyjściowa 250 zł za sztukę (negocjowalna),
+   • po sprzedaży 2 sztuk — 2 dni przerwy licząc od dnia zakupu towaru. */
+window.JIMMY_GOODS={
+  shard:{ n:'Shard (kryształ)', bucket:'products', key:'shard', em:'💠', w:62 },
+  joint:{ n:'Joint',            bucket:'products', key:'joint', em:'🚬', w:28 },
+  lsd:  { n:'LSD (Kwas)',       bucket:'products', key:'lsd',   em:'🧪', w:10 }
+};
+window.JIMMY_BASE_PRICE=250;
+window._jimmyEnsure=function(){
+  if(typeof G==='undefined') return null;
+  if(!G.jimmy||typeof G.jimmy!=='object') G.jimmy={};
+  const j=G.jimmy;
+  if(j.rollDay==null) j.rollDay=-1;
+  if(j.want==null) j.want=null;
+  if(j.qty==null) j.qty=0;
+  if(j.price==null) j.price=window.JIMMY_BASE_PRICE;
+  if(j.needsRelease==null) j.needsRelease=false;
+  if(j.negotiated==null) j.negotiated=false;
+  if(j.soldToday==null) j.soldToday=0;
+  if(j.cooldownUntilDay==null) j.cooldownUntilDay=0;
+  if(j.totalSold==null) j.totalSold=0;
+  return j;
+};
+window._jimmyHasEchoRelease=function(){
+  try{ return ((G.soundcloud&&G.soundcloud.tracksUploaded)||0)>0; }catch(_){ return false; }
+};
+window._jimmyStock=function(id){
+  const g=window.JIMMY_GOODS[id]; if(!g) return 0;
+  try{ return (G.trapInv&&G.trapInv.products&&G.trapInv.products[g.key])||0; }catch(_){ return 0; }
+};
+/* Losowanie dziennego zapotrzebowania — raz na dzień gry, zapamiętane w stanie. */
+window._jimmyRoll=function(){
+  const j=window._jimmyEnsure(); if(!j) return null;
+  const day=(typeof G!=='undefined'&&G.day)||1;
+  if(j.rollDay===day) return j;
+  j.rollDay=day; j.soldToday=0; j.negotiated=false; j.price=window.JIMMY_BASE_PRICE;
+  if(day<(j.cooldownUntilDay||0)){ j.want=null; j.qty=0; j.needsRelease=false; return j; }
+  /* 45% dni bez zapotrzebowania — „producent nie zawsze będzie chciał coś kupić” */
+  if(Math.random()<0.45){ j.want=null; j.qty=0; j.needsRelease=false; return j; }
+  const pool=[]; for(const id in window.JIMMY_GOODS){ const w=window.JIMMY_GOODS[id].w; for(let k=0;k<w;k++) pool.push(id); }
+  const want=pool[Math.floor(Math.random()*pool.length)];
+  /* „w większości będą to pojedyncze porcje kryształu” — 2 sztuki to wyjątek, limit twardy 2. */
+  const two=(want==='shard')?(Math.random()<0.2):(Math.random()<0.35);
+  j.want=want; j.qty=two?2:1;
+  j.needsRelease=(Math.random()<0.35);
+  return j;
+};
+window._jimmyOffer=function(){
+  const j=window._jimmyRoll(); if(!j) return null;
+  const day=(typeof G!=='undefined'&&G.day)||1;
+  if(day<(j.cooldownUntilDay||0)) return {state:'cooldown',daysLeft:(j.cooldownUntilDay-day)};
+  if(!j.want) return {state:'none'};
+  if(j.needsRelease && !window._jimmyHasEchoRelease()) return {state:'needsRelease',want:j.want};
+  const left=Math.max(0,(j.qty||0)-(j.soldToday||0));
+  if(left<=0) return {state:'done'};
+  return {state:'open',want:j.want,left:left,price:j.price,negotiated:j.negotiated};
+};
+window._jimmyOptLabel=function(){
+  try{
+    const o=window._jimmyOffer();
+    if(o&&o.state==='open'){ const g=window.JIMMY_GOODS[o.want];
+      return '💰 Zaproponuj towar — pyta o '+g.em+' '+g.n; }
+    return '💰 Zaproponuj towar';
+  }catch(_){ return '💰 Zaproponuj towar'; }
+};
+/* Negocjacja: jedno podejście dziennie. Szansa rośnie z respektem undergroundu i reputacją trapu. */
+window._jimmyNegotiate=function(){
+  const j=window._jimmyEnsure(); const o=window._jimmyOffer();
+  if(!j||!o||o.state!=='open') return;
+  if(j.negotiated){ window._jimmyTradePanel('Cenę ustaliliście już dziś — Jimmy nie wraca do tematu.'); return; }
+  j.negotiated=true;
+  const resp=((G._underworldRespect||0)/100)*0.30;
+  const rep=(((G.trap&&G.trap.reputation)||0)/100)*0.20;
+  const chance=Math.min(0.85,0.35+resp+rep);
+  if(Math.random()<chance){
+    const bump=1+(0.10+Math.random()*0.20);
+    j.price=Math.round(window.JIMMY_BASE_PRICE*bump);
+    window._jimmyTradePanel('Jimmy: „No dobra, dobra. '+j.price+' zł za sztukę i kończymy temat.”');
+  } else {
+    j.price=window.JIMMY_BASE_PRICE;
+    window._jimmyTradePanel('Jimmy: „Nie tym razem, ziom. '+window.JIMMY_BASE_PRICE+' zł za sztukę albo szukaj indziej.”');
+  }
+};
+window._jimmySell=function(count){
+  const j=window._jimmyEnsure(); const o=window._jimmyOffer();
+  if(!j||!o||o.state!=='open'){ window._jimmyTradePanel(); return; }
+  const g=window.JIMMY_GOODS[o.want];
+  const have=window._jimmyStock(o.want);
+  const qty=Math.max(1,Math.min(count|0,o.left,have));
+  if(have<1){ window._jimmyTradePanel('Nie masz przy sobie tego towaru.'); return; }
+  G.trapInv.products[g.key]=Math.max(0,have-qty);
+  const gain=qty*(j.price||window.JIMMY_BASE_PRICE);
+  G.money=(G.money||0)+gain;
+  j.soldToday=(j.soldToday||0)+qty;
+  j.totalSold=(j.totalSold||0)+qty;
+  /* „po udanej sprzedaży 2-sztuk … nastąpią 2-dni cooldown’u, czyli 2-dni przerwy
+     od dnia zakupu towaru przez producenta z piwnicy” */
+  if(j.soldToday>=2) j.cooldownUntilDay=((G.day||1)+2);
+  if(typeof G._underworldRespect==='number'||true) G._underworldRespect=Math.min(100,(G._underworldRespect||0)+1);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._jimmyTradePanel('Sprzedano '+qty+' × '+g.n+' za '+gain.toLocaleString('pl')+' zł.');
+};
+window._jimmyTradePanel=function(note){
+  const _mg=document.getElementById('mg-job'); const _mc=document.getElementById('mg-job-content');
+  if(!_mg||!_mc) return;
+  const j=window._jimmyEnsure(); const o=window._jimmyOffer()||{state:'none'};
+  let body='';
+  if(o.state==='cooldown'){
+    body='<div style="color:#c9b28a;font-size:13px;line-height:1.6">Jimmy: „Spokojnie. Wziąłem już tyle, ile potrzebowałem. Wpadnij za <b>'+o.daysLeft+'</b> '+(o.daysLeft===1?'dzień':'dni')+'.”</div>';
+  } else if(o.state==='needsRelease'){
+    body='<div style="color:#c9b28a;font-size:13px;line-height:1.6">Jimmy: „Weźmę coś od Ciebie, ale najpierw pokaż, że coś robisz. Wydaj kawałek na EchoDrop, potem gadamy.”</div>';
+  } else if(o.state==='none'||o.state==='done'){
+    body='<div style="color:#c9b28a;font-size:13px;line-height:1.6">Jimmy: „Dziś nic nie biorę. Zajrzyj innego dnia.”</div>';
+  } else {
+    const g=window.JIMMY_GOODS[o.want]; const have=window._jimmyStock(o.want);
+    const canOne=have>=1, canTwo=have>=2&&o.left>=2;
+    body='<div style="color:#c9b28a;font-size:13px;line-height:1.6;margin-bottom:10px">Jimmy: „Potrzebuję '+(o.left===1?'jednej porcji':'dwóch porcji')+' — '+g.n+'. Dawałbym <b>'+(j.price||250)+' zł</b> za sztukę.”</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;font-size:12px">'
+      +'<div style="background:#12160f;padding:8px;border-radius:6px;text-align:center">Masz przy sobie<br><b style="color:#7ec87e;font-size:18px">'+have+'</b></div>'
+      +'<div style="background:#12160f;padding:8px;border-radius:6px;text-align:center">Chce kupić<br><b style="color:#f1c40f;font-size:18px">'+o.left+'</b></div>'
+      +'</div>'
+      +'<div style="display:flex;flex-direction:column;gap:6px">'
+      +'<button class="cbtn" style="width:100%" '+(canOne?'':'disabled')+' onclick="window._jimmySell(1)">Sprzedaj 1 × '+g.n+' — '+(j.price||250)+' zł</button>'
+      +(o.left>=2?'<button class="cbtn" style="width:100%" '+(canTwo?'':'disabled')+' onclick="window._jimmySell(2)">Sprzedaj 2 × '+g.n+' — '+(2*(j.price||250))+' zł</button>':'')
+      +'<button class="cbtn" style="width:100%;border-color:#c8a520;color:#e8d08a" '+(j.negotiated?'disabled':'')+' onclick="window._jimmyNegotiate()">'+(j.negotiated?'Cena już ustalona':'Powalcz o cenę')+'</button>'
+      +'</div>';
+  }
+  _mc.innerHTML='<div style="background:#0f1208;border:2px solid #6a7a3a;border-radius:10px;padding:18px;max-width:460px;margin:0 auto;color:#e6ecd8">'
+    +'<h2 style="color:#b6cc72;margin-top:0;text-align:center">🎧 Jimmy – producent z piwnicy</h2>'
+    +(note?'<div style="background:#161a0d;border-left:3px solid #b6cc72;border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:12.5px;color:#dbe6c4">'+note+'</div>':'')
+    +body
+    +'<button class="cbtn" style="margin-top:14px;width:100%" onclick="document.getElementById(\'mg-job\').classList.remove(\'on\');document.getElementById(\'mg-job-content\').innerHTML=\'\';">← Wyjdź</button>'
+    +'</div>';
+  _mg.classList.add('on');
+};
 window._renderTrapStashInline=function(){
   const _mg=document.getElementById('mg-job');const _mc=document.getElementById('mg-job-content');
   if(!_mg||!_mc) return;
@@ -47924,7 +48124,7 @@ window._renderGrowUI=function(){
           <button class="cbtn" style="flex:1;min-width:60px;font-size:11px;padding:5px" onclick="window._growFertilize(${i})" ${G.grow.inv.fert<1?'disabled':''}>🧪 Nawóz</button>
           ${p.stage>=4?`<button class="cbtn" style="flex:1 100%;background:#27ae60;color:#fff;font-weight:800;border-color:#1e7a44;font-size:13px;padding:8px;margin-top:3px" onclick="window._growHarvest(${i})">🌾 ŚCINAJ — zbierz plon</button>`:''}
         </div>`
-      :`<div style="text-align:center;font-size:42px;margin:8px 0;opacity:0.4">🪴</div>
+      :`<div style="text-align:center;margin:8px 0;opacity:0.55">${window._potGlyphSVG(42)}</div>
         <div style="color:#888;font-size:11px;text-align:center;margin-bottom:8px">Pusta doniczka</div>
         <button class="cbtn" style="width:100%;font-size:11px;padding:6px" onclick="window._growPlant(${i})" ${(G.grow.inv.seeds<1||G.grow.inv.soil<1)?'disabled':''}>🌱 Posadź (-1 nasionko, -1 ziemia)</button>`;
     return `<div style="background:#0a2010;border:2px solid #27ae60;border-radius:8px;padding:10px;flex:1;min-width:170px">
@@ -47934,8 +48134,8 @@ window._renderGrowUI=function(){
   }).join('');
   const _nextPotCost=G.grow.potsOwned===1?GROW_PRICES.pot2:(G.grow.potsOwned===2?GROW_PRICES.pot3:0);
   const _nextPotBtn=G.grow.potsOwned<3
-    ?`<button class="cbtn" style="margin-top:8px;width:100%;font-size:12px" onclick="window._growBuyPot()" ${(G.money||0)<_nextPotCost?'disabled':''}>🪴 Kup ${G.grow.potsOwned+1}. doniczkę (${_nextPotCost} zł)</button>`
-    :'<div style="text-align:center;color:#52be80;font-size:11px;margin-top:8px">🪴 Maksymalna liczba doniczek (3)</div>';
+    ?`<button class="cbtn" style="margin-top:8px;width:100%;font-size:12px" onclick="window._growBuyPot()" ${(G.money||0)<_nextPotCost?'disabled':''}>Kup ${G.grow.potsOwned+1}. doniczkę (${_nextPotCost} zł)</button>`
+    :'<div style="text-align:center;color:#52be80;font-size:11px;margin-top:8px">Maksymalna liczba doniczek (3)</div>';
   const _shopHtml=`<div style="background:#0a1a08;border:2px solid #1e4d20;border-radius:8px;padding:10px;margin-top:12px">
     <h3 style="color:#52be80;margin:0 0 8px 0;font-size:14px">🛒 Sklep ogrodniczy</h3>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
@@ -48159,13 +48359,13 @@ window._piwnicaFinish=function(){
    ═══════════════════════════════════════════════════════════════════ */
 const _PIW_BEATS=[
   {cost:500, q:55, name:'Ograny loop z dysku',   desc:'Stary, ale wpada w ucho.'},
-  {cost:1000,q:68, name:'Świeży beat',           desc:'Ziutek sklecił go w nocy.'},
+  {cost:1000,q:68, name:'Świeży beat',           desc:'Jimmy skleił go w nocy.'},
   {cost:1500,q:80, name:'Ekskluzywny beat',      desc:'Gruby bas urywa głowę.'},
   {cost:2000,q:90, name:'Master beat',           desc:'Najlepszy, jaki ma w piwnicy.'},
 ];
 const _PIW_VOX=[
   {cost:100, mult:0.72, name:'Szybka realizacja',       desc:'Producent słucha jednym uchem.'},
-  {cost:200, mult:0.90, name:'Zaangażowana realizacja', desc:'Ziutek wchodzi w każdy take.'},
+  {cost:200, mult:0.90, name:'Zaangażowana realizacja', desc:'Jimmy wchodzi w każdy take.'},
 ];
 const _PIW_MIX=[
   {cost:300, mix:66, master:62, name:'Podstawowy miks',       desc:'Wyrówna poziomy i tyle.'},
@@ -48190,7 +48390,7 @@ window.renderPiwnicaStudio=function(){
   const relDis=!(beatOK&&voxOK&&mixOK);
   _ov.innerHTML=`
     <h2 style="color:#bb8fce;margin-bottom:2px">🎧 Piwnica Producenta — nagranie</h2>
-    <p style="color:#889;font-size:12px;margin:0 0 10px">Ziutek prowadzi sesję. Płacisz osobno za <b>bit</b>, <b>realizację wokali</b> i <b>miks/master</b>. Kawałek wychodzi na EchoDrop. Jakość gorsza niż w studiu, ale lepsza niż nagranie w domu.</p>
+    <p style="color:#889;font-size:12px;margin:0 0 10px">Jimmy prowadzi sesję. Płacisz osobno za <b>bit</b>, <b>realizację wokali</b> i <b>miks/master</b>. Kawałek wychodzi na EchoDrop. Jakość gorsza niż w studiu, ale lepsza niż nagranie w domu.</p>
     <div style="text-align:center;margin-bottom:10px">${chip('🎹 Beat',t.beatQ)}${chip('🎤 Wokal',t.vocalQ)}${chip('🎚️ Miks',t.mixQ)}${chip('🎛️ Master',t.masterQ)}<span style="display:inline-block;padding:4px 10px;margin:2px;border-radius:20px;font-size:12px;background:rgba(155,89,182,0.18);border:1px solid #9b59b6;color:#d2a8e8">⭐ Finał ~${finalQ}%</span></div>
     <div style="background:rgba(20,12,30,0.5);border:1px solid #3a2a4a;border-radius:10px;padding:12px;margin-bottom:10px">
       <div style="color:#e67e22;font-weight:700;margin-bottom:4px">① Wybierz bit <span style="font-size:11px;color:#778">(500–2000 zł — droższy = lepszy)</span></div>${beatBtns}
@@ -62246,8 +62446,16 @@ window._sbHasFinishGear=function(){
     return s.gear.some(g=>{ if(!g||!g.installed) return false; const d=(typeof window._sbGear==='function')?window._sbGear(g.defId):null; return !!(d&&d.cat==='FINISH'); });
   }catch(_){ return false; }
 };
+/* PDF 20.08 U49/U51: jedno zrodlo prawdy — czy gracz PRZEJAL lokal (Adaptowana piwnica uprawowa).
+   Przed przejeciem obiekt ma byc pusty: bez doniczek, bez obwodek „kup doniczke”, bez stanowisk
+   suszenia/pakowania i z ZGASZONYMI lampami. */
+window._sbOwnedNow=function(){
+  try{ return !!(typeof G!=='undefined' && G.subterra && (G.subterra.owned===true || G.subterra.state==='OWNED')); }catch(_){ return false; }
+};
 window._sbStationReady=function(objId){
   if(objId!=='plant_drying'&&objId!=='plant_pack') return true;
+  /* PDF 20.08 U51: przed przejeciem lokalu stanowiska w ogole nie istnieja dla gracza. */
+  if(!window._sbOwnedNow()) return false;
   return window._sbHasFinishGear();
 };
 window._sbEnsure=function(){
