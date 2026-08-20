@@ -11690,8 +11690,6 @@ function drawLabInteriorDecorations(){
 function drawBusinessDecorations(){
   /* v2.3.122 (PDF Uspr v2.3.121): elementy drogowe jak w glownym miescie. */
   if(typeof drawDistrictRoadFurniture==='function') drawDistrictRoadFurniture('business');
-  /* PDF „Elliot Crane" §10/§17: mikrosceny przewodnika — rysowane tylko na czas ujecia. */
-  if(typeof window._bgfDrawStagedScenes==='function') window._bgfDrawStagedScenes();
   const isNight=(typeof G!=='undefined' && G.timeOfDay>=2);
   const pulse=Math.sin(Date.now()/700)*0.2+0.8;
   /* 4 latarnie eleganckie */
@@ -89762,7 +89760,7 @@ window._cinemTogglePause=function(){
 window._flyoverArmRollback=function(){
   if(typeof G==='undefined') return;
   try{ if(typeof saveGameSilentNow==='function') saveGameSilentNow(); }catch(_){}
-  G._flyoverRollbackArmed=true;
+  G._flyoverRollbackArmed=true; G._flyoverRollbackAt=Date.now();
 };
 window._flyoverDisarmRollback=function(){
   if(typeof G==='undefined') return;
@@ -90037,8 +90035,8 @@ window.openCinematicFlythrough=(scenario)=>{
     f.id='cinem-finale';
     f.style.cssText='position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:9997;pointer-events:none;padding:0 8vw;opacity:0;transition:opacity .9s cubic-bezier(.2,.7,.3,1)';
     f.innerHTML=`
-      <div id="cinem-finale-t1" style="font-family:'Segoe UI','Inter','Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:clamp(17px,2.1vw,27px);line-height:1.55;color:#f4f4fa;letter-spacing:.4px;max-width:1000px;text-shadow:0 3px 14px rgba(0,0,0,.85),0 1px 3px rgba(0,0,0,.9)">${s.desc}</div>
-      <div id="cinem-finale-t2" style="margin-top:26px;font-family:'Segoe UI','Inter','Helvetica Neue',Arial,sans-serif;font-weight:500;font-size:clamp(15px,1.5vw,20px);line-height:1.6;color:#d8d8e6;letter-spacing:.6px;text-shadow:0 3px 14px rgba(0,0,0,.85),0 1px 3px rgba(0,0,0,.9)">Wprowadzenie zakończone. Zacznij, kiedy będziesz gotów.</div>
+      <div id="cinem-finale-t1" style="font-family:'Segoe UI','Inter','Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:clamp(17px,2.1vw,27px);line-height:1.55;color:#f4f4fa;letter-spacing:.4px;max-width:1000px;text-shadow:0 3px 16px rgba(0,0,0,.95),0 2px 5px rgba(0,0,0,.95),0 0 2px rgba(0,0,0,.9)">${s.desc}</div>
+      <div id="cinem-finale-t2" style="margin-top:26px;font-family:'Segoe UI','Inter','Helvetica Neue',Arial,sans-serif;font-weight:500;font-size:clamp(15px,1.5vw,20px);line-height:1.6;color:#eceaf5;letter-spacing:.6px;text-shadow:0 3px 16px rgba(0,0,0,.95),0 2px 5px rgba(0,0,0,.95),0 0 2px rgba(0,0,0,.9)">Wprowadzenie zakończone. Zacznij, kiedy będziesz gotów.</div>
       <button id="cinem-finale-btn" onclick="window._closeCinematic()" style="pointer-events:auto;margin-top:22px;background:linear-gradient(135deg,#f1c40f,#e91e8c);color:#ffffff;border:none;padding:15px 46px;font-size:17px;font-weight:900;letter-spacing:3px;border-radius:12px;cursor:pointer;box-shadow:0 8px 30px rgba(241,196,15,.45);font-family:inherit;text-transform:uppercase;text-shadow:0 2px 6px rgba(0,0,0,.45)">ROZPOCZNIJ</button>`;
     document.body.appendChild(f);
     requestAnimationFrame(()=>{ f.style.opacity='1'; });
@@ -107648,7 +107646,11 @@ let _saveGameDebTimer=null;
 function _saveGameImmediate(){
   /* PDF 20.08 U22: w trakcie przelotu po wyjściu z Traphouse nie nadpisujemy zapisu — w pamięci ma
      zostać stan sprzed opuszczenia budynku, żeby wyjście do menu cofało gracza do tamtej chwili. */
-  if(typeof G!=='undefined' && G._flyoverRollbackArmed && G._cinematicActive) return false;
+  if(typeof G!=='undefined' && G._flyoverRollbackArmed && G._cinematicActive
+     /* ZAWOR BEZPIECZENSTWA (zelazna zasada #1 — zapis gracza jest nietykalny): wstrzymanie dotyczy
+        WYLACZNIE trwajacego przelotu i nigdy nie moze trwac dluzej niz 15 minut. Gdyby flaga trybu
+        kiedykolwiek zawisla, zapisy wracaja same. */
+     && (Date.now()-(G._flyoverRollbackAt||0))<900000) return false;
   /* v1.9.22: skip save w trakcie minigry/snu/odpoczynku (half-applied state risk: pending debounce mógł firowac PO wejściu w mg) */
   if(typeof mgOpen==='function' && mgOpen()) return false;
   if(typeof sleepInterval!=='undefined' && sleepInterval) return false;
@@ -114139,6 +114141,10 @@ function loop(){
   /* GUIDE FLYOVER §11/§17: mikrosceny przewodnika rysowane NAD życiem dzielnicy — testy T7/T9
      wymagają, żeby gracz je realnie ZOBACZYŁ, a nie tylko żeby aktorzy byli zarezerwowani. */
   if(currentRoom==='underground' && typeof window._ughDrawStagedScenes==='function') _safe(()=>window._ughDrawStagedScenes(),'ughStagedScenes');
+  /* PDF „Elliot Crane" §10/§17 — ta sama zasada co u Masona: mikroscena ma być WIDOCZNA.
+     ⚠️ Wcześniej rysowała się z dekoracji dzielnicy, czyli PRZED budynkami — fasady zasłaniały ją
+     w całości. Wykrył to dopiero obejrzany zrzut ekranu, nie asercja o rezerwacji aktorów. */
+  if(currentRoom==='business' && typeof window._bgfDrawStagedScenes==='function') _safe(()=>window._bgfDrawStagedScenes(),'bgfStagedScenes');
   _safe(()=>drawPlayerCar(),'drawPlayerCar');
   _safe(()=>drawPlayerCamper(),'drawPlayerCamper'); /* E4b: sprite kampera podczas jazdy */
   _safe(()=>{ if(window._marinaIsPiloting&&window._marinaIsPiloting()) window._marinaDrawPiloting(); },'marinaPilot');
