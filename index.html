@@ -7436,11 +7436,8 @@ function drawFreestyleSpot(sx,sy,w,h){
   X.shadowColor='rgba(0,0,0,.55)';X.shadowBlur=3;X.shadowOffsetX=1;X.shadowOffsetY=2;
   X.fillText('🎤',cx,cy+1);
   X.restore();
-  // Napis "FREE" nad ikoną — mały, ostry, żółty z czarnym konturem
-  X.font='900 11px "Segoe UI",Arial';X.textAlign='center';X.textBaseline='middle';
-  const labelY=sy-6;
-  X.lineWidth=3;X.strokeStyle='#000';X.strokeText('FREE',cx,labelY);
-  X.fillStyle='#f1c40f';X.fillText('FREE',cx,labelY);
+  /* PDF 20.08 U30 (user): pomarańczowy napis „FREE” nad polem Freestyle Spot USUNIĘTY — niczego nie
+     wnosił, nie był graczowi potrzebny, a psuł wygląd miejsca. Sama ikona mikrofonu zostaje. */
   X.textAlign='left';X.textBaseline='alphabetic';
 }
 
@@ -21966,6 +21963,11 @@ function _showStreetTalentModal(artist){
 }
 
 function checkRandomEvents(){
+  /* PDF 20.08 U34 (user): żadne zdarzenie losowe nie startuje, gdy gracz ma otwarty panel postaci z
+     „DRZEWKIEM UMIEJĘTNOŚCI”. Zdarzenia mają wypadać w aktywnej rozgrywce — podczas chodzenia i
+     realnych interakcji w terenie, a nie w trakcie przeglądania drzewka. */
+  try{ const _cp=document.getElementById('char-panel');
+    if(_cp && (_cp.classList.contains('on') || _cp.style.display==='flex')) return; }catch(_){}
   // F+ Audyt 2026-05-11: cooldowny per event (maxPerDay) — niektóre eventy
   // zdarzały się zbyt często (np. Lucky day kilkanaście razy/dzień)
   if(!G._eventCounts || G._eventCounts.day !== G.day){
@@ -31785,6 +31787,15 @@ function addXP(amount){
     G.skillPoints=(G.skillPoints||0)+2;
     showMsg('🏆 Poziom '+G.level+'! +2 punkty umiejętności! (kliknij twarz)');
     addNotif('⬆️ Poziom '+G.level+' — masz '+G.skillPoints+' pkt umiej.');
+    /* PDF 20.08 U33 (user): 5 s po awansie na Poziom 2 🛨 TrapInfo podpowiada, w co zainwestować punkty.
+       Liczba punktów czytana w chwili wysyłki — komunikat pokazuje stan RZECZYWISTY, nie stałą. */
+    if(G.level===2 && typeof window._trapInfoTipSchedule==='function'){
+      window._trapInfoTipSchedule('level2_skills','level2_skills_tip', function(){
+        const _sp=(G.skillPoints||0);
+        const _fx=(_sp===1)?'punkt':((_sp%10>=2&&_sp%10<=4&&(_sp%100<10||_sp%100>=20))?'punkty':'punktów');
+        return '🎯 Wskazówka: Posiadasz '+_sp+' '+_fx+' umiejętności. Zainwestuj 1 punkt w specjalizację „Raper” w kategorii Kariera, aby odblokować pełne drzewko umiejętności. Po aktywacji specjalizacji dostępne umiejętności będzie można rozwijać i ulepszać z poziomu panelu Kariera Rapera, dostępnego w Twoim smartfonie.';
+      });
+    }
     // v1.8.70: natychmiastowy unlock karier po level upie (wcześniej czekało do 6s na nextPeriod tick — bug: gracz lvl 2 widział "odblokuj na lvl 2" i miał zablokowane)
     try{ if(typeof checkCareerUnlocks==='function') checkCareerUnlocks(); }catch(e){}
     // F3-FIX-B: EVOLUTION Mędrzec (czytanie evo) — +1 darmowy pkt umie co 3 lvl postaci
@@ -74274,6 +74285,10 @@ window._kbSessionActive=function(){
   }catch(_e){ return false; }
 };
 function startFreestyleMG(){
+  /* PDF 20.08 U27: rozpoczęcie kolejnego freestyle’u zeruje odliczanie do wskazówki TrapInfo —
+     wiadomość nie może pojawić się w trakcie interakcji. */
+  window._fsMgActive=true;
+  if(typeof window._trapInfoTipCancel==='function') window._trapInfoTipCancel('freestyle_chirpnet');
   /* v2.1.864 (audyt): bramka energii TU = single-source — by „Jeszcze raz" i triggerFreestyle też ją respektowały (był EXPLOIT: spam freestyle za 0 energii → farm raperXP/skillPts/fani/streetRep, drzewko maksowane za szybko). Mapa-handler już NIE odejmuje (przeniesione). */
   /* v2.1.865 (user): TWARDY limit 3 freestyle/dobę gry. Sprawdzane TU (single-source) — licznik G._fsCountToday inkrementowany przy wyniku (L~39641). */
   if(G._fsCountToday && G._fsCountToday.day===G.day && (G._fsCountToday.n||0)>=3){ if(typeof showMsg==='function')showMsg('🎤 Maks 3 freestyle dziennie — publiczność potrzebuje odpoczynku. Wróć jutro.','r'); return; }
@@ -74473,6 +74488,15 @@ function startFreestyleMG(){
       if(typeof window._mayaOnFreestyleCompleted==='function') window._mayaOnFreestyleCompleted();
       /* v2.1.860 (user „3 freestyle na dzień możliwe"): licznik DZIENNY freestyle — pierwsze 3/dobę zawsze pełna stawka (bez taperu). */
       if(!G._fsCountToday||G._fsCountToday.day!==G.day) G._fsCountToday={day:G.day,n:0}; G._fsCountToday.n++;
+      /* PDF 20.08 U27 (user): 5 s po zakończonej aktywności freestyle TrapInfo podpowiada publikację
+         postu w ChirpNet. Kolejny freestyle w tym czasie resetuje odliczanie — wiadomość przychodzi
+         dopiero po ostatniej próbie. */
+      window._fsMgActive=false;
+      if(typeof window._trapInfoTipSchedule==='function'){
+        window._trapInfoTipSchedule('freestyle_chirpnet','freestyle_chirpnet_tip',
+          '🎙 Wskazówka: Opublikuj post w aplikacji ChirpNet, korzystając z kategorii „Po freestylu”, aby zwiększyć zainteresowanie profilem oraz dotrzeć do potencjalnych fanów i słuchaczy.',
+          function(){ return !!window._fsMgActive; });
+      }
       // #78 NERF 10× — gracz dostawał ~266 raperXP / 106 fanów / 133 follow / 88 rep za 30s freestyle (absurd)
       // Teraz: ~26 raperXP / 10 fanów / 13 follow / 8 rep — wymaga ~10 freestyle aby wbić poziom raper
       raperXP=Math.floor(score*weatherMult/100);addRaperXP(raperXP);
@@ -75873,6 +75897,11 @@ window._unlockFrameUpDM=function(){
   G.frameUpDM.unlocked=true;
   if(typeof showMsg==='function') showMsg('✉️ Odblokowano FrameUp Direct Message — masz teraz skrzynkę wiadomości.','g',5000);
   if(typeof addNotif==='function') addNotif('✉️ Odblokowano FrameUp Direct Message.');
+  /* PDF 20.08 U29 (user): 5 s po zielonym oknie o odblokowaniu 🛨 TrapInfo tłumaczy, do czego służy DM. */
+  if(typeof window._trapInfoTipSchedule==='function'){
+    window._trapInfoTipSchedule('frameup_dm','frameup_dm_tip',
+      '✉️ Wskazówka: FrameUp Direct Message jest już aktywne. Od teraz inni użytkownicy mogą kontaktować się z Tobą bezpośrednio, a Ty możesz odpowiadać na otrzymane wiadomości i rozwijać rozpoczęte rozmowy. Sprawdź skrzynkę w aplikacji FrameUp.');
+  }
   return true;
 };
 /* 2B (§3/§41): panel skrzynek Direct Message. Kategorie: Główne/Prośby/Współprace/Artyści/Fani/Spam/Archiwum. */
@@ -79837,7 +79866,8 @@ function _getPhoneFolders(){
       _phApp('🏆',`Trofea (${G.achievements.length})`,'#121005','#f1c40f',"renderPhoneAchievements()"),
     ]},
     /* v2.1.348 Faza AD: nowy folder Online — tablica wyników/znajomi/crew/chart (z top-level + stats). */
-    online:{em:'🌐',label:'Online',preview:['🌍','👥','🏆','🏁'],apps:[
+    /* PDF 20.08 U25 (user): cały folder „Online” otwiera się po ukończeniu podstawowego poradnika. */
+    online:{em:'🌐',label:'Online',preview:['🌍','👥','🏆','🏁'],locked:_tutLock,lockedMsg:'🌐 Folder Online odblokujesz po ukończeniu podstawowego poradnika (8 kroków).',apps:[
       _phApp('🌍','Tablica wyników','#0a1015','#7ec8e3',"renderPhoneLeaderboard()"),
       _phApp('👥',`Znajomi${(G.friends||[]).length>0?' ('+G.friends.length+')':''}`,'#15102a','#9b59b6',"renderPhoneFriends()"),
       _phApp('🏆',`Crew${G.playerCrew?(' · '+(G.playerCrew.name||'')):''}`,'#2a1a05','#f1c40f',"renderPhoneCrew()"),
@@ -79854,7 +79884,9 @@ function _getPhoneFolders(){
       /* v2.1.228: Dialog tree NPC — story arc 3 NPCs × 5 stepów */
       _phApp('📖','Historie','#1a0a14','#9b59b6',"renderPhoneStories()"),
       /* v2.1.398 Faza AQ.14 Etap 2: telefon apka "Mój Pies" — status psa + akcje. */
-      _phApp((G.dog&&G.dog.owned&&typeof window._findBreed==='function'&&window._findBreed(G.dog.breed)&&window._findBreed(G.dog.breed).emoji)?window._findBreed(G.dog.breed).emoji:'🐾',`Mój pupil${G.dog&&G.dog.owned?(' · L'+G.dog.level):''}`,'#0a1a0a','#27ae60',"renderPhoneApp('dog')"),
+      /* PDF 20.08 U24 (user): apka „Mój pupil” dostępna dopiero po ukończeniu podstawowego,
+         8-krokowego poradnika — na starcie gracz ma poznać najpierw podstawy. */
+      _phApp((G.dog&&G.dog.owned&&typeof window._findBreed==='function'&&window._findBreed(G.dog.breed)&&window._findBreed(G.dog.breed).emoji)?window._findBreed(G.dog.breed).emoji:'🐾',`Mój pupil${G.dog&&G.dog.owned?(' · L'+G.dog.level):''}`,'#0a1a0a','#27ae60',"renderPhoneApp('dog')", _tutLock, '🐾 Mój pupil odblokujesz po ukończeniu podstawowego poradnika (8 kroków).'),
     ]},
     /* v2.1.348 Faza AD: Mechaniki z top-level → Pomoc folder. Sortowanie: Wprowadzenie → Tutorial → Mechaniki → Wskazówki → Sterowanie → Przelot → Patch Notes. */
     help:{em:'❓',label:'Pomoc',preview:['🎬','🎓','📖','💡'],apps:[
@@ -79915,9 +79947,14 @@ function renderPhoneHome(){
   // Foldery
   for(const [id,f] of Object.entries(folders)){
     _idx++;
-    const _label = _idx<=9 ? `(${_idx}) ${f.label}` : f.label;
-    if(_idx<=9) window._phHotkeys[_idx]=`renderPhoneFolder('${id}')`;
-    html+=_phRenderTile(f.em,_label,'','#7ec8e3',`renderPhoneFolder('${id}')`,true,f.preview);
+    /* PDF 20.08 U25: folder może być zablokowany — kafelek jest wtedy szary, a kliknięcie tłumaczy
+       dlaczego (dokładnie tak, jak już działają zablokowane pojedyncze apki). */
+    const _fLocked=!!f.locked;
+    const _label = (_idx<=9 ? `(${_idx}) ${f.label}` : f.label) + (_fLocked?' 🔒':'');
+    const _fMsg=String(f.lockedMsg||'🔒 Zablokowane.').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    const _fEff=_fLocked?`showMsg('${_fMsg}','i',4800)`:`renderPhoneFolder('${id}')`;
+    if(_idx<=9) window._phHotkeys[_idx]=_fEff;
+    html+=_phRenderTile(f.em,_label,'','#7ec8e3',_fEff,true,f.preview,_fLocked);
   }
   // Shortcuts
   for(const a of shortcuts){
@@ -79932,6 +79969,8 @@ function renderPhoneFolder(id){
   const folders=_getPhoneFolders();
   const f=folders[id];
   if(!f){renderPhoneHome();return;}
+  /* PDF 20.08 U25: zablokowanego folderu nie otworzy też skrót klawiszowy ani bezpośrednie wywołanie. */
+  if(f.locked){ if(typeof showMsg==='function') showMsg(f.lockedMsg||'🔒 Zablokowane.','i',4800); renderPhoneHome(); return; }
   /* v2.1.349 Faza Z: tracker view + show back button + bind hotkeys 1-9 dla apps w tym folderze. */
   G._phView='folder:'+id;
   const _backBtn=document.getElementById('ph-back-top');if(_backBtn)_backBtn.style.display='inline-block';
@@ -80551,7 +80590,9 @@ function renderPhoneApp(app){
         ${(()=>{
           /* v2.1.35: ChirpNet z kontekstowymi wymogami — gracz może tweetować tylko o tym co faktycznie zrobił */
           const hasTracks=(G.studioTracks||[]).length>0;
-          const hasFreestyles=(G.careers?.raper?.freestyles||0)>0;
+          /* PDF 20.08 U28 (user): kategoria „Po freestylu” wymaga minimum JEDNEJ sesji freestyle
+             W DANYM DNIU gry — nie wystarczy, że gracz robił freestyle kiedykolwiek wcześniej. */
+          const hasFreestyles=!!(G._fsCountToday && G._fsCountToday.day===G.day && G._fsCountToday.n>0);
           const hasGymToday=G._lastGymDay===G.day;
           const hasCar=!!(G.car&&G.car.name);
           const hasHaters=(G.haters||0)>=10;
@@ -80560,7 +80601,7 @@ function renderPhoneApp(app){
             {id:'thoughts',color:'#778',bg:'#0a1220',label:'💭 Przemyślenia',desc:'Generic post o życiu — mały zasięg, zawsze działa',req:null},
             {id:'promo',color:'#43B7FF',bg:'#0a1528',label:'🎤 Promo muzyki',desc:'Bezpieczne — duży zasięg jeśli masz tracki',req:hasTracks,reqTxt:'Najpierw nagraj track w studio'},
             {id:'meme',color:'#e91e8c',bg:'#1a0a18',label:'😂 Mem o branży',desc:'15% szans na viral (+200-300)! Inaczej +1-8',req:null},
-            {id:'freestyle',color:'#9b59b6',bg:'#15102a',label:'🎙️ Po freestylu',desc:'Relacja z ulicy — fani lojalni z energią',req:hasFreestyles,reqTxt:'Najpierw zrób freestyle na ulicy'},
+            {id:'freestyle',color:'#9b59b6',bg:'#15102a',label:'🎙️ Po freestylu',desc:'Relacja z ulicy — fani lojalni z energią',req:hasFreestyles,reqTxt:'Najpierw zrób dziś freestyle na ulicy'},
             {id:'gym',color:'#e74c3c',bg:'#1a0a0a',label:'💪 Trening done',desc:'Selfie z siłowni — motywacja, +sława',req:hasGymToday,reqTxt:'Trenuj dziś na siłowni'},
             {id:'car',color:'#f39c12',bg:'#1a1505',label:'🚗 Auto flex',desc:'Pokaż swoje auto — drip + zasięg',req:hasCar,reqTxt:'Najpierw kup auto'},
             {id:'sponsored',color:'#27ae60',bg:'#0a1f0a',label:'💼 Sponsorowany post',desc:'+50-200 zł, mniej obs (1-5). Wymaga 500+ obs.',req:isVerified,reqTxt:'Wymaga 500+ obserwujących'},
@@ -82757,8 +82798,36 @@ window._slbClear=function(){
   var b=document.getElementById('slb-banner'); if(b) b.remove();
 };
 /* ═══════════════════ SMARTPHONE LIVE BANNER MODULE END ═════════════════════════════════════ */
+/* ═══ PDF 20.08 U31 — KOLEJKA PRZYCHODZĄCYCH SMS ═══════════════════════════
+   User: „jeśli gracz ma otrzymać np. 3 wiadomości jednocześnie, to w pierwszej kolejności pojawi się
+   pierwsza, po 5-sekundach druga i dopiero po kolejnych 5-sekundach trzecia”. Powiadomienia nie mogą
+   się na siebie nakładać — kolejne czeka, aż minie odstęp. */
+window._SMS_POPUP_GAP=5000;
+window._smsPopupQueue=window._smsPopupQueue||[];
+window._smsPopupBusyUntil=window._smsPopupBusyUntil||0;
+window._smsPopupTimer=window._smsPopupTimer||null;
+window._smsPopupFlush=function(){
+  window._smsPopupTimer=null;
+  if(!window._smsPopupQueue.length) return;
+  const it=window._smsPopupQueue.shift();
+  window._showSmsPopupNow(it.contactId,it.text);
+};
 window._showSmsPopup=function(contactId,text){
+  const now=Date.now();
+  if(now < window._smsPopupBusyUntil){
+    window._smsPopupQueue.push({contactId:contactId,text:text});
+    if(window._smsPopupQueue.length>8) window._smsPopupQueue.shift(); /* nadmiar i tak jest w apce Wiadomości */
+    if(!window._smsPopupTimer) window._smsPopupTimer=setTimeout(window._smsPopupFlush, Math.max(250, window._smsPopupBusyUntil-now));
+    return;
+  }
+  window._showSmsPopupNow(contactId,text);
+};
+window._showSmsPopupNow=function(contactId,text){
   const c=SMS_CONTACTS[contactId]; if(!c) return;
+  /* PDF 20.08 U31: okno „zajmuje” ekran na 5 s — dopiero potem ustępuje następnemu z kolejki. */
+  window._smsPopupBusyUntil=Date.now()+window._SMS_POPUP_GAP;
+  if(window._smsPopupTimer) clearTimeout(window._smsPopupTimer);
+  window._smsPopupTimer=setTimeout(window._smsPopupFlush, window._SMS_POPUP_GAP);
   const _group = contactId==='sponsor' ? {lbl:'OFERTA SPONSORSKA', col:'#e91e8c'}
     : (contactId==='label'||contactId==='manager') ? {lbl:'OFERTA KONTRAKTOWA', col:'#c8a520'}
     : {lbl:'SMS', col:c.color||'#3498db'};
@@ -82851,6 +82920,30 @@ window._smsSend=function(contactId,text,opts){
   /* v2.3.98 (PDF #2/#3): tag zestawu kontekstowych odpowiedzi (np. 'freestyle'/'jobs' dla Kamila) — steruje przyciskami w renderSMSConversation. */
   if(opts&&opts.replySet) G.sms.conversations[contactId][G.sms.conversations[contactId].length-1].replySet=opts.replySet;
   return true;
+};
+/* ═══ PDF 20.08 U27/U29/U33 — WSKAZÓWKI OD 🛨 TrapInfo Z OPÓŹNIENIEM 5 SEKUND ═══════════
+   Wszystkie trzy wskazówki mają tę samą mechanikę: po zdarzeniu odliczane jest 5 sekund i dopiero
+   wtedy przychodzi wiadomość. Jeśli w tym czasie gracz zacznie tę samą aktywność jeszcze raz,
+   odliczanie startuje od nowa — wiadomość nie pojawia się w trakcie interakcji. */
+window._TRAPINFO_TIP_DELAY=5000;
+window._trapInfoTipTimers=window._trapInfoTipTimers||{};
+window._trapInfoTipCancel=function(key){
+  const t=window._trapInfoTipTimers[key];
+  if(t){ clearTimeout(t); window._trapInfoTipTimers[key]=null; }
+};
+window._trapInfoTipSchedule=function(key,triggerId,textFn,guardFn){
+  window._trapInfoTipCancel(key);
+  window._trapInfoTipTimers[key]=setTimeout(function(){
+    window._trapInfoTipTimers[key]=null;
+    try{
+      /* Gdy gracz właśnie jest w tej samej aktywności — czekamy dalej, zamiast wchodzić mu w kadr. */
+      if(typeof guardFn==='function' && guardFn()){ window._trapInfoTipSchedule(key,triggerId,textFn,guardFn); return; }
+      const txt=(typeof textFn==='function')?textFn():String(textFn||'');
+      if(!txt) return;
+      if(typeof window._smsTriggerOnce==='function') window._smsTriggerOnce(triggerId,'trapinfo',txt,{bypass:true});
+      else if(typeof window._smsSend==='function') window._smsSend('trapinfo',txt,{bypass:true});
+    }catch(_){}
+  }, window._TRAPINFO_TIP_DELAY);
 };
 // Trigger SMS tylko raz w grze (dla milestone-based events)
 window._smsTriggerOnce=function(triggerId,contactId,text,opts){
@@ -86455,10 +86548,12 @@ function renderPhoneAchievements(){
   const sorted=[...ACHIEVEMENTS].sort((a,b)=>{const ad=done.includes(a.id),bd=done.includes(b.id);return bd-ad;});
   const achHtml=sorted.map(a=>{
     const unlocked=done.includes(a.id);
-    return `<div style="background:${unlocked?'#0a1505':'#06080f'};border:1px solid ${unlocked?'#2a6020':'#141825'};border-radius:10px;padding:10px 8px;text-align:center;${unlocked?'':'opacity:.55'}">
+    /* PDF 20.08 U26: stała szerokość kafelka + pełny tekst — nic się nie ucina, bo lista przewija
+       się w POZIOMIE zamiast ściskać trzy kolumny na wąskim ekranie telefonu. */
+    return `<div style="width:150px;background:${unlocked?'#0a1505':'#06080f'};border:1px solid ${unlocked?'#2a6020':'#141825'};border-radius:10px;padding:10px 8px;text-align:center;${unlocked?'':'opacity:.55'}">
       <div style="font-size:26px;margin-bottom:4px;${unlocked?'':'filter:grayscale(1)'}">${a.icon}</div>
-      <div style="font-size:10px;font-weight:700;color:${unlocked?'#7ec87e':'#3a4a5a'};line-height:1.2;margin-bottom:2px">${a.name}</div>
-      ${unlocked?`<div style="font-size:9px;color:#3a6a3a;line-height:1.2">${a.desc}</div>`:`<div style="font-size:9px;color:#2a3040;line-height:1.2">${a.desc}</div>`}
+      <div style="font-size:10px;font-weight:700;color:${unlocked?'#7ec87e':'#3a4a5a'};line-height:1.25;margin-bottom:3px;overflow-wrap:break-word">${a.name}</div>
+      <div style="font-size:9px;color:${unlocked?'#3a6a3a':'#2a3040'};line-height:1.25;overflow-wrap:break-word">${a.desc}</div>
     </div>`;
   }).join('');
   document.getElementById('ph-content').innerHTML=`
@@ -86472,8 +86567,13 @@ function renderPhoneAchievements(){
           <div style="width:${pct}%;height:100%;background:linear-gradient(90deg,#c8a520,#f1e060);transition:width .3s"></div>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-        ${achHtml}
+      <!-- PDF 20.08 U26 (user): kafelki osiągnięć były ucinane przez układ trzech kolumn.
+           Teraz lista ma SUWAK POZIOMY: trzy rzędy, przewijanie w bok, pełna treść każdej pozycji. -->
+      <div style="font-size:10px;color:#667;margin-bottom:5px;letter-spacing:.3px">↔ Przewiń w bok, aby zobaczyć kolejne osiągnięcia</div>
+      <div id="ph-ach-scroll" style="overflow-x:auto;overflow-y:hidden;padding-bottom:10px;-webkit-overflow-scrolling:touch">
+        <div style="display:grid;grid-auto-flow:column;grid-template-rows:repeat(3,auto);grid-auto-columns:150px;gap:8px;width:max-content">
+          ${achHtml}
+        </div>
       </div>
     </div>
     <div style="padding:8px 14px"><button class="cbtn" style="width:100%" onclick="renderPhoneHome()">← Wróć</button></div>
@@ -104607,7 +104707,9 @@ setInterval(function(){
    tylko seria w krótkim czasie jest rozkładana w czasie. Treść i tak trafia do logu notyfikacji (addNotif),
    więc cap kolejki nic nie gubi. */
 let _msgQueue=[], _msgBusyUntil=0, _msgFlushTimer=null;
-const _MSG_MIN_GAP=1200; /* v2.3.103 (user: „powiadomienia zamulone" — klik slumsy→baraki, toast z ~3,5s opóźnieniem): okno zajętości 3500→1200ms. Kolejny toast pokazuje się szybko po akcji zamiast czekać pełne 3,5s. */
+/* PDF 20.08 U32 (user): kolejka zielonych okien informacyjnych dziala referencyjnie do kolejki SMS —
+   jedno okno ustepuje nastepnemu po 5 sekundach, zaden komunikat nie naklada sie na poprzedni. */
+const _MSG_MIN_GAP=5000;
 function _msgFlushNext(){
   _msgFlushTimer=null;
   if(!_msgQueue.length) return;
@@ -104633,7 +104735,7 @@ function showMsg(t,type,duration){
   if(_now < _msgBusyUntil){
     const _last=_msgQueue.length?_msgQueue[_msgQueue.length-1]:null;
     if(!_last || _last.t!==t) _msgQueue.push({t,type,duration}); /* dedup kolejnych identycznych */
-    if(_msgQueue.length>6) _msgQueue.shift();                    /* cap — nadmiar i tak jest w logu notyfikacji */
+    if(_msgQueue.length>10) _msgQueue.shift();                   /* cap — nadmiar i tak jest w Dzienniku aktywności (PDF 20.08 U32: większy odstęp = dłuższa kolejka) */
     if(!_msgFlushTimer) _msgFlushTimer=setTimeout(_msgFlushNext, Math.max(250,_msgBusyUntil-_now));
     return;
   }
