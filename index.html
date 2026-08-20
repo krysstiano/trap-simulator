@@ -3544,6 +3544,9 @@ const ROOMS = {
          Dolna krawędź 856 = dokładnie tyle, co sprawdzona bryła Aureum Green — więc poza ciemnym borderem.
          Pierwsza próba @60,760×150 nachodziła 2 px na parking — wykrył to sędzia, nie oko. */
       {id:'crownline_business',wx:140, wy:776, w:170,h:80,  act:'business_crownline', prompt:'[E] 💎 Crownline Auto Gallery', lbl:'Crownline'},
+      /* PDF „Elliot Crane — GUIDE FLYOVER" §3/test 2: przewodnik stoi przy WEJŚCIU do dzielnicy, na
+         chodniku obok głównego deptaka, poza wejściami do obiektów i poza jezdnią — nie blokuje przejścia. */
+      {id:'npc_elliot_crane',  wx:632, wy:96,  w:36, h:58,  act:'bgfGuide:talk',      prompt:'[E] 🧭 Zapytaj o centrum — Elliot Crane', lbl:'Elliot Crane'},
     ]
   },
 
@@ -4366,6 +4369,7 @@ function drawSprite(id,sx,sy,w,h){
     case 'gravellot_underground':   drawGravelLotHall(sx,sy,w,h);break; /* v2.3.102 (PDF #8-24): hala serwisowa/warsztatowa zamiast zwykłej fasady */
     /* GUIDE FLYOVER §3: Mason Hale ma własną sylwetkę — bez tego byłby szarym boxem (lekcja v2.3.125). */
     case 'npc_mason_hale':          if(typeof window._drawMasonHale==='function') window._drawMasonHale(sx,sy,w,h); break;
+    case 'npc_elliot_crane':        if(typeof window._drawElliotCrane==='function') window._drawElliotCrane(sx,sy,w,h); break;
     /* v2.1.385 Faza C' Coast new map: tropical buildings */
     case 'exit_coast':              drawCoastExitGate(sx,sy,w,h);break;
     case 'plaza_coast':             drawCoastBuilding(sx,sy,w,h,'🏖','Plaża + Bar','#d4a060');break;
@@ -11686,6 +11690,8 @@ function drawLabInteriorDecorations(){
 function drawBusinessDecorations(){
   /* v2.3.122 (PDF Uspr v2.3.121): elementy drogowe jak w glownym miescie. */
   if(typeof drawDistrictRoadFurniture==='function') drawDistrictRoadFurniture('business');
+  /* PDF „Elliot Crane" §10/§17: mikrosceny przewodnika — rysowane tylko na czas ujecia. */
+  if(typeof window._bgfDrawStagedScenes==='function') window._bgfDrawStagedScenes();
   const isNight=(typeof G!=='undefined' && G.timeOfDay>=2);
   const pulse=Math.sin(Date.now()/700)*0.2+0.8;
   /* 4 latarnie eleganckie */
@@ -15655,6 +15661,11 @@ function handleAct(act,objId){
     if(_d==='business' && Array.isArray(G._unlockedDistricts) && G._unlockedDistricts.includes('business')){
       if(typeof changeRoom==='function') changeRoom('business', 720, 60);
     } else if(typeof showMsg==='function') showMsg('💼 Business District nie jest jeszcze odblokowany (50 sławy).','i',4500);
+  } else if(act&&act.indexOf('bgfGuide:')===0){
+    /* PDF „Elliot Crane" §4: przelot startuje WYŁĄCZNIE ze świadomej rozmowy z przewodnikiem. */
+    if(typeof window._bgfTalk==='function') window._bgfTalk();
+    else if(typeof showMsg==='function') showMsg('🧭 Przewodnik po Business District jeszcze się ładuje — spróbuj za chwilę.','i',3200);
+    return;
   } else if(act&&act.indexOf('ughGuide:')===0){
     /* GUIDE FLYOVER §4/§6: przewodnik odpowiada TYLKO na świadomą interakcję gracza.
        ⚠️ LEKCJA v2.3.129: każdy nowy prefiks aktu MUSI mieć własną gałąź w handleAct. */
@@ -17951,6 +17962,8 @@ function changeRoom(id,wx,wy){
   if(id==='police_cell' && typeof window._policeSyncCellObjects==='function') window._policeSyncCellObjects();
   if(id==='vesper_house' && typeof window._vesperSyncObjects==='function') window._vesperSyncObjects();
   if(id==='stary_kwartal' && typeof window._skSyncObjects==='function') window._skSyncObjects();
+  /* PDF „Elliot Crane" test 39: przewodnik nie może zniknąć na stałe — przy każdym wejściu wraca. */
+  if(id==='business' && typeof window._bgfOnEnterDistrict==='function') window._bgfOnEnterDistrict();
   /* v2.3.122: wyczyść podpowiedź [E] przy KAŻDEJ zmianie pokoju. Bez tego potrafiła zostać treść
      obiektu z poprzedniej lokacji (np. „[E] Zajazd kempingowy" na innym podwórku), bo aktualizacja
      podpowiedzi żyje w updatePlayer, a ten wychodzi wcześniej, gdy otwarty jest panel. */
@@ -65398,6 +65411,604 @@ window._drawMasonHale=function(sx,sy,w,h){
 };
 /* ═══════════════════ UNDERGROUND GUIDE — MODULE END ═════════════════════════ */
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   BUSINESS DISTRICT GUIDE FLYOVER — MODULE START
+   PDF „NPC Elliot Crane, czyli GUIDE FLYOVER SYSTEM po dzielnicy Business District"
+   (40 testów akceptacyjnych §24, końcowa dyrektywa §26).
+   Zasady KRYTYCZNE, wdrożone dosłownie:
+     • moduł NIE buduje drugiego systemu kamery — jest SCENARIUSZEM istniejącego „Przelotu nad
+       miastem" (§16, §26 pkt 12), dokładnie jak przewodnik Underground;
+     • przelot nie startuje automatycznie — wyłącznie świadoma rozmowa z Elliotem (§4, test 1);
+     • Elliot ma stabilny identyfikator i fallback spawnu — nie może zniknąć na stałe (§26 pkt 13, test 39);
+     • żadna cena, ROI, cooldown, próg sławy ani nagroda NIE jest tu zapisana — wszystko czytane
+       z systemów źródłowych (§8, §18, §26 pkt 16, testy 8-16, 33-34);
+     • staged scenes ustępują realnym incydentom miasta i nie uruchamiają transakcji (§17, testy 14/15/30);
+     • replay nie przyznaje ponownie intel ani żadnych nagród (§21, testy 25/36).
+   ═══════════════════════════════════════════════════════════════════════════ */
+window.BGF_NPC_ID='business_guide_elliot_crane';
+window.BGF_SHOT_TIMEOUT_MS=14000;              /* §16: hard timeout ujęcia (test 32) */
+window._bgfEnsure=function(){
+  if(!G.businessGuide||typeof G.businessGuide!=='object') G.businessGuide={};
+  const s=G.businessGuide;
+  if(typeof s.introSeen!=='boolean') s.introSeen=false;
+  if(typeof s.firstTourCompleted!=='boolean') s.firstTourCompleted=false;
+  if(typeof s.tourInProgress!=='boolean') s.tourInProgress=false;
+  if(s.lastCompletedShotId===undefined) s.lastCompletedShotId=null;
+  if(!Array.isArray(s.unlockedIntelEntries)) s.unlockedIntelEntries=[];
+  if(!Array.isArray(s.askedTopics)) s.askedTopics=[];
+  if(typeof s.replayCount!=='number') s.replayCount=0;
+  if(typeof s.guideFamiliarity!=='number') s.guideFamiliarity=0;
+  if(s.state===undefined) s.state='IDLE_AT_ENTRY';
+  if(s.currentSequenceState===undefined) s.currentSequenceState=null;
+  return s;
+};
+/* §3 pozycja: punkt wejściowy dzielnicy, chodnik przy głównym deptaku, poza wejściami do obiektów.
+   §26 pkt 13 / test 39: story-safe fallback — Elliot wraca na swoje miejsce, jeśli cokolwiek go usunie. */
+window.BGF_NPC_POS={wx:632, wy:96, w:36, h:58};
+window._bgfRestoreNpc=function(){
+  const room=(typeof ROOMS!=='undefined')?ROOMS.business:null;
+  if(!room||!Array.isArray(room.objects)) return false;
+  if(room.objects.some(o=>o.id==='npc_elliot_crane')) return true;
+  const p=window.BGF_NPC_POS;
+  room.objects.push({id:'npc_elliot_crane', wx:p.wx, wy:p.wy, w:p.w, h:p.h,
+    act:'bgfGuide:talk', prompt:'[E] 🧭 Zapytaj o centrum — Elliot Crane', lbl:'Elliot Crane'});
+  return true;
+};
+/* §4 warunki aktywacji — brak startu w scenie krytycznej, pościgu, zatrzymaniu czy hospitalizacji. */
+window._bgfEligibility=function(){
+  const s=window._bgfEnsure();
+  if(s.tourInProgress) return {ok:false, reason:'in_progress', msg:'Oprowadzanie już trwa.'};
+  if(currentRoom!=='business') return {ok:false, reason:'wrong_room', msg:'Czekam przy wejściu do dzielnicy.'};
+  if(G._cinematicActive) return {ok:false, reason:'cinematic', msg:'Poczekajmy, aż skończy się bieżąca scena.'};
+  const chased=!!(G.police&&(G.police.chasing||G.police.detained))||!!G._policeChase||!!G._arrested;
+  if(chased) return {ok:false, reason:'police', msg:'Najpierw proszę uporządkować sprawy ze służbami.'};
+  if(G.hospitalized||G._inHospital) return {ok:false, reason:'hospital', msg:'Zdrowie ma pierwszeństwo przed dzielnicą.'};
+  /* test 29: krytyczny incydent City Pulse może zablokować start */
+  if(typeof window._cityPulseCritical==='function' && window._cityPulseCritical('business'))
+    return {ok:false, reason:'incident', msg:'W dzielnicy trwa interwencja. Wróćmy do tego za chwilę.'};
+  return {ok:true};
+};
+/* §17 Staged Scene Director — rezerwacja aktorów z hard timeoutem; realny incydent ma pierwszeństwo. */
+window._bgfPrepareStagedScene=function(sceneId){
+  if(typeof window._cityPulseCritical==='function' && window._cityPulseCritical('business'))
+    return {ok:false, fallback:'use_live_world'};
+  const pool=window._bgfStagingPool||(window._bgfStagingPool={active:{}});
+  if(pool.active[sceneId]) return {ok:false, fallback:'static_shot'};
+  pool.active[sceneId]={at:Date.now()};
+  setTimeout(()=>{ try{ delete pool.active[sceneId]; }catch(_){} }, window.BGF_SHOT_TIMEOUT_MS);
+  return {ok:true, reservationId:sceneId};
+};
+window._bgfReleaseStagedScenes=function(){ window._bgfStagingPool={active:{}}; };
+/* §16: dla Eclipse Noir preferujemy noc, ale NIE zmieniamy globalnej pory dnia (test 17). */
+window._bgfIsNight=function(){ try{ return (G.timeOfDay||0)>=2; }catch(_){ return false; } };
+window._bgfEclipseTag=function(){ return window._bgfIsNight()?'WIECZÓR':'DZIEŃ · AKTYWNOŚĆ NOCNA'; };
+/* §8/§18: Guide wyłącznie ODCZYTUJE stan systemów źródłowych. Żadnych własnych liczb.
+   Zwracamy krótkie etykiety stanu, bez cen, ROI i progów — te są w panelach lokacji. */
+window._bgfReadState=function(key){
+  try{
+    switch(key){
+      case 'label':     return (G.label&&(G.label.owned||((G.label.artists||[]).length>0)))?'wytwórnia aktywna':'wytwórnia nieuruchomiona';
+      case 'deposits':  { const n=(Array.isArray(G.deposits)?G.deposits.length:0)+(Array.isArray(G.vipDeposits)?G.vipDeposits.length:0);
+                          return n>0?(n+' aktywne lokaty'):'brak aktywnych lokat'; }
+      case 'pr':        return (G._prCooldownUntilDay&&G._prCooldownUntilDay>(G.day||0))?'kampania na przerwie':'agencja przyjmuje zlecenia';
+      case 'fortuno':   return (G._forbesQuizDone||G._fortunoDone)?'quiz już rozwiązany':'quiz dostępny';
+      case 'vehicles':  return (typeof window._vehCountCars==='function')?(window._vehCountCars()+' auta w Twojej flocie'):'flota nieznana';
+      case 'front':     return (typeof window._vwOwnsUnit==='function'&&window._vwOwnsUnit())?'front biznesowy: masz lokal':'front biznesowy: brak lokalu';
+      default: return '';
+    }
+  }catch(_){ return ''; }
+};
+/* ── §9/§10 PEŁNA TRASA — DZIEWIĘĆ LOKACJI W KOLEJNOŚCI Z DOKUMENTU ──────────────────────────
+   Kolejność §9: Label HQ → PR Agency → Fortuno → Bank VIP → Crownline Auto Gallery →
+   Steakhouse Business → Eclipse Noir → The Vesper House → Aureum Green Club.
+   Kotwice kamery = ŚRODKI istniejących obiektów ROOMS.business (żadnych zmyślonych współrzędnych). */
+window._bgfFullTopics=function(){
+  const T=(em,title,desc,places)=>({em,title,desc,places,durPerPlace:6200});
+  return [
+    /* §7 scena otwierająca 9-11 s + kanoniczny monolog */
+    T('🧭','ELLIOT CRANE — CENTRUM OD ŚRODKA',
+      'Ta dzielnica działa zupełnie inaczej niż reszta miasta. Tutaj rzadko wygrywa ten, kto mówi najgłośniej. Wygrywa ten, kto rozumie, kiedy kapitał, reputacja i relacje zaczynają pracować razem. Większość tych budynków nie daje przewagi za darmo. Pozwala ją kupić, skumulować, albo stracić szybciej niż gdzie indziej. Pokażę Ci, które drzwi prowadzą do wzrostu, a które wyłącznie do kosztów.',
+      [{wx:668, wy:120, label:'WEJŚCIE DO DZIELNICY', zoom:1.5, noHl:true}]),
+    T('🏢','01 · LABEL HQ — BIURO WYTWÓRNI',
+      'Label HQ. To moment, w którym przestajesz zarządzać wyłącznie własną karierą, a zaczynasz alokować uwagę, budżet i ryzyko między ludzi. Spotkanie z artystą poprawia krótkoterminową monetyzację jego pracy, promocja wytwórni buduje zasięg marki. Panel zarządzania jest właściwym centrum operacyjnym.',
+      [{wx:260, wy:256, label:'LABEL HQ', zoom:1.45}]),
+    T('📰','02 · PR AGENCY',
+      'Agencja PR. To miejsce nie służy do kupowania sławy, jak sądzą niektórzy. Kupujesz ekspozycję i szansę na jej konwersję. Im większy budżet, tym szerszy zasięg operacji, ale Media Blitz nadal wymaga reakcji. Po kampanii trwa przerwa, więc częstotliwość nie zastąpi jakości.',
+      [{wx:900, wy:256, label:'PR AGENCY', zoom:1.45}]),
+    T('📊','03 · FORTUNO STUDIO QUIZ',
+      'Fortuno. Kilka pytań, kilka minut i zaskakująco dużo ludzi, którzy mylą przychód z zyskiem. To prosty test kompetencji finansowej, ale również bezpieczny punkt wejścia do rozmów z ludźmi, którzy operują tym samym językiem. Wiedza daje tu doświadczenie i dochód; niewiedza jednak bywa znacznie droższa.',
+      [{wx:1160, wy:256, label:'FORTUNO STUDIO', zoom:1.45}]),
+    T('🏦','04 · BANK VIP INWESTYCYJNY',
+      'Bank VIP. Wyższa stopa zwrotu oznacza wyższy próg wejścia i dłuższe zamrożenie płynności. Silver, Gold i Diamond różnią się zasadniczo skalą, ale zasada jest ta sama: nie inwestujesz pieniędzy, których jutro będziesz potrzebował. Limit aktywnych lokat obejmuje również bank podstawowy.',
+      [{wx:536, wy:256, label:'BANK VIP INWESTYCYJNY', zoom:1.45}]),
+    T('💎','05 · CROWNLINE AUTO GALLERY',
+      'Wystawny salon aut premium. To ekspozycja, nie alternatywny cennik. Te same auta, te same wymagania, ta sama ekonomia. Po prostu prezentowane w miejscu, które odpowiada ich segmentowi. Dobrze oddzielić wartość pojazdu od wartości scenografii, w której go oglądasz.',
+      [{wx:225, wy:816, label:'CROWNLINE AUTO GALLERY', zoom:1.5}]),
+    T('🥩','06 · STEAKHOUSE BUSINESS',
+      'Steakhouse. Jedzenie jest tutaj najmniej interesującą pozycją rachunku. Lunch buduje podstawową widoczność, kolacja VIP zwiększa ciężar spotkania, a bankiet PR kupuje skalę i szansę na sponsora. Każdy format ma własny cooldown. Relacji nie da się wiarygodnie farmić codziennie. Tak na marginesie — mają świetne steki i naprawdę smaczne wino.',
+      [{wx:536, wy:704, label:'STEAKHOUSE BUSINESS', zoom:1.45}]),
+    T('🌑','07 · ECLIPSE NOIR',
+      'Eclipse Noir. Nocny networking bywa skuteczny, bo spotykasz ludzi poza ich formalnymi rolami. To samo działa przeciwko tobie: klub wzmacnia zarówno dobry kontakt, jak i zły materiał do obiegu. Widoczność jest użyteczna, dopóki pozostaje kontrolowana. Trzeba być chłodnym, mimo że Cię parzy.',
+      [{wx:910, wy:701, label:'ECLIPSE NOIR · '+window._bgfEclipseTag(), zoom:1.45}]),
+    T('🏨','08 · THE VESPER HOUSE',
+      'Vesper House. Mniej ludzi, ale większa wartość pojedynczej rozmowy. To miejsce działa przez selektywność i dostęp, nie przez frekwencję. Jeśli budujesz wiarygodny front biznesowy albo potrzebujesz relacji, które nie powstają w otwartym klubie, tutaj zaczyna się właściwy poziom rozmowy.',
+      [{wx:1099, wy:730, label:'THE VESPER HOUSE', zoom:1.45}]),
+    T('⛳','09 · AUREUM GREEN CLUB',
+      'Aureum. Networking o niskim natężeniu i wysokiej wartości pojedynczego kontaktu. Golf jest tu pretekstem do rozmowy bez konferencyjnego stołu. Jeśli nie umiesz słuchać, runda będzie tylko drogim spacerem. Jeśli umiesz, to czas działa wyłącznie na twoją korzyść.',
+      [{wx:1301, wy:776, label:'AUREUM GREEN CLUB', zoom:1.4}]),
+    /* §11 return shot — panorama skyline i zejście do punktu wejściowego */
+    T('🧭','POWRÓT DO ELLIOTA',
+      'To najważniejsze punkty. Reszta jest kwestią kolejności, kapitału i tego, czy odróżniasz możliwość od potrzeby. Jeśli masz pytania, pytaj konkretnie.',
+      [{wx:720, wy:420, label:'BUSINESS DISTRICT — PANORAMA', zoom:1.05, noHl:true},
+       {wx:668, wy:120, label:'WEJŚCIE DO DZIELNICY', zoom:1.45, noHl:true}]),
+  ];
+};
+/* §15 SHORT TOURS — dostępne dopiero po pierwszym pełnym przelocie (test 26). */
+window.BGF_SHORT_TOURS={
+  career:  {n:'Career & Media Run',      parts:['LABEL HQ','PR AGENCY','STEAKHOUSE BUSINESS']},
+  capital: {n:'Capital Run',             parts:['STEAKHOUSE BUSINESS','ECLIPSE NOIR']},
+  premium: {n:'Premium Networking Run',  parts:['FORTUNO STUDIO','BANK VIP INWESTYCYJNY','CROWNLINE AUTO GALLERY']},
+  night:   {n:'Night & Influence Run',   parts:['ECLIPSE NOIR','THE VESPER HOUSE','STEAKHOUSE BUSINESS']},
+  full:    {n:'Full Replay',             parts:null},
+};
+window._bgfShortTour=function(kind){
+  const all=window._bgfFullTopics();
+  const cfg=window.BGF_SHORT_TOURS[kind];
+  if(!cfg||!cfg.parts) return all;
+  const byLabel=(frag)=>all.find(t=>String(t.places[0].label||'').indexOf(frag)>=0);
+  const picked=cfg.parts.map(byLabel).filter(Boolean);
+  /* powrót do przewodnika zamyka każdą trasę — sterowanie wraca zawsze w tym samym miejscu (test 21) */
+  const ret=all[all.length-1];
+  if(ret) picked.push(ret);
+  return picked;
+};
+/* ── §6 PIERWSZY KONTAKT ─────────────────────────────────────────────────────────────────────── */
+window._bgfSay=function(txt){ if(typeof showMsg==='function') showMsg('🧭 Elliot Crane: '+txt,'i',6000); };
+window._bgfDlg=function(text, opts){
+  const el=document.getElementById('ov-content'); if(!el) return;
+  const list=(opts||[]).slice(0,3);          /* §12 / test 23: maksymalnie 3 opcje jednocześnie */
+  window._bgfDlgOpts=list;
+  el.innerHTML=`<h2>🧭 Elliot Crane</h2>
+    <div style="max-width:560px;margin:0 auto">
+      <div style="background:#0d131c;border-left:3px solid #7ec8e3;border-radius:8px;padding:12px 14px;font-size:13px;color:#dde6ef;line-height:1.6;margin-bottom:10px">${text}</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${list.map((o,i)=>`<button class="cbtn" style="text-align:left;font-size:12.5px;width:auto" onclick="window._bgfPick(${i})">${o.t}</button>`).join('')}
+        <button class="cbtn" style="text-align:left;font-size:12px;color:#8a939a;width:auto" onclick="closeOverlay()">← Zostaw temat</button>
+      </div>
+    </div>`;
+  if(typeof openOverlay==='function') openOverlay();
+};
+window._bgfPick=function(i){
+  const o=(window._bgfDlgOpts||[])[i]; if(!o) return;
+  if(typeof closeOverlay==='function') closeOverlay();
+  if(typeof o.fn==='function') o.fn();
+};
+window._bgfTalk=function(){
+  const s=window._bgfEnsure();
+  window._bgfRestoreNpc();
+  /* §21: po wczytaniu zapisu w trakcie trasy pytamy, czy wznowić od ostatniego punktu (test 28). */
+  if(s.currentSequenceState && !s.tourInProgress){
+    window._bgfDlg('„Przerwaliśmy oprowadzanie. Wznowić od ostatniego punktu, czy wrócić do gry?"',[
+      {t:'„Wznów oprowadzenie od ostatniego punktu."', fn:()=>window._bgfResumeTour()},
+      {t:'„Powrót do gry."', fn:()=>{ s.currentSequenceState=null; window._bgfSay('„Rozsądnie. Wrócimy do tego, kiedy będzie na to miejsce w kalendarzu."'); }},
+    ]);
+    return;
+  }
+  if(s.firstTourCompleted){ window._bgfHub(); return; }
+  s.introSeen=true; s.state='INTERACTION_OPEN';
+  window._bgfDlg('„Pierwszy raz w centrum? Mogę oszczędzić Ci kilku drogich pomyłek, jeśli zechcesz."',[
+    {t:'„Pokaż, co tu naprawdę ma znaczenie."', fn:()=>{
+      window._bgfSay('„Dobrze. Zaczniemy od rzeczy, które potrafią pracować na twój wynik, a nie są wyłącznie ukierunkowane na wizerunek."');
+      setTimeout(()=>window._bgfStartTour('full'),1200); }},
+    {t:'„Najpierw powiedz, po co mam tu wracać."', fn:()=>{
+      window._bgfDlg('„Bo tutaj kapitał, reputacja i relacje zaczynają działać jak system naczyń połączonych. Jeśli masz już cokolwiek do skalowania, ta dzielnica potrafi przyspieszyć dany proces."',[
+        {t:'„Dobrze. Pokaż mi dzielnicę."', fn:()=>window._bgfStartTour('full')},
+        {t:'„Nie teraz, dzięki."', fn:()=>window._bgfDecline()},
+      ]); }},
+    {t:'„Nie teraz, dzięki."', fn:()=>window._bgfDecline()},
+  ]);
+};
+window._bgfDecline=function(){
+  const s=window._bgfEnsure(); s.state='IDLE_AT_ENTRY';
+  window._bgfSay('„Rozsądnie. Informacja ma wartość tylko wtedy, gdy zamierzasz z niej skorzystać."');
+};
+/* ── §5/§21 URUCHOMIENIE PRZELOTU ────────────────────────────────────────────────────────────── */
+window._bgfStartTour=function(kind){
+  const s=window._bgfEnsure();
+  const e=window._bgfEligibility();
+  if(!e.ok){ window._bgfSay('„'+e.msg+'"'); return {ok:false, reason:e.reason}; }
+  if(kind && kind!=='full' && !s.firstTourCompleted){    /* test 26: short tours dopiero po pełnej trasie */
+    window._bgfSay('„Najpierw pełna trasa. Skróty mają sens, kiedy znasz całość."');
+    return {ok:false, reason:'no_full_tour'};
+  }
+  /* §21: jeden właściciel blokady sterowania — token modułu. */
+  s.tourInProgress=true; s.state='CINEMATIC_INTRO';
+  window._bgfLockOwner='business_guide_flyover';
+  s.lastCompletedShotId=null;
+  if(s.firstTourCompleted) s.replayCount=(s.replayCount||0)+1;
+  window._bgfReleaseStagedScenes();
+  const topics=(kind&&kind!=='full')?window._bgfShortTour(kind):window._bgfFullTopics();
+  if(typeof window.openCinematicFlythrough!=='function'){ s.tourInProgress=false; window._bgfLockOwner=null; return {ok:false,reason:'no_camera'}; }
+  window._bgfStaged=null;
+  s.currentSequenceState={kind:kind||'full', startedAtDay:(G.day||1)};
+  window.openCinematicFlythrough({roomId:'business', topics:topics,
+    onShot:(shot)=>window._bgfOnShot(shot),
+    onDone:()=>window._bgfFinishTour(kind)});
+  return {ok:true, shots:topics.length};
+};
+window._bgfResumeTour=function(){
+  const s=window._bgfEnsure();
+  const st=s.currentSequenceState; s.currentSequenceState=null;
+  window._bgfStartTour((st&&st.kind)||'full');
+};
+window._bgfFinishTour=function(kind){
+  const s=window._bgfEnsure();
+  s.tourInProgress=false;
+  window._bgfLockOwner=null;                              /* §21: sterowanie oddane dokładnie raz (test 22) */
+  s.currentSequenceState=null;
+  window._bgfReleaseStagedScenes();
+  window._bgfRestoreNpc();
+  const first=!s.firstTourCompleted;
+  if(first && (!kind||kind==='full')){
+    s.firstTourCompleted=true;
+    window._bgfGrantIntel();                              /* §19: intel TYLKO za pierwszy pełny przelot */
+  }
+  s.guideFamiliarity=Math.min(100,(s.guideFamiliarity||0)+(first?10:2));
+  s.state='IDLE_POST_TOUR';
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  setTimeout(()=>{ window._bgfSay('„To najważniejsze punkty. Jeśli masz pytania, pytaj konkretnie."'); }, 700);
+  setTimeout(()=>{ if(currentRoom==='business') window._bgfHub(); }, 2200);
+};
+/* §19 BUSINESS DISTRICT INTEL — dziewięć wpisów z tagami wprost z dokumentu. */
+window.BGF_INTEL=[
+  {id:'label_hq',   n:'Label HQ',            tags:['management','artists','albums']},
+  {id:'pr_agency',  n:'PR Agency',           tags:['media exposure','3-day cooldown']},
+  {id:'fortuno',    n:'Fortuno',             tags:['financial literacy','XP','reward']},
+  {id:'bank_vip',   n:'Bank VIP',            tags:['high capital','liquidity','max 3 deposits combined']},
+  {id:'gallery',    n:'Crownline Auto Gallery', tags:['premium presentation','source prices unchanged']},
+  {id:'steakhouse', n:'Steakhouse Business', tags:['sponsor probability','fame','3-day cooldown per format']},
+  {id:'eclipse',    n:'Eclipse Noir',        tags:['nightlife','networking','reputation risk']},
+  {id:'vesper',     n:'The Vesper House',    tags:['selective networking','business front']},
+  {id:'aureum',     n:'Aureum Green',        tags:['golf','premium networking','relationship leads']},
+];
+window._bgfGrantIntel=function(){
+  const s=window._bgfEnsure();
+  window.BGF_INTEL.forEach(e=>{ if(s.unlockedIntelEntries.indexOf(e.id)<0) s.unlockedIntelEntries.push(e.id); });
+  if(typeof addNotif==='function') addNotif('🧭 Elliot Crane oprowadził Cię po Business District. Opisy dziewięciu punktów trafiły do wiedzy o dzielnicy.');
+};
+/* ── §12 POST-TOUR HUB + §13 WĘZŁY SZCZEGÓŁOWE ───────────────────────────────────────────────
+   askedTopics oznacza wyłącznie „rozmawiano" — NIE jest metryką przyjaźni (§12, test 24). */
+window.BGF_TOPICS=[
+  {id:'start', q:'„Od czego warto tu zacząć?"',
+   a:'„Od ustalenia, czego Ci brakuje. Jeśli rozpoznawalności, celuj w PR. Jeśli struktury, wówczas Label HQ. Jeśli kapitału i cierpliwości, atakuj bank. Jeśli relacji, no to Steakhouse, Vesper House albo Aureum. Najdroższy błąd tej dzielnicy to kupowanie wszystkiego naraz. Zazwyczaj to nie działa."',
+   sub:['label_1','pr_1','bank_1']},
+  {id:'edge', q:'„Co tutaj naprawdę daje przewagę?"',
+   a:'„Nie pojedynczy obiekt. Przewagę daje sekwencja: kapitał finansuje ekspozycję, ekspozycja otwiera relacje, relacje poprawiają dostęp do kontraktów, a kontrakty zwiększają kapitał. Dzielnica działa wtedy, gdy te elementy zaczynają się wzajemnie wzmacniać. Kumasz?"',
+   sub:['steak_1','eclipse_1','vesper_1']},
+  {id:'burn', q:'„Gdzie najłatwiej przepalić pieniądze?"',
+   a:'„W miejscach, które sprzedają status szybciej niż wynik. Na przykład wpakowanie dużego budżetu w PR bez materiału, bankiet bez żadnej sieci kontaktów, albo luksusowe auto bez płynności finansowej. Koszt alternatywny bywa niewidoczny, ale rachunek jest realny."',
+   sub:['gallery_1','pr_2','bank_2']},
+  {id:'artist', q:'„Co ma największy sens dla artysty?"',
+   a:'„Na początku PR i kontakty. Później celowałbym w Label HQ, jeśli zaczynasz zarządzać czymś większym niż własne wydawnictwo. Bank i premium networking mają sens dopiero wtedy, gdy masz nadwyżkę kapitału lub reputacji do wykorzystania."',
+   sub:['label_2','pr_1','aureum_1']},
+  {id:'fame', q:'„Czy sława naprawdę otwiera tu drzwi?"',
+   a:'„Tak, ale nie wszystkie i nie bezwarunkowo. Sława działa jak taki filtr wstępny. Potem i tak liczy się płynność, wiarygodność, jakość kontaktów i to, czy potrafisz dowieźć wynik."',
+   sub:['vesper_3','eclipse_2','fortuno_1']},
+  {id:'himself', q:'„A Ty skąd to wszystko wiesz?"',
+   a:'„Przez kilka lat oceniałem firmy, które miały model biznesowy i takie, które miały wyłącznie prezentację w laptopie. Różnica zwykle wychodziła przy pierwszym poważnym rachunku. Teraz wolę doradzać ludziom zanim ten rachunek przyjdzie."',
+   sub:['hist_1','hist_2','hist_3']},
+  /* §13.1 Label HQ */
+  {id:'label_1', q:'„Kiedy własna wytwórnia zaczyna mieć sens?"',
+   a:'„Kiedy masz więcej do zarządzania niż własny kalendarz. Jeden artysta to dopiero początek struktury, nie imperium. Wartość Label HQ rośnie wraz z wydaniami, zespołem i liczbą decyzji, które trzeba podejmować równolegle."',
+   sub:['label_2','label_3','start']},
+  {id:'label_2', q:'„Spotkanie z artystą, czy promocja wytwórni?"',
+   a:'„Spotkanie z artystą wzmacnia wynik konkretnej osoby w krótkim horyzoncie. Promocja pracuje na markę labelu i jego widoczność. To różne cele. Najpierw diagnoza, a dopiero potem budżet."',
+   sub:['label_3','label_1','start']},
+  {id:'label_3', q:'„Czy biuro zarabia samo?"',
+   a:'„Nie. Biuro jest interfejsem do zarządzania. Przychód generują artyści, katalog, albumy i decyzje. Nieruchomość bez operacji pozostaje kosztem."',
+   sub:['label_1','label_2','start']},
+  /* §13.2 PR Agency */
+  {id:'pr_1', q:'„Local, Regional czy National?"',
+   a:'„Nie wybieraj skali na podstawie ego. Local jest tani i sensowny przy małej marce. Regional wymaga już rozpoznawalności. National ma największą amplitudę, ale bez odpowiedniego materiału i sławy kupujesz przede wszystkim drogi szum. Warte zastanowienia."',
+   sub:['pr_2','pr_3','start']},
+  {id:'pr_2', q:'„Media Blitz gwarantuje wynik?"',
+   a:'„Nie ma żadnej gwarancji. Budżet określa potencjał, a twoja skuteczność w samym blitzu wpływa na wykorzystanie okazji. To mechanika ekspozycji, nie automat do followersów."',
+   sub:['pr_3','pr_1','start']},
+  {id:'pr_3', q:'„Po co przerwa między kampaniami?"',
+   a:'„Żeby kampania miała ciężar i koszt alternatywny. Gdybyś mógł kupować ekspozycję bez przerwy, PR przestałby być decyzją strategiczną, a stałby się przyciskiem do inflacji sławy."',
+   sub:['pr_1','pr_2','start']},
+  /* §13.3 Fortuno */
+  {id:'fortuno_1', q:'„Po co mi quiz finansowy?"',
+   a:'„Bo ta dzielnica nie wybacza i karze brak podstaw bardziej niż brak pieniędzy. Pasywny dochód, płynność, koszt alternatywny to nie terminologia dla księgowych, tylko elementarne narzędzia decyzyjne."',
+   sub:['fortuno_2','fortuno_3','start']},
+  {id:'fortuno_2', q:'„To bardziej quiz, czy networking?"',
+   a:'„Powiedziałbym, że jedno i drugie. Quiz daje mierzalną nagrodę i cenne punkty doświadczenia, a kontekst pozwala spotkać ludzi, którzy traktują finanse jako część codziennego języka. Nie każdy kontakt musi przecież zaczynać się od oferty, prawda?"',
+   sub:['fortuno_3','fortuno_1','start']},
+  {id:'fortuno_3', q:'„Mogę wracać tylko po nagrody?"',
+   a:'„Oczywiście, że możesz. Tylko wtedy wykorzystujesz system w najwęższy możliwy sposób. Fortuno ma przede wszystkim nauczyć Cię odróżniać dobry zwrot od dobrego marketingu."',
+   sub:['fortuno_1','fortuno_2','start']},
+  /* §13.4 Bank VIP */
+  {id:'bank_1', q:'„Która lokata jest najlepsza?"',
+   a:'„Nie ma najlepszej bez kontekstu. Silver wiąże mniej kapitału i trwa krócej. Gold zwiększa ekspozycję. Diamond maksymalizuje nominalny zwrot, ale zamraża najwięcej środków. Płynność ma wartość, nawet jeśli panel nie pokazuje jej jako procentu."',
+   sub:['bank_2','bank_3','start']},
+  {id:'bank_2', q:'„Czy warto wrzucać wszystko w Diamond?"',
+   a:'„Nie, jeśli po tym nie stać Cię na bieżące decyzje. Wysoki zwrot nie rekompensuje utraty zdolności operacyjnej. To klasyczny problem koncentracji kapitału."',
+   sub:['bank_3','bank_1','start']},
+  {id:'bank_3', q:'„Skąd limit aktywnych lokat?"',
+   a:'„To limit portfela między bankiem podstawowym i VIP. Ma on wymusić selekcję, a nie mechaniczne składanie każdej dostępnej oferty."',
+   sub:['bank_1','bank_2','start']},
+  /* §13.5 Crownline Auto Gallery */
+  {id:'gallery_1', q:'„Czy tutaj auta są tańsze?"',
+   a:'„Nie. I nie powinny być. Crownline nie tworzy drugiej ekonomii pojazdów. Cena i wymagania pozostają identyczne z ofertą źródłową."',
+   sub:['gallery_2','gallery_3','start']},
+  {id:'gallery_2', q:'„To po co tu przychodzić?"',
+   a:'„Dla prezentacji, porównania segmentu premium i spójnego kontekstu zakupowego. Miejsce zmienia doświadczenie, a nie matematykę."',
+   sub:['gallery_3','gallery_1','start']},
+  {id:'gallery_3', q:'„Czy luksusowe auto daje mi przewagę biznesową?"',
+   a:'„Może wpływać na prezentację lub konkretne systemy wizerunkowe, jeśli zostały tak zaprojektowane. Nie zakładałbym jednak, że cena samochodu zastępuje reputację, wynik albo kompetencję. Moim osobistym zdaniem to nieodpowiednia postawa, a zwłaszcza na starcie."',
+   sub:['gallery_1','gallery_2','start']},
+  /* §13.6 Steakhouse */
+  {id:'steak_1', q:'„Lunch, kolacja czy bankiet?"',
+   a:'„Lunch jest tani i umiarkowany. Kolacja VIP ma wyższy próg sławy i większą szansę sponsorską. Bankiet PR jest drogi, ale łączy sławę, followersów i najwyższe prawdopodobieństwo poznania potencjalnego sponsora. To trzy różne poziomy ekspozycji."',
+   sub:['steak_2','steak_3','start']},
+  {id:'steak_2', q:'„Czy sponsor jest gwarantowany?"',
+   a:'„Nie. System operuje prawdopodobieństwem. Płacisz za lepszy kontekst i większą szansę, nie za podpisany kontrakt."',
+   sub:['steak_3','steak_1','start']},
+  {id:'steak_3', q:'„Warto robić wszystko, gdy tylko minie przerwa?"',
+   a:'„Tylko jeśli ekonomia to uzasadnia. Cooldown nie jest zaproszeniem do automatycznego wydawania pieniędzy po jego wygaśnięciu."',
+   sub:['steak_1','steak_2','start']},
+  /* §13.7 Eclipse Noir */
+  {id:'eclipse_1', q:'„To klub czy miejsce do networkingu?"',
+   a:'„Oba. Właśnie dlatego działa. Formalne role miękną po godzinach, więc kontakt bywa łatwiejszy. Jednocześnie każdy błąd jest bardziej publiczny."',
+   sub:['eclipse_2','eclipse_3','start']},
+  {id:'eclipse_2', q:'„Czy częste wizyty w tym miejscu mają sens?"',
+   a:'„Do momentu, w którym obecność zaczyna wyglądać jak brak kontroli. Nocny networking jest użyteczny, ale nadmierna ekspozycja potrafi wygenerować ślad skandali, którego nie usuniesz kolejną wizytą. Zaufaj mi na słowo, wiem o czym mówię."',
+   sub:['eclipse_3','eclipse_1','start']},
+  {id:'eclipse_3', q:'„Eclipse czy Steakhouse?"',
+   a:'„Steakhouse daje bardziej kontrolowany kontekst biznesowy, jeśli o to pytasz. Eclipse natomiast daje większą spontaniczność i większą wariancję. Wybór zależy od tego, czy potrzebujesz przewidywalności, czy okazji."',
+   sub:['eclipse_1','eclipse_2','start']},
+  /* §13.8 Vesper House */
+  {id:'vesper_1', q:'„Czym Vesper House różni się od Eclipse?"',
+   a:'„Eclipse działa skalą i ruchem, a Vesper House selekcją. Mniej rozmów, ale każda potencjalnie waży więcej. To inny rodzaj kapitału społecznego."',
+   sub:['vesper_2','vesper_3','start']},
+  {id:'vesper_2', q:'„Po co mi tam front biznesowy?"',
+   a:'„Bo część relacji biznesowych wymaga wiarygodnej struktury, nie wyłącznie popularności. Vesper House odczytuje istniejący stan Twojego frontu; ja nie tworzę tu osobnego systemu."',
+   sub:['vesper_3','vesper_1','start']},
+  {id:'vesper_3', q:'„Czy to odpowiednie miejsce na początek?"',
+   a:'„Raczej nie. Selektywny networking ma sens, kiedy masz już coś do zaoferowania. Sam dostęp bez wartości po twojej stronie jest… Jakby to ująć — krótkotrwały."',
+   sub:['vesper_1','vesper_2','start']},
+  /* §13.9 Aureum Green */
+  {id:'aureum_1', q:'„Czy golf tutaj ma znaczenie?"',
+   a:'„Jako sport — zależy od gracza. Jako kontekst rozmowy — zdecydowanie tak. Długi, spokojny format redukuje presję i daje czas na relację, której nie da się zbudować w trzyminutowej rozmowie przy barze."',
+   sub:['aureum_2','aureum_3','start']},
+  {id:'aureum_2', q:'„To tylko prestiż?"',
+   a:'„Nie, o ile moduł wykorzystuje go do leadów, sponsorów i relacji. Sam prestiż bez konwersji jest zwyczajną konsumpcją. Aureum powinno pracować na jakość kontaktów, nie tylko na wygląd profilu."',
+   sub:['aureum_3','aureum_1','start']},
+  {id:'aureum_3', q:'„Kiedy warto tam iść?"',
+   a:'„Kiedy masz cierpliwość, odpowiedni poziom reputacji i konkretny cel relacyjny. To nie jest miejsce do szybkiego farmienia wyników."',
+   sub:['aureum_1','aureum_2','start']},
+  /* §13.10 Elliot Crane — historia */
+  {id:'hist_1', q:'„Ty też pracowałeś dla którejś z tych firm?"',
+   a:'„Dla kilku podobnych, ale nigdy na tyle długo, żeby zacząć mylić logo z tożsamością. Głównie zajmowałem się analizą operacyjną, rentownością i restrukturyzacjami."',
+   sub:['hist_2','hist_3','start']},
+  {id:'hist_2', q:'„Dlaczego odszedłeś?"',
+   a:'„Bo zbyt często widziałem ludzi, którzy próbowali naprawić model biznesowy kampanią wizerunkową. Łatwiej było odejść niż kolejny raz tłumaczyć, że marża nie reaguje na prezentacje w laptopie."',
+   sub:['hist_3','hist_1','start']},
+  {id:'hist_3', q:'„I teraz oprowadzasz ludzi po dzielnicy?"',
+   a:'„Między innymi. Odpowiadam na pytania tym, którzy zadają je przed decyzją. To rzadsza grupa, niż mogłoby się wydawać."',
+   sub:['hist_1','hist_2','start']},
+];
+window._bgfTopic=function(id){ return window.BGF_TOPICS.find(t=>t.id===id)||null; };
+window._bgfHub=function(){
+  const s=window._bgfEnsure();
+  window._bgfRestoreNpc();
+  if(!s.firstTourCompleted){ window._bgfTalk(); return; }
+  const mark=(id)=>s.askedTopics.indexOf(id)>=0?' <span style="color:#63788c;font-size:10px">· rozmawiano</span>':'';
+  /* §12 / test 23: UI pokazuje maksymalnie 3 opcje naraz — sześć głównych tematów stronicujemy po trzy. */
+  const ALL_MAIN=['start','edge','burn','artist','fame','himself'];
+  if(typeof G._bgfPage!=='number') G._bgfPage=0;
+  const pages=Math.ceil(ALL_MAIN.length/3);
+  const page=((G._bgfPage%pages)+pages)%pages;
+  const main=ALL_MAIN.slice(page*3,page*3+3);
+  const el=document.getElementById('ov-content'); if(!el) return;
+  const tours=Object.keys(window.BGF_SHORT_TOURS);
+  el.innerHTML=`<h2>🧭 Elliot Crane</h2>
+    <p class="sub">Doradca w Business District. Pytaj konkretnie.</p>
+    <div style="max-width:600px;margin:0 auto">
+      <div style="font-size:12px;color:#7f93a6;margin-bottom:8px">${window._bgfReadState('front')} · ${window._bgfReadState('deposits')}</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${main.map(id=>{const t=window._bgfTopic(id); return t?`<button class="cbtn" style="text-align:left;font-size:12.5px;width:auto" onclick="window._bgfAsk('${id}')">${t.q}${mark(id)}</button>`:'';}).join('')}
+      </div>
+      <div style="margin-top:6px"><button class="cbtn" style="width:100%;font-size:11px;color:#7f93a6" onclick="G._bgfPage=(G._bgfPage||0)+1;window._bgfHub()">▸ inne tematy</button></div>
+      <div style="font-size:12px;color:#7ec8e3;margin:12px 0 6px">🎬 Przeloty tematyczne</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${tours.map(k=>`<button class="cbtn" style="text-align:left;font-size:12px;width:auto" onclick="window._bgfReplayPick('${k}')">${window.BGF_SHORT_TOURS[k].n}</button>`).join('')}
+      </div>
+      <div style="font-size:11px;color:#63788c;margin-top:8px">Powtórka nie przyznaje ponownie nagród ani wpisów o dzielnicy.</div>
+      <button class="cbtn" style="width:100%;margin-top:12px" onclick="closeOverlay()">← Wróć</button>
+    </div>`;
+  if(typeof openOverlay==='function') openOverlay();
+};
+window.BGF_REPLAY_LINES={
+  full:    '„Dobrze. Tym razem proszę patrzeć na kolejność, nie na fasady."',
+  career:  '„Label, PR i stół, przy którym zapadają decyzje. Krótka trasa."',
+  capital: '„Kapitał i ekspozycja. Dwa punkty, które najczęściej myli się ze sobą."',
+  premium: '„Kompetencja, lokata i segment premium. Trzy różne rodzaje cierpliwości."',
+  night:   '„Wieczorna część dzielnicy. Wysoka wariancja, wysoka widoczność."',
+};
+window._bgfReplayPick=function(kind){
+  const line=window.BGF_REPLAY_LINES[kind]||window.BGF_REPLAY_LINES.full;
+  if(typeof closeOverlay==='function') closeOverlay();
+  window._bgfSay(line);
+  setTimeout(()=>{ try{ window._bgfStartTour(kind); }catch(_){} }, 1200);
+};
+window._bgfAsk=function(id){
+  const s=window._bgfEnsure();
+  const t=window._bgfTopic(id); if(!t) return;
+  const repeat=s.askedTopics.indexOf(id)>=0;
+  if(!repeat) s.askedTopics.push(id);
+  /* §24 test 35: powtórzona odpowiedź jest skrócona i NIE zmienia żadnego stanu poza znacznikiem. */
+  let ans=t.a;
+  if(repeat) ans='„Skrótowo, bo to już przerabialiśmy: '+t.a.replace(/^„/,'').slice(0,150).trim()+'…"';
+  const subs=(t.sub||[]).slice(0,2).map(sid=>{ const st=window._bgfTopic(sid); return st?{t:st.q, fn:()=>window._bgfAsk(sid)}:null; }).filter(Boolean);
+  subs.push({t:'← Wróć do tematów', fn:()=>window._bgfHub()});
+  window._bgfDlg(ans, subs.slice(0,3));
+  if(typeof saveGameSilent==='function') saveGameSilent();
+};
+/* ── §10/§17 MIKROSCENY — REALNIE RYSOWANI AKTORZY ───────────────────────────────────────────
+   Dokument opisuje, co gracz WIDZI przy każdym punkcie (§10.1-10.9), więc sceny mają własną
+   warstwę rysowania sterowaną czasem od wejścia w ujęcie — tak samo jak w Underground.
+   §17: sceneria NIE tworzy pojazdu możliwej do przejęcia ani nie uruchamia transakcji. */
+window._bgfStaged=null;
+window.BGF_SCENES={
+  'LABEL HQ':                 {id:'sc_labelhq',    kind:'meeting'},
+  'PR AGENCY':                {id:'sc_pragency',   kind:'screens'},
+  'FORTUNO STUDIO':           {id:'sc_fortuno',    kind:'seminar'},
+  'BANK VIP INWESTYCYJNY':    {id:'sc_bankvip',    kind:'advisor'},
+  'CROWNLINE AUTO GALLERY':   {id:'sc_gallery',    kind:'showroom'},
+  'STEAKHOUSE BUSINESS':      {id:'sc_steakhouse', kind:'dinner'},
+  'ECLIPSE NOIR':             {id:'sc_eclipse',    kind:'entrance'},
+  'THE VESPER HOUSE':         {id:'sc_vesper',     kind:'concierge'},
+  'AUREUM GREEN CLUB':        {id:'sc_aureum',     kind:'golf'},
+};
+window._bgfOnShot=function(shot){
+  if(!shot) return;
+  const s=window._bgfEnsure();
+  s.lastCompletedShotId=String(shot.placeLabel||'');      /* §21: checkpoint per ujęcie, nie per klatka */
+  const lbl=String(shot.placeLabel||'');
+  let def=null;
+  for(const k in window.BGF_SCENES){ if(lbl.indexOf(k)>=0){ def=window.BGF_SCENES[k]; break; } }
+  if(!def){ window._bgfStaged=null; return; }
+  const prep=window._bgfPrepareStagedScene(def.id);
+  /* test 30/31: brak aktorów albo realny incydent → statyczne ujęcie, sekwencja leci dalej */
+  if(!prep.ok){ window._bgfStaged=null; return; }
+  window._bgfStaged={id:def.id, kind:def.kind, wx:shot.wx, wy:shot.wy, t0:Date.now()};
+};
+window._bgfDrawStagedScenes=function(){
+  const st=window._bgfStaged; if(!st) return;
+  if(currentRoom!=='business') return;
+  const el=(Date.now()-st.t0)/1000;
+  if(el*1000>window.BGF_SHOT_TIMEOUT_MS){ window._bgfStaged=null; return; }   /* §16 hard timeout */
+  const STREET={dinner:74, entrance:70, showroom:52, golf:46, meeting:58, screens:58, seminar:58, advisor:58, concierge:64};
+  const dy=STREET[st.kind]||56;
+  const sx=wx2sx(st.wx), sy=wy2sy(st.wy)+dy;
+  if(sx<-260||sx>VIEW_W+260||sy<-200||sy>VIEW_H+200) return;
+  const P2=(x,y,cloth,hair)=>{
+    X.fillStyle='rgba(0,0,0,.30)'; X.beginPath(); X.ellipse(x,y+22,10,4,0,0,Math.PI*2); X.fill();
+    X.fillStyle=cloth||'#2f3a48'; X.fillRect(x-7,y-2,14,22);
+    X.fillStyle='#c9a07a'; X.beginPath(); X.arc(x,y-9,7,0,Math.PI*2); X.fill();
+    X.fillStyle=hair||'#241a12'; X.fillRect(x-7,y-16,14,6);
+  };
+  X.save();
+  if(st.kind==='meeting'){
+    /* §10.1: przeszklone foyer, sala spotkań — artysta, A&R i ekran z wynikami wydawnictwa */
+    X.fillStyle='rgba(150,200,235,.13)'; X.fillRect(sx-72,sy-34,144,52);
+    X.strokeStyle='rgba(160,205,240,.45)'; X.lineWidth=1; X.strokeRect(sx-72,sy-34,144,52);
+    P2(sx-34,sy,'#3a4658'); P2(sx-6,sy,'#2b3442');
+    X.fillStyle='#101820'; X.fillRect(sx+24,sy-26,44,26);
+    X.fillStyle='#5fd0a0'; for(let i=0;i<4;i++) X.fillRect(sx+30+i*9, sy-6-(4+i*4), 5, 4+i*4);
+  } else if(st.kind==='screens'){
+    /* §10.2: feed mediów, konsultant wskazuje krótkie okazje medialne */
+    X.fillStyle='#0d141c'; X.fillRect(sx-58,sy-30,116,40);
+    const on=(Math.floor(el*2)%2===0);
+    X.fillStyle=on?'#43b7ff':'#1d5f86';
+    for(let i=0;i<5;i++) X.fillRect(sx-52+i*22, sy-24, 16, 10);
+    X.fillStyle='#8fb3c8'; for(let i=0;i<5;i++) X.fillRect(sx-52+i*22, sy-10, 16, 3);
+    P2(sx-16,sy+16,'#33404f');
+    X.strokeStyle='#c9a07a'; X.lineWidth=3; X.beginPath(); X.moveTo(sx-10,sy+18); X.lineTo(sx+6,sy+4); X.stroke();
+  } else if(st.kind==='seminar'){
+    /* §10.3: małe studio, ekran z pytaniem, 3-4 NPC reagujące na wynik, prowadzący przechodzi */
+    X.fillStyle='#0e151d'; X.fillRect(sx-44,sy-32,88,30);
+    X.fillStyle='#f1c40f'; X.fillRect(sx-36,sy-26,60,4);
+    X.fillStyle='#7ec8e3'; X.fillRect(sx-36,sy-18,44,4);
+    [[-40,10],[-14,14],[14,14],[40,10]].forEach(([dx,dyy],i)=>P2(sx+dx,sy+dyy,i%2?'#2f3a48':'#3b4658'));
+    const hx=sx-46+((el*26)%92);
+    P2(hx,sy-6,'#1f2a36','#2a2118');
+  } else if(st.kind==='advisor'){
+    /* §10.4: doradca przy ekranie portfela, klient podpisuje cyfrowe potwierdzenie */
+    X.fillStyle='#0d1620'; X.fillRect(sx-52,sy-30,104,34);
+    X.strokeStyle='#3d6f96'; X.lineWidth=1; X.strokeRect(sx-52,sy-30,104,34);
+    X.fillStyle='#5fd0a0'; X.beginPath(); X.moveTo(sx-46,sy-8);
+    for(let i=0;i<=8;i++) X.lineTo(sx-46+i*11, sy-10-Math.sin(i*0.9+el)*8);
+    X.stroke(); X.strokeStyle='#5fd0a0'; X.lineWidth=2; X.stroke();
+    P2(sx-24,sy+12,'#2b3442'); P2(sx+22,sy+12,'#3a4658');
+    X.fillStyle='#cbd6e2'; X.fillRect(sx+14,sy+6,16,10);
+  } else if(st.kind==='showroom'){
+    /* §10.5: przeszklona ekspozycja, jedno auto na obrotowej platformie, drugie oglądane przez klienta.
+       §17/test 14: to instancja WYŁĄCZNIE prezentacyjna — nie tworzy pojazdu do przejęcia. */
+    X.fillStyle='rgba(150,200,235,.10)'; X.fillRect(sx-84,sy-40,168,58);
+    X.strokeStyle='rgba(160,205,240,.40)'; X.strokeRect(sx-84,sy-40,168,58);
+    const rot=Math.sin(el*0.9), w=26+10*Math.abs(rot);
+    X.fillStyle='rgba(0,0,0,.28)'; X.beginPath(); X.ellipse(sx-38,sy+6,w*0.9,6,0,0,Math.PI*2); X.fill();
+    X.fillStyle='#8fa6bd'; X.fillRect(sx-38-w/2,sy-10,w,12);
+    X.fillStyle='#c9d8e6'; X.fillRect(sx-38-w/2+3,sy-16,w-6,7);
+    X.fillStyle='#7d8ea0'; X.fillRect(sx+22,sy-10,30,12);
+    X.fillStyle='#b9c8d6'; X.fillRect(sx+25,sy-16,24,7);
+    P2(sx+58,sy+4,'#39434f');
+  } else if(st.kind==='dinner'){
+    /* §10.6: kelner stawia danie, w sąsiedniej loży wymiana wizytówek */
+    X.fillStyle='#20140e'; X.fillRect(sx-64,sy-6,52,10);
+    X.fillStyle='#2a1c12'; X.fillRect(sx+14,sy-6,52,10);
+    P2(sx-56,sy+12,'#3a2f28'); P2(sx-26,sy+12,'#2f3a48');
+    P2(sx+24,sy+12,'#38424f'); P2(sx+56,sy+12,'#443a30');
+    const wx0=sx-70+((el*30)%140);
+    P2(wx0,sy-14,'#1a1f26','#20180f');
+    X.fillStyle='#e8dcc0'; X.fillRect(wx0-4,sy-22,9,4);
+    if(el>2.4&&el<5.2){ X.fillStyle='#f0f0f0'; X.fillRect(sx+38,sy+4,8,5); }
+  } else if(st.kind==='entrance'){
+    /* §10.7: wejście VIP, fotograf, mała kolejka; w dzień fasada + informacja o aktywności nocnej */
+    const night=window._bgfIsNight();
+    X.fillStyle=night?'rgba(120,60,180,.20)':'rgba(90,100,120,.12)';
+    X.fillRect(sx-70,sy-30,140,44);
+    X.fillStyle=night?'#c58cf0':'#66707e'; X.fillRect(sx-24,sy-34,48,5);
+    [[-46,10],[-24,14],[-2,16],[20,14]].forEach(([dx,dyy])=>P2(sx+dx,sy+dyy,'#2d3644'));
+    P2(sx+52,sy+8,'#1d242e');
+    if(night && Math.floor(el*3)%3===0){ X.fillStyle='rgba(255,255,255,.75)'; X.fillRect(sx+44,sy-4,10,7); }
+    if(!night){ X.fillStyle='rgba(200,220,240,.85)'; X.font='bold 9px "Segoe UI",Arial'; X.textAlign='center';
+      X.fillText('AKTYWNOŚĆ NOCNA', sx, sy-40); X.textAlign='left'; }
+  } else if(st.kind==='concierge'){
+    /* §10.8: spokojne wejście, selekcja gości, concierge; w tle małe grupy przy stolikach */
+    X.fillStyle='rgba(200,165,32,.10)'; X.fillRect(sx-60,sy-28,120,40);
+    X.strokeStyle='rgba(200,165,32,.35)'; X.strokeRect(sx-60,sy-28,120,40);
+    P2(sx-40,sy+10,'#2a2f3a'); P2(sx-14,sy+12,'#39303a');
+    P2(sx+26,sy+10,'#333b46'); P2(sx+46,sy+12,'#2b323c');
+    X.fillStyle='#1a1f26'; X.fillRect(sx-4,sy+2,16,6);
+  } else if(st.kind==='golf'){
+    /* §10.9: szerokie ujęcie zieleni i clubhouse, dwóch NPC z torbami, para przy stoliku na tarasie */
+    X.fillStyle='rgba(70,150,80,.22)'; X.fillRect(sx-92,sy-16,184,40);
+    X.fillStyle='rgba(230,235,225,.18)'; X.fillRect(sx+42,sy-32,50,26);
+    const wlk=((el*22)%120)-60;
+    P2(sx+wlk,sy+6,'#3a4a3a'); P2(sx+wlk+22,sy+6,'#46523c');
+    X.fillStyle='#6a5a3a'; X.fillRect(sx+wlk-10,sy-6,5,14); X.fillRect(sx+wlk+12,sy-6,5,14);
+    P2(sx+58,sy-2,'#39434f'); P2(sx+76,sy-2,'#443c46');
+    X.fillStyle='#20242a'; X.fillRect(sx+64,sy-8,10,5);
+  }
+  X.restore();
+};
+/* ── §3.1 rysunek NPC — chłodna, profesjonalna sylwetka; wyraźnie inna niż uliczny Mason. ─────── */
+window._drawElliotCrane=function(sx,sy,w,h){
+  const cx=sx+w/2;
+  X.fillStyle='rgba(0,0,0,.32)'; X.beginPath(); X.ellipse(cx,sy+h-3,w*0.42,4,0,0,Math.PI*2); X.fill();
+  /* grafitowy garnitur bez krawata */
+  X.fillStyle='#2e3742'; X.fillRect(sx+5,sy+18,w-10,h-24);
+  X.fillStyle='#39434f'; X.fillRect(sx+5,sy+18,(w-10)/2,h-24);
+  X.fillStyle='#dfe6ee'; X.fillRect(cx-3,sy+19,6,16);        /* koszula */
+  X.fillStyle='#1f262e'; X.fillRect(sx+5,sy+h-8,w-10,6);
+  /* głowa i włosy */
+  X.fillStyle='#c9a07a'; X.beginPath(); X.arc(cx,sy+12,8,0,Math.PI*2); X.fill();
+  X.fillStyle='#3a3128'; X.fillRect(cx-8,sy+4,16,6);
+  /* dyskretny zegarek i tablet — atrybuty z §3 */
+  X.fillStyle='#cfd8e2'; X.fillRect(sx+w-9,sy+30,4,3);
+  X.fillStyle='#151b22'; X.fillRect(sx-1,sy+30,8,12);
+  X.fillStyle='#3d6f96'; X.fillRect(sx,sy+31,6,10);
+};
+/* ── §26 pkt 13 / test 39: bezpieczne odtworzenie NPC przy każdym wejściu do dzielnicy. ──────── */
+window._bgfOnEnterDistrict=function(){
+  try{ window._bgfEnsure(); window._bgfRestoreNpc(); }catch(_){}
+};
+/* ═══════════════════ BUSINESS DISTRICT GUIDE — MODULE END ═══════════════════ */
+
+
 
 /* ═══════════════════════════════════════════════════════════════════════════
    RESIDENTIAL DISTRICT — MODULE START
@@ -85437,7 +86048,7 @@ window._smsRichReply=function(contactId,replyId){
      Nadawcy z własnym handlerem (Marcin, menadżer, producent, sponsor, ekipa, kapitan) wysyłają ją sami,
      Kamil ma linijkę wyżej. Pozostali (fan, wytwórnia, Wiktor, Frankie) nie mieli takiej ścieżki i reakcja
      przepadała — tu jest wspólne domknięcie dla wszystkich pozostałych kontaktów. */
-  /* PDF „Maya Voss” §6: reakcja Mayi jest OPӏNIONA o 60 s aktywnej gry — wysyła ją moduł, nie wspólny fallback. */
+  /* PDF „Maya Voss” §6: reakcja Mayi jest OPÓŹNIONA o 60 s aktywnej gry — wysyła ją moduł, nie wspólny fallback. */
   /* PDF „Korespondencja … Eve Rook" §3/§4: reakcja Eve zależy od KUPIONEGO lokalu i nie zawsze
      powstaje (neutralne „dziękuję" kończy wątek) — wysyła ją własny handler, nie wspólny fallback. */
   if(contactId==='eve_rook' && typeof window._eveHandleReply==='function') window._eveHandleReply(opt);
@@ -93717,7 +94328,7 @@ const PATCH_NOTES = [
  {t:'fix',d:'💾 Przycisk Zapisz w mieszkaniu nie dawal zadnego potwierdzenia — klikales i nie wiedziales czy gra sie zapisala. Teraz pojawia sie wyrazne „Gra zapisana!" i blysk ikony zapisu.'},
  {t:'fix',d:'📸 FrameUp potrafil sie nie otwierac (apka wygladala na zepsuta) jesli zapis gry mial uszkodzony wpis w feedzie — render listy postow sie wykladal. Teraz feed jest czyszczony z bledych wpisow przy wczytaniu zapisu oraz przy otwieraniu apki, wiec FrameUp, wzrost zasiegu postow i publikacja dzialaja takze na starszych zapisach.'},
  {t:'fix',d:'🤝 Dealer w Underground potrafil „nie reagowac" na zakup skladnikow na niektorych zapisach — gdy zapis zgubil magazyn surowcow, klikniecie zakupu cicho sie wykladalo i nic nie przybywalo. Magazyn jest teraz odtwarzany automatycznie, wiec zakup u dealera (i przez telefon) dziala na kazdym zapisie.'},
- {t:'fix',d:'📱 Kilka apek w telefonie (Loopify, EchoDrop, AurumWave, Bank, Sejf, Trap) mogло sie nie otwierac na starszych/uszkodzonych zapisach — listy utworow, lokat czy sejfow z bledym wpisem wykladaly render apki. Dodana wspolna ochrona przed renderem KAZDEJ apki czysci bledne wpisy, wiec wszystkie apki telefonu otwieraja sie na kazdym zapisie.'},
+ {t:'fix',d:'📱 Kilka apek w telefonie (Loopify, EchoDrop, AurumWave, Bank, Sejf, Trap) moglo sie nie otwierac na starszych/uszkodzonych zapisach — listy utworow, lokat czy sejfow z bledym wpisem wykladaly render apki. Dodana wspolna ochrona przed renderem KAZDEJ apki czysci bledne wpisy, wiec wszystkie apki telefonu otwieraja sie na kazdym zapisie.'},
  {t:'fix',d:'📊 Kolejne ekrany telefonu (Muzyka, Statystyki, Powiadomienia, Pasywny dochod) oraz Ekwipunek mogly sie wyłożyć na uszkodzonym zapisie z bledym wpisem na liscie (utwory, ekipa, powiadomienia, przedmioty). Ta sama ochrona czysci je przy wczytaniu zapisu i otwarciu telefonu — wszystkie ekrany dzialaja na kazdym zapisie.'},
  {t:'fix',d:'🎬 Krotka animacja-przerywnik (np. ważny kamień milowy) potrafila rzucic bledem, jesli zostala zamknieta zanim sie rozwinela. Dodane zabezpieczenie — animacja nie wykrzacza sie juz przy szybkim zamknieciu.'},
  {t:'fix',d:'📸 Spolecznosc na FrameUp (zdjecia innych graczy) mogla sie nie wczytac, jesli w pobranym feedzie trafil sie bledny wpis — galeria sie wykladala. Teraz bledne wpisy sa pomijane i spolecznosc wyswietla sie poprawnie.'},
@@ -112388,7 +112999,7 @@ function drawMiniMap(){
   // Reset shadow/composite — minimapa zawsze widoczna
   X.save();
   X.shadowBlur=0;X.shadowColor='transparent';X.globalCompositeOperation='source-over';X.globalAlpha=1;
-  // Obszar mapy WEWNĄTRZ wrapa (poniżej DOM headerа który ma 18px)
+  // Obszar mapy WEWNĄTRZ wrapa (poniżej DOM header który ma 18px)
   const mx=10,my=654,mw=228,mh=60;
   const wW=ROOMS.ulica.wT*T,wH=ROOMS.ulica.hT*T;
   const mpx=v=>mx+Math.round(v/wW*mw),mpy=v=>my+Math.round(v/wH*mh);
