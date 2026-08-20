@@ -1806,6 +1806,11 @@ document.addEventListener('keydown', e => {
     tryInteract();
   }
   if(e.key==='Escape'){
+    /* PDF 20.08 U4 (user): w trybie „Przelot nad miastem” klawisz Esc NIE moze wychodzic z trybu —
+       ma pauzowac gre, wstrzymujac rozgrywke i sam przelot. Ponowny Esc wraca do przelotu. */
+    if(typeof G!=='undefined' && G._cinematicActive && typeof window._cinemTogglePause==='function'){
+      e.preventDefault(); window._cinemTogglePause(); return;
+    }
     if(typeof G!=='undefined' && G._itut){ if(typeof window._endInteractiveTutorial==='function') window._endInteractiveTutorial(); return; }
     if(sleepInterval){wakeUp();return;}
     if(_restTimer){stopRest();return;}
@@ -17919,6 +17924,11 @@ function _showRoomIntro(id){
 }
 function changeRoom(id,wx,wy){
   if(_blockedByCarEnter(id)) return;
+  /* PDF 20.08 U22: cichy zapis stanu SPRZED opuszczenia budynku — TU currentRoom i pozycja gracza
+     wciaz opisuja wnetrze, wiec zapisany stan cofa gracza dokladnie przed nacisniecie [E]. */
+  if(id==='ulica' && typeof G!=='undefined' && G._pendingIntroFlythrough && !G._cinematicCompleted && !G._cinematicActive){
+    if(typeof window._flyoverArmRollback==='function') window._flyoverArmRollback();
+  }
   // Studio ownership gate
   if(id==='studio'&&!G.studioOwned){
     renderStudioForSale();openOverlay();return;
@@ -64866,7 +64876,9 @@ window._ughFullTopics=function(){
     /* §7.2 scena otwierająca ~10 s + monolog */
     T('🕶','MASON HALE — WITAJ W UNDERZE',
       'W Underze każdy coś kręci. Jedni interes, drudzy numer na boku, trzeci własny pogrzeb. Tu nic nie leży bez właściciela, a jak leży, no to ktoś już zapierdala, żeby to podnieść. Tutaj nie wygrywa najmądrzejszy ani najtwardszy, a ten, który pierwszy zrozumie, kto kogo właśnie próbuje wyruchać. Słabi znikają, głupi płacą, a naiwni jeszcze przez chwilę myślą, że trafili na okazję. Under nie ma litości, bo litość to tutaj luksus, na który większości zwyczajnie kurwa nie stać. Chodź. Pokażę Ci, gdzie warto patrzeć… i gdzie lepiej nie patrzeć zbyt długo.',
-      [{wx:1273, wy:444, label:'BRAMA UNDERGROUND', zoom:1.55}]),
+      /* PDF 20.08 U62 (user): pierwszy slajd pokazuje wylacznie gracza i Masona w zblizeniu —
+         zolta obwodka niczego tu nie zaznacza, wiec jej nie ma. Od drugiego slajdu wraca. */
+      [{wx:1273, wy:444, label:'BRAMA UNDERGROUND', zoom:1.55, noHl:true}]),
     /* §8 cold open #1 */
     T('🤝','STARY KWARTAŁ — ŻYWE ZDJĘCIE DZIELNICY',
       'Tu interesy trwają krócej niż powitanie. Patrz, tylko nie gap się za długo. Ludzie tu mają alergię na ciekawskich. Pod tym względem to pojebany rewir.',
@@ -88874,6 +88886,42 @@ window._showCinematicOffer=()=>{
   document.body.appendChild(m);
 };
 
+/* ═══ PDF 20.08 U4 — PAUZA W TRAKCIE PRZELOTU ════════════════════════════════
+   Gra w trakcie przelotu jest z założenia wstrzymana (_paused=true), więc samo togglePause()
+   zdjęłoby pauzę zamiast pokazać menu. Dlatego wchodzimy w menu pauzy przez wymuszenie stanu,
+   a przy wyjściu przywracamy wstrzymanie przelotu. */
+window._cinemTogglePause=function(){
+  if(typeof togglePause!=='function') return;
+  const open=!!document.getElementById('pause-overlay');
+  if(open){
+    togglePause();                       /* zamyka menu pauzy */
+    if(typeof _paused!=='undefined') _paused=true;  /* przelot dalej wstrzymuje rozgrywkę */
+  } else {
+    if(typeof _paused!=='undefined') _paused=false; /* żeby togglePause zbudował menu, a nie je zdjął */
+    togglePause();
+  }
+};
+/* ═══ PDF 20.08 U22 — KOTWICA PAMIĘCI WOKÓŁ PRZELOTU ═════════════════════════
+   • tuż przed wyjściem z Traphouse (czyli przed [E], które uruchamia przelot) zapisujemy grę po cichu,
+   • w trakcie aktywnego przelotu żaden zapis nie nadpisuje tamtego stanu — dzięki temu wyjście do menu
+     w środku przelotu cofa gracza do momentu sprzed opuszczenia budynku,
+   • po ukonczeniu przelotu („ROZPOCZNIJ”) albo po jego pominięciu zapisujemy stan po cichu. */
+window._flyoverArmRollback=function(){
+  if(typeof G==='undefined') return;
+  try{ if(typeof saveGameSilentNow==='function') saveGameSilentNow(); }catch(_){}
+  G._flyoverRollbackArmed=true;
+};
+window._flyoverDisarmRollback=function(){
+  if(typeof G==='undefined') return;
+  const was=!!G._flyoverRollbackArmed;
+  G._flyoverRollbackArmed=false;
+  if(was){ try{ if(typeof saveGameSilentNow==='function') saveGameSilentNow(); }catch(_){} }
+};
+window._cinemSkipBtn=function(){
+  /* Pominięcie przelotu też kończy tryb świadomie — stan zapisuje się po cichu. */
+  if(typeof window._flyoverDisarmRollback==='function') window._flyoverDisarmRollback();
+  if(typeof window._closeCinematic==='function') window._closeCinematic();
+};
 /* v1.9.87/v1.9.89: AERIAL CAMERA FLYTHROUGH — prawdziwy cinematic przelot przez miasto */
 /* PDF „NPC Mason Hale — GUIDE FLYOVER SYSTEM" §16/§29.2/§30 (dyrektywa KRYTYCZNA):
    „Nie wolno tworzyć drugiej niezależnej implementacji flyover camera. Moduł musi być
@@ -88904,7 +88952,8 @@ window.openCinematicFlythrough=(scenario)=>{
       em:'🏠', title:'TWÓJ DOM — START I PROGRESJA',
       desc:'Zaczynasz w biednym Traphouse. Z czasem możesz kupić lepsze mieszkania w Biurze Nieruchomości: Mieszkanie Basic (komfort), Penthouse (luksus), Apartament Premium (basen+jacuzzi), Rezydencja (mansion z helipadem).',
       places:[
-        {wx:170, wy:208, label:'TRAPHOUSE', zoom:1.6},
+        /* PDF 20.08 U5: TRAPHOUSE stoi po LEWEJ stronie kadru, wiec okno z opisem idzie na PRAWA. */
+        {wx:170, wy:208, label:'TRAPHOUSE', zoom:1.6, boxPos:'right'},
         {wx:4004, wy:210, label:'BIURO NIERUCHOMOŚCI', zoom:1.6},
         {wx:350, wy:3253, label:'MIESZKANIE BASIC', zoom:1.5},
         {wx:1550, wy:3243, label:'PENTHOUSE LUX', zoom:1.4},
@@ -88935,7 +88984,9 @@ window.openCinematicFlythrough=(scenario)=>{
         {wx:1714, wy:210, label:'STUDIO NAGRAŃ', zoom:1.7},
         {wx:1154, wy:210, label:'SKLEP MUZYCZNY', zoom:1.6},
         {wx:1554, wy:208, label:'VOLTHOUSE', zoom:1.6},
-        {wx:2785, wy:749, label:'SALA KONCERTOWA', zoom:1.5},
+        /* PDF 20.08 U6: bylo (2785,749) — punkt MIEDZY 808 Arena a Mebluxem, przez co znacznik
+           wypadal na slupie na chodniku. 808 Arena: wx2510 wy672 w170 h155 → srodek (2595,750). */
+        {wx:2595, wy:750, label:'SALA KONCERTOWA', zoom:1.5},
         {wx:3834, wy:210, label:'RADIO STREET', zoom:1.6},
       ],
       durPerPlace:3800,
@@ -88945,12 +88996,15 @@ window.openCinematicFlythrough=(scenario)=>{
       /* v2.1.199: usunięty WARSZTAT z prac (user feedback "warsztat to nie praca dorywcza, kłamstwo"). Warsztat to sklep techniczny — przeniesiony do osobnego topica "SERWIS I NAPRAWA". */
       desc:'Pizzeria, Supermarket, Zmywak (restauracja), Myjnia, Budowa, Kurier. Pierwsze źródło kasy zanim odblokujesz kariery. 📱 Dodatkowo w telefonie (folder Kariera → 🧰 Gigi) masz tablicę szybkich zleceń: ulotki, magazyn, mechanik, złom, statysta, fotograf, ochroniarz i więcej — do podjęcia w dowolnym momencie, bez wymogu kariery muzycznej.',
       places:[
-        {wx:400, wy:2285, label:'SUPERMARKET', zoom:1.6},
-        {wx:1154, wy:2285, label:'MYJNIA', zoom:1.6},
-        {wx:1474, wy:2285, label:'ZMYWAK (RESTAURACJA)', zoom:1.6},
-        {wx:1874, wy:2285, label:'BUDOWA', zoom:1.6},
-        {wx:2694, wy:2285, label:'KURIER', zoom:1.6},
-        {wx:2994, wy:2285, label:'PIZZERIA (PRACA)', zoom:1.6},
+        /* PDF 20.08 U9-U14: w tym temacie kamera leci ciaglym panem, ktory z zalozenia rysowal
+           znacznik o promieniu 300. User: znaczniki tych szesciu prac maja miec TAKI SAM rozmiar,
+           jaki wystepuje przy prezentacji pozostalych obiektow — czyli standardowe 110 px. */
+        {wx:400, wy:2285, label:'SUPERMARKET', zoom:1.6, hlR:110},
+        {wx:1154, wy:2285, label:'MYJNIA', zoom:1.6, hlR:110},
+        {wx:1474, wy:2285, label:'ZMYWAK (RESTAURACJA)', zoom:1.6, hlR:110},
+        {wx:1874, wy:2285, label:'BUDOWA', zoom:1.6, hlR:110},
+        {wx:2694, wy:2285, label:'KURIER', zoom:1.6, hlR:110},
+        {wx:2994, wy:2285, label:'PIZZERIA (PRACA)', zoom:1.6, hlR:110},
       ],
       durPerPlace:2800,
       panSweep:true,
@@ -88981,11 +89035,15 @@ window.openCinematicFlythrough=(scenario)=>{
       desc:'8 butików premium: Luvio, Chassé, Hermel, Goccia (góra), Valenca, Vento, Adore, Strada (dół). Drip 0-200 daje bonusy do koncertów, royalties, FrameUp.',
       places:[
         /* Płynny przelot — start nad pierwszym, koniec nad ostatnim — kamera "pan" */
-        {wx:2596, wy:2706, label:'GÓRNY RZĄD (Luvio → Goccia)', zoom:1.25},
-        {wx:3244, wy:2706, label:'GÓRNY RZĄD (Luvio → Goccia)', zoom:1.25},
-        {wx:3244, wy:3245, label:'DOLNY RZĄD (Valenca → Strada)', zoom:1.25},
-        {wx:2596, wy:3245, label:'DOLNY RZĄD (Valenca → Strada)', zoom:1.25},
+        /* PDF 20.08 U17: „CAŁA DZIELNICA” idzie z ostatniej pozycji na PIERWSZA.
+           U15/U16: kazdy rzad butikow to teraz JEDEN znacznik powiekszony o 20% (300 → 360),
+           ustawiony miedzy srodkowa para sklepow, ale obejmujacy wizualnie caly rzad:
+           gorny — miedzy CHASSÉ (2712-2912) i HERMEL (2928-3128) → x 2920, y 2706;
+           dolny — miedzy VENTO (2712-2912) i ADORE (2928-3128) → x 2920, y 3245.
+           Dzieki temu kategoria ma 4 pozycje zamiast 5. */
         {wx:2920, wy:2975, label:'CAŁA DZIELNICA — 8 BUTIKÓW', zoom:1.05},
+        {wx:2920, wy:2706, label:'GÓRNY RZĄD (Luvio → Goccia)', zoom:1.25, hlR:360},
+        {wx:2920, wy:3245, label:'DOLNY RZĄD (Valenca → Strada)', zoom:1.25, hlR:360},
       ],
       durPerPlace:3500,
       panSweep:true, /* v1.9.99: dripie jeden ciągły pan zamiast osobnych zoomów */
@@ -89008,7 +89066,9 @@ window.openCinematicFlythrough=(scenario)=>{
       desc:'Fryzjer (zmiana fryzury — wpływa na atrakcjonalność u NPC), Park Miejski (chill, freestyle, bboying, skatepark, staw — boost nastroju).',
       places:[
         {wx:505, wy:749, label:'FRYZJER', zoom:1.7},
-        {wx:384, wy:1032, label:'PARK MIEJSKI', zoom:1.3},
+        /* PDF 20.08 U7: znacznik parku ma byc duzy (jak przy KURIER 5/6, czyli 300 px) i wycentrowany
+           na FONTANNIE — fountain wx280 wy1010 w100 h90 → srodek (330,1055). */
+        {wx:330, wy:1055, label:'PARK MIEJSKI', zoom:1.3, hlR:300},
       ],
       durPerPlace:4000,
     },
@@ -89017,8 +89077,11 @@ window.openCinematicFlythrough=(scenario)=>{
       desc:'Salon Aut (kup samochód = szybsze podróże), Parking miejski, Helipad VIP (transport prywatnym śmigłowcem dla bogatych graczy — w tym loty wprost do Twojej Rezydencji lub Mega Villi, gdy je posiadasz).',
       places:[
         {wx:3084, wy:210, label:'SALON AUT', zoom:1.6},
-        {wx:1584, wy:1620, label:'PARKING', zoom:1.2},
-        {wx:2070, wy:3470, label:'HELIPAD VIP', zoom:1.5},
+        /* PDF 20.08 U8: znacznik parkingu +30% (128 → 166). Zoom i wycentrowanie kamery BEZ ZMIAN. */
+        {wx:1584, wy:1620, label:'PARKING', zoom:1.2, hlR:166},
+        /* PDF 20.08 U18: zblizenie do helipadu +20% (1.5 → 1.8); znacznik wycentrowany na obiekcie
+           (penthouse_helipad wx2030 wy3430 w80 h80 → srodek 2070,3470). */
+        {wx:2070, wy:3470, label:'HELIPAD VIP', zoom:1.8},
       ],
       durPerPlace:3500,
     },
@@ -89027,8 +89090,13 @@ window.openCinematicFlythrough=(scenario)=>{
       /* v2.1.637 (user): przelot informuje o nowych dzielnicach (bramy na krawędziach), schronisku (pies-towarzysz) i ekwipunku (klawisz I). Wymogi zweryfikowane z REQS (L32756). */
       desc:'Bramy na krawędziach mapy prowadzą do dzielnic: 🌑 Underground (50 sławy + 20 freestyle — undergroundowa scena), 🌊 Coast (200 sławy + 150 000 zł zarobione — luksusowe wybrzeże), 💼 Business (300 sławy — Label HQ, Bank VIP, Fortuno, PR). W 🐕 Schronisku adoptujesz psa-towarzysza, który chodzi za Tobą po mieście. A 🎒 EKWIPUNEK otwierasz klawiszem I — trzymasz tam jedzenie, akcesoria z bonusami (pamiętaj je założyć!), substancje i składniki do warsztatu.',
       places:[
-        {wx:90,   wy:2976, label:'🌑 BRAMA UNDERGROUND', zoom:1.3},
-        {wx:3552, wy:3400, label:'🌊 BRAMA COAST', zoom:1.3},
+        /* PDF 20.08 U19: brama Underground stoi skrajnie po lewej — okno idzie na PRAWA strone i
+           wraca do najwiekszego wariantu (1/3), nawet gdy gracz wczesniej je zmniejszyl.
+           Znacznik +10% (122 → 134) i wycentrowany na obiekcie (wx0-96, wy2784-3168 → 48,2976). */
+        {wx:48,   wy:2976, label:'🌑 BRAMA UNDERGROUND', zoom:1.3, hlR:134, boxPos:'right', boxState:'full'},
+        /* PDF 20.08 U20: brama Coast jest w dolnej, centralnej czesci kadru — okno w LEWY GORNY rog
+           i w wariancie posrednim (2/3). Znacznik +10% i wycentrowany (wx3360-3744, wy3408-3600). */
+        {wx:3552, wy:3504, label:'🌊 BRAMA COAST', zoom:1.3, hlR:134, boxPos:'topleft', boxState:'compact'},
         {wx:3552, wy:110,  label:'💼 BRAMA BUSINESS', zoom:1.3},
         {wx:3995, wy:750,  label:'🐕 SCHRONISKO (ADOPCJA PSA)', zoom:1.5}, /* U3 (v2.3.44 PDF): wycentrowane między Schronisko(3825)/Zoo(3995)/Wet(4165) — było 4345 (offset w prawo poza wszystkie 3) */
       ],
@@ -89038,7 +89106,8 @@ window.openCinematicFlythrough=(scenario)=>{
       em:'🎮', title:'WYBIERZ SWOJĄ ŚCIEŻKĘ',
       /* v2.1.319 fix: user feedback "kamera nie ma przeskakiwać tylko płynnie lecieć przez całe miasto bez przeskoków i podświetleń. ArrowRight nie powinno działać na ostatnim kroku."
          Pojedynczy "shot" z custom path animation — kamera leci płynnie po obwodzie miasta (8 waypointów, ciągły lerp BEZ czekania, BEZ highlight). */
-      desc:'Wiele ścieżek kariery: rap, beatmaker, Vloger, streamer, influencer, realizator dźwięku, biznes, label. Każda z własnym drzewkiem skilli. Wybór należy do Ciebie!',
+      /* PDF 20.08 U21 (user): zmieniona koncowka pierwszego tekstu finalu. */
+      desc:'Wiele ścieżek kariery: rap, beatmaker, Vloger, streamer, influencer, realizator dźwięku, biznes, label. Każda z własnym drzewkiem skilli. Którą drogę wybierzesz?',
       places:[
         /* Jeden placeholder shot — faktyczny ruch kamery sterowany przez customFinalePan w _next() */
         {wx:2200, wy:1750, label:'CAŁE MIASTO', zoom:1.0},
@@ -89064,6 +89133,12 @@ window.openCinematicFlythrough=(scenario)=>{
         placeCount: topic.places.length,
         wx:place.wx, wy:place.wy,
         zoom:place.zoom||1.5,
+        /* PDF 20.08: opcjonalne nadpisania per punkt — promien znacznika, pozycja i wymuszony
+           rozmiar okna narracji oraz calkowity brak znacznika (U62). */
+        hlR:place.hlR||null,
+        boxPos:place.boxPos||null,
+        boxState:place.boxState||null,
+        noHl:!!place.noHl,
         dur:topic.durPerPlace||3500,
         panSweep:!!topic.panSweep, /* v1.9.99: ciągły pan zamiast osobnych zoom-in */
         isFinaleTopic:!!topic.isFinaleTopic, /* v2.1.310: ostatni topic z CTA button */
@@ -89093,7 +89168,36 @@ window.openCinematicFlythrough=(scenario)=>{
   };
   /* v2.1.199: tracker zmiany topica — wcześniej `s.isFirstInTopic` było używane jako sygnał "nowy topic". ALE gdy gracz cofa się strzałką w lewo z pierwszego place nowego topica do ostatniego place poprzedniego topica, `isFirstInTopic=false` → overlay NIE updateował tytułu/opisu. User feedback: "przeszedłem na Zdrowie i Forma, cofnąłem ←, w okienku dalej Zdrowie i Forma". Fix: porównuj topicIdx z ostatnim renderowanym, NIE używaj isFirstInTopic. */
   let _lastRenderedTopicIdx = -1;
+  /* ═══ PDF 20.08 U21 — OSTATNI KROK PRZELOTU BEZ OKNA-PROSTOKĄTA ═══════════════════
+     User: „okno prostokąta … zostało usunięte … oba teksty powinny być umieszczone w centrum ekranu
+     w sposób wyśrodkowany z czytelną, nowoczesną czcionką oraz delikatnym ozdobnikiem w postaci
+     cienia pod tekstem”. Przycisk kończący tryb: „ROZPOCZNIJ”, biała czcionka, wyśrodkowany,
+     oddzielony nieznacznym odstępem od tekstu. W tym kroku znika też „Pomiń przelot”, a strzałki
+     ze wskazówką wyrównują się do prawej krawędzi, w miejsce usuniętego przycisku. */
+  const _showFinale=(s)=>{
+    document.getElementById('cinem-overlay')?.remove();
+    const skipBtn=document.getElementById('cinem-skip-btn');
+    if(skipBtn) skipBtn.style.display='none';
+    let f=document.getElementById('cinem-finale');
+    if(f) return;
+    f=document.createElement('div');
+    f.id='cinem-finale';
+    f.style.cssText='position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:9997;pointer-events:none;padding:0 8vw;opacity:0;transition:opacity .9s cubic-bezier(.2,.7,.3,1)';
+    f.innerHTML=`
+      <div id="cinem-finale-t1" style="font-family:'Segoe UI','Inter','Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:clamp(17px,2.1vw,27px);line-height:1.55;color:#f4f4fa;letter-spacing:.4px;max-width:1000px;text-shadow:0 3px 14px rgba(0,0,0,.85),0 1px 3px rgba(0,0,0,.9)">${s.desc}</div>
+      <div id="cinem-finale-t2" style="margin-top:26px;font-family:'Segoe UI','Inter','Helvetica Neue',Arial,sans-serif;font-weight:500;font-size:clamp(15px,1.5vw,20px);line-height:1.6;color:#d8d8e6;letter-spacing:.6px;text-shadow:0 3px 14px rgba(0,0,0,.85),0 1px 3px rgba(0,0,0,.9)">Wprowadzenie zakończone. Zacznij, kiedy będziesz gotów.</div>
+      <button id="cinem-finale-btn" onclick="window._closeCinematic()" style="pointer-events:auto;margin-top:22px;background:linear-gradient(135deg,#f1c40f,#e91e8c);color:#ffffff;border:none;padding:15px 46px;font-size:17px;font-weight:900;letter-spacing:3px;border-radius:12px;cursor:pointer;box-shadow:0 8px 30px rgba(241,196,15,.45);font-family:inherit;text-transform:uppercase;text-shadow:0 2px 6px rgba(0,0,0,.45)">ROZPOCZNIJ</button>`;
+    document.body.appendChild(f);
+    requestAnimationFrame(()=>{ f.style.opacity='1'; });
+  };
+  const _hideFinale=()=>{
+    document.getElementById('cinem-finale')?.remove();
+    const skipBtn=document.getElementById('cinem-skip-btn');
+    if(skipBtn) skipBtn.style.display='';
+  };
   const _showOverlay=(s)=>{
+    if(s.isFinaleTopic){ _showFinale(s); return; }
+    _hideFinale();
     let o=document.getElementById('cinem-overlay');
     const isNew=!o;
     const isTopicChange = s.topicIdx !== _lastRenderedTopicIdx;
@@ -89138,7 +89242,11 @@ window.openCinematicFlythrough=(scenario)=>{
           <button onclick="window._closeCinematic()" style="margin-top:16px;background:linear-gradient(135deg,#f1c40f,#e91e8c);color:#000;border:none;padding:16px 44px;font-size:18px;font-weight:900;letter-spacing:3px;border-radius:12px;cursor:pointer;box-shadow:0 8px 30px rgba(241,196,15,.5);font-family:inherit;text-transform:uppercase;animation:emojiFloat 2.5s ease-in-out infinite">▶ ZACZYNAM</button>
         `:`<div id="cinem-counter" style="margin-top:12px;color:#778;font-size:11px;letter-spacing:1px">Topic ${s.topicIdx+1}/${_TOPICS.length}</div>`}`;
       /* PDF 13.08 U19: po każdym renderze przywróć aktualnie wybrany stopień zwinięcia. */
-      if(typeof window._cinemApplyBoxState==='function') window._cinemApplyBoxState();
+      /* PDF 20.08 U19/U20: najpierw wymuś (albo zdejmij) rozmiar narzucony przez ten punkt trasy. */
+      if(typeof window._cinemForceBoxState==='function') window._cinemForceBoxState(s.boxState||null);
+      else if(typeof window._cinemApplyBoxState==='function') window._cinemApplyBoxState();
+      /* PDF 20.08 U5/U19/U20: pozycja okna względem kadru. */
+      if(typeof window._cinemApplyBoxPos==='function') window._cinemApplyBoxPos(s.boxPos||null);
     };
     if(isTopicChange){
       setTimeout(()=>{
@@ -89149,6 +89257,10 @@ window.openCinematicFlythrough=(scenario)=>{
         });
       }, isNew ? 50 : 350);
     } else {
+      /* PDF 20.08 U5/U19/U20: przy przejściu MIĘDZY punktami tego samego tematu overlay nie jest
+         przebudowywany — pozycję i wymuszony rozmiar trzeba zastosować także tutaj. */
+      if(typeof window._cinemForceBoxState==='function') window._cinemForceBoxState(s.boxState||null);
+      if(typeof window._cinemApplyBoxPos==='function') window._cinemApplyBoxPos(s.boxPos||null);
       const lbl=document.getElementById('cinem-place-label');
       if(lbl){
         lbl.style.opacity='0';
@@ -89187,6 +89299,29 @@ window.openCinematicFlythrough=(scenario)=>{
     o.style.maxHeight = (st==='full')?'640px':(st==='compact'?'260px':'96px');
     o.style.maxWidth  = (st==='full')?'720px':(st==='compact'?'560px':'420px');
     o.style.padding   = (st==='full')?'22px 36px':(st==='compact'?'16px 26px':'12px 20px');
+  };
+  /* ═══ PDF 20.08 U5/U19/U20 — POZYCJA OKNA NARRACJI I WYMUSZONY ROZMIAR ══════════════
+     Dla wybranych punktów okno z opisem przenosi się automatycznie, żeby nie zasłaniać prezentowanego
+     obiektu, i wraca na domyślne miejsce przy kolejnym ujęciu. Wymuszony rozmiar obowiązuje TYLKO
+     w tym kroku — po nim wraca wybór gracza (dokument: „powinien zostać domyślnie zmodyfikowany pod
+     kątem rozmiaru W TYM KROKU trybu, jeśli gracz zmniejszał wcześniej kształt”). */
+  window._cinemApplyBoxPos=function(pos){
+    const o=document.getElementById('cinem-overlay'); if(!o) return;
+    o.style.transition='opacity .7s cubic-bezier(.2,.7,.3,1),transform .7s cubic-bezier(.2,.7,.3,1),max-height .45s cubic-bezier(.2,.7,.3,1),max-width .45s cubic-bezier(.2,.7,.3,1),padding .45s cubic-bezier(.2,.7,.3,1),left .6s cubic-bezier(.2,.7,.3,1),right .6s cubic-bezier(.2,.7,.3,1),top .6s cubic-bezier(.2,.7,.3,1),bottom .6s cubic-bezier(.2,.7,.3,1)';
+    if(pos==='right'){      o.style.left='auto'; o.style.right='24px'; o.style.top='auto';  o.style.bottom='24px'; }
+    else if(pos==='topleft'){o.style.left='24px'; o.style.right='auto'; o.style.top='16vh'; o.style.bottom='auto'; }
+    else if(pos==='topright'){o.style.left='auto';o.style.right='24px'; o.style.top='16vh'; o.style.bottom='auto'; }
+    else {                  o.style.left='24px'; o.style.right='auto'; o.style.top='auto';  o.style.bottom='24px'; }
+  };
+  window._cinemForceBoxState=function(state){
+    if(state){
+      if(window._cinemBoxUserState==null) window._cinemBoxUserState=window._cinemBoxState||'full';
+      window._cinemBoxState=state;
+    } else if(window._cinemBoxUserState!=null){
+      window._cinemBoxState=window._cinemBoxUserState;
+      window._cinemBoxUserState=null;
+    }
+    if(typeof window._cinemApplyBoxState==='function') window._cinemApplyBoxState();
   };
   window._cinemBoxToggle=function(mode){
     const cur=window._cinemBoxState||'full';
@@ -89288,12 +89423,15 @@ window.openCinematicFlythrough=(scenario)=>{
         _animateHighlight(0, 250);
         setTimeout(()=>{
           if(!G._cinematicActive) return;
-          window._cinemCam.highlight={wx:s.wx, wy:s.wy, r:300}; /* duże highlight area */
+          if(s.noHl){ window._cinemCam.highlight=null; window._cinemCam.hlOpacity=0; return; }
+          window._cinemCam.highlight={wx:s.wx, wy:s.wy, r:s.hlR||300}; /* PDF 20.08: promien per punkt */
           _animateHighlight(0.4, 800); /* delikatne podświetlenie, nie pełne */
         }, 900);
+      } else if(s.noHl){
+        window._cinemCam.highlight=null; window._cinemCam.hlOpacity=0;
       } else {
         /* przesuwaj highlight razem z kamerą */
-        window._cinemCam.highlight={wx:s.wx, wy:s.wy, r:300};
+        window._cinemCam.highlight={wx:s.wx, wy:s.wy, r:s.hlR||300};
       }
     } else {
       /* v2.1.26: prawdziwy efekt PRZELOTU. Sekwencja:
@@ -89309,7 +89447,10 @@ window.openCinematicFlythrough=(scenario)=>{
         if(!G._cinematicActive) return;
         /* ZOOM IN po dotarciu kamery do celu */
         window._cinemCam.targetZoom = s.zoom||1.5;
-        window._cinemCam.highlight={wx:s.wx, wy:s.wy, r:Math.max(110, 140 - (s.zoom-1)*60)};
+        /* PDF 20.08 U62: pierwszy slajd przewodnika prezentuje same postacie — zolta obwodka nie ma
+           tam czego zaznaczac, wiec ten punkt jawnie jej nie dostaje. */
+        if(s.noHl){ window._cinemCam.highlight=null; window._cinemCam.hlOpacity=0; return; }
+        window._cinemCam.highlight={wx:s.wx, wy:s.wy, r:s.hlR||Math.max(110, 140 - (s.zoom-1)*60)};
         _animateHighlight(1, 800);
       }, 1200);
     }
@@ -89361,14 +89502,18 @@ window.openCinematicFlythrough=(scenario)=>{
       e.preventDefault();
       _prev();
     } else if(e.key==='Escape'){
+      /* PDF 20.08 U4: obsługa Esc przeniosła się do głównego handlera (pauza) — tutaj tylko blokujemy
+         domyślne zachowanie, żeby przelot nie zamykał się dwoma ścieżkami naraz. */
       e.preventDefault();
-      window._closeCinematic();
     }
   };
   window.addEventListener('keydown', window._cinemKeyHandler);
   window._closeCinematic=()=>{
     G._cinematicActive=false;
     G._cinematicCompleted=true;
+    /* PDF 20.08 U22: przelot dobiegł końca — od tej chwili zapis działa normalnie, a stan po
+       zakończeniu trybu utrwalamy po cichu (bez komunikatów na ekranie). */
+    if(typeof window._flyoverDisarmRollback==='function') window._flyoverDisarmRollback();
     document.body.classList.remove('cinematic-active'); /* v1.9.99: przywróć HUD */
     if(_hlAnimRaf){cancelAnimationFrame(_hlAnimRaf);_hlAnimRaf=null;}
     /* v2.1.316 fix: cleanup auto-advance timer (isFinaleTopic auto-loop) */
@@ -89381,6 +89526,7 @@ window.openCinematicFlythrough=(scenario)=>{
       window._cinemKeyHandler=null;
     }
     if(window._cinemCam){window._cinemCam.active=false;window._cinemCam.highlight=null;window._cinemCam.hlOpacity=0;window._cinemCam.targetZoom=1;}
+    document.getElementById('cinem-finale')?.remove(); /* PDF 20.08 U21 */
     const ov=document.getElementById('cinem-overlay');
     /* PDF 13.08 U18: okno stoi w lewym dolnym rogu, więc animacja wyjścia nie centruje już w poziomie. */
     if(ov){ov.style.opacity='0';ov.style.transform='translateY(40px) scale(.9)';setTimeout(()=>ov.remove(),600);}
@@ -89437,7 +89583,7 @@ window.openCinematicFlythrough=(scenario)=>{
       <button onclick="window._cinemPrev&&window._cinemPrev()" id="cinem-prev-btn" style="background:rgba(0,0,0,.85);color:#c8a520;border:1px solid #c8a520;padding:10px 14px;border-radius:8px;cursor:pointer;font-size:18px;font-weight:700;font-family:inherit" title="Poprzedni (←)">←</button>
       <div style="background:rgba(0,0,0,.6);color:#aac;padding:8px 12px;border-radius:6px;font-size:11px;letter-spacing:1px">Steruj strzałkami ← →</div>
       <button onclick="window._cinemNext&&window._cinemNext()" id="cinem-next-btn" style="background:rgba(0,0,0,.85);color:#c8a520;border:1px solid #c8a520;padding:10px 14px;border-radius:8px;cursor:pointer;font-size:18px;font-weight:700;font-family:inherit" title="Następny (→)">→</button>
-      <button onclick="window._closeCinematic()" style="background:rgba(0,0,0,.85);color:#c8a520;border:1px solid #c8a520;padding:12px 20px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;letter-spacing:1px;font-family:inherit">Pomiń przelot ✕</button>
+      <button id="cinem-skip-btn" onclick="window._cinemSkipBtn&&window._cinemSkipBtn()" style="background:rgba(0,0,0,.85);color:#c8a520;border:1px solid #c8a520;padding:12px 20px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;letter-spacing:1px;font-family:inherit">Pomiń przelot ✕</button>
     </div>`;
   /* v2.1.21: expose _prev/_next dla klików buttonów */
   window._cinemPrev=()=>_prev();
@@ -90390,6 +90536,9 @@ const MAP_LANDMARKS=[
    {wx:48, wy:2976, name:'🌑 Brama: Underground', cat:'gate'},
    {wx:3552, wy:3504, name:'🌊 Brama: Coast', cat:'gate'},
    {wx:3552, wy:96, name:'💼 Brama: Biznes', cat:'gate'},
+   /* PDF 20.08 U63/U64 (user): brama Residential istnieje w grze, ale nie miała znacznika na mapie
+      ani wpisu w legendzie. Pozycja = środek obiektu gate_residential (wx4704-4800, wy1824-2208). */
+   {wx:4752, wy:2016, name:'🏡 Brama: Residental', cat:'gate'},
   {wx:4520,wy:3225, name:'🏖 Mega Villa', cat:'home'},  /* v2.1.215 → v2.1.220 [Amper]: Mega Villa SE south luxury district (przeniesiona z north) */
   {wx:4180,wy:3225, name:'🏢 Apartament Duplex', cat:'home'},  /* v2.1.729: Duplex (SE, między premium a mega_villa) */
   /* v2.1.820 [Vegan]: psie budynki (Schronisko/Zoo/Weterynarz) BRAKOWAŁY na mapie miasta — etykiety nie były w MAP_LANDMARKS po przenosinach do clean zone wx 4280/4440/4600 (v2.1.537). Współrzędne = centra budynków (obj.wx+w/2 ≈ 4345/4505/4665, obj.wy+h/2 ≈ 749). Render in-world działał (draw cases L3565-3567), brakowało tylko na mapie. */
@@ -90466,9 +90615,17 @@ function openFullMap(districtId){
      wnętrzu P to współrzędne wnętrza, więc byłby mylący; zamiast tego info „jesteś w budynku". */
   /* v2.3.113 (PDF new/111 pkt 7): osobne mapy dzielnic. `districtId` wybiera którą mapę renderować (ulica/underground/coast/business).
      Domyślnie: bieżąca lokacja gracza (jeśli to dzielnica z fizyczną mapą), inaczej miasto. Podgląd tylko odblokowanych (patrz _mapDistrictTabs). */
-  const _DISTRICTS=['ulica','underground','coast','business'];
-  const _hasPhysMap=(id)=> !!(ROOMS[id] && Array.isArray(ROOMS[id].map) && ROOMS[id].map.length);
-  const _mdUnlocked=(id)=> id==='ulica' || (Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes(id));
+  /* PDF 20.08 U1 (user): w „MAPA MIASTA” brakowało przycisku mapy dzielnicy Residential.
+     Ta dzielnica jest budowana dynamicznie i nie ma siatki kafli — ma za to komplet obiektów,
+     więc rysujemy ją na jednolitym tle (patrz renderMap). */
+  const _DISTRICTS=['ulica','underground','coast','business','residential'];
+  if(typeof window._resBuildDistrict==='function'){ try{ window._resBuildDistrict(); }catch(_){} }
+  const _hasPhysMap=(id)=> (id==='residential')
+    ? !!(ROOMS.residential && Array.isArray(ROOMS.residential.objects) && ROOMS.residential.objects.length)
+    : !!(ROOMS[id] && Array.isArray(ROOMS[id].map) && ROOMS[id].map.length);
+  const _mdUnlocked=(id)=> id==='ulica'
+    || (id==='residential' ? (typeof window._resCanAccess!=='function' || window._resCanAccess()) : false)
+    || (Array.isArray(G._unlockedDistricts)&&G._unlockedDistricts.includes(id));
   let _md = (districtId && _DISTRICTS.includes(districtId) && _hasPhysMap(districtId) && _mdUnlocked(districtId)) ? districtId
           : (_DISTRICTS.includes(currentRoom) && _hasPhysMap(currentRoom)) ? currentRoom : 'ulica';
   const MR=ROOMS[_md];
@@ -90493,7 +90650,7 @@ function openFullMap(districtId){
   const hudBottom=hudEl?Math.round(hudEl.getBoundingClientRect().bottom)+4:66;
   o.style.cssText=`position:fixed;top:${hudBottom}px;left:0;right:0;bottom:0;background:rgba(0,0,0,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:60;padding:14px;font-family:inherit`;
   /* v2.3.113 (PDF new/111 pkt 7): przełącznik podglądu mapy dzielnic — TYLKO odblokowane klikalne; zablokowane szare + komunikat. */
-  const _DTAB={ulica:'🏙 Miasto', underground:'🌑 Underground', coast:'🌊 Marina Coast', business:'💼 Business'};
+  const _DTAB={ulica:'🏙 Miasto', underground:'🌑 Underground', coast:'🌊 Marina Coast', business:'💼 Business', residential:'🏡 Residential'};
   const _tabsHTML=_DISTRICTS.filter(_hasPhysMap).map(id=>{
     const active=(id===_md), unlocked=_mdUnlocked(id);
     const bg=active?'#2a5a8a':(unlocked?'#12202e':'#0c0c10');
@@ -90637,6 +90794,14 @@ function openFullMap(districtId){
     cv.style.display='block';
     const cx=cv.getContext('2d');
     // Kafelki
+    /* PDF 20.08 U1: Residential nie ma siatki kafli — zamiast niej jednolite tło dzielnicy,
+       na którym i tak rysują się wszystkie budynki i etykiety. */
+    if(!MR.map || !MR.map.length){
+      cx.fillStyle='#25331f'; cx.fillRect(0,0,mw,mh);
+      cx.strokeStyle='rgba(0,0,0,.18)'; cx.lineWidth=1;
+      for(let gx=0; gx<=MR.wT; gx+=4){ cx.beginPath(); cx.moveTo(gx*T*scale,0); cx.lineTo(gx*T*scale,mh); cx.stroke(); }
+      for(let gy=0; gy<=MR.hT; gy+=4){ cx.beginPath(); cx.moveTo(0,gy*T*scale); cx.lineTo(mw,gy*T*scale); cx.stroke(); }
+    } else
     for(let r=0;r<MR.hT;r++){
       for(let c=0;c<MR.wT;c++){
         const t=MR.map[r][c];
@@ -106617,6 +106782,9 @@ function showFsLinkToast(){
 // v1.9.12: Debounce saveGameSilent — wcześniej 18 callsitów + auto-save co 30s = częste JSON.stringify 20KB G state w click handlerach
 let _saveGameDebTimer=null;
 function _saveGameImmediate(){
+  /* PDF 20.08 U22: w trakcie przelotu po wyjściu z Traphouse nie nadpisujemy zapisu — w pamięci ma
+     zostać stan sprzed opuszczenia budynku, żeby wyjście do menu cofało gracza do tamtej chwili. */
+  if(typeof G!=='undefined' && G._flyoverRollbackArmed && G._cinematicActive) return false;
   /* v1.9.22: skip save w trakcie minigry/snu/odpoczynku (half-applied state risk: pending debounce mógł firowac PO wejściu w mg) */
   if(typeof mgOpen==='function' && mgOpen()) return false;
   if(typeof sleepInterval!=='undefined' && sleepInterval) return false;
