@@ -15723,7 +15723,7 @@ function handleAct(act,objId){
     const _p=act.split(':');
     if(typeof _growEnsure==='function'){ try{ _growEnsure(); }catch(e){} }
     if(typeof window._growPotInteract==='function') window._growPotInteract(_p[1], parseInt(_p[2],10)||0);
-    else if(typeof showMsg==='function') showMsg('🪴 Uprawa jeszcze się ładuje — spróbuj za chwilę lub odśwież stronę.','i',3500);
+    else if(typeof showMsg==='function') showMsg('Uprawa jeszcze się ładuje — spróbuj za chwilę lub odśwież stronę.','i',3500);
   } else if(act&&(act.startsWith('kamper_')||act.startsWith('lab_'))){
     /* v2.3.33 BUGFIX (Vegan: „lab/narkobiznes/kamper nie dzialaja"): stary forward
        _enterDistrictPlace('','dummy_'+act) budowal klucz '_dummy_<act>' ktory NIGDY nie
@@ -22774,14 +22774,14 @@ window._growBuySlot=function(site){
     return false;
   }
 
-  if(site!=='plantation'){ if(typeof showMsg==='function') showMsg('🪴 Dodatkowe doniczki kupisz na Plantacji (lvl 5).','i',3500); return false; }
+  if(site!=='plantation'){ if(typeof showMsg==='function') showMsg('Dodatkowe doniczki kupisz na Plantacji (lvl 5).','i',3500); return false; }
   const owned=G.grow.potsOwned||1;
-  if(owned>=6){ if(typeof showMsg==='function') showMsg('🪴 Masz już maksymalną liczbę doniczek (6) na Plantacji.','i',3000); return false; }
+  if(owned>=6){ if(typeof showMsg==='function') showMsg('Masz już maksymalną liczbę doniczek (6) na Plantacji.','i',3000); return false; }
   const costs={1:800,2:2500,3:6000,4:9000,5:12000};
   const cost=costs[owned]||12000;
   if((G.money||0)<cost){ if(typeof showMsg==='function') showMsg(`💸 Brak ${cost.toLocaleString('pl')} zł na ${owned+1}. doniczkę.`,'r',3500); return false; }
   G.money-=cost; G.grow.potsOwned=owned+1; _growEnsure();
-  if(typeof showMsg==='function') showMsg(`🪴 Kupiono ${owned+1}. doniczkę (${cost.toLocaleString('pl')} zł)! Podejdź i posadź roślinę.`,'g',4000);
+  if(typeof showMsg==='function') showMsg(`Kupiono ${owned+1}. doniczkę (${cost.toLocaleString('pl')} zł)! Podejdź i posadź roślinę.`,'g',4000);
   if(typeof checkAchievements==='function') checkAchievements();
   return true;
 };
@@ -22796,9 +22796,9 @@ window._growBuyPotPanel=function(site){
     return;
   }
 
-  if(site!=='plantation'){ if(typeof showMsg==='function') showMsg('🪴 Dodatkowe doniczki kupisz na Plantacji (lvl 5).','i',3500); return; }
+  if(site!=='plantation'){ if(typeof showMsg==='function') showMsg('Dodatkowe doniczki kupisz na Plantacji (lvl 5).','i',3500); return; }
   const owned=G.grow.potsOwned||1;
-  if(owned>=6){ if(typeof showMsg==='function') showMsg('🪴 Masz już maksymalną liczbę doniczek (6) na Plantacji.','i',3000); return; }
+  if(owned>=6){ if(typeof showMsg==='function') showMsg('Masz już maksymalną liczbę doniczek (6) na Plantacji.','i',3000); return; }
   const costs={1:800,2:2500,3:6000,4:9000,5:12000}; const cost=costs[owned]||12000;
   const _mg=document.getElementById('mg-job'),_mc=document.getElementById('mg-job-content'); if(!_mg||!_mc) return;
   const afford=(G.money||0)>=cost;
@@ -29990,7 +29990,7 @@ const NPC_DATA = {
     ],
   },
   vendor: {
-    name:'🌮 Sprzedawca uliczny — Frankie',
+    name:'🌮 Sprzedawca uliczny - Frankie',
     lines:[
       'Yo! Mam tutaj coś pysznego i tanio!',
       'Najlepsze jedzenie na ulicy, prosto z garnka!',
@@ -58693,6 +58693,12 @@ window._vwMarketPanel=function(tab){
     /* PDF 20.08 U38: oferty obserwowane („żółta gwiazdka") idą na POCZĄTEK listy, niezależnie
        od ich pierwotnego położenia. Kolejność pozostałych bez zmian (stabilne sortowanie). */
     const _ordered=VW_UNITS.slice().sort((a,b)=>((v.watched.indexOf(b.id)>=0)?1:0)-((v.watched.indexOf(a.id)>=0)?1:0));
+    /* PDF 20.08 U38: dokument mówi o ofertach „lokali/hal/garaży" — gwiazdka obserwowania i awans
+       na pierwsze miejsce działają tak samo w sekcji garażu i magazynów. */
+    const _star=(id)=>{ const w=v.watched.indexOf(id)>=0;
+      return `<button class="cbtn" style="flex:0 0 auto;font-size:13px;padding:7px 12px;width:auto;line-height:1;color:${w?'#f0c040':'#8a94a4'};border-color:${w?'#f0c040':'#2a3a50'}" onclick="window._vwWatchBtn('${id}')" title="${w?'Przestań obserwować ofertę':'Obserwuj ofertę'}">${w?'★':'☆'}</button>`; };
+    const _ordG=VW_GARAGE.slice().sort((a,b)=>((v.watched.indexOf(b.id)>=0)?1:0)-((v.watched.indexOf(a.id)>=0)?1:0));
+    const _ordS=VW_STORAGE.slice().sort((a,b)=>((v.watched.indexOf(b.id)>=0)?1:0)-((v.watched.indexOf(a.id)>=0)?1:0));
     /* PDF 20.08 B3/U59: po zakupie przycisk staje się szary i zmienia treść na „Kupiono". */
     const _gBtn=(g)=>{ const own=window._vwGarageOwned(g.id);
       return own?`<button class="cbtn" style="font-size:11px;padding:5px;width:auto;color:#8a94a4;border-color:#39424f;background:#2a2f38" disabled>Kupiono</button>`
@@ -58702,16 +58708,16 @@ window._vwMarketPanel=function(tab){
                 :`<button class="bbtn" style="font-size:11px;padding:5px;width:auto" onclick="window._vwBuyStorageBtn('${s.id}')" ${(G.money||0)<s.price||!window._vwHasAny()?'disabled':''}>Kup</button>`; };
     body=`<div class="shopgrid">${_ordered.map(u=>window._vwUnitCard(u.id)).join('')}</div>
     <h3 style="color:#e8a020;margin:16px 0 6px;font-size:14px">🚗 Garaż B1 — kupowany osobno</h3>
-    <div class="shopgrid">${VW_GARAGE.map(g=>`<div class="sitem"><h3 style="font-size:13px">${g.name}</h3><p style="font-size:11px">${g.note}</p>
+    <div class="shopgrid">${_ordG.map(g=>`<div class="sitem"><h3 style="font-size:13px">${g.name}</h3><p style="font-size:11px">${g.note}</p>
       <p style="font-size:10px;color:#9ab">Pojazdy: ${g.cars}${g.delivery?' · obsługa dostaw':''}</p>
       <div class="pr" style="font-size:12px">${g.price.toLocaleString('pl')} zł</div>
-      ${_gBtn(g)}</div>`).join('')}</div>
+      <div style="display:flex;gap:5px;align-items:stretch">${_gBtn(g)}${_star(g.id)}</div></div>`).join('')}</div>
     <h3 style="color:#8a6ae0;margin:16px 0 6px;font-size:14px">📦 Magazyny B2 — osobny stan każdej komórki</h3>
-    <div class="shopgrid">${VW_STORAGE.map(s=>`<div class="sitem"><h3 style="font-size:13px">${s.name}</h3>
+    <div class="shopgrid">${_ordS.map(s=>`<div class="sitem"><h3 style="font-size:13px">${s.name}</h3>
       <p style="font-size:11px">${s.area} m² · pojemność ${s.cap.toLocaleString('pl')} jednostek</p>
       ${s.has?`<p style="font-size:10px;color:#8fb8d8">${s.has.join(', ')}.</p>`:''}
       <div class="pr" style="font-size:12px">${s.price.toLocaleString('pl')} zł</div>
-      ${_sBtn(s)}</div>`).join('')}</div>`;
+      <div style="display:flex;gap:5px;align-items:stretch">${_sBtn(s)}${_star(s.id)}</div></div>`).join('')}</div>`;
   }
   else if(tab==='compare'){
     const rows=[['Powierzchnia',u=>u.area+' m²'],['Cena',u=>u.price.toLocaleString('pl')+' zł'],['Stanowiska biurowe',u=>u.office],
@@ -65428,6 +65434,9 @@ window._drawMasonHale=function(sx,sy,w,h){
    ═══════════════════════════════════════════════════════════════════════════ */
 window.BGF_NPC_ID='business_guide_elliot_crane';
 window.BGF_SHOT_TIMEOUT_MS=14000;              /* §16: hard timeout ujęcia (test 32) */
+/* §16: „Dzielnica ma spokojniejsze easingProfile niż Underground District" — kamera dojeżdża do
+   kolejnych punktów wolniej niż w przelocie ulicznym (1.0 = tempo domyślne). */
+window.BGF_CAM_LERP=0.7;
 window._bgfEnsure=function(){
   if(!G.businessGuide||typeof G.businessGuide!=='object') G.businessGuide={};
   const s=G.businessGuide;
@@ -65545,12 +65554,15 @@ window._bgfFullTopics=function(){
   ];
 };
 /* §15 SHORT TOURS — dostępne dopiero po pierwszym pełnym przelocie (test 26). */
+/* §15 — cztery trasy skrócone + pełna powtórka. Zestawy punktów i czasy docelowe 1:1 z tabeli
+   dokumentu. ⚠ Kolumny tej tabeli rozjechały się w wyciągu tekstowym — właściwa kolejność wyszła
+   dopiero z odczytu w porządku czytania (runda „na pewno done?"). */
 window.BGF_SHORT_TOURS={
-  career:  {n:'Career & Media Run',      parts:['LABEL HQ','PR AGENCY','STEAKHOUSE BUSINESS']},
-  capital: {n:'Capital Run',             parts:['STEAKHOUSE BUSINESS','ECLIPSE NOIR']},
-  premium: {n:'Premium Networking Run',  parts:['FORTUNO STUDIO','BANK VIP INWESTYCYJNY','CROWNLINE AUTO GALLERY']},
-  night:   {n:'Night & Influence Run',   parts:['ECLIPSE NOIR','THE VESPER HOUSE','STEAKHOUSE BUSINESS']},
-  full:    {n:'Full Replay',             parts:null},
+  career:  {n:'Career & Media Run',      sec:[40,55], parts:['LABEL HQ','PR AGENCY','STEAKHOUSE BUSINESS','ECLIPSE NOIR']},
+  capital: {n:'Capital Run',             sec:[30,45], parts:['FORTUNO STUDIO','BANK VIP INWESTYCYJNY','CROWNLINE AUTO GALLERY']},
+  premium: {n:'Premium Networking Run',  sec:[35,50], parts:['STEAKHOUSE BUSINESS','THE VESPER HOUSE','AUREUM GREEN CLUB']},
+  night:   {n:'Night & Influence Run',   sec:[30,45], parts:['ECLIPSE NOIR','THE VESPER HOUSE','STEAKHOUSE BUSINESS']},
+  full:    {n:'Full Replay',             sec:[120,180], parts:null},
 };
 window._bgfShortTour=function(kind){
   const all=window._bgfFullTopics();
@@ -65639,6 +65651,8 @@ window._bgfStartTour=function(kind){
   window._bgfStaged=null;
   s.currentSequenceState={kind:kind||'full', startedAtDay:(G.day||1)};
   window.openCinematicFlythrough({roomId:'business', topics:topics,
+    /* §16: Business District ma spokojniejszy rytm kamery niż Underground — stąd własny profil. */
+    camLerp:window.BGF_CAM_LERP,
     onShot:(shot)=>window._bgfOnShot(shot),
     onDone:()=>window._bgfFinishTour(kind)});
   return {ok:true, shots:topics.length};
@@ -65838,9 +65852,9 @@ window._bgfHub=function(){
 };
 window.BGF_REPLAY_LINES={
   full:    '„Dobrze. Tym razem proszę patrzeć na kolejność, nie na fasady."',
-  career:  '„Label, PR i stół, przy którym zapadają decyzje. Krótka trasa."',
-  capital: '„Kapitał i ekspozycja. Dwa punkty, które najczęściej myli się ze sobą."',
-  premium: '„Kompetencja, lokata i segment premium. Trzy różne rodzaje cierpliwości."',
+  career:  '„Wytwórnia, media i miejsca, w których zapadają decyzje. Krótka trasa."',
+  capital: '„Kompetencja, lokata i segment premium. Trzy różne rodzaje cierpliwości."',
+  premium: '„Selektywny networking. Mniej rozmów, każda cięższa."',
   night:   '„Wieczorna część dzielnicy. Wysoka wariancja, wysoka widoczność."',
 };
 window._bgfReplayPick=function(kind){
@@ -75138,6 +75152,9 @@ function startFreestyleMG(){
     const _fsMod=(typeof _publicActivityScore==='function')?_publicActivityScore('freestyle',score):{finalScore:score,timeModifier:1,weekendModifier:1,isOptimal:true,isWeekend:false};
     score=_fsMod.finalScore;
     if(G.careers&&G.careers.raper){ G.careers.raper.lastBaseScore=_fsTimeBase; G.careers.raper.lastFinalScore=score; } /* v2.3.108 PDF#12 §12 */
+    /* PDF 20.08 U27: runda freestyle sie zakonczyla — niezaleznie od wyniku. Flaga aktywnosci
+       gasnie tutaj, zeby zaplanowana wskazowka nie czekala w nieskonczonosc po nieudanej probie. */
+    window._fsMgActive=false;
     if(score>0){
       if(!G.careers.raper) G.careers.raper={level:0,freestyles:0,tracks:0,xp:0,skillPts:0};
       G.careers.raper.freestyles=(G.careers.raper.freestyles||0)+1;
@@ -90298,7 +90315,10 @@ window.openCinematicFlythrough=(scenario)=>{
          2. Lerp camera do nowej pozycji (płynny "przelot" nad miastem)
          3. Po 1200ms: zoom-IN do s.zoom (kamera ląduje na celu) + highlight
          User: "Kamera powinna się oddalać, przelatywać na kolejne miejsce, dopiero wtedy zoomować". */
-      window._cinemCam.lerpMul = 1;
+      /* PDF „Elliot Crane" §16: scenariusz może mieć SPOKOJNIEJSZY profil ruchu kamery niż
+         przelot po Underground. Niższy mnożnik = wolniejsze dojeżdżanie kamery = spokojniejszy rytm.
+         Bez scenariusza (przelot po mieście) nic się nie zmienia. */
+      window._cinemCam.lerpMul = (scenario && typeof scenario.camLerp==='number') ? scenario.camLerp : 1;
       window._cinemCam.targetZoom = 1.0; /* ZOOM OUT — szeroki widok */
       _animateHighlight(0, 300);
       window._cinemCam.highlight=null;
@@ -91245,7 +91265,7 @@ const SMART_HINTS=[
   /* v2.1.491 Faza AN.7 Round 2: gracze nie wiedzą że Plantation odblokowana przy trap lvl 10. Hint when close. */
   {id:'plantation_close', cond:()=>!G._hintShown_plantation_close && G.trap?.unlocked && (G.trap?.level||1)>=3 && (G.trap?.level||1)<5, msg:'🌿 Plantacja blisko odblokowania (Trap Lvl 5+, masz '+(G.trap?.level||1)+'). Sprzedawaj więcej recept aby awansować. Plantacja = większa, profesjonalna uprawa (po starcie w Kamperze).'},
   {id:'plantation_unlocked', cond:()=>!G._hintShown_plantation_unlocked && G.trap?.unlocked && (G.trap?.level||1)>=5 && (G.grow?.totalHarvested||0)===0, msg:'🌿 Plantacja UNLOCKED (lvl 5)! Idź do Underground → Plantacja (prawy dolny róg). Wcześniej możesz uprawiać też w Kamperze (2 doniczki, Tier 0). Posadź roślinę: kup nasionko (30 zł) + ziemię (25 zł), podejdź do doniczki i naciśnij E (minigra sadzenia).'},
-  {id:'grow_buy_pot2', cond:()=>!G._hintShown_grow_buy_pot2 && (G.grow?.totalHarvested||0)>=10 && (G.grow?.potsOwned||1)===1, msg:'🪴 Tip: kup 2. doniczkę (800 zł) w Plantacji żeby równolegle hodować dwa razy więcej traw.'}
+  {id:'grow_buy_pot2', cond:()=>!G._hintShown_grow_buy_pot2 && (G.grow?.totalHarvested||0)>=10 && (G.grow?.potsOwned||1)===1, msg:'Tip: kup 2. doniczkę (800 zł) w Plantacji żeby równolegle hodować dwa razy więcej traw.'}
 ];
 let _lastHintTime=0;
 function checkSmartHints(){
