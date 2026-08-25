@@ -17973,6 +17973,19 @@ function changeRoom(id,wx,wy){
   if(id==='stary_kwartal' && typeof window._skSyncObjects==='function') window._skSyncObjects();
   /* PDF „Elliot Crane" test 39: przewodnik nie może zniknąć na stałe — przy każdym wejściu wraca. */
   if(id==='business' && typeof window._bgfOnEnterDistrict==='function') window._bgfOnEnterDistrict();
+  /* PDF GDANSK U50: minutę po wejściu do Underground, jeśli gracz NIE zagadał do Masona Hale,
+     TrapInfo podpowiada, po co ten przewodnik tam stoi. Treści dokument nie podał — jest napisana
+     w konwencji pozostałych wskazówek. Odliczanie kasuje się, gdy gracz zacznie rozmowę. */
+  if(id==='underground' && typeof window._trapInfoTipSchedule==='function'){
+    const _ugTalked=()=>{ const s=G.undergroundGuide; return !!(s && (s.introSeen||s.firstTourCompleted||s.tourInProgress)); };
+    if(!_ugTalked()){
+      window._trapInfoTipSchedule('gd_mason_idle','gd_tip_mason_idle',
+        'ℹ️ Wskazówka: Na chodniku w Underground District czeka Mason Hale — przewodnik po dzielnicy. Podejdź do niego i naciśnij [E], a pokaże Ci najważniejsze miejsca w okolicy i powie, czym ta część miasta naprawdę żyje.',
+        function(){ return currentRoom!=='underground' || _ugTalked(); }, 60000);
+    }
+  } else if(typeof window._trapInfoTipCancel==='function' && id!=='underground'){
+    window._trapInfoTipCancel('gd_mason_idle');
+  }
   /* v2.3.122: wyczyść podpowiedź [E] przy KAŻDEJ zmianie pokoju. Bez tego potrafiła zostać treść
      obiektu z poprzedniej lokacji (np. „[E] Zajazd kempingowy" na innym podwórku), bo aktualizacja
      podpowiedzi żyje w updatePlayer, a ten wychodzi wcześniej, gdy otwarty jest panel. */
@@ -21986,6 +21999,19 @@ function _showStreetTalentModal(artist){
 }
 
 function checkRandomEvents(){
+  /* PDF GDANSK U35: dopoki gracz przechodzi podstawowy poradnik, zdarzenia losowe sa wylaczone —
+     nauka sterowania nie moze konkurowac z „Awantura na ulicy". Save-safe: stary zapis bez obiektu
+     `_tutorial` traktujemy jak poradnik ukonczony. */
+  if(!G._tutorialSeen && !!G._tutorial) return;
+  /* PDF GDANSK U36: w Underground i Business zdarzenia losowe milcza od wejscia do dzielnicy az do
+     UKONCZENIA tamtejszego trybu „Przelot nad miastem" (przewodnik Mason / Elliot). */
+  if(currentRoom==='underground'){
+    const _ug=G.undergroundGuide;
+    if(!_ug || !_ug.firstTourCompleted || _ug.tourInProgress) return;
+  } else if(currentRoom==='business'){
+    const _bg=G.businessGuide;
+    if(!_bg || !_bg.firstTourCompleted || _bg.tourInProgress) return;
+  }
   /* PDF 20.08 U34 (user): żadne zdarzenie losowe nie startuje, gdy gracz ma otwarty panel postaci z
      „DRZEWKIEM UMIEJĘTNOŚCI”. Zdarzenia mają wypadać w aktywnej rozgrywce — podczas chodzenia i
      realnych interakcji w terenie, a nie w trakcie przeglądania drzewka. */
@@ -24229,6 +24255,11 @@ window._trapUnlockDialog=function(){
     if(!G.trapInv.products||typeof G.trapInv.products!=='object') G.trapInv.products={};
     G.trapInv.traw=(G.trapInv.traw||0)+5;
     if(typeof showMsg==='function') showMsg('🤝 Dealer: "Witam w grze. Daje ci 5 traw na start. Otwórz Telefon → Kariera → Trap."','g',6000);
+    /* PDF GDANSK U95: pięć sekund po odblokowaniu panelu Kariery Trap przychodzi wskazówka od TrapInfo. */
+    if(typeof window._trapInfoTipSchedule==='function'){
+      window._trapInfoTipSchedule('gd_trap_career','gd_tip_trap_career',
+        'ℹ️ Masz dostęp do nowego panelu Kariery Trap. Zajrzyj do niego, aby sprawdzić dostępne możliwości i kolejne kierunki rozwoju swojej kariery. Wejdź w Telefon → Kariera → Trap');
+    }
     /* panel dealera — gracz kończy spotkanie zamykając go (wtedy dopiero nagrody) */
     if(typeof window._renderKamperBuy==='function'){ try{ window._renderKamperBuy(); }catch(_e){} }
   });
@@ -29473,6 +29504,12 @@ function progressQuest(target){
     if(!window._jobShiftCounted){
       window._jobShiftCounted=true;
       G._jobsCompleted=(G._jobsCompleted||0)+1;
+      /* PDF GDANSK U38: 10 sekund po PIERWSZEJ ukonczonej pracy dorywczej TrapInfo podpowiada panel Gigi. */
+      if((G._jobsCompleted||0)===1 && typeof window._trapInfoTipSchedule==='function'){
+        window._trapInfoTipSchedule('gd_first_job','gd_tip_gigi',
+          'ℹ️ Wskazówka: Odblokowano dostęp do prac dorywczych i sezonowych w panelu Gigi. Aby sprawdzić aktualne oferty, otwórz Telefon → Kariera → Gigi. Dostępne zlecenia nie są stałe, dlatego warto zaglądać do panelu regularnie.',
+          null, 10000);
+      }
     }
     /* v2.1.628: drop składnika craftingu (~35%) — zasila warsztat. */
     try{ window._maybeJobMaterial&&window._maybeJobMaterial(); }catch(e){}
@@ -29810,6 +29847,12 @@ const NPC_DATA = {
         fn:()=>{
           /* v2.1.947 (PDF #9): Kamil odmawia na starcie — wymóg album EP/LP lub 6 singli ≥65% jakości. */
           if(!(window._managerEligible&&window._managerEligible())){
+            /* PDF GDANSK U25: piec sekund po nieudanej probie TrapInfo tlumaczy, czego brakuje.
+               Wiadomosc przychodzi TYLKO raz w grze (`_smsTriggerOnce`) i tylko przy braku wymagan. */
+            if(typeof window._trapInfoTipSchedule==='function'){
+              window._trapInfoTipSchedule('gd_mgr_req','gd_tip_manager_req',
+                'ℹ️ Wskazówka: Nie spełniasz jeszcze wymagań do podpisania umowy menadżerskiej z Marcusem. Rozwijaj swoje zaplecze muzyczne, aranżując Home Studio lub nagrywając nowe utwory u lokalnego producenta w dzielnicy Underground District. Pamiętaj, że jakość nagranych utworów musi wynosić powyżej 65%.');
+            }
             const _req=(window._managerReqText)?window._managerReqText():'';
             closeNPCDlg();
             if(typeof showMsg==='function') showMsg(`🤵 Kamil: „Jeszcze za wcześnie ziomeczku, daj sobie czas." ${_req}`,'f',8500);
@@ -31810,6 +31853,9 @@ function addXP(amount){
     G.skillPoints=(G.skillPoints||0)+2;
     showMsg('🏆 Poziom '+G.level+'! +2 punkty umiejętności! (kliknij twarz)');
     addNotif('⬆️ Poziom '+G.level+' — masz '+G.skillPoints+' pkt umiej.');
+    /* PDF GDANSK U40: stale przypomnienie od TrapInfo przy KAZDYM awansie z punktami — z aktualna
+       LACZNA liczba punktow i poprawna odmiana rzeczownika. U39 dolicza od tej chwili 10 minut. */
+    if(typeof window._gdOnLevelUpSkillPts==='function'){ try{ window._gdOnLevelUpSkillPts(); }catch(_){} }
     /* PDF 20.08 U33 (user): 5 s po awansie na Poziom 2 🛨 TrapInfo podpowiada, w co zainwestować punkty.
        Liczba punktów czytana w chwili wysyłki — komunikat pokazuje stan RZECZYWISTY, nie stałą. */
     if(G.level===2 && typeof window._trapInfoTipSchedule==='function'){
@@ -32287,6 +32333,9 @@ function addFame(n){
     if(!window._lastAchCheck || _now-window._lastAchCheck>200){window._lastAchCheck=_now;checkAchievements();}
   }
   if(!window._suppressEarnFx && typeof _scheduleActionSave==='function') _scheduleActionSave(); /* v2.3.118: zapis po zdobyciu sławy (akcja) */
+  /* PDF GDANSK U26/U27/U28/U53/U54/U55: wskazowka ma przyjsc W MOMENCIE osiagniecia progu,
+     a nie przy najblizszym tyknieciu okresowym. */
+  if(typeof window._gdTipsCheck==='function'){ try{ window._gdTipsCheck(); }catch(_){} }
   return final;
 }
 /* v2.1.141: addFans(n) wrapper — analogicznie do addFame()/earn(). Hook dla crew challenge 'gain_fans' (Faza E TODO L42547).
@@ -32313,6 +32362,8 @@ function addFans(n){
     if(!window._lastAchCheck || _now-window._lastAchCheck>200){window._lastAchCheck=_now;checkAchievements();}
   }
   if(!window._suppressEarnFx && typeof _scheduleActionSave==='function') _scheduleActionSave(); /* v2.3.118: zapis po zdobyciu fanów (akcja) */
+  /* PDF GDANSK U55/U56: progi liczone takze na fanach — sprawdzamy od razu po ich przyroscie. */
+  if(typeof window._gdTipsCheck==='function'){ try{ window._gdTipsCheck(); }catch(_){} }
   return final;
 }
 /* v2.1.116: Wave 5 S43 / Wave 1 K20 — centralny window._esc (XSS escape) zamiast 6× lokalnych definicji.
@@ -44516,6 +44567,13 @@ window.buyCamper=function(modelId,source){
   /* v2.3.102 (PDF #6): zapis źródła zakupu — odkup u Korka tylko dla kamperów z Gravel Lot (po 14 dniach, 50%). */
   /* PDF 20.08 U45/U46: 3 minuty po zakupie PIERWSZEGO kampera odzywa się Mason Hale. */
   if(typeof window._masonOnCamperBought==='function'){ try{ window._masonOnCamperBought(modelId); }catch(_){} }
+  /* PDF GDANSK U66: 30 sekund po zakupie DOWOLNEGO kampera TrapInfo przypomina o panelu pojazdu
+     i o postojach kamperowych w Underground District. */
+  if(typeof window._trapInfoTipSchedule==='function'){
+    window._trapInfoTipSchedule('gd_camper','gd_tip_camper',
+      'ℹ️ Wskazówka: Twój kamper jest gotowy do działania. Naciśnij L, aby otworzyć jego panel i sprawdzić dostępne możliwości. Aby korzystać z kampera w pełni, znajdź jeden z wyznaczonych postojów dla kamperów w dzielnicy Underground District i zatrzymaj się w odpowiednim miejscu.',
+      null, 30000);
+  }
   c.purchaseDay=G.day||0; c.purchasePrice=m.price; c.sourceShop=(source==='gravel')?'gravel_lot_motors':(source==='citydrive'?'citydrive_motors':(source||'')); c.sellerNpc=(source==='gravel')?'korek':''; c.soldBack=false; c.stolen=false;
   /* E4d (silnik jazdy): spawn fizycznej pozycji kampera na mapie (do wsiadania klawiszem K). Kupujesz w pokoju jezdnym → tam; inaczej domyślnie underground. */
   /* PDF 13.08 B5: „dowolny pojazd zakupiony z placu w obiekcie Gravel Lot Motors" — a więc TAKŻE
@@ -61026,8 +61084,10 @@ window._vwiFollowUp=function(defId,bought){
   const short=ins.shortlist.indexOf(last.defId)>=0;
   const seenAll=(last.visited>=last.zones);
   let txt;
-  if(bought)        txt='Gratuluję decyzji. Klucze i karta dostępu czekają w recepcji, a ja zostaję do dyspozycji przy wyposażeniu.';
-  else if(short)    txt='Dopisałam '+d.name+' do Pana listy. Gdyby pojawiło się zainteresowanie z innej strony, uprzedzę Pana wcześniej.';
+  /* PDF GDANSK U68: po zakupie lokalu Eve pisala DWA RAZY — raz stad (bez nazwy lokalu) i raz z
+     `_eveOnUnitPurchased` (z nazwa). Zostaje wylacznie ta druga, zgodnie ze zgloszeniem. */
+  if(bought)        return;
+  if(short)    txt='Dopisałam '+d.name+' do Pana listy. Gdyby pojawiło się zainteresowanie z innej strony, uprzedzę Pana wcześniej.';
   /* PDF 20.08 U42 (user): pełniejsza, bardziej osobista treść wiadomości po niedokończonych oględzinach. */
   else if(!seenAll) txt='Witam, z tej strony Eve Rook, przeglądaliśmy wspólnie lokal, który Pana zainteresował. Nie obejrzał Pan całego lokalu! Jeśli Pan zechce, proszę wpaść jeszcze raz. Najwięcej powie przejście między poszczególnymi strefami, bo sama karta oferty nie bywa często przekonująca.';
   else              txt='Dziękuję za wizytę w '+d.name+'. Gdyby chciał Pan porównać ten układ z innym, wystarczy wrócić do korytarza lokali pokazowych.';
@@ -62643,6 +62703,11 @@ window._sbBuyFacility=function(cmdId){
     if((G.money||0)<stg.price) return {ok:false,msg:'Brakuje '+(stg.price-(G.money||0)).toLocaleString('pl')+' zł.'};
     G.money-=stg.price; s.owned=true; s.state='OWNED'; s.tier=1; s.stages=['L5'];
     s.history.push({day:G.day||1,type:'zakup',text:'Przejęcie obiektu — '+window.deriveFacilityDisplayName(1)+'.'});
+    /* PDF GDANSK U81: pięć sekund po przejęciu lokalu TrapInfo tłumaczy pierwsze kroki w terminalu. */
+    if(typeof window._trapInfoTipSchedule==='function'){
+      window._trapInfoTipSchedule('gd_subterra_buy','gd_tip_subterra_buy',
+        'ℹ️ Wskazówka: Kupiono piwnicę uprawową. Przejrzyj dostępne opcje w zakładce Terminal → Materiały i wybierz własną konfigurację. Rozpocznij pierwszy cykl, monitorując sesję podglądu SiteView, dostępną w panelu terminalu.');
+    }
     return {ok:true,msg:'Obiekt przejęty: '+window.deriveFacilityDisplayName(1)+'.'};
   });
 };
@@ -62883,8 +62948,14 @@ window._sbDailyTick=function(){
     const r=window._sbFinishRenovation(s.renovation.stageId);
     if(r.ok) msgs.push('🏗 SUBTERRA: '+r.msg);
   }
-  if(s.cycle&&s.cycle.status==='running'&&(G.day||1)>=s.cycle.endDay)
+  if(s.cycle&&s.cycle.status==='running'&&(G.day||1)>=s.cycle.endDay){
     msgs.push('🌱 SUBTERRA: cykl gotowy do rozliczenia w terminalu.');
+    /* PDF GDANSK U86: przypomnienie od TrapInfo — raz na kazdy zakonczony cykl (klucz zawiera dzien
+       zakonczenia, wiec kolejny cykl znow sie odezwie). */
+    if(typeof window._gdTip==='function'){
+      window._gdTip('gd_sb_cycle_'+(s.cycle.endDay||0),'ℹ️ Przypomnienie: Cykl został zakończony. Uruchom Terminal SUBTERRA, aby rozliczyć należności.');
+    }
+  }
   if(msgs.length&&typeof addNotif==='function') msgs.forEach(m=>addNotif(m));
   return msgs;
 };
@@ -84453,8 +84524,97 @@ function drawKantar(sx,sy,w,h){
   X.fillStyle='#a8d8e8'; X.fillRect(sx+w-7,sy+30,5,8);
   X.restore();
 }
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   PDF GDANSK — WSKAZOWKI SYSTEMOWE OD „TrapInfo" (MODULE START)
+   Wszystkie tresci sa przepisane z dokumentu 1:1. Progi sa czytane z TYCH SAMYCH warunkow,
+   ktore realnie otwieraja dana funkcje w grze — wskazowka nie moze twierdzic, ze cos jest
+   dostepne, zanim faktycznie bedzie.
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+/* U40: odmiana rzeczownika przez liczebnik — „1 punkt", „2 punkty", „6 punktow", „21 punktow". */
+window._gdPktForm=function(n){
+  n=Math.abs(Math.floor(Number(n)||0));
+  if(n===1) return 'punkt';
+  const d=n%10, s=n%100;
+  return (d>=2&&d<=4&&(s<10||s>=20))?'punkty':'punktów';
+};
+window._gdTip=function(triggerId,text){
+  if(typeof window._smsTriggerOnce!=='function') return false;
+  return window._smsTriggerOnce(triggerId,'trapinfo',text,{bypass:true});
+};
+/* U55: ten sam warunek, ktorego uzywa przycisk „Podpisz kontrakt globalny" w panelu Wytworni. */
+window._gdGlobalDealOpen=function(){
+  const teksty=(typeof getRaperST==='function')?getRaperST('teksty'):0;
+  return ((G.fame||0)>=50 && (G.followers||0)>=10000) || (teksty>=5 && (G.followers||0)>=5000);
+};
+/* Progi sprawdzane cyklicznie — w kazdym tyknieciu okresowym oraz od razu po zdobyciu slawy/fanow. */
+window._gdTipsCheck=function(){
+  if(typeof G==='undefined'||!G) return;
+  if(typeof window._smsTriggerOnce!=='function') return;
+  const fame=Math.floor(G.fame||0), fans=(G.fans||0);
+  /* U53 — kontrakt z Major Label (panel Wytwornia: `G.fame<30` blokuje przycisk). */
+  if(fame>=30) window._gdTip('gd_tip_major_label','ℹ️ Wskazówka: Osiągnięto wymagany poziom sławy 30+ do podpisania kontraktu z Major Label. Sprawdź dostępne opcje w Telefon → Kariera → Wytwórnia.');
+  /* U54 — wlasna wytwornia (panel Wytwornia: `G.fame<40`). */
+  if(fame>=40) window._gdTip('gd_tip_own_label','ℹ️ Wskazówka: Osiągnięto wymagany poziom sławy 40+ do założenia własnej wytwórni. Sprawdź dostępne opcje w Telefon → Kariera → Wytwórnia');
+  /* U55 — Global Label Deal: sława 50+ ORAZ 10 tys. obserwujących (albo alternatywa Teksty 5 + 5 tys.). */
+  if(window._gdGlobalDealOpen()) window._gdTip('gd_tip_global_deal','ℹ️ Wskazówka: Osiągnięto wymagany poziom sławy (50+) i fanów (10K+) do podpisania kontraktu z Global Label Deal. Sprawdź dostępne opcje w Telefon → Kariera → Wytwórnia.');
+  /* U26 — Beef Arena (PHONE_APP_REVEALS: `(G.fame||0)>=100`). */
+  if(fame>=100) window._gdTip('gd_tip_beef','ℹ️ Wskazówka: Osiągnięto wymagany poziom sławy 100+ pkt. i odblokowano Beef Arena, czyli miejsce, w którym możesz zmierzyć się z konkurencją i podbić swoją sławę oraz ekspozycję. Sprawdź, co czeka na Ciebie w Telefon → Kariera → Beef');
+  /* U27 — Kontrakty sponsorskie (PHONE_APP_REVEALS: `(G.fame||0)>=200`). */
+  if(fame>=200) window._gdTip('gd_tip_contracts','ℹ️ Wskazówka: Osiągnięto wymagany poziom sławy 200+ pkt. i odblokowano Kontrakty sponsorskie, dzięki którym możesz nawiązywać współpracę z markami i zwiększyć swoje zarobki. Sprawdzaj dostępne oferty w Telefon → Kariera → Kontrakty');
+  /* U28 — Atelier Maestro (PHONE_APP_REVEALS: `(G.fame||0)>=400`). */
+  if(fame>=400) window._gdTip('gd_tip_atelier','ℹ️ Wskazówka: Osiągnięto wymagany poziom sławy 400+ pkt. i odblokowano Atelier Maestro, czyli miejsce dostępne wyłącznie dla tych, którzy zapisali się już w kartach historii hip-hopu. Sprawdź dostępne kreacje w Telefon → Kariera → Atelier');
+  /* U56 — Studio projektowania.
+     ⚠️ ROZBIEZNOSC: dokument mowi „5000 slawy", ale slawa w grze jest twardo ograniczona do 500
+     (`addFame`: Math.min(500, …)), wiec taki prog byłby nieosiagalny. Realna bramka obiektu
+     „Studio Projektowania" to 5000 FANOW — i na niej opiera sie ta wskazowka. */
+  if(fans>=5000) window._gdTip('gd_tip_merch_studio','ℹ️ Wskazówka: Osiągnięto wymagany poziom (5000+ fanów) do odblokowania możliwości zakupu nowego lokalu z działem importu i dystrybucji, który możesz wykorzystać do rozwoju własnego Studia projektowania merchu. Odwiedź obiekt w centrum i sprawdź dostępne opcje.');
+  /* U61 — funkcja sledzaca: co najmniej trzy nieodczytane wiadomosci. Nie jest jednorazowa (to
+     przypomnienie), ale odzywa sie najwyzej raz na dobe gry, zeby nie zamienic sie w spam. */
+  try{
+    const _un=(G.sms&&G.sms.conversations)?Object.keys(G.sms.conversations).reduce(function(a,k){
+      const c=G.sms.conversations[k]; if(!Array.isArray(c)) return a;
+      return a+c.filter(function(m){ return m && m.from!=='me' && m.from!=='trapinfo' && !m.read; }).length;
+    },0):0;
+    if(_un>=3 && G._gdUnreadTipDay!==(G.day||0)){
+      G._gdUnreadTipDay=(G.day||0);
+      if(typeof window._smsSend==='function') window._smsSend('trapinfo','ℹ️ Wskazówka: Masz kilka nieodczytanych wiadomości. Niektóre z nich mogą zawierać ważne informacje, propozycje lub nowe możliwości. Sprawdź swoją skrzynkę i zobacz, kto czeka na Twoją odpowiedź.',{bypass:true});
+    }
+  }catch(_){}
+  /* U39/U40 — przypomnienie o niewykorzystanych punktach umiejetnosci. */
+  if(typeof window._gdSkillPtsReminderCheck==='function') window._gdSkillPtsReminderCheck();
+};
+/* ═══ U39 + U40 — PRZYPOMNIENIA O PUNKTACH UMIEJETNOSCI ══════════════════════════════
+   U40: przy KAZDYM awansie, ktory daje punkty, gracz dostaje wiadomosc z ich AKTUALNA laczna
+        liczba i poprawna odmiana rzeczownika.
+   U39: jesli po 10 minutach od poprzedniej wiadomosci punkty nadal leza niewykorzystane,
+        przychodzi przypomnienie. Zegar liczy czas rzeczywisty i jest resetowany przy kazdej
+        nowej wiadomosci o punktach. */
+window._GD_SKILLPTS_REMINDER_MS=600000;   /* 10 minut */
+window._gdOnLevelUpSkillPts=function(){
+  if(typeof G==='undefined'||!G) return;
+  const sp=(G.skillPoints||0);
+  if(sp<=0) return;
+  G._gdSkillPtsMsgAt=Date.now();
+  G._gdSkillPtsReminded=false;
+  if(typeof window._smsSend!=='function') return;
+  window._smsSend('trapinfo','ℹ️ Wskazówka: Posiadasz '+sp+' '+window._gdPktForm(sp)+' umiejętności. Wykorzystaj je w panelu DRZEWKO UMIEJĘTNOŚCI, aby rozwijać swoją postać. Kliknij okno postaci w lewym górnym rogu ekranu i wybierz interesującą Cię kategorię rozwoju.',{bypass:true});
+};
+window._gdSkillPtsReminderCheck=function(){
+  if(typeof G==='undefined'||!G) return false;
+  if(!G._gdSkillPtsMsgAt) return false;
+  if((G.skillPoints||0)<=0){ G._gdSkillPtsMsgAt=0; G._gdSkillPtsReminded=false; return false; }
+  if(G._gdSkillPtsReminded) return false;
+  if(Date.now()-G._gdSkillPtsMsgAt < window._GD_SKILLPTS_REMINDER_MS) return false;
+  G._gdSkillPtsReminded=true;
+  const sp=(G.skillPoints||0);
+  if(typeof window._smsSend!=='function') return false;
+  window._smsSend('trapinfo','ℹ️ Przypomnienie: Nadal posiadasz '+sp+' pkt umiejętności do wykorzystania. Sprawdź dostępne możliwości rozwoju w drzewku umiejętności i zainwestuj zdobyte punkty, aby rozwijać swoją karierę Rapera. Znajdziesz je w: Telefon → Kariera → Raper → Drzewko Umiejętności.',{bypass:true});
+  return true;
+};
+/* PDF GDANSK — WSKAZOWKI SYSTEMOWE OD „TrapInfo" (MODULE END) */
 window._smsCheckTriggers=function(){
   _ensureSMS();
+  if(typeof window._gdTipsCheck==='function') window._gdTipsCheck();/* PDF GDANSK */
   if(typeof window._underworldCheckTrigger==='function') window._underworldCheckTrigger();
   if(typeof window._underworldTick==='function') window._underworldTick();
   /* v2.1.37 [Amper]: SMS panel używa G.fans lojalnych (spójność) */
@@ -84543,7 +84703,7 @@ window._smsCheckTriggers=function(){
   if(freestyles>=3) _smsTriggerOnce('meme_punchline','kamil','siema, Twoje punchline’y rozjebały mi mózg. Dawaj diss na siebie next time 😈',{replySet:'kamil_three_freestyles'});
   if(tracks>=5) _smsTriggerOnce('meme_allegro','label','Chcemy wypuścić limitowane, fizyczne wydanie Twoich singli i wystawić je na miejskiej platformie ogłoszeniowej. Kolekcjonerzy reagują dobrze. Proponowany udział dla Ciebie: 80% przychodu netto.'/* v2.3.122 tresc wg PDF */,{replySet:'label_limited_press_cd'});
   if((G.haters||0)>=50) _smsTriggerOnce('meme_hejt','system','📱 Pierwsi hejterzy w komentarzach piszą "to nie jest rap to disco polo". KLASYK. Każdy MC to przeszedł.');
-  if(G.fame>=40) _smsTriggerOnce('meme_tvn','marcin',((G.fame>=20||(G.fans||0)>=1000)?'Telewizja śniadaniowa dzwoniła — chcieli Cię w piątek jako „młody głos ulicy", więc już wiesz, czemu odmówiłem. Nie pozwolę, żeby zrobili z Ciebie dekorację do fragmentu o trendach 📺':'śniadaniówka w telewizji dzwoni — chcą Cię w piątek. Naturalnie odmówiłem za Ciebie. Nie ten level 📺'),{replySet:'marcin_tv'});
+  if(G.fame>=40) _smsTriggerOnce('meme_tvn','marcin',((G.fame>=20||(G.fans||0)>=1000)?/* PDF GDANSK U63: tresc 1:1 ze zgloszenia. */'Telewizja śniadaniowa dzwoniła... Chcieli Cię na rano w piątek jako „Nowy młody głos ulicy". Domyślasz się już, czemu odmówiłem? 📺 Nie pozwolę, żeby zrobili z Ciebie tam pacynkę do fragmentu o dzisiejszych trendach 🤡':'śniadaniówka w telewizji dzwoni — chcą Cię w piątek. Naturalnie odmówiłem za Ciebie. Nie ten level 📺'),{replySet:'marcin_tv'});
   if(concerts>=3) _smsTriggerOnce('meme_sylwester','marcin','📅 Robimy listę na telewizyjnego Sylwestra. Wiem wiem, to disco polo level, ale 80k zł za 2 numery to nie hajs do pogardzenia',{replySet:'marcin_tv_new_year'});
   /* v2.3.109 (PDF16): Kamil (Menadżer) — SMS wariant locked/unlocked wg warunku katalogu (reuse _managerEligible). Kontakt wcześnie, współpraca dopiero po katalogu. */
   if(((G.fame||0)>=10 || (G.fans||0)>=500) && !G.managementDeal && !(G.sms&&G.sms._triggeredEvents&&G.sms._triggeredEvents.mgr_intro)){
@@ -85058,8 +85218,12 @@ window.renderSMSConversation=function(contactId){
           const _mrs=_firstUnreplied.replySet.replace('marcin_','');
           let _mids=Object.keys(window._MARCIN_REPLIES).filter(k=>window._MARCIN_REPLIES[k].set===_mrs);
           if(_mrs==='tv'){
-            const _hi=(G.fame>=20||(G.fans||0)>=1000), _lo=(((G._marcinRel&&G._marcinRel.professionalism)||0)<3);
-            _mids=_mids.filter(k=>{ if(k==='mt_charity') return _hi; if(k==='mt_prep') return _lo; return true; });
+            /* PDF GDANSK U64: dla wiadomości o śniadaniówce zostaje DOKŁADNIE pięć wskazanych
+               odpowiedzi; pozostałe cztery znikają z tego zestawu. Same wpisy pozostają w rejestrze
+               (żeby nie robić z nich martwego kodu) — trening medialny przeniesiony do zestawu
+               „śniadaniówka", więc wątek nadal ma pełne przejście. */
+            const _allowed=['mt_trust','mt_details','mt_hard','mt_meme','mt_ignore'];
+            _mids=_allowed.filter(k=>_mids.indexOf(k)>=0);
           }
           return `${_replyCounter}`+window._smsRichButtons('marcin',_mids);
         }
@@ -85389,13 +85553,23 @@ window._smsQuickReply=function(contactId,type){
     return;
   }
   const replies={
-    thanks:{text:'👍 OK, dzięki!',friendDelta:1,energyDelta:0,note:'+1 przyjaźń'},
+    /* PDF GDANSK U49: tresc odpowiedzi skrocona do „OK!”. */
+    thanks:{text:'OK! 👍',friendDelta:1,energyDelta:0,note:'+1 przyjaźń'},
     visit:{text:'Zaraz wpadnę.',friendDelta:0,energyDelta:0,note:'Zobowiązanie aktywne — podejdź do NPC żeby zaliczyć (+3 przyjaźń, max 2 dni)',pendingVisit:true},
     /* v2.1.66 Amper: call dla SMS-only NPC — nie ma fizycznej obecności, więc nie można "wpaść". */
     call:{text:'Spoko, zadzwonię później pogadać.',friendDelta:2,energyDelta:0,note:'Pogadałeś z nim przez telefon. +2 przyjaźń.'},
     later:{text:'Może później.',friendDelta:-1,energyDelta:0,note:'-1 przyjaźń (NPC zniechęcony)'}
   };
   const r=replies[type]||replies.thanks;
+  /* PDF GDANSK U48: u nadawcow systemowych (TrapInfo / Northcrest Bank / TrapSimulator) przycisk
+     „OK" potwierdza PRZECZYTANIE, a nie odpowiada na konkretna wiadomosc. Jedno klikniecie zamyka
+     wiec CALA zaleglosc od tego nadawcy — przycisk znika i wraca dopiero, gdy przyjdzie nowa
+     wiadomosc. (Kolejka odpowiedzi z B5 dotyczy rozmow z NPC, nie komunikatow systemowych.) */
+  const _sysAck=(contactId==='trapinfo'||contactId==='bank'||contactId==='system');
+  /* ⚠️ Kolejnosc ma znaczenie: `_smsReply` samo przerysowuje watek, wiec zaleglosc trzeba domknac
+     PRZED nim — inaczej przycisk „OK" zostawal na ekranie mimo poprawnie oznaczonych wiadomosci
+     (sedzia zmierzyl to jako `afterHasOk: true` przy `allReplied: true`). */
+  if(_sysAck){ for(const _m of conv){ if(_m && _m.from!=='me') _m._replied=true; } window._smsReplyCtxQuote=null; }
   _smsReply(contactId,r.text);
   /* v1.9.82: mark target msg as replied */
   window._smsMarkReplied(conv,targetMsgIdx);/* PDF GDANSK B5 */
@@ -85454,7 +85628,8 @@ window._FAN_REPLIES={
   fan_karol_autograph_o1:{set:'fan_karol_autograph', label:'Autograf ogarniemy po koncercie', text:'Hej, dzięki! Po koncercie ogarniemy autograf, jeśli organizacja na to pozwoli. Podejdź luźno spokojnie do strefy dla fanów, pogadamy.', fx:{"fanTrust":2,"fanRelationship":2,"meetAndGreetInterest":1}, reply:'NIE WIERZĘ Będę normalna, obiecuję. No dobra, spróbuję być normalna'},
   fan_karol_autograph_o2:{set:'fan_karol_autograph', label:'Jedź dopiero, gdy data będzie oficjalna', text:'Dzięki, ale nie jedź z drugiego końca na podstawie plotki. Poczekaj na oficjalną datę i bilet, żebym nie miał Cię na sumieniu', fx:{"fanSafety":2,"fanTrust":2,"professionalism":1}, reply:'Dobra, fair. Już prawie sprawdzałam pociąg na losowy piątek Czekam na ogłoszenie!'},
   fan_karol_autograph_o3:{set:'fan_karol_autograph', label:'Fan od 3 dni i już trasa z Krakowa? Szanuję tempo', text:'Fan od wczoraj i już planujesz trasę z drugiego końca kraju? Masz szybszy progres niż część ludzi w branży', fx:{"fanHumor":2,"fanRelationship":1,"artistMood":1}, reply:'Jak wchodzę w fandom, to bez tutoriala Do koncertu będę już fanką od minimum tygodnia!'},
-  fan_karol_autograph_o4:{set:'fan_karol_autograph', label:'Napisz do obsługi — zrobimy bezpieczny meet & greet 10. Wiktor (Drip District) senderId: wiktor • liczba nowych reply-setów: 2', text:'Po ogłoszeniu koncertu napisz do obsługi wydarzenia. Spróbujemy zrobić krótki, uporządkowany meet & greet zamiast chaosu pod wyjściem.', fx:{"fanSafety":1,"professionalism":1,"meetAndGreetInterest":2}, action:'createMeetAndGreetLead', reply:'Okej! To brzmi nawet lepiej niż polowanie na Ciebie przy busie. Czekam na instrukcje'},
+  /* PDF GDANSK U85: etykieta miala doklejony fragment metadanych z dokumentu zrodlowego. */
+  fan_karol_autograph_o4:{set:'fan_karol_autograph', label:'Napisz do obsługi, to zrobimy bezpieczny meet & greet 🤝', text:'Po ogłoszeniu koncertu napisz do obsługi wydarzenia. Spróbujemy zrobić krótki, uporządkowany meet & greet zamiast chaosu pod wyjściem.', fx:{"fanSafety":1,"professionalism":1,"meetAndGreetInterest":2}, action:'createMeetAndGreetLead', reply:'Okej! To brzmi nawet lepiej niż polowanie na Ciebie przy busie. Czekam na instrukcje'},
 
   thanks_support:{label:'❤️ Dzięki za support (+lojalność)', text:'Dzięki, serio. Takie wiadomości dają mi paliwo, żeby cisnąć dalej.', fx:{fanLoyalty:1,fanRelationship:1,artistMood:1}},
   more_music:{label:'🔥 Będzie więcej muzyki (+hype)', text:'Dzięki! Siedzę nad kolejnymi rzeczami. Jak to dowiozę, będzie jeszcze mocniej.', fx:{fanHype:2,fanRelationship:1}},
@@ -85647,7 +85822,8 @@ window._MARCIN_REPLIES={
   marcin_city_crash_o1:{set:'marcin_city_crash', label:'Masz rację. Zawieszam jazdę na kilka dni', text:'Racja. Przez kilka dni nie prowadzę, ogarniam auto i nie dokładam kolejnego filmu do internetu.', fx:{"drivingResponsibility":2,"marcinTrust":1,"eventRisk":-2}, action:'startDrivingCooldown', reply:'To rozsądne. Załatwię transport na najbliższe wydarzenia, ale kolejna taka akcja zacznie zamykać Ci booking, miej to na uwadze.'},
   marcin_city_crash_o2:{set:'marcin_city_crash', label:'Ogarnę naprawę i damage control', text:'Auto trafia do Garage 77, a ja potrzebuję listy: co zdjąć z sieci, komu wyjaśnić i które wydarzenia są zagrożone.', fx:{"professionalism":1,"mediaRiskAwareness":1,"marcinRespect":1}, action:'createCrashDamageControlChecklist', reply:'Dobra. Najpierw bezpieczeństwo i szkody, potem komunikacja. Nie będziemy robić lifestyle narrative z tego “wyskoku”.'},
   marcin_city_crash_o3:{set:'marcin_city_crash', label:'Nie mieszaj jednego filmu z całym bookingiem', text:'Nie chcę, żeby jeden film przekreślał całą moją wiarygodność koncertową. Rozdzielmy incydent od pracy.', fx:{"boundaries":1,"marcinRelationship":0,"drivingResponsibility":-1}, reply:'Rozdzielę, ale organizatorzy patrzą na ryzyko, nie na Twoją intencję. Wiesz jak jest… Jeden film da się wyjaśnić, natomiast serię już znacznie trudniej.'},
-  marcin_city_crash_o4:{set:'marcin_city_crash', label:'Słup nie dał ridera, ale wystawił rachunek 6. Menadżer (Kamil) senderId: manager • liczba nowych reply-setów: 4', text:'Słup nie wysłał ridera, ale rachunek za spotkanie już dostałem', fx:{"marcinHumor":1,"moneyAwareness":1,"marcinRelationship":1}, reply:'Śmieszne do momentu, w którym ubezpieczyciel też zacznie żartować. Napraw auto i zwolnij, przyjacielu.'},
+  /* PDF GDANSK U21: etykieta miala doklejony fragment metadanych z dokumentu zrodlowego. */
+  marcin_city_crash_o4:{set:'marcin_city_crash', label:'Słup nie dał ridera', text:'Słup nie wysłał ridera, ale rachunek za spotkanie już dostałem', fx:{"marcinHumor":1,"moneyAwareness":1,"marcinRelationship":1}, reply:'Śmieszne do momentu, w którym ubezpieczyciel też zacznie żartować. Napraw auto i zwolnij, przyjacielu.'},
 
   mt_trust:{set:'tv', label:'👍 Dobrze zrobiłeś. Nie chcę w byle format', text:'Dobrze zrobiłeś. Nie chcę wskakiwać w każdy format tylko dlatego, że ktoś zadzwonił z telewizji. Jak mam gdzieś wejść, to musi mieć sens dla tego, co buduję.', fx:{marcinTrust:1,marcinRelationship:1,mediaAuth:1,mainstreamInterest:-1}, reply:'No i właśnie dlatego odmówiłem. Nie każda kamera robi karierę. Czasem robi z człowieka ciekawostkę między pogodą a gotowaniem obiadu.'},
   mt_boundary:{set:'tv', label:'✋ Dzięki, ale następnym razem zapytaj mnie', text:'Dzięki, ale następnym razem zapytaj mnie przed taką decyzją. Możesz doradzać, możesz filtrować syf, ale finalnie to ja wybieram, gdzie pokazuję twarz.', fx:{boundaries:2,careerControl:1,marcinRespect:1,gatekeeping:-1}, action:'marcinAskBefore', reply:'Fair. Przyjąłem do wiadomości. Odmówiłem, bo znam ten format i wiem, jak potrafi przyciąć człowieka pod własną narrację. Ale okej — następnym razem najpierw puszczę temat do Ciebie.'},
@@ -85659,6 +85835,9 @@ window._MARCIN_REPLIES={
   mt_charity:{set:'tv', label:'🎭 „Młody głos ulicy"? Pułapka charytatywna', text:'„Młody głos ulicy" brzmi jak pułapka charytatywna. Jeśli ktoś chce mnie zaprosić, niech wie, kogo zaprasza, a nie robi ze mnie podpis pod programem dla oglądalności.', fx:{mediaAuth:1,marcinTrust:1,mainstreamInterest:-1}, reply:'Dokładnie. Jak kamera ma wejść, to wyłącznie na Twoich warunkach. Nie jako ciekawostka do śniadania, tylko konkretny gwóźdź programu.'},
   mt_prep:{set:'tv', label:'🎓 Powiedz, jak się przygotować', text:'To powiedz, jak się do czegoś takiego przygotować. Nie chcę wskoczyć w kamery i wyjść jak ktoś, kto pierwszy raz widzi ludzi na oczy.', fx:{mediaProf:1,mediaReadiness:1,marcinTrust:1}, action:'marcinMediaTraining', reply:'To już lepiej brzmi. Zrobimy Ci mały trening rozmowy: kim jesteś, czego nie mówisz i kiedy kończysz temat, zanim temat skończy Ciebie.'},
   ms_go:{set:'sniad', label:'📺 Dobra, wchodzę w śniadaniówkę', text:'Dobra, sprawdźmy to. Wchodzę — ale po swojemu.', fx:{}, action:'marcinDoSniadaniowka'},
+  /* PDF GDANSK U64: „Powiedz, jak się przygotować" wypadło z zestawu o telewizji, więc trening
+     medialny wchodzi tutaj — inaczej cała ścieżka `_marcinStartMediaTraining` stałaby się martwa. */
+  ms_prep:{set:'sniad', label:'🎓 Najpierw powiedz, jak się przygotować', text:'Zanim cokolwiek potwierdzę — powiedz, jak się do czegoś takiego przygotować.', fx:{mediaProf:1,mediaReadiness:1,marcinTrust:1}, action:'marcinMediaTraining', reply:'Dobre pytanie. Zrobimy Ci mały trening rozmowy: kim jesteś, czego nie mówisz i kiedy kończysz temat, zanim temat skończy Ciebie.'},
   ms_skip:{set:'sniad', label:'— Odpuszczam ten temat', text:'Wiesz co, odpuszczam ten temat. Nie czuję tego.', fx:{careerControl:1}, reply:'Spoko. Twoja decyzja, Twoja twarz. Filtruję dalej.'},
   /* v2.3.x (PDF#18): Marcin (Organizator) — crypto / Diamond Hands. set:'crypto'. Reply-set zamiast Dzięki/Wpadnę/Ignoruj. */
   mc_risk:{set:'crypto', label:'🧠 Brzmi ciekawie, ale najpierw chcę znać ryzyko', text:'Brzmi ciekawie, ale najpierw chcę znać ryzyko. Nie wchodzę w temat tylko dlatego, że ktoś napisał o mnie na blogu finansowym. Rozsądne, nie sądzisz?', fx:{cryptoRiskAwareness:1,marcinRespect:1}, reply:'Słusznie. Crypto potrafi zrobić zwrot, ale potrafi też zjechać szybciej niż nastrój po słabych komentarzach. Jak wejdziesz, traktuj to jak ryzyko, nie gwarancję. To zdrowe podejście.'},
@@ -89993,13 +90172,16 @@ window.openCinematicFlythrough=(scenario)=>{
         /* PDF 20.08 U5: TRAPHOUSE stoi po LEWEJ stronie kadru, wiec okno z opisem idzie na PRAWA. */
         {wx:170, wy:208, label:'TRAPHOUSE', zoom:1.6, boxPos:'right'},
         {wx:4004, wy:210, label:'BIURO NIERUCHOMOŚCI', zoom:1.6},
-        {wx:350, wy:3253, label:'MIESZKANIE BASIC', zoom:1.5},
+        /* PDF GDANSK U9: obiekt czesciowo zaslaniany przez okno — okno na PRAWA strone. */
+        {wx:350, wy:3253, label:'MIESZKANIE BASIC', zoom:1.5, boxPos:'right'},
         {wx:1550, wy:3243, label:'PENTHOUSE LUX', zoom:1.4},
         {wx:3900, wy:3253, label:'APARTAMENT PREMIUM', zoom:1.4},
         /* v2.1.199: Rezydencja (mansion) dodana — user feedback "zapomniałeś o niej w przelocie kamery" */
         {wx:4439, wy:210, label:'REZYDENCJA (MANSION)', zoom:1.4},
         /* v2.1.310 fix: Mega Villa Tier 3 Legendary (v2.1.215) — user feedback "w przelocie kamerą nie ma willi" */
-        {wx:4520, wy:3110, label:'MEGA VILLA (TIER 3 LEGEND)', zoom:1.4},
+        /* PDF GDANSK U13: bylo wy:3110 — punkt NAD budynkiem, miedzy chodnikiem a ulica.
+           apt_mega_villa zajmuje wx4400-4640 / wy3168-3338, wiec srodek bryly to (4520, 3253). */
+        {wx:4520, wy:3253, label:'MEGA VILLA (TIER 3 LEGEND)', zoom:1.4},
       ],
       durPerPlace:4000,
     },
@@ -90007,7 +90189,8 @@ window.openCinematicFlythrough=(scenario)=>{
       em:'🛒', title:'JEDZENIE I PICIE',
       desc:'Sklep Spożywczy (codzienne zakupy), Frankie (street food + przyjaźń), Restauracja (eleganckie posiłki), Targ (świeże produkty), Pizzeria (na wynos).',
       places:[
-        {wx:184, wy:749, label:'SKLEP SPOŻYWCZY', zoom:1.7},
+        /* PDF GDANSK U7: sklep stoi po lewej stronie kadru — okno z opisem idzie na PRAWA. */
+        {wx:184, wy:749, label:'SKLEP SPOŻYWCZY', zoom:1.7, boxPos:'right'},
         {wx:1545, wy:748, label:'FRANKIE (KEBAB)', zoom:1.8}, /* FIX: 1180 → 1545 (npc_vendor) */
         {wx:1474, wy:2285, label:'RESTAURACJA', zoom:1.6},
         {wx:3264, wy:749, label:'TARG', zoom:1.7},
@@ -90032,17 +90215,22 @@ window.openCinematicFlythrough=(scenario)=>{
     {
       em:'💼', title:'PRACE DORYWCZE',
       /* v2.1.199: usunięty WARSZTAT z prac (user feedback "warsztat to nie praca dorywcza, kłamstwo"). Warsztat to sklep techniczny — przeniesiony do osobnego topica "SERWIS I NAPRAWA". */
-      desc:'Pizzeria, Supermarket, Zmywak (restauracja), Myjnia, Budowa, Kurier. Pierwsze źródło kasy zanim odblokujesz kariery. 📱 Dodatkowo w telefonie (folder Kariera → 🧰 Gigi) masz tablicę szybkich zleceń: ulotki, magazyn, mechanik, złom, statysta, fotograf, ochroniarz i więcej — do podjęcia w dowolnym momencie, bez wymogu kariery muzycznej.',
+      /* PDF GDANSK U2: opis kategorii uzupelniony o nowo dodany obiekt Metal Valley Yard. */
+      desc:'Pizzeria, Supermarket, Zmywak (restauracja), Myjnia, Budowa, Kurier oraz Metal Valley Yard (sortownia złomu — praca na akord przy taśmie). Pierwsze źródło kasy zanim odblokujesz kariery. 📱 Dodatkowo w telefonie (folder Kariera → 🧰 Gigi) masz tablicę szybkich zleceń: ulotki, magazyn, mechanik, złom, statysta, fotograf, ochroniarz i więcej — do podjęcia w dowolnym momencie, bez wymogu kariery muzycznej.',
       places:[
         /* PDF 20.08 U9-U14: w tym temacie kamera leci ciaglym panem, ktory z zalozenia rysowal
            znacznik o promieniu 300. User: znaczniki tych szesciu prac maja miec TAKI SAM rozmiar,
            jaki wystepuje przy prezentacji pozostalych obiektow — czyli standardowe 110 px. */
-        {wx:400, wy:2285, label:'SUPERMARKET', zoom:1.6, hlR:110},
+        /* PDF GDANSK U12: kamera odjezdza w lewo — obiekt ma wypasc niemal skrajnie po PRAWEJ. */
+        {wx:400, wy:2285, label:'SUPERMARKET', zoom:1.6, hlR:110, objAt:'right', boxPos:'left'},
         {wx:1154, wy:2285, label:'MYJNIA', zoom:1.6, hlR:110},
         {wx:1474, wy:2285, label:'ZMYWAK (RESTAURACJA)', zoom:1.6, hlR:110},
         {wx:1874, wy:2285, label:'BUDOWA', zoom:1.6, hlR:110},
         {wx:2694, wy:2285, label:'KURIER', zoom:1.6, hlR:110},
         {wx:2994, wy:2285, label:'PIZZERIA (PRACA)', zoom:1.6, hlR:110},
+        /* PDF GDANSK U2: nowy, OSTATNI punkt kategorii — Metal Valley Yard (sortowanie zlomu).
+           Obiekt `zlomowisko` zajmuje wx4440-4590 / wy672-827 → srodek bryly (4515, 749). */
+        {wx:4515, wy:749, label:'SORTOWNIA (PRACA)', zoom:1.6, hlR:110},
       ],
       durPerPlace:2800,
       panSweep:true,
@@ -90052,7 +90240,8 @@ window.openCinematicFlythrough=(scenario)=>{
       /* v2.1.199: nowy topic — Warsztat naprawia sprzęt muzyczny (kamera/mikrofon/MIDI) i samochód. User feedback "warsztat pominięty, ma sens jako serwis". */
       desc:'Warsztat — napraw uszkodzony sprzęt: kamery (📹), mikrofony (🎤), kontrolery MIDI (🎹) oraz samochody (🚗 przegląd). Random event "sprzęt kapryszy" → warsztat. Niezbędny gdy jakość sprzętu spadnie.',
       places:[
-        {wx:3274, wy:2285, label:'WARSZTAT (SERWIS SPRZĘTU + AUTO)', zoom:1.6},
+        /* PDF GDANSK U12 */
+        {wx:3274, wy:2285, label:'WARSZTAT (SERWIS SPRZĘTU + AUTO)', zoom:1.6, objAt:'right', boxPos:'left'},
       ],
       durPerPlace:4000,
     },
@@ -90061,7 +90250,9 @@ window.openCinematicFlythrough=(scenario)=>{
       /* v1.9.99: USUNIĘTO fryzjera — to nie zdrowie tylko styl. Przeniesiony do osobnego topica niżej. */
       desc:'Siłownia (ławka, bieżnia, wyciąg — Forma 100 = +10 max statystyk), Szpital (leczenie po krytycznym zdrowiu, terapia podnosi nastrój). 🛹 Skatepark i 🕺 Breakdance w Parku Miejskim to uliczne cardio — poprawiają kondycję fizyczną (i przy okazji nastrój).',
       places:[
-        {wx:1324, wy:210, label:'SIŁOWNIA', zoom:1.7},
+        /* PDF GDANSK U10/U12: okno na PRAWA strone, a kamera przesunieta w prawo tak, by sam
+           obiekt wypadl niemal skrajnie po LEWEJ stronie kadru. */
+        {wx:1324, wy:210, label:'SIŁOWNIA', zoom:1.7, boxPos:'right', objAt:'left'},
         {wx:1974, wy:749, label:'SZPITAL', zoom:1.7},
       ],
       durPerPlace:4000,
@@ -90079,7 +90270,9 @@ window.openCinematicFlythrough=(scenario)=>{
            gorny — miedzy CHASSÉ (2712-2912) i HERMEL (2928-3128) → x 2920, y 2706;
            dolny — miedzy VENTO (2712-2912) i ADORE (2928-3128) → x 2920, y 3245.
            Dzieki temu kategoria ma 4 pozycje zamiast 5. */
-        {wx:2920, wy:2975, label:'CAŁA DZIELNICA — 8 BUTIKÓW', zoom:1.05},
+        /* PDF GDANSK U14: kamera oddalona o 30% wzgledem poprzedniego ustawienia (1.05 → 0.735),
+           zeby w jednym ujeciu zmiescilo sie wszystkie osiem butikow. */
+        {wx:2920, wy:2975, label:'CAŁA DZIELNICA — 8 BUTIKÓW', zoom:0.735},
         {wx:2920, wy:2706, label:'GÓRNY RZĄD (Luvio → Goccia)', zoom:1.25, hlR:360},
         {wx:2920, wy:3245, label:'DOLNY RZĄD (Valenca → Strada)', zoom:1.25, hlR:360},
       ],
@@ -90094,19 +90287,26 @@ window.openCinematicFlythrough=(scenario)=>{
         /* v2.3.34 FIX (user: „przelot kamerą pokazuje starą lokalizację kasyna — podświetla schronisko"):
            było wx:3837,wy:749 = pozycja schroniska (shelter wx:3760 wy:672). Kasyno jest na dole mapy:
            ROOMS.ulica casino wx:1760 wy:3168 w155 h155 → centrum 1837,3245. */
-        {wx:1837, wy:3245, label:'KASYNO ROYAL', zoom:1.6},
+        /* PDF GDANSK U12 */
+        {wx:1837, wy:3245, label:'KASYNO ROYAL', zoom:1.6, objAt:'right', boxPos:'left'},
       ],
       durPerPlace:6000,
     },
     {
       em:'✂️', title:'STYL I ROZRYWKA',
-      /* v1.9.99: nowy topic dla fryzjera + park */
-      desc:'Fryzjer (zmiana fryzury — wpływa na atrakcjonalność u NPC), Park Miejski (chill, freestyle, bboying, skatepark, staw — boost nastroju).',
+      /* v1.9.99: nowy topic dla fryzjera + park.
+         PDF GDANSK U3/U4: tresc opisu 1:1 ze zgloszenia, z uwzglednieniem nowo dodanego Velvet Room. */
+      desc:'Fryzjer (zmiana fryzury wpływa na atrakcyjność w środowisku miejskim), Park Miejski (chill, freestyle taneczny, bboying, skatepark i staw jako forma kontemplacji), oraz Klub ze striptizem (boost nastroju, interakcje z lokalną społecznością).',
       places:[
-        {wx:505, wy:749, label:'FRYZJER', zoom:1.7},
+        /* PDF GDANSK U12 */
+        {wx:505, wy:749, label:'FRYZJER', zoom:1.7, objAt:'right', boxPos:'left'},
         /* PDF 20.08 U7: znacznik parku ma byc duzy (jak przy KURIER 5/6, czyli 300 px) i wycentrowany
            na FONTANNIE — fountain wx280 wy1010 w100 h90 → srodek (330,1055). */
-        {wx:330, wy:1055, label:'PARK MIEJSKI', zoom:1.3, hlR:300},
+        /* PDF GDANSK U11: okno przenosi sie na PRAWA strone, zeby odslonic park. */
+        {wx:330, wy:1055, label:'PARK MIEJSKI', zoom:1.3, hlR:300, boxPos:'right'},
+        /* PDF GDANSK U3: nowy, OSTATNI punkt kategorii. Obiekt `striptiz` zajmuje
+           wx1180-1330 / wy3168-3323 → srodek bryly (1255, 3245). */
+        {wx:1255, wy:3245, label:'Velvet Room (Klub ze striptizem)', zoom:1.6},
       ],
       durPerPlace:4000,
     },
@@ -90114,7 +90314,8 @@ window.openCinematicFlythrough=(scenario)=>{
       em:'🚘', title:'TRANSPORT I MOBILNOŚĆ',
       desc:'Salon Aut (kup samochód = szybsze podróże), Parking miejski, Helipad VIP (transport prywatnym śmigłowcem dla bogatych graczy — w tym loty wprost do Twojej Rezydencji lub Mega Villi, gdy je posiadasz).',
       places:[
-        {wx:3084, wy:210, label:'SALON AUT', zoom:1.6},
+        /* PDF GDANSK U12 */
+        {wx:3084, wy:210, label:'SALON AUT', zoom:1.6, objAt:'right', boxPos:'left'},
         /* PDF 20.08 U8: znacznik parkingu +30% (128 → 166). Zoom i wycentrowanie kamery BEZ ZMIAN. */
         {wx:1584, wy:1620, label:'PARKING', zoom:1.2, hlR:166},
         /* PDF 20.08 U18: zblizenie do helipadu +20% (1.5 → 1.8); znacznik wycentrowany na obiekcie
@@ -90126,7 +90327,10 @@ window.openCinematicFlythrough=(scenario)=>{
     {
       em:'🗺️', title:'DZIELNICE, PIES I EKWIPUNEK',
       /* v2.1.637 (user): przelot informuje o nowych dzielnicach (bramy na krawędziach), schronisku (pies-towarzysz) i ekwipunku (klawisz I). Wymogi zweryfikowane z REQS (L32756). */
-      desc:'Bramy na krawędziach mapy prowadzą do dzielnic: 🌑 Underground (50 sławy + 20 freestyle — undergroundowa scena), 🌊 Coast (200 sławy + 150 000 zł zarobione — luksusowe wybrzeże), 💼 Business (300 sławy — Label HQ, Bank VIP, Fortuno, PR). W 🐕 Schronisku adoptujesz psa-towarzysza, który chodzi za Tobą po mieście. A 🎒 EKWIPUNEK otwierasz klawiszem I — trzymasz tam jedzenie, akcesoria z bonusami (pamiętaj je założyć!), substancje i składniki do warsztatu.',
+      /* PDF GDANSK U15: tresc zsynchronizowana z REQS w `_tryUnlockDistrict` (Underground 6 freestyle’ow
+         bez wymogu slawy, Coast 50 slawy + 50 000 zl, Business 50 slawy) oraz z brama Residental,
+         ktora nie ma zadnego progu. Wczesniej podane liczby byly nieaktualne o kilka wersji. */
+      desc:'Bramy na krawędziach mapy prowadzą do dzielnic: 🌑 Underground (6 freestyle’ów — undergroundowa scena), 🌊 Coast (50 sławy + 50 000 zł zarobione — luksusowe wybrzeże), 💼 Business (50 sławy — Label HQ, Bank VIP, Fortuno, PR), 🏡 Residental (bez wymagań — wschodnie osiedle mieszkaniowe). W 🐕 Schronisku adoptujesz psa-towarzysza, który chodzi za Tobą po mieście. A 🎒 EKWIPUNEK otwierasz klawiszem I — trzymasz tam jedzenie, akcesoria z bonusami (pamiętaj je założyć!), substancje i składniki do warsztatu.',
       places:[
         /* PDF 20.08 U19: brama Underground stoi skrajnie po lewej — okno idzie na PRAWA strone i
            wraca do najwiekszego wariantu (1/3), nawet gdy gracz wczesniej je zmniejszyl.
@@ -90176,6 +90380,11 @@ window.openCinematicFlythrough=(scenario)=>{
         hlR:place.hlR||null,
         boxPos:place.boxPos||null,
         boxState:place.boxState||null,
+        /* PDF GDANSK U8: pierwsza pozycja kategorii = pelne okno, kazda kolejna automatycznie
+           zwinieta do wariantu „Zwin do lokacji i opisu". */
+        autoState: placeIdx===0 ? 'full' : 'compact',
+        /* PDF GDANSK U12: po ktorej stronie kadru ma stanac prezentowany obiekt. */
+        objAt:place.objAt||null,
         noHl:!!place.noHl,
         dur:topic.durPerPlace||3500,
         panSweep:!!topic.panSweep, /* v1.9.99: ciągły pan zamiast osobnych zoom-in */
@@ -90220,13 +90429,21 @@ window.openCinematicFlythrough=(scenario)=>{
     if(f) return;
     f=document.createElement('div');
     f.id='cinem-finale';
-    f.style.cssText='position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:9997;pointer-events:none;padding:0 8vw;opacity:0;transition:opacity .9s cubic-bezier(.2,.7,.3,1)';
+    /* PDF GDANSK U16: ekran pod tekstem ostatniego kroku sciemnia sie STOPNIOWO (kilka sekund)
+       do 30%. Klikniecie „ROZPOCZNIJ" wykonuje reakcje odwrotna — blyskawiczne rozjasnienie. */
+    f.style.cssText='position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:9997;pointer-events:none;padding:0 8vw;opacity:0;background:rgba(0,0,0,0);transition:opacity .9s cubic-bezier(.2,.7,.3,1),background 3.2s ease-in';
     f.innerHTML=`
       <div id="cinem-finale-t1" style="font-family:'Segoe UI','Inter','Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:clamp(17px,2.1vw,27px);line-height:1.55;color:#f4f4fa;letter-spacing:.4px;max-width:1000px;text-shadow:0 3px 16px rgba(0,0,0,.95),0 2px 5px rgba(0,0,0,.95),0 0 2px rgba(0,0,0,.9)">${s.desc}</div>
       <div id="cinem-finale-t2" style="margin-top:26px;font-family:'Segoe UI','Inter','Helvetica Neue',Arial,sans-serif;font-weight:500;font-size:clamp(15px,1.5vw,20px);line-height:1.6;color:#eceaf5;letter-spacing:.6px;text-shadow:0 3px 16px rgba(0,0,0,.95),0 2px 5px rgba(0,0,0,.95),0 0 2px rgba(0,0,0,.9)">Wprowadzenie zakończone. Zacznij, kiedy będziesz gotów.</div>
-      <button id="cinem-finale-btn" onclick="window._closeCinematic()" style="pointer-events:auto;margin-top:22px;background:linear-gradient(135deg,#f1c40f,#e91e8c);color:#ffffff;border:none;padding:15px 46px;font-size:17px;font-weight:900;letter-spacing:3px;border-radius:12px;cursor:pointer;box-shadow:0 8px 30px rgba(241,196,15,.45);font-family:inherit;text-transform:uppercase;text-shadow:0 2px 6px rgba(0,0,0,.45)">ROZPOCZNIJ</button>`;
+      <button id="cinem-finale-btn" onclick="window._cinemFinaleStart()" style="pointer-events:auto;margin-top:22px;background:linear-gradient(135deg,#f1c40f,#e91e8c);color:#ffffff;border:none;padding:15px 46px;font-size:17px;font-weight:900;letter-spacing:3px;border-radius:12px;cursor:pointer;box-shadow:0 8px 30px rgba(241,196,15,.45);font-family:inherit;text-transform:uppercase;text-shadow:0 2px 6px rgba(0,0,0,.45)">ROZPOCZNIJ</button>`;
     document.body.appendChild(f);
-    requestAnimationFrame(()=>{ f.style.opacity='1'; });
+    requestAnimationFrame(()=>{ f.style.opacity='1'; f.style.background='rgba(0,0,0,.30)'; });/* PDF GDANSK U16 */
+  };
+  /* PDF GDANSK U16: „ROZPOCZNIJ" najpierw blyskawicznie rozjasnia ekran, potem konczy tryb. */
+  window._cinemFinaleStart=function(){
+    const f=document.getElementById('cinem-finale');
+    if(f){ f.style.transition='opacity .9s cubic-bezier(.2,.7,.3,1),background .18s linear'; f.style.background='rgba(0,0,0,0)'; }
+    setTimeout(function(){ if(typeof window._closeCinematic==='function') window._closeCinematic(); }, 190);
   };
   const _hideFinale=()=>{
     document.getElementById('cinem-finale')?.remove();
@@ -90287,9 +90504,8 @@ window.openCinematicFlythrough=(scenario)=>{
           </div>
           <button onclick="window._closeCinematic()" style="margin-top:16px;background:linear-gradient(135deg,#f1c40f,#e91e8c);color:#000;border:none;padding:16px 44px;font-size:18px;font-weight:900;letter-spacing:3px;border-radius:12px;cursor:pointer;box-shadow:0 8px 30px rgba(241,196,15,.5);font-family:inherit;text-transform:uppercase;animation:emojiFloat 2.5s ease-in-out infinite">▶ ZACZYNAM</button>
         `:`<div id="cinem-counter" style="margin-top:12px;color:#778;font-size:11px;letter-spacing:1px">Topic ${s.topicIdx+1}/${_TOPICS.length}</div>`}`;
-      /* PDF 13.08 U19: po każdym renderze przywróć aktualnie wybrany stopień zwinięcia. */
-      /* PDF 20.08 U19/U20: najpierw wymuś (albo zdejmij) rozmiar narzucony przez ten punkt trasy. */
-      if(typeof window._cinemForceBoxState==='function') window._cinemForceBoxState(s.boxState||null);
+      /* PDF 13.08 U19 / PDF 20.08 U19-U20 / PDF GDANSK U8: rozmiar okna dla TEGO ujecia. */
+      if(typeof window._cinemApplyShotBoxState==='function') window._cinemApplyShotBoxState(s);
       else if(typeof window._cinemApplyBoxState==='function') window._cinemApplyBoxState();
       /* PDF 20.08 U5/U19/U20: pozycja okna względem kadru. */
       if(typeof window._cinemApplyBoxPos==='function') window._cinemApplyBoxPos(s.boxPos||null);
@@ -90307,7 +90523,7 @@ window.openCinematicFlythrough=(scenario)=>{
     } else {
       /* PDF 20.08 U5/U19/U20: przy przejściu MIĘDZY punktami tego samego tematu overlay nie jest
          przebudowywany — pozycję i wymuszony rozmiar trzeba zastosować także tutaj. */
-      if(typeof window._cinemForceBoxState==='function') window._cinemForceBoxState(s.boxState||null);
+      if(typeof window._cinemApplyShotBoxState==='function') window._cinemApplyShotBoxState(s);
       if(typeof window._cinemApplyBoxPos==='function') window._cinemApplyBoxPos(s.boxPos||null);
       const lbl=document.getElementById('cinem-place-label');
       if(lbl){
@@ -90360,6 +90576,18 @@ window.openCinematicFlythrough=(scenario)=>{
     else if(pos==='topleft'){o.style.left='24px'; o.style.right='auto'; o.style.top='16vh'; o.style.bottom='auto'; }
     else if(pos==='topright'){o.style.left='auto';o.style.right='24px'; o.style.top='16vh'; o.style.bottom='auto'; }
     else {                  o.style.left='24px'; o.style.right='auto'; o.style.top='auto';  o.style.bottom='24px'; }
+  };
+/* ═══ PDF GDANSK U8 — AUTOMATYCZNY ROZMIAR OKNA W KOLEJNYCH PUNKTACH KATEGORII ═════════
+   „zawsze pierwsza pozycja z kategorii bedzie najwiekszym oknem, a pozostale pozycje beda oknami
+   pomniejszonymi do ksztaltu odpowiadajacemu klknieciu w przycisk «Zwin do lokacji i opisu»".
+   Zmiana jest PLYNNA, bo `_cinemApplyBoxState` animuje wysokosc, szerokosc i marginesy.
+   Recznie wybrany ksztalt dalej dziala — obowiazuje do konca biezacego ujecia, a nastepne
+   ustawia sie samo (dokument: „omawiamy wylacznie kwestie automatyzujace"). */
+  window._cinemApplyShotBoxState=function(s){
+    const st=(s&&s.boxState)||(s&&s.autoState)||'full';
+    window._cinemBoxUserState=null;
+    window._cinemBoxState=st;
+    if(typeof window._cinemApplyBoxState==='function') window._cinemApplyBoxState();
   };
   window._cinemForceBoxState=function(state){
     if(state){
@@ -90467,12 +90695,36 @@ window.openCinematicFlythrough=(scenario)=>{
     /* v2.1.9: target BEZ Math.max(0,...) — clamp robi updateCamera z zoom-aware bounds.
        Wcześniej Math.max(0, ...) odcinało ujemne target dla budynków blisko lewego/górnego brzegu mapy
        (TRAPHOUSE wx:170 wymaga cam.x=-470, STUDIO wy:210 wymaga cam.y=-119 etc.). */
-    window._cinemCam.targetX=s.wx-640;
-    window._cinemCam.targetY=s.wy-329;
+    /* ═══ PDF GDANSK U12 — PREZENTOWANY OBIEKT NIE NA SRODKU, TYLKO PRZY KRAWEDZI ═══════
+       „widok kamery zostal przeniesiony kilka metrow na lewa strone tak, aby prezentowany obiekt
+       znajdowal sie niemalze maksymalnie po prawej, skrajnej czesci ekranu" (i odwrotnie dla
+       SILOWNI). Wyliczamy to z proporcji kadru, a nie ze sztywnej liczby pikseli, bo widoczny
+       kawalek swiata zalezy od przyblizenia.
+       ⚠️ Kamera nie moze wyjechac poza mape (czarna pustka przy krawedzi — lekcja v2.3.132), a dla
+       obiektow lezacych blisko brzegu takie kadrowanie jest osiagalne dopiero przy wiekszym
+       przyblizeniu. Dlatego przy potrzebie podnosimy zoom do wartosci, przy ktorej kadr sie miesci
+       (z gornym ograniczeniem, zeby ujecie nie zrobilo sie makro). */
+    const _hw=((typeof VIEW_W==='number'&&VIEW_W>0)?VIEW_W:1280)/2;
+    const _hh=((typeof VIEW_VH==='number'&&VIEW_VH>0)?VIEW_VH:658)/2;
+    let _shotZoom=s.zoom||1.5;
+    let _tgtX=s.wx-_hw;
+    if(s.objAt==='right'||s.objAt==='left'){
+      const F=0.35;                                   /* 0.5 = krawedz kadru, 0 = srodek */
+      const _room=ROOMS[currentRoom];
+      const _wW=_room?(_room.wT*T):0;
+      const _room4=(s.objAt==='right')?Math.max(1,s.wx):Math.max(1,_wW-s.wx);
+      const _need=(_hw*(1+2*F))/_room4;               /* zoom, przy ktorym kadr miesci sie w mapie */
+      _shotZoom=Math.max(_shotZoom, Math.min(2.6, _need));
+      const _off=(2*_hw*F)/_shotZoom;
+      _tgtX = s.wx-_hw + (s.objAt==='right' ? -_off : _off);
+    }
+    s._zoomEff=_shotZoom;
+    window._cinemCam.targetX=_tgtX;
+    window._cinemCam.targetY=s.wy-_hh;   /* rownowazne dotychczasowemu 329 (VIEW_VH/2), ale odporne na zmiane rozmiaru sceny */
     if(s.panSweep){
       /* PAN: utrzymaj zoom z first place przez cały topic, ciągły ruch BEZ przerw highlight */
       window._cinemCam.lerpMul = 0.6; /* WOLNIEJSZE = bardziej "filmowo" */
-      window._cinemCam.targetZoom = s.zoom||1.25;
+      window._cinemCam.targetZoom = s._zoomEff||s.zoom||1.25;/* PDF GDANSK U12 */
       /* Highlight tylko przy first place, potem ciągły bez podświetlenia (panoramic feel) */
       if(s.isFirstInTopic){
         _animateHighlight(0, 250);
@@ -90506,7 +90758,7 @@ window.openCinematicFlythrough=(scenario)=>{
         if(!G._cinematicActive) return;
         if(_tok!==_shotToken) return;                /* spóźniony timer poprzedniego ujęcia */
         /* ZOOM IN po dotarciu kamery do celu */
-        window._cinemCam.targetZoom = s.zoom||1.5;
+        window._cinemCam.targetZoom = s._zoomEff||s.zoom||1.5;/* PDF GDANSK U12 */
         /* PDF 20.08 U62: pierwszy slajd przewodnika prezentuje same postacie — zolta obwodka nie ma
            tam czego zaznaczac, wiec ten punkt jawnie jej nie dostaje. */
         if(s.noHl){ window._cinemCam.highlight=null; window._cinemCam.hlOpacity=0; return; }
@@ -90514,6 +90766,11 @@ window.openCinematicFlythrough=(scenario)=>{
         _animateHighlight(1, 800);
       }, 1200);
     }
+    /* PDF GDANSK U12: ujecia z zadana strona kadru musza REALNIE dojechac do celu. Domyslne
+       hamowanie kamery przy malych dystansach (0,012 na klatke, a w plynnym przelocie jeszcze
+       ×0,6) sprawialo, ze ostatnie ~100 px pokonywala kilkanascie sekund — obiekt zatrzymywal sie
+       w polowie drogi do krawedzi. Sedzia zmierzyl 0,62 zamiast oczekiwanych ~0,81. */
+    if(s.objAt) window._cinemCam.lerpMul = Math.max(window._cinemCam.lerpMul||1, 1.8);
     _showOverlay(s);
     /* v2.1.21: MANUAL CONTROL. Auto-advance USUNIĘTY — gracz steruje strzałkami ←/→.
        Wcześniej `setTimeout(_next, s.dur)` automatycznie przeskakiwał.
