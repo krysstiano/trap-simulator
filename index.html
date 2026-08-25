@@ -3251,7 +3251,8 @@ const ROOMS = {
       /* PDF „Residential District" §1/§2: dzielnica na WSCHODNIEJ granicy mapy, dostępna niemal od
          początku gry — bez kosztu, bez wymogu sławy i bez progresu Nielegalnego Frontu.
          Brama na wschodniej krawędzi, na wysokości poziomej drogi H2 (wy 1920-2112). */
-      {id:'gate_residential',wx:4704,wy:1824, w:96,  h:384, act:'gate:residential', prompt:'[E] 🏡 Brama Residential', lbl:''},
+      /* PDF GDANSK U47: tresc podpowiedzi 1:1 ze zgloszenia. */
+      {id:'gate_residential',wx:4704,wy:1824, w:96,  h:384, act:'gate:residential', prompt:'[E] 🏡 Brama Residental (Osiedle mieszkaniowe)', lbl:''},
     ]
   },
 
@@ -9612,9 +9613,12 @@ function drawDistrictGate(sx,sy,w,h,districtId,bgColor,accentColor,emoji){
     X.textAlign='left';X.textBaseline='alphabetic';
   }
   /* Label dzielnicy — na słupie */
-  const labels={underground:'UNDERGROUND',coast:'COAST',business:'BUSINESS'};
+  /* PDF GDANSK U47: brak wpisu `residential` powodowal, ze na bramie wyswietlal sie surowy
+     identyfikator pokoju malymi literami. Ta brama dostaje tez czytelniejszy krój (user: „zmienic
+     nazwe I CZCIONKE tekstu"), pozostale zostaja bez zmian. */
+  const labels={underground:'UNDERGROUND',coast:'COAST',business:'BUSINESS',residential:'Residental'};
   X.fillStyle='#fff';
-  X.font='bold 9px Arial';
+  X.font=(districtId==='residential')?'600 12px "Segoe UI",Inter,Arial,sans-serif':'bold 9px Arial';
   X.textAlign='center';X.textBaseline='middle';
   if(isVertical){
     /* Label na środku top słupa */
@@ -13554,7 +13558,11 @@ function drawWeatherFX(){
 /* v2.1.693: sylwetka auta zależna od typu (nie tylko kolor). Mapowanie nazwa→typ — kompatybilne
    ze starymi save'ami (derive z G.car.name, brak nowych pól save). 4 sylwetki: compact/sedan/sports/luxury. */
 /* N6 (v2.3.25, PDF „Najnowsza"): pokoje, po których można jeździć/parkować autem — miasto + odblokowane dzielnice (osobne ROOMS). */
-function _carRoom(r){ return r==='ulica'||r==='underground'||r==='coast'||r==='business'; }
+/* PDF GDANSK B2 (user: „nie mozna wjechac do dzielnicy pojazdem"): `residential` DOPISANE.
+   Ta jedna lista decyduje o WSZYSTKIM, co pojazd robi w pokoju — jezdzeniu (updatePlayer),
+   rysowaniu (drawPlayerCar / kamper), parkowaniu, kolizjach z ruchem NPC i kontrolach policji.
+   Bez wpisu brama Residential wpuszczala gracza wylacznie pieszo, a pojazd zostawal w miescie. */
+function _carRoom(r){ return r==='ulica'||r==='underground'||r==='coast'||r==='business'||r==='residential'; }
 function _carParkRoom(){ return (G._carParkedAt&&G._carParkedAt.room)||'ulica'; } /* save-safe: stary _carParkedAt bez room → ulica */
 function carBodyType(name){
   const n=name||'';
@@ -74961,6 +74969,10 @@ function startFreestyleMG(){
   /* PDF 20.08 U27: rozpoczęcie kolejnego freestyle’u zeruje odliczanie do wskazówki TrapInfo —
      wiadomość nie może pojawić się w trakcie interakcji. */
   window._fsMgActive=true;
+  /* PDF GDANSK U32/U46: SESJA freestyle'u (w odroznieniu od pojedynczej rundy) trwa az do przycisku
+     „Wyjdz". „Jeszcze raz" jej NIE konczy, wiec zielone podpowiedzi i korespondencja SMS pozostaja
+     wstrzymane przez caly czas zabawy — dokladnie tak, jak opisuje zgloszenie. */
+  window._fsSessionActive=true;
   if(typeof window._trapInfoTipCancel==='function') window._trapInfoTipCancel('freestyle_chirpnet');
   /* v2.1.864 (audyt): bramka energii TU = single-source — by „Jeszcze raz" i triggerFreestyle też ją respektowały (był EXPLOIT: spam freestyle za 0 energii → farm raperXP/skillPts/fani/streetRep, drzewko maksowane za szybko). Mapa-handler już NIE odejmuje (przeniesione). */
   /* v2.1.865 (user): TWARDY limit 3 freestyle/dobę gry. Sprawdzane TU (single-source) — licznik G._fsCountToday inkrementowany przy wyniku (L~39641). */
@@ -75267,15 +75279,24 @@ function startFreestyleMG(){
         ${prevHigh>0&&!isNewRecord?`<div style="font-size:11px;color:#99a;margin-bottom:12px">Rekord: ${prevHigh} pkt</div>`:'<div style="margin-bottom:12px"></div>'}
         ${rewardsHtml}
         <div style="display:flex;gap:10px;justify-content:center">
-          <button onclick="var _e=document.getElementById('mg-job');_e.style.display='none';_e.classList.remove('on');_e.innerHTML='';startFreestyleMG();" style="background:#0a1528;border:1px solid #e91e8c;color:#e91e8c;padding:10px 22px;border-radius:6px;cursor:pointer;font-size:15px;font-weight:700">🔄 Jeszcze raz</button>
-          <button onclick="var _e=document.getElementById('mg-job');_e.style.display='none';_e.classList.remove('on');_e.innerHTML='';" style="background:#1a0a0a;border:1px solid #5a1a1a;color:#e74c3c;padding:10px 22px;border-radius:6px;cursor:pointer;font-size:15px">✕ Wyjdź</button>
+          <button onclick="var _e=document.getElementById('mg-job');_e.style.display='none';_e.classList.remove('on');_e.innerHTML='';startFreestyleMG();" style="background:#0a1528;border:1px solid #e91e8c;color:#e91e8c;padding:10px 22px;border-radius:6px;cursor:pointer;font-size:15px;font-weight:700">Jeszcze raz</button><!-- PDF GDANSK U33: bez emoji -->
+          <button onclick="var _e=document.getElementById('mg-job');_e.style.display='none';_e.classList.remove('on');_e.innerHTML='';window._fsEndSession&&window._fsEndSession();" style="background:#1a0a0a;border:1px solid #5a1a1a;color:#e74c3c;padding:10px 22px;border-radius:6px;cursor:pointer;font-size:15px">✕ Wyjdź</button>
         </div>
       </div>
     `;
   }
 
-  window._jobMgCleanup=()=>{gameActive=false;clearInterval(timer);if(window._fsKeydown)document.removeEventListener('keydown',window._fsKeydown);el.style.display='none';el.classList.remove('on');el.innerHTML='';};
+  window._jobMgCleanup=()=>{gameActive=false;clearInterval(timer);if(window._fsKeydown)document.removeEventListener('keydown',window._fsKeydown);el.style.display='none';el.classList.remove('on');el.innerHTML='';if(window._fsEndSession)window._fsEndSession();};
 }
+/* PDF GDANSK U32/U46: zakonczenie SESJI freestyle'u — wznawia zielone podpowiedzi i korespondencje.
+   Wywolywane z przycisku „Wyjdz" oraz z awaryjnego sprzatania minigry. */
+window._fsEndSession=function(){
+  if(!window._fsSessionActive) return;
+  window._fsSessionActive=false;
+  window._fsMgActive=false;
+  try{ if(typeof window._msgFlushHeld==='function') window._msgFlushHeld(); }catch(_){}
+  try{ if(typeof window._smsReleaseHeld==='function') window._smsReleaseHeld(); }catch(_){}
+};
 
 // ═══════════════════════════════════════════════════════════════════
 //  BREAKDANCE MINIGAME
@@ -77269,7 +77290,7 @@ window._eclipseNoirEnsure=function(){
   /* BLOK 2 (§12-15): relacja z managerką Valerią (save-safe, wszystkie osie z PDF). */
   if(!G.npcRelations||typeof G.npcRelations!=='object') G.npcRelations={};
   const vr=G.npcRelations.valeriaCross;
-  const VR_DEF=[['relationship',0],['trust',0],['attraction',0],['professionalism',0],['clubAccess',0],['favorDebt',0],['privacyTrust',0],['scandalRisk',0],['lastTalkDay',-1],['metDay',-1]];
+  const VR_DEF=[['relationship',0],['trust',0],['attraction',0],['professionalism',0],['clubAccess',0],['favorDebt',0],['privacyTrust',0],['scandalRisk',0],['lastTalkDay',-1],['lastHelpDay',-1],['metDay',-1]];/* PDF GDANSK B4: wlasny licznik dobowy dla pomocy przy gosciu */
   if(!vr||typeof vr!=='object'){ const o={}; VR_DEF.forEach(([k,d])=>o[k]=d); G.npcRelations.valeriaCross=o; }
   else { VR_DEF.forEach(([k,d])=>{ if(typeof vr[k]!=='number'||!isFinite(vr[k])) vr[k]=d; }); }
   /* BLOK 4 (§29-30,§37-38,§46,§61): ryzyko nocne — upojenie/kontrola decyzji, ślad skandalu, toksyczność, ban (save-safe). */
@@ -77503,6 +77524,8 @@ window._eclipseValeria=function(resp){
   if(v.metDay<0){ v.metDay=(G.day||0); c.hasMetValeria=true; v.relationship=Math.max(v.relationship,2); v.professionalism=Math.max(v.professionalism,1);
     intro=`<div style="font-size:12px;color:#e6ddff;line-height:1.5;background:#160f26;border-radius:8px;padding:10px;margin-bottom:8px">„Heeej! Widziałam Twoje nazwisko kilka razy. Jeszcze nie wiem, czy ludzie mówią o Tobie, bo masz talent, czy dlatego, że miasto lubi nowe zabawki. Klub lubi energię, a Ty wyglądasz, jakbyś miał jej za dużo. Albo za mało kontroli!" <span style="color:#9a90b0">(śmieje się)</span></div>`; }
   const talkedToday=(v.lastTalkDay===(G.day||0));
+  /* PDF GDANSK B4: pomoc przy gosciu ma WLASNY licznik dobowy — rozmowa o wystepie jej nie blokuje. */
+  const helpedToday=(v.lastHelpDay===(G.day||0));
   const bar=(lbl,val)=>`<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#c9b"><span style="width:110px">${lbl}</span><div style="flex:1;background:#1a0f22;border-radius:3px;height:6px;overflow:hidden"><div style="width:${Math.round(val)}%;height:100%;background:#b98cff"></div></div><span style="width:26px;text-align:right">${Math.round(val)}</span></div>`;
   document.getElementById('mg-job-content').innerHTML=`
     <div style="background:#0a0810;border:2px solid #5a1442;border-radius:10px;padding:16px;max-width:480px;margin:0 auto;color:#fff;width:100%;max-height:84vh;overflow-y:auto">
@@ -77514,7 +77537,7 @@ window._eclipseValeria=function(resp){
       </div>
       <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:4px;color:#cdb8ff;border-color:#3a2a5a" onclick="window._eclipseValeriaAct('slot')" ${talkedToday?'disabled':''}>🎤 Porozmawiaj o występie ${talkedToday?'(dziś już rozmawialiście)':'(otwiera lepsze sloty)'}</button>
       <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;color:#cdb8ff;border-color:#3a2a5a" onclick="window._eclipseValeriaAct('vip')">✨ Zapytaj o ludzi w VIP</button>
-      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;color:#cdb8ff;border-color:#3a2a5a" onclick="window._eclipseValeriaAct('help')" ${talkedToday?'disabled':''}>🤝 Pomóż rozwiązać problem z gościem ${talkedToday?'':'(+ zaufanie)'}</button>
+      <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;color:#cdb8ff;border-color:#3a2a5a" onclick="window._eclipseValeriaAct('help')">🤝 Pomóż rozwiązać problem z gościem ${helpedToday?'(dziś już pomogłeś)':'(+ zaufanie)'}</button><!-- PDF GDANSK B4: bez atrybutu disabled — martwy przycisk nie dawal graczowi ZADNEJ informacji -->
       <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;color:#e368b8;border-color:#7a2a5a" onclick="window._eclipseValeriaAct('flirt')">💫 Flirtuj <span style="color:#9a90b0">(ryzyko plotki)</span></button>
       <button class="cbtn" style="width:100%;text-align:left;font-size:12px;padding:8px;margin-top:5px;color:#7ec87e;border-color:#27ae60" onclick="window._eclipseValeriaAct('pro')">🤵 Zachowaj profesjonalnie</button>
       <button class="cbtn" style="width:100%;margin-top:8px;color:#ccc" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Zakończ rozmowę</button>
@@ -77531,8 +77554,10 @@ window._eclipseValeriaAct=function(type){
   } else if(type==='vip'){ v.relationship+=1; clampA('relationship');
     resp='„Na górze? Kilka twarzy z biznesu, jeden reżyser i ktoś, kto udaje, że nie jest, kim jest. Nie pytam ludzi, skąd mają pieniądze — pytam tylko, czy zrobią problem w moim klubie."';
   } else if(type==='help'){
-    if(v.lastTalkDay===(G.day||0)){ resp='„Już mi dziś pomogłeś. Idź się bawić."'; }
-    else { v.lastTalkDay=(G.day||0); v.trust+=7; v.clubAccess+=3; v.relationship+=2; ['trust','clubAccess','relationship'].forEach(clampA); if(typeof clampStat==='function') G.energy=clampStat('energy',(G.energy||0)-5);
+    /* PDF GDANSK B4: wlasny licznik `lastHelpDay` (wczesniej wspolny z rozmowa o wystepie) ORAZ
+       ZAWSZE widoczna odpowiedz — gracz nigdy nie zostaje z cisza po kliknieciu. */
+    if(v.lastHelpDay===(G.day||0)){ resp='„Już mi dziś pomogłeś. Wróć jutro — wieczory tu nigdy nie są spokojne."'; }
+    else { v.lastHelpDay=(G.day||0); v.trust+=7; v.clubAccess+=3; v.relationship+=2; ['trust','clubAccess','relationship'].forEach(clampA); if(typeof clampStat==='function') G.energy=clampStat('energy',(G.energy||0)-5);
       resp='„Wyprowadziłeś temat bez sceny. Zapamiętam to. Tu lojalność znaczy więcej niż talent." <b style="color:#7ec87e">(+zaufanie)</b>'; }
   } else if(type==='flirt'){ v.attraction+=6; v.scandalRisk+=4; c.atmosphere.paparazziRisk=Math.min(100,(c.atmosphere.paparazziRisk||0)+3); ['attraction','scandalRisk'].forEach(clampA);
     resp=(v.attraction>40)?'„Ostrożnie. Mieszanie mnie z interesami klubu to najszybszy sposób, żeby stracić i jedno, i drugie." <span style="color:#e67e22">(+plotka)</span>':'„Uroczo. Ale ja tu rządzę, więc pauzuj z tym tempem." <span style="color:#9a90b0">(mruga)</span>';
@@ -83095,6 +83120,8 @@ window._mayaEnsure=function(){
 window._mayaClockRunning=function(){
   try{
     if(typeof _paused!=='undefined' && _paused) return false;
+    /* PDF GDANSK U45/U46: podczas przelotu i freestyle'u zegar odpowiedzi Mayi rowniez stoi. */
+    if(typeof window._smsHeld==='function' && window._smsHeld()) return false;
     if(typeof document!=='undefined' && document.hidden) return false;
     const menu=document.getElementById('menu');
     if(menu && (menu.style.display==='flex'||menu.style.display==='')) return false;
@@ -83481,6 +83508,42 @@ window._slbClear=function(){
    User: „jeśli gracz ma otrzymać np. 3 wiadomości jednocześnie, to w pierwszej kolejności pojawi się
    pierwsza, po 5-sekundach druga i dopiero po kolejnych 5-sekundach trzecia”. Powiadomienia nie mogą
    się na siebie nakładać — kolejne czeka, aż minie odstęp. */
+/* ═══ PDF GDANSK B3/U6/U45/U46 — WSTRZYMANIE CALEGO SYSTEMU SMS ═══════════════════════
+   Trzy sytuacje wstrzymuja korespondencje w calosci: pauza gry (B3), aktywny tryb „Przelot nad
+   miastem" w DOWOLNEJ dzielnicy (U6/U45) oraz aktywnosc „Freestyle" (U46). Wstrzymane jest
+   wszystko naraz: przyjscie wiadomosci do watku, okno powiadomienia na ekranie ORAZ liczniki
+   odliczajace do odpowiedzi NPC — te ostatnie nie „doganiaja" po wznowieniu, tylko stoja.
+   Aktywnosc Freestyle konczy sie WYLACZNIE przyciskiem wyjscia; „Jeszcze raz" trzyma wstrzymanie
+   dalej (dokument wprost). */
+window._smsHoldReason=function(){
+  try{
+    if(typeof _paused!=='undefined' && _paused) return 'pause';
+    if(typeof G!=='undefined' && G && G._cinematicActive) return 'flyover';
+    if(window._fsSessionActive) return 'freestyle';
+  }catch(_){}
+  return null;
+};
+window._smsHeld=function(){ return !!window._smsHoldReason(); };
+window._smsHeldEnsure=function(){
+  if(typeof G==='undefined'||!G) return null;
+  if(!Array.isArray(G._smsHeldInbox)) G._smsHeldInbox=[];
+  return G._smsHeldInbox;
+};
+/* Wznowienie: wiadomosci z poczekalni ida do watku w tej samej kolejnosci, w jakiej powstaly.
+   `_released` omija ponowne zatrzymanie, a `bypass` — limit dobowy, ktory zostal juz rozliczony
+   w chwili wstrzymania (inaczej wiadomosc przepadlaby po wznowieniu). */
+window._smsReleaseHeld=function(){
+  const q=window._smsHeldEnsure();
+  if(!q||!q.length) return 0;
+  if(window._smsHeld()) return 0;
+  const items=q.splice(0,q.length);
+  let n=0;
+  for(const it of items){
+    if(!it) continue;
+    try{ if(typeof _smsSend==='function'){ _smsSend(it.contactId,it.text,it.opts); n++; } }catch(_){}
+  }
+  return n;
+};
 window._SMS_POPUP_GAP=5000;
 window._smsPopupQueue=window._smsPopupQueue||[];
 window._smsPopupBusyUntil=window._smsPopupBusyUntil||0;
@@ -83488,6 +83551,11 @@ window._smsPopupTimer=window._smsPopupTimer||null;
 window._smsPopupFlush=function(){
   window._smsPopupTimer=null;
   if(!window._smsPopupQueue.length) return;
+  /* PDF GDANSK B3/U6/U45/U46: w pauzie, w przelocie i podczas freestyle'u kolejka STOI. */
+  if(typeof window._smsHeld==='function' && window._smsHeld()){
+    window._smsPopupTimer=setTimeout(window._smsPopupFlush, 700);
+    return;
+  }
   const it=window._smsPopupQueue.shift();
   window._showSmsPopupNow(it.contactId,it.text);
 };
@@ -83564,6 +83632,18 @@ window._smsSend=function(contactId,text,opts){
     G._smsLastSent[contactId]=_today;
     G._smsTodayCount=(G._smsTodayCount||0)+1;
   }
+  /* PDF GDANSK B3/U6/U45/U46: system SMS wstrzymany — wiadomosc NIE trafia do watku ani na ekran.
+     Czeka w poczekalni i dochodzi dopiero po wznowieniu (limit dobowy zostal juz rozliczony wyzej,
+     wiec przy dostarczeniu jawnie go pomijamy). */
+  if(typeof window._smsHeld==='function' && window._smsHeld() && !(opts&&opts._released)){
+    const _hq=window._smsHeldEnsure();
+    if(_hq){
+      const _ho=Object.assign({},opts||{}); _ho.bypass=true; _ho._released=true;
+      _hq.push({contactId:contactId, text:text, opts:_ho});
+      if(_hq.length>40) _hq.shift();
+      return true;
+    }
+  }
   if(!G.sms.conversations[contactId]) G.sms.conversations[contactId]=[];
   const _hh=Math.floor((typeof gameMin==='number'?gameMin:0)/60)%24;
   const _mm=Math.floor((typeof gameMin==='number'?gameMin:0)%60); /* v1.9.72: floor żeby usunąć fraction (06:28.819199 → 06:28) */
@@ -83610,19 +83690,39 @@ window._trapInfoTipCancel=function(key){
   const t=window._trapInfoTipTimers[key];
   if(t){ clearTimeout(t); window._trapInfoTipTimers[key]=null; }
 };
-window._trapInfoTipSchedule=function(key,triggerId,textFn,guardFn){
+/* PDF GDANSK B3/U45/U46: wskazowki TrapInfo z wlasnym odliczaniem (5 s / 10 s / 30 s) tez stoja,
+   gdy system SMS jest wstrzymany. Kazda ma zapisany termin w czasie rzeczywistym; wspolny tick
+   przesuwa go o czas spedzony w pauzie, przelocie albo freestyle'u. */
+window._trapInfoTipDue=window._trapInfoTipDue||{};
+window._trapInfoTipHoldShift=function(dt){
+  if(!dt) return;
+  for(const k in window._trapInfoTipDue){
+    if(window._trapInfoTipDue[k]) window._trapInfoTipDue[k]+=dt;
+  }
+};
+window._trapInfoTipSchedule=function(key,triggerId,textFn,guardFn,delayMs){
   window._trapInfoTipCancel(key);
-  window._trapInfoTipTimers[key]=setTimeout(function(){
+  const _d=(typeof delayMs==='number')?delayMs:window._TRAPINFO_TIP_DELAY;
+  window._trapInfoTipDue[key]=Date.now()+_d;
+  const _fire=function(){
     window._trapInfoTipTimers[key]=null;
+    /* PDF GDANSK: termin mogl zostac przesuniety przez pauze/przelot/freestyle — dopilnuj go. */
+    const _left=(window._trapInfoTipDue[key]||0)-Date.now();
+    if(_left>60 || (typeof window._smsHeld==='function' && window._smsHeld())){
+      window._trapInfoTipTimers[key]=setTimeout(_fire, Math.max(250,_left));
+      return;
+    }
+    window._trapInfoTipDue[key]=0;
     try{
       /* Gdy gracz właśnie jest w tej samej aktywności — czekamy dalej, zamiast wchodzić mu w kadr. */
-      if(typeof guardFn==='function' && guardFn()){ window._trapInfoTipSchedule(key,triggerId,textFn,guardFn); return; }
+      if(typeof guardFn==='function' && guardFn()){ window._trapInfoTipSchedule(key,triggerId,textFn,guardFn,_d); return; }
       const txt=(typeof textFn==='function')?textFn():String(textFn||'');
       if(!txt) return;
       if(typeof window._smsTriggerOnce==='function') window._smsTriggerOnce(triggerId,'trapinfo',txt,{bypass:true});
       else if(typeof window._smsSend==='function') window._smsSend('trapinfo',txt,{bypass:true});
     }catch(_){}
-  }, window._TRAPINFO_TIP_DELAY);
+  };
+  window._trapInfoTipTimers[key]=setTimeout(_fire, _d);
 };
 // Trigger SMS tylko raz w grze (dla milestone-based events)
 window._smsTriggerOnce=function(triggerId,contactId,text,opts){
@@ -84808,9 +84908,14 @@ window.renderSMSConversation=function(contactId){
     const bg=isMe?'#0a3a5a':'#1a1a2a';
     const color=isMe?'#7ec8e3':'#fff';
     const align=isMe?'flex-end':'flex-start';
+    /* PDF GDANSK B5: cytat wiadomosci, na ktora gracz odpowiadal — widget „chmurki" nad trescia. */
+    const _q=(isMe && m.replyToText)?`<div style="border-left:3px solid ${c.color};background:rgba(255,255,255,.06);border-radius:8px;padding:5px 8px;margin-bottom:6px">
+          <div style="color:${c.color};font-size:9.5px;font-weight:800;letter-spacing:.6px;margin-bottom:2px">${c.em} ${(c.name||'').split(' ')[0]}</div>
+          <div style="color:#9fb0c4;font-size:11px;line-height:1.35;font-style:italic;word-break:break-word">${m.replyToText}${String(m.replyToText).length>=120?'…':''}</div>
+        </div>`:'';
     return `<div style="display:flex;justify-content:${align};margin-bottom:8px">
       <div style="max-width:75%;background:${bg};border:1px solid ${c.color}22;border-radius:14px;padding:8px 12px">
-        <div style="color:${color};font-size:13px;line-height:1.4;word-break:break-word">${m.text}</div>
+        ${_q}<div style="color:${color};font-size:13px;line-height:1.4;word-break:break-word">${m.text}</div>
         <div style="color:#667;font-size:9px;margin-top:3px;text-align:right">Dz. ${m.day} · ${m.time}${isMe?' ·  ✓':''}</div>
       </div>
     </div>`;
@@ -84824,7 +84929,8 @@ window.renderSMSConversation=function(contactId){
      Per NPC type: fan → "Dzięki/Wkrótce" (brak "Wpadnę"), system → "OK" (brak +przyjaźń),
      storyline messages → "Dzięki, idziemy" (sensowne), itp. */
   const _unrepliedCount=msgs.filter(m=>m.from!=='me' && !m._replied).length;
-  const _firstUnreplied=msgs.find(m=>m.from!=='me' && !m._replied);
+  /* PDF GDANSK B5: JEDNO zrodlo prawdy — ten sam wybor, ktorego uzywaja handlery odpowiedzi. */
+  const _firstUnreplied=(typeof window._smsFirstUnreplied==='function')?window._smsFirstUnreplied(msgs):msgs.find(m=>m.from!=='me' && !m._replied);
   document.getElementById('ph-content').innerHTML=`
     <button class="ph-back-btn" onclick="renderPhoneSMS()">← Wiadomości</button>
     <div style="padding:6px 12px;max-height:55vh;overflow-y:auto" id="sms-thread">${bubbles||'<div style="color:#667;text-align:center;padding:20px">Pusty thread</div>'}</div>
@@ -84871,7 +84977,14 @@ window.renderSMSConversation=function(contactId){
         }
         const _c=SMS_CONTACTS[contactId];
         const _smsOnly=_c && _c.physical===false;
-        const _replyCounter=`<div style="background:#0a1525;border-left:3px solid #3498db;padding:6px 10px;margin-bottom:6px;font-size:10.5px;color:#aac">📨 <b>${_unrepliedCount}</b> do odpowiedzi · Odpowiadasz na: <span style="color:#cdd;font-style:italic">"${(_firstUnreplied?.text||'').slice(0,80)}${(_firstUnreplied?.text||'').length>80?'…':''}"</span></div>`;
+        /* PDF GDANSK B5: przy kilku zaleglych wiadomosciach gracz widzi wprost, ze odpowiada
+           NAJPIERW na najstarsza, i ile jeszcze zostalo w kolejce. */
+        const _replyCounter=(_unrepliedCount>1
+          ? `<div style="background:#0a1525;border-left:3px solid #3498db;padding:7px 10px;margin-bottom:6px;font-size:10.5px;color:#aac">
+               <div style="color:#7ec8e3;font-weight:800;margin-bottom:3px">📨 ${_unrepliedCount} wiadomości bez odpowiedzi — odpowiadasz po kolei, od najstarszej</div>
+               <div>Odpowiadasz na: <span style="color:#cdd;font-style:italic">"${(_firstUnreplied?.text||'').slice(0,80)}${(_firstUnreplied?.text||'').length>80?'…':''}"</span></div>
+             </div>`
+          : `<div style="background:#0a1525;border-left:3px solid #3498db;padding:6px 10px;margin-bottom:6px;font-size:10.5px;color:#aac">📨 <b>${_unrepliedCount}</b> do odpowiedzi · Odpowiadasz na: <span style="color:#cdd;font-style:italic">"${(_firstUnreplied?.text||'').slice(0,80)}${(_firstUnreplied?.text||'').length>80?'…':''}"</span></div>`);
         /* v2.3.122 (PDF „Moduł dedykowanych reply-setów SMS"): 48 dedykowanych zestawów odpowiedzi.
            Każda wiadomość ma własny zestaw 4 opcji — sprawdzamy to PRZED ogólnymi gałęziami nadawców,
            żeby dedykowany zestaw wygrywał z generycznymi gotowcami. */
@@ -85001,7 +85114,23 @@ window._smsReply=function(contactId,text){
   if(!G.sms.conversations[contactId]) G.sms.conversations[contactId]=[];
   const _hh=Math.floor((typeof gameMin==='number'?gameMin:0)/60)%24;
   const _mm=Math.floor((typeof gameMin==='number'?gameMin:0)%60); /* v1.9.72: floor fraction fix */
-  G.sms.conversations[contactId].push({from:'me',text,day:G.day||0,time:`${String(_hh).padStart(2,'0')}:${String(_mm).padStart(2,'0')}`,read:true});
+  /* PDF GDANSK B5: gdy w watku czeka WIECEJ NIZ JEDNA nieodpowiedziana wiadomosc, odpowiedz gracza
+     dostaje „chmurke" z cytatem tej, do ktorej sie odnosi — tak jak `reply` na Instagramie czy
+     Messengerze. Przy jednej zaleglej wiadomosci nic sie nie zmienia (dokument wprost). */
+  let _quote=null;
+  if(typeof window._smsReplyCtxQuote!=='undefined' && window._smsReplyCtxQuote!==undefined){
+    _quote=window._smsReplyCtxQuote; window._smsReplyCtxQuote=undefined;
+  } else {
+    try{
+      const _cv=G.sms.conversations[contactId];
+      const _pend=_cv.filter(m=>m && m.from!=='me' && !m._replied).length;
+      if(_pend>1 && typeof window._smsFirstUnreplied==='function'){
+        const _t=window._smsFirstUnreplied(_cv);
+        if(_t && _t.text) _quote=String(_t.text).slice(0,120);
+      }
+    }catch(_){}
+  }
+  G.sms.conversations[contactId].push({from:'me',text,day:G.day||0,time:`${String(_hh).padStart(2,'0')}:${String(_mm).padStart(2,'0')}`,read:true,replyToText:_quote||undefined});
   /* v2.1.125: K41 cap 100 per contact (NPC reply) */
   if(G.sms.conversations[contactId].length>100) G.sms.conversations[contactId]=G.sms.conversations[contactId].slice(-100);
   renderSMSConversation(contactId);
@@ -85219,19 +85348,42 @@ window._playerChatSend=async(userId,nick)=>{
   window._openPlayerChat(userId,nick); /* refresh */
 };
 
+/* ═══ PDF GDANSK B5 — HIERARCHIA ODPOWIEDZI SMS ═══════════════════════════════════════
+   „jesli od danego nadawcy bedzie dla gracza nadeslana wiecej niz jedna wiadomosc, to gracz
+   najpierw odpowiada na te pierwsza od gory, a dopiero potem na nastepne".
+   Jedno zrodlo prawdy dla interfejsu I wszystkich handlerow odpowiedzi — inaczej rozjezdzaly sie
+   ze soba (interfejs pokazywal pierwsza, handler oznaczal ostatnia). */
+window._smsFirstUnrepliedIdx=function(conv){
+  if(!Array.isArray(conv)) return -1;
+  for(let i=0;i<conv.length;i++){
+    const m=conv[i];
+    if(!m || m.from==='me' || m._replied) continue;
+    return i;
+  }
+  return -1;
+};
+window._smsFirstUnreplied=function(conv){
+  const i=window._smsFirstUnrepliedIdx(conv);
+  return i<0?null:conv[i];
+};
+/* Oznaczenie wiadomosci jako odpowiedzianej + zapamietanie jej tresci do „chmurki".
+   ⚠️ Kolejnosc ma znaczenie: handlery oznaczaja wiadomosc ZANIM wysla tekst gracza, wiec cytat
+   trzeba zdjac TUTAJ — inaczej `_smsReply` zacytowalby juz NASTEPNA pozycje z kolejki. */
+window._smsMarkReplied=function(conv,idx){
+  if(!Array.isArray(conv)||idx<0||!conv[idx]) return;
+  const pend=conv.filter(m=>m && m.from!=='me' && !m._replied).length;
+  window._smsReplyCtxQuote=(pend>1)?String(conv[idx].text||'').slice(0,120):null;
+  conv[idx]._replied=true;
+};
 window._smsQuickReply=function(contactId,type){
   /* v1.9.82: per-MESSAGE tracking (a nie per NPC per dzień).
      Każda wiadomość od NPC może być odpowiedziana RAZ. NPC wysyła różne — każdą gracz odpowiada osobno. */
   const conv=G.sms?.conversations?.[contactId]||[];
   if(conv.length===0) return;
-  /* Znajdź ostatnią wiadomość OD NPC (nie 'me') która NIE ma jeszcze odpowiedzi */
-  let targetMsgIdx=-1;
-  for(let i=conv.length-1;i>=0;i--){
-    const m=conv[i];
-    if(m.from==='me') continue;
-    if(m._replied) continue;
-    targetMsgIdx=i; break;
-  }
+  /* PDF GDANSK B5: odpowiadamy na NAJSTARSZA nieodpowiedziana wiadomosc — dokladnie te, ktorej
+     tresc pokazuje naglowek „Odpowiadasz na:". Wczesniej petla szla OD KONCA watku i oznaczala
+     najnowsza, wiec gracz nigdy nie odpowiadal na te, ktora widzial nad przyciskami. */
+  const targetMsgIdx=window._smsFirstUnrepliedIdx(conv);
   if(targetMsgIdx<0){
     if(typeof showMsg==='function') showMsg('💬 Już odpowiedziałeś na wszystkie wiadomości od tego kontaktu. Poczekaj na nowe.','r',4500);
     return;
@@ -85246,7 +85398,7 @@ window._smsQuickReply=function(contactId,type){
   const r=replies[type]||replies.thanks;
   _smsReply(contactId,r.text);
   /* v1.9.82: mark target msg as replied */
-  if(conv[targetMsgIdx]) conv[targetMsgIdx]._replied=true;
+  window._smsMarkReplied(conv,targetMsgIdx);/* PDF GDANSK B5 */
   /* v2.3.122: nadawcy systemowi (TrapInfo, Northcrest Bank, system) to komunikaty informacyjne —
      potwierdzenie przeczytania NIE buduje z nimi relacji. */
   const _sysSender=(contactId==='trapinfo'||contactId==='bank'||contactId==='system');
@@ -85942,8 +86094,26 @@ window._smsPendingEnsure=function(){
   return G._smsPendingReplies;
 };
 window._smsPendingTick=function(){
-  const q=window._smsPendingEnsure(); if(!q||!q.length) return;
   const now=Date.now();
+  /* PDF GDANSK B3 (user: „czas, ktory odlicza sie do odpowiedzi NPC … powinien takze zostac
+     wstrzymany"): dopoki system jest wstrzymany, przesuwamy termin kazdej zaplanowanej odpowiedzi
+     o czas, ktory wlasnie uplynal. Dzieki temu odliczanie STOI, zamiast dogonic po wznowieniu. */
+  const _held=(typeof window._smsHeld==='function')?window._smsHeld():false;
+  const _last=window._smsHoldLastMs||now;
+  window._smsHoldLastMs=now;
+  if(_held){
+    const dt=Math.max(0, Math.min(60000, now-_last));
+    if(dt>0){
+      const hq=window._smsPendingEnsure();
+      if(hq) for(const it of hq){ if(it) it.dueMs=(it.dueMs||now)+dt; }
+      if(window._smsPopupBusyUntil) window._smsPopupBusyUntil+=dt;
+      if(window._trapInfoTipHoldShift) window._trapInfoTipHoldShift(dt);
+    }
+    return;
+  }
+  /* Wznowienie — najpierw dochodza wiadomosci przetrzymane w poczekalni. */
+  if(typeof window._smsReleaseHeld==='function'){ try{ window._smsReleaseHeld(); }catch(_){} }
+  const q=window._smsPendingEnsure(); if(!q||!q.length) return;
   for(let i=0;i<q.length;i++){
     const it=q[i];
     if(!it){ q.splice(i,1); i--; continue; }
@@ -86047,13 +86217,13 @@ window._smsRichButtons=function(contactId,ids){
 window._smsRichReply=function(contactId,replyId){
   const conv=(G.sms&&G.sms.conversations&&G.sms.conversations[contactId])||[];
   if(conv.length===0) return;
-  let idx=-1;
-  for(let i=conv.length-1;i>=0;i--){ if(conv[i].from==='me') continue; if(conv[i]._replied) continue; idx=i; break; }
+  /* PDF GDANSK B5: najstarsza nieodpowiedziana — zgodnie z tym, co pokazuje interfejs. */
+  const idx=window._smsFirstUnrepliedIdx(conv);
   if(idx<0){ if(typeof showMsg==='function') showMsg('💬 Już odpowiedziałeś na wszystkie wiadomości od tego kontaktu. Poczekaj na nowe.','r',4500); return; }
   const reg=window._smsRegistryFor(contactId);
   const opt=reg&&reg[replyId];
   if(!opt) return;
-  conv[idx]._replied=true;
+  window._smsMarkReplied(conv,idx);/* PDF GDANSK B5 */
   if(opt.text!==null && typeof _smsReply==='function') _smsReply(contactId,opt.text);
   _applySmsRichEffect(opt.fx);
   if(opt.action==='kamilJobs') _smsKamilJobsAction();
@@ -86206,11 +86376,11 @@ window._TOUR_REPLIES={
 window._tournamentReply=function(contactId,replyId){
   const cfg=window._discByOrg(contactId); if(!cfg) return;
   const conv=(G.sms&&G.sms.conversations&&G.sms.conversations[contactId])||[];
-  let idx=-1; for(let i=conv.length-1;i>=0;i--){ if(conv[i].from==='me') continue; if(conv[i]._replied) continue; idx=i; break; }
+  const idx=window._smsFirstUnrepliedIdx(conv);/* PDF GDANSK B5: najstarsza nieodpowiedziana */
   if(idx<0){ if(typeof showMsg==='function') showMsg('💬 Już odpowiedziałeś na tę wiadomość.','r',4000); return; }
   const opt=window._TOUR_REPLIES[replyId]; if(!opt) return;
   const d=G[cfg.key];
-  conv[idx]._replied=true;
+  window._smsMarkReplied(conv,idx);/* PDF GDANSK B5 */
   if(opt.text!==null && typeof _smsReply==='function') _smsReply(contactId, opt.text);
   if(opt.action==='accept'){
     d.tournamentState='accepted';
@@ -90064,7 +90234,15 @@ window.openCinematicFlythrough=(scenario)=>{
     if(skipBtn) skipBtn.style.display='';
   };
   const _showOverlay=(s)=>{
-    if(s.isFinaleTopic){ _showFinale(s); return; }
+    /* PDF GDANSK B1 — OKNA INFORMACYJNE NIE WRACALY PRZY COFANIU Z OSTATNIEGO KROKU.
+       Dwie przyczyny, obie tutaj:
+       (a) galaz finalu wychodzila PRZED `_lastRenderedTopicIdx = s.topicIdx`, wiec licznik zostawal
+           na temacie SPRZED finalu. Cofniecie z finalu do ostatniego ujecia tamtego tematu dawalo
+           `isTopicChange === false`;
+       (b) `_showFinale` USUWA `#cinem-overlay` z DOM, wiec po cofnieciu `isNew === true` — okno bylo
+           tworzone z `opacity:0`, a widocznosc ustawiala WYLACZNIE galaz `isTopicChange`.
+       Efekt dla gracza: kamera i zolte znaczniki dzialaly, a prostokat z opisem nigdy sie nie pojawial. */
+    if(s.isFinaleTopic){ _showFinale(s); _lastRenderedTopicIdx = s.topicIdx; return; }
     _hideFinale();
     let o=document.getElementById('cinem-overlay');
     const isNew=!o;
@@ -90116,7 +90294,9 @@ window.openCinematicFlythrough=(scenario)=>{
       /* PDF 20.08 U5/U19/U20: pozycja okna względem kadru. */
       if(typeof window._cinemApplyBoxPos==='function') window._cinemApplyBoxPos(s.boxPos||null);
     };
-    if(isTopicChange){
+    /* PDF GDANSK B1: `isNew` wchodzi w te sama sciezke co zmiana tematu — inaczej nowo utworzone
+       okno zostaje z `opacity:0` i gracz go NIE WIDZI. */
+    if(isTopicChange || isNew){
       setTimeout(()=>{
         renderHTML();
         requestAnimationFrame(()=>{
@@ -105514,6 +105694,16 @@ setInterval(function(){
    tylko seria w krótkim czasie jest rozkładana w czasie. Treść i tak trafia do logu notyfikacji (addNotif),
    więc cap kolejki nic nie gubi. */
 let _msgQueue=[], _msgBusyUntil=0, _msgFlushTimer=null;
+/* PDF GDANSK U32: wypuszczenie zielonych okien przetrzymanych na czas aktywnosci. Pokazujemy
+   NAJNOWSZE, z odstepem — tak samo, jak robi to zakonczenie przelotu nad miastem. */
+window._msgFlushHeld=function(){
+  const q=window._cinemQueuedMsgs;
+  if(!Array.isArray(q)||!q.length) return 0;
+  const items=q.splice(0,q.length);
+  const last=items[items.length-1];
+  setTimeout(function(){ try{ showMsg(last.t,last.type,last.duration); }catch(_){} }, 700);
+  return items.length;
+};
 /* PDF 20.08 U32 (user): kolejka zielonych okien informacyjnych dziala referencyjnie do kolejki SMS —
    jedno okno ustepuje nastepnemu po 5 sekundach, zaden komunikat nie naklada sie na poprzedni. */
 const _MSG_MIN_GAP=5000;
@@ -105527,6 +105717,15 @@ function showMsg(t,type,duration){
   /* v1.9.96: NIC nie pojawia się w trakcie cinematic flythrough.
      v2.1.895 (user „toast bottom zasłania poradnik"): TAKŻE podczas intro/poradnika (intro-modal z-index 9998,
      a #msg toast 9999 = toast był NAD poradnikiem!). Kolejkuj zamiast pokazywać — flush po zamknięciu intro/przelotu. */
+  /* PDF GDANSK U32 (user): podczas aktywnosci „Freestyle" zielone prostokaty z podpowiedziami nie
+     moga rozpraszac gracza. Kolejka wznawia sie DOPIERO po przycisku „Wyjdz" — wybor „Jeszcze raz"
+     trzyma ja wstrzymana dalej (dokument wprost). Uzywamy tej samej poczekalni, co przelot. */
+  if(window._fsSessionActive){
+    if(!window._cinemQueuedMsgs) window._cinemQueuedMsgs=[];
+    window._cinemQueuedMsgs.push({t,type,duration});
+    if(window._cinemQueuedMsgs.length>12) window._cinemQueuedMsgs.shift();
+    return;
+  }
   if(G && (G._cinematicActive || G._introductionActive || document.getElementById('intro-offer') || document.getElementById('cinem-offer'))){
     /* v2.1.903 (audyt startu): kolejkuj toasty TAKŻE gdy widoczna oferta Wprowadzenia (po przelocie) — wcześniej tipy 6s/8s wyskakiwały NA modalu oferty. Flush po zamknięciu oferty (Pomiń / koniec slajdów). */
     if(!window._cinemQueuedMsgs) window._cinemQueuedMsgs=[];
@@ -115983,6 +116182,7 @@ loop();
       <option value="0,2784">🌑 Brama Underground</option>
       <option value="3360,3408">🌊 Brama Coast</option>
       <option value="3360,0">💼 Brama Business</option>
+      <option value="4704,1824">🏡 Brama Residental</option><!-- PDF GDANSK U34 -->
     </select>
     <button onclick="adminTeleport()" style="background:#2a1a3a;border:1px solid #9b59b6;color:#9b59b6;padding:6px 10px;border-radius:6px;font-size:11px;cursor:pointer">→ Idź</button>
   </div>
