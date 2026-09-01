@@ -787,7 +787,8 @@ body.mobile-pregame #gc, body.mobile-pregame #hud, body.mobile-pregame #dmg-over
 <!-- v2.1.349 Faza Z (user 2026-05-27 "esc cofa stronę, w aplikacjach gdzie jest opcja wróć tylko na dole też u góry, skróty klawiszowe 1/2/3"): dodany sticky back button "← Wstecz" w ph-top gdy NIE home (tracker G._phView). ESC w deeper view → renderPhoneHome zamiast closePhone. Skróty 1-9 dla home folderów/shortcuts + per-folder apps. -->
 <div id="phone">
   <div class="ph-top">
-    <button class="px" id="ph-back-top" onclick="window._phGoBack&&window._phGoBack()" title="Wstecz (Esc)" style="display:none;margin-right:8px">← Wstecz</button>
+    <!-- PDF GDANSK U18: jeden krok wstecz (aplikacja → folder → pulpit → zamkniecie telefonu) -->
+    <button class="px" id="ph-back-top" onclick="window._phBackOneStep?window._phBackOneStep():(window._phGoBack&&window._phGoBack())" title="Wstecz (Esc)" style="display:none;margin-right:8px">← Wstecz</button>
     <span class="pt" id="ph-title">Telefon</span>
     <button class="px" onclick="closePhone()" title="Zamknij telefon (P / Esc na menu)">✕</button>
   </div>
@@ -1818,7 +1819,9 @@ document.addEventListener('keydown', e => {
     if(_paused){togglePause();return;}
     /* v2.1.349 Faza Z (user 2026-05-27 "esc nie zamykał telefonu tylko cofał stronę, na menu głównym dopiero zamyka telefon"): ESC w deeper phone view → renderPhoneHome (cofnij). Tylko na home → standard close cascade. */
     if(typeof phoneOpen==='function' && phoneOpen() && G._phView && G._phView!=='home'){
-      if(typeof window._phGoBack==='function') window._phGoBack();
+      /* PDF GDANSK U18: Esc i przycisk „Wstecz" cofaja TAK SAMO — o jeden krok. */
+      if(typeof window._phBackOneStep==='function') window._phBackOneStep();
+      else if(typeof window._phGoBack==='function') window._phGoBack();
       else if(typeof renderPhoneHome==='function') renderPhoneHome();
       return;
     }
@@ -1852,7 +1855,12 @@ document.addEventListener('keydown', e => {
   }
   /* v2.1.613 (user): klawisz I → ekwipunek (toggle). Litera I wolna (zajęte e/p/v/m/s/z/d/a). */
   if(e.key==='i'||e.key==='I'){
-    if(!_busyMG && typeof window.toggleInventory==='function') window.toggleInventory();
+    /* PDF GDANSK U57: ekwipunek otwiera sie takze w trakcie odpoczynku (kanapa, sofa, lawka
+       w parku) — gracz moze w miedzyczasie cos zjesc, zamiast przerywac regeneracje. Wlasna lista
+       blokad, bez `_restTimer`, ktory wystepuje w `_busyMG` uzywanym przez pozostale skroty. */
+    const _busyForInv=(typeof mgOpen==='function'&&mgOpen())||(typeof sleepInterval!=='undefined'&&sleepInterval)
+      ||(typeof npcDlgOpen==='function'&&npcDlgOpen())||(typeof G!=='undefined'&&(G._cinematicActive||G._itut));
+    if(!_busyForInv && typeof window.toggleInventory==='function') window.toggleInventory();
   }
   /* v2.1.349 Faza Z (user 2026-05-27 "Skróty klawiszowe w telefonie, każdy folder i każda aplikacja w każdym folderze ma mieć skrót klawiszowy + napisany w nawiasie"): cyfry 1-9 otwierają X-tą pozycję w aktualnym view phone. Przykład user: P > 3 > 2 → folder Kariera (3) → 2nd app w folderze (Moja muzyka). */
   if(typeof phoneOpen==='function' && phoneOpen() && /^[1-9]$/.test(e.key)){
@@ -3096,11 +3104,11 @@ const ROOMS = {
       {id:'npc_fan',      wx:1200, wy:3092,w:34,h:56, act:'npc:fan',                  prompt:'[E] Fan',                       lbl:''}, /* H3 south (3072-3168) — Drip District */
       {id:'npc_manager',  wx:1950, wy:596, w:34,h:56, act:'npc:manager',              prompt:'[E] Menadżer',                  lbl:''}, /* H1 south (576-672) — przed Szpitalem */
       /* v2.1.66 Amper: Marcin przeniesiony BLISKO Sali Koncertowej (wx:2700,wy:672). Z H3-north na H1-south chodnik (576-672) tuż przy Sali. */
-      {id:'npc_booking',  wx:2920, wy:596, w:34,h:56, act:'npc:booking',              prompt:'[E] Booking Agent — Marcin',    lbl:''}, /* H1 south — obok Sali Koncertowej */
+      {id:'npc_booking',  wx:2920, wy:596, w:34,h:56, act:'npc:booking',              prompt:'[E] Spencer (Booking Agent)',    lbl:''}, /* H1 south — obok Sali Koncertowej */
       /* v2.1.201 [Amper]: 3 nowe NPCs z side questami — DJ Tola (Radio), Janek (Audio Consultant), Anita (Promoter Sala). H1 north 288-384 sidewalk. */
       {id:'npc_dj',       wx:3680, wy:308, w:34,h:56, act:'npc:dj',                   prompt:'[E] DJ Tola — Radio',           lbl:''}, /* przed Radio Street (3760,133) */
-      {id:'npc_audio',    wx:1180, wy:308, w:34,h:56, act:'npc:audio',                prompt:'[E] Janek — Audio Consultant',  lbl:''}, /* przed Sklepem muzycznym (1080,133) */
-      {id:'npc_promoter', wx:2820, wy:596, w:34,h:56, act:'npc:promoter',             prompt:'[E] Anita — Promoter Sali',     lbl:''}, /* H1 south, obok Sali Koncertowej */
+      {id:'npc_audio',    wx:1180, wy:308, w:34,h:56, act:'npc:audio',                prompt:'[E] Andre Carter (Konsultant Audio)',  lbl:''}, /* przed Sklepem muzycznym (1080,133) */
+      {id:'npc_promoter', wx:2820, wy:596, w:34,h:56, act:'npc:promoter',             prompt:'[E] Cassie (Promotor Sali)',     lbl:''}, /* H1 south, obok Sali Koncertowej */
       // ── STREFA CENTRALNA wy=672 (dół=827, dotyka H1 south sidewalk wy=671) ──
       // Z1: sklep(110-258) + skwer(278-418) + fryzjer(440-570) + DB(590-660)
       {id:'sklep',        wx:110,  wy:672, w:148,h:155, act:'shop:spozywczy',           prompt:'[E] Sklep spożywczy',           lbl:'Sklep spożywczy'},
@@ -3160,7 +3168,7 @@ const ROOMS = {
       // PARKING MIEJSKI — ROW D Z2 (wy=1548), zastępuje 6 bloków dekoracyjnych
       {id:'parking',      wx:1056, wy:1548, w:1056,h:145, act:'parking:info',           prompt:'[E] 🅿️ Parking',               lbl:''},
       // NPCs w strefie centralnej (v2.1.6: rozrzucone)
-      {id:'npc_producer', wx:1850, wy:308, w:34,h:56, act:'npc:producer',              prompt:'[E] Producent — Majkel',        lbl:''}, /* H1 north (288-384) — po prawej Studia */
+      {id:'npc_producer', wx:1850, wy:308, w:34,h:56, act:'npc:producer',              prompt:'[E] Nate „808” Morgan (Producent)',        lbl:''}, /* H1 north (288-384) — po prawej Studia */
       {id:'npc_vendor',   wx:1528, wy:735, w:34,h:56, act:'npc:vendor',               prompt:'[E] Kebab Kingpin — Frankie',  lbl:'', actRadius:150}, /* D5 (PDF v2.3.45): nazwa „Kebab Kingpin". v2.3.102 (PDF #8-6): wy720→735 — niżej, bliżej budynków mieszkalnych */
       /* v2.1.66 Amper: Crew przesunięte żeby h:56 mieściło się w chodniku H2 (1824-1920). Wcześniej wy:1870 + 56 = 1926 wystawało na drogę H2 (1920-2112). */
       {id:'npc_crew',     wx:2499, wy:1781,w:34,h:56, act:'npc:crew',                  prompt:'[E] Rekrutuj ekipę',            lbl:''}, /* v2.1.202 [Amper]: przesunięty z (2400,1860) → (2499,1781) per user request (P.wx/P.wy z konsoli). Pozycja: chodnik H2 north sidewalk (wy 1776-1872) tuż na wschód od V2 wsch chodnik (wx 2496+). */
@@ -3653,7 +3661,7 @@ const ROOMS = {
     objects:[
       {id:'exit_plantacja',   wx:500, wy:560, w:62, h:62,  act:'gotoPlace:underground:plantation_underground', prompt:'[E] ⬅ Wyjdź z plantacji', lbl:'Wyjście'},/* v2.3.130 (user „wyrzuca w złym miejscu"): było goto:underground:1240:660 = STARA pozycja plantacji (przeniesiona w v2.3.105 na 60,1470) → gracz lądował ~1200 px dalej. Teraz punkt wyjścia liczony z pozycji budynku. */
       /* v2.3.128 (PDF SUBTERRA §11): terminal obiektu — rozwój poziomów, doposażenie, materiały i cykle. */
-      {id:'subterra_terminal',wx:660, wy:120, w:96, h:88,  act:'subterra:terminal', prompt:'[E] 🌱 Terminal SUBTERRA', lbl:'SUBTERRA'},
+      {id:'subterra_terminal',wx:660, wy:120, w:96, h:88,  act:'subterra:terminal', prompt:'[E] Terminal', lbl:'SUBTERRA'},
       {id:'plantation_pot_0', wx:90,  wy:250, w:56, h:80,  act:'grow_pot:plantation:0', actRadius:64, prompt:'[E] Doniczka 1', lbl:''},
       {id:'plantation_pot_1', wx:330, wy:250, w:56, h:80,  act:'grow_pot:plantation:1', actRadius:64, prompt:'[E] Doniczka 2', lbl:''},
       {id:'plantation_pot_2', wx:570, wy:250, w:56, h:80,  act:'grow_pot:plantation:2', actRadius:64, prompt:'[E] Doniczka 3', lbl:''},
@@ -3699,25 +3707,25 @@ const ROOMS = {
   vantage_lobby: {
     wT:24, hT:15, map:null,
     objects:[
-      {id:'vw_reception',   wx:520,  wy:100, w:210, h:110, act:'vantage:reception',  prompt:'[E] 🛎 Recepcja główna',            lbl:'Recepcja'},
-      {id:'vw_sales',       wx:800,  wy:100, w:200, h:110, act:'vantage:sales',      prompt:'[E] 📋 Punkt sprzedaży nieruchomości', lbl:'Sprzedaż'},
-      {id:'npc_eve_rook',   wx:735,  wy:235, w:36,  h:58,  act:'vantage:eve',        prompt:'[E] 👩‍💼 Eve Rook — doradczyni',       lbl:'Eve Rook'},
-      {id:'vw_model',       wx:520,  wy:250, w:200, h:120, act:'vantage:model',      prompt:'[E] 🏗 Makieta kompleksu',           lbl:'Makieta'},
-      {id:'vw_board',       wx:800,  wy:250, w:200, h:110, act:'vantage:board',      prompt:'[E] 📺 Tablica dostępnych lokali',    lbl:'Tablica'},
-      {id:'vw_wait',        wx:280,  wy:250, w:180, h:110, act:'vantage:wait',       prompt:'[E] 🛋 Strefa oczekiwania',          lbl:'Poczekalnia'},
-      {id:'vw_elevator',    wx:1060, wy:100, w:110, h:110, act:'vantage:elevator',   prompt:'[E] 🛗 Winda osobowa',               lbl:'Winda'},
-      {id:'vw_freight',     wx:1060, wy:250, w:110, h:110, act:'vantage:freight',    prompt:'[E] 🛗 Winda towarowa',              lbl:'Winda towarowa'},
-      {id:'vw_stairs',      wx:1060, wy:400, w:110, h:100, act:'vantage:stairs',     prompt:'[E] 🪜 Schody główne',               lbl:'Schody'},
-      {id:'vw_stairs_tech', wx:60,   wy:400, w:100, h:100, act:'vantage:stairs_tech',prompt:'[E] 🪜 Schody techniczne',           lbl:'Schody tech.'},
-      {id:'vw_corridor',    wx:280,  wy:100, w:180, h:110, act:'vantage:showroom',   prompt:'[E] 🚪 Korytarz do lokali pokazowych',lbl:'Lokale pokazowe'},
-      {id:'vw_garage_door', wx:60,   wy:250, w:150, h:110, act:'vantage:garage',     prompt:'[E] 🚗 Wejście do garażu',            lbl:'Garaż B1'},
-      {id:'vw_access',      wx:800,  wy:400, w:170, h:100, act:'vantage:access',     prompt:'[E] 🪪 Punkt kontroli dostępu',       lbl:'Kontrola'},
-      {id:'vw_cafe',        wx:280,  wy:400, w:180, h:100, act:'vantage:cafe',       prompt:'[E] ☕ Mała kawiarnia',               lbl:'Kawiarnia'},
-      {id:'vw_admin',       wx:520,  wy:400, w:200, h:100, act:'vantage:admin',      prompt:'[E] 🗄 Biuro administracji budynku',  lbl:'Administracja'},
-      {id:'vw_toilets',     wx:60,   wy:100, w:150, h:110, act:'vantage:toilets',    prompt:'[E] 🚻 Toalety',                      lbl:'Toalety'},
-      {id:'vw_service',     wx:1060, wy:540, w:110, h:80,  act:'vantage:service',    prompt:'[E] 🔒 Drzwi do części serwisowej',   lbl:'Serwis'},
-      {id:'vw_storage_door',wx:60,   wy:540, w:150, h:80,  act:'vantage:storage',    prompt:'[E] 📦 Zejście do magazynów B2',      lbl:'Magazyny B2'},
-      {id:'vw_exit',        wx:560,  wy:565, w:120, h:60,  act:'vantage:exit',       prompt:'[E] 🚪 Wyjście na zewnątrz',          lbl:'Wyjście'},
+      {id:'vw_reception',   wx:520,  wy:100, w:210, h:110, act:'vantage:reception',  prompt:'[E] Recepcja główna',            lbl:'Recepcja'},
+      {id:'vw_sales',       wx:800,  wy:100, w:200, h:110, act:'vantage:sales',      prompt:'[E] Punkt sprzedaży nieruchomości', lbl:'Sprzedaż'},
+      {id:'npc_eve_rook',   wx:735,  wy:235, w:36,  h:58,  act:'vantage:eve',        prompt:'[E] Eve Rook — doradczyni',       lbl:'Eve Rook'},
+      {id:'vw_model',       wx:520,  wy:250, w:200, h:120, act:'vantage:model',      prompt:'[E] Makieta kompleksu',           lbl:'Makieta'},
+      {id:'vw_board',       wx:800,  wy:250, w:200, h:110, act:'vantage:board',      prompt:'[E] Tablica dostępnych lokali',    lbl:'Tablica'},
+      {id:'vw_wait',        wx:280,  wy:250, w:180, h:110, act:'vantage:wait',       prompt:'[E] Strefa oczekiwania',          lbl:'Poczekalnia'},
+      {id:'vw_elevator',    wx:1060, wy:100, w:110, h:110, act:'vantage:elevator',   prompt:'[E] Winda osobowa',               lbl:'Winda'},
+      {id:'vw_freight',     wx:1060, wy:250, w:110, h:110, act:'vantage:freight',    prompt:'[E] Winda towarowa',              lbl:'Winda towarowa'},
+      {id:'vw_stairs',      wx:1060, wy:400, w:110, h:100, act:'vantage:stairs',     prompt:'[E] Schody główne',               lbl:'Schody'},
+      {id:'vw_stairs_tech', wx:60,   wy:400, w:100, h:100, act:'vantage:stairs_tech',prompt:'[E] Schody techniczne',           lbl:'Schody tech.'},
+      {id:'vw_corridor',    wx:280,  wy:100, w:180, h:110, act:'vantage:showroom',   prompt:'[E] Korytarz do lokali pokazowych',lbl:'Lokale pokazowe'},
+      {id:'vw_garage_door', wx:60,   wy:250, w:150, h:110, act:'vantage:garage',     prompt:'[E] Wejście do garażu',            lbl:'Garaż B1'},
+      {id:'vw_access',      wx:800,  wy:400, w:170, h:100, act:'vantage:access',     prompt:'[E] Punkt kontroli dostępu',       lbl:'Kontrola'},
+      {id:'vw_cafe',        wx:280,  wy:400, w:180, h:100, act:'vantage:cafe',       prompt:'[E] Mała kawiarnia',               lbl:'Kawiarnia'},
+      {id:'vw_admin',       wx:520,  wy:400, w:200, h:100, act:'vantage:admin',      prompt:'[E] Biuro administracji budynku',  lbl:'Administracja'},
+      {id:'vw_toilets',     wx:60,   wy:100, w:150, h:110, act:'vantage:toilets',    prompt:'[E] Toalety',                      lbl:'Toalety'},
+      {id:'vw_service',     wx:1060, wy:540, w:110, h:80,  act:'vantage:service',    prompt:'[E] Drzwi do części serwisowej',   lbl:'Serwis'},
+      {id:'vw_storage_door',wx:60,   wy:540, w:150, h:80,  act:'vantage:storage',    prompt:'[E] Zejście do magazynów B2',      lbl:'Magazyny B2'},
+      {id:'vw_exit',        wx:560,  wy:565, w:120, h:60,  act:'vantage:exit',       prompt:'[E] Wyjście na zewnątrz',          lbl:'Wyjście'},
     ]
   },
 
@@ -11515,8 +11523,10 @@ function drawUndergroundDecorations(){
     X.fillStyle='#1a1010';X.fillRect(sx+4,sy+4,24,4); /* lid */
     X.fillStyle='rgba(200,55,50,0.4)';X.fillText('☠',sx+18,sy+28);
   }
-  /* 4 graffiti tags na ścianach */
-  const tags=[{wx:380,wy:310,col:'#c0392b',t:'STREET'},{wx:680,wy:310,col:'#f1c40f',t:'KING'},{wx:980,wy:310,col:'#00bcd4',t:'415'},{wx:380,wy:660,col:'#9b59b6',t:'XYZ'}];
+  /* PDF GDANSK U30: napisy „STREET", „KING" i „415" na scianach Underground District usuniete —
+     nic nie wnosily, a psuly estetyke dzielnicy. Czwarty napis („XYZ") to ten sam element
+     wizualny, wiec cala warstwa znika; sciany i pozostale dekoracje zostaja bez zmian. */
+  const tags=[];
   for(const tag of tags){
     const sx=wx2sx(tag.wx),sy=wy2sy(tag.wy);
     if(sx<-50||sx>1330) continue;
@@ -14946,7 +14956,11 @@ function updatePlayer(){
     return;
   }
   if(_paused || G._dying) return; /* v2.3.116: śmierć zamraża ruch gracza (sekwencja fade-to-black) */
-  if(overlayOpen()||phoneOpen()||mgOpen()||document.getElementById('tour-ov')) return;/* v2.3.107 A4 (user): podczas turnieju (tour-ov) gracz NIE rusza się po mapie — steruje tylko w trybie turnieju */
+  /* PDF GDANSK U5: sam otwarty smartfon NIE zatrzymuje juz gracza — chodzi po mapie tak samo, jak
+     przy otwartej mapie [M]. Ruch blokuja wylacznie trzy aplikacje wymagajace pelnej uwagi
+     (Sterowanie, S9 Agency, SessionBoard) oraz pisanie w polu tekstowym. */
+  const _phBlocks = phoneOpen() && !(typeof window._phMovementAllowed==='function' && window._phMovementAllowed());
+  if(overlayOpen()||_phBlocks||mgOpen()||document.getElementById('tour-ov')) return;/* v2.3.107 A4 (user): podczas turnieju (tour-ov) gracz NIE rusza się po mapie — steruje tylko w trybie turnieju */
   if(npcDlgOpen()) return;
   if(G._resting) return;
   const sleepOv=document.getElementById('sleep-overlay');
@@ -15118,6 +15132,9 @@ function updatePlayer(){
   }
   const nearId=getNear();
   const pr=document.getElementById('prompt');
+  /* PDF GDANSK U51: po kazdej aktualizacji podpowiedzi [E] przeliczamy pozycje komunikatu, zeby
+     oba elementy nigdy sie na siebie nie nakladaly. */
+  if(typeof window._msgAvoidPrompt==='function') setTimeout(window._msgAvoidPrompt,0);
   if(nearId&&!overlayOpen()&&!phoneOpen()&&!npcDlgOpen()){
     const obj=ROOMS[currentRoom].objects.find(o=>o.id===nearId);
     if(obj){
@@ -20941,9 +20958,9 @@ const ACHIEVEMENTS = [
   {id:'megastar_complete',name:'Megastar Status',desc:'Ukończyłeś 7-dniową trasę świat (Megastar World Tour)',icon:'🌍',check:()=>(G._megastarComplete||0)>=1},
   /* v2.1.228: Dialog tree story arc completion achievements (Krok 8 Dialog Tree NPC) */
   {id:'story_marcin',name:'Bracia po scenie',desc:'Ukończ story arc z Marcinem (Organizator) — wszystkie 5 rozmów',icon:'🎤',check:()=>((G._dialogProgress||{}).marcin?.step||0)>5},
-  {id:'story_kamil',name:'Dzielnica zawsze pamięta',desc:'Ukończ story arc z Kamilem (Stary kumpel) — wszystkie 5 rozmów',icon:'👊',check:()=>((G._dialogProgress||{}).kamil?.step||0)>5},
+  {id:'story_kamil',name:'Dzielnica zawsze pamięta',desc:'Ukończ story arc z Ryanem (Stary kumpel) — wszystkie 5 rozmów',icon:'👊',check:()=>((G._dialogProgress||{}).kamil?.step||0)>5},
   {id:'story_producent',name:'Klasyk z producentem',desc:'Ukończ story arc z Producentem (Studio) — wszystkie 5 rozmów',icon:'🎚️',check:()=>((G._dialogProgress||{}).producent?.step||0)>5},
-  {id:'story_all',name:'Wszystkie historie',desc:'Ukończ story arc ze wszystkimi 3 NPC (Marcin + Kamil + Producent)',icon:'📖',check:()=>{const p=G._dialogProgress||{};return (p.marcin?.step||0)>5 && (p.kamil?.step||0)>5 && (p.producent?.step||0)>5;}},
+  {id:'story_all',name:'Wszystkie historie',desc:'Ukończ story arc ze wszystkimi 3 NPC (Marcin + Ryan + Producent)',icon:'📖',check:()=>{const p=G._dialogProgress||{};return (p.marcin?.step||0)>5 && (p.kamil?.step||0)>5 && (p.producent?.step||0)>5;}},
 ];
 
 /* v2.1.548 (playtest 2026-05-31 P1 "spam osiagniec"): _flushAchToasts byl WYWOLYWANY w checkAchievements (L~13662) ale NIGDY ZDEFINIOWANY (ghost) → kolejka G._pendingAchToasts byla wypelniana ale nigdy oprozniana (memory leak w save) + brak spojnego powiadomienia. Definicja (aktywacja dead-code, regula #7): debounce 400ms grupuje WSZYSTKIE osiagniecia z jednej serii w JEDNO powiadomienie ("+N osiagniec: ...") zamiast lawiny N osobnych toastow. Oprozania kolejke = fix leak. */
@@ -20958,16 +20975,18 @@ function _flushAchToasts(){
     const totalReward=q.reduce((s,a)=>s+(a.reward||0),0);
     const rTxt=totalReward>0?` (+${totalReward.toLocaleString('pl')} zł)`:'';
     if(typeof addNotif==='function'){
-      if(q.length===1) addNotif(`🏆 Osiągnięcie: ${q[0].name}${rTxt}`);
-      else addNotif(`🏆 +${q.length} osiągnięć: ${q.map(a=>a.name).join(', ')}${rTxt}`);
+      /* PDF GDANSK U82: komunikaty o osiagnieciach bez emoji. */
+      if(q.length===1) addNotif(`Osiągnięcie: ${q[0].name}${rTxt}`);
+      else addNotif(`+${q.length} osiągnięć: ${q.map(a=>a.name).join(', ')}${rTxt}`);
     }
     /* zgrupowany zloty toast (anti-overlap, klikalny) */
     try{
       const el=document.createElement('div'); el.id='_achToast';
       el.style.cssText='position:fixed;top:128px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,rgba(40,32,8,.97),rgba(24,18,4,.97));border:2px solid #f1c40f;border-radius:12px;padding:12px 20px;color:#ffe680;font-size:16px;font-weight:800;font-family:inherit;z-index:150;box-shadow:0 6px 28px rgba(241,196,15,.35);cursor:pointer;display:flex;align-items:center;gap:12px;max-width:80vw';
-      const head=q.length===1?`${q[0].icon||'🏆'} ${q[0].name}`:`🏆 +${q.length} osiągnięć`;
+      /* PDF GDANSK U82: bez emoji — sama nazwa osiagniecia. */
+      const head=q.length===1?`${q[0].name}`:`+${q.length} osiągnięć`;
       const sub=q.length===1?(q[0].desc||''):q.map(a=>a.name).join(' · ');
-      el.innerHTML=`<span style="font-size:26px">🏆</span><div><div>${head}${rTxt}</div><div style="font-size:11px;color:#c9b15a;font-weight:600;margin-top:2px">${sub}</div></div>`;
+      el.innerHTML=`${window._gdAchBadge(26)}<div><div>${head}${rTxt}</div><div style="font-size:11px;color:#c9b15a;font-weight:600;margin-top:2px">${sub}</div></div>`;
       el.onclick=()=>{try{el.remove();}catch(e){}};
       document.getElementById('_achToast')?.remove();
       if(document.body) document.body.appendChild(el);
@@ -21478,7 +21497,7 @@ const RANDOM_EVENTS = [
   {name:'Manager bonus', chance:0.015, maxPerDay:1, cond:()=>_evPhoneSpot()&&G.managementDeal, fn:()=>{
     // #84 NERF ÷2
     const bonus=rnd(100,500);earn(bonus,false);
-    notify(`🤵 Telefon: menadżer Kamil wynegocjował Ci bonus! +${bonus} zł!`);
+    notify(`🤵 Telefon: Manager Marcus wynegocjował Ci bonus! +${bonus} zł!`);
   }},
   /* ═══ v2.1.927 (PDF l.29-31): DROBNE OSZUSTWA NPC — rzadkie negatywne eventy. Straty CAPOWANE, maxPerDay:1, niska szansa (reguła #11). ═══ */
   /* Menedżer fałszuje faktury (przeciwwaga „Manager bonus") — tylko gdy masz menedżera; przytula część zysku. */
@@ -22583,7 +22602,7 @@ window._prodCanvasMG=function(cfg,onDone){
   if(!_mg||!_mc){ if(typeof onDone==='function') onDone(0.7); return; }
   const W=360,H=400;
   _mc.innerHTML=`<div style="background:#0a0f14;border:2px solid ${cfg.accent};border-radius:12px;padding:14px;max-width:400px;margin:0 auto;color:#fff">
-    <h2 style="color:${cfg.accent2};margin:0 0 4px;text-align:center;font-size:17px">${cfg.emoji} ${cfg.title}</h2>
+    <h2 style="color:${cfg.accent2};margin:0 0 4px;text-align:center;font-size:17px">${cfg.emoji?cfg.emoji+' ':''}${cfg.title}</h2><!-- PDF GDANSK U84: puste emoji nie zostawia sierocej spacji -->
     <div style="color:#bcd;font-size:12px;text-align:center;margin-bottom:8px;min-height:30px">${cfg.hint}</div>
     <canvas id="pcmg-cv" width="${W}" height="${H}" style="width:100%;display:block;background:linear-gradient(180deg,#16242e,#0c1612);border-radius:8px;touch-action:none;cursor:grab"></canvas>
     <div id="pcmg-fb" style="text-align:center;font-size:13px;margin-top:8px;min-height:18px;font-weight:700;color:#9fb"></div>
@@ -22865,8 +22884,8 @@ window._growPlant=function(a,b){
   if((G.grow.inv.seeds||0)<1){showMsg('🌱 Brak nasionka. Kup zaopatrzenie ogrodnicze.','r',3000);return;}
   if((G.grow.inv.soil||0)<1){showMsg('🪨 Brak ziemi.','r',2500);return;}
   /* 2 minigry canvas: chwyć worek ziemi i trzęś nad doniczką → przeciągnij nasiono do doniczki */
-  window._prodCanvasMG({type:'soil',title:'Wsypywanie ziemi',emoji:'🪨',hint:'Chwyć worek ziemi (przytrzymaj) i potrząsaj nim w lewo-prawo NAD doniczką, aż ją napełnisz.',accent:'#a0522d',accent2:'#d2a679',target:100}, function(q1){
-    window._prodCanvasMG({type:'seed',title:'Sadzenie nasiona',emoji:'🌱',hint:'Chwyć nasiono i przeciągnij je do środka doniczki, potem puść.',accent:'#27ae60',accent2:'#7df0a0'}, function(q2){
+  window._prodCanvasMG({type:'soil',title:'Wsypywanie ziemi',emoji:'',hint:'Chwyć worek ziemi (przytrzymaj) i potrząsaj nim w lewo-prawo NAD doniczką, aż ją napełnisz.',accent:'#a0522d',accent2:'#d2a679',target:100}, function(q1){
+    window._prodCanvasMG({type:'seed',title:'Sadzenie nasiona',emoji:'',hint:'Chwyć nasiono i przeciągnij je do środka doniczki, potem puść.',accent:'#27ae60',accent2:'#7df0a0'}, function(q2){
       _growEnsure();
       if((G.grow.inv.seeds||0)<1||(G.grow.inv.soil||0)<1){showMsg('Brak składników.','r',2500);_growReopenUI();return;}
       if(!_growApplyPlant(site,idx,(q1+q2)/2)){_growReopenUI();return;}
@@ -22881,7 +22900,7 @@ window._growWater=function(a,b){
   const {site,idx}=_growArgs(a,b); const pot=_growSitePots(site)[idx];
   if(!pot||!pot.planted){return;}
   if(pot.water>=100){showMsg('💧 Doniczka pełna wody.','i',2500);return;}
-  window._prodCanvasMG({type:'water',title:'Podlewanie',emoji:'💧',hint:'Chwyć konewkę i trzymaj NAD doniczką — lej, aż napełnisz wodę do pełna (100%).',accent:'#3498db',accent2:'#7ec8e3',target:100}, function(q){
+  window._prodCanvasMG({type:'water',title:'Podlewanie',emoji:'',hint:'Chwyć konewkę i trzymaj NAD doniczką — lej, aż napełnisz wodę do pełna (100%).',accent:'#3498db',accent2:'#7ec8e3',target:100}, function(q){
     _growEnsure(); const add=_growApplyWater(site,idx,q);
     if(add==null){_growReopenUI();return;}
     G.energy=Math.max(0,((typeof G.energy==='number'?G.energy:100))-1);
@@ -22894,7 +22913,7 @@ window._growFertilize=function(a,b){
   if(!pot||!pot.planted){return;}
   if((G.grow.inv.fert||0)<1){showMsg('🧪 Brak nawozu. Kup w zaopatrzeniu.','r',2500);return;}
   if(pot.fert>=100){showMsg('🧪 Doniczka pełna nawozu.','i',2500);return;}
-  window._prodCanvasMG({type:'fert',title:'Nawożenie',emoji:'🧪',hint:'Chwyć worek nawozu i potrząsaj nim NAD doniczką, by go wsypać.',accent:'#52be80',accent2:'#a8e6c0',target:100}, function(q){
+  window._prodCanvasMG({type:'fert',title:'Nawożenie',emoji:'',hint:'Chwyć worek nawozu i potrząsaj nim NAD doniczką, by go wsypać.',accent:'#52be80',accent2:'#a8e6c0',target:100}, function(q){
     _growEnsure();
     if((G.grow.inv.fert||0)<1){_growReopenUI();return;}
     const pot2=_growSitePots(site)[idx]; if(!pot2||!pot2.planted){_growReopenUI();return;}
@@ -22908,7 +22927,7 @@ window._growHarvest=function(a,b){
   if(!pot||!pot.planted||pot.stage<4){showMsg('🌾 Roślina jeszcze nie gotowa.','r',2500);return;}
   if(window._trapChestBlocked&&window._trapChestBlocked()) return; /* v2.3.122 (PDF T12): limit skrzyni 100 */
   /* minigra trymowania canvas — przeciągnij nożyce po pąkach, by je przyciąć. Jakość wpływa na plon. */
-  window._prodCanvasMG({type:'trim',title:'Trymowanie',emoji:'✂️',hint:'Chwyć nożyce i przeciągnij po wszystkich pąkach, by je przyciąć.',accent:'#27ae60',accent2:'#7df0a0'}, function(q){
+  window._prodCanvasMG({type:'trim',title:'Trymowanie',emoji:'',hint:'Chwyć nożyce i przeciągnij po wszystkich pąkach, by je przyciąć.',accent:'#27ae60',accent2:'#7df0a0'}, function(q){
     _growEnsure(); const pot2=_growSitePots(site)[idx];
     if(!pot2||!pot2.planted||pot2.stage<4){_growReopenUI();return;}
     let yieldQty=3;
@@ -23130,11 +23149,11 @@ window._methSynthApply=function(q){
 /* v2.1.502 AN.7 — DEALERZY NPC HIRE SYSTEM (Schedule 1 + GTA 5 inspired).
    Gracz najmuje dealerów (3-5 NPC profiles), placi daily wage (50-300 zł), oni auto-sprzedają stash. */
 const DEALER_NPCS=[
-  {id:'kamil_d',  name:'Kamil "Dzielnica"',     emoji:'🧑‍💼', baseSalesRate:1.5, baseLoyalty:50, minWage:80,  preferredArea:'Underground', desc:'Lokalny weteran. Zna ulice na pamięć.'},
-  {id:'magda_k',  name:'Magda "Klient"',          emoji:'👩‍💼', baseSalesRate:2.0, baseLoyalty:40, minWage:120, preferredArea:'Coast',       desc:'Ladna twarz — klienci kupują z chęcią. Wymaga większej zapłaty.'},
-  {id:'darek_t',  name:'Darek "Tani"',           emoji:'🧑',     baseSalesRate:1.0, baseLoyalty:70, minWage:50,  preferredArea:'Ulica',       desc:'Najtańszy ale lojalny. Mała sprzedaż ale stabilna.'},
-  {id:'rafal_p',  name:'Rafał "Profesor"',        emoji:'🧑‍🎓', baseSalesRate:2.5, baseLoyalty:30, minWage:200, preferredArea:'Business',    desc:'Premium klientela. Ekstremalny zarobek ale wymaga negocjacji.'},
-  {id:'zenek_b',  name:'Zenek "Boss"',           emoji:'🧔',     baseSalesRate:3.0, baseLoyalty:20, minWage:300, preferredArea:'Wszędzie',    desc:'Top tier. Sprzedaje wszystko. Wymaga top zapłaty + lojalności.'},
+  {id:'kamil_d',  name:'Marcus „Block”',     emoji:'🧑‍💼', baseSalesRate:1.5, baseLoyalty:50, minWage:80,  preferredArea:'Underground', desc:'Lokalny weteran. Zna ulice na pamięć.'},
+  {id:'magda_k',  name:'Jade „Pretty”',          emoji:'👩‍💼', baseSalesRate:2.0, baseLoyalty:40, minWage:120, preferredArea:'Coast',       desc:'Ladna twarz — klienci kupują z chęcią. Wymaga większej zapłaty.'},
+  {id:'darek_t',  name:'Eddie „Cheap”',           emoji:'🧑',     baseSalesRate:1.0, baseLoyalty:70, minWage:50,  preferredArea:'Ulica',       desc:'Najtańszy ale lojalny. Mała sprzedaż ale stabilna.'},
+  {id:'rafal_p',  name:'Leon „Professor”',        emoji:'🧑‍🎓', baseSalesRate:2.5, baseLoyalty:30, minWage:200, preferredArea:'Business',    desc:'Premium klientela. Ekstremalny zarobek ale wymaga negocjacji.'},
+  {id:'zenek_b',  name:'Victor „Boss”',           emoji:'🧔',     baseSalesRate:3.0, baseLoyalty:20, minWage:300, preferredArea:'Wszędzie',    desc:'Top tier. Sprzedaje wszystko. Wymaga top zapłaty + lojalności.'},
 ];
 
 /* Max dealers per Trap tier (level): 1 dealer for lvl 1-4, 2 for 5-9, 3 for 10-14, 5 for 15+. */
@@ -23350,13 +23369,13 @@ window._trapDealersDailyTick=function(){
 
 /* ═══ v2.1.795 FAZA 4 — PRACOWNICY: ogrodnik (auto-uprawa plantacji → trawa) + chemik (auto-gotowanie ze składników). Reuse wzorca dealerów (wage/loyalty/odejście). ═══ */
 const WORKER_NPCS=[
-  {id:'staszek_g', role:'gardener', name:'Staszek „Zielona Ręka"', emoji:'👨‍🌾', rate:1, minWage:120, reqLvl:5,  desc:'Ogrodnik. Codziennie pielęgnuje, zbiera i przesadza plantację → trawa ląduje w stashu.'},
-  {id:'gienia_g',  role:'gardener', name:'Gienia „Babcia Ziele"',  emoji:'👵', rate:2, minWage:240, reqLvl:5,  desc:'Mistrzyni uprawy — obrobi 2× więcej doniczek dziennie.'},
-  {id:'walter_c',  role:'chemist',  name:'Walter „Profesor"',       emoji:'🧑‍🔬', rate:1, minWage:260, reqLvl:10, desc:'Chemik. Gotuje receptury z Twoich składników (auto, bez minigry).'},
-  {id:'jesse_c',   role:'chemist',  name:'Jesse „Wspólnik"',        emoji:'🧑‍🏭', rate:2, minWage:480, reqLvl:10, desc:'Doświadczony kucharz — 2× produkcja dzienna.'},
+  {id:'staszek_g', role:'gardener', name:'Caleb „Green Thumb”', emoji:'👨‍🌾', rate:1, minWage:120, reqLvl:5,  desc:'Ogrodnik. Codziennie pielęgnuje, zbiera i przesadza plantację → trawa ląduje w stashu.'},
+  {id:'gienia_g',  role:'gardener', name:'Martha „Green Granny”',  emoji:'👵', rate:2, minWage:240, reqLvl:5,  desc:'Mistrzyni uprawy — obrobi 2× więcej doniczek dziennie.'},
+  {id:'walter_c',  role:'chemist',  name:'Walter „Professor”',       emoji:'🧑‍🔬', rate:1, minWage:260, reqLvl:10, desc:'Chemik. Gotuje receptury z Twoich składników (auto, bez minigry).'},
+  {id:'jesse_c',   role:'chemist',  name:'Jesse „Partner”',        emoji:'🧑‍🏭', rate:2, minWage:480, reqLvl:10, desc:'Doświadczony kucharz — 2× produkcja dzienna.'},
   /* ═══ H5 (v2.3.6, PDF 7.6-7.9) — 3 nazwane EKIPY produkcyjne z pasmami jakości (qBand) + honorarium wstępne + łącznik ═══ */
-  {id:'crew_samir',     role:'chemist', name:'Ekipa Samira „Profesora"', emoji:'🧪', rate:2, minWage:420,  reqLvl:10, hireCost:400000,  crewBand:[0.50,0.65], liaison:'Samir „Profesor"',     desc:'Ekipa nr 1 (najtańsza profesjonalna). „Zna dużo po trochu" — szeroka, szybka produkcja, ale duże wahania jakości i wyższe ryzyko błędu. Łącznik: Samir.'},
-  {id:'crew_ramin',     role:'chemist', name:'Ekipa Ramina „Doktora"',   emoji:'⚗️', rate:2, minWage:1100, reqLvl:12, hireCost:1200000, crewBand:[0.70,0.85], liaison:'Ramin „Doktor"',      desc:'Ekipa nr 2 (średnio-wysoka). Stabilna, dobra jakość, lepsza dyscyplina. Wymaga laboratorium firmowego. Łącznik: Ramin.'},
+  {id:'crew_samir',     role:'chemist', name:'Samir „Professor” Crew', emoji:'🧪', rate:2, minWage:420,  reqLvl:10, hireCost:400000,  crewBand:[0.50,0.65], liaison:'Samir „Profesor"',     desc:'Ekipa nr 1 (najtańsza profesjonalna). „Zna dużo po trochu" — szeroka, szybka produkcja, ale duże wahania jakości i wyższe ryzyko błędu. Łącznik: Samir.'},
+  {id:'crew_ramin',     role:'chemist', name:'Ramin „Doctor” Crew',   emoji:'⚗️', rate:2, minWage:1100, reqLvl:12, hireCost:1200000, crewBand:[0.70,0.85], liaison:'Ramin „Doktor"',      desc:'Ekipa nr 2 (średnio-wysoka). Stabilna, dobra jakość, lepsza dyscyplina. Wymaga laboratorium firmowego. Łącznik: Ramin.'},
   {id:'crew_heisenberg',role:'chemist', name:'Ekipa „Heisenberg"',       emoji:'🔬', rate:3, minWage:2100, reqLvl:14, hireCost:2400000, crewBand:[0.85,0.99], liaison:'Walter „Heisenberg"', desc:'Ekipa nr 3 (topowa). Najwyższa jakość, certyfikowane procedury — ale droga i wymaga certyfikowanego laboratorium. Łącznik: Walter „Heisenberg".'},
 ];
 window._maxWorkers=function(){ const l=G.trap?.level||1; if(l>=15)return 3; if(l>=10)return 2; if(l>=5)return 1; return 0; };
@@ -29835,7 +29854,7 @@ const NPC_DATA = {
     ]
   },
   manager: {
-    name:'🤵 Menadżer — Kamil',
+    name:'🤵 Manager (Marcus)',
     lines: [
       'Słyszałem o Tobie. Mam kontakty w branży. Mogę pomóc.',
       'Podpisz umowę ze mną — otworzę drzwi do wielkich deal\'i.',
@@ -29855,12 +29874,12 @@ const NPC_DATA = {
             }
             const _req=(window._managerReqText)?window._managerReqText():'';
             closeNPCDlg();
-            if(typeof showMsg==='function') showMsg(`🤵 Kamil: „Jeszcze za wcześnie ziomeczku, daj sobie czas." ${_req}`,'f',8500);
+            if(typeof showMsg==='function') showMsg(`🤵 Marcus: „Jeszcze za wcześnie ziomeczku, daj sobie czas." ${_req}`,'f',8500);
             return;
           }
           if(G.money<2500){showMsg('Za mało pieniędzy (2500 zł)','r');return;}
           G.money-=2500;G.managementDeal=true;G.managementBonus=1.2;
-          closeNPCDlg();notify('🤵 Menadżer Kamil podpisany! Wszystkie zarobki x1.2');
+          closeNPCDlg();notify('🤵 Manager Marcus podpisany! Wszystkie zarobki x1.2');
         }
       },
       {text:'✅ Masz już menadżera — wszystko OK',
@@ -29892,7 +29911,7 @@ const NPC_DATA = {
       },
       {text:'Zapytaj o branżę (info)', fn:()=>{
         closeNPCDlg();
-        document.getElementById('ov-content').innerHTML=`<h2>🤵 Porada Menadżera Kamila</h2>
+        document.getElementById('ov-content').innerHTML=`<h2>🤵 Porada Managera Marcusa</h2>
         <p class="sub">Wskazówki od pro menadżera:</p>
         <div style="color:#aaa;font-size:15px;line-height:2">
           <div>📺 Opublikuj 10 filmów żeby ViewGrid zaczął polecać Twój kanał</div>
@@ -29911,11 +29930,11 @@ const NPC_DATA = {
         <button class="cbtn" onclick="closeOverlay()">← Wróć</button>`;
         openOverlay();
       }},
-      {text:'Nie interesuje mnie', fn:closeNPCDlg},
+      {text:'Wyjdź', fn:closeNPCDlg},/* PDF GDANSK U22 */
     ]
   },
   producer: {
-    name:'🎧 Producent — Majkel',
+    name:'🎧 Nate „808” Morgan (Producent)',
     lines: [
       'Yo! Pracuję z najlepszymi w mieście. Może mam coś dla Ciebie?',
       'Daj mi zlecenie — produkcja albo nagranie do mojego artysty.',
@@ -29923,16 +29942,16 @@ const NPC_DATA = {
     ],
     opts: [
       /* v2.1.964 (PDF l.54): gdy Majkel zablokował współpracę (2× zawalony kontrakt) — notka zamiast opcji kontraktów. */
-      {text:()=>`🚫 Majkel nie chce współpracy (jeszcze ${window._majkelBlockDaysLeft?window._majkelBlockDaysLeft():0} dni)`,
+      {text:()=>`🚫 Nate „808” Morgan nie chce współpracy (jeszcze ${window._majkelBlockDaysLeft?window._majkelBlockDaysLeft():0} dni)`,
         cond:()=>window._majkelBlocked&&window._majkelBlocked(),
-        fn:()=>{closeNPCDlg();if(typeof showMsg==='function')showMsg(`🎧 Majkel: „Zawiodłeś mnie dwa razy z kontraktami. Wróć za ${window._majkelBlockDaysLeft?window._majkelBlockDaysLeft():0} dni — wtedy pogadamy.”`,'r',7500);}
+        fn:()=>{closeNPCDlg();if(typeof showMsg==='function')showMsg(`🎧 Nate „808” Morgan: „Zawiodłeś mnie dwa razy z kontraktami. Wróć za ${window._majkelBlockDaysLeft?window._majkelBlockDaysLeft():0} dni — wtedy pogadamy.”`,'r',7500);}
       },
       // Beatmaker: produkcja bitów (immersyjnie — Majkel kupuje od Ciebie hurt)
       /* v2.3.102 (PDF #8): kontrakt na bity dostępny dopiero po zakupie DAW (komputer + oprogramowanie) w BeatPoint. */
       {text:()=>G.hasDaw?'🎛 Produkcja: 5 bitów na sprzedaż (7 dni, 2000 zł)':'🔒 Produkcja bitów (wymaga DAW z BeatPoint)',
         cond:()=>!(window._majkelBlocked&&window._majkelBlocked())&&G.careers.beatmaker&&G.careers.beatmaker.unlocked,
         fn:()=>{
-          if(!G.hasDaw){closeNPCDlg();if(typeof showMsg==='function')showMsg('🎧 Majkel: „Bez DAW nie zrobisz bitów, ziom. Kup komputer z oprogramowaniem w BeatPoint i wróć do mnie.”','f',8000);return;}
+          if(!G.hasDaw){closeNPCDlg();if(typeof showMsg==='function')showMsg('🎧 Nate „808” Morgan: „Bez DAW nie zrobisz bitów, ziom. Kup komputer z oprogramowaniem w BeatPoint i wróć do mnie.”','f',8000);return;}
           if(G.contract){showMsg('Masz już aktywny kontrakt!','r');return;}
           G.contract={type:'beat',from:'producer',desc:'Stwórz 5 bitów',target:5,progress:0,deadline:G.day+7,payment:2000};
           closeNPCDlg();notify('📋 Kontrakt: 5 bitów dla Majkla. Termin: dzień '+(G.day+7));
@@ -29943,7 +29962,7 @@ const NPC_DATA = {
       {text:()=>(G.camera||G.mic)?'🎤 Sesja w studio: 3 tracki (5 dni, 3500 zł)':'🔒 Sesja w studio: 3 tracki (wymaga sprzętu nagrywającego)',
         cond:()=>!(window._majkelBlocked&&window._majkelBlocked())&&((getRaperST&&getRaperST('realizacja')>=1)||(G.mic&&G.studioOwned)),
         fn:()=>{
-          if(!(G.camera||G.mic)){closeNPCDlg();if(typeof showMsg==='function')showMsg('🎧 Majkel: „Bez sprzętu do nagrywania nie ma sesji, ziom. Kup kamerę albo mikrofon w VoltHouse i wróć do mnie.”','f',8500);return;}
+          if(!(G.camera||G.mic)){closeNPCDlg();if(typeof showMsg==='function')showMsg('🎧 Nate „808” Morgan: „Bez sprzętu do nagrywania nie ma sesji, ziom. Kup kamerę albo mikrofon w VoltHouse i wróć do mnie.”','f',8500);return;}
           if(G.contract){showMsg('Masz już aktywny kontrakt!','r');return;}
           if(!G.studioOwned){showMsg('Potrzebujesz własnego studia!','r');return;}
           G.contract={type:'track',from:'producer',desc:'Nagraj 3 tracki w studio',target:3,progress:0,deadline:G.day+5,payment:3500};
@@ -29955,7 +29974,7 @@ const NPC_DATA = {
       {text:()=>G.camera?'📺 Produkcja: 3 filmy YT (5 dni, 1500 zł)':'🔒 Produkcja: 3 filmy YT (wymaga kamery)',
         cond:()=>!(window._majkelBlocked&&window._majkelBlocked())&&G.careers.youtuber&&G.careers.youtuber.unlocked,
         fn:()=>{
-          if(!G.camera){closeNPCDlg();if(typeof showMsg==='function')showMsg('🎧 Majkel: „Filmy bez kamery? Kup kamerę wideo w VoltHouse i wróć — wtedy pogadamy o produkcji.”','f',8500);return;}
+          if(!G.camera){closeNPCDlg();if(typeof showMsg==='function')showMsg('🎧 Nate „808” Morgan: „Filmy bez kamery? Kup kamerę wideo w VoltHouse i wróć — wtedy pogadamy o produkcji.”','f',8500);return;}
           if(G.contract){showMsg('Masz już aktywny kontrakt!','r');return;}
           G.contract={type:'video',from:'producer',desc:'Opublikuj 3 filmy YT',target:3,progress:0,deadline:G.day+5,payment:1500};
           closeNPCDlg();notify('📋 Kontrakt YT przyjęty! Termin: dzień '+(G.day+5));
@@ -29979,7 +29998,7 @@ const NPC_DATA = {
             if(q.reward.fame){if(typeof addFame==='function')addFame(q.reward.fame);else G.fame=clamp((G.fame||0)+q.reward.fame,0,500);}
             G._sideQuestsCompleted=(G._sideQuestsCompleted||0)+1;
             addFriendship('producent',20);
-            showMsg(`📋 ${q.name} — wykonane! +${q.reward.money} zł, +${q.reward.fame} sławy. Majkel jest pod wrażeniem.`);
+            showMsg(`📋 ${q.name} — wykonane! +${q.reward.money} zł, +${q.reward.fame} sławy. Nate „808” Morgan jest pod wrażeniem.`);
           } else {
             notify(`📋 ${q.desc}: ${p}/${q.target}`);
           }
@@ -29990,7 +30009,7 @@ const NPC_DATA = {
     ]
   },
   quest: {
-    name:'📋 Zleceniodawca — Wiktor',
+    name:'📋 Gavin (Zleceniodawca)',
     lines: [
       'Mam dla Ciebie zlecenie na dziś. Zrób to a zarobisz niezłe pieniądze.',
       'Dzienne zadania to najszybszy sposób na dorobek na starcie.',
@@ -30221,7 +30240,7 @@ const NPC_DATA = {
         if(((G.events&&G.events.performed)||0)<5){showMsg('🤵 „Ten człowiek będzie dostępny w chwili, gdy odbębnisz co najmniej pięć komercyjnych występów. Teraz nie masz na co liczyć." (wymóg: 5 koncertów)','i',6500);return;}
         if(G.money<5000){showMsg('Za mało pieniędzy!','r');return;}
         if(G.crew.some(c=>c.role==='manager_jr')){showMsg('Masz już junior managera!','r');return;}
-        if(G.managementDeal){showMsg('Masz już głównego menadżera (Kamil) — junior nie potrzebny.','r');return;}
+        if(G.managementDeal){showMsg('Masz już głównego menadżera (Marcus) — junior nie potrzebny.','r');return;}
         G.money-=5000;G.crew.push({role:'manager_jr',name:'Łukasz',bonus:'earn_5'});
         notify('🤵 Łukasz (Junior Manager) dołączył do ekipy! +5% wszystkie zarobki.');updateHUD();openNPCDialogue('crew');
       }},
@@ -30249,7 +30268,7 @@ const NPC_DATA = {
     ]
   },
   booking: {
-    name:'📅 Booking Agent — Marcin',
+    name:'📅 Spencer (Booking Agent)',
     lines:[
       'Sam koncerty zagrasz w Sali Koncertowej — ja organizuję EKSKLUZYWNE eventy poza miastem.',
       'Festiwale, trasy międzynarodowe, prywatne gale. Tutaj kasa jest większa.',
@@ -30478,9 +30497,9 @@ const NPC_DATA = {
     ]
   },
   audio: {
-    name:'🎤 Janek — Audio Consultant',
+    name:'🎤 Andre Carter (Konsultant Audio)',
     lines:[
-      'Hej! Pomagam w Sklepie muzycznym — wybiorę Ci idealny sprzęt.',
+      /* PDF GDANSK U24: nowa tresc 1:1 ze zgloszenia. */'Siema! Działam w sklepie muzycznym, dobieram sprzęt. Służę pomocą, gdybyś czegoś potrzebował.',
       'Mikrofon to twój głos. Bez dobrego mikrofonu nawet najlepszy talent się gubi.',
       'Co cię interesuje? Mam świeże dropy od marek których jeszcze nie znacie.',
     ],
@@ -30496,7 +30515,7 @@ const NPC_DATA = {
             if(typeof earn==='function') earn(_cashback,false); else {G.money+=_cashback;G.totalEarned=(G.totalEarned||0)+_cashback;}
             if(typeof addFame==='function') addFame(3); else G.fame=clamp((G.fame||0)+3,0,500);
             closeNPCDlg();
-            if(typeof showMsg==='function') showMsg(`🎤 Janek: "Świetny wybór! 30% cashback od ${_micPrice} zł. +${_cashback} zł, +3 sławy"`,'g',6000);
+            if(typeof showMsg==='function') showMsg(`🎤 Andre Carter: "Świetny wybór! 30% cashback od ${_micPrice} zł. +${_cashback} zł, +3 sławy"`,'g',6000);
           } else {
             closeNPCDlg();
             if(typeof notify==='function') notify('🎤 Kup mikrofon w Sklepie muzycznym (budynek obok). Cashback 30% po zakupie.');
@@ -30515,7 +30534,7 @@ const NPC_DATA = {
             if(typeof addFame==='function') addFame(5); else G.fame=clamp((G.fame||0)+5,0,500);
             G.skillPoints=(G.skillPoints||0)+1;
             closeNPCDlg();
-            if(typeof showMsg==='function') showMsg(`💻 Janek: "Komplet pro-producent! 30% cashback od ${_dawPrice} zł. +${_cashback} zł, +5 sławy, +1 punkt umiejętności"`,'g',6000);
+            if(typeof showMsg==='function') showMsg(`💻 Andre Carter: "Komplet pro-producent! 30% cashback od ${_dawPrice} zł. +${_cashback} zł, +5 sławy, +1 punkt umiejętności"`,'g',6000);
           } else {
             closeNPCDlg();
             if(typeof notify==='function') notify('💻 Kup komputer z DAW (Sklep muzyczny, od 2000 zł). Cashback 30%.');
@@ -30534,7 +30553,7 @@ const NPC_DATA = {
     ]
   },
   promoter: {
-    name:'🎤 Anita — Promoter Sali',
+    name:'🎤 Cassie (Promotor Sali)',
     lines:[
       'Hej! Promotorka tej sceny. Widziałam Twój występ — masz potencjał.',
       'Sala koncertowa to nie tylko muzyka — to miejsce gdzie buduje się legendy.',
@@ -30551,7 +30570,7 @@ const NPC_DATA = {
             if(typeof addFame==='function') addFame(6); else G.fame=clamp((G.fame||0)+6,0,500);
             if(typeof addFans==='function') addFans(100);
             closeNPCDlg();
-            if(typeof showMsg==='function') showMsg('🎤 Anita: "Trzy koncerty zaliczone! Publika Cię kocha. +3000 zł, +6 sławy, +100 fanów"','g',6000);
+            if(typeof showMsg==='function') showMsg('🎤 Cassie: "Trzy koncerty zaliczone! Publika Cię kocha. +3000 zł, +6 sławy, +100 fanów"','g',6000);
           } else {
             closeNPCDlg();
             if(typeof notify==='function') notify(`🎤 Zagraj jeszcze ${3-p} koncertów (Sala Koncertowa obok).`);
@@ -30567,7 +30586,7 @@ const NPC_DATA = {
             if(typeof addFame==='function') addFame(15); else G.fame=clamp((G.fame||0)+15,0,500);
             if(typeof addFans==='function') addFans(500);
             closeNPCDlg();
-            if(typeof showMsg==='function') showMsg('🏟 Anita: "ARENA! Wszedłeś do ligi top. +10 000 zł, +15 sławy, +500 fanów"','g',7000);
+            if(typeof showMsg==='function') showMsg('🏟 Cassie: "ARENA! Wszedłeś do ligi top. +10 000 zł, +15 sławy, +500 fanów"','g',7000);
           } else {
             closeNPCDlg();
             if(typeof notify==='function') notify('🏟 Wymagania Areny: 55 sławy, scena 4, 1500 fanów lojalnych.');
@@ -30576,7 +30595,7 @@ const NPC_DATA = {
       },
       {text:'✓ Wszystkie questy Anity odebrane',
         cond:()=>G._questPromoterC3Done && G._questPromoterArenaDone,
-        fn:()=>{closeNPCDlg();notify('🎤 Anita docenia Twoją scenę. Wracaj jak będą nowe okazje.');}
+        fn:()=>{closeNPCDlg();notify('🎤 Cassie docenia Twoją scenę. Wracaj jak będą nowe okazje.');}
       },
       {text:'❓ Jak rozpocząć koncert?', fn:()=>{
         closeNPCDlg();
@@ -40067,7 +40086,7 @@ const DIALOG_TREES={
     ],
   },
   kamil:{
-    npcName:'Kamil (Stary kumpel)', em:'👊',
+    npcName:'Ryan (Stary kumpel)', em:'👊',
     arc:[
       {step:1, prereq:{day:3}, text:'"Stary, jak się sprawuje to życie rapera? Pamiętam jak razem śmierdzieliśmy w blokowisku."', options:[
         {label:'"Wciąż blokowy, tylko z mikrofonem"', friendship:5, money:100, streetRep:2},
@@ -40706,7 +40725,7 @@ window.openMusicVideoModal=function(trackIdx){
       const c=window._mvSelectedCrew, s=window._mvSelectedScn;
       if(!c||!s){if(typeof showMsg==='function') showMsg('⚠️ Wybierz ekipę i scenariusz','r');return;}
       window.recordMusicVideo(${trackIdx}, c, s);
-    })()" style="width:100%;background:linear-gradient(135deg,#9b59b6,#e91e8c);border:none;color:#fff;padding:12px;border-radius:8px;cursor:pointer;font-weight:800;font-family:inherit;font-size:14px">🎬 NAGRAJ TELEDYSK</button>
+    })()" style="width:100%;background:linear-gradient(135deg,#9b59b6,#e91e8c);border:none;color:#fff;padding:12px;border-radius:8px;cursor:pointer;font-weight:800;font-family:inherit;font-size:14px">NAGRAJ TELEDYSK</button><!-- PDF GDANSK U29: bez emoji -->
   `;
   document.body.appendChild(m);
   window._mvSelectedCrew=null;
@@ -45451,7 +45470,7 @@ function renderSalaKoncertowa(){
   if(scena>=6) _bonusChips.push('🎤 Festival Headliner (Scena 6): +1 sławy/koncert');
   if(scena>=7) _bonusChips.push('🏟️ Stadium Star (Scena 7): +5% bonusu obserwujących');
   if(scena>=8) _bonusChips.push('🌍 World Megastar (Scena 8): +200 fanów/koncert');
-  if(G.managementDeal) _bonusChips.push(`💼 Management Kamila: ×${(G.managementBonus||1.2)} zarobków`);
+  if(G.managementDeal) _bonusChips.push(`💼 Management Marcusa: ×${(G.managementBonus||1.2)} zarobków`);
   if(G._repBoost75) _bonusChips.push('👑 Rep75: +25% fanów koncertu');
   /* v2.1.207 [Amper]: ROZBUDOWANE chipy — brakowały: drip, friendship Marcin, prestige, mood, mogul, tour magnate, streak, diamond hands. */
   /* v2.1.210 [Amper]: drip + PU połączone w jeden czytelny chip — gracz widzi "Drip 200/200 + PU" zamiast "drip ×1.5 effective 300". Liczba dripu ZAWSZE max 200. */
@@ -51745,7 +51764,7 @@ window._policeOpenDetention=function(){
       ${opt('pushups','💪 Wykonaj kilka serii pompek (−stres, +kondycja, +dyscyplina)',u.pushups)}
       ${opt('calm','😮‍💨 Spróbuj ochłonąć (−5 stres)',u.calm)}
       ${opt('think','🧠 Przemyśl kolejne ruchy (+świadomość ryzyka, −nastrój)',u.think)}
-      ${opt('kamil','📞 Zadzwoń do Kamila',u.kamil)}
+      ${opt('kamil','📞 Zadzwoń do Ryana',u.kamil)}
       ${opt('manager','📞 Zadzwoń do managera (−zniesławienie, jeśli dostępny)',u.manager)}
       <button class="cbtn" style="width:100%;margin-top:12px;padding:12px;font-size:14px;color:#0a0806;background:linear-gradient(135deg,#c9b892,#9a8560);border:none;font-weight:700" onclick="window._policeCourt()">⏭️ Przeczekaj 48h → rozprawa</button>
     </div>`;
@@ -51756,7 +51775,7 @@ window._policeDetentionOpt=function(id){
   if(id==='pushups'){ G.stress=Math.min(100,(G.stress||50)+3); G._discipline=(G._discipline||0)+1; if(typeof addRaperXP==='function'){} m='💪 Seria pompek. Trochę spokoju w głowie, ciało zmęczone. (−stres, +dyscyplina)'; }
   else if(id==='calm'){ G.stress=Math.min(100,(G.stress||50)+5); m='😮‍💨 Oddychasz, liczysz do dziesięciu. (−stres)'; }
   else if(id==='think'){ G._riskAwareness=(G._riskAwareness||0)+1; G.stress=Math.max(0,(G.stress||50)-2); m='🧠 Rozkładasz sytuację na czynniki. Wiesz, gdzie popełniłeś błąd. (+świadomość ryzyka, −nastrój)'; }
-  else if(id==='kamil'){ det.kamilCalled=true; G.stress=Math.min(100,(G.stress||50)+5); if(G.npcRelations&&G.npcRelations.kamilFriend) G.npcRelations.kamilFriend.trust=(G.npcRelations.kamilFriend.trust||0)+1; m='📞 Kamil: „No kurwa pięknie… A nie mówiłem, że miasto patrzy? Siedź tam cicho, wyjdź, zapłać co trzeba i nie rób z tego większej legendy niż jest." (+nastrój, +zaufanie Kamila)'; }
+  else if(id==='kamil'){ det.kamilCalled=true; G.stress=Math.min(100,(G.stress||50)+5); if(G.npcRelations&&G.npcRelations.kamilFriend) G.npcRelations.kamilFriend.trust=(G.npcRelations.kamilFriend.trust||0)+1; m='📞 Ryan: „No kurwa pięknie… A nie mówiłem, że miasto patrzy? Siedź tam cicho, wyjdź, zapłać co trzeba i nie rób z tego większej legendy niż jest." (+nastrój, +zaufanie Ryana)'; }
   else if(id==='manager'){ const hasMgr=!!(G.manager&&G.manager.hired)||!!(G.signalNine&&G.signalNine.signed); if(hasMgr){ G.defamation=Math.max(0,(G.defamation||0)-3); m='📞 Manager: „Takie akcje psują rozmowy. Mogę próbować to wyciszyć, ale nie będę zamiatał za Ciebie całego miasta." (−zniesławienie)'; } else { m='📞 Nie masz managera, który odbierze w takiej sytuacji.'; det.usedOpts[id]=false; } }
   if(typeof updateHUD==='function') updateHUD();
   if(typeof showMsg==='function' && m) showMsg(m,'i',6000);
@@ -51817,7 +51836,7 @@ window._policePostReleaseMessages=function(reason){
   if(G.legalCareer){ G.legalCareer.brandTrust=Math.max(0,(G.legalCareer.brandTrust||50)-2); if(typeof G.legalCareer.professionalism==='number') G.legalCareer.professionalism=Math.max(0,G.legalCareer.professionalism-1); }
   if(G.signalNine){ G.signalNine.brandTrust=Math.max(0,(G.signalNine.brandTrust||60)-2); }
   const _sms=(who,txt)=>{ try{ if(typeof window._smsPushNpcReply==='function') window._smsPushNpcReply(who,txt); else if(typeof addNotif==='function') addNotif(txt); }catch(e){ if(typeof addNotif==='function') addNotif(txt); } };
-  setTimeout(()=>{ if(typeof addNotif==='function') addNotif('📱 Kamil: „Dobra, powiedz mi tylko jedno: to był głupi przypadek czy jakiś Twój nowy styl życia?"'); }, 1600);
+  setTimeout(()=>{ if(typeof addNotif==='function') addNotif('📱 Ryan: „Dobra, powiedz mi tylko jedno: to był głupi przypadek czy jakiś Twój nowy styl życia?"'); }, 1600);
   if(G.signalNine&&G.signalNine.signed){ setTimeout(()=>{ if(typeof addNotif==='function') addNotif('📱 Nika Ray (S9): „Jeśli Twoje nazwisko zacznie pojawiać się obok radiowozów częściej niż obok muzyki — przestajemy budować wizerunek."'); }, 3200); }
   if((G.sponsorClothing&&G.sponsorClothing.active)||(G.sponsor&&G.sponsor.clothingActive)){ setTimeout(()=>{ if(typeof addNotif==='function') addNotif('📱 Sponsor odzieżowy: „Musimy chwilowo wstrzymać temat kampanii. Marka nie wchodzi w ruch, gdy wokół nazwiska robi się zbyt dużo ryzyka."'); }, 4800); }
 };
@@ -57845,6 +57864,10 @@ window._vwEnsure=function(){
   if(v.lastDistributionDay==null) v.lastDistributionDay=-99;
   if(v.timeSpentToday==null) v.timeSpentToday=0;
   if(v.timeDay==null) v.timeDay=0;
+  /* PDF GDANSK U90: karta dostępu odbierana z „[E] Recepcja główna". Zapisy sprzed tej wersji
+     mają lokale wpuszczone od ręki (reguła #1 — nikt nie traci dostępu do już kupionej
+     przestrzeni); kartę odbiera się dopiero do lokali kupionych od tej wersji. */
+  if(!Array.isArray(v.accessCards)) v.accessCards=v.units.map(u=>u.id);
   v.units.forEach(u=>window._vwUnitEnsure(u));
   window._vwGrandfather();
   return v;
@@ -58461,11 +58484,21 @@ window._vwInspectionChance=function(unitId){
 };
 
 /* ── §59 Serwis i zużycie · §58 media · §71 wpływ lokalny · §80 psychika ──── */
+/* PDF GDANSK U72: koszt serwisu liczony OSOBNO dla każdego elementu — proporcjonalnie do jego
+   ceny wyjściowej i do tego, jak bardzo stan odbiega od pełnej sprawności. */
+window._vwServiceCost=function(unitId,instanceId){
+  const u=window._vwUnit(unitId); if(!u) return 0;
+  const it=u.upgrades.find(x=>x.instanceId===instanceId); if(!it) return 0;
+  const def=window._vwUpgDef(it.defId);
+  return Math.round((def?def.price:50000)*0.06*(100-it.condition)/50+1200);
+};
 window._vwServiceUpgrade=function(unitId,instanceId){
   const u=window._vwUnit(unitId); if(!u) return {ok:false,msg:'Brak lokalu.'};
   const it=u.upgrades.find(x=>x.instanceId===instanceId); if(!it) return {ok:false,msg:'Brak urządzenia.'};
   const def=window._vwUpgDef(it.defId);
-  const cost=Math.round((def?def.price:50000)*0.06*(100-it.condition)/50+1200);
+  /* PDF GDANSK U72: sprawnego elementu nie serwisujemy — dopiero stan 50% i nizej otwiera przycisk. */
+  if(it.condition>50) return {ok:false,msg:'Serwis ma sens dopiero przy stanie 50% i niżej. Teraz: '+Math.round(it.condition)+'%.'};
+  const cost=window._vwServiceCost(unitId,instanceId);
   if((G.money||0)<cost) return {ok:false,msg:'Serwis kosztuje '+cost.toLocaleString('pl')+' zł.'};
   G.money-=cost; u.finance.maintenanceCosts+=cost; it.condition=100; u.maintenance.lastServiceDay=G.day||1;
   u.maintenance.wear=Math.max(0,u.maintenance.wear-8);
@@ -58566,7 +58599,7 @@ window._vwBuildingPanel=function(){
   const mine=v.units.map(u=>(window._vwUnitDef(u.defId)||{}).name).join(', ')||'Brak';
   const locked=(st===VW_STATES.LOCKED);
   document.getElementById('ov-content').innerHTML=`
-    <h2>🏢 VANTAGE WORKS</h2>
+    <h2>VANTAGE WORKS</h2>
     <p class="sub">Production &amp; Office Center — powierzchnie produkcyjne, biurowe i magazynowe.</p>
     <div style="background:#0d1420;border:1px solid #1e2c3e;border-radius:10px;padding:11px 13px;margin-bottom:12px;font-size:13px;color:#cdd">
       Status: <b style="color:${locked?'#e74c3c':'#7ec87e'}">${locked?'Zamknięte dla Ciebie':'Dostępne lokale'}</b><br>
@@ -58606,7 +58639,7 @@ window._vwEveDialog=function(topic){
   const t=topic||'intro';
   if(typeof openOverlay==='function') openOverlay();
   document.getElementById('ov-content').innerHTML=`
-    <h2>👩‍💼 Eve Rook</h2>
+    <h2>Eve Rook</h2>
     <p class="sub">Doradczyni ds. powierzchni komercyjnych w VANTAGE WORKS.</p>
     <div style="background:#101822;border-left:3px solid #7ec8e3;border-radius:8px;padding:12px 14px;margin-bottom:12px;font-size:13px;color:#dde;line-height:1.55">„${lines[t]}"</div>
     <div style="display:flex;flex-direction:column;gap:5px">
@@ -58646,7 +58679,7 @@ window._vwTourStep=function(i){
   if(i===VW_TOUR.length-1){ v.toured=true; v.viewing.active=false; }
   if(typeof openOverlay==='function') openOverlay();
   document.getElementById('ov-content').innerHTML=`
-    <h2>🧭 Oprowadzanie — ${s.t}</h2>
+    <h2>Oprowadzanie — ${s.t}</h2>
     <div style="background:#101822;border-left:3px solid #7ec8e3;border-radius:8px;padding:12px 14px;margin:10px 0;font-size:13px;color:#dde;line-height:1.55">Eve Rook: „${s.d}"</div>
     ${s.unit?window._vwUnitCard(s.unit,true):''}
     <div style="display:flex;gap:6px;margin-top:10px">
@@ -58810,7 +58843,7 @@ window._vwMarketPanel=function(tab){
   }
   const tb=(id,lab)=>`<button class="cbtn" style="font-size:11px;padding:6px 9px;margin:2px;border-color:${tab===id?'#7ec8e3':'#2a3a50'}" onclick="window._vwMarketPanel('${id}')">${lab}</button>`;
   document.getElementById('ov-content').innerHTML=`
-    <h2>🏢 VANTAGE WORKS — oferta</h2>
+    <h2>VANTAGE WORKS — oferta</h2>
     <p class="sub">Poziom 10 kariery Trap otwiera rynek. Lokal, garaż i magazyn kupujesz osobno.</p>
     <div style="margin-bottom:10px">${tb('units','📋 Lokale')}${tb('compare','⚖️ Porównanie')}${tb('prices','💰 Ceny')}${tb('terms','📄 Warunki')}</div>
     ${body}
@@ -58830,7 +58863,7 @@ window._vwElevator=function(){
     [4,'Piętro 4 — centrale'],[-1,'B1 — garaż'],[-2,'B2 — magazyny']];
   if(typeof openOverlay==='function') openOverlay();
   document.getElementById('ov-content').innerHTML=`
-    <h2>🛗 VANTAGE WORKS</h2>
+    <h2>VANTAGE WORKS</h2><!-- PDF GDANSK U69: naglowek bez emoji -->
     <p class="sub">Karta dostępu: ${v.units.length?('piętra '+owned.join(', ')):'tryb oględzin — piętra z aktywną ofertą'}</p>
     <div style="display:flex;flex-direction:column;gap:5px">
       ${floors.map(([f,lab])=>{
@@ -58846,13 +58879,21 @@ window._vwElevator=function(){
 window._vwFloor=function(f){
   const v=window._vwEnsure(); const el=document.getElementById('vw-res');
   const mine=v.units.filter(u=>(window._vwUnitDef(u.defId)||{}).floor===f);
-  if(mine.length){ v.activeUnit=mine[0].id; window._vwUnitPanel(mine[0].id); return; }
+  if(mine.length){
+    /* PDF GDANSK U90: bez odebranej karty winda nie otwiera piętra własnego lokalu. */
+    const _noCard=mine.filter(u=>v.accessCards.indexOf(u.id)<0);
+    if(_noCard.length===mine.length){
+      if(el) el.textContent='Czytnik nie przyjmuje — kartę dostępu do tego lokalu odbierzesz w recepcji głównej na parterze.';
+      return;
+    }
+    const _ok=mine.find(u=>v.accessCards.indexOf(u.id)>=0);
+    v.activeUnit=_ok.id; window._vwUnitPanel(_ok.id); return; }
   if(f===-1){ window._vwMarketPanel('units'); return; }
   if(f===-2){ window._vwMarketPanel('units'); return; }
   const show=VW_UNITS.filter(u=>u.floor===f);
   if(!show.length){ if(el) el.textContent='Na tym piętrze nie ma teraz aktywnej oferty.'; return; }
   if(typeof openOverlay==='function') openOverlay();
-  document.getElementById('ov-content').innerHTML=`<h2>🛗 Piętro ${f}</h2>
+  document.getElementById('ov-content').innerHTML=`<h2>Piętro ${f}</h2>
     <p class="sub">Lokale pokazowe i aktywna oferta.</p>
     <div class="shopgrid">${show.map(u=>window._vwUnitCard(u.id)).join('')}</div>
     <div class="res" id="vw-res">Gotówka: ${(G.money||0).toLocaleString('pl')} zł</div>
@@ -58871,7 +58912,7 @@ window._vwUnitPanel=function(unitId){
     [8,'Ukryta warstwa',u.shadowUnlocked]];
   if(typeof openOverlay==='function') openOverlay();
   document.getElementById('ov-content').innerHTML=`
-    <h2>🏢 ${d.name}</h2>
+    <h2>${d.name}</h2>
     <p class="sub">${d.area} m² · piętro ${d.floor} · status: ${({owned_shell:'pusta powierzchnia',legal_fitout:'w trakcie wyposażania',legal_operational:'operacyjny',shadow_operational:'operacyjny',sealed:'ZAMKNIĘTY',confiscated:'ZAJĘTY',suspended:'wstrzymany'})[u.status]||u.status}</p>
     ${sealed?`<div style="background:#2a1010;border-left:3px solid #e74c3c;border-radius:6px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:#f0b0b0">
       ⛔ Obiekt ${u.status===VW_STATES.SEALED?('jest zamknięty do dnia '+u.sealedUntilDay):'został zajęty'}. Operacje wstrzymane.</div>`:''}
@@ -58892,7 +58933,9 @@ window._vwUnitPanel=function(unitId){
       ${u.frontOperational?`<button class="cbtn" onclick="window._vwOpsPanel('${u.id}')">📦 Zlecenia legalne</button>`:''}
       ${!u.office.computerInstalled?`<button class="cbtn" onclick="window._vwInstallComputer('${u.id}')">🖥 Zainstaluj komputer zarządzający (60 000 zł)</button>`:`<button class="bbtn" onclick="window._axOpen('${u.id}')">🖥 Usiądź przy komputerze — AXIOM OFFICE</button>`}
       ${!u.office.fitted?`<button class="cbtn" onclick="window._vwFitOffice('${u.id}')">🪑 Urządź gabinet (85 000 zł)</button>`:''}
-      ${d.hall&&u.frontOperational?`<button class="cbtn" onclick="closeOverlay();if(typeof changeRoom==='function')changeRoom('lab',480,400);">🏭 Wejdź do hali produkcyjnej</button>`:''}
+      ${d.hall&&u.frontOperational?(window._vwHasCard(u.id)
+        ?`<button class="cbtn" onclick="closeOverlay();if(typeof changeRoom==='function')changeRoom('lab',480,400);">🏭 Wejdź do hali produkcyjnej</button>`
+        :`<button class="cbtn" style="color:#8a94a4;border-color:#39424f;background:#2a2f38;cursor:default" disabled title="Kartę dostępu odbierzesz w recepcji głównej">🏭 Wejdź do hali produkcyjnej (potrzebna karta dostępu)</button>`):''}
       <button class="cbtn" onclick="window._vwMeetPanel('${u.id}')">🤝 Spotkania, karty, TV i minibar</button>
       <button class="cbtn" onclick="window._vwSellPrompt('${u.id}')">💰 Sprzedaj lokal</button>
       ${v.units.length>1?`<button class="cbtn" onclick="window._vwSwitchUnit()">🔁 Przełącz lokal (${v.units.length})</button>`:''}
@@ -58904,9 +58947,22 @@ window._vwSwitchUnit=function(){
   const v=window._vwEnsure(); const i=v.units.findIndex(u=>u.id===v.activeUnit);
   v.activeUnit=v.units[(i+1)%v.units.length].id; window._vwUnitPanel(v.activeUnit);
 };
-window._vwSellPrompt=function(id){ const r=window._vwSellUnit(id);
-  if(r.ok){ const v=window._vwEnsure(); if(v.units.length) window._vwUnitPanel(v.activeUnit); else window._vwMarketPanel('units'); }
-  const el=document.getElementById('vw-res'); if(el) el.textContent=r.msg; };
+/* PDF GDANSK U89: sprzedaż lokalu z panelu też przechodzi przez okno „Potwierdź / Odrzuć" —
+   przypadkowe kliknięcie kosztowało wcześniej cały lokal. */
+window._vwSellPrompt=function(id){
+  const _do=()=>{ const r=window._vwSellUnit(id);
+    if(r.ok){ const v=window._vwEnsure(); if(v.units.length) window._vwUnitPanel(v.activeUnit); else window._vwMarketPanel('units'); }
+    const el=document.getElementById('vw-res'); if(el) el.textContent=r.msg; };
+  const q=(typeof window._vwSellQuote==='function')?window._vwSellQuote(id):null;
+  if(q&&!q.canSell){ const el=document.getElementById('vw-res');
+    if(el) el.textContent='Lokal można odsprzedać najwcześniej po 7 dniach od zakupu — zostało '+q.daysLeft+' dni.'; return; }
+  if(!q||typeof window._vwConfirmDialog!=='function'){ _do(); return; }
+  window._vwConfirmDialog({
+    title:'Sprzedaż lokalu', name:q.name,
+    desc:'Odsprzedaż losowej agencji nieruchomości. Wycena uwzględnia czas posiadania i eksploatację lokalu — to '+Math.round(q.pct*100)+'% ceny zakupu ('+q.base.toLocaleString('pl')+' zł). Wyposażenie, personel i zapasy przepadają razem z lokalem.',
+    question:'Czy chcesz sprzedać '+q.name+' za '+q.amount.toLocaleString('pl')+' zł?',
+    amount:q.amount, onOk:_do });
+};
 window._vwStartServiceBtn=function(id){ const r=window._vwStartService(id); window._vwUnitPanel(id);
   const el=document.getElementById('vw-res'); if(el) el.textContent=r.msg; };
 window._vwInstallComputer=function(id){
@@ -58929,7 +58985,7 @@ window._vwFrontPanel=function(unitId){
   const u=window._vwUnit(unitId); if(!u) return; const d=window._vwUnitDef(u.defId)||{};
   if(typeof openOverlay==='function') openOverlay();
   document.getElementById('ov-content').innerHTML=`
-    <h2>📄 Legalna działalność frontowa</h2>
+    <h2>Legalna działalność frontowa</h2>
     <p class="sub">Rejestracja 25 000 zł + koszt startu wybranego profilu. Bez firmy nie zamówisz specjalistycznego wyposażenia.</p>
     <div class="shopgrid">${VW_FRONTS.map(f=>{
       const okOffice=f.officeSlots<=d.office, okWare=f.warehouse<=(d.warehouse||0);
@@ -58953,26 +59009,35 @@ window._vwFitoutPanel=function(unitId){
   if(typeof openOverlay==='function') openOverlay();
   const pending=u.orders.filter(o=>o.status!=='installed'&&o.status!=='cancelled');
   document.getElementById('ov-content').innerHTML=`
-    <h2>🔧 Doposażenie</h2>
+    <h2>Doposażenie</h2>
     <p class="sub">Każdy element jest zamawiany, dostarczany i montowany w konkretnym miejscu — z czasem, zużyciem i serwisem.</p>
     ${pending.length?`<div style="background:#101c2a;border-left:3px solid #3a90e0;border-radius:6px;padding:9px 11px;margin-bottom:10px;font-size:11px;color:#a0c8f0">
-      W drodze: ${pending.map(o=>{const dd=window._vwUpgDef(o.upgradeId);return (dd?dd.name:o.upgradeId)+' ('+({ordered:'zamówione',delivered:'dostarczone',installing:'w montażu'})[o.status]+', montaż po dniu '+o.installAfterDay+')';}).join(' · ')}</div>`:''}
+      W drodze: ${pending.map(o=>{const dd=window._vwUpgDef(o.upgradeId);return (dd?dd.name:o.upgradeId)+' ('+({ordered:'zamówione',delivered:'dostarczone',installing:'w montażu'})[o.status]+', montaż po dniu '+o.installAfterDay+')';}).join(' · ')}
+      ${pending.length>=3?`<div style="margin-top:7px"><button class="cbtn" style="width:auto;font-size:11px;padding:5px 11px" onclick="window._vwDeliveriesPanel('${unitId}')">Status dostaw (${pending.length})</button></div>`:''}</div>`:''}
     ${u.upgrades.length?`<h3 style="color:#7ec87e;margin:10px 0 5px;font-size:13px">Zamontowane</h3>
       <div class="shopgrid">${u.upgrades.map(x=>{const dd=window._vwUpgDef(x.defId);return `<div class="sitem"><h3 style="font-size:12px">${dd?dd.name:x.defId}</h3>
         <p style="font-size:10px;color:#9ab">${dd?dd.asset:''} — ${dd?dd.anchor:''}</p>
         <p style="font-size:10px;color:${x.condition>60?'#7ec87e':(x.condition>30?'#e8a020':'#e74c3c')}">Stan: ${Math.round(x.condition)}%</p>
-        <button class="cbtn" style="font-size:11px;padding:4px" onclick="window._vwServiceBtn('${unitId}','${x.instanceId}')">🔧 Serwis</button></div>`;}).join('')}</div>`:''}
+        ${x.condition<=50
+          ?`<button class="cbtn" style="font-size:11px;padding:4px" onclick="window._vwServicePrompt('${unitId}','${x.instanceId}')">Serwis · ${window._vwServiceCost(unitId,x.instanceId).toLocaleString('pl')} zł</button>`
+          :`<button class="cbtn" style="font-size:11px;padding:4px;color:#8a94a4;border-color:#39424f;background:#2a2f38;cursor:default" disabled title="Serwis otwiera się przy stanie 50% i niżej">Serwis</button>`}</div>`;}).join('')}</div>`:''}
     <h3 style="color:#7ec8e3;margin:12px 0 5px;font-size:13px">Katalog</h3>
-    <div class="shopgrid">${VW_UPGRADES.filter(dd=>!u.upgrades.some(x=>x.defId===dd.id)).map(dd=>{
+    <div class="shopgrid">${VW_UPGRADES.map(dd=>{
       const basic=['reception_desk','meeting_room','gridrack_shelves'].indexOf(dd.id)>=0;
       const blocked=!u.frontId&&!basic;
+      /* PDF GDANSK U70: element z katalogu nie znika po zamowieniu — przycisk zmienia tresc na
+         „Zamówione", a po zakonczonym montazu na „Zamontowane" (oba szare i nieklikalne). */
+      const _inst=u.upgrades.some(x=>x.defId===dd.id);
+      const _ord=!_inst&&pending.some(o=>o.upgradeId===dd.id);
       return `<div class="sitem"><h3 style="font-size:12px">${dd.name}</h3>
         <div style="font-size:9px;color:#6a8caa;text-transform:uppercase;margin:-3px 0 3px">${dd.brand!=='—'?dd.brand:'wyposażenie'}</div>
         <p style="font-size:11px">${dd.effText}</p>
         <p style="font-size:10px;color:#8fb8d8">Montaż: ${dd.anchor} · ${dd.days} ${dd.days===1?'dzień':'dni'}</p>
         ${blocked?'<p style="font-size:10px;color:#e74c3c">🔒 Wymaga legalnej działalności frontowej.</p>':''}
         <div class="pr" style="font-size:12px">${dd.price.toLocaleString('pl')} zł</div>
-        <button class="bbtn" style="font-size:11px;padding:5px" onclick="window._vwOrderBtn('${unitId}','${dd.id}')" ${(blocked||(G.money||0)<dd.price)?'disabled':''}>Zamów</button></div>`;
+        ${_inst?`<button class="bbtn" style="font-size:11px;padding:5px;color:#8a94a4;border-color:#39424f;background:#2a2f38;cursor:default" disabled>Zamontowane</button>`
+          :(_ord?`<button class="bbtn" style="font-size:11px;padding:5px;color:#8a94a4;border-color:#39424f;background:#2a2f38;cursor:default" disabled>Zamówione</button>`
+          :`<button class="bbtn" style="font-size:11px;padding:5px" onclick="window._vwOrderBtn('${unitId}','${dd.id}')" ${(blocked||(G.money||0)<dd.price)?'disabled':''}>Zamów</button>`)}</div>`;
     }).join('')}</div>
     <div class="res" id="vw-res">Gotówka: ${(G.money||0).toLocaleString('pl')} zł</div>
     <button class="cbtn" onclick="window._vwUnitPanel('${unitId}')">← Wróć</button>`;
@@ -58981,13 +59046,52 @@ window._vwOrderBtn=function(unitId,upgId){ const r=window._vwOrderUpgrade(unitId
   const el=document.getElementById('vw-res'); if(el) el.textContent=r.msg; };
 window._vwServiceBtn=function(unitId,inst){ const r=window._vwServiceUpgrade(unitId,inst); window._vwFitoutPanel(unitId);
   const el=document.getElementById('vw-res'); if(el) el.textContent=r.msg; };
+/* PDF GDANSK U72: serwis kosztuje, wiec pyta o zgode tym samym oknem, co zakup i rezerwacja lokalu. */
+window._vwServicePrompt=function(unitId,instanceId){
+  const u=window._vwUnit(unitId); if(!u) return;
+  const it=u.upgrades.find(x=>x.instanceId===instanceId); if(!it) return;
+  const def=window._vwUpgDef(it.defId)||{};
+  const cost=window._vwServiceCost(unitId,instanceId);
+  window._vwConfirmDialog({
+    title:'Serwis wyposażenia', name:def.name||'Element wyposażenia',
+    desc:'Stan elementu: '+Math.round(it.condition)+'%. Serwis przywraca pełną sprawność i zdejmuje część zużycia lokalu. Kwota liczona jest od ceny elementu ('+((def.price||0).toLocaleString('pl'))+' zł) i od tego, jak bardzo stan odbiega od 100%.',
+    question:'Czy chcesz zlecić serwis elementu '+(def.name||'wyposażenia')+' za '+cost.toLocaleString('pl')+' zł?',
+    amount:cost,
+    onOk:function(){ window._vwServiceBtn(unitId,instanceId); }
+  });
+};
+/* PDF GDANSK U71: przy trzech i wiecej zamowieniach jednolinijkowa lista w naglowku robi sie
+   nieczytelna — osobne okno pokazuje nazwe, zaplacona kwote i realny czas do montazu. */
+window._vwDeliveriesPanel=function(unitId){
+  const u=window._vwUnit(unitId); if(!u) return;
+  const pend=u.orders.filter(o=>o.status!=='installed'&&o.status!=='cancelled');
+  const day=G.day||1;
+  const stat={ordered:'zamówione',delivered:'dostarczone',installing:'w montażu'};
+  if(typeof openOverlay==='function') openOverlay();
+  document.getElementById('ov-content').innerHTML=`
+    <h2>Status dostaw</h2>
+    <p class="sub">${pend.length===1?'Jeden element jest w drodze':(pend.length+' elementy w drodze')}. Czas montażu liczony jest w dniach gry.</p>
+    ${pend.length?`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+      <tr><th style="text-align:left;padding:6px;color:#7ec8e3">Element</th><th style="text-align:left;padding:6px;color:#7ec8e3">Status</th>
+          <th style="text-align:right;padding:6px;color:#7ec8e3">Koszt</th><th style="text-align:right;padding:6px;color:#7ec8e3">Pozostało</th></tr>
+      ${pend.map(o=>{const dd=window._vwUpgDef(o.upgradeId)||{}; const left=Math.max(0,o.installAfterDay-day);
+        return `<tr><td style="padding:6px;color:#cdd">${dd.name||o.upgradeId}<div style="font-size:10px;color:#8fb8d8">montaż: ${dd.anchor||o.targetSlot}</div></td>
+        <td style="padding:6px;color:#a0c8f0">${stat[o.status]||o.status}</td>
+        <td style="padding:6px;text-align:right;color:#cdd">${(o.pricePaid||0).toLocaleString('pl')} zł</td>
+        <td style="padding:6px;text-align:right;color:${left?'#e8a020':'#7ec87e'}">${left?(left+' '+(left===1?'dzień':'dni')):'montaż dziś'}</td></tr>`;}).join('')}
+      <tr><td style="padding:6px;color:#9ab" colspan="2">Razem w drodze</td>
+        <td style="padding:6px;text-align:right;color:#f1c40f;font-weight:700">${pend.reduce((s,o)=>s+(o.pricePaid||0),0).toLocaleString('pl')} zł</td><td></td></tr>
+    </table></div>`:'<p style="color:#9ab;font-size:12px">Nic nie jedzie — wszystkie zamówienia zostały zamontowane.</p>'}
+    <div class="res" id="vw-res">Gotówka: ${(G.money||0).toLocaleString('pl')} zł</div>
+    <button class="cbtn" onclick="window._vwFitoutPanel('${unitId}')">← Wróć</button>`;
+};
 /* §49-§53 personel */
 window._vwStaffPanel=function(unitId){
   const u=window._vwUnit(unitId); if(!u) return; const d=window._vwUnitDef(u.defId)||{};
   if(typeof openOverlay==='function') openOverlay();
   const types=VW_STAFF_TYPES.filter(t=>t.layer!=='shadow'||u.shadowUnlocked);
   document.getElementById('ov-content').innerHTML=`
-    <h2>👥 Personel — ${d.name}</h2>
+    <h2>Personel — ${d.name}</h2>
     <p class="sub">${u.staff.length}/${d.staff} osób · ryzyko przecieku: <b style="color:${window._vwLeakRisk(unitId)>40?'#e74c3c':'#7ec87e'}">${window._vwLeakRisk(unitId)}/100</b></p>
     ${u.staff.length?`<div class="shopgrid">${u.staff.map(s=>{const t=VW_STAFF_TYPES.find(x=>x.id===s.typeId)||{};
       return `<div class="sitem"><h3 style="font-size:12px">${s.name}</h3>
@@ -59016,7 +59120,7 @@ window._vwOpsPanel=function(unitId){
   if(!u.operations.length||u.operations.every(o=>o.status==='done')) window._vwGenerateOperations(unitId);
   if(typeof openOverlay==='function') openOverlay();
   document.getElementById('ov-content').innerHTML=`
-    <h2>📦 Zlecenia legalne</h2>
+    <h2>Zlecenia legalne</h2>
     <p class="sub">Przepustowość: ${window._vwCapacity(unitId)} · ludzie na zmianie: ${Math.round(window._vwEffectiveStaff(unitId)*10)/10} · magazyn ${u.stores.legal.used}/${u.stores.legal.cap}</p>
     <div class="shopgrid">${u.operations.map(o=>`<div class="sitem"><h3 style="font-size:12px">${o.type}</h3>
       <p style="font-size:10px;color:#9ab">Ludzie: ${o.requiredStaff} · magazyn: ${o.requiredStorage} · czas: ${o.durationHours} h · próg jakości: ${o.qualityRequirement}</p>
@@ -59043,7 +59147,7 @@ window._axOpen=function(unitId){
 window._axSetup=function(msg){
   if(typeof openOverlay==='function') openOverlay();
   document.getElementById('ov-content').innerHTML=`
-    <h2>🖥 AXIOM OFFICE — konfiguracja</h2>
+    <h2>AXIOM OFFICE — konfiguracja</h2>
     <p class="sub">Business Operations Suite. Utwórz dane logowania do systemu firmy.</p>
     <div style="max-width:340px;display:flex;flex-direction:column;gap:8px">
       <label style="font-size:12px;color:#9ab">Utwórz login<input id="ax-u" style="width:100%;padding:7px;background:#0a1220;border:1px solid #23364e;border-radius:6px;color:#cdd;font-family:inherit"></label>
@@ -59068,7 +59172,7 @@ window._axSaveCreds=function(){
 window._axLogin=function(msg){
   if(typeof openOverlay==='function') openOverlay();
   document.getElementById('ov-content').innerHTML=`
-    <h2>🖥 AXIOM OFFICE</h2>
+    <h2>AXIOM OFFICE</h2>
     <div style="max-width:340px;display:flex;flex-direction:column;gap:8px">
       <label style="font-size:12px;color:#9ab">Login<input id="ax-u" style="width:100%;padding:7px;background:#0a1220;border:1px solid #23364e;border-radius:6px;color:#cdd;font-family:inherit"></label>
       <label style="font-size:12px;color:#9ab">Hasło<input id="ax-p" type="password" style="width:100%;padding:7px;background:#0a1220;border:1px solid #23364e;border-radius:6px;color:#cdd;font-family:inherit"></label>
@@ -59162,7 +59266,15 @@ window._axDesk=function(section){
       Szansa kontroli: <b>${window._vwInspectionChance(u.id)}%</b><br>
       Naruszenia w historii: <b>${u.compliance.violations.length}</b><br>
       Ostatni wynik: <b>${u.compliance.lastResult?(u.compliance.lastResult.result+' ('+u.compliance.lastResult.score+')'):'brak kontroli'}</b></div>
-      <button class="cbtn" style="margin-top:9px" onclick="window._axImproveDocs()">📁 Uporządkuj dokumentację (12 000 zł)</button>
+      <!-- PDF GDANSK U77: 12 000 zł → 5 000 zł · U78: przy 100/100 nie ma czego porządkować ·
+           U75: klik pyta oknem potwierdzenia · U76: obok stoi przycisk „Info" z wyjaśnieniem. -->
+      <div style="display:flex;gap:6px;margin-top:9px;align-items:stretch">
+        ${u.compliance.docs>=100
+          ?`<button class="cbtn" style="flex:1 1 auto;width:auto;color:#8a94a4;border-color:#39424f;background:#2a2f38;cursor:default" disabled>Uporządkuj dokumentację (5 000 zł)</button>`
+          :`<button class="cbtn" style="flex:1 1 auto;width:auto" onclick="window._axImproveDocsPrompt()">Uporządkuj dokumentację (5 000 zł)</button>`}
+        <button class="cbtn" style="flex:0 0 auto;width:auto;padding:9px 16px" onclick="window._axDocsInfo()">Info</button>
+      </div>
+      ${u.compliance.docs>=100?`<div style="font-size:10.5px;color:#7ec87e;margin-top:5px">Dokumentacja jest kompletna (100/100) — porządkowanie nic już nie zmieni.</div>`:''}
       ${u.compliance.violations.length?`<div style="margin-top:10px;font-size:11px;color:#9ab">Historia: ${u.compliance.violations.slice(-6).map(x=>'dz.'+x.day+' '+x.level).join(' · ')}</div>`:''}`;
   } else if(window._axSection==='security'){
     body=`<div style="font-size:12px;color:#cdd;line-height:1.8">
@@ -59195,7 +59307,7 @@ window._axDesk=function(section){
   const mi=(id,lab,show)=>show===false?'':`<button class="cbtn" style="font-size:11px;padding:6px 9px;margin:2px;border-color:${window._axSection===id?'#7ec8e3':'#2a3a50'}" onclick="window._axDesk('${id}')">${lab}</button>`;
   if(typeof openOverlay==='function') openOverlay();
   document.getElementById('ov-content').innerHTML=`
-    <h2>🖥 AXIOM OFFICE</h2>
+    <h2>AXIOM OFFICE</h2>
     <p class="sub">Business Operations Suite · zalogowany jako <b>${u.office.username}</b></p>
     <div style="margin-bottom:10px">
       ${mi('dash','Pulpit')}${mi('command','Centrum dowodzenia')}${mi('storage','Magazyny')}${mi('finance','Finanse')}
@@ -59229,11 +59341,67 @@ window._axCleanBooks=function(){
   G.money-=cost; u.finance.discrepancy=0; u.compliance.exposure=Math.max(0,u.compliance.exposure-6);
   window._axDesk('finance'); const r2=document.getElementById('ax-res'); if(r2) r2.textContent='Księgi uporządkowane.';
 };
+/* PDF GDANSK U77: koszt uporządkowania dokumentacji spada z 12 000 zł do 5 000 zł. */
+window._AX_DOCS_COST=5000;
 window._axImproveDocs=function(){
   const u=window._vwUnit(window._axUnit); if(!u) return; const res=document.getElementById('ax-res');
-  if((G.money||0)<12000){ if(res) res.textContent='Uporządkowanie dokumentacji kosztuje 12 000 zł.'; return; }
-  G.money-=12000; u.compliance.docs=Math.min(100,u.compliance.docs+18); window._vwSpendTime(2);
+  /* PDF GDANSK U78: przy pełnej dokumentacji operacja jest zablokowana — gracz nie płaci za nic. */
+  if(u.compliance.docs>=100){ if(res) res.textContent='Dokumentacja jest już kompletna (100/100).'; return; }
+  const _c=window._AX_DOCS_COST;
+  if((G.money||0)<_c){ if(res) res.textContent='Uporządkowanie dokumentacji kosztuje '+_c.toLocaleString('pl')+' zł.'; return; }
+  G.money-=_c; u.compliance.docs=Math.min(100,u.compliance.docs+18); window._vwSpendTime(2);
   window._axDesk('compliance'); const r2=document.getElementById('ax-res'); if(r2) r2.textContent='Dokumentacja uporządkowana.';
+};
+/* PDF GDANSK U75: to samo okno potwierdzenia, co przy zakupie i rezerwacji lokalu. */
+window._axImproveDocsPrompt=function(){
+  const u=window._vwUnit(window._axUnit); if(!u) return;
+  if(u.compliance.docs>=100){ const r=document.getElementById('ax-res'); if(r) r.textContent='Dokumentacja jest już kompletna (100/100).'; return; }
+  const _c=window._AX_DOCS_COST;
+  if(typeof window._vwConfirmDialog!=='function'){ window._axImproveDocs(); return; }
+  window._vwConfirmDialog({
+    title:'Porządkowanie dokumentacji', name:'Zgodność i kontrole',
+    desc:'Uzupełnienie umów, faktur i ewidencji. Dokumentacja rośnie o 18 punktów (teraz '+Math.round(u.compliance.docs)+'/100), a czynność zajmuje dwie godziny.',
+    question:'Czy chcesz uporządkować dokumentację za '+_c.toLocaleString('pl')+' zł?',
+    amount:_c,
+    onOk:function(){ window._axImproveDocs(); }
+  });
+};
+/* PDF GDANSK U76: okno informacyjne z RYSOWANĄ ikoną „i" (SVG, nie emoji) — po co jest
+   porządkowanie dokumentacji i czym grozi jego zaniedbanie. */
+window._axDocsInfo=function(){
+  const u=window._vwUnit(window._axUnit);
+  const docs=u?Math.round(u.compliance.docs):0;
+  document.getElementById('vw-confirm')?.remove();
+  const m=document.createElement('div');
+  m.id='vw-confirm';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:10050;display:flex;align-items:center;justify-content:center;animation:bdFadeIn .2s';
+  m.innerHTML=`
+    <div style="background:linear-gradient(135deg,#0d1420,#141a28);border:1px solid #2a3a50;border-radius:14px;padding:20px 22px;max-width:520px;width:90%;box-shadow:0 18px 60px rgba(0,0,0,.7)">
+      <div style="display:flex;align-items:center;gap:11px;margin-bottom:10px">
+        <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true">
+          <circle cx="17" cy="17" r="15" fill="#0f2233" stroke="#7ec8e3" stroke-width="2"></circle>
+          <circle cx="17" cy="10.5" r="2.1" fill="#7ec8e3"></circle>
+          <rect x="15.2" y="14.6" width="3.6" height="10.4" rx="1.8" fill="#7ec8e3"></rect>
+        </svg>
+        <div><div style="color:#7ec8e3;font-size:12px;letter-spacing:2px;text-transform:uppercase">Zgodność i kontrole</div>
+        <div style="color:#e8e8f0;font-size:16px;font-weight:800">Po co porządkować dokumentację</div></div>
+      </div>
+      <div style="color:#cdd;font-size:12.5px;line-height:1.75">
+        Dokumentacja to komplet umów, faktur, ewidencji czasu pracy i protokołów odbioru. Stan liczy się w skali 0-100
+        i dziś wynosi <b style="color:#e8e8f0">${docs}/100</b>.<br><br>
+        <b style="color:#7ec87e">Co daje wysoka dokumentacja:</b> kontrola kończy się szybciej i łagodniej, wynik jest wyższy,
+        a naruszenia mniej kosztowne. Porządkowanie podnosi stan o 18 punktów i zajmuje dwie godziny.<br><br>
+        <b style="color:#e8a020">Czym grozi zaniedbanie:</b> dokumentacja niszczeje z każdym tygodniem działalności.
+        Poniżej 50 punktów kontrole częściej kończą się naruszeniem, rosną kary, a przy powtórzeniach lokal może zostać
+        zamknięty na kilka dni. Zaległości nie da się nadrobić jednym kliknięciem — każde porządkowanie to osobny koszt.<br><br>
+        <b style="color:#9ab">Przy 100/100</b> przycisk jest wyszarzony, bo nie ma czego uzupełniać.
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:16px">
+        <button id="ax-info-close" style="background:#1d7a3a;color:#eaffea;border:1px solid #29a854;border-radius:9px;padding:10px 20px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit">Rozumiem</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.querySelector('#ax-info-close').onclick=()=>m.remove();
 };
 /* §39 Shadow Operations — warstwa zarządcza, black box */
 window._axShadowBody=function(u){
@@ -59290,7 +59458,7 @@ window._axDistRender=function(){
   const btn=(k,id,lab)=>`<button class="cbtn" style="font-size:11px;padding:5px 8px;margin:2px;border-color:${s[k]===id?'#c890e0':'#2a3a50'}" onclick="window._axDist.${k}='${id}';window._axDistRender()">${lab}</button>`;
   if(typeof openOverlay==='function') openOverlay();
   document.getElementById('ov-content').innerHTML=`
-    <h2>🚚 Zlecenie dystrybucji</h2>
+    <h2>Zlecenie dystrybucji</h2>
     <p class="sub">Partia: ${b.category} · ${b.quantityUnits} jednostek · jakość ${b.quality}</p>
     <div style="font-size:11px;color:#8a9;margin:8px 0 3px;font-weight:700">Węzeł docelowy</div><div>${VW_NODES.filter(n=>!n.base).map(n=>btn('node',n.id,n.name)).join('')}</div>
     <div style="font-size:11px;color:#8a9;margin:9px 0 3px;font-weight:700">Profil dostawy</div><div>${VW_DIST_PROFILES.map(p=>btn('profile',p.id,p.name)).join('')}</div>
@@ -59651,15 +59819,47 @@ window._drawVantageSprite=function(id,sx,sy,w,h){
   }
 };
 /* Punkt kontroli dostępu i kawiarnia (§7 pkt 15 i 17) */
+/* PDF GDANSK U90: karta dostępu do KONKRETNEGO lokalu. Garaże i magazyny mają własne wejścia
+   z poziomu podziemi i karty nie wymagają — dokument wyłącza je wprost. */
+window._vwHasCard=function(unitId){ const v=window._vwEnsure(); return v.accessCards.indexOf(unitId)>=0; };
+window._vwPickCard=function(unitId){
+  const v=window._vwEnsure(); const u=window._vwUnit(unitId); if(!u) return;
+  const d=window._vwUnitDef(u.defId)||{};
+  if(v.accessCards.indexOf(unitId)<0){
+    v.accessCards.push(unitId);
+    v.history.push({day:G.day||1,type:'dostęp',text:'Odebrano kartę dostępu do lokalu '+d.name+'.'});
+    if(typeof saveGameSilent==='function') saveGameSilent();
+  }
+  window._vwReception();
+};
+window._vwReception=function(){
+  const v=window._vwEnsure();
+  if(typeof openOverlay==='function') openOverlay();
+  const pending=v.units.filter(u=>v.accessCards.indexOf(u.id)<0);
+  document.getElementById('ov-content').innerHTML=`
+    <h2>Recepcja główna</h2>
+    <p class="sub">Budynek wydaje karty dostępu do kupionych powierzchni. Karta zostaje przy Tobie na stałe.</p>
+    ${v.units.length?`<div style="display:flex;flex-direction:column;gap:6px">
+      ${v.units.map(u=>{ const d=window._vwUnitDef(u.defId)||{}; const has=v.accessCards.indexOf(u.id)>=0;
+        return `<div style="background:#0d1420;border:1px solid #1e2c3e;border-radius:9px;padding:10px 12px;font-size:12px;color:#cdd">
+          <b style="color:#e8e8f0">${d.name||u.defId}</b> · piętro ${d.floor}<br>
+          <span style="color:${has?'#7ec87e':'#e8a020'}">${has?'Karta dostępu odebrana':'Karta czeka do odbioru'}</span>
+          ${has?'':`<div style="margin-top:6px"><button class="bbtn" style="width:auto;font-size:11px;padding:6px 12px" onclick="window._vwPickCard('${u.id}')">Odbierz kartę dostępu</button></div>`}
+        </div>`; }).join('')}
+    </div>`:`<p style="color:#9ab;font-size:12px">Recepcja wydaje karty wyłącznie właścicielom powierzchni. Na razie budynek obsługuje Cię przez doradczynię — Eve Rook jest kilka kroków dalej.</p>`}
+    ${v.garage.length||v.storage.length?`<div style="margin-top:9px;font-size:11px;color:#9ab">Garaż B1 i magazyny B2 mają własne wejścia z poziomu podziemi — tam karta nie jest potrzebna.</div>`:''}
+    <div class="res" id="vw-res">${pending.length?('Do odbioru: '+pending.length+' '+(pending.length===1?'karta':'karty')+'.'):'Wszystkie karty odebrane.'}</div>
+    <button class="cbtn" onclick="closeOverlay()">← Wróć</button>`;
+};
 window._vwAccessPoint=function(){
   const v=window._vwEnsure();
   const cards=v.units.map(u=>{ const d=window._vwUnitDef(u.defId)||{}; return d.name+' (piętro '+d.floor+')'; });
   if(typeof openOverlay==='function') openOverlay();
   document.getElementById('ov-content').innerHTML=`
-    <h2>🪪 Punkt kontroli dostępu</h2>
+    <h2>Punkt kontroli dostępu</h2>
     <p class="sub">Budynek prowadzi rejestr wejść. Karta otwiera tylko Twoje piętra i lokale.</p>
     <div style="background:#0d1420;border:1px solid #1e2c3e;border-radius:10px;padding:11px 13px;font-size:12px;color:#cdd;line-height:1.7">
-      Karta dostępu: <b style="color:${cards.length?'#7ec87e':'#e8a020'}">${cards.length?'aktywna':'tryb oględzin'}</b><br>
+      Karta dostępu: <b style="color:${(cards.length&&v.units.every(u=>v.accessCards.indexOf(u.id)>=0))?'#7ec87e':'#e8a020'}">${cards.length?(v.units.every(u=>v.accessCards.indexOf(u.id)>=0)?'aktywna':'część kart czeka w recepcji głównej'):'tryb oględzin'}</b><br>
       Twoje lokale: <b>${cards.length?cards.join(', '):'brak'}</b><br>
       Garaż: <b>${v.garage.length?('tak — '+v.garage.length+' miejsc'):'nie'}</b><br>
       Magazyny B2: <b>${v.storage.length?('tak — '+v.storage.length+' komórek'):'nie'}</b>
@@ -59671,7 +59871,7 @@ window._vwCafe=function(){
   const el=()=>document.getElementById('vw-res');
   if(typeof openOverlay==='function') openOverlay();
   document.getElementById('ov-content').innerHTML=`
-    <h2>☕ Mała kawiarnia</h2>
+    <h2>Mała kawiarnia</h2>
     <p class="sub">Kilka stolików przy szklanej ścianie. Miejsce, w którym najemcy rozmawiają o rachunkach.</p>
     <button class="bbtn" onclick="window._vwCoffee()">☕ Kawa — 14 zł (+12 energii)</button>
     <div class="res" id="vw-res">Podsłuchujesz strzępy rozmów o czynszach i kontrolach.</div>
@@ -60186,9 +60386,13 @@ window._vwOpsPanel2=function(tab){
       <span style="color:#9ab">${p.perk}</span>${p.hiddenRisk?`<br><span style="color:#e8a020">Coś tu nie gra: ${p.hiddenRisk}</span>`:''}
       <button class="cbtn" style="width:100%;margin-top:5px;font-size:10px;padding:4px" onclick="window._vwDropBtn('${p.id}')">Zakończ współpracę</button></div>`).join(''):'<p style="color:#667;font-size:12px">Nie masz jeszcze partnerów.</p>'}
       <h3 style="color:#7ec8e3;margin:12px 0 6px;font-size:13px">Poznaj partnera</h3>
-      <div class="shopgrid">${VW_PARTNER_CATS.filter(c=>!ps.some(p=>p.category===c.id)).map(c=>`<div class="sitem">
+      <!-- PDF GDANSK U92: kategoria z nawiązanym kontaktem nie znika z listy — przycisk zmienia
+           treść na „Nawiązano", staje się szary i nieklikalny. -->
+      <div class="shopgrid">${VW_PARTNER_CATS.map(c=>{ const _met=ps.some(p=>p.category===c.id);
+        return `<div class="sitem" style="border-color:${_met?'#27ae60':'#1a2535'}">
         <h3 style="font-size:12px">${c.name}</h3><p style="font-size:11px">${c.perk}</p>
-        <button class="bbtn" style="font-size:11px;padding:5px" onclick="window._vwPartnerBtn('${c.id}')">Nawiąż kontakt</button></div>`).join('')}</div>`;
+        ${_met?`<button class="bbtn" style="font-size:11px;padding:5px;color:#8a94a4;border-color:#39424f;background:#2a2f38;cursor:default" disabled>Nawiązano</button>`
+              :`<button class="bbtn" style="font-size:11px;padding:5px" onclick="window._vwPartnerBtn('${c.id}')">Nawiąż kontakt</button>`}</div>`;}).join('')}</div>`;
   } else if(t==='competition'){
     const c=window._vwCompetition(u.id);
     body=`<div style="background:#0a1220;border-radius:8px;padding:11px;font-size:12px;color:#cdd;line-height:1.8">
@@ -60204,7 +60408,9 @@ window._vwOpsPanel2=function(tab){
       <h3 style="color:#7ec8e3;margin:12px 0 6px;font-size:13px">Kierunek rozwoju</h3>
       <div class="shopgrid">${VW_STRATEGIES.map(x=>`<div class="sitem" style="border-color:${st.current===x.id?'#7ec87e':'#1a2535'}">
         <h3 style="font-size:12px">${x.name}</h3><p style="font-size:11px">${x.desc}</p>
-        <button class="bbtn" style="font-size:11px;padding:5px" onclick="window._vwStratBtn('${x.id}')">Wybierz</button></div>`).join('')}</div>
+        <!-- PDF GDANSK U93: wybrany kierunek rozwoju ma szary, nieklikalny przycisk „Wybrano". -->
+        ${st.current===x.id?`<button class="bbtn" style="font-size:11px;padding:5px;color:#8a94a4;border-color:#39424f;background:#2a2f38;cursor:default" disabled>Wybrano</button>`
+          :`<button class="bbtn" style="font-size:11px;padding:5px" onclick="window._vwStratBtn('${x.id}')">Wybierz</button>`}</div>`).join('')}</div>
       ${u.shadowUnlocked?`<h3 style="color:#e8a020;margin:12px 0 6px;font-size:13px">Wycofanie z ukrytej działalności</h3>
         ${window._vwShadowWithdraw(u.id).steps.map(s=>`<div style="background:#0a1220;border-radius:7px;padding:7px;margin-bottom:4px;font-size:11px;color:${s.done?'#7ec87e':'#cdd'}">
           ${s.done?'✅':'⬜'} ${s.label}${s.available?` <button class="cbtn" style="font-size:10px;padding:3px 7px;margin-left:6px" onclick="window._vwWithdrawBtn('${s.id}')">Wykonaj</button>`:(s.why?` <span style="color:#e8a020">— ${s.why}</span>`:'')}</div>`).join('')}
@@ -60220,7 +60426,7 @@ window._vwOpsPanel2=function(tab){
   const tb=(id,lab)=>`<button class="cbtn" style="font-size:11px;padding:6px 9px;margin:2px;border-color:${t===id?'#7ec8e3':'#2a3a50'}" onclick="window._vwOpsPanel2('${id}')">${lab}</button>`;
   if(typeof openOverlay==='function') openOverlay();
   document.getElementById('ov-content').innerHTML=`
-    <h2>🗂 Zarządzanie firmą</h2>
+    <h2>Zarządzanie firmą</h2>
     <p class="sub">${(window._vwUnitDef(u.defId)||{}).name}</p>
     <div style="margin-bottom:10px">${tb('shifts','Grafik')}${tb('finance','Integracja finansowa')}${tb('partners','Partnerzy')}${tb('competition','Konkurencja')}${tb('strategy','Kierunek i etapy')}${tb('media','Media')}</div>
     ${body}
@@ -60262,7 +60468,9 @@ window._vwLobbyAct=function(sub){
     case 'admin':      panel('terms'); return;
     case 'garage':     panel('units'); msg('🚗 Garaż B1 kupuje się osobno od lokalu — oferta miejsc i sekcji jest na dole listy.'); return;
     case 'storage':    panel('units'); msg('📦 Magazyny B2 mają osobny stan każdej komórki — oferta komórek jest na dole listy.'); return;
-    case 'reception':  msg('🛎 Recepcja główna stoi pusta — budynek obsługuje kupujących przez doradcę. Eve Rook jest kilka kroków dalej.'); return;
+    /* PDF GDANSK U90: recepcja wydaje karty dostępu do kupionych lokali. */
+    case 'reception':  if(typeof window._vwReception==='function'){ window._vwReception(); return; }
+                       msg('Recepcja główna stoi pusta — budynek obsługuje kupujących przez doradcę. Eve Rook jest kilka kroków dalej.'); return;
     case 'wait':       msg('🛋 Strefa oczekiwania: miękkie fotele, prasa branżowa i ekran z ofertami. Ktoś przed Tobą też ogląda halę.'); return;
     case 'freight':    msg('🛗 Winda towarowa obsługuje lokale ze strefą załadunku. Bez własnego lokalu nie ruszysz nią wyżej.'); return;
     case 'stairs_tech':msg('🪜 Schody techniczne prowadzą do części serwisowej. Wstęp tylko dla obsługi budynku.',null,4000); return;
@@ -60433,7 +60641,7 @@ window._vwMeetPanel=function(unitId){
   const zones=window._vwMeetZones(u);
   if(typeof openOverlay==='function') openOverlay();
   document.getElementById('ov-content').innerHTML=`
-    <h2>🤝 ${d.name} — spotkania i strefa gościa</h2>
+    <h2>${d.name} — spotkania i strefa gościa</h2>
     <p class="sub">Zaproszenia działają dopiero we własnym lokalu. Strefy: ${zones.map(z=>z.n).join(', ')||'brak'}.</p>
     <div style="background:#0d1420;border:1px solid #1e2c3e;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:#cdd">
       📺 Ekran: <b>${(VW_TV_MODES.find(x=>x.id===m.tv)||{}).n}</b> ·
@@ -60465,7 +60673,7 @@ window._vwInvitePanel=function(unitId,npcId){
   if(typeof openOverlay==='function') openOverlay();
   const terms=[[0,'Dziś wieczorem'],[1,'Jutro'],[2,'Za dwa dni']];
   document.getElementById('ov-content').innerHTML=`
-    <h2>📨 Zaproszenie — ${p.n}</h2>
+    <h2>Zaproszenie — ${p.n}</h2>
     <p class="sub">Zażyłość ${p.rel}/100 · lokal: ${(window._vwUnitDef(u.defId)||{}).name}</p>
     ${VW_MEET_TYPES.map(t=>{
       const rows=terms.map(([off,lab])=>{ const c=window._vwMeetCheck(u.id,npcId,t.id,off);
@@ -60983,7 +61191,7 @@ window._vwiDecisionPanel=function(){
   const owned=window._vwEnsure().units.some(u=>u.defId===s.defId);
   if(typeof openOverlay==='function') openOverlay();
   document.getElementById('ov-content').innerHTML=`
-    <h2>🏢 ${d.name} — po oględzinach</h2>
+    <h2>${d.name} — po oględzinach</h2>
     <p class="sub">${p.thesis} · obejrzane strefy: ${vis}/${tot} · tryb: ${(VW_MODES.find(m=>m.id===s.mode)||{}).n}</p>
     <div style="font-size:12px;color:#cdd;line-height:1.7;margin-bottom:8px">
       <div>🎨 Paleta: ${p.palette.join(', ')}</div>
@@ -61047,7 +61255,7 @@ window._vwiCompareMemory=function(){
     ['Stref we wnętrzu',e=>e.zones],['Obejrzane strefy',e=>e.visited+'/'+e.zones],
     ['Dominanta układu',e=>e.dominant],['Wrażenie',e=>e.emotion],['Największa przewaga',e=>e.advantage]];
   document.getElementById('ov-content').innerHTML=`
-    <h2>🧠 Pamięć oględzin</h2>
+    <h2>Pamięć oględzin</h2>
     <p class="sub">Zestawienie lokali, które faktycznie obejrzałeś od środka. Metraż nie powie wszystkiego.</p>
     ${m.length>1?`<div style="background:#0d1420;border:1px solid #1e2c3e;border-radius:9px;padding:9px 11px;margin-bottom:8px;font-size:12px;color:#cdd">
       <b>Różnice wobec ostatnio oglądanego (${m[1].name}):</b><br>${window._vwiDiffLine(m[0],m[1])}</div>`:''}
@@ -61055,7 +61263,7 @@ window._vwiCompareMemory=function(){
       <tr><th style="text-align:left;padding:5px;color:#7ec8e3">—</th>${m.map(e=>`<th style="padding:5px;color:#7ec8e3;white-space:nowrap">${e.name}</th>`).join('')}</tr>
       ${rows.map(([lab,fn])=>`<tr><td style="padding:5px;color:#9ab;white-space:nowrap">${lab}</td>${m.map(e=>`<td style="padding:5px;text-align:center;color:#cdd">${fn(e)}</td>`).join('')}</tr>`).join('')}
     </table></div>`:'<p style="color:#9ab;font-size:12px">Nie obejrzałeś jeszcze żadnego lokalu od środka.</p>'}
-    <div style="margin-top:8px">${ins.shortlist.length?('⭐ Shortlista: '+ins.shortlist.map(id=>(window._vwUnitDef(id)||{}).name).join(', ')):'⭐ Shortlista jest pusta.'}</div>
+    <div style="margin-top:8px;font-size:12px;color:#cdd"><!-- PDF GDANSK U67: ten sam kolor, co reszta panelu -->${ins.shortlist.length?('⭐ Shortlista: '+ins.shortlist.map(id=>(window._vwUnitDef(id)||{}).name).join(', ')):'⭐ Shortlista jest pusta.'}</div>
     <button class="cbtn" style="margin-top:8px" onclick="${window._vwiState?'window._vwiDecisionPanel()':'closeOverlay()'}">← Wróć</button>`;
 };
 /* §5.3 — porównanie bez ładowania dwóch wnętrz naraz: liczby z pamięci, nie z drugiej sceny. */
@@ -61129,7 +61337,7 @@ window._vwiEveDialog=function(){
   const faq=VW_EVE_FAQ.map((f,i)=>`<button class="cbtn" style="display:block;width:100%;text-align:left;font-size:12px;padding:6px 9px;margin:3px 0" onclick="window._vwiAsk(${i})">❓ ${f.q}</button>`).join('');
   const modes=VW_MODES.map(m=>`<button class="cbtn" style="display:inline-block;width:auto;font-size:11px;padding:5px 10px;margin:0 4px 4px 0;border-color:${s.mode===m.id?'#7ec8e3':'#2a3a50'}" onclick="window._vwiSetMode('${m.id}')" ${(m.id==='quick'&&!window._vwiEnsure().toured[s.defId])?'disabled title="Skrót po ukończonym oprowadzaniu"':''}>${m.n}</button>`).join('');
   document.getElementById('ov-content').innerHTML=`
-    <h2>👩‍💼 Eve Rook</h2>
+    <h2>Eve Rook</h2>
     <p class="sub">${d.name} · ${p.thesis}</p>
     <div style="font-size:12px;color:#cdd;margin-bottom:8px" id="vwi-ans">${window._vwiPick(VW_EVE_LINES.mode)}</div>
     <div style="margin-bottom:8px">${modes}</div>
@@ -61176,7 +61384,7 @@ window._vwiAct=function(sub){
     const extra=(z.t==='lounge'||z.t==='office'||z.t==='reception')?`<button class="cbtn" style="font-size:12px;padding:6px 10px;margin-top:6px" onclick="window._vwiProp('seat');closeOverlay()">🪑 Usiądź na chwilę</button>`:'';
     const light=`<button class="cbtn" style="font-size:12px;padding:6px 10px;margin-top:6px" onclick="window._vwiProp('light');closeOverlay()">💡 Zmień scenę światła</button>`;
     document.getElementById('ov-content').innerHTML=`
-      <h2>${window._vwiZoneIcon(z.t)} ${z.n}</h2>
+      <h2>${z.n}</h2>
       <p class="sub">${(window._vwUnitDef(s.defId)||{}).name} · strefa ${idx+1} z ${s.layout.zones.length} · ok. ${share}% powierzchni układu</p>
       <p style="font-size:12px;color:#cdd">${z.d}</p>
       <p style="font-size:11px;color:#8fb8d8">Kryterium odbioru: ${z.req}</p>
@@ -61199,7 +61407,7 @@ window._vwShowroom=function(){
   const ins=window._vwiEnsure();
   if(typeof openOverlay==='function') openOverlay();
   document.getElementById('ov-content').innerHTML=`
-    <h2>🚪 Korytarz lokali pokazowych</h2>
+    <h2>Korytarz lokali pokazowych</h2>
     <p class="sub">Każdy lokal można obejrzeć od środka. Karta oferty nie pokaże przepływu między strefami.</p>
     <div class="shopgrid">${VW_UNITS.map(u=>{ const p=window._vwInspectDef(u.id)||{}; const seen=ins.seen[u.id]||0;
       /* karty w rzędzie mają różną długość opisu — kolumna z rozpychaczem wyrównuje przyciski */
@@ -61223,7 +61431,7 @@ window._vwInspectBtn=function(defId){
   const btn=(m)=>{ const lock=(m.id==='quick'&&!ins.toured[defId]);
     return `<button class="${m.id==='guided'?'bbtn':'cbtn'}" style="display:inline-block;width:auto;font-size:12px;padding:7px 13px" onclick="window._vwStartInspection('${defId}','${m.id}')" ${lock?'disabled':''}>${m.n}${lock?' 🔒':''}</button>`; };
   document.getElementById('ov-content').innerHTML=`
-    <h2>👁 Oględziny — ${d.name}</h2>
+    <h2>Oględziny — ${d.name}</h2>
     <p class="sub">${p.thesis} · ${d.area} m² · piętro ${d.floor} · ${p.rooms.length} stref do obejrzenia</p>
     <p style="font-size:12px;color:#cdd">Wchodzisz do środka i zwiedzasz lokal na własnych nogach. Eve Rook czeka przy drzwiach.</p>
     <div style="font-size:11px;color:#8fb8d8;margin:6px 0">🎨 ${p.palette.join(' · ')}<br>🧭 ${p.anchor}</div>
@@ -62988,7 +63196,7 @@ window._sbTerminal=function(){
       ${cyc?('<br>Cykl kończy się w dniu <b>'+cyc.endDay+'</b>'):''}</div>
       ${s.renovation&&s.renovation.queued?`<div style="background:#1e1a10;border-left:3px solid #e8a020;border-radius:6px;padding:9px 11px;margin-top:9px;font-size:12px;color:#f0d0a0">🏗 Etap ${s.renovation.stageId} czeka w kolejce — ruszy po rozliczeniu cyklu.</div>`:''}
       <div style="display:flex;flex-direction:column;gap:5px;margin-top:10px">
-        ${!cyc&&s.state!=='RENOVATING'?`<button class="bbtn" onclick="window._sbStartBtn()">▶️ Rozpocznij cykl</button>`:''}
+        ${!cyc&&s.state!=='RENOVATING'?`<button class="bbtn" onclick="window._sbStartBtn()">Rozpocznij cykl</button><!-- PDF GDANSK U83: bez emoji -->`:''}
         ${cyc&&(G.day||1)>=cyc.endDay?`<button class="bbtn" onclick="window._sbFinishBtn()">📦 Rozlicz cykl</button>`:''}
         ${cyc?`<button class="cbtn" onclick="window._sbAbortBtn()">✖ Przerwij cykl (z jawną stratą)</button>`:''}
         <button class="cbtn" onclick="window._sbSiteView()">🔍 SiteView — podgląd prognozy</button>
@@ -63034,6 +63242,9 @@ window._sbTerminal=function(){
       <h3 style="color:#7ec8e3;margin:12px 0 6px;font-size:13px">Katalog</h3>
       <div class="shopgrid">${SB_GEAR.map(d=>{
         const need=s.tier<d.minTier;
+        /* PDF GDANSK U87: model, który stoi już w sekcji „Zainstalowane", ma szary,
+           nieklikalny przycisk „Zainstalowano". Po demontażu wraca zwykłe „Zainstaluj". */
+        const _own=s.gear.some(g=>g.defId===d.id);
         return `<div class="sitem"><h3 style="font-size:12px">${d.name}</h3>
         <div style="font-size:9px;color:#6a8caa;text-transform:uppercase;margin:-3px 0 3px">${d.cat} · klasa ${d.cls}</div>
         <p style="font-size:11px">${d.look}</p>
@@ -63043,8 +63254,9 @@ window._sbTerminal=function(){
         <p style="font-size:10px;color:#8fb8d8">Obciążenie ${d.load} · sloty ${d.sl} · koszt cyklu ${d.cycle} zł${need?' · wymaga poziomu T'+d.minTier+' albo adaptera':''}</p>
         <div class="pr" style="font-size:12px">${d.price.toLocaleString('pl')} zł</div>
         <div style="display:flex;gap:4px">
-          <button class="bbtn" style="flex:1;font-size:11px;padding:5px" onclick="window._sbInstallBtn('${d.id}',false)" ${(G.money||0)<d.price?'disabled':''}>Zainstaluj</button>
-          ${need?`<button class="cbtn" style="flex:1;font-size:11px;padding:5px" onclick="window._sbInstallBtn('${d.id}',true)">+ adapter</button>`:''}
+          ${_own?`<button class="bbtn" style="flex:1;font-size:11px;padding:5px;color:#8a94a4;border-color:#39424f;background:#2a2f38;cursor:default" disabled>Zainstalowano</button>`
+            :`<button class="bbtn" style="flex:1;font-size:11px;padding:5px" onclick="window._sbInstallBtn('${d.id}',false)" ${(G.money||0)<d.price?'disabled':''}>Zainstaluj</button>`}
+          ${(need&&!_own)?`<button class="cbtn" style="flex:1;font-size:11px;padding:5px" onclick="window._sbInstallBtn('${d.id}',true)">+ adapter</button>`:''}
         </div></div>`;}).join('')}</div>`;
   } else if(tab==='materials'){
     body=`<div style="font-size:11px;color:#9ab;margin-bottom:8px">Jedna baza i maksymalnie jeden dodatek na cykl. Katalog opisuje efekt w grze i model opakowania.</div>
@@ -63054,14 +63266,17 @@ window._sbTerminal=function(){
         <p style="font-size:10px;color:#27ae60">${window._sbEffText(b)}</p>
         <p style="font-size:10px;color:#e8a020">${b.con}</p>
         <div class="pr" style="font-size:12px">${b.price.toLocaleString('pl')} zł / cykl</div>
-        <button class="bbtn" style="font-size:11px;padding:5px" onclick="window._sbMatBtn('${b.id}',null)">Wybierz</button></div>`).join('')}</div>
+        <!-- PDF GDANSK U80: wybrana baza ma szary, nieklikalny przycisk „Wybrano". -->
+        ${s.materials.base===b.id?`<button class="bbtn" style="font-size:11px;padding:5px;color:#8a94a4;border-color:#39424f;background:#2a2f38;cursor:default" disabled>Wybrano</button>`
+          :`<button class="bbtn" style="font-size:11px;padding:5px" onclick="window._sbMatBtn('${b.id}',null)">Wybierz</button>`}</div>`).join('')}</div>
       <h3 style="color:#7ec8e3;margin:12px 0 6px;font-size:13px">Dodatek (opcjonalny)</h3>
       <div class="shopgrid">${SB_ADDONS.map(a=>`<div class="sitem" style="border-color:${s.materials.addon===a.id?'#27ae60':'#1a2535'}">
         <h3 style="font-size:12px">${a.name}</h3><p style="font-size:11px;color:#9ab">${a.role}</p>
         <p style="font-size:10px;color:#27ae60">${window._sbEffText(a)}</p>
         <p style="font-size:10px;color:#e8a020">${a.con}</p>
         <div class="pr" style="font-size:12px">${a.price.toLocaleString('pl')} zł / cykl</div>
-        <button class="bbtn" style="font-size:11px;padding:5px" onclick="window._sbMatBtn(null,'${a.id}')">Wybierz</button></div>`).join('')}</div>
+        ${s.materials.addon===a.id?`<button class="bbtn" style="font-size:11px;padding:5px;color:#8a94a4;border-color:#39424f;background:#2a2f38;cursor:default" disabled>Wybrano</button>`
+          :`<button class="bbtn" style="font-size:11px;padding:5px" onclick="window._sbMatBtn(null,'${a.id}')">Wybierz</button>`}</div>`).join('')}</div>
       <button class="cbtn" style="width:100%;margin-top:8px" onclick="window._sbMatBtn(null,null)">Wyczyść dodatek</button>`;
   } else {
     body=`<div style="font-size:12px;color:#cdd;line-height:1.7">${s.history.slice().reverse().slice(0,20).map(h=>
@@ -63140,7 +63355,18 @@ window._sbFeedback=function(r){
 };
 /* Wspólna obsługa: wykonaj → przerysuj terminal → pokaż okno z wynikiem. */
 window._sbAct=function(fn){ const r=fn(); window._sbTerminal(); window._sbFeedback(r); return r; };
-window._sbBuyBtn=function(){ window._sbAct(()=>window._sbBuyFacility('buy_'+(G.day||1))); };
+/* PDF GDANSK U74: przejęcie lokalu to duży, nieodwracalny wydatek — pyta o zgodę tym samym
+   oknem „Potwierdź / Odrzuć", co zakup lokalu w VANTAGE WORKS. */
+window._sbBuyBtn=function(){
+  const _go=()=>window._sbAct(()=>window._sbBuyFacility('buy_'+(G.day||1)));
+  const st=(typeof SB_STAGES!=='undefined'&&SB_STAGES.length)?SB_STAGES[0]:null;
+  if(!st||typeof window._vwConfirmDialog!=='function'){ _go(); return; }
+  window._vwConfirmDialog({
+    title:'Przejęcie lokalu', name:'Adaptowana piwnica uprawowa',
+    desc:st.desc||'Przejęcie pustej piwnicy pod własny obiekt uprawowy.',
+    question:'Czy chcesz przejąć lokal za '+st.price.toLocaleString('pl')+' zł?',
+    amount:st.price, onOk:_go });
+};
 /* v2.3.131 (PDF Uspr v2.3.130 U23): dokupienie stanowiska uprawowego z poziomu terminala. */
 window._sbBuyPotBtn=function(){
   window._sbAct(()=>{
@@ -65143,9 +65369,19 @@ window._ughDecline=function(){
 window._ughSay=function(txt){ if(typeof showMsg==='function') showMsg('🕶 Mason Hale: '+txt,'i',6000); };
 /* Prosty, spójny z grą panel dialogowy — max 3 opcje naraz (§14, test 25). */
 window._ughDlg=function(who, text, opts){
-  const el=document.getElementById('ov-content'); if(!el) return;
   const list=(opts||[]).slice(0,3);   /* §14: NIGDY więcej niż 3 opcje jednocześnie */
   window._ughDlgOpts=list;
+  /* PDF GDANSK U43: pierwsza rozmowa z przewodnikiem wygląda teraz jak PODSTAWOWE okno dialogowe
+     NPC — dokładnie to samo, którego używają Korek w Gravel Lot Motors, Rysiek w Metal Valley Yard
+     i Kantar w wątku pobocznym. Duży panel na całą szerokość ekranu został wyłączony.
+     PDF GDANSK U41: znika opcja „← Zostaw temat" — zostają wyłącznie kwestie dialogowe. */
+  if(typeof window._uwShowDlg==='function'){
+    window._uwShowDlg(window._gdPlainQuote(text),
+      list.map(o=>({text:window._gdPlainQuote(o.t), fn:()=>{ if(typeof closeNPCDlg==='function') closeNPCDlg(); if(typeof o.fn==='function') o.fn(); }})),
+      {name:who, emoji:'🕶'});
+    return;
+  }
+  const el=document.getElementById('ov-content'); if(!el) return;
   el.innerHTML=`<h2>🕶 ${who}</h2>
     <div style="max-width:560px;margin:0 auto">
       <div style="background:#12100c;border-left:3px solid #c8a520;border-radius:8px;padding:12px 14px;font-size:13px;color:#e8e2d0;line-height:1.6;margin-bottom:10px">${text}</div>
@@ -65159,6 +65395,7 @@ window._ughDlg=function(who, text, opts){
 window._ughPick=function(i){
   const o=(window._ughDlgOpts||[])[i]; if(!o) return;
   if(typeof closeOverlay==='function') closeOverlay();
+  if(typeof closeNPCDlg==='function') closeNPCDlg();/* PDF GDANSK U43: dialog zyje teraz w oknie NPC */
   if(typeof o.fn==='function') o.fn();
 };
 /* ── §5/§24 URUCHOMIENIE PRZELOTU ────────────────────────────────────────────────────────────── */
@@ -65587,29 +65824,33 @@ window._bgfReadState=function(key){
     }
   }catch(_){ return ''; }
 };
-/* ── §9/§10 PEŁNA TRASA — DZIEWIĘĆ LOKACJI W KOLEJNOŚCI Z DOKUMENTU ──────────────────────────
-   Kolejność §9: Label HQ → PR Agency → Fortuno → Bank VIP → Crownline Auto Gallery →
-   Steakhouse Business → Eclipse Noir → The Vesper House → Aureum Green Club.
+/* ── §9/§10 PEŁNA TRASA — DZIEWIĘĆ LOKACJI ──────────────────────────────────────────────────
+   ⚠ ZMIANA WYMAGANIA (PDF GDANSK U59): kolejność prezentowania obiektów przestawiona. Wcześniej
+   (§9 poprzedniego dokumentu) było Label HQ → PR Agency → Fortuno → Bank VIP → …, a użytkownik
+   zgłosił, że Bank VIP powinien iść ZARAZ PO Label HQ. Nowa, obowiązująca kolejność:
+   Label HQ → Bank VIP → PR Agency → Fortuno → Crownline → Steakhouse → Eclipse Noir →
+   Vesper House → Aureum Green Club. Numeracja w nagłówkach poprawiona zgodnie ze zgłoszeniem.
    Kotwice kamery = ŚRODKI istniejących obiektów ROOMS.business (żadnych zmyślonych współrzędnych). */
 window._bgfFullTopics=function(){
   const T=(em,title,desc,places,dur)=>({em,title,desc,places,durPerPlace:dur||6200});
   return [
     /* §7 scena otwierająca 9-11 s + kanoniczny monolog (test 5 mierzy zadeklarowany czas ujęcia) */
-    T('🧭','ELLIOT CRANE — CENTRUM OD ŚRODKA',
+    /* PDF GDANSK U58: nagłówek bez dopisku „ELLIOT CRANE" — sam tytuł kategorii. */
+    T('🧭','CENTRUM OD ŚRODKA',
       'Ta dzielnica działa zupełnie inaczej niż reszta miasta. Tutaj rzadko wygrywa ten, kto mówi najgłośniej. Wygrywa ten, kto rozumie, kiedy kapitał, reputacja i relacje zaczynają pracować razem. Większość tych budynków nie daje przewagi za darmo. Pozwala ją kupić, skumulować, albo stracić szybciej niż gdzie indziej. Pokażę Ci, które drzwi prowadzą do wzrostu, a które wyłącznie do kosztów.',
       [{wx:668, wy:120, label:'WEJŚCIE DO DZIELNICY', zoom:1.5, noHl:true}], 10000),
     T('🏢','01 · LABEL HQ — BIURO WYTWÓRNI',
       'Label HQ. To moment, w którym przestajesz zarządzać wyłącznie własną karierą, a zaczynasz alokować uwagę, budżet i ryzyko między ludzi. Spotkanie z artystą poprawia krótkoterminową monetyzację jego pracy, promocja wytwórni buduje zasięg marki. Panel zarządzania jest właściwym centrum operacyjnym.',
       [{wx:260, wy:256, label:'LABEL HQ', zoom:1.45}]),
-    T('📰','02 · PR AGENCY',
-      'Agencja PR. To miejsce nie służy do kupowania sławy, jak sądzą niektórzy. Kupujesz ekspozycję i szansę na jej konwersję. Im większy budżet, tym szerszy zasięg operacji, ale Media Blitz nadal wymaga reakcji. Po kampanii trwa przerwa, więc częstotliwość nie zastąpi jakości.',
-      [{wx:900, wy:256, label:'PR AGENCY', zoom:1.45}]),
-    T('📊','03 · FORTUNO STUDIO QUIZ',
-      'Fortuno. Kilka pytań, kilka minut i zaskakująco dużo ludzi, którzy mylą przychód z zyskiem. To prosty test kompetencji finansowej, ale również bezpieczny punkt wejścia do rozmów z ludźmi, którzy operują tym samym językiem. Wiedza daje tu doświadczenie i dochód; niewiedza jednak bywa znacznie droższa.',
-      [{wx:1160, wy:256, label:'FORTUNO STUDIO', zoom:1.45}]),
-    T('🏦','04 · BANK VIP INWESTYCYJNY',
+    T('🏦','02 · BANK VIP INWESTYCYJNY',
       'Bank VIP. Wyższa stopa zwrotu oznacza wyższy próg wejścia i dłuższe zamrożenie płynności. Silver, Gold i Diamond różnią się zasadniczo skalą, ale zasada jest ta sama: nie inwestujesz pieniędzy, których jutro będziesz potrzebował. Limit aktywnych lokat obejmuje również bank podstawowy.',
       [{wx:536, wy:256, label:'BANK VIP INWESTYCYJNY', zoom:1.45}]),
+    T('📰','03 · PR AGENCY',
+      'Agencja PR. To miejsce nie służy do kupowania sławy, jak sądzą niektórzy. Kupujesz ekspozycję i szansę na jej konwersję. Im większy budżet, tym szerszy zasięg operacji, ale Media Blitz nadal wymaga reakcji. Po kampanii trwa przerwa, więc częstotliwość nie zastąpi jakości.',
+      [{wx:900, wy:256, label:'PR AGENCY', zoom:1.45}]),
+    T('📊','04 · FORTUNO STUDIO QUIZ',
+      'Fortuno. Kilka pytań, kilka minut i zaskakująco dużo ludzi, którzy mylą przychód z zyskiem. To prosty test kompetencji finansowej, ale również bezpieczny punkt wejścia do rozmów z ludźmi, którzy operują tym samym językiem. Wiedza daje tu doświadczenie i dochód; niewiedza jednak bywa znacznie droższa.',
+      [{wx:1160, wy:256, label:'FORTUNO STUDIO', zoom:1.45}]),
     T('💎','05 · CROWNLINE AUTO GALLERY',
       'Wystawny salon aut premium. To ekspozycja, nie alternatywny cennik. Te same auta, te same wymagania, ta sama ekonomia. Po prostu prezentowane w miejscu, które odpowiada ich segmentowi. Dobrze oddzielić wartość pojazdu od wartości scenografii, w której go oglądasz.',
       [{wx:225, wy:816, label:'CROWNLINE AUTO GALLERY', zoom:1.5}]),
@@ -65626,10 +65867,14 @@ window._bgfFullTopics=function(){
       'Aureum. Networking o niskim natężeniu i wysokiej wartości pojedynczego kontaktu. Golf jest tu pretekstem do rozmowy bez konferencyjnego stołu. Jeśli nie umiesz słuchać, runda będzie tylko drogim spacerem. Jeśli umiesz, to czas działa wyłącznie na twoją korzyść.',
       [{wx:1301, wy:776, label:'AUREUM GREEN CLUB', zoom:1.4}]),
     /* §11 return shot — panorama skyline i zejście do punktu wejściowego */
+    /* PDF GDANSK U60: ostatni krok dostaje tę samą oprawę, co koniec przelotu po głównym mieście —
+       wyśrodkowany tekst bez prostokąta, ukryty przycisk pomijania i jeden przycisk kończący tryb.
+       ⚠ ZMIANA WYMAGANIA: treść zamykająca przepisana ze zgłoszenia, przycisk to „KONTYNUUJ”
+       (a nie „ROZPOCZNIJ”, bo to nie jest wprowadzenie do gry, tylko koniec oprowadzania). */
     T('🧭','POWRÓT DO ELLIOTA',
-      'To najważniejsze punkty. Reszta jest kwestią kolejności, kapitału i tego, czy odróżniasz możliwość od potrzeby. Jeśli masz pytania, pytaj konkretnie.',
+      'To najważniejsze punkty. Reszta jest kwestią kolejności, Twojego kapitału i tego, czy potrafisz odróżniać możliwość od potrzeby. Jeśli masz pytania, zapytaj Elliota. Skorzystasz z uroków dzielnicy?',
       [{wx:720, wy:420, label:'BUSINESS DISTRICT — PANORAMA', zoom:1.05, noHl:true},
-       {wx:668, wy:120, label:'WEJŚCIE DO DZIELNICY', zoom:1.45, noHl:true}]),
+       {wx:668, wy:120, label:'WEJŚCIE DO DZIELNICY', zoom:1.45, noHl:true, finaleCta:'KONTYNUUJ'}]),
   ];
 };
 /* §15 SHORT TOURS — dostępne dopiero po pierwszym pełnym przelocie (test 26). */
@@ -65657,9 +65902,17 @@ window._bgfShortTour=function(kind){
 /* ── §6 PIERWSZY KONTAKT ─────────────────────────────────────────────────────────────────────── */
 window._bgfSay=function(txt){ if(typeof showMsg==='function') showMsg('🧭 Elliot Crane: '+txt,'i',6000); };
 window._bgfDlg=function(text, opts){
-  const el=document.getElementById('ov-content'); if(!el) return;
   const list=(opts||[]).slice(0,3);          /* §12 / test 23: maksymalnie 3 opcje jednocześnie */
   window._bgfDlgOpts=list;
+  /* PDF GDANSK U44: pierwsza rozmowa z Elliotem korzysta z podstawowego okna dialogowego NPC
+     (jak Korek, Rysiek i Kantar) zamiast dużego panelu. U42: bez opcji „← Zostaw temat". */
+  if(typeof window._uwShowDlg==='function'){
+    window._uwShowDlg(window._gdPlainQuote(text),
+      list.map(o=>({text:window._gdPlainQuote(o.t), fn:()=>{ if(typeof closeNPCDlg==='function') closeNPCDlg(); if(typeof o.fn==='function') o.fn(); }})),
+      {name:'Elliot Crane', emoji:'🧭'});
+    return;
+  }
+  const el=document.getElementById('ov-content'); if(!el) return;
   /* §24 test 38 — dostępność: napisy przewodnika honorują ustawienia gracza z zakładki „Rozgrywka”.
      większy tekst → wyraźnie większy stopień pisma; redukcja migotania → zero animacji przejścia.
      Kontrast tekstu do tła utrzymany powyżej progu czytelności (jasny tekst na ciemnym panelu). */
@@ -65679,6 +65932,7 @@ window._bgfDlg=function(text, opts){
 window._bgfPick=function(i){
   const o=(window._bgfDlgOpts||[])[i]; if(!o) return;
   if(typeof closeOverlay==='function') closeOverlay();
+  if(typeof closeNPCDlg==='function') closeNPCDlg();/* PDF GDANSK U44: dialog zyje teraz w oknie NPC */
   if(typeof o.fn==='function') o.fn();
 };
 window._bgfTalk=function(){
@@ -69320,7 +69574,7 @@ window._drawCellStation=_drawCellStation;
 window._policeCellPhone=function(){
   _policeEnsure(); const det=G.legal.detention||{}; det.usedOpts=det.usedOpts||{};
   showEventChoice('📞 Telefon w celi','Masz jeden telefon. Do kogo dzwonisz?',[
-    {label:'📞 Zadzwoń do Kamila', fn:()=>window._policeDetentionOpt('kamil')},
+    {label:'📞 Zadzwoń do Ryana', fn:()=>window._policeDetentionOpt('kamil')},
     {label:'📞 Zadzwoń do managera', fn:()=>window._policeDetentionOpt('manager')},
     {label:'🤫 Odpuść telefon', fn:()=>{ if(typeof showMsg==='function') showMsg('🤫 Odkładasz słuchawkę. Cisza to też decyzja.','i',3000); }},
   ]);
@@ -70587,6 +70841,11 @@ window._enterDistrictPlace=(districtId,placeId)=>{
       if(typeof closeOverlay==='function') closeOverlay();
       if(!G.trap?.unlocked){showMsg('🏢 VANTAGE WORKS przyjmuje kupujących dopiero po rozwinięciu działalności — zacznij od Dealera w Underground. Więcej: słupek informacyjny obok.','r',5500);return;}
       if((G.trap?.level||1)<10){showMsg(`🏢 VANTAGE WORKS otwiera rynek powierzchni od 10. poziomu kariery Trap (masz ${G.trap.level}).`,'r',5000);return;}
+      /* PDF GDANSK U91: gdy gracz ma już w budynku własną przestrzeń (lokal, garaż albo magazyn),
+         wejście od zewnątrz NIE pokazuje panelu ofertowego — przenosi go od razu na parter. */
+      if(typeof window._vwEnsure==='function'){ const _v=window._vwEnsure();
+        if((_v.units.length||_v.garage.length||_v.storage.length) && typeof changeRoom==='function'){
+          changeRoom('vantage_lobby',560,600); return; } }
       if(typeof window._vwBuildingPanel==='function'){ window._vwBuildingPanel(); return; }
       if(typeof changeRoom==='function'){changeRoom('lab',480,400);return;}
       return;
@@ -79521,7 +79780,7 @@ window._vehNpcCrashReactions=function(incident){
      per nadawca (Kamil / Marcin) — wcześniej była wiadomością bez możliwości odpisania. */
   const _crashSet=(pick[0]==='kamil')?'kamil_city_crash':'marcin_city_crash';
   if(typeof window._smsSend==='function'){ try{ window._smsSend(pick[0], pick[1], {bypass:true, replySet:_crashSet}); return; }catch(_){} }
-  if(typeof addNotif==='function') addNotif('💬 '+(pick[0]==='kamil'?'Kamil':'Marcin')+': '+pick[1]);
+  if(typeof addNotif==='function') addNotif('💬 '+(pick[0]==='kamil'?'Ryan':'Marcin')+': '+pick[1]);
 };
 /* §33/§35 rozgłos wypadku → S9 „heat" + ewentualnie oferta Crash Control. */
 window._s9OnCrashExposure=function(incident){
@@ -80556,8 +80815,102 @@ function togglePhone(){
     const _hp=document.getElementById('hphone'); if(_hp){_hp.classList.remove('has-new'); setTimeout(()=>{if((G.sms?.unread||0)>0||(G.notifsUnread||0)>0)_hp.classList.add('has-new');},100);}
   }
 }
-function closePhone(){document.getElementById('phone').classList.remove('on');if(typeof window._slbClear==='function')window._slbClear();/* PDF „Smartphone Live Banner” §12: zamknięcie telefonu czyści banner i kolejkę */}
+function closePhone(){document.getElementById('phone').classList.remove('on');if(typeof window._slbClear==='function')window._slbClear();/* PDF „Smartphone Live Banner” §12: zamknięcie telefonu czyści banner i kolejkę */
+  if(typeof window._phFrontClose==='function') window._phFrontClose();/* PDF GDANSK U79 */
+  /* PDF GDANSK U20/U31: dopiero po schowaniu telefonu pytamy o aktywności w parku. */
+  if(typeof G!=='undefined' && G && G._gdParkPromptPending){
+    G._gdParkPromptPending=false;
+    setTimeout(function(){ try{ if(typeof window._gdParkPrompt==='function') window._gdParkPrompt(); }catch(_){} }, 450);
+  }}
+/* PDF GDANSK U20/U31 — okno dialogowe kierujące do parku (wzór: nawigacja do Frankie'go). */
+window._gdParkPrompt=function(){
+  if(typeof gameConfirm!=='function'){
+    if(typeof showMsg==='function') showMsg('🌳 Maya czeka w parku — zajrzyj tam po aktywności taneczne.','i',5200);
+    return false;
+  }
+  gameConfirm('🌳 Chcesz sprawdzić dostępne aktywności w parku?', function(){
+    const ph=document.getElementById('phone');
+    if(ph && !ph.classList.contains('on')) ph.classList.add('on');
+    if(typeof renderPhoneNPCMap==='function') renderPhoneNPCMap('park');
+  });
+  return true;
+};
 function phoneOpen(){return document.getElementById('phone').classList.contains('on');}
+/* ═══ PDF GDANSK — NAWIGACJA I WARSTWY SMARTFONU (MODULE START) ══════════════════════════
+   U18: „← Wstecz" cofa o JEDEN krok — z aplikacji do podgrupy (folderu), z folderu na pulpit,
+        z pulpitu zamyka telefon. Dotad apki uruchamiane wlasna funkcja (np. „Historia wskazowek")
+        nie odswiezaly widoku, wiec przycisk wyrzucal gracza od razu do menu glownego.
+   U19: „← Wroc" nazywa sie teraz „← Menu" i ZAWSZE prowadzi na pulpit smartfonu.
+   U5:  gracz moze chodzic po mapie podczas przegladania telefonu — poza trzema aplikacjami,
+        ktore wymagaja pelnej uwagi (Sterowanie, S9 Agency, SessionBoard).
+   U79: nowo przychodzaca wiadomosc otwiera telefon PRZED aktywnym panelem, z rozmyciem tla. */
+window._phFromFolder=null;
+window._phEnterFromFolder=function(folderId){
+  window._phFromFolder=folderId||null;
+  /* znacznik „jestem w aplikacji" — apki wolajace `renderPhoneApp` nadpisza go wlasnym widokiem */
+  if(typeof G!=='undefined'&&G) G._phView='inapp';
+};
+window._phBackOneStep=function(){
+  const v=String((typeof G!=='undefined'&&G._phView)||'');
+  if(v==='home'){ if(typeof closePhone==='function') closePhone(); return; }
+  if(v.indexOf('folder:')===0){ if(typeof renderPhoneHome==='function') renderPhoneHome(); return; }
+  if(v.indexOf('sms:')===0){ if(typeof renderPhoneSMS==='function'){ renderPhoneSMS(); return; } }
+  let fold=null;
+  if(v.indexOf('app:')===0 && typeof _phFolderOfApp==='function') fold=_phFolderOfApp(v.slice(4));
+  if(!fold) fold=window._phFromFolder||null;
+  if(fold && typeof _getPhoneFolders==='function' && _getPhoneFolders()[fold] && typeof renderPhoneFolder==='function'){ renderPhoneFolder(fold); return; }
+  if(typeof renderPhoneHome==='function') renderPhoneHome();
+};
+/* U5 — czy telefon pozwala teraz chodzic po mapie. */
+window._phMovementAllowed=function(){
+  try{
+    if(document.getElementById('help-panel')) return false;      /* apka „Sterowanie" */
+    const ae=document.activeElement;
+    if(ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName||'')) return false;  /* gracz wpisuje tekst */
+    const v=String((typeof G!=='undefined'&&G._phView)||'');
+    if(v==='app:sessionboard') return false;
+    if(/s9/i.test(v)) return false;
+    return true;
+  }catch(_){ return false; }
+};
+/* U79 — telefon na pierwszym planie nad otwartym panelem + rozmyte tlo. */
+window._phFrontOpen=function(){
+  const ph=document.getElementById('phone'); if(!ph) return;
+  if(document.getElementById('ph-front-backdrop')) return;
+  const bd=document.createElement('div');
+  bd.id='ph-front-backdrop';
+  bd.style.cssText='position:fixed;inset:0;z-index:10040;background:rgba(4,8,16,.38);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);opacity:0;transition:opacity .28s ease';
+  document.body.appendChild(bd);
+  requestAnimationFrame(function(){ bd.style.opacity='1'; });
+  window._phFrontPrevZ=ph.style.zIndex||'';
+  ph.style.zIndex='10050';
+  ph.classList.add('on');
+};
+window._phFrontClose=function(){
+  const bd=document.getElementById('ph-front-backdrop');
+  if(bd){ bd.style.opacity='0'; setTimeout(function(){ try{ bd.remove(); }catch(_){} }, 300); }
+  const ph=document.getElementById('phone');
+  if(ph && window._phFrontPrevZ!==undefined){ ph.style.zIndex=window._phFrontPrevZ||''; window._phFrontPrevZ=undefined; }
+};
+/* U51 — okno interakcji „[E] …" jest warstwa NADRZEDNA; komunikat informacyjny ustepuje mu,
+   przeskakujac NAD nie zamiast sie z nim nakladac. */
+window._msgAvoidPrompt=function(){
+  try{
+    const m=document.getElementById('msg'); if(!m) return;
+    const pr=document.getElementById('prompt');
+    const shown=pr && pr.style.display!=='none' && (pr.textContent||'').trim().length>0;
+    if(!m.style.transition || m.style.transition.indexOf('bottom')<0){
+      m.style.transition='opacity 0.3s, transform 0.3s, bottom .22s cubic-bezier(.2,.7,.3,1)';
+    }
+    if(shown){
+      const h=pr.getBoundingClientRect().height||44;
+      m.style.bottom=Math.round(70+h+14)+'px';
+    } else {
+      m.style.bottom='30px';
+    }
+  }catch(_){}
+};
+/* PDF GDANSK — NAWIGACJA I WARSTWY SMARTFONU (MODULE END) */
 
 // v1.8.75: telefon zorganizowany w foldery — z 20 płaskich ikon → 7 folderów + 2 top-level shortcuts
 /* v2.1.900: opcjonalne locked/lockedMsg — apka widoczna ale szara/zablokowana (klik → showMsg lockedMsg zamiast fn). */
@@ -80745,6 +81098,7 @@ function renderPhoneFolder(id){
   if(f.locked){ if(typeof showMsg==='function') showMsg(f.lockedMsg||'🔒 Zablokowane.','i',4800); renderPhoneHome(); return; }
   /* v2.1.349 Faza Z: tracker view + show back button + bind hotkeys 1-9 dla apps w tym folderze. */
   G._phView='folder:'+id;
+  window._phFromFolder=id;/* PDF GDANSK U18 */
   const _backBtn=document.getElementById('ph-back-top');if(_backBtn)_backBtn.style.display='inline-block';
   window._phGoBack=()=>renderPhoneHome();
   window._phHotkeys={};
@@ -80754,7 +81108,10 @@ function renderPhoneFolder(id){
     const _locked=!!a.locked;
     const _label = (i<9?`(${i+1}) `:'') + a.label + (_locked?' 🔒':'');
     const _msgEsc=String(a.lockedMsg||'🔒 Zablokowane.').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
-    const _eff=_locked ? `showMsg('${_msgEsc}','i',4800)` : a.fn;
+    /* PDF GDANSK U18: zapamietujemy podgrupe, z ktorej gracz wszedl do aplikacji — dzieki temu
+       „← Wstecz" wraca do folderu takze w apkach renderowanych wlasna funkcja (np. Historia
+       wskazowek), ktore nie przechodza przez `renderPhoneApp`. */
+    const _eff=_locked ? `showMsg('${_msgEsc}','i',4800)` : (`window._phEnterFromFolder('${id}');`+a.fn);
     if(i<9) window._phHotkeys[i+1]=_eff;
     return _phRenderTile(a.em,_label,a.bg,a.glow,_eff,false,null,_locked);
   }).join('');
@@ -83121,13 +83478,13 @@ window.renderCrewPanel=function(){
 };
 
 const SMS_CONTACTS={
-  wiktor:    {name:'Wiktor (Drip District)',  em:'👔', color:'#7ec8e3', physical:true},
+  wiktor:    {name:'Gavin (Zleceniodawca)',   em:'👔', color:'#7ec8e3', physical:true},
   marcin:    {name:'Marcin (Organizator)',    em:'🎤', color:'#9b59b6', physical:true},
-  producent: {name:'Majkel (Producent)',       em:'🎚️', color:'#e67e22', physical:true}, /* PDF Producent: konkretny NPC (Majkel istnieje jako fizyczny producent w Studio) zamiast bezosobowego „Producent" */
-  kamil:     {name:'Kamil (Stary kumpel)',    em:'👊', color:'#27ae60', physical:false},
+  producent: {name:'Nate „808” Morgan (Producent)',       em:'🎚️', color:'#e67e22', physical:true}, /* PDF Producent: konkretny NPC (Majkel istnieje jako fizyczny producent w Studio) zamiast bezosobowego „Producent" */
+  kamil:     {name:'Ryan (Stary kumpel)',    em:'👊', color:'#27ae60', physical:false},
   zbyszek:   {name:'Frankie (Kebab)',          em:'🌮', color:'#f1c40f', physical:true},
   /* v2.1.228 audit-fix #46: Manager BYL physical:false ale istnieje fizyczny NPC `npc_manager` na chodniku H1 south (wx:1950, wy:596, przed Szpitalem) — gracz tam podpisuje kontrakt menadżerski. SMS "Czekam pod salą koncertową" było spójne, ale UI błędnie pokazywało "Kontakt tylko przez telefon". */
-  manager:   {name:'Menadżer (Kamil)',         em:'🤵', color:'#c8a520', physical:true},
+  manager:   {name:'Manager (Marcus)',         em:'🤵', color:'#c8a520', physical:true},
   label:     {name:'Label A&R',                em:'🏢', color:'#bdc3c7', physical:false},
   sponsor:   {name:'Sponsor odzieżowy',        em:'💼', color:'#e91e8c', physical:false},
   bank:      {name:'Northcrest Bank',           em:'🏦', color:'#f39c12', physical:false},
@@ -83673,7 +84030,10 @@ window._showSmsPopupNow=function(contactId,text){
     <div style="font-size:9px;color:#7a8a9a;margin-top:6px;text-align:right">📲 Kliknij — otwórz czat</div>`;
   el.onclick=()=>{
     el.remove();
-    const _ph=document.getElementById('phone'); if(_ph && !_ph.classList.contains('on')) _ph.classList.add('on');
+    /* PDF GDANSK U79: telefon wychodzi na PIERWSZY PLAN — takze przed otwartym panelem — a tlo
+       plynnie sie rozmywa. Zamkniecie telefonu zdejmuje rozmycie i wraca do panelu. */
+    if(typeof window._phFrontOpen==='function') window._phFrontOpen();
+    else { const _ph=document.getElementById('phone'); if(_ph && !_ph.classList.contains('on')) _ph.classList.add('on'); }
     if(typeof window.renderSMSConversation==='function'){ setTimeout(()=>{try{window.renderSMSConversation(contactId);}catch(_){}},40); }
     else if(typeof window.renderPhoneSMS==='function'){ setTimeout(()=>{try{window.renderPhoneSMS();}catch(_){}},40); }
   };
@@ -84023,13 +84383,28 @@ window._kantarPresent=function(){ if(!G.underworldIntro) return false; return ['
 /* Imię: gracz zna go jako „Nieznany" do ukończenia questa (PDF §16). */
 window._uwKantarName=function(){ return (G.underworldIntro&&G.underworldIntro.state==='completed')?'Roch „Kantar” Nawrot':'Nieznany'; };
 /* Renderer dialogu reużywający okna #npc-dlg (jak openNPCDialogue, ale bez cooldownów — wybory fabularne). */
+/* PDF GDANSK U43/U44: podstawowe okno NPC samo obudowuje wypowiedz cudzyslowem, a treści
+   przewodników mają własne „…". Zdejmujemy zewnętrzne znaki i ewentualne znaczniki HTML. */
+window._gdPlainQuote=function(t){
+  let s=String(t==null?'':t).replace(/<[^>]*>/g,'').trim();
+  s=s.replace(/^[\u201e\u201c\u201d"']+/,'').replace(/[\u201e\u201c\u201d"']+$/,'').trim();
+  return s;
+};
 window._uwShowDlg=function(text,opts,who){
   const dlg=document.getElementById('npc-dlg'); if(!dlg) return;
   /* v2.3.102 (PDF #8-23): opcjonalny `who={name,emoji}` — bez niego mówiącym jest Kantar (wstecz-kompat). Korek przekazuje własny nagłówek. */
   dlg.dataset.emoji=(who&&who.emoji)||'🕴️';
   const nm=document.getElementById('npc-dlg-name'); if(nm) nm.textContent=(who&&who.name)||window._uwKantarName();
-  const tx=document.getElementById('npc-dlg-text'); if(tx) tx.textContent='"'+text+'"';
-  const od=document.getElementById('npc-dlg-opts'); if(od){ od.innerHTML=''; (opts||[]).forEach(o=>{ const b=document.createElement('button'); b.className='npc-opt'; b.textContent=o.text; b.onclick=o.fn; od.appendChild(b); }); }
+  /* PDF GDANSK U43/U44 — DOSTEPNOSC. Przewodnicy przeszli na to okno, a wraz z nimi wymog §24
+     dokumentu o Elliocie: „wieksze napisy" zwiekszaja stopien pisma, a „redukcja migotania"
+     wylacza animacje. Wczesniej honorowal to wylacznie duzy panel przewodnika — teraz cale
+     podstawowe okno NPC (Korek, Rysiek, Kantar, Mason, Elliot) zachowuje sie tak samo. */
+  const _big=!!window._bigText, _calm=!!window._reduceFlashing;
+  dlg.style.animation=_calm?'none':'';
+  const tx=document.getElementById('npc-dlg-text');
+  if(tx){ tx.textContent='"'+text+'"'; tx.style.fontSize=_big?'19px':''; tx.style.animation=_calm?'none':''; }
+  const nmEl=document.getElementById('npc-dlg-name'); if(nmEl) nmEl.style.fontSize=_big?'18px':'';
+  const od=document.getElementById('npc-dlg-opts'); if(od){ od.innerHTML=''; (opts||[]).forEach(o=>{ const b=document.createElement('button'); b.className='npc-opt'; b.textContent=o.text; b.onclick=o.fn; if(_big) b.style.fontSize='16px'; if(_calm) b.style.animation='none'; od.appendChild(b); }); }
   dlg.classList.add('on');
 };
 /* Wejście do loży (act velvet:kantar) — routuje wg stanu questa. */
@@ -85679,7 +86054,7 @@ window._KAMIL_REPLIES={
   kamil_city_crash_o1:{set:'kamil_city_crash', label:'Głupia akcja. Naprawiam auto i zwalniam', text:'Głupia akcja. Auto idzie do naprawy, a ja na chwilę przestanę udawać, że ulica jest odcinkiem specjalnym. No trudno…', fx:{"drivingResponsibility":2,"kamilTrust":1,"heat":-1}, action:'setSafeDrivingCommitment', reply:'I to jest pierwsza sensowna rzecz po tej kraksie. Garage 77 naprawi blachę, ale nawyki musisz ogarnąć sam, ziomeczku'},
   kamil_city_crash_o2:{set:'kamil_city_crash', label:'To nie był test. Straciłem kontrolę', text:'To nie był żaden test. Za szybko, za późna reakcja i tyle. Biorę to na siebie.', fx:{"selfAwareness":1,"drivingControl":1,"kamilTrust":1}, reply:'Dobrze, że nie opowiadasz bajek o drodze. Jak wiesz, co zjebałeś, to jest szansa, że drugi raz nie powtórzysz tego samego.'},
   kamil_city_crash_o3:{set:'kamil_city_crash', label:'Jedna kraksa nie robi ze mnie demolki', text:'Nie rób znowu ze mnie miejskiej katastrofy, bez przesady... Jedno stuknięcie, naprawa i temat zamknięty.', fx:{"boundaries":1,"drivingResponsibility":-1,"kamilTrust":-1}, reply:'Jedna. Rozumiem, okej. Tylko napisałeś „znowu”, zanim ja zdążyłem. Dlatego piszę'},
-  kamil_city_crash_o4:{set:'kamil_city_crash', label:'Miasto oddało rachunkiem z warsztatu 4. Majkel (Producent) senderId: producent • liczba nowych reply-setów: 2', text:'Miasto już oddało. Garage 77 wysłało mi rachunek, który ma więcej cyfr niż moja ostatnia wypłata', fx:{"kamilHumor":1,"artistMood":1,"moneyAwareness":1}, reply:'No to stary! Masz najdroższy kurs pokory w mieście. Następnym razem pamiętaj, że hamulce są nieco tańsze'},
+  kamil_city_crash_o4:{set:'kamil_city_crash', label:'Miasto oddało rachunkiem z warsztatu', text:'Miasto już oddało. Garage 77 wysłało mi rachunek, który ma więcej cyfr niż moja ostatnia wypłata', fx:{"kamilHumor":1,"artistMood":1,"moneyAwareness":1}, reply:'No to stary! Masz najdroższy kurs pokory w mieście. Następnym razem pamiętaj, że hamulce są nieco tańsze'},
 
   jobs_remember:{set:'jobs', label:'👊 Pamiętam, odezwę się po robotę (+przyjaźń)', text:'Pamiętam, stary. Jak będę potrzebował szybkiej kasy, to uderzę do Ciebie.', fx:{kamilFriendship:1,kamilTrust:1}},
   jobs_details:{set:'jobs', label:'💰 Co masz teraz na oku? (+przyjaźń)', text:'Dobra, to dawaj konkrety. Co masz teraz na oku?', fx:{kamilFriendship:2}, action:'kamilJobs'},
@@ -85736,7 +86111,7 @@ window._SPONSOR_REPLIES={
   sponsor_luxury_brand_interest_o1:{set:'sponsor_luxury_brand_interest', label:'Najpierw sprawdźmy, czy marka pasuje do mnie', text:'Luksus sam w sobie mnie nie przekonuje. Chcę zobaczyć estetykę, wartości marki i to, czy pasuje do mojego obecnego kierunku. Pozdrawiam.', fx:{"visualIdentity":1,"authenticity":1,"sponsorTrust":1}, action:'requestLuxuryBrandMoodboard', reply:'Słusznie. Prześlemy moodboard, historię marki i propozycję produktu. Współpraca ma wyglądać naturalnie, nie jak wynajęty kostium. Tego nie chcemy!'},
   sponsor_luxury_brand_interest_o2:{set:'sponsor_luxury_brand_interest', label:'Luksus tak, przebranie nie', text:'Mogę wejść w luksusową kampanię, ale nie założę czegoś, w czym przestaję wyglądać jak ja. Tego się trzymam.', fx:{"authenticity":2,"creativeControl":1,"sponsorInterest":1}, reply:'To akceptowalne. Stylista przygotuje kilka kierunków, a finalna stylizacja będzie wymagała Twojej ostatecznej akceptacji.'},
   sponsor_luxury_brand_interest_o3:{set:'sponsor_luxury_brand_interest', label:'Wyślijcie konkretny produkt i pomysł kampanii', text:'Proszę o konkretny produkt, kanały publikacji i główny pomysł. Samo „luksusowa marka” to za mało do decyzji.', fx:{"professionalism":2,"brandReadiness":1,"sponsorTrust":1}, action:'requestLuxuryCampaignDetails', reply:'Otrzymasz propozycję obejmującą jeden produkt hero, sesję oraz aktywację w mieście. Potem ewentualnie przejdziemy do poważniejszych negocjacji. Pozdrawiamy'},
-  sponsor_luxury_brand_interest_o4:{set:'sponsor_luxury_brand_interest', label:'Stawka premium, bo mój wizerunek też jest premium 8. Label A&R senderId: label • liczba nowych reply-setów: 4', text:'Przy luksusowej marce rozmawiamy o stawce odpowiadającej wartości mojego wizerunku, nie tylko liczbie postów. Mam nadzieję, że jest to dla Was zrozumiałe.', fx:{"businessFocus":2,"sponsorRespect":1,"negotiationConfidence":1}, reply:'Jasne, to uczciwy punkt wyjścia. Wycena będzie uwzględniać kategorię premium, licencję oraz skalę kampanii.'},
+  sponsor_luxury_brand_interest_o4:{set:'sponsor_luxury_brand_interest', label:'Stawka premium, bo mój wizerunek też jest premium', text:'Przy luksusowej marce rozmawiamy o stawce odpowiadającej wartości mojego wizerunku, nie tylko liczbie postów. Mam nadzieję, że jest to dla Was zrozumiałe.', fx:{"businessFocus":2,"sponsorRespect":1,"negotiationConfidence":1}, reply:'Jasne, to uczciwy punkt wyjścia. Wycena będzie uwzględniać kategorię premium, licencję oraz skalę kampanii.'},
 
   sp_style:{set:'intro', label:'👕 Jasne, ogarnę świeżą stylówkę!', text:'Jasne. Wpadnę do Drip District i ogarnę coś świeżego. Jak mam wejść w potencjalną współpracę, to wygląd też musi dowozić. Pozdro.', fx:{sponsorInterest:1,professionalism:1}, action:'sponsorObjective', reply:'Dokładnie. Nie chodzi o to, żeby wyglądać drogo — chodzi o to, żeby wyglądać świadomie. Odezwij się, kiedy ogarniesz styl. Pozdrawiamy.'},
   sp_reqs:{set:'intro', label:'📋 Jakie wymagania muszę spełnić?', text:'Jakie wymagania muszę spełnić, żeby rozmowa o sponsoringu miała sens? Nie chcę strzelać w ciemno.', fx:{professionalism:1,sponsorTrust:1}, action:'sponsorObjective', reply:'Minimum: kup przynajmniej jeden element garderoby w Drip District u Wiktora, podbij swój poziom dripu i utrzymaj spójny outfit. Nie szukamy przebrania — szukamy wizerunku. Jak drip usiądzie (ok. 20+), wracamy z ofertą.'},
@@ -85866,7 +86241,7 @@ window._MANAGER_REPLIES={
   manager_business_district_unlock_o1:{set:'manager_business_district_unlock', label:'Co dokładnie oznacza „profesjonalny ruch”?', text:'Co dokładnie masz na myśli? Chodzi o firmę, spotkania, inwestorów, nieruchomości, porządek w umowach?', fx:{"mgrProf":1,"businessReadiness":1,"mgrTrust":1}, action:'createBusinessDistrictPlan', reply:'Na początek: struktura firmy, kalendarz, dokumenty i dwa wartościowe spotkania. Garnitur jest fakultatywny, natomiast przygotowanie obligatoryjne.'},
   manager_business_district_unlock_o2:{set:'manager_business_district_unlock', label:'Chcę wejść, ale bez udawania rekina', text:'Chcę poznać ten świat, ale nie będę udawał inwestora po jednej drogiej kawie i rundzie w golfa.', fx:{"businessCredibility":1,"patienceWithEgo":1,"mgrRespect":1}, reply:'I dobrze. Najpierw słuchasz, potem pytasz, na końcu dopiero proponujesz. Ludzie w Business District bardzo szybko wyczuwają kostium i maski. Poradzisz sobie.'},
   manager_business_district_unlock_o3:{set:'manager_business_district_unlock', label:'Umów mi jedno lub dwa sensowne spotkania', text:'Nie chcę dziesięciu przypadkowych wizytówek. Umów mi jedno lub dwa spotkania z ludźmi, którzy naprawdę pasują do tego, co buduję. W innym wypadku niech wypierdalają.', fx:{"mgrBusinessFocus":2,"networkDepth":1,"mgrTrust":1}, action:'scheduleBusinessDistrictIntroduct', reply:'Tak się robi networking! Przygotuję dwie osoby: ktoś od nieruchomości i ktoś od finansowania projektów kreatywnych. Będziesz miał z kim rozmawiać, bez obaw.'},
-  manager_business_district_unlock_o4:{set:'manager_business_district_unlock', label:'Najpierw firma i papiery, potem wielkie rozmowy 7. Sponsor odzieżowy senderId: sponsor • liczba nowych reply-setów: 3', text:'Zanim pójdę rozmawiać z dużymi graczami, chcę mieć uporządkowaną firmę, podatki, umowy i sposób prezentacji projektu.', fx:{"businessReadiness":2,"professionalism":1,"mgrRespect":1}, action:'startBusinessStructureChecklist', reply:'Najmądrzejszy wariant. Duży kontakt nie uratuje bałaganu, tylko szybciej go wyeksponuje.'},
+  manager_business_district_unlock_o4:{set:'manager_business_district_unlock', label:'Najpierw firma i papiery, potem wielkie rozmowy', text:'Zanim pójdę rozmawiać z dużymi graczami, chcę mieć uporządkowaną firmę, podatki, umowy i sposób prezentacji projektu.', fx:{"businessReadiness":2,"professionalism":1,"mgrRespect":1}, action:'startBusinessStructureChecklist', reply:'Najmądrzejszy wariant. Duży kontakt nie uratuje bałaganu, tylko szybciej go wyeksponuje.'},
 
   kl_build:{set:'locked', label:'✅ Jasne. Najpierw zbuduję katalog', text:'Jasne, rozumiem. Najpierw zbuduję katalog, a potem wrócimy do rozmowy. Nie chcę wchodzić w managerkę na samym hypie.', fx:{mgrCareerReadiness:1,mgrProf:1,mgrInterest:1}, action:'mgrObjective', reply:'I to jest zdrowe podejście. Hype robi hałas, ale to katalog buduje pozycję. Jak dowieziesz sześć jakościowych numerów, będziemy mieli o czym gadać.'},
   kl_reqs:{set:'locked', label:'📋 Co dokładnie liczy się do warunku?', text:'Co dokładnie liczy się do tego warunku? Single, EP czy od razu pełniejszy projekt?', fx:{mgrProf:1,mgrTrust:1}, reply:'Trzy drogi: 6 opublikowanych singli, każdy min. 65 procent jakości. Albo EP z min. 6 utworami, każdy 65+. Albo LP, min. 6 utworów, każdy 65+. Tylko nie paczka przypadkowych szkiców — materiał, który da się pokazać dalej.'},
@@ -85891,7 +86266,7 @@ window._PRODUCER_REPLIES={
   producer_ghostwriting_leak_o1:{set:'producer_ghostwriting_leak', label:'Nie chcę być pogotowiem dla cudzych karier', text:'Masz rację. Pisanie jest moim skillem, ale nie chcę zostać pogotowiem dla ludzi, którzy nie mają własnego stylu.', fx:{"prodRespect":2,"authenticity":1,"ghostwritingLimitEnabled":1}, action:'startGhostwritingCooldown', reply:'Właśnie. Dobry tekst wzmacnia. Pogotowie podtrzymuje przy życiu projekt, który bez Ciebie nie oddycha'},
   producer_ghostwriting_leak_o2:{set:'producer_ghostwriting_leak', label:'Zlecenia finansują moje rzeczy, ale ustawiam limit', text:'Ghostwriting finansuje moje ruchy, ale ustawię limit, żeby cudze premiery nie zjadały mojego materiału', fx:{"businessFocus":1,"careerFocus":2,"prodTrust":1}, reply:'To ma sens. Usługa ma pracować na Ciebie, a nie zamieniać Cię w niewidzialnego pracownika cudzych nazwisk. Takie jest moje podejście do sprawy'},
   producer_ghostwriting_leak_o3:{set:'producer_ghostwriting_leak', label:'Writer to skill. Problemem jest utrata własnego kierunku', text:'Nie wstydzę się, że potrafię pisać. Problem zaczyna się dopiero wtedy, kiedy cudzy materiał rośnie szybciej, niż mój.', fx:{"authenticity":1,"prodCreativeFit":1,"careerFocus":1}, reply:'No dokładnie. Nie każę Ci przestać pisać, nawet nie mogę tego zrobić. Proponuję Ci pilnować, żeby najlepsze linijki nie zawsze wychodziły z pokoju pod cudzym nazwiskiem.'},
-  producer_ghostwriting_leak_o4:{set:'producer_ghostwriting_leak', label:'Słyszę ostrzeżenie, ale wybór zostaje mój 5. Marcin (Organizator) senderId: marcin • liczba nowych reply-setów: 16', text:'Rozumiem, co chcesz przekazać, ale nie chcę, żeby ktoś decydował za mnie, które zlecenia mam przyjmować. Kumasz?', fx:{"boundaries":1,"prodRespect":1,"prodRelationship":0}, reply:'Nie decyduję. Mówię Ci tylko, co widzę z boku. Finalnie to Twój materiał i Twoje nazwisko, albo ich brak pod cudzym tekstem…'},
+  producer_ghostwriting_leak_o4:{set:'producer_ghostwriting_leak', label:'Słyszę ostrzeżenie, ale wybór zostaje mój', text:'Rozumiem, co chcesz przekazać, ale nie chcę, żeby ktoś decydował za mnie, które zlecenia mam przyjmować. Kumasz?', fx:{"boundaries":1,"prodRespect":1,"prodRelationship":0}, reply:'Nie decyduję. Mówię Ci tylko, co widzę z boku. Finalnie to Twój materiał i Twoje nazwisko, albo ich brak pod cudzym tekstem…'},
 
   pr_listen:{set:'producer_first', label:'🙏 Dzięki za odsłuch, numer nie przeszedł bokiem', text:'Dzięki za odsłuch. Dobrze wiedzieć, że numer nie przeszedł bokiem. Dopiero układam brzmienie, ale fajnie, że coś w tym usłyszałeś.', fx:{prodInterest:1,prodRelationship:1,artistMood:1}, reply:'Spokojnie. Nie propsuję z grzeczności. Dyskografii jeszcze nie masz, ale masz coś, od czego można zacząć. Dowieziesz kolejne numery — zobaczymy, czy to przypadek, czy kierunek.'},
   pr_expect:{set:'producer_first', label:'🎯 Co dokładnie chcesz usłyszeć w tych 5 singlach?', text:'Co dokładnie chcesz usłyszeć w tych 5 singlach? Jakość, konsekwencję, brzmienie, czy to, czy mam ustalony kierunek?', fx:{prodTrust:1,prodRespect:1}, action:'showReq', reply:'Wszystko po trochu. Jeden numer może być fartem. Pięć pokazuje, czy masz ucho, charakter i powtarzalność. Nie muszą być identyczne — mają pokazać, że wiesz, po co wchodzisz na beat.'},
@@ -85909,7 +86284,7 @@ window._producerHandleReply=function(opt){
   if(act==='objective'||act==='showReq'){
     if(!p.fiveSinglesObjSet){ p.fiveSinglesObjSet=true; if(typeof notify==='function') notify('🎚️ Cel od Majkla: opublikuj 5 numerów w podobnym tonie, potem wbij do niego do Studia — pogadacie o współpracy (beaty, sesje, kontrakt).'); }
   } else if(act==='beatPreview'){
-    if(!p.beatPreviewUnlocked){ p.beatPreviewUnlocked=true; if(typeof notify==='function') notify('🎧 Majkel podrzuci Ci szkic bitu, jak wpadniesz do Studia. Bez zobowiązań — sprawdzicie wspólny kierunek.'); }
+    if(!p.beatPreviewUnlocked){ p.beatPreviewUnlocked=true; if(typeof notify==='function') notify('🎧 Nate „808” Morgan podrzuci Ci szkic bitu, jak wpadniesz do Studia. Bez zobowiązań — sprawdzicie wspólny kierunek.'); }
   }
 };
 /* PDF Producent §7: atrakcyjność oferty zależy od średniej jakości ostatnich singli (reużywa _albumAvgQuality). Próg 5 singli zachowany; jakość tieruje ofertę (weak<50 / small 50-64 / normal 65-79 / strong 80+). */
@@ -85973,7 +86348,7 @@ window._LABEL_REPLIES={
   label_limited_press_cd_o1:{set:'label_limited_press_cd', label:'Kto finansuje tłoczenie i logistykę?', text:'Zanim ruszymy, chcę wiedzieć, kto pokrywa produkcję, magazynowanie, wysyłkę, zwroty i ewentualne niesprzedane sztuki oraz to, co się z nimi stanie.', fx:{"businessFocus":2,"catalogControl":1,"labelRespect":1}, action:'openLimitedPressCosting', reply:'Koszty produkcyjne są potrącane zgodnie z wariantem nakładu. Szczegółowy kosztorys pojawi się przed ostatecznym zatwierdzeniem.'},
   label_limited_press_cd_o2:{set:'label_limited_press_cd', label:'80% czego — przychodu brutto czy zysku netto?', text:'„80% dla mnie” brzmi dobrze, ale potrzebuję definicji: od ceny brutto, przychodu po prowizji czy zysku po kosztach? Jak już coś ustalamy, to zróbmy to jak profesjonaliści.', fx:{"contractAwareness":2,"accountingAwareness":1,"labelTrust":1}, reply:'Słuszna uwaga. Udział jest liczony od przychodu netto po prowizji platformy i kosztach realizacji. Zobaczysz pełną symulację przed zgodą.'},
   label_limited_press_cd_o3:{set:'label_limited_press_cd', label:'Zróbmy mały nakład testowy', text:'Zacznijmy od krótkiego, numerowanego nakładu. Sprawdzimy jak wygląda popyt, zanim zamrozimy pieniądze w dużej produkcji. Dla mnie to najsensowniejsze rozwiązanie na ten moment.', fx:{"financialDiscipline":1,"catalogStrategy":1,"labelRelationship":1}, action:'launchTestPressing', reply:'To bardzo rozsądny wariant. Uruchomimy więc limitowaną serię testową i opcję dodruku po osiągnięciu progu sprzedaży.'},
-  label_limited_press_cd_o4:{set:'label_limited_press_cd', label:'Nic nie publikujcie bez akceptacji okładki i ceny 9. Fan nr 1 senderId: fan • liczba nowych reply-setów: 5', text:'Nie wystawiajcie wydania bez mojej akceptacji projektu, opisu, ceny i daty premiery.', fx:{"creativeControl":2,"catalogControl":1,"labelRespect":1}, reply:'Akceptacja artysty zostanie ustawiona jako warunek publikacji oferty. Materiały trafią do podglądu przed uruchomieniem sprzedaży.'},
+  label_limited_press_cd_o4:{set:'label_limited_press_cd', label:'Nic nie publikujcie bez akceptacji okładki i ceny', text:'Nie wystawiajcie wydania bez mojej akceptacji projektu, opisu, ceny i daty premiery.', fx:{"creativeControl":2,"catalogControl":1,"labelRespect":1}, reply:'Akceptacja artysty zostanie ustawiona jako warunek publikacji oferty. Materiały trafią do podglądu przed uruchomieniem sprzedaży.'},
 };
 window._WIKTOR_REPLIES={
   /* ── v2.3.122 (PDF „Moduł dedykowanych reply-setów SMS") — dedykowane odpowiedzi ── */
@@ -86193,7 +86568,7 @@ window._applySmsRichEffect=function(fx){
 window._smsKamilJobsAction=function(){
   if(typeof _newpdfEnsure==='function') _newpdfEnsure();
   G._kamilRel.jobsUnlocked=true; G._kamilRel.trust=Math.min(100,(G._kamilRel.trust||0)+1);
-  if(typeof showMsg==='function') showMsg('👊 Kamil: „Dobra, mam parę tematów. Rozejrzyj się za pracami dorywczymi w mieście — dam znać, jak coś grubszego wpadnie."','f',5500);
+  if(typeof showMsg==='function') showMsg('👊 Ryan: „Dobra, mam parę tematów. Rozejrzyj się za pracami dorywczymi w mieście — dam znać, jak coś grubszego wpadnie."','f',5500);
 };
 /* ═══ v2.3.109 (PDF15): Sponsor odzieżowy — obsługa odpowiedzi + oferta/negocjacja + follow-up ═══ */
 window._sponsorPushNpc=function(text,replySet){
@@ -86364,21 +86739,21 @@ window._kamilMgrHandleReply=function(opt){
   if(typeof _5pdfEnsure==='function') _5pdfEnsure();
   const act=opt.action;
   if(opt.reply) window._smsPushNpcReply('manager',opt.reply);
-  if(act==='mgrObjective'){ if(typeof notify==='function') notify('🎯 Cel: opublikuj 6 numerów jakości 65 procent i wyżej (albo EP/LP z min. 6 utworami), żeby Kamil otworzył rozmowę o współpracy przy Nova Cura.'); }
-  else if(act==='mgrMeetingFeedback'){ G._kamilMgr.meetingAvail=true; if(typeof notify==='function') notify('📍 Podejdź pod Nova Cura — Kamil da Ci szczery feedback, bez zobowiązań.'); }
+  if(act==='mgrObjective'){ if(typeof notify==='function') notify('🎯 Cel: opublikuj 6 numerów jakości 65 procent i wyżej (albo EP/LP z min. 6 utworami), żeby Marcus otworzył rozmowę o współpracy przy Nova Cura.'); }
+  else if(act==='mgrMeetingFeedback'){ G._kamilMgr.meetingAvail=true; if(typeof notify==='function') notify('📍 Podejdź pod Nova Cura — Marcus da Ci szczery feedback, bez zobowiązań.'); }
   else if(act==='mgrMeeting'){ G._kamilMgr.meetingAvail=true; window._kamilOpenCooperation(); }
   else if(act==='mgrPostpone'){ if(G._kamilMgr.mode==='none') G._kamilMgr.mode='independent'; }
 };
 window._kamilOpenCooperation=function(){
   if(typeof _5pdfEnsure==='function') _5pdfEnsure();
-  if(!(window._managerEligible&&window._managerEligible())){ if(typeof notify==='function') notify('🤵 Kamil: najpierw zbuduj katalog — album EP/LP albo 6 singli 65 procent i wyżej.'); return; }
-  if(G.managementDeal || (G._kamilMgr.mode==='selection')){ if(typeof notify==='function') notify('🤵 Masz już ustaloną formę współpracy z Kamilem.'); return; }
+  if(!(window._managerEligible&&window._managerEligible())){ if(typeof notify==='function') notify('🤵 Marcus: najpierw zbuduj katalog — album EP/LP albo 6 singli 65 procent i wyżej.'); return; }
+  if(G.managementDeal || (G._kamilMgr.mode==='selection')){ if(typeof notify==='function') notify('🤵 Masz już ustaloną formę współpracy z Marcusem.'); return; }
   const setMode=(mode,msg)=>{ G._kamilMgr.mode=mode; G._kamilMgr.meetingCompleted=true; G._kamilMgr.cooperationUnlocked=true; if(typeof notify==='function') notify(msg); };
   if(typeof showEventChoice!=='function'){ return; }
-  showEventChoice('🤵 Kamil — forma współpracy','Kim ma być dla Ciebie Kamil? Przy Nova Cura ustalacie zakres. Menadżer nie miesza się w półświatek ani Twoje prywatne finanse.',[
+  showEventChoice('🤵 Marcus — forma współpracy','Kim ma być dla Ciebie Marcus? Przy Nova Cura ustalacie zakres. Menadżer nie miesza się w półświatek ani Twoje prywatne finanse.',[
     {label:'🤝 Pełna managerka (2500 zł, +20% legalnych zarobków)', fn:()=>{ if((G.money||0)<2500){ if(typeof showMsg==='function')showMsg('Za mało gotówki (2500 zł).','r'); return; } G.money-=2500; G.managementDeal=true; G.managementBonus=1.2; setMode('full','🤝 Pełna współpraca menadżerska podpisana. Legalne zarobki ×1.2.'); }},
-    {label:'🧭 Doradztwo (1200 zł, +10% zarobków, pełna kontrola)', fn:()=>{ if((G.money||0)<1200){ if(typeof showMsg==='function')showMsg('Za mało gotówki (1200 zł).','r'); return; } G.money-=1200; G.managementDeal=true; G.managementBonus=1.1; setMode('advisory','🧭 Doradztwo Kamila. Legalne zarobki ×1.1, decyzje po Twojej stronie.'); }},
-    {label:'🗂 Selekcja propozycji (bez opłaty, Kamil odsiewa słabe oferty)', fn:()=>{ if(G.publicRep) G.publicRep.bookingTrust=Math.min(100,(G.publicRep.bookingTrust||60)+3); setMode('selection','🗂 Kamil będzie odsiewał słabe propozycje. Bez opłat i bez bonusu do zarobków — za to spokój i pełna kontrola.'); }},
+    {label:'🧭 Doradztwo (1200 zł, +10% zarobków, pełna kontrola)', fn:()=>{ if((G.money||0)<1200){ if(typeof showMsg==='function')showMsg('Za mało gotówki (1200 zł).','r'); return; } G.money-=1200; G.managementDeal=true; G.managementBonus=1.1; setMode('advisory','🧭 Doradztwo Marcusa. Legalne zarobki ×1.1, decyzje po Twojej stronie.'); }},
+    {label:'🗂 Selekcja propozycji (bez opłaty, Marcus odsiewa słabe oferty)', fn:()=>{ if(G.publicRep) G.publicRep.bookingTrust=Math.min(100,(G.publicRep.bookingTrust||60)+3); setMode('selection','🗂 Marcus będzie odsiewał słabe propozycje. Bez opłat i bez bonusu do zarobków — za to spokój i pełna kontrola.'); }},
     {label:'🕊 Zostaję niezależny', fn:()=>{ setMode('independent','🕊 Zostajesz niezależny. Bez bonusów, pełna autonomia.'); }},
   ]);
 };
@@ -86408,6 +86783,9 @@ window._smsRichReply=function(contactId,replyId){
   if(opt.action==='kamilJobs') _smsKamilJobsAction();
   /* PDF „Maya Voss” §2/§6: odpowiedź gracza uruchamia osobny, 60-sekundowy timer reakcji Mayi. */
   if(opt.action==='mayaReply' && typeof window._mayaOnPlayerReply==='function') window._mayaOnPlayerReply(opt);
+  /* PDF GDANSK U20/U31: po KAŻDEJ odpowiedzi Mayi Voss — gdy gracz schowa telefon — pojawia się
+     pytanie o aktywności w parku, z nawigacją na mapie (dokładnie jak przy Frankiem). */
+  if(contactId==='maya_voss' && typeof G!=='undefined' && G) G._gdParkPromptPending=true;
   /* v2.3.131 (PDF Uspr v2.3.130 U6): odpowiedź „Spal te budę" = zgoda na kasację pojazdów czekających na placu. */
   if(opt.action==='kasacjaConsentAll' && typeof window._kasacjaConsentAll==='function') setTimeout(()=>{ try{ window._kasacjaConsentAll(); }catch(_){} }, 900);
   if(contactId==='kamil' && opt.reply && typeof window._smsPushNpcReply==='function') window._smsPushNpcReply('kamil',opt.reply); /* PDF HAJS: follow-up Kamila (freestyle/jobs bez pola reply → brak double-send) */
@@ -86863,15 +87241,15 @@ window.renderPhoneFriendships=function(){
   const ph=document.getElementById('ph-content');
   if(!ph) return;
   const NPCS=[
-    {id:'wiktor',em:'💼',name:'Wiktor',role:'Zleceniodawca',loc:'Chodnik H1 north — przy Traphouse (NW)',bonus:'-5% ceny w Drip District (przy 50+ przyjaźń)'},
-    {id:'producent',em:'🎼',name:'Producent (Majkel)',role:'Wytwórnia muzyczna',loc:'Chodnik H1 north — po prawej Studia',bonus:'Lepsze tantiemy z tracków'},
-    {id:'manager',em:'🤵',name:'Kamil (Menadżer)',role:'Menadżer kariery',loc:'Chodnik H1 south — przed Szpitalem',bonus:'×1.2 do wszystkich zarobków po podpisaniu managementu'},
+    {id:'wiktor',em:'💼',name:'Gavin',role:'Zleceniodawca',loc:'Chodnik H1 north — przy Traphouse (NW)',bonus:'-5% ceny w Drip District (przy 50+ przyjaźń)'},
+    {id:'producent',em:'🎼',name:'Nate „808” Morgan (Producent)',role:'Wytwórnia muzyczna',loc:'Chodnik H1 north — po prawej Studia',bonus:'Lepsze tantiemy z tracków'},
+    {id:'manager',em:'🤵',name:'Manager (Marcus)',role:'Menadżer kariery',loc:'Chodnik H1 south — przed Szpitalem',bonus:'×1.2 do wszystkich zarobków po podpisaniu managementu'},
     {id:'zbyszek',em:'🌮',name:'Frankie',role:'Sprzedawca uliczny',loc:'Centrum — Kebab Kingpin',bonus:'Zniżki na kebab/zupę/energetyk (kup = +1 przyjaźń)'},
     {id:'crew',em:'🎧',name:'Crew (DJ/Grafik/Hype)',role:'Ekipa muzyczna',loc:'Chodnik H2 north — środek dolny',bonus:'+15% zarobki koncertów (×Marcin)'},
     /* v2.1.228 audit-fix #48: Marcin był przeniesiony w v2.1.66 z H3 north → H1 south (obok Sali Koncertowej, wx:2920, wy:596) — opis w NPC list nie zaktualizowano. */
     {id:'marcin',em:'🎤',name:'Marcin',role:'Organizator koncertów',loc:'Chodnik H1 south — obok Sali Koncertowej',bonus:'+15% zarobki z koncertów (kombinuje z Crew, cap 2×)'},
     {id:'fan',em:'🎤',name:'Wierny fan',role:'Najwierniejszy fan',loc:'Chodnik H3 south — fani Drip',bonus:'Częstsze donacje, autografy'}, /* v2.1.243: regresja v2.1.79 naprawiona — singular "Wierny fan" (1 NPC, nie "Fani hardcore" plural) + emoji 🎤. PLAN_NOC Faza 11 audit. */
-    {id:'kamil',em:'💬',name:'Kamil (Stary kumpel)',role:'Wsparcie SMS',loc:'📞 Tylko SMS (brak obecności w mieście)',bonus:'Wsparcie i wiadomości w storyline'},
+    {id:'kamil',em:'💬',name:'Ryan (Stary kumpel)',role:'Wsparcie SMS',loc:'📞 Tylko SMS (brak obecności w mieście)',bonus:'Wsparcie i wiadomości w storyline'},
   ];
   document.getElementById('ph-title')&&(document.getElementById('ph-title').textContent='🤝 Przyjaźnie z NPC');
   const tiers=[
@@ -86928,14 +87306,17 @@ window.renderPhoneNPCMap=function(highlightId){
   /* v2.1.66 Amper: pozycje zsynchronizowane z poprawionym layoutem NPC. Marcin obok Sali, Crew bez wystawania na drogę.
      v2.1.228 audit-fix #48: Manager dodany (był physical:false historycznie — naprawiono w v2.1.228). SMS-only: Kamil (Stary kumpel), Label, Sponsor. */
   const LOCS=[
-    {id:'wiktor',   em:'💼',name:'Wiktor',         wx:317, wy:336, desc:'Chodnik H1 north — wschód od Traphouse'},
-    {id:'producent',em:'🎼',name:'Majkel',         wx:1867,wy:336, desc:'Chodnik H1 north — po prawej Studia'},
-    {id:'manager',  em:'🤵',name:'Kamil (Menadżer)',wx:1950,wy:596,desc:'Chodnik H1 south — przed Szpitalem'},
+    {id:'wiktor',   em:'💼',name:'Gavin',          wx:317, wy:336, desc:'Chodnik H1 north — wschód od Traphouse'},
+    {id:'producent',em:'🎼',name:'Nate „808” Morgan',   wx:1867,wy:336, desc:'Chodnik H1 north — po prawej Studia'},
+    {id:'manager',  em:'🤵',name:'Manager (Marcus)',wx:1950,wy:596,desc:'Chodnik H1 south — przed Szpitalem'},
     {id:'zbyszek',  em:'🌮',name:'Frankie',        wx:1545,wy:748, desc:'Centrum — Kebab Kingpin'},
     {id:'crew',     em:'🎧',name:'Crew',           wx:2499,wy:1781,desc:'Chodnik H2 north — wschód od V2 (centrum miasta)'}, /* v2.1.202 [Amper]: sync z ROOMS.ulica.objects npc_crew (2400,1860)→(2499,1781) */
     {id:'marcin',   em:'🎤',name:'Marcin',         wx:2937,wy:624, desc:'Chodnik H1 south — obok Sali Koncertowej'},
     {id:'fan',      em:'🎤',name:'Fan',            wx:1217,wy:3120,desc:'Chodnik H3 south — fan przy Drip District'},
   ];
+  /* PDF GDANSK U20/U31: cel „park" dopisujemy TYLKO wtedy, gdy to on jest wskazywany — lista
+     kontaktów NPC nie może się przez to rozrosnąć przy zwykłym otwarciu mapy. */
+  if(highlightId==='park') LOCS.push({id:'park', em:'🌳', name:'Park Miejski', wx:330, wy:1055, desc:'Zachodnia część miasta — freestyle, krąg breakdance, skatepark, staw'});
   /* Wymiary mapy ulicy */
   const _ulica=typeof ROOMS!=='undefined'?ROOMS.ulica:null;
   const mapW=(_ulica?.wT||90)*48, mapH=(_ulica?.hT||75)*48;
@@ -86945,7 +87326,9 @@ window.renderPhoneNPCMap=function(highlightId){
   const SCALE_X=SW/mapW, SCALE_Y=SH/mapH;
   const _hl=highlightId && LOCS.find(l=>l.id===highlightId)?highlightId:null;
   const _hlNpc=_hl?LOCS.find(l=>l.id===_hl):null;
-  const banner=_hlNpc?`<div style="background:linear-gradient(135deg,#3a2a05,#5a3a05);border:2px solid #f1c40f;border-radius:8px;padding:8px 12px;margin-bottom:10px;color:#f1c40f;font-weight:700;font-size:12px;animation:pulseGold 1.4s ease-in-out infinite">📍 ${_hlNpc.em} ${_hlNpc.name} oczekuje wizyty — podejdź w mieście (max 2 dni)</div>`:'';
+  /* PDF GDANSK U20/U31: przy celu „park" baner mówi o aktywnościach, nie o wizycie u NPC. */
+  const _bannerTxt=_hlNpc?((_hl==='park')?(_hlNpc.em+' '+_hlNpc.name+' — trasa z Twojej pozycji. Na miejscu znajdziesz krąg breakdance, freestyle i skatepark.'):(_hlNpc.em+' '+_hlNpc.name+' oczekuje wizyty — podejdź w mieście (max 2 dni)')):'';
+  const banner=_hlNpc?`<div style="background:linear-gradient(135deg,#3a2a05,#5a3a05);border:2px solid #f1c40f;border-radius:8px;padding:8px 12px;margin-bottom:10px;color:#f1c40f;font-weight:700;font-size:12px;animation:pulseGold 1.4s ease-in-out infinite">📍 ${_bannerTxt}</div>`:'';
   /* Minimapa Canvas-based — drogi (H1/H2/H3 + V1/V2/V3) + strefy budynków + park + landmarki */
   ph.innerHTML=`
     <style>@keyframes pulseGold{0%,100%{box-shadow:0 0 0 0 rgba(241,196,15,.6)}50%{box-shadow:0 0 12px 4px rgba(241,196,15,.8)}}
@@ -86973,7 +87356,7 @@ window.renderPhoneNPCMap=function(highlightId){
       </div>
       <div style="margin-top:10px;text-align:left;font-size:11px;color:#aac;background:#0a0f1a;border:1px solid #1a2535;border-radius:8px;padding:8px 10px">
         ${LOCS.map(l=>{const v=G.npcFriendship?.[l.id]||0;const isHl=l.id===_hl;return `<div style="margin:3px 0${isHl?';color:#f1c40f;font-weight:700':''}">${isHl?'➤ ':''}${l.em} <b>${l.name}</b> · ${v}/100 · <span style="color:#778">${l.desc}</span></div>`;}).join('')}
-        <div style="margin-top:8px;padding-top:6px;border-top:1px solid #1a2535;color:#778;font-size:10px">💬 <b>Kamil (Stary kumpel), Label, Sponsor</b> — kontakt tylko przez SMS (brak fizycznej obecności na ulicy).</div>
+        <div style="margin-top:8px;padding-top:6px;border-top:1px solid #1a2535;color:#778;font-size:10px">💬 <b>Ryan (Stary kumpel), Label, Sponsor</b> — kontakt tylko przez SMS (brak fizycznej obecności na ulicy).</div>
       </div>
       <button class="cbtn" style="width:100%;margin-top:14px" onclick="renderPhoneHome()">← Telefon</button>
     </div>`;
@@ -89578,7 +89961,7 @@ function openHelpPanel(){
         • <b>Streak</b>: graj codziennie w real-time → bonus +20% do zarobków<br>
         • <b>Domowe gotowanie</b> na płycie indukcyjnej > kupne (większe bonusy)<br>
         • <b>Forma</b> (siła) na ławce/wyciągu, <b>Kondycja</b> (cardio) na bieżni<br>
-        • <b>Manager Kamil</b> +20% do wszystkich zarobków (1000 zł)<br>
+        • <b>Manager Marcus</b> +20% do wszystkich zarobków (1000 zł)<br>
         • <b>Spanie</b> w mieszkaniu — Premium/Lux daje bonus regeneracji
       </div>
     </div>
@@ -90385,6 +90768,9 @@ window.openCinematicFlythrough=(scenario)=>{
         autoState: placeIdx===0 ? 'full' : 'compact',
         /* PDF GDANSK U12: po ktorej stronie kadru ma stanac prezentowany obiekt. */
         objAt:place.objAt||null,
+        /* PDF GDANSK U60: ujecie konczace scenariusz — oprawa jak final przelotu po miescie,
+           ale z wlasnym napisem na przycisku. */
+        finaleCta:place.finaleCta||null,
         noHl:!!place.noHl,
         dur:topic.durPerPlace||3500,
         panSweep:!!topic.panSweep, /* v1.9.99: ciągły pan zamiast osobnych zoom-in */
@@ -90427,6 +90813,10 @@ window.openCinematicFlythrough=(scenario)=>{
     if(skipBtn) skipBtn.style.display='none';
     let f=document.getElementById('cinem-finale');
     if(f) return;
+    /* PDF GDANSK U60: scenariusz (np. oprowadzanie Elliota) moze podac wlasny napis na przycisku.
+       Bez tego zostaje dotychczasowe „ROZPOCZNIJ" przelotu po miescie. */
+    const _cta=(s&&s.finaleCta)||'ROZPOCZNIJ';
+    const _sub=(s&&s.finaleCta)?'':'Wprowadzenie zakończone. Zacznij, kiedy będziesz gotów.';
     f=document.createElement('div');
     f.id='cinem-finale';
     /* PDF GDANSK U16: ekran pod tekstem ostatniego kroku sciemnia sie STOPNIOWO (kilka sekund)
@@ -90434,8 +90824,8 @@ window.openCinematicFlythrough=(scenario)=>{
     f.style.cssText='position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:9997;pointer-events:none;padding:0 8vw;opacity:0;background:rgba(0,0,0,0);transition:opacity .9s cubic-bezier(.2,.7,.3,1),background 3.2s ease-in';
     f.innerHTML=`
       <div id="cinem-finale-t1" style="font-family:'Segoe UI','Inter','Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:clamp(17px,2.1vw,27px);line-height:1.55;color:#f4f4fa;letter-spacing:.4px;max-width:1000px;text-shadow:0 3px 16px rgba(0,0,0,.95),0 2px 5px rgba(0,0,0,.95),0 0 2px rgba(0,0,0,.9)">${s.desc}</div>
-      <div id="cinem-finale-t2" style="margin-top:26px;font-family:'Segoe UI','Inter','Helvetica Neue',Arial,sans-serif;font-weight:500;font-size:clamp(15px,1.5vw,20px);line-height:1.6;color:#eceaf5;letter-spacing:.6px;text-shadow:0 3px 16px rgba(0,0,0,.95),0 2px 5px rgba(0,0,0,.95),0 0 2px rgba(0,0,0,.9)">Wprowadzenie zakończone. Zacznij, kiedy będziesz gotów.</div>
-      <button id="cinem-finale-btn" onclick="window._cinemFinaleStart()" style="pointer-events:auto;margin-top:22px;background:linear-gradient(135deg,#f1c40f,#e91e8c);color:#ffffff;border:none;padding:15px 46px;font-size:17px;font-weight:900;letter-spacing:3px;border-radius:12px;cursor:pointer;box-shadow:0 8px 30px rgba(241,196,15,.45);font-family:inherit;text-transform:uppercase;text-shadow:0 2px 6px rgba(0,0,0,.45)">ROZPOCZNIJ</button>`;
+      ${_sub?`<div id="cinem-finale-t2" style="margin-top:26px;font-family:'Segoe UI','Inter','Helvetica Neue',Arial,sans-serif;font-weight:500;font-size:clamp(15px,1.5vw,20px);line-height:1.6;color:#eceaf5;letter-spacing:.6px;text-shadow:0 3px 16px rgba(0,0,0,.95),0 2px 5px rgba(0,0,0,.95),0 0 2px rgba(0,0,0,.9)">${_sub}</div>`:''}
+      <button id="cinem-finale-btn" onclick="window._cinemFinaleStart()" style="pointer-events:auto;margin-top:22px;background:linear-gradient(135deg,#f1c40f,#e91e8c);color:#ffffff;border:none;padding:15px 46px;font-size:17px;font-weight:900;letter-spacing:3px;border-radius:12px;cursor:pointer;box-shadow:0 8px 30px rgba(241,196,15,.45);font-family:inherit;text-transform:uppercase;text-shadow:0 2px 6px rgba(0,0,0,.45)">${_cta}</button>`;
     document.body.appendChild(f);
     requestAnimationFrame(()=>{ f.style.opacity='1'; f.style.background='rgba(0,0,0,.30)'; });/* PDF GDANSK U16 */
   };
@@ -90451,6 +90841,8 @@ window.openCinematicFlythrough=(scenario)=>{
     if(skipBtn) skipBtn.style.display='';
   };
   const _showOverlay=(s)=>{
+    /* PDF GDANSK U60: ujecie z wlasnym przyciskiem konczacym dostaje oprawe finalu. */
+    if(s.finaleCta && !s.isFinaleTopic){ _showFinale(s); _lastRenderedTopicIdx=s.topicIdx; return; }
     /* PDF GDANSK B1 — OKNA INFORMACYJNE NIE WRACALY PRZY COFANIU Z OSTATNIEGO KROKU.
        Dwie przyczyny, obie tutaj:
        (a) galaz finalu wychodzila PRZED `_lastRenderedTopicIdx = s.topicIdx`, wiec licznik zostawal
@@ -90813,7 +91205,7 @@ window.openCinematicFlythrough=(scenario)=>{
       e.preventDefault();
       /* v2.1.319 fix: na finalnym shotcie blokuj ArrowRight — gracz może tylko cofnąć lub kliknąć CTA */
       const _prevShot=SHOTS[shotIdx-1];
-      if(_prevShot && _prevShot.isFinaleTopic) return;
+      if(_prevShot && (_prevShot.isFinaleTopic || _prevShot.finaleCta)) return;/* PDF GDANSK U60 */
       if(!_shotTransitioning && shotIdx<SHOTS.length){_shotTransitioning=true; _next();}
     } else if(e.key==='ArrowLeft'){
       e.preventDefault();
@@ -91790,7 +92182,7 @@ function renderHintHistory(){
       <p style="color:#aaa;font-size:12px;margin-bottom:10px">Wskazówki które się pojawiły. Najnowsze na dole.</p>
       ${hist.length===0?'<div style="color:#667;text-align:center;padding:30px">Brak wskazówek (jeszcze).</div>':
         hist.slice().reverse().map(h=>`<div style="background:#0a1525;border-left:3px solid #f1c40f;border-radius:6px;padding:10px 12px;margin-bottom:8px;font-size:12px;color:#ccc;line-height:1.5">${h.msg}<div style="color:#667;font-size:10px;margin-top:4px">Dzień ${h.day}</div></div>`).join('')}
-      <button class="cbtn" style="width:100%;margin-top:8px" onclick="renderPhoneHome()">← Wróć</button>
+      <button class="cbtn" style="width:100%;margin-top:8px" onclick="renderPhoneHome()">← Menu</button><!-- PDF GDANSK U19 -->
     </div>
   `;
 }
@@ -91884,7 +92276,7 @@ function _refreshMapNpcs(){
   }
   if(!ROOMS.ulica||!ROOMS.ulica.objects) return;
   const npcMap={
-    'npc_quest':{name:'❓ Wiktor',emoji:'❓'},
+    'npc_quest':{name:'❓ Gavin',emoji:'❓'},
     'npc_fan':{name:'🙋 Fan',emoji:'🙋'},
     'npc_manager':{name:'🤵 Manager',emoji:'🤵',minZoom:1.8}, /* v2.3.117 (PDF Uspr115 W8): Manager stoi obok Nova Cura — na oddalonej mapie priorytet ma znacznik centrum medycznego; Manager pojawia się dopiero po przybliżeniu (zoom ≥180%). */
     'npc_booking':{name:'📅 Booking Agent',emoji:'📅'},
@@ -92746,6 +93138,19 @@ function buildStatsSummary(){
 // ─── Achievement popup ──
 const _achQueue=[];
 let _achShowing=false;
+/* PDF GDANSK U82: medalion osiagniecia rysowany stylami — zloty krazek z gwiazdka typograficzna.
+   Bez emoji, wiec wyglada tak samo na kazdym systemie i nie psuje ukladu okna. */
+window._gdAchBadge=function(size){
+  const s=Math.max(18, Math.round(size||44));
+  const f=Math.round(s*0.56);
+  /* Gwiazda rysowana `clip-path`, a NIE znakiem — w oknie nie ma zadnego symbolu, ktory moglby
+     sie nie wyswietlic albo zostac zastapiony emoji przez system. */
+  return `<span style="display:inline-flex;align-items:center;justify-content:center;width:${s}px;height:${s}px;flex:none;border-radius:50%;`
+    +`background:radial-gradient(circle at 34% 28%,#fff3b0,#f1c40f 46%,#a67c07);border:${Math.max(2,Math.round(s*0.05))}px solid #ffe680;`
+    +`box-shadow:0 0 ${Math.round(s*0.4)}px rgba(241,196,15,.55),inset 0 -2px 6px rgba(0,0,0,.35)">`
+    +`<span style="display:block;width:${f}px;height:${f}px;background:linear-gradient(180deg,#7a5502,#4a3402);`
+    +`clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)"></span></span>`;
+};
 function showAchievementPopup(ach){
   _achQueue.push(ach);
   if(!_achShowing) _drainAchQueue();
@@ -92757,7 +93162,8 @@ function _drainAchQueue(){
   /* v2.1.118: Wave 4 S33 — Drip God / TIER_LEGENDARY achievements dostają EPIC cinematic (większy popup, dłuższy, audio fanfare). */
   const _isEpic=['drip_200','fans_1m','1m_followers','prestige5','million_plays','tracks_50','penthouse','casino_whale','casino_megajackpot','cover_legend'].includes(ach.id);
   if(_isEpic && typeof showMilestoneCinematic==='function'){
-    showMilestoneCinematic({emoji:ach.icon,title:ach.name.toUpperCase(),subtitle:ach.desc,tagline:'🏆 Legendarne osiągnięcie',accentColor:'#f1c40f',accent2:'#e91e8c',duration:5000});
+    /* PDF GDANSK U82: takze scenka legendarnego osiagniecia bez emoji internetowego. */
+    showMilestoneCinematic({emoji:'★',title:ach.name.toUpperCase(),subtitle:ach.desc,tagline:'Legendarne osiągnięcie',accentColor:'#f1c40f',accent2:'#e91e8c',duration:5000});
     if(typeof sfxJackpot==='function')try{sfxJackpot();}catch{}
     setTimeout(()=>{_achShowing=false;_drainAchQueue();},5200);
     return;
@@ -92767,8 +93173,8 @@ function _drainAchQueue(){
   p.id='ach-popup';
   p.style.cssText='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.5);background:linear-gradient(135deg,#1a0a2a,#3a1a4a);border:3px solid #f1c40f;border-radius:18px;padding:28px 36px;z-index:300;text-align:center;box-shadow:0 0 60px rgba(241,196,15,.6),0 12px 40px rgba(0,0,0,.8);font-family:inherit;opacity:0;transition:transform .4s cubic-bezier(.2,1.6,.5,1),opacity .25s;min-width:380px;pointer-events:none';
   p.innerHTML=`
-    <div style="font-size:14px;color:#f1c40f;letter-spacing:3px;font-weight:700;margin-bottom:6px;text-transform:uppercase">🏆 Osiągnięcie odblokowane</div>
-    <div style="font-size:64px;line-height:1;margin:10px 0;text-shadow:0 0 30px rgba(241,196,15,.8)">${ach.icon}</div>
+    <div style="font-size:14px;color:#f1c40f;letter-spacing:3px;font-weight:700;margin-bottom:6px;text-transform:uppercase">Osiągnięcie odblokowane</div>
+    <div style="margin:12px 0">${window._gdAchBadge(64)}</div><!-- PDF GDANSK U82: rysowany medalion zamiast emoji -->
     <div style="font-size:22px;color:#fff;font-weight:900;margin-bottom:6px;text-shadow:0 2px 8px rgba(0,0,0,.6)">${ach.name}</div>
     <div style="font-size:13px;color:#c8a3e3;margin-bottom:12px;max-width:340px">${ach.desc}</div>
     <div style="font-size:13px;color:#7ec87e;font-weight:700">+25 XP · +200 zł</div>
@@ -93192,7 +93598,7 @@ function showHelp(){
           <div>👥 Rekrutuj ekipę u NPC na ulicy</div>
           <div>📋 Wiktor (❓) daje dzienne zlecenia</div>
           <div>🌮 Frankie (🌮) sprzedaje tanie jedzenie na ulicy</div>
-          <div>📅 Marcin (📅) — Booking Agent — rezerwuje koncerty</div>
+          <div>📅 Spencer (📅) — Booking Agent — rezerwuje koncerty</div>
           <div>🎤 Idź na koncert żeby zdobyć sławę i fanów</div>
           <div>📱 Telefon — Loopify, ViewGrid, Merch, Bank</div>
           <div>💪 Ćwicz na siłowni dla lepszej formy</div>
