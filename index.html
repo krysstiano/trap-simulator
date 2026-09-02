@@ -78393,11 +78393,12 @@ window._silasDeepOpen=function(line){
   if(typeof closeOverlay==='function') closeOverlay();
   const used=c._silasUsed||(c._silasUsed={});
   const opts=[];
+  /* Dokument opisuje DWA poziomy rozmowy i podaje ich dokladny sklad. Po kwestii nr 1 gracz ma
+     „4-mozliwosci" — trzy nowe plus „Wyjdz" — wiec pozostale kwestie pierwszego poziomu NIE moga
+     sie tu doklejac. Po napiwku 500 zl „poprzednie znikaja, poza opcja «Wyjdz»". */
   if(used.m500){ if(!used.after) opts.push(window._SILAS_DEEP_AFTER); }
-  else {
-    if(used.o1){ window._SILAS_DEEP2.forEach(o=>{ if(!used[o.id]) opts.push(o); }); }
-    window._SILAS_DEEP.forEach(o=>{ if(!used[o.id]) opts.push(o); });
-  }
+  else if(used.o1){ window._SILAS_DEEP2.forEach(o=>{ if(!used[o.id]) opts.push(o); }); }
+  else { window._SILAS_DEEP.forEach(o=>{ if(!used[o.id]) opts.push(o); }); }
   const list=opts.map(o=>({text:o.q, fn:()=>window._silasDeepPick(o.id)}));
   list.push({text:'Wyjdź', fn:()=>{ if(typeof closeNPCDlg==='function') closeNPCDlg(); }});
   const txt=line||window._SILAS_DEEP_INTRO;
@@ -78428,7 +78429,7 @@ window._silesTick=function(dt){
   if(c._silesSmsLeft>0) return;
   c._silesSmsSent=true; c._silesSmsDue=false;
   if(typeof window._smsSend==='function')
-    window._smsSend('siles','Tu Siles. Zapisz sobie mój numer. Odezwę się, jak się czegoś dowiem.',{bypass:true, saveContact:true});
+    window._smsSend('siles','Tu Siles. Zapisz sobie mój numer. Odezwę się, jak się czegoś dowiem.',{bypass:true, saveContact:true, replySet:'siles_number'});
 };
 /* zapisanie numeru niebieskim plusem — „Nieznany" staje sie „Siles (barman Eclipse)" */
 window._smsContactSaved=function(contactId){
@@ -86955,7 +86956,7 @@ window._ZBYSZEK_REPLIES={
 /* v2.3.122 (PDF „Moduł dedykowanych reply-setów SMS"): mapa zestaw → nadawca oraz wspólny wybór
    rejestru odpowiedzi. Dzięki temu dodanie nadawcy wymaga zmiany w JEDNYM miejscu, a nie w dwóch
    osobnych łańcuchach warunków (wcześniejsza asymetria: jeden łańcuch miał fallback, drugi nie). */
-window._smsDedicatedSets={'kamil_first_income':'kamil','kamil_career_step_five':'kamil','kamil_three_freestyles':'kamil','kamil_street_rep_30':'kamil','kamil_level_five':'kamil','kamil_total_income_50k':'kamil','kamil_cash_100k':'kamil','kamil_ghostwriting_leak':'kamil','kamil_eclipse_scandal':'kamil','kamil_city_crash':'kamil','producer_five_tracks':'producent','producer_ghostwriting_leak':'producent','marcin_first_concert':'marcin','marcin_five_concerts':'marcin','marcin_tv_new_year':'marcin','marcin_duplex_purchase':'marcin','marcin_mansion_purchase':'marcin','marcin_mega_villa':'marcin','marcin_signed_street_talent':'marcin','marcin_lifetime_achievement':'marcin','marcin_phantom_mc_signed':'marcin','marcin_underground_unlock':'marcin','marcin_coast_unlock':'marcin','marcin_ghostwriting_leak':'marcin','marcin_eclipse_breakthrough':'marcin','marcin_aureum_green_intro':'marcin','marcin_golf_lead_consultation':'marcin','marcin_city_crash':'marcin','manager_fame_50_intro':'manager','manager_haters_1000_pr':'manager','manager_bad_business_offer':'manager','manager_business_district_unlock':'manager','sponsor_global_brand_interest':'sponsor','sponsor_100k_fans_partnership':'sponsor','sponsor_luxury_brand_interest':'sponsor','label_major_offer_intro':'label','label_major_contract_active':'label','label_global_deal_active':'label','label_limited_press_cd':'label','fan_1000_followers':'fan','fan_10k_concert':'fan','fan_star_collab_pressure':'fan','fan_bus_175':'fan','fan_karol_autograph':'fan','wiktor_street_rep_50':'wiktor','wiktor_drip_80':'wiktor','zbyszek_first_thousand_discount':'zbyszek','zbyszek_donut_promo':'zbyszek',
+window._smsDedicatedSets={'siles_number':'siles',/* PDF GDANSK U62 */'kamil_first_income':'kamil','kamil_career_step_five':'kamil','kamil_three_freestyles':'kamil','kamil_street_rep_30':'kamil','kamil_level_five':'kamil','kamil_total_income_50k':'kamil','kamil_cash_100k':'kamil','kamil_ghostwriting_leak':'kamil','kamil_eclipse_scandal':'kamil','kamil_city_crash':'kamil','producer_five_tracks':'producent','producer_ghostwriting_leak':'producent','marcin_first_concert':'marcin','marcin_five_concerts':'marcin','marcin_tv_new_year':'marcin','marcin_duplex_purchase':'marcin','marcin_mansion_purchase':'marcin','marcin_mega_villa':'marcin','marcin_signed_street_talent':'marcin','marcin_lifetime_achievement':'marcin','marcin_phantom_mc_signed':'marcin','marcin_underground_unlock':'marcin','marcin_coast_unlock':'marcin','marcin_ghostwriting_leak':'marcin','marcin_eclipse_breakthrough':'marcin','marcin_aureum_green_intro':'marcin','marcin_golf_lead_consultation':'marcin','marcin_city_crash':'marcin','manager_fame_50_intro':'manager','manager_haters_1000_pr':'manager','manager_bad_business_offer':'manager','manager_business_district_unlock':'manager','sponsor_global_brand_interest':'sponsor','sponsor_100k_fans_partnership':'sponsor','sponsor_luxury_brand_interest':'sponsor','label_major_offer_intro':'label','label_major_contract_active':'label','label_global_deal_active':'label','label_limited_press_cd':'label','fan_1000_followers':'fan','fan_10k_concert':'fan','fan_star_collab_pressure':'fan','fan_bus_175':'fan','fan_karol_autograph':'fan','wiktor_street_rep_50':'wiktor','wiktor_drip_80':'wiktor','zbyszek_first_thousand_discount':'zbyszek','zbyszek_donut_promo':'zbyszek',
 /* PDF 13.08 „Błędy…" B3 (user: „kontakt korespondencyjny z Mayą jest niemożliwy"): brakowało tu
    rejestracji zestawów PIERWSZEGO kontaktu organizatorki. Bez wpisu gałąź dedykowana nie łapała,
    rozmowa spadała do gałęzi `maya_voss`, a ta znała wyłącznie `tour_invite`/`tour_rules` — więc
@@ -87011,8 +87012,20 @@ window._masonOnCamperBought=function(modelId){
   }
   return false;
 };
+/* PDF GDANSK U62: wiadomosc od anonimowego numeru nie moze miec generycznych przyciskow
+   „+przyjazn" — barman nie jest kolega z dzielnicy, a gracz nie wie nawet, kto pisze. */
+window._SILES_REPLIES={
+  siles_number_o1:{set:'siles_number', label:'Zapisane. Odezwij się, jak coś będzie',
+    text:'Zapisane. Odezwij się, jak tylko czegoś się dowiesz.', fx:{},
+    reply:'Spokojnie. Jak się dowiem, napiszę pierwszy. Nie odwrotnie.'},
+  siles_number_o2:{set:'siles_number', label:'Skąd mam wiedzieć, że to Ty?',
+    text:'Skąd mam wiedzieć, że to naprawdę Ty?', fx:{},
+    reply:'Bo nikt inny nie wie, ile razy postawiłeś mi tego wieczoru. Wystarczy?'},
+  siles_number_o3:{set:'siles_number', label:'— Zignoruj', text:null, fx:{}},
+};
 window._smsRegistryFor=function(contactId){
   switch(contactId){
+    case 'siles': return window._SILES_REPLIES;   /* PDF GDANSK U62 */
     case 'mason_hale': return window._MASON_REPLIES;
     case 'fan': return window._FAN_REPLIES;
     case 'kamil': return window._KAMIL_REPLIES;
@@ -109693,6 +109706,10 @@ function loadGame(){
      (stary buggy build: cinematic/intro/poradnik/pauza/mg-job stuck przerwane crashem lub zapisem), Object.assign(G,s.G) przywróciłby je
      → gra zablokowana (HUD ukryty, brak pauzy, niewidoczne modale, „poradnik miga"). Czyścimy ZAWSZE przy load (analog cleanup w returnToMenu). */
   G._cinematicActive=false; G._introductionActive=false; G._itut=null; G._resting=false;
+  /* PDF GDANSK U65: pokaz lokalu kamera trwa kilka sekund i trzyma znacznik na `G._locateFly`.
+     Gdyby autozapis trafil dokladnie w ten moment, po wczytaniu znacznik zostalby na zawsze i
+     przycisk „Zlokalizuj" przestalby cokolwiek robic. To transient UI-state — czyscimy przy loadzie. */
+  G._locateFly=null;
   /* v2.3.116: reset stanu śmierci (gdyby save zrobiono mid-death — nie zostaw zamrożonego świata / czarnego overlaya). */
   G._dying=false; try{ document.getElementById('death-overlay')?.remove(); const _w=document.getElementById('wrap'); if(_w) _w.style.filter=''; }catch(e){}
   if(typeof _paused!=='undefined') _paused=false;
