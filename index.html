@@ -21180,6 +21180,9 @@ function _flushAchToasts(){
   if(_achFlushTimer) return; /* seria pushy w jednym checkAchievements → 1 zaplanowany flush */
   _achFlushTimer=setTimeout(()=>{
     _achFlushTimer=null;
+    /* PDF GDANSK 138 U7: na czas transmisji na żywo toast czeka — kolejki NIE opróżniamy,
+       więc po zakończeniu streamu gracz dostaje komplet osiągnięć. */
+    if(window._streamSessionActive){ setTimeout(_flushAchToasts, 1500); return; }
     const q=Array.isArray(G._pendingAchToasts)?G._pendingAchToasts:[];
     if(!q.length) return;
     G._pendingAchToasts=[]; /* drain — fix leak */
@@ -45091,6 +45094,11 @@ window._korekTrySellBack=function(){
 };
 window._korekSellBackOffer=function(){
   const c=G.camper; const W=window._KOREK_NPC; const sellBack=Math.floor((c.purchasePrice||0)*0.5);
+  /* PDF GDANSK 138 B1: skonfiskowanego pojazdu nie wolno sprzedac również u Korka. */
+  if(typeof window._vehIsConfiscated==='function' && window._vehIsConfiscated()){
+    window._uwShowDlg(window._VEH_CONFISCATED_SELL_MSG,[{text:'[Wróć]',fn:()=>window._korekCamperMenu()}],W);
+    return;
+  }
   window._uwShowDlg(`Słuchaj, jak nie rozjebałeś silnika i nie spaliłeś elektroniki, to mógłbym go zabrać z powrotem… za połowę. Oferta: ${sellBack.toLocaleString('pl')} zł.`,[
     {text:'„Muszę go pilnie oddać.”', fn:()=>window._korekNegoReply('urgent')},
     {text:'„Połowę?! To wartość rynkowa?”', fn:()=>window._korekNegoReply('market')},
@@ -45125,6 +45133,11 @@ window._korekConfirmSellBackLegacy=function(){
   else doSell();
 };
 window._korekCompleteSellBack=function(){
+  /* PDF GDANSK 138 B1: druga bramka — także przy wywołaniu z pominięciem okna oferty. */
+  if(typeof window._vehIsConfiscated==='function' && window._vehIsConfiscated()){
+    if(typeof showMsg==='function') showMsg(window._VEH_CONFISCATED_SELL_MSG,'r',6000);
+    return;
+  }
   const c=G.camper; const m=window._camperModelById(c.model)||{}; const sellBack=Math.floor((c.purchasePrice||0)*0.5);
   G.money=(G.money||0)+sellBack;
   c.soldBack=true; c.owned=false; c.model=null; c.location=null;
@@ -65470,6 +65483,10 @@ window._swReply=function(threadId, idx){
    WŁASNOŚCI, dopiero na końcu wypłata. Nigdy odwrotnie — inaczej przerwanie stworzyłoby
    duplikację wartości albo utratę auta bez zapłaty. */
 window._swAcceptOffer=function(threadId){
+  /* PDF GDANSK 138 B1: ogłoszenie mogło powstać PRZED konfiskatą — sprzedaży nie wolno domknąć,
+     dopóki pojazd jest zabezpieczony przez służby. Odmowa NIE zależy od stanu wątku ani oferty. */
+  if(typeof window._vehIsConfiscated==='function' && window._vehIsConfiscated())
+    return {ok:false, code:'CONFISCATED', msg:window._VEH_CONFISCATED_SELL_MSG};
   const s=window._swEnsure();
   const t=s.threads.find(x=>x.threadId===threadId); if(!t) return {ok:false,msg:'Brak wątku.'};
   const l=window._swListingById(t.listingId); if(!l) return {ok:false,msg:'Brak ogłoszenia.'};
@@ -65491,6 +65508,9 @@ window._swAcceptOffer=function(threadId){
   return window._swCommitSale(l.listingId, off.offerId);
 };
 window._swCommitSale=function(listingId, offerId){
+  /* PDF GDANSK 138 B1: ostatnia bramka przed przeniesieniem własności. */
+  if(typeof window._vehIsConfiscated==='function' && window._vehIsConfiscated())
+    return {ok:false, code:'CONFISCATED', msg:window._VEH_CONFISCATED_SELL_MSG};
   const s=window._swEnsure();
   const l=window._swListingById(listingId); if(!l) return {ok:false,msg:'Brak ogłoszenia.'};
   const off=s.offers.find(o=>o.offerId===offerId); if(!off) return {ok:false,msg:'Brak oferty.'};
@@ -70512,8 +70532,13 @@ window._brawlOnSidewalk = function(room, cx, cy){
   if(room === 'ulica'){
     return window._BRAWL_CITY_SIDEWALKS.some(function(b){ return cy >= b[0] + 10 && cy <= b[1] - 10; });
   }
+  /* Marina Coast nie ma jezdni, ale ma MORZE — scena nie moze stanac na wodzie. */
+  if(room === 'coast'){
+    const shore = (typeof MARINA_SHORE_Y !== 'undefined') ? MARINA_SHORE_Y : 1056;
+    return cy >= shore + 24;
+  }
   const band = window._brawlRoadBand(room);
-  if(!band) return true;                 /* dzielnica bez jezdni (np. Marina) — cały teren pieszy */
+  if(!band) return true;                 /* dzielnica bez jezdni ani wody — cały teren pieszy */
   return cy < band[0] - 26 || cy > band[1] + 26;
 };
 /* Najbliższy bezpieczny „y" chodnika dla podanej wysokości. */
@@ -70526,6 +70551,10 @@ window._brawlSnapSidewalkY = function(room, cy){
       if(d < bestD){ bestD = d; best = mid; }
     }
     return best == null ? cy : best;
+  }
+  if(room === 'coast'){
+    const shore = (typeof MARINA_SHORE_Y !== 'undefined') ? MARINA_SHORE_Y : 1056;
+    return Math.max(cy, shore + 24);      /* zejdź z wody na piasek */
   }
   const band = window._brawlRoadBand(room);
   if(!band) return cy;
@@ -70798,6 +70827,9 @@ window._brawlHandOverToCityPed = function(wx, wy, seed){
   try{
     if(currentRoom !== 'ulica') return false;
     if(typeof cityPeds === 'undefined' || !Array.isArray(cityPeds)) return false;
+    /* Kazda awantura dokladala pieszego bez konca — przy wielu zdarzeniach w jednej sesji tlum
+       urosloby ponad projektowa gestosc. Powyzej progu zwyciezca po prostu odchodzi z kadru. */
+    if(cityPeds.length >= 40) return false;
     const rnd01 = (k) => { const v = Math.sin((seed || 1) * k) * 43758.5453; return v - Math.floor(v); };
     const SK = ['#f4d3a8', '#e0a870', '#c07840', '#a06030', '#d4905a'];
     const CL = ['#2f4a76', '#5a2a2a', '#2a5a3a', '#4a3a70', '#6a4a1a'];
@@ -70817,7 +70849,13 @@ window._brawlHandOverToCityPed = function(wx, wy, seed){
       },
       _fromBrawl: true
     });
-    if(typeof cityPeds.forEach === 'function') cityPeds.forEach(function(p, i){ p._rank = i; });
+    /* KLUCZOWE: `drawCityLife` rysuje i porusza WYLACZNIE pieszych, ktorych `_rank` miesci sie
+       w aktywnej gestosci (`_rank < cityPeds.length * gestosc`). Bez wlasnego, NISKIEGO ranga
+       nowy przechodzien byl duchem — istnial w tablicy, ale nigdy sie nie pojawial ani nie ruszal
+       (wykryl to dopiero pomiar RUCHU, nie sprawdzenie dlugosci tablicy). */
+    const fresh = cityPeds[cityPeds.length - 1];
+    for(const q of cityPeds){ if(q !== fresh) q._rank = (typeof q._rank === 'number' ? q._rank : 0) + 1; }
+    fresh._rank = 0;
     return true;
   }catch(e){ return false; }
 };
@@ -70974,7 +71012,10 @@ window._brawlDraw = function(){
   }
   /* pojazd służb stoi na chodniku ZA postaciami */
   if(s.phase === 'ambulance' && s.ambu) window._brawlDrawAmbulance(bx + s.ambu.x, by - 6, 1);
-  if(s.phase === 'police' && s.cops && typeof _drawPatrolCar === 'function') _drawPatrolCar(bx + s.cops.x, by - 6, 1, true);
+  /* Dokument rozroznia dwa momenty: radiowoz PRZYJEZDZA „na wlaczonych sygnalach swietlnych",
+     a ODJEZDZA „tak, jak przemieszczaja sie pozostale pojazdy" — czyli juz bez koguta. */
+  if(s.phase === 'police' && s.cops && typeof _drawPatrolCar === 'function')
+    _drawPatrolCar(bx + s.cops.x, by - 6, 1, s.cops.phase !== 'leave');
   if(!s.a.gone) window._brawlDrawFighter(bx + s.a.dx, by, s.a, s.a.seed);
   if(!s.b.gone) window._brawlDrawFighter(bx + s.b.dx, by, s.b, s.b.seed);
   if(s.phase === 'ambulance' && s.ambu){
@@ -71121,7 +71162,18 @@ window._brawlFightMG = function(){
   }
 
   function draw(){
-    if(!document.getElementById('bmg-cv')){ if(S.raf) cancelAnimationFrame(S.raf); return; }
+    /* KRYTYCZNE: klawisz Esc zamyka panel przez `closeMG()`, ktore NIE wola `_jobMgCleanup`.
+       Bez tego zostawal ZAWIESZONY nasluch klawiatury — a lista klawiszy zawiera W/A/S/D, wiec
+       po zamknieciu panelu polykal graczowi klawisze ruchu (`preventDefault`). Do tego scena
+       ulicy zostawala w fazie 'minigame' i nigdy sie nie konczyla. */
+    const _panel = document.getElementById('mg-job');
+    if(!document.getElementById('bmg-cv') || !_panel || !_panel.classList.contains('on')){
+      if(S.raf) cancelAnimationFrame(S.raf);
+      S.over = true; S.waitKey = null;
+      cleanupInput();
+      if(typeof window._brawlEnd === 'function') window._brawlEnd();
+      return;
+    }
     ctx.clearRect(0, 0, W, H);
     /* zaułek: mur, latarnia, chodnik */
     const g = ctx.createLinearGradient(0, 0, 0, H);
@@ -93303,6 +93355,8 @@ let _lastGainTime=0, _gainOffset=0;
 /* v2.1.258: PLAN_NOC Faza 30 — dedykowany passive income notification (PRZED showGain).
    Większy/wyraźniejszy niż generic showGain. Klikalny → otwiera apkę Pasywne dochody. */
 window._showPassiveIncomeNotif=function(amount){
+  /* PDF GDANSK 138 U7: podczas transmisji na żywo nie pokazujemy okna (wpis w Powiadomieniach zostaje). */
+  if(window._streamSessionActive) return;
   /* Usuń poprzedni jeśli istnieje (anti-overlap przy szybkich update) */
   const _existing=document.getElementById('passive-income-notif');
   if(_existing) _existing.remove();
@@ -108268,6 +108322,7 @@ function playNotifSound(type){
 let _subtleMsgTimer=null;
 window._subtleMsg=function(text,ms){
   if(G && (G._cinematicActive || G._introductionActive)) return; /* nie zaśmiecaj scen */
+  if(window._streamSessionActive) return;                        /* PDF GDANSK 138 U7: cisza na czas streamu */
   let el=document.getElementById('subtle-msg');
   if(!el){
     el=document.createElement('div'); el.id='subtle-msg';
