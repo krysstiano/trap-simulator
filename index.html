@@ -3100,9 +3100,9 @@ const ROOMS = {
       {id:'freestyle_spot',wx:2435,wy:635, w:70, h:70, act:'freestyle',               prompt:'[E] Freestyle',                    lbl:'Freestyle'}, /* v1.9.32: w 80→70 — gap od DB block */
       // ── NPCs na chodniku (v2.1.6: rozrzucone po całej mapie, nie wszyscy na H1 south) ──
       /* v2.1.66 Amper: NPC pozycje wyrównane do chodników (96px) tak by NPC z h:56 mieścił się BEZ wystawania na drogę. Wzór: wy = chodnik_top + 20 (NPC zajmuje top+20 do top+76, mieści w 96px). */
-      {id:'npc_quest',    wx:300,  wy:308, w:34,h:56, act:'npc:quest',                prompt:'[E] Wiktor — Zlecenie',         lbl:''}, /* v2.1.178: wx 200→300 — user: "kłóci się interakcją z traphouse". Player spawn = 170,325. NPC teraz 100px wschód od spawn (clear of zone). H1 north sidewalk 288-384. */
+      {id:'npc_quest',    wx:300,  wy:308, w:34,h:56, act:'npc:quest',                prompt:'[E] Gavin (Zleceniodawca)',     lbl:''}, /* v2.1.178: wx 200→300 — user: "kłóci się interakcją z traphouse". Player spawn = 170,325. NPC teraz 100px wschód od spawn (clear of zone). H1 north sidewalk 288-384. */
       {id:'npc_fan',      wx:1200, wy:3092,w:34,h:56, act:'npc:fan',                  prompt:'[E] Fan',                       lbl:''}, /* H3 south (3072-3168) — Drip District */
-      {id:'npc_manager',  wx:1950, wy:596, w:34,h:56, act:'npc:manager',              prompt:'[E] Menadżer',                  lbl:''}, /* H1 south (576-672) — przed Szpitalem */
+      {id:'npc_manager',  wx:1950, wy:596, w:34,h:56, act:'npc:manager',              prompt:'[E] Manager (Marcus)',          lbl:''}, /* H1 south (576-672) — przed Szpitalem */
       /* v2.1.66 Amper: Marcin przeniesiony BLISKO Sali Koncertowej (wx:2700,wy:672). Z H3-north na H1-south chodnik (576-672) tuż przy Sali. */
       {id:'npc_booking',  wx:2920, wy:596, w:34,h:56, act:'npc:booking',              prompt:'[E] Spencer (Booking Agent)',    lbl:''}, /* H1 south — obok Sali Koncertowej */
       /* v2.1.201 [Amper]: 3 nowe NPCs z side questami — DJ Tola (Radio), Janek (Audio Consultant), Anita (Promoter Sala). H1 north 288-384 sidewalk. */
@@ -15156,9 +15156,12 @@ function updatePlayer(){
           txt='[E] 🧱 Przejmij lokal · '+SB_STAGES[0].price.toLocaleString('pl')+' zł';
         }
       }
-      // Studio Merch — wymaga 5000 fanów
+      /* Studio Merch — 5000 fanów otwiera OFERTĘ, ale lokal trzeba wykupić.
+         PDF GDANSK U52: wejście przestaje być darmowe — to kolejna inwestycja w markę. */
       if(obj.id==='merch_studio'){
         if((G.fans||0)<5000) txt=`🔒 Studio Projektowania — wymaga 5000 fanów (masz ${(G.fans||0).toLocaleString('pl')})`;
+        else if(typeof window._merchStudioOwned==='function' && !window._merchStudioOwned())
+          txt='[E] Studio Projektowania — wykup lokal · '+(window._MERCH_STUDIO_PRICE||250000).toLocaleString('pl')+' zł';
         else txt='[E] Studio Projektowania';
       }
       /* J2 (user): kebab zamknięty — Frankie niewidzialny, więc prompt NIE może udawać „[E] interakcji z nim";
@@ -15941,6 +15944,10 @@ function handleAct(act,objId){
       showMsg('🔒 Studio Projektowania odblokowane przy 5000 fanach (masz '+(G.fans||0).toLocaleString('pl')+')','r');
       return;
     }
+    /* PDF GDANSK U52: lokal Studia projektowania wykupuje się raz — dopiero wtedy wchodzimy do środka. */
+    if(room==='merch_studio' && typeof window._merchStudioOwned==='function' && !window._merchStudioOwned()){
+      window._merchStudioBuyPrompt(+wx,+wy); return;
+    }
     if(room==='silownia') G._gymVisits=(G._gymVisits||0)+1; // tracker dla osiągnięcia "Stały bywalec"
     startRoomFade(room,+wx,+wy);
   } else if(act==='camper_exit'){
@@ -16622,6 +16629,10 @@ function _noxEnsure(){
   if(!Array.isArray(d.inbox)) d.inbox=[];
   if(!Array.isArray(d.contacts)) d.contacts=[];
   if(!Array.isArray(d.offers)) d.offers=[];
+  /* PDF GDANSK U94: lista zleceń w toku powstawała dopiero przy pierwszym zleceniu — panel
+     i tick czytały wtedy `undefined`. Teraz jest od startu, także w starych zapisach. */
+  if(!Array.isArray(d.active)) d.active=[];
+  if(typeof d.lastAskDay!=='number') d.lastAskDay=-99;
 }
 window._noxEnsure=_noxEnsure;
 function _noxHasProducts(){ try{ const p=G.trapInv&&G.trapInv.products; return !!(p&&Object.values(p).some(v=>(v||0)>0)); }catch(e){ return false; } }
@@ -16734,8 +16745,12 @@ window.updateNoxReputation=updateNoxReputation;
 window.acceptNoxContract=function(offerId){
   _noxEnsure();
   const tier=G.nox.accessLevel||1;
-  if(tier<2){ if(typeof showMsg==='function')showMsg('🛰️ NOX: na razie tylko podglad. Tier 2 (wyzsza reputacja) odblokuje branie tras.','i',5500); return false; }
   const o=(typeof NOX_OFFER_POOL!=='undefined')?NOX_OFFER_POOL.find(x=>x.id===offerId):null; if(!o) return false;
+  /* PDF GDANSK U94 (ślepy zaułek): Tier 2 otwierał się przy reputacji 20, a reputację dawało
+     WYŁĄCZNIE zamknięcie trasy — której na Tier 1 wziąć się nie dało. Aplikacja nie miała jak
+     ruszyć z miejsca. Tier 1 bierze teraz trasy wejściowe (te bez wymaganej reputacji);
+     trasy z progiem reputacji nadal czekają na wyższy poziom dostępu. */
+  if(tier<2 && (o.reqRep||0)>0){ if(typeof showMsg==='function')showMsg('🛰️ NOX: ta trasa jest poza Twoim poziomem dostępu. Zamknij najpierw trasę wejściową — reputacja otworzy resztę rynku.','i',5500); return false; }
   if((G.nox.reputation||0)<(o.reqRep||0)){ if(typeof showMsg==='function')showMsg('🛰️ NOX: Za malo historii. Za duzo pytan. (wymagana reputacja '+o.reqRep+')','i',5000); return false; }
   if((G.nox.cooldownGlobal||0)>(G.day||0)){ if(typeof showMsg==='function')showMsg('🛰️ NOX: brokerzy potrzebuja przerwy — sprobuj za '+((G.nox.cooldownGlobal||0)-(G.day||0))+' dni.','i',5000); return false; }
   const cost=Math.round((o.costMin+o.costMax)/2);
@@ -16805,7 +16820,7 @@ window.renderNoxDashboard=function(){
   const cards=offers.map(o=>{ const r=calculateRouteRisk(o); return `<div style="background:#0a1216;border:1px solid #143038;border-radius:8px;padding:10px;margin:8px 0">
       <div style="display:flex;justify-content:space-between"><span style="color:#1ad9c0;font-weight:700;font-size:11px">${o.id}</span><span style="color:#7a8a90;font-size:10px">${o.typ}</span></div>
       <div style="color:#7a8a90;font-size:10px;margin-top:4px;line-height:1.7">Operator: ukryty<br>Koszt: ${Math.round(o.costMin/1000)}k–${Math.round(o.costMax/1000)}k zł · Czas: ${o.dniMin}–${o.dniMax} dni<br>Skutecznosc: ${o.skMin}–${o.skMax}% · Trace: ${o.trace} · Heat: ${r.heatCh} +${r.heatImpact}<br>Wymagana reputacja: ${o.reqRep} · Cooldown: ${o.cooldown} dni · Ryzyko zdrady: ${r.betrayal}%</div>
-      ${tier>=2?`<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"><button onclick="window.acceptNoxContract&&window.acceptNoxContract('${o.id}')" style="background:#0c2a22;border:1px solid #1ad9c0;color:#1ad9c0;font-size:10px;padding:5px 9px;border-radius:5px;cursor:pointer">Akceptuj przez escrow</button><button onclick="window.renderNoxApp&&window.renderNoxApp()" style="background:#15181c;border:1px solid #2a3a40;color:#9fb0b8;font-size:10px;padding:5px 9px;border-radius:5px;cursor:pointer">Inna trasa</button></div>`:`<div style="color:#5a6a70;font-size:9px;margin-top:6px;font-style:italic">Tier 2 (wyzsza reputacja) odblokowuje branie tras — teraz podglad rynku.</div>`}
+      ${(tier>=2||(o.reqRep||0)===0)?`<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"><button onclick="window.acceptNoxContract&&window.acceptNoxContract('${o.id}')" style="background:#0c2a22;border:1px solid #1ad9c0;color:#1ad9c0;font-size:10px;padding:5px 9px;border-radius:5px;cursor:pointer">Akceptuj przez escrow · ${Math.round(((o.costMin+o.costMax)/2)/1000)}k zł</button><button onclick="window._noxOfferInfo&&window._noxOfferInfo('${o.id}')" style="background:#15181c;border:1px solid #2a3a40;color:#9fb0b8;font-size:10px;padding:5px 9px;border-radius:5px;cursor:pointer">Co to znaczy?</button></div>`:`<div style="color:#5a6a70;font-size:9px;margin-top:6px;font-style:italic">Poza Twoim poziomem dostępu — wymagana reputacja ${o.reqRep}. Zamknij trasy wejściowe, żeby ją zbudować.</div>`}
     </div>`; }).join('')||'<div style="color:#5a6a70;font-size:11px">Brak ofert dla Twojego poziomu dostepu.</div>';
   const evid=(n.traceLevel||0)>50?'<span style="color:#e25555">high</span>':(n.traceLevel||0)>25?'<span style="color:#e2a045">moderate</span>':'<span style="color:#1ad9c0">low</span>';
   const ph=document.getElementById('ph-content'); if(!ph) return;
@@ -16818,6 +16833,18 @@ window.renderNoxDashboard=function(){
       <div>route noise ${n.routeNoise||0}/100${bar(n.routeNoise||0,'#e2a045')}</div>
       <div>trace level ${n.traceLevel||0}/100${bar(n.traceLevel||0,'#e25555')}</div>
       <div>reputacja ${n.reputation||0}/100${bar(n.reputation||0,'#7ec8e3')}</div></div>
+    <!-- PDF GDANSK U94: aplikacja mówi wprost, do czego służy, co gracz ma w niej zrobić
+         i kiedy cokolwiek się w niej wydarzy. Wcześniej był sam ekran z liczbami. -->
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+      <button onclick="window._noxHelp&&window._noxHelp()" style="background:#0c2a22;border:1px solid #1ad9c0;color:#1ad9c0;font-size:10px;padding:6px 10px;border-radius:5px;cursor:pointer;font-family:inherit">Jak to działa</button>
+      <button onclick="window._noxAskBroker&&window._noxAskBroker()" style="background:#15181c;border:1px solid #2a3a40;color:#9fb0b8;font-size:10px;padding:6px 10px;border-radius:5px;cursor:pointer;font-family:inherit">Zapytaj brokera</button>
+      <button onclick="window.renderNoxApp&&window.renderNoxApp()" style="background:#15181c;border:1px solid #2a3a40;color:#9fb0b8;font-size:10px;padding:6px 10px;border-radius:5px;cursor:pointer;font-family:inherit">Odśwież rynek</button>
+    </div>
+    <div style="background:#0a1216;border-left:2px solid #1ad9c0;padding:7px 9px;font-size:10px;color:#8fa0a8;line-height:1.65;margin-bottom:10px">
+      ${(n.active||[]).length
+        ? 'Trasa w toku. Operator odezwie się w skrzynce, gdy ją zamknie — za '+Math.max(0,Math.min.apply(null,(n.active||[]).map(c=>c.deadlineDay-(G.day||1))))+' dni gry.'
+        : 'Nikt nie odzywa się tu pierwszy. Bierzesz trasę z rynku, escrow zamraża depozyt, a operator melduje wynik po umówionej liczbie dni.'}
+    </div>
     <div style="color:#7ec8e3;font-size:11px;font-weight:700;margin:6px 0">[ INBOX ]</div>
     ${inbox}
     ${active?`<div style="color:#7ec8a0;font-size:11px;font-weight:700;margin:12px 0 2px;border-top:1px solid #11343a;padding-top:8px">[ ZLECENIA W TOKU ] <span style="color:#5a6a70;font-weight:400">escrow ${Math.round((n.escrowBalance||0)/1000)}k zl</span></div>${active}`:''}
@@ -16829,6 +16856,78 @@ window.renderNoxDashboard=function(){
     <div style="color:#7ec8e3;font-size:11px;font-weight:700;margin:12px 0 4px;border-top:1px solid #11343a;padding-top:8px">[ CONTACTS ]</div>
     ${contacts}
   </div>`;
+};
+/* ═══ PDF GDANSK U94 — CO TO JEST, CO TU ROBIĆ I KIEDY COŚ SIĘ WYDARZY ════════════════════
+   Zgłoszenie: „Nie ma w niej przycisków funkcyjnych, a gracz nie wie, co ma w niej robić".
+   Audyt wykazał dodatkowo ŚLEPY ZAUŁEK (Tier 2 za reputacją, reputacja tylko z tras dostępnych
+   od Tier 2) — naprawiony wyżej. Poniżej warstwa informacyjna i realne akcje. */
+window._noxHelp=function(){
+  _noxEnsure();
+  const n=G.nox, tier=n.accessLevel||1;
+  const body=`
+    <div style="font-size:12px;color:#cdd;line-height:1.75">
+      <b style="color:#1ad9c0">Po co Ci ta aplikacja</b><br>
+      NOX Route to zamknięty rynek usług, których nie kupisz w żadnym sklepie: przewiezienie towaru,
+      sprzątnięcie lokalu po produkcji, papiery na kontrolę, utylizacja odpadów i dystrybucja.
+      Zlecasz potrzebę, nie osobę — trasę dobiera broker.<br><br>
+      <b style="color:#1ad9c0">Co robisz krok po kroku</b><br>
+      1. Na liście <i>MARKET BOARD</i> wybierasz trasę i klikasz „Akceptuj przez escrow".<br>
+      2. Depozyt zostaje zamrożony — to koszt wejścia, nie opłata z góry.<br>
+      3. Czekasz umówioną liczbę dni gry. W tym czasie trasa widnieje w sekcji „Zlecenia w toku".<br>
+      4. Operator melduje wynik w skrzynce: trasa zamknięta albo spalona.<br><br>
+      <b style="color:#1ad9c0">Kiedy spodziewać się odzewu</b><br>
+      Nikt nie napisze tu pierwszy. Wiadomości przychodzą wyłącznie po zamknięciu trasy — po tylu
+      dniach, ile deklaruje oferta (zwykle 1-5). Przycisk „Zapytaj brokera" daje jedną odpowiedź
+      na dobę gry, jeśli chcesz tylko sprawdzić nastroje.<br><br>
+      <b style="color:#e2a045">Czym ryzykujesz</b><br>
+      Nieudana trasa zabiera depozyt, obniża reputację i podnosi zainteresowanie służb w tym kanale,
+      w którym działałeś. Im wyższy „trace level", tym częściej ktoś zagląda Ci przez ramię.<br><br>
+      <b style="color:#1ad9c0">Poziom dostępu</b><br>
+      Masz Tier ${tier}. Trasy bez wymaganej reputacji bierzesz od razu; każda zamknięta podnosi
+      reputację i otwiera droższe zlecenia oraz nowe kontakty.
+    </div>`;
+  const ph=document.getElementById('ph-content'); if(!ph) return;
+  ph.innerHTML=`<div style="background:#06080c;border:1px solid #11343a;border-radius:10px;padding:14px">
+    <div style="color:#1ad9c0;font-weight:800;letter-spacing:2px;margin-bottom:8px">NOX ROUTE — INSTRUKCJA</div>
+    ${body}
+    <button onclick="window.renderNoxApp&&window.renderNoxApp()" style="margin-top:12px;background:#0c2a22;border:1px solid #1ad9c0;color:#1ad9c0;font-size:11px;padding:7px 14px;border-radius:6px;cursor:pointer;font-family:inherit">← Wróć do rynku</button>
+  </div>`;
+};
+window._NOX_ASK_LINES=[
+  'Rynek stoi. Bierz to, co jest — jutro moze byc drozej.',
+  'Nie pytaj o ludzi. Pytaj o termin i o to, czy stac Cie na przestoj.',
+  'Kazda tania trasa ma powod, dla ktorego jest tania.',
+  'Escrow to nie zaliczka. To dowod, ze nie zmienisz zdania w polowie.',
+  'Cisza w skrzynce znaczy, ze nic sie nie dzieje. To dobra wiadomosc.',
+];
+window._noxAskBroker=function(){
+  _noxEnsure();
+  const n=G.nox, day=G.day||1;
+  if((n.lastAskDay||-99)===day){ if(typeof showMsg==='function') showMsg('🛰️ NOX: broker odpisał już dzisiaj. Wróć jutro.','i',4200); return false; }
+  n.lastAskDay=day;
+  const line=window._NOX_ASK_LINES[Math.floor(Math.random()*window._NOX_ASK_LINES.length)];
+  const pending=(n.active||[]).length;
+  const txt=pending
+    ? 'Trasa jeszcze idzie. Wynik bedzie za '+Math.max(0,Math.min.apply(null,(n.active||[]).map(c=>c.deadlineDay-day)))+' dni. '+line
+    : line;
+  n.inbox.push({from:'Emir NOX Haddad', time:_noxNow(), text:txt});
+  n.brokerTrust=Math.min(100,(n.brokerTrust||0)+1);
+  if(typeof showMsg==='function') showMsg('🛰️ NOX: broker odpisał — sprawdź skrzynkę.','f',4200);
+  if(typeof renderNoxApp==='function' && G._phView==='app:nox') renderNoxApp();
+  return true;
+};
+window._noxOfferInfo=function(offerId){
+  _noxEnsure();
+  const o=(typeof NOX_OFFER_POOL!=='undefined')?NOX_OFFER_POOL.find(x=>x.id===offerId):null;
+  if(!o){ if(typeof showMsg==='function') showMsg('🛰️ NOX: tej trasy już nie ma na rynku.','i',3500); return; }
+  const r=calculateRouteRisk(o);
+  const kind={Logistyka:'Przewiezienie towaru między punktami. Płacisz za trasę i za to, żeby nikt jej nie zapamiętał.',
+    Cleanup:'Sprzątnięcie lokalu po produkcji: ślady, zapach, zużyty sprzęt.',
+    Dostawca:'Domknięcie braku w zaopatrzeniu — surowiec albo część, której nie kupisz oficjalnie.',
+    Dystrybucja:'Rozprowadzenie partii siecią, do której nie masz bezpośredniego dostępu.',
+    Utylizacja:'Pozbycie się odpadów tak, żeby nie wróciły do Ciebie protokołem.',
+    Dokumenty:'Papiery pod kontrolę: protokoły, faktury, formalna osłona.'}[o.typ]||'Usługa poza oficjalnym obiegiem.';
+  if(typeof showMsg==='function') showMsg('🛰️ '+o.id+' — '+kind+' Wynik po '+o.dniMin+'-'+o.dniMax+' dniach. Ryzyko zdrady '+r.betrayal+'%.','i',9000);
 };
 window.renderNoxApp=function(){
   _noxEnsure();
@@ -19244,7 +19343,7 @@ window._syPropAct=function(pid){
 window._syAllStudios=function(){ return window.SY_COMPLEX_UNITS.concat(window.SY_EXTERNAL_UNITS).filter(rid=>window._syOwned(rid)); };
 window.renderSessionBoard=function(){
   /* PDF 13.08 U3: bramka poradnika egzekwowana też w logice otwarcia aplikacji. */
-  if(!G._tutorialSeen && !!G._tutorial){ if(typeof showMsg==='function') showMsg('🎓 SessionBoard odblokujesz po ukończeniu podstawowego poradnika (8 kroków).','i',5200); return; }
+  if(!G._tutorialSeen && !!G._tutorial){ if(typeof showMsg==='function') showMsg('🎓 SessionBoard odblokujesz po ukończeniu podstawowego poradnika ('+TUTORIAL_STEPS.length+' kroków).','i',5200); return; }
   window._syEnsure();
   const ph=document.getElementById('ph-content'); if(!ph) return;
   document.getElementById('ph-title').textContent='🎚️ SessionBoard';
@@ -20426,7 +20525,7 @@ const DAILY_TIPS=[
   {id:'sleep',cond:()=>(G.sleepDebt||0)>=2,text:'💡 Niedobór snu zwiększa spadek energii. Idź spać przez kolejne dni żeby zlikwidować debet.'},
   {id:'stress',cond:()=>(G.stress||0)<40,text:'💡 Niski nastrój obniża wszystkie wyniki o 12-28%. Sofa/sauna/biblioteka pomaga.'},
   {id:'fame',cond:()=>G.fame<20&&G.followers>=500,text:'💡 Twórz, postuj na IG, graj koncerty — sława otwiera nowe możliwości (sponsorzy, kontrakty).'},
-  {id:'wiktor',cond:()=>G.dailyQuest&&G.dailyQuest.completed&&!G.dailyQuest.claimed,text:'💡 Masz gotowe dzienne zadanie! Idź do Wiktora odebrać nagrodę (chodnik H1).'},
+  {id:'wiktor',cond:()=>G.dailyQuest&&G.dailyQuest.completed&&!G.dailyQuest.claimed,text:'💡 Masz gotowe dzienne zadanie! Idź do Gavina odebrać nagrodę (chodnik H1).'},
   {id:'savings',cond:()=>G.money>=5000&&(!G.bank?.investments||G.bank.investments.length===0),text:'💡 Bank w telefonie: zainwestuj nadmiar kasy w lokaty terminowe (2/3/5 dni) aby zarobić odsetki.'},
   /* v2.1.228 audit-fix #47: Crew NPC jest na chodniku H2 north (środek miasta, na południe od Sali), NIE obok Sali Koncertowej. */
   {id:'crew',cond:()=>G.fame>=30&&(!G.crew||G.crew.length===0),text:'💡 Rekrutuj ekipę (NPC na chodniku H2 north — środek miasta, na południe od Sali Koncertowej) — DJ, grafik, hype man dają stałe bonusy. (Menadżer to osobny NPC przy Szpitalu.)'},
@@ -20904,7 +21003,7 @@ const ACHIEVEMENTS = [
   {id:'fit_75',name:'Atleta',desc:'Osiągnij 75 punktów FORMY (siła — bench press)',icon:'💪',check:()=>(G.forma||0)>=75}, /* v2.1.110 */
   /* v2.1.110: NEW max_forma achievement (Wave 4 K38 — parallel z max_fitness, dla siła vs cardio symmetry) */
   {id:'max_forma',name:'Athlete Beast',desc:'Osiągnij FORMĘ 100/100 (siła — bench press)',icon:'💪',check:()=>(G.forma||0)>=100},
-  {id:'side_quests_3',name:'Wielokierunkowy',desc:'Ukończ 3 zadania pomocnicze (Wiktor i inni)',icon:'🗺',check:()=>(G._sideQuestsCompleted||0)>=3},
+  {id:'side_quests_3',name:'Wielokierunkowy',desc:'Ukończ 3 zadania pomocnicze (Gavin i inni)',icon:'🗺',check:()=>(G._sideQuestsCompleted||0)>=3},
   {id:'all_freestyle',name:'Freestyle Master',desc:'Wykonaj 25 freestyle’ów na ulicy',icon:'🎙',check:()=>(G.careers?.raper?.freestyles||0)>=25},
   /* v2.1.169: analog achievement do all_careers/all_jobs — wydaj singla w każdym z 9 gatunków */
   {id:'all_genres',name:'Eksplorator Gatunków',desc:'Wydaj singla w każdym z 9 gatunków muzycznych',icon:'🎼',check:()=>{const used=new Set((G.studioTracks||[]).filter(t=>t&&!t.isDemo&&t.genre).map(t=>t.genre));return used.size>=9;}}, /* v2.3.33: guard null wpis — uszkodzony studioTracks crashowal checkAchievements */
@@ -24096,6 +24195,8 @@ window._underworldEnsure=function(){
   /* Sync nazwy kontaktu w telefonie wg stanu (SMS_CONTACTS to runtime const — mutacja nie przeżywa reloadu,
      więc odtwarzamy ją z save'a tutaj): „Numer zastrzeżony" → „Roch Kantar Nawrot" po ukończeniu questa. */
   try{ if(typeof SMS_CONTACTS!=='undefined' && SMS_CONTACTS.kantar) SMS_CONTACTS.kantar.name=(u.state==='completed')?'Roch „Kantar” Nawrot':'Numer zastrzeżony'; }catch(_e){}
+  /* PDF GDANSK U62: to samo dla barmana z Eclipse — nazwa zapisana przez gracza przeżywa reload. */
+  try{ if(typeof SMS_CONTACTS!=='undefined' && SMS_CONTACTS.siles) SMS_CONTACTS.siles.name=(G.eclipseNoir&&G.eclipseNoir._silesSaved)?'Siles (barman Eclipse)':'Nieznany'; }catch(_e){}
 };
 /* ═══ NEW PDF (2026-07-01): save-safe init 5 systemów — relacje SMS (Kamil/Fani) + ścieżki turniejowe breakdance/skate.
    Idempotentne: stary save bez tych pól dostaje defaulty, ZERO wpływu wstecz. Wołane po loadGame i po resetG (nowa gra). */
@@ -29554,8 +29655,8 @@ function progressQuest(target){
     if(G.dailyQuest.progress>=G.dailyQuest.count){
       G.dailyQuest.completed=true;
       G.dailyQuest.claimed=false;
-      showMsg(`✅ Zlecenie dnia wykonane! Odbierz nagrodę od Wiktora.`);
-      addNotif(`✅ Quest gotowy: "${G.dailyQuest.desc}" — idź do Wiktora!`);
+      showMsg(`✅ Zlecenie dnia wykonane! Odbierz nagrodę od Gavina.`);
+      addNotif(`✅ Quest gotowy: "${G.dailyQuest.desc}" — idź do Gavina!`);
     }
   }
 }
@@ -29954,7 +30055,7 @@ const NPC_DATA = {
           if(!G.hasDaw){closeNPCDlg();if(typeof showMsg==='function')showMsg('🎧 Nate „808” Morgan: „Bez DAW nie zrobisz bitów, ziom. Kup komputer z oprogramowaniem w BeatPoint i wróć do mnie.”','f',8000);return;}
           if(G.contract){showMsg('Masz już aktywny kontrakt!','r');return;}
           G.contract={type:'beat',from:'producer',desc:'Stwórz 5 bitów',target:5,progress:0,deadline:G.day+7,payment:2000};
-          closeNPCDlg();notify('📋 Kontrakt: 5 bitów dla Majkla. Termin: dzień '+(G.day+7));
+          closeNPCDlg();notify('📋 Kontrakt: 5 bitów dla Nate „808” Morgan. Termin: dzień '+(G.day+7));
         }
       },
       // Raper: nagranie tracków w studio (główny core mechanic)
@@ -30022,7 +30123,7 @@ const NPC_DATA = {
         const q=G.dailyQuest;
         const statusTxt=q.completed?'✅ UKOŃCZONE':'⏳ W trakcie: '+q.progress+'/'+q.count;
         document.getElementById('ov-content').innerHTML=`
-          <h2>📋 Dzienne zadanie</h2><p class="sub">Zlecenie od Wiktora — Dzień ${G.day}</p>
+          <h2>📋 Dzienne zadanie</h2><p class="sub">Zlecenie od Gavina — Dzień ${G.day}</p>
           <div style="background:#0a1a2a;border:1px solid #1a3a5a;border-radius:8px;padding:18px;margin-bottom:14px">
             <div style="font-size:18px;color:#7ec8e3;margin-bottom:10px">${q.desc}</div>
             <div style="font-size:15px;color:#aaa;margin-bottom:8px">Status: <span style="color:#f1c40f">${statusTxt}</span></div>
@@ -30543,7 +30644,7 @@ const NPC_DATA = {
       },
       {text:'✓ Quest "Mikrofon" + "DAW" odebrane',
         cond:()=>G._questAudioMicDone && G._questAudioDawDone,
-        fn:()=>{closeNPCDlg();notify('🎤 Wszystkie questy Janka wykonane. Wpadaj po sprzęt!');}
+        fn:()=>{closeNPCDlg();notify('🎤 Wszystkie zadania Andre Cartera wykonane. Wpadaj po sprzęt!');}
       },
       {text:'❓ Co dalej kupić?', fn:()=>{
         closeNPCDlg();
@@ -30593,7 +30694,7 @@ const NPC_DATA = {
           }
         }
       },
-      {text:'✓ Wszystkie questy Anity odebrane',
+      {text:'✓ Wszystkie zadania Cassie odebrane',
         cond:()=>G._questPromoterC3Done && G._questPromoterArenaDone,
         fn:()=>{closeNPCDlg();notify('🎤 Cassie docenia Twoją scenę. Wracaj jak będą nowe okazje.');}
       },
@@ -30916,9 +31017,9 @@ function tickDecay(){
       /* v2.1.964 (PDF l.54): kontrakt Majkla (from:'producer') zawalony — licznik; 2× = block współpracy 14 dni. */
       if(G.contract.from==='producer'){
         if(window._majkelContractFailed&&window._majkelContractFailed()){
-          showMsg('📋 Kontrakt Majkla wygasł! Producent: „Drugi raz mnie zawiodłeś — przez 14 dni nie ma współpracy.” Nastrój -30','r',9000);
+          showMsg('📋 Kontrakt od Nate „808” Morgan wygasł! Producent: „Drugi raz mnie zawiodłeś — przez 14 dni nie ma współpracy.” Nastrój -30','r',9000);
         } else {
-          showMsg('📋 Kontrakt Majkla wygasł! Producent: „Jeszcze jeden taki numer i koniec współpracy.” Nastrój -30','r',7500);
+          showMsg('📋 Kontrakt od Nate „808” Morgan wygasł! Producent: „Jeszcze jeden taki numer i koniec współpracy.” Nastrój -30','r',7500);
         }
       } else {
         showMsg('📋 Kontrakt wygasł! Nie zdążyłeś — nastrój -30','r');
@@ -41644,6 +41745,8 @@ function invAdd(stack,n){ n=n||1; invInit(); if(invSpace()<n) return false; cons
 function invRemoveOne(id,type){ invInit(); const ex=G.inventory.find(i=>i.id===id&&i.type===type); if(!ex) return false; ex.qty--; if(ex.qty<=0) G.inventory=G.inventory.filter(i=>!(i.id===id&&i.type===type)); return true; }
 window.openInventory=function(){
   invInit(); const el=document.getElementById('ov-content'); if(!el) return;
+  /* PDF GDANSK U17: krok poradnika „Ekwipunek [I]" zalicza REALNE otwarcie plecaka. */
+  if(!G._tutStat) G._tutStat={}; G._tutStat.invOpened=(G._tutStat.invOpened||0)+1;
   const cnt=invCount(), cap=invCap(), pct=Math.round(cnt/cap*100);
   const groups={food:[],drug:[],item:[]}; G.inventory.forEach(it=>{ (groups[it.type]||groups.item).push(it); });
   const barCol = pct>=90?'#e74c3c':pct>=60?'#f1c40f':'#27ae60';
@@ -45612,16 +45715,69 @@ function renderSalaKoncertowa(){
    Dostępne przy każdej posiadanej pozycji, bez limitu użyć. */
 window._APT_MAP_OBJ={ traphouse:'traphouse', basic:'apt_basic', premium:'apt_premium', luxury:'apt_penthouse',
                       duplex:'apt_duplex', mansion:'apt_mansion', mega_villa:'apt_mega_villa' };
+/* ═══ PDF GDANSK U65 — POKAZ LOKALU KAMERĄ PRZELOTU ════════════════════════════════════════
+   Dotąd „Zlokalizuj" otwierało mapę miasta. Teraz panel się zamyka, kamera płynnie leci nad
+   wskazany budynek, zaznacza go żółtą, kolistą obwódką na 5 sekund i równie płynnie wraca do
+   gracza. Silnik to te same prymitywy, co „Przelot nad miastem" (`_cinemCam`): gracz na czas
+   pokazu stoi w miejscu, HUD znika, a [E] nie reaguje. */
+window._LOCATE_HOLD_MS=5000;
+window._locateFlyover=function(cx,cy,label,radius){
+  if(typeof currentRoom==='undefined' || currentRoom!=='ulica') return false;   /* pokaz działa na mapie miasta */
+  if(typeof cam==='undefined' || typeof G==='undefined') return false;
+  if(G._cinematicActive || G._itut || G._locateFly) return false;               /* nie wchodzimy w inną scenę */
+  if(!window._cinemCam) window._cinemCam={};
+  const c=window._cinemCam;
+  const backX=cam.x, backY=cam.y;
+  G._locateFly={backX:backX, backY:backY, started:Date.now()};
+  G._cinematicActive=true;
+  try{ document.body.classList.add('cinematic-active'); }catch(_){}
+  c.active=true; c.lerpMul=1.15; c.highlight=null; c.hlOpacity=0;
+  c.targetX=cx-VIEW_W/2; c.targetY=cy-VIEW_VH/2; c.targetZoom=1.3;
+  const fade=(to,ms)=>{ const from=c.hlOpacity||0, t0=Date.now();
+    const step=()=>{ const k=Math.min(1,(Date.now()-t0)/ms); c.hlOpacity=from+(to-from)*k;
+      if(k<1 && G._locateFly) requestAnimationFrame(step); };
+    requestAnimationFrame(step); };
+  /* obwódka zapala się, gdy kamera dolatuje nad budynek */
+  G._locateFly.t1=setTimeout(()=>{
+    if(!G._locateFly) return;
+    c.highlight={wx:cx, wy:cy, r:radius||210};
+    fade(0.62,420);
+    if(typeof showMsg==='function' && label) showMsg('📍 '+label+' — zaznaczony żółtą obwódką.','i',Math.max(3000,window._LOCATE_HOLD_MS-400));
+    /* po 5 sekundach obwódka gaśnie, a kamera wraca do gracza */
+    G._locateFly.t2=setTimeout(()=>{
+      if(!G._locateFly) return;
+      fade(0,380);
+      c.targetX=G._locateFly.backX; c.targetY=G._locateFly.backY; c.targetZoom=1;
+      G._locateFly.t3=setTimeout(()=>{ window._locateFlyEnd(); }, 1500);
+    }, window._LOCATE_HOLD_MS);
+  }, 900);
+  return true;
+};
+window._locateFlyEnd=function(){
+  const f=G._locateFly; if(!f) return;
+  [f.t1,f.t2,f.t3].forEach(t=>{ if(t) clearTimeout(t); });
+  G._locateFly=null;
+  const c=window._cinemCam;
+  if(c){ c.active=false; c.highlight=null; c.hlOpacity=0; c.targetZoom=1; }
+  if(typeof cam!=='undefined') cam.zoom=1;
+  G._cinematicActive=false;
+  try{ document.body.classList.remove('cinematic-active'); }catch(_){}
+  if(typeof snapCamera==='function') snapCamera();
+};
 window._aptLocate=function(aptId){
   const objId=window._APT_MAP_OBJ[aptId];
   const R=(typeof ROOMS!=='undefined')?ROOMS.ulica:null;
   const obj=(objId&&R&&Array.isArray(R.objects))?R.objects.find(o=>o.id===objId):null;
   if(!obj){ if(typeof showMsg==='function') showMsg('📍 Nie udało się ustalić położenia tego lokalu na mapie.','r',4000); return; }
   const cx=obj.wx+(obj.w||120)/2, cy=obj.wy+(obj.h||120)/2;
-  /* podświetlenie obrysu na mapie przez 8 s */
+  /* podświetlenie obrysu na mapie przez 8 s (używane tylko przez zapasowy podgląd na mapie) */
   window._fmapLocate={wx:obj.wx, wy:obj.wy, w:obj.w||120, h:obj.h||120, label:obj.lbl||'Twój lokal', room:'ulica', until:Date.now()+8000};
   if(typeof closeOverlay==='function') closeOverlay();
   if(typeof phoneOpen==='function' && phoneOpen() && typeof togglePhone==='function') togglePhone();
+  /* PDF GDANSK U65: podstawowa droga to pokaz kamerą. Mapa zostaje wyłącznie jako zapas,
+     gdy gracz akurat nie stoi na mapie miasta albo trwa inna scena. */
+  const _hlR=Math.round(Math.max(150, Math.max(obj.w||120,obj.h||120)*1.15));
+  if(window._locateFlyover(cx,cy,obj.lbl||'Twój lokal',_hlR)) return;
   if(typeof openFullMap==='function'){
     openFullMap('ulica');
     setTimeout(()=>{ try{ if(typeof window._mapFocusCoord==='function') window._mapFocusCoord(cx,cy,1.1,2.2); }catch(e){} },130);
@@ -46176,7 +46332,7 @@ function renderPepcoShop(){
   ];
   document.getElementById('ov-content').innerHTML=`
     <h2>🛍️ Lumpeks — tania odzież</h2>
-    <p class="sub">Budżetowe ubrania na co dzień i do roboty — te same efekty co u Wiktora, tylko taniej i w mniejszym wyborze. Markowy drip znajdziesz w Dzielnicy Dripu.</p>
+    <p class="sub">Budżetowe ubrania na co dzień i do roboty — te same efekty co w Urban Crown, tylko taniej i w mniejszym wyborze. Markowy drip znajdziesz w Dzielnicy Dripu.</p>
     <div id="shop-res" class="res"></div>
     <div class="shopgrid">
       ${items.map(o=>{
@@ -58574,6 +58730,9 @@ window._vwSellUnit=function(unitId){
     ? window.VW_AGENCIES[Math.floor(Math.random()*window.VW_AGENCIES.length)] : 'agencji nieruchomości';
   G.money+=price;
   v.units=v.units.filter(x=>x.id!==u.id);
+  /* PDF GDANSK U90: karta dostępu należy do KONKRETNEGO lokalu — po sprzedaży wraca do recepcji.
+     Bez tego identyczny identyfikator lokalu kupionego ponownie dziedziczyłby starą kartę. */
+  if(Array.isArray(v.accessCards)) v.accessCards=v.accessCards.filter(id=>id!==u.id);
   if(v.activeUnit===u.id) v.activeUnit=v.units.length?v.units[0].id:null;
   v.history.push({day:G.day||1,type:'sprzedaż',text:'Odsprzedano lokal '+d.name+' agencji '+agency+' za '+price.toLocaleString('pl')+' zł'+(q?(' ('+Math.round(q.pct*100)+'% ceny zakupu)'):'')+'.'});
   if(typeof saveGameSilent==='function') saveGameSilent();
@@ -62764,6 +62923,244 @@ const SB_GEAR=[
  {id:'backupcell_m2',cat:'INFRA',  cls:'M', name:'BackupCell M2', price:10600, cycle:300, load:0,  sl:1, minTier:1, look:'Moduł ciągłości z ekranem rezerwy.',                       eff:{abortLoss:-0.50,catastrophe:-5},      pro:'Chroni kapitał w toku.', con:'Koszt stały nawet gdy nic się nie dzieje.'},
  {id:'powerspine_a3',cat:'INFRA',  cls:'A', name:'PowerSpine A3', price:28000, cycle:760, load:0,  sl:2, minTier:2, look:'Centralna magistrala wizualna w podłodze i ścianach.',     eff:{loadLimit:35,noAdapterPenalty:true},  pro:'Pozwala budować konfiguracje klasy A bez przeciążenia.', con:'Brak premii samodzielnej; wysoki koszt wejścia.'},
 ];
+/* ═══ PDF GDANSK U88 — SPRZĘT WIDAĆ W PIWNICY ══════════════════════════════════════════════
+   Dotąd zakupione i zamontowane doposażenie SUBTERRA istniało wyłącznie jako wiersz w panelu.
+   Teraz każdy z osiemnastu modeli ma WŁASNY wygląd i WŁASNE miejsce w pomieszczeniu — gracz
+   widzi, na co wydał pieniądze, a rozbudowana piwnica realnie wygląda inaczej niż pusta.
+   Rysowane PO obiektach pokoju (doniczki, terminal, suszarnia), żeby nic ich nie zasłaniało.
+   Kondycja poniżej 20% przygasza moduł i zapala czerwony punkt serwisowy. */
+/* Pozycje dobrane tak, by NIC nie nachodziło (reguła #8): omijają słupy nośne poziomu T3
+   (x148-162, 388-402, 628-642), ścianki działowe stref (238-245, 475-488), kanał wentylacyjny
+   (y26-39), panel stref (200-284/40-94), strefę obróbki (992-1144/120-245), monitoring
+   (992-1144/262-320), filtr węglowy (1040-1062/40-110) oraz wszystkie obiekty pomieszczenia. */
+window.SB_GEAR_VIS={
+  /* ── ŚWIATŁO: pod sufitem, w prześwitach między lampami ─────────────────────────────────── */
+  lumacrate_c1:{x:52,  y:48,  w:64,  h:46, cat:'LIGHT'},
+  lumenrail_m2:{x:290, y:50,  w:64,  h:24, cat:'LIGHT'},
+  heliomesh_a3:{x:496, y:48,  w:94,  h:40, cat:'LIGHT'},
+  /* ── KLIMAT: lewa ściana ────────────────────────────────────────────────────────────────── */
+  airframe_c1: {x:8,   y:210, w:62,  h:62, cat:'CLIMATE'},
+  climanode_m2:{x:8,   y:296, w:62,  h:74, cat:'CLIMATE'},
+  atmosync_a3: {x:8,   y:398, w:62,  h:98, cat:'CLIMATE'},
+  /* ── PRZEPŁYW: korytarz między rzędami doniczek ─────────────────────────────────────────── */
+  flowbench_c1:{x:254, y:350, w:126, h:56, cat:'FLOW'},
+  dosepilot_m2:{x:492, y:350, w:126, h:56, cat:'FLOW'},
+  loopcore_a3: {x:652, y:346, w:150, h:64, cat:'FLOW'},
+  /* ── CZUJNIKI: prawa ściana, pod monitoringiem ──────────────────────────────────────────── */
+  fieldsense_c1:{x:996, y:330, w:60,  h:46, cat:'SENSOR'},
+  cropwatch_m2: {x:1064,y:330, w:84,  h:46, cat:'SENSOR'},
+  sentinel_a3:  {x:996, y:390, w:152, h:64, cat:'SENSOR'},
+  /* ── FINALIZACJA: prawa dolna część i dolny pas ─────────────────────────────────────────── */
+  finishbench_c1:{x:996,y:468, w:152, h:48, cat:'FINISH'},
+  curevault_m2:  {x:996,y:528, w:152, h:76, cat:'FINISH'},
+  sortline_a3:   {x:700,y:556, w:160, h:48, cat:'FINISH'},
+  /* ── INFRASTRUKTURA: dolny pas po lewej ─────────────────────────────────────────────────── */
+  loadguard_c1: {x:30,  y:556, w:84,  h:48, cat:'INFRA'},
+  backupcell_m2:{x:176, y:556, w:52,  h:48, cat:'INFRA'},
+  powerspine_a3:{x:258, y:556, w:112, h:48, cat:'INFRA'},
+};
+/* Bryły stałej architektury piwnicy — sędzia pilnuje, żeby żaden moduł na nie nie wchodził. */
+window.SB_ROOM_FIXED=[
+  {id:'kanal_wentylacyjny', x:60,  y:26,  w:1032, h:13},
+  {id:'panel_stref',        x:200, y:40,  w:84,   h:54},
+  {id:'filtr_weglowy',      x:1040,y:40,  w:22,   h:70},
+  {id:'scianka_A',          x:238, y:26,  w:7,    h:578},
+  {id:'scianka_B',          x:478, y:26,  w:7,    h:578},
+  {id:'scianka_A_stopa',    x:235, y:564, w:13,   h:10},
+  {id:'scianka_B_stopa',    x:475, y:564, w:13,   h:10},
+  {id:'slup_1',             x:148, y:26,  w:14,   h:568},
+  {id:'slup_2',             x:388, y:26,  w:14,   h:568},
+  {id:'slup_3',             x:628, y:26,  w:14,   h:568},
+  {id:'slup_1_stopa',       x:142, y:590, w:26,   h:10},
+  {id:'slup_2_stopa',       x:382, y:590, w:26,   h:10},
+  {id:'slup_3_stopa',       x:622, y:590, w:26,   h:10},
+  {id:'strefa_obrobki',     x:992, y:120, w:152,  h:125},
+  {id:'monitoring',         x:992, y:262, w:152,  h:58},
+  {id:'lampa_1',            x:90,  y:140, w:56,   h:14},
+  {id:'lampa_2',            x:330, y:140, w:56,   h:14},
+  {id:'lampa_3',            x:570, y:140, w:56,   h:14},
+];
+window._sbGearTint=function(cat){
+  return ({LIGHT:['#2a2338','#b98cff','#e8d8ff'], CLIMATE:['#16222e','#5ba7d8','#cfe8ff'],
+           FLOW:['#12261f','#3fd0a0','#d5fff0'],  SENSOR:['#0f1e26','#38c8e0','#cdf3ff'],
+           FINISH:['#2a1f12','#e0a83c','#ffe7bd'],INFRA:['#231f10','#e8d24a','#fff3c0']})[cat]||['#20242a','#8a94a4','#dde'];
+};
+/* wspólny cokół — każdy moduł stoi na czymś, dzięki czemu nie „lewituje" nad podłogą */
+window._sbGearBase=function(sx,sy,w,h,dark){
+  X.fillStyle='rgba(0,0,0,.34)'; X.beginPath(); X.ellipse(sx+w/2, sy+h-2, w*0.52, 6, 0, 0, Math.PI*2); X.fill();
+  X.fillStyle=dark; X.fillRect(sx, sy, w, h);
+};
+window._sbGearPainters={
+  /* ── LIGHT ─────────────────────────────────────────────────────────────────────────────── */
+  lumacrate_c1:(sx,sy,w,h,c,p)=>{                      /* kasetowy moduł startowy + dwie szyny */
+    X.fillStyle='#3a3a44'; X.fillRect(sx,sy,w,h*0.62);
+    X.fillStyle='#22222a'; X.fillRect(sx+3,sy+3,w-6,h*0.62-6);
+    X.fillStyle=p[1]; for(let i=0;i<2;i++) X.fillRect(sx+8, sy+h*0.62+3+i*7, w-16, 4);
+    X.fillStyle='#4a4a56'; X.fillRect(sx+w/2-3, sy-10, 6, 10);
+    X.fillStyle=p[2]; X.fillRect(sx+6, sy+6, 10, 5);
+  },
+  lumenrail_m2:(sx,sy,w,h,c,p)=>{                      /* modułowe listwy w prowadnicach */
+    X.fillStyle='#33333c'; X.fillRect(sx,sy,w,h);
+    for(let i=0;i<4;i++){ X.fillStyle=p[1]; X.fillRect(sx+4+i*(w-8)/4, sy+5, (w-8)/4-4, h-10); }
+    X.strokeStyle='#55555f'; X.lineWidth=1; X.strokeRect(sx,sy,w,h);
+    X.fillStyle='#4a4a56'; X.fillRect(sx+10,sy-8,4,8); X.fillRect(sx+w-14,sy-8,4,8);
+  },
+  heliomesh_a3:(sx,sy,w,h,c,p)=>{                      /* adaptacyjna siatka sufitowa */
+    X.fillStyle='#252a2a'; X.fillRect(sx,sy,w,h);
+    for(let r=0;r<3;r++) for(let k=0;k<6;k++){
+      X.fillStyle=((r+k)%2)?p[1]:'#e8ffe8'; X.globalAlpha=0.85;
+      X.fillRect(sx+4+k*(w-8)/6, sy+4+r*(h-8)/3, (w-8)/6-3, (h-8)/3-3);
+    }
+    X.globalAlpha=1; X.strokeStyle='#6a7a6a'; X.strokeRect(sx,sy,w,h);
+  },
+  /* ── CLIMATE ───────────────────────────────────────────────────────────────────────────── */
+  airframe_c1:(sx,sy,w,h,c,p)=>{                       /* kompaktowa skrzynia z niebieskimi wskaźnikami */
+    window._sbGearBase(sx,sy,w,h,'#2a3038');
+    X.fillStyle='#39414c'; X.fillRect(sx+4,sy+4,w-8,h-8);
+    X.fillStyle=p[1]; for(let i=0;i<3;i++) X.fillRect(sx+9, sy+11+i*12, w-18, 5);
+    X.fillStyle='#1a2028'; X.fillRect(sx+8, sy+h-14, w-16, 8);
+  },
+  climanode_m2:(sx,sy,w,h,c,p)=>{                      /* dwa moduły ścienne + centralny panel */
+    window._sbGearBase(sx,sy,w,h,'#28323c');
+    X.fillStyle='#3a4854'; X.fillRect(sx+3,sy+3,w-6,h*0.34); X.fillRect(sx+3,sy+h*0.62,w-6,h*0.34);
+    X.fillStyle='#101820'; X.fillRect(sx+8, sy+h*0.40, w-16, h*0.18);
+    X.fillStyle=p[1]; X.fillRect(sx+11, sy+h*0.44, (w-22)*0.7, 4);
+    X.fillStyle=p[2]; X.fillRect(sx+7, sy+7, 8, 4); X.fillRect(sx+7, sy+h*0.66, 8, 4);
+  },
+  atmosync_a3:(sx,sy,w,h,c,p)=>{                       /* segmentowy układ węzłów w strefach */
+    window._sbGearBase(sx,sy,w,h,'#233240');
+    for(let i=0;i<4;i++){
+      X.fillStyle=i%2?'#31465a':'#2a3a4a'; X.fillRect(sx+4, sy+5+i*(h-10)/4, w-8, (h-10)/4-4);
+      X.fillStyle=p[1]; X.beginPath(); X.arc(sx+w-13, sy+5+i*(h-10)/4+((h-10)/4-4)/2, 3.4, 0, Math.PI*2); X.fill();
+    }
+    X.strokeStyle=p[1]; X.lineWidth=1; X.beginPath(); X.moveTo(sx+8,sy+6); X.lineTo(sx+8,sy+h-8); X.stroke();
+  },
+  /* ── FLOW ──────────────────────────────────────────────────────────────────────────────── */
+  flowbench_c1:(sx,sy,w,h,c,p)=>{                      /* stół roboczy z kodami kolorów */
+    X.fillStyle='rgba(0,0,0,.3)'; X.fillRect(sx+4, sy+h-6, w-8, 6);
+    X.fillStyle='#3b3a32'; X.fillRect(sx, sy+h*0.34, w, h*0.24);
+    X.fillStyle='#2a2a24'; X.fillRect(sx+6, sy+h*0.58, 8, h*0.42); X.fillRect(sx+w-14, sy+h*0.58, 8, h*0.42);
+    const cols=['#e05a4a','#e8c44a','#3fd0a0','#5ba7d8'];
+    cols.forEach((cc,i)=>{ X.fillStyle=cc; X.fillRect(sx+10+i*((w-20)/4), sy+h*0.16, (w-20)/4-6, 10); });
+    X.fillStyle=p[1]; X.fillRect(sx+8, sy+h*0.34-4, w-16, 4);
+  },
+  dosepilot_m2:(sx,sy,w,h,c,p)=>{                      /* sterownik dystrybucji, cztery kanały */
+    window._sbGearBase(sx,sy,w,h,'#1b2c26');
+    X.fillStyle='#0d1a16'; X.fillRect(sx+6, sy+6, w*0.52, h-12);
+    for(let i=0;i<4;i++){ X.fillStyle=p[1]; X.globalAlpha=0.55+0.45*((i+1)/4); X.fillRect(sx+10, sy+11+i*((h-22)/4), w*0.44, 5); }
+    X.globalAlpha=1;
+    X.fillStyle='#2e4c40'; X.fillRect(sx+w*0.60, sy+8, w*0.34, h-16);
+    for(let i=0;i<4;i++){ X.fillStyle='#8fd8c0'; X.beginPath(); X.arc(sx+w*0.60+11+ (i%2)*16, sy+16+Math.floor(i/2)*16, 3, 0, Math.PI*2); X.fill(); }
+  },
+  loopcore_a3:(sx,sy,w,h,c,p)=>{                       /* centralny pierścień dystrybucyjny */
+    X.fillStyle='rgba(0,0,0,.28)'; X.beginPath(); X.ellipse(sx+w/2, sy+h-4, w*0.42, 6, 0, 0, Math.PI*2); X.fill();
+    X.strokeStyle='#2e4c40'; X.lineWidth=9; X.beginPath(); X.ellipse(sx+w/2, sy+h/2, w*0.40, h*0.34, 0, 0, Math.PI*2); X.stroke();
+    X.strokeStyle=p[1]; X.lineWidth=3; X.beginPath(); X.ellipse(sx+w/2, sy+h/2, w*0.40, h*0.34, 0, 0, Math.PI*2); X.stroke();
+    X.fillStyle='#22382e'; X.fillRect(sx+w/2-15, sy+h/2-13, 30, 26);
+    X.fillStyle=p[2]; X.fillRect(sx+w/2-9, sy+h/2-7, 18, 5); X.fillRect(sx+w/2-9, sy+h/2+2, 12, 4);
+    X.lineWidth=1;
+  },
+  /* ── SENSOR ────────────────────────────────────────────────────────────────────────────── */
+  fieldsense_c1:(sx,sy,w,h,c,p)=>{                     /* zestaw czujników i mały ekran */
+    window._sbGearBase(sx,sy,w,h,'#182430');
+    X.fillStyle='#08131a'; X.fillRect(sx+5, sy+5, w-10, h*0.55);
+    X.fillStyle=p[1]; X.fillRect(sx+8, sy+8+h*0.20, w-16, 3);
+    X.fillStyle='#2a3a46'; X.fillRect(sx+6, sy+h*0.66, w-12, h*0.24);
+    X.fillStyle=p[2]; X.beginPath(); X.arc(sx+w-11, sy+h*0.78, 3, 0, Math.PI*2); X.fill();
+  },
+  cropwatch_m2:(sx,sy,w,h,c,p)=>{                      /* konsola trendów, alerty, historia */
+    window._sbGearBase(sx,sy,w,h,'#152029');
+    X.fillStyle='#071219'; X.fillRect(sx+5, sy+5, w-10, h-18);
+    X.strokeStyle=p[1]; X.lineWidth=2; X.beginPath();
+    for(let i=0;i<=8;i++){ const px=sx+9+i*((w-18)/8), py=sy+h*0.62-Math.abs(Math.sin(i*0.9))*h*0.34;
+      if(i===0) X.moveTo(px,py); else X.lineTo(px,py); }
+    X.stroke(); X.lineWidth=1;
+    X.fillStyle='#e8c44a'; X.fillRect(sx+7, sy+h-11, 12, 5);
+    X.fillStyle='#3fd0a0'; X.fillRect(sx+23, sy+h-11, 12, 5);
+  },
+  sentinel_a3:(sx,sy,w,h,c,p)=>{                       /* sieć wskaźników strefowych + ekran */
+    window._sbGearBase(sx,sy,w,h,'#111d26');
+    X.fillStyle='#061118'; X.fillRect(sx+5, sy+5, w-10, h*0.52);
+    for(let r=0;r<2;r++) for(let k=0;k<4;k++){
+      X.fillStyle=(r*4+k)%3?p[1]:'#e8c44a'; X.globalAlpha=0.75;
+      X.fillRect(sx+10+k*((w-20)/4), sy+11+r*14, (w-20)/4-6, 8);
+    }
+    X.globalAlpha=1;
+    X.fillStyle='#1d2f3a'; X.fillRect(sx+5, sy+h*0.60, w-10, h*0.34);
+    for(let i=0;i<6;i++){ X.fillStyle=p[2]; X.beginPath(); X.arc(sx+13+i*((w-26)/5), sy+h*0.77, 2.6, 0, Math.PI*2); X.fill(); }
+  },
+  /* ── FINISH ────────────────────────────────────────────────────────────────────────────── */
+  finishbench_c1:(sx,sy,w,h,c,p)=>{                    /* modułowy blat i pojemniki systemowe */
+    X.fillStyle='rgba(0,0,0,.28)'; X.fillRect(sx+4, sy+h-5, w-8, 5);
+    X.fillStyle='#4a3a26'; X.fillRect(sx, sy+h*0.30, w, h*0.22);
+    X.fillStyle='#33281a'; X.fillRect(sx+5, sy+h*0.52, 9, h*0.46); X.fillRect(sx+w-14, sy+h*0.52, 9, h*0.46);
+    for(let i=0;i<3;i++){ X.fillStyle=i===1?p[1]:'#8a6f3e'; X.fillRect(sx+9+i*((w-18)/3), sy+h*0.06, (w-18)/3-6, h*0.22); }
+  },
+  curevault_m2:(sx,sy,w,h,c,p)=>{                      /* komora finalizacji, bursztynowy panel */
+    window._sbGearBase(sx,sy,w,h,'#2b2114');
+    X.fillStyle='#3a2c19'; X.fillRect(sx+4, sy+4, w-8, h-8);
+    X.fillStyle='#140f08'; X.fillRect(sx+9, sy+9, w-18, h*0.52);
+    X.fillStyle=p[1]; X.globalAlpha=0.45; X.fillRect(sx+11, sy+11, w-22, h*0.48); X.globalAlpha=1;
+    for(let i=0;i<3;i++){ X.fillStyle='#6b5426'; X.fillRect(sx+13, sy+15+i*((h*0.44)/3), w-26, 4); }
+    X.fillStyle=p[2]; X.fillRect(sx+10, sy+h*0.68, w-20, 8);
+    X.fillStyle='#1a1408'; X.fillRect(sx+w/2-8, sy+h*0.82, 16, 7);
+  },
+  sortline_a3:(sx,sy,w,h,c,p)=>{                       /* zamknięta linia klasyfikacji, trzy wyjścia */
+    X.fillStyle='rgba(0,0,0,.3)'; X.fillRect(sx+6, sy+h-5, w-12, 5);
+    X.fillStyle='#2f2718'; X.fillRect(sx, sy+h*0.22, w, h*0.40);
+    X.fillStyle='#4a3c22'; X.fillRect(sx+3, sy+h*0.28, w-6, h*0.10);
+    for(let i=0;i<3;i++){ X.fillStyle=p[1]; X.fillRect(sx+w-26, sy+h*0.24+i*(h*0.14), 22, h*0.10); }
+    for(let i=0;i<7;i++){ X.fillStyle='#7a6432'; X.fillRect(sx+8+i*((w-40)/7), sy+h*0.44, 8, 5); }
+    X.fillStyle='#151008'; X.fillRect(sx+4, sy+h*0.66, w-8, h*0.20);
+  },
+  /* ── INFRA ─────────────────────────────────────────────────────────────────────────────── */
+  loadguard_c1:(sx,sy,w,h,c,p)=>{                      /* skrzynia ochronna z żółtym wskaźnikiem */
+    window._sbGearBase(sx,sy,w,h,'#2c2a1c');
+    X.fillStyle='#3b3826'; X.fillRect(sx+4, sy+4, w-8, h-8);
+    for(let i=0;i<4;i++){ X.fillStyle=i%2?'#1f1d12':p[1]; X.fillRect(sx+6+i*((w-12)/4), sy+6, (w-12)/4-3, 7); }
+    X.fillStyle='#12100a'; X.fillRect(sx+8, sy+h*0.46, w-16, h*0.30);
+    X.fillStyle=p[1]; X.beginPath(); X.arc(sx+w-13, sy+h-13, 4, 0, Math.PI*2); X.fill();
+  },
+  backupcell_m2:(sx,sy,w,h,c,p)=>{                     /* moduł ciągłości z ekranem rezerwy */
+    window._sbGearBase(sx,sy,w,h,'#262418');
+    X.fillStyle='#343121'; X.fillRect(sx+4, sy+4, w*0.48, h-8);
+    X.fillStyle='#0d0c06'; X.fillRect(sx+w*0.54, sy+7, w*0.40, h*0.46);
+    X.fillStyle=p[1]; X.fillRect(sx+w*0.57, sy+11, w*0.34*0.72, 6);
+    for(let i=0;i<3;i++){ X.fillStyle='#5a5330'; X.fillRect(sx+8, sy+10+i*((h-22)/3), w*0.40, 8); }
+    X.fillStyle=p[2]; X.fillRect(sx+w*0.56, sy+h*0.64, w*0.36, 4);
+  },
+  powerspine_a3:(sx,sy,w,h,c,p)=>{                     /* magistrala w podłodze i ścianie */
+    X.fillStyle='#1d1a10'; X.fillRect(sx, sy+h*0.42, w, h*0.36);
+    X.fillStyle=p[1]; X.globalAlpha=0.85;
+    for(let i=0;i<9;i++) X.fillRect(sx+6+i*((w-12)/9), sy+h*0.50, (w-12)/9-5, h*0.20);
+    X.globalAlpha=1;
+    X.fillStyle='#3a3520'; X.fillRect(sx+w/2-18, sy+h*0.08, 36, h*0.34);
+    X.fillStyle=p[2]; X.fillRect(sx+w/2-11, sy+h*0.16, 22, 5); X.fillRect(sx+w/2-11, sy+h*0.26, 14, 4);
+  },
+};
+window._sbDrawInstalledGear=function(){
+  if(typeof G==='undefined' || !G.subterra || !G.subterra.owned) return;
+  const gear=G.subterra.gear||[]; if(!gear.length) return;
+  const calm=!!window._reduceFlashing;
+  const t=Date.now()/700;
+  for(const g of gear){
+    const vis=window.SB_GEAR_VIS[g.defId]; if(!vis) continue;
+    const paint=window._sbGearPainters[g.defId]; if(!paint) continue;
+    const pal=window._sbGearTint(vis.cat);
+    const cond=(typeof g.condition==='number')?g.condition:100;
+    const sx=wx2sx(vis.x), sy=wy2sy(vis.y);
+    X.save();
+    X.globalAlpha=cond<20?0.72:1;
+    try{ paint(sx,sy,vis.w,vis.h,cond,pal); }catch(_){}
+    X.globalAlpha=1;
+    /* punkt stanu: zielony sprawny, bursztynowy do serwisu, czerwony pulsujący poza serwisem */
+    const dot=cond<=0?'#e0453a':(cond<40?'#e8a020':'#5fd08a');
+    if(cond<=0 && !calm) X.globalAlpha=0.45+Math.abs(Math.sin(t))*0.55;
+    X.fillStyle=dot; X.beginPath(); X.arc(sx+vis.w-5, sy+4, 3.2, 0, Math.PI*2); X.fill();
+    X.globalAlpha=1;
+    X.restore();
+  }
+};
 /* §7.6 Materiały jednocyklowe — jedna baza + maksymalnie jeden dodatek */
 const SB_BASES=[
  {id:'rootline',   name:'Rootline Base',      price:480,  eff:{stability:4},                       con:'Bez bonusu do jakości i czasu.',                    role:'Uniwersalny wybór startowy.'},
@@ -77603,6 +78000,11 @@ window._eclipseNoirEnsure=function(){
   }
   const c=G.eclipseNoir;
   ['visited','hasMetValeria','hasMetSilas','hasMetMason','hasEnteredBasement','djSupport'].forEach(k=>{ if(typeof c[k]!=='boolean') c[k]=false; });
+  /* PDF GDANSK U62 — easter egg „Zapytaj o Kantara". Sześć napiwków po 50 zł podświetla kwestię,
+     a osobna rozmowa z Silasem ma własne, zużywalne opcje. Wszystko save-safe. */
+  ['_kantarDeep','_silesSmsDue','_silesSmsSent','_silesSaved'].forEach(k=>{ if(typeof c[k]!=='boolean') c[k]=false; });
+  [['_silasTip50',0],['_silesSmsLeft',0]].forEach(([k,d])=>{ if(typeof c[k]!=='number'||!isFinite(c[k])) c[k]=d; });
+  if(!c._silasUsed||typeof c._silasUsed!=='object') c._silasUsed={};
   [['lastVisitDay',0],['concertsPlayed',0],['vipAccessLevel',0],['bannedUntilDay',0],['nightsAttended',0],['reputation',0],['sceneToxicity',0],['lastConcertDay',0],['bestConcertScore',0]].forEach(([k,d])=>{ if(typeof c[k]!=='number'||!isFinite(c[k])) c[k]=d; });
   if(!c.atmosphere||typeof c.atmosphere!=='object'){ c.atmosphere={crowdDensity:40,heatLevel:20,musicIntensity:50,vipDensity:20,intoxicationLevel:10,flirtPressure:20,violenceRisk:10,drugPresence:20,policeAttention:10,paparazziRisk:15,opportunityLevel:30,underworldSignal:10}; }
   ECLIPSE_NOIR_ATMO.forEach(k=>{ if(typeof c.atmosphere[k]!=='number'||!isFinite(c.atmosphere[k])) c.atmosphere[k]=20; c.atmosphere[k]=Math.max(0,Math.min(100,c.atmosphere[k])); });
@@ -77925,7 +78327,8 @@ window._eclipseSilas=function(resp){
       <button class="cbtn" style="width:100%;font-size:12px;padding:8px;margin-top:5px;color:#cdb8ff;border-color:#3a2a5a" onclick="window._eclipseSilasAct('gossip')">👂 Zapytaj o plotki</button>
       <button class="cbtn" style="width:100%;font-size:12px;padding:8px;margin-top:5px;color:#cdb8ff;border-color:#3a2a5a" onclick="window._eclipseSilasAct('vip')">✨ Kto dziś w VIP?</button>
       <button class="cbtn" style="width:100%;font-size:12px;padding:8px;margin-top:5px;color:#f1c40f;border-color:#c8a520" onclick="window._eclipseSilasAct('tip')">💵 Zostaw napiwek (50 zł)</button>
-      <button class="cbtn" style="width:100%;font-size:12px;padding:8px;margin-top:5px;color:#8e44ad;border-color:#5a2a7a" onclick="window._eclipseSilasAct('kantar')">🌑 Zapytaj o Kantara</button>
+      <!-- PDF GDANSK U62: po sześciu napiwkach kwestia o Kantarze jest podświetlona. -->
+      <button class="cbtn" style="width:100%;font-size:12px;padding:8px;margin-top:5px;${c._kantarDeep?'color:#e6c8ff;border-color:#b98cff;background:#241535;box-shadow:0 0 12px rgba(185,140,255,.45);font-weight:800':'color:#8e44ad;border-color:#5a2a7a'}" onclick="window._eclipseSilasAct('kantar')">🌑 Zapytaj o Kantara</button>
       <button class="cbtn" style="width:100%;margin-top:8px;color:#ccc" onclick="document.getElementById('mg-job').classList.remove('on');document.getElementById('mg-job-content').innerHTML='';">← Zakończ</button>
     </div>`;
 };
@@ -77933,10 +78336,104 @@ window._eclipseSilasAct=function(type){
   window._eclipseNoirEnsure(); const c=G.eclipseNoir; let resp='';
   if(type==='gossip'){ const g=['„Widziałem dziś twarz z telewizji, która udawała, że nikt jej nie poznaje.','„Ktoś na górze wydał więcej niż zarabiasz w miesiąc — i wcale nie był szczęśliwszy.','„Dwie modelki, jeden DJ i awantura o taksówkę. Klasyczny wieczór."']; resp=g[(c._silasGossip||0)%g.length]; c._silasGossip=(c._silasGossip||0)+1; if(c._silasGossip%2===0){ G._socialBuzz=(G._socialBuzz||0)+2; resp+=' <span style="color:#7ec87e">(+szum)</span>'; } }
   else if(type==='vip'){ const vd=Math.round(c.atmosphere.vipDensity||0); resp=(vd>50)?'„Dziś góra pełna — biznes, jeden reżyser, ludzie z kasą. Dobra noc, żeby ktoś Cię zauważył."':'„Spokojna noc na górze. Kilku bywalców, żadnych rekinów."'; }
-  else if(type==='tip'){ if((G.money||0)<50){ resp='„Bez urazy, ale napiwek to napiwek."'; } else { G.money-=50; if(typeof spent==='function')spent(50); c._silasFavor=(c._silasFavor||0)+1; resp='„Dobry człowiek. Zapamiętam." <span style="color:#7ec87e">(Silas Cię polubił)</span>'; if(typeof updateHUD==='function')updateHUD(); } }
+  else if(type==='tip'){ if((G.money||0)<50){ resp='„Bez urazy, ale napiwek to napiwek."'; } else { G.money-=50; if(typeof spent==='function')spent(50); c._silasFavor=(c._silasFavor||0)+1;
+    /* PDF GDANSK U62: szósty napiwek po 50 zł otwiera osobną rozmowę o Kantarze. */
+    c._silasTip50=(c._silasTip50||0)+1;
+    resp='„Dobry człowiek. Zapamiętam." <span style="color:#7ec87e">(Silas Cię polubił)</span>';
+    if(c._silasTip50>=6 && !c._kantarDeep){ c._kantarDeep=true;
+      resp+='<div style="color:#b98cff;font-size:11.5px;margin-top:6px">Silas przez chwilę milczy, potem zerka na drzwi. „Skoro tyle razy postawiłeś, to zapytaj mnie o coś konkretnego."</div>'; }
+    if(typeof updateHUD==='function')updateHUD(); } }
+  else if(type==='kantar' && c._kantarDeep){
+    /* PDF GDANSK U62: panel baru się zamyka, rozmowę przejmuje podstawowe okno dialogowe NPC. */
+    window._silasDeepOpen(); return; }
   else if(type==='kantar'){ const introDone=!!(G.underworld&&G.underworld.introCompleted)||(typeof G.kantarTrust==='number'&&G.kantarTrust>0);
     resp=introDone?'„Skoro pytasz tak wprost, to chyba już wiesz. Jak będzie chciał, znajdzie Cię sam. Nie na odwrót."':'„Kantar? Nie znam takiego." <span style="color:#9a90b0">(uśmiech ani drgnie, ale zerka w bok)</span>'; }
   window._eclipseSilas(window._eclipseRelResp(resp));
+};
+
+/* ═══ PDF GDANSK U62 — OSOBNA ROZMOWA Z SILASEM O KANTARZE ═════════════════════════════════
+   Wchodzi po szóstym napiwku 50 zł. Duży panel baru znika, rozmowa toczy się w podstawowym
+   oknie dialogowym NPC (tym samym, co Korek, Rysiek i Kantar). Opcje są ZUŻYWALNE — raz użyta
+   znika, więc rozmowa realnie się posuwa, a gracz może do niej wrócić później.
+   „Zostaw napiwek (500 zł)" domyka wątek: pozostałe kwestie znikają, a po pięciu minutach
+   rozgrywki przychodzi SMS od kontaktu „Nieznany", który można zapisać niebieskim plusem. */
+window._SILAS_DEEP_INTRO='To inna liga. Ludzie nic nie wiedzą, ani skąd są, ani kim są… ale gdy tu przychodzą to wszyscy się rozchodzą. Normalnie jak przy rozstąpieniu się wód ... Jeśli mam Ci coś powiedzieć, to bądź człowieku ostrożny.';
+window._SILAS_DEEP=[
+  {id:'o1', q:'Jak masz mi coś powiedzieć, to powiedz kto gościa zna.',
+   a:'Myślę, że za wiele nie mogę dla Ciebie zrobić w tym temacie… nic nie wiem o tych ludziach.', opens:true},
+  {id:'o2', q:'Miewałeś jakieś problemy z tym towarzystwem?',
+   a:'Ja osobiście nie miałem, ale inne towarzystwo je miało. Pokręcisz się tutaj częściej, to do nich dojdziesz. Zapewniam.'},
+  {id:'o3', q:'Potrzebuję namiarów, dlatego chcę wiedzieć, czy możesz mnie z kimś poznać.',
+   a:'Namiary? Mogę Ci jedynie dać numer do managerki, albo do jakichś dziewczyn, jak chcesz poruchać. Podejrzewam, że wśród tamtych numery telefonów dla obcych nie istnieją.'},
+];
+window._SILAS_DEEP2=[
+  {id:'m1',   q:'Wyciągnę coś od managerki?',      a:'Wątpię. Zagrywka raczej na chybił-nie trafił.'},
+  {id:'m50',  q:'Zostaw napiwek (50 zł)',  cost:50,
+   a:'Dziękuję, naprawdę, ale uwierz mi, że nie pomogę Ci za żadne pieniądze, bo nie mam wiedzy o tych ludziach… Jeśli tylko się czegoś dowiem to się do Ciebie odezwę, serio.'},
+  {id:'m500', q:'Zostaw napiwek (500 zł)', cost:500, closes:true,
+   a:'Dobra, poczekaj… Odezwę się jutro, okej? Pogadam z managerką, może uda mi się coś wyciągnąć, ale niczego Ci nie gwarantuje…'},
+];
+/* kwestia, która zostaje po napiwku 500 zł — poprzednie znikają (poza „Wyjdź") */
+window._SILAS_DEEP_AFTER={id:'after', q:'Będę czekał na wiadomość.', a:'Nie dzwoń tu i nie pytaj o mnie przy barze. Sam się odezwę, jak będzie o czym.'};
+window._SILES_SMS_DELAY_S=300;   /* pięć minut rozgrywki */
+window._silasDeepOpen=function(line){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir;
+  /* zamknij duzy panel baru — dokument mowi wprost, ze system z niego wychodzi */
+  const p=document.getElementById('mg-job');
+  if(p){ p.classList.remove('on'); const inner=document.getElementById('mg-job-content'); if(inner) inner.innerHTML=''; }
+  if(typeof closeOverlay==='function') closeOverlay();
+  const used=c._silasUsed||(c._silasUsed={});
+  const opts=[];
+  if(used.m500){ if(!used.after) opts.push(window._SILAS_DEEP_AFTER); }
+  else {
+    if(used.o1){ window._SILAS_DEEP2.forEach(o=>{ if(!used[o.id]) opts.push(o); }); }
+    window._SILAS_DEEP.forEach(o=>{ if(!used[o.id]) opts.push(o); });
+  }
+  const list=opts.map(o=>({text:o.q, fn:()=>window._silasDeepPick(o.id)}));
+  list.push({text:'Wyjdź', fn:()=>{ if(typeof closeNPCDlg==='function') closeNPCDlg(); }});
+  const txt=line||window._SILAS_DEEP_INTRO;
+  if(typeof window._uwShowDlg==='function') window._uwShowDlg(txt, list, {name:'Silas „Grin” Mercer', emoji:'🍸'});
+  else if(typeof showMsg==='function') showMsg('🍸 Silas: '+txt,'i',9000);
+};
+window._silasDeepPick=function(id){
+  window._eclipseNoirEnsure(); const c=G.eclipseNoir; const used=c._silasUsed||(c._silasUsed={});
+  const o=window._SILAS_DEEP.concat(window._SILAS_DEEP2,[window._SILAS_DEEP_AFTER]).find(x=>x.id===id);
+  if(!o){ window._silasDeepOpen(); return; }
+  if(o.cost && (G.money||0)<o.cost){
+    window._silasDeepOpen('Bez urazy, ale napiwek to napiwek. Tyle przy sobie nie masz.'); return;
+  }
+  if(o.cost){ G.money-=o.cost; if(typeof spent==='function') spent(o.cost); if(typeof updateHUD==='function') updateHUD(); }
+  used[o.id]=true;
+  if(o.closes){
+    /* PDF GDANSK U62: SMS od „Nieznany" po równo pięciu minutach rozgrywki. */
+    c._silesSmsDue=true; c._silesSmsSent=false; c._silesSmsLeft=window._SILES_SMS_DELAY_S;
+  }
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  window._silasDeepOpen(o.a);
+};
+/* zegar rozgrywki (ten sam, ktorego uzywa watek Mayi) — pauza i menu go zatrzymuja */
+window._silesTick=function(dt){
+  const c=(typeof G!=='undefined')?G.eclipseNoir:null;
+  if(!c||!c._silesSmsDue||c._silesSmsSent) return;
+  c._silesSmsLeft=Math.max(0,(c._silesSmsLeft||0)-(dt||0));
+  if(c._silesSmsLeft>0) return;
+  c._silesSmsSent=true; c._silesSmsDue=false;
+  if(typeof window._smsSend==='function')
+    window._smsSend('siles','Tu Siles. Zapisz sobie mój numer. Odezwę się, jak się czegoś dowiem.',{bypass:true, saveContact:true});
+};
+/* zapisanie numeru niebieskim plusem — „Nieznany" staje sie „Siles (barman Eclipse)" */
+window._smsContactSaved=function(contactId){
+  if(contactId!=='siles') return true;
+  try{ return !!(G.eclipseNoir&&G.eclipseNoir._silesSaved); }catch(_){ return false; }
+};
+window._smsSaveContact=function(contactId){
+  if(contactId!=='siles') return;
+  window._eclipseNoirEnsure();
+  G.eclipseNoir._silesSaved=true;
+  try{ if(typeof SMS_CONTACTS!=='undefined' && SMS_CONTACTS.siles) SMS_CONTACTS.siles.name='Siles (barman Eclipse)'; }catch(_){}
+  if(typeof showMsg==='function') showMsg('📇 Numer zapisany: Siles (barman Eclipse).','g',4500);
+  if(typeof saveGameSilent==='function') saveGameSilent();
+  if(typeof window.renderSMSConversation==='function') window.renderSMSConversation('siles');
 };
 
 /* ═══ PDF new/4 BLOK 3: SIEĆ VIP (§24-25) — spotkania z VIP-ami na piętrze ═══ */
@@ -80796,6 +81293,8 @@ window._vehCycleInside=function(kind, isRepeat){
   window._vehHoldTimer=setTimeout(()=>{ const p=window._vehHoldPending; if(p&&p.kind===kind){ window._vehHoldPending=null; window._vehHoldTimer=null; try{ p.onLong(); }catch(_){} } },420);
 };
 function togglePhone(){
+  /* PDF GDANSK U19: obserwator „← Wróć" → „← Menu" startuje razem z telefonem. */
+  if(typeof window._phWatchBackButtons==='function') window._phWatchBackButtons();
   const ph=document.getElementById('phone');
   /* PDF „Marina Coast" §4: brak telefonu podczas głębokiego pływania. */
   if(!ph.classList.contains('on') && currentRoom==='coast' && G.marina && G.marina.swimming && G.marina.swimming.isSwimming && typeof _marinaWaterZoneAt==='function' && _marinaWaterZoneAt(P.wx+P.w/2,P.wy+(P.h||44))==='deep'){
@@ -80844,6 +81343,39 @@ function phoneOpen(){return document.getElementById('phone').classList.contains(
    U5:  gracz moze chodzic po mapie podczas przegladania telefonu — poza trzema aplikacjami,
         ktore wymagaja pelnej uwagi (Sterowanie, S9 Agency, SessionBoard).
    U79: nowo przychodzaca wiadomosc otwiera telefon PRZED aktywnym panelem, z rozmyciem tla. */
+/* U19 — jedno miejsce, które pilnuje CAŁEGO telefonu. Ekranów telefonu jest kilkadziesiąt i każdy
+   pisze własny HTML, więc zamiast poprawiać je pojedynczo (i przegapić połowę) obserwujemy
+   `#ph-content`: każdy przycisk o treści „← Wróć" dostaje treść „← Menu" i prowadzi na pulpit.
+   Górny „← Wstecz" leży POZA tym kontenerem, więc dalej cofa o jeden krok — dokładnie jak chce
+   dokument (jeden przycisk na pulpit, drugi o krok wstecz). */
+window._PH_MENU_LABEL='← Menu';
+window._phNormalizeBackButtons=function(){
+  const box=document.getElementById('ph-content'); if(!box) return 0;
+  if(window._phNormalizing) return 0;
+  window._phNormalizing=true;
+  let n=0;
+  try{
+    box.querySelectorAll('button').forEach(b=>{
+      const t=(b.textContent||'').replace(/\s+/g,' ').trim();
+      if(t==='← Wróć'||t==='←Wróć'||t==='← Wroc'||t==='Wróć'){
+        b.textContent=window._PH_MENU_LABEL;
+        b.removeAttribute('onclick');
+        b.onclick=function(){ if(typeof renderPhoneHome==='function') renderPhoneHome(); };
+        n++;
+      }
+    });
+  }catch(_){}
+  window._phNormalizing=false;
+  return n;
+};
+window._phWatchBackButtons=function(){
+  if(window._phBackObserver) return true;
+  const box=document.getElementById('ph-content'); if(!box||typeof MutationObserver!=='function') return false;
+  window._phBackObserver=new MutationObserver(()=>{ window._phNormalizeBackButtons(); });
+  window._phBackObserver.observe(box,{childList:true,subtree:true});
+  window._phNormalizeBackButtons();
+  return true;
+};
 window._phFromFolder=null;
 window._phEnterFromFolder=function(folderId){
   window._phFromFolder=folderId||null;
@@ -80992,7 +81524,7 @@ function _getPhoneFolders(){
     ]},
     /* v2.1.348 Faza AD: nowy folder Online — tablica wyników/znajomi/crew/chart (z top-level + stats). */
     /* PDF 20.08 U25 (user): cały folder „Online” otwiera się po ukończeniu podstawowego poradnika. */
-    online:{em:'🌐',label:'Online',preview:['🌍','👥','🏆','🏁'],locked:_tutLock,lockedMsg:'🌐 Folder Online odblokujesz po ukończeniu podstawowego poradnika (8 kroków).',apps:[
+    online:{em:'🌐',label:'Online',preview:['🌍','👥','🏆','🏁'],locked:_tutLock,lockedMsg:'🌐 Folder Online odblokujesz po ukończeniu podstawowego poradnika ('+TUTORIAL_STEPS.length+' kroków).',apps:[
       _phApp('🌍','Tablica wyników','#0a1015','#7ec8e3',"renderPhoneLeaderboard()"),
       _phApp('👥',`Znajomi${(G.friends||[]).length>0?' ('+G.friends.length+')':''}`,'#15102a','#9b59b6',"renderPhoneFriends()"),
       _phApp('🏆',`Crew${G.playerCrew?(' · '+(G.playerCrew.name||'')):''}`,'#2a1a05','#f1c40f',"renderPhoneCrew()"),
@@ -81011,7 +81543,7 @@ function _getPhoneFolders(){
       /* v2.1.398 Faza AQ.14 Etap 2: telefon apka "Mój Pies" — status psa + akcje. */
       /* PDF 20.08 U24 (user): apka „Mój pupil” dostępna dopiero po ukończeniu podstawowego,
          8-krokowego poradnika — na starcie gracz ma poznać najpierw podstawy. */
-      _phApp((G.dog&&G.dog.owned&&typeof window._findBreed==='function'&&window._findBreed(G.dog.breed)&&window._findBreed(G.dog.breed).emoji)?window._findBreed(G.dog.breed).emoji:'🐾',`Mój pupil${G.dog&&G.dog.owned?(' · L'+G.dog.level):''}`,'#0a1a0a','#27ae60',"renderPhoneApp('dog')", _tutLock, '🐾 Mój pupil odblokujesz po ukończeniu podstawowego poradnika (8 kroków).'),
+      _phApp((G.dog&&G.dog.owned&&typeof window._findBreed==='function'&&window._findBreed(G.dog.breed)&&window._findBreed(G.dog.breed).emoji)?window._findBreed(G.dog.breed).emoji:'🐾',`Mój pupil${G.dog&&G.dog.owned?(' · L'+G.dog.level):''}`,'#0a1a0a','#27ae60',"renderPhoneApp('dog')", _tutLock, '🐾 Mój pupil odblokujesz po ukończeniu podstawowego poradnika ('+TUTORIAL_STEPS.length+' kroków).'),
     ]},
     /* v2.1.348 Faza AD: Mechaniki z top-level → Pomoc folder. Sortowanie: Wprowadzenie → Tutorial → Mechaniki → Wskazówki → Sterowanie → Przelot → Patch Notes. */
     help:{em:'❓',label:'Pomoc',preview:['🎬','🎓','📖','💡'],apps:[
@@ -83146,7 +83678,7 @@ const GAME_MECHANICS=[
    short:'Twój szacunek na dzielni.',
    desc:'Reputacja uliczna pokazuje, na ile jesteś „swój" na dzielni — czy ludzie Cię szanują. Wysoka reputacja otwiera dostęp do treści ulicznych, daje zniżki u niektórych NPC i ułatwia rozmowy.',
    how:['• Wygrywaj bitwy freestyle w Parku','• Wygrywaj bitwy w Beef Arenie (z NPC)','• Pomagaj innym (oddawaj na cele społeczne)','• Niektóre zadania dodają reputację'],
-   unlocks:['• Przyjaźń z Wiktorem (NPC obok Traphouse) → zniżki w sklepach Drip District','• NPC inaczej rozmawiają z osobą z dzielni','• Otwierają się specjalne zadania uliczne','• Maks: 100'],
+   unlocks:['• Przyjaźń z Gavinem (NPC obok Traphouse) → zniżki w sklepach Drip District','• NPC inaczej rozmawiają z osobą z dzielni','• Otwierają się specjalne zadania uliczne','• Maks: 100'],
   },
   /* STYL / FIZYCZNE */
   {id:'drip', em:'💎', name:'Drip (styl)', color:'#9b59b6',
@@ -83491,6 +84023,9 @@ const SMS_CONTACTS={
   system:    {name:'TrapSimulator',            em:'📱', color:'#7ec8e3', physical:false},
   trapinfo:  {name:'TrapInfo',                  em:'🛈', color:'#7ec8e3', physical:false}, /* U8 (v2.3.44 PDF): systemowy nadawca info (np. adopcja psa) — nie Marcin; tylko treść do potwierdzenia, brak odpowiedzi */
   fan:       {name:'Fan nr 1',                 em:'❤️', color:'#e74c3c', physical:true},
+  /* PDF GDANSK U62: barman z Eclipse Noir. Nazwa zmienia sie na „Siles (barman Eclipse)"
+     dopiero po zapisaniu numeru niebieskim plusem (odtwarzane z save w _eclipseNoirRestoreName). */
+  siles:     {name:'Nieznany',                 em:'📵', color:'#b98cff', physical:true},
   /* v2.1.228 audit-fix #48: Crew BYL physical:false ale istnieje fizyczny NPC `npc_crew` na chodniku H2 north (wx:2499, wy:1781) — gracz tam rekrutuje DJ/grafika/menadżera. */
   crew:      {name:'Ryder „Link” Vale',        em:'👥', color:'#3498db', physical:true}, /* PDF Ryder: konkretny NPC (Crew Scout) zamiast bezosobowej „Ekipa"; senderId 'crew' bez zmian (save-safe) */
   gymbro:    {name:'Gym Bro',                  em:'💪', color:'#e67e22', physical:false}, /* v2.1.179: Gym Bro SMS contact (wcześniej osobny G.gymBroMessages array, NIE pojawiał się w Wiadomości) */
@@ -84045,6 +84580,35 @@ window._showSmsPopupNow=function(contactId,text){
   setTimeout(()=>{ try{ if(document.getElementById('sms-popup')===el){ el.style.transition='opacity .4s,transform .4s'; el.style.opacity='0'; el.style.transform='translateY(10px)'; setTimeout(()=>{try{el.remove();}catch(_){}},420);} }catch(_){} }, 8000);
 };
 // SMS od NPC do gracza
+/* ═══ PDF GDANSK U52 — STUDIO PROJEKTOWANIA JAKO INWESTYCJA ═════════════════════════════════
+   Dotad wejscie bylo darmowe po osiagnieciu 5000 fanow. Teraz prog zostaje, ale sam lokal
+   trzeba wykupic — jednorazowo, z oknem potwierdzenia (jak zakup lokalu w VANTAGE WORKS).
+   REGULA #1: gracz, ktory zdazyl juz cokolwiek zaprojektowac albo sprzedac, dostaje lokal
+   „z automatu" — nikt nie traci dostepu do rzeczy, ktora juz ma. */
+window._MERCH_STUDIO_PRICE=250000;
+window._merchStudioOwned=function(){
+  if(G.merchStudioOwned) return true;
+  const ms=G.merchStore||{};
+  if((ms.products&&ms.products.length>0) || (ms.totalLifetimeSold||0)>0){ G.merchStudioOwned=true; return true; }
+  return false;
+};
+window._merchStudioBuyPrompt=function(wx,wy){
+  const price=window._MERCH_STUDIO_PRICE;
+  const _buy=function(){
+    if((G.money||0)<price){ if(typeof showMsg==='function') showMsg('🎨 Wykup lokalu Studia projektowania kosztuje '+price.toLocaleString('pl')+' zł — brakuje '+(price-(G.money||0)).toLocaleString('pl')+' zł.','r',5200); return; }
+    G.money-=price; G.merchStudioOwned=true;
+    if(typeof showMsg==='function') showMsg('🎨 Lokal Studia projektowania jest Twój. Możesz projektować i sprzedawać własny merch.','g',5200);
+    if(typeof addNotif==='function') addNotif('🎨 Wykupiono lokal Studia projektowania za '+price.toLocaleString('pl')+' zł.');
+    if(typeof saveGameSilent==='function') saveGameSilent();
+    if(typeof startRoomFade==='function') startRoomFade('merch_studio', wx||540, wy||520);
+  };
+  if(typeof window._vwConfirmDialog!=='function'){ _buy(); return; }
+  window._vwConfirmDialog({
+    title:'Studio projektowania', name:'Lokal z działem importu i dystrybucji',
+    desc:'Własna pracownia merchu: projektowanie koszulek i bluz, linie produkcyjne i sprzedaż pod Twoją marką. Opłata jest jednorazowa — potem wchodzisz bez ograniczeń.',
+    question:'Czy chcesz wykupić lokal Studia projektowania za '+price.toLocaleString('pl')+' zł?',
+    amount:price, onOk:_buy });
+};
 window._smsSend=function(contactId,text,opts){
   _ensureSMS();
   if(!SMS_CONTACTS[contactId]) return false;
@@ -84109,6 +84673,9 @@ window._smsSend=function(contactId,text,opts){
   if(opts&&opts.action) G.sms.conversations[contactId][G.sms.conversations[contactId].length-1].action=opts.action;
   /* v2.3.98 (PDF #2/#3): tag zestawu kontekstowych odpowiedzi (np. 'freestyle'/'jobs' dla Kamila) — steruje przyciskami w renderSMSConversation. */
   if(opts&&opts.replySet) G.sms.conversations[contactId][G.sms.conversations[contactId].length-1].replySet=opts.replySet;
+  /* PDF GDANSK U62: wiadomość z numerem do zapisania dostaje znacznik — wtedy w prawym górnym
+     rogu dymka pojawia się mały, niebieski plus. */
+  if(opts&&opts.saveContact) G.sms.conversations[contactId][G.sms.conversations[contactId].length-1].saveContact=true;
   return true;
 };
 /* ═══ PDF 20.08 U27/U29/U33 — WSKAZÓWKI OD 🛨 TrapInfo Z OPÓŹNIENIEM 5 SEKUND ═══════════
@@ -85448,9 +86015,12 @@ window.renderSMSConversation=function(contactId){
           <div style="color:${c.color};font-size:9.5px;font-weight:800;letter-spacing:.6px;margin-bottom:2px">${c.em} ${(c.name||'').split(' ')[0]}</div>
           <div style="color:#9fb0c4;font-size:11px;line-height:1.35;font-style:italic;word-break:break-word">${m.replyToText}${String(m.replyToText).length>=120?'…':''}</div>
         </div>`:'';
+    /* PDF GDANSK U62: przy wiadomości z numerem — mały, niebieski plus w prawym górnym rogu. */
+    const _plus=(!isMe && m.saveContact && !(typeof window._smsContactSaved==='function' && window._smsContactSaved(contactId)))
+      ? `<button onclick="window._smsSaveContact&&window._smsSaveContact('${contactId}')" title="Zapisz numer w kontaktach" style="position:absolute;top:5px;right:5px;width:21px;height:21px;padding:0;line-height:19px;text-align:center;border-radius:50%;border:none;background:#2f8fe0;color:#fff;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit">+</button>` : '';
     return `<div style="display:flex;justify-content:${align};margin-bottom:8px">
-      <div style="max-width:75%;background:${bg};border:1px solid ${c.color}22;border-radius:14px;padding:8px 12px">
-        ${_q}<div style="color:${color};font-size:13px;line-height:1.4;word-break:break-word">${m.text}</div>
+      <div style="position:relative;max-width:75%;background:${bg};border:1px solid ${c.color}22;border-radius:14px;padding:8px ${_plus?'32px':'12px'} 8px 12px">
+        ${_plus}${_q}<div style="color:${color};font-size:13px;line-height:1.4;word-break:break-word">${m.text}</div>
         <div style="color:#667;font-size:9px;margin-top:3px;text-align:right">Dz. ${m.day} · ${m.time}${isMe?' ·  ✓':''}</div>
       </div>
     </div>`;
@@ -86282,7 +86852,7 @@ window._producerHandleReply=function(opt){
   const p=G._producerRel, act=opt.action;
   if(opt.reply) window._smsPushNpcReply('producent',opt.reply);
   if(act==='objective'||act==='showReq'){
-    if(!p.fiveSinglesObjSet){ p.fiveSinglesObjSet=true; if(typeof notify==='function') notify('🎚️ Cel od Majkla: opublikuj 5 numerów w podobnym tonie, potem wbij do niego do Studia — pogadacie o współpracy (beaty, sesje, kontrakt).'); }
+    if(!p.fiveSinglesObjSet){ p.fiveSinglesObjSet=true; if(typeof notify==='function') notify('🎚️ Cel od Nate „808” Morgan: opublikuj 5 numerów w podobnym tonie, potem wbij do niego do Studia — pogadacie o współpracy (beaty, sesje, kontrakt).'); }
   } else if(act==='beatPreview'){
     if(!p.beatPreviewUnlocked){ p.beatPreviewUnlocked=true; if(typeof notify==='function') notify('🎧 Nate „808” Morgan podrzuci Ci szkic bitu, jak wpadniesz do Studia. Bez zobowiązań — sprawdzicie wspólny kierunek.'); }
   }
@@ -86583,7 +87153,7 @@ window._sponsorHandleReply=function(opt){
   const s=G._sponsorRel, act=opt.action;
   if(opt.reply) window._sponsorPushNpc(opt.reply); /* terminalna odpowiedź NPC */
   if(act==='sponsorObjective'){
-    if(!s.objSet){ s.objSet=true; if(typeof notify==='function') notify('🎯 Cel: kup ubranie w Drip District (u Wiktora) i podbij drip do 20+, żeby sponsor wrócił z ofertą współpracy.'); }
+    if(!s.objSet){ s.objSet=true; if(typeof notify==='function') notify('🎯 Cel: kup ubranie w Drip District (w Urban Crown) i podbij drip do 20+, żeby sponsor wrócił z ofertą współpracy.'); }
   } else if(act==='sponsorOffer'){ window._sponsorSendOffer();
   } else if(act==='sponsorAccept'){ window._sponsorAcceptOffer();
   } else if(act==='sponsorNegotiate'){ window._sponsorNegotiate();
@@ -89947,7 +90517,7 @@ function openHelpPanel(){
       <div>
         <div style="color:#27ae60;font-weight:700;margin-bottom:6px">🎯 Pierwsze kroki</div>
         <div style="line-height:1.7">
-          • Idź do <b>Wiktora</b> po dzienne zlecenie<br>
+          • Idź do <b>Gavina</b> po dzienne zlecenie<br>
           • Pracuj w <b>Pizzerii/Kurierze/Myjni</b><br>
           • Kup mikrofon w <b>Sklepie muzycznym</b><br>
           • Wbij <b>poziom 2</b> aby otworzyć kariery<br>
@@ -92961,6 +93531,12 @@ const TUTORIAL_STEPS=[
    body:'<strong>Lodówka</strong> w mieszkaniu jest darmowa (po zakupie jedzenia w sklepie spożywczym). Możesz też zjeść przy stole, u Frankiego (kebab), w pizzerii, restauracji albo jedzenie z ekwipunku (klawisz I) — wszystko zaspokaja głód i zalicza ten punkt.',
    goal:'Zjedz coś — lodówka, stół, kebab, pizzeria, restauracja albo ekwipunek',
    done:()=>(G._tutStat?.ate||0)>0},
+  /* PDF GDANSK U17: krok o ekwipunku wchodzi jako 6. pozycja — „Pierwsza wypłata", „Sen"
+     i „Auto-save" przesuwają się o jedno miejsce w dół. */
+  {icon:'🎒',color:'#16a085',title:'Ekwipunek',
+   body:'Klawisz <strong>I</strong> otwiera ekwipunek. Trzymasz w nim jedzenie, napoje, ubrania i przedmioty specjalne. Stamtąd zjesz kanapkę w drodze, założysz ciuch albo sprawdzisz, ile miejsca Ci zostało.',
+   goal:'Otwórz ekwipunek (I) i zobacz, co masz przy sobie',
+   done:()=>(G._tutStat?.invOpened||0)>0},
   {icon:'💼',color:'#f39c12',title:'Pierwsza wypłata',
    body:'W <strong>centrum mapy</strong> znajdziesz prace dorywcze (Pizzeria, Supermarket, Myjnia, Budowa, Kurier). To główne źródło kasy na początku — 50–200 zł za zmianę.',
    goal:'Wykonaj pierwszą pracę dorywczą (centrum mapy)',
@@ -92994,7 +93570,7 @@ window._tutorialDone=function(){
 };
 /* Wspólny komunikat odmowy — ta sama treść w każdym z trzech miejsc. */
 window._tutorialGateMsg=function(co){
-  if(typeof showMsg==='function') showMsg('🎓 '+co+' odblokujesz po ukończeniu podstawowego poradnika (8 kroków). Dokończ go — zajmie chwilę.','i',5200);
+  if(typeof showMsg==='function') showMsg('🎓 '+co+' odblokujesz po ukończeniu podstawowego poradnika ('+TUTORIAL_STEPS.length+' kroków). Dokończ go — zajmie chwilę.','i',5200);
 };
 function _tutFinish(){
   if(G._tutorialSeen) return;
@@ -93596,7 +94172,7 @@ function showHelp(){
           <div>🍔 Głód i energia spadają — jedz i śpij regularnie</div>
           <div>📺 Kup kamerę i mikrofon żeby awansować</div>
           <div>👥 Rekrutuj ekipę u NPC na ulicy</div>
-          <div>📋 Wiktor (❓) daje dzienne zlecenia</div>
+          <div>📋 Gavin (❓) daje dzienne zlecenia</div>
           <div>🌮 Frankie (🌮) sprzedaje tanie jedzenie na ulicy</div>
           <div>📅 Spencer (📅) — Booking Agent — rezerwuje koncerty</div>
           <div>🎤 Idź na koncert żeby zdobyć sławę i fanów</div>
@@ -93961,6 +94537,26 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.138',date:'2026-09-02',cats:['beta-tester','feature','fix','ui'],title:'🏢 Wlasna przestrzen w VANTAGE WORKS, sprzet widoczny w piwnicy i porzadek w telefonie',
+ items:[
+  {t:'change',d:'🖥 Gra uruchamia sie od razu na pelnym ekranie. Klawisz F11 przelacza tryb w obie strony, a Twoj wybor jest zapamietywany na kolejne uruchomienia.'},
+  {t:'new',d:'🎒 Poradnik na start ma nowy, szosty krok: otwieranie ekwipunku klawiszem I. Dowiesz sie z niego, gdzie ladujesz jedzenie, ubrania i przedmioty specjalne, zanim ruszysz do pierwszej pracy.'},
+  {t:'change',d:'📱 Telefon rozdziela dwie rzeczy, ktore wczesniej robil jeden przycisk. „Wstecz" cofa o jeden krok — z aplikacji do folderu, z folderu na pulpit. „Menu" zawsze wraca na pulpit. Po mapie mozesz chodzic z telefonem w reku, poza aplikacjami, ktore wymagaja pelnej uwagi.'},
+  {t:'change',d:'👥 Czesc postaci ma nowe imiona: menadzer, producent, konsultant audio, promotorka sali, agent bookingowy, zleceniodawca i stary kumpel. Zmienily sie tez nazwy dealerow i pracownikow, ktorych zatrudniasz.'},
+  {t:'new',d:'🪪 Po zakupie lokalu w VANTAGE WORKS odbierasz karte dostepu w recepcji glownej. Bez niej winda nie otworzy Twojego pietra. Gdy masz juz wlasna przestrzen w budynku, wejscie od ulicy przenosi Cie od razu na parter — bez panelu ofertowego.'},
+  {t:'change',d:'🔧 Doposazenie w VANTAGE WORKS pokazuje wreszcie stan kazdej pozycji. Zamowiony element ma szary napis „Zamowione", zamontowany — „Zamontowane". Przy trzech i wiecej dostawach w drodze dochodzi podglad z nazwa, kwota i liczba dni do montazu.'},
+  {t:'change',d:'🛠 Serwis wyposazenia otwiera sie dopiero przy stanie 50% i nizej, pokazuje kwote liczona od ceny elementu i pyta o potwierdzenie. Sprawnego sprzetu nie da sie juz przypadkiem oplacic.'},
+  {t:'change',d:'📁 Porzadkowanie dokumentacji kosztuje 5 000 zl zamiast 12 000 zl, prosi o potwierdzenie i ma obok przycisk „Info" z wyjasnieniem, po co sie to robi i czym grozi zaniedbanie. Przy pelnej dokumentacji przycisk jest wyszarzony.'},
+  {t:'ui',d:'🏢 Sprzedaz lokalu, nawiazanie kontaktu z partnerem i wybor kierunku rozwoju daja teraz czytelna informacje zwrotna — okno potwierdzenia przy sprzedazy oraz szare „Nawiazano" i „Wybrano" tam, gdzie decyzja juz zapadla. Z naglowkow i podpowiedzi w budynku zniknely ikonki, ktorych gra nie potrafila wyswietlic.'},
+  {t:'new',d:'🌱 Sprzet zamontowany w piwnicy uprawowej naprawde widac. Kazdy z osiemnastu modeli ma wlasny wyglad i wlasne miejsce w pomieszczeniu — swiatlo pod sufitem, klimat przy scianie, stanowiska w korytarzu, czujniki i linia finalizacji po prawej, instalacje w podlodze. Zaniedbany sprzet zapala czerwony punkt.'},
+  {t:'change',d:'🌱 Przejecie piwnicy uprawowej prosi o potwierdzenie, wybrany material zmienia sie w szare „Wybrano", a zainstalowany sprzet w „Zainstalowano". Podpowiedz przy terminalu jest krotsza i czytelniejsza.'},
+  {t:'change',d:'🎨 Studio projektowania merchu przestalo byc darmowe. Prog pieciu tysiecy fanow zostaje, ale sam lokal trzeba wykupic — jednorazowo, z oknem potwierdzenia. Jesli masz juz wystawiony wlasny produkt, lokal nalezy do Ciebie bez doplaty.'},
+  {t:'change',d:'📍 „Zlokalizuj" w Biurze Nieruchomosci nie otwiera juz mapy. Kamera plynnie leci nad Twoj lokal, zaznacza go zolta obwodka na piec sekund i wraca do postaci.'},
+  {t:'fix',d:'📡 NOX Route przestal byc slepym zaulkiem. Pierwsza trase mozesz wziac od reki, a kazda zamknieta otwiera drozsze zlecenia. Doszly przyciski: instrukcja „Jak to dziala", pytanie do brokera i odswiezenie rynku, a aplikacja mowi wprost, kiedy spodziewac sie odpowiedzi.'},
+  {t:'new',d:'🍸 Barman w klubie w Business District pamieta hojnych gosci. Kilka napiwkow pod rzad otwiera rozmowe, ktorej wczesniej nie dalo sie zaczac — i moze skonczyc sie numerem telefonu do zapisania.'},
+ ]
+ },
  {
  ver:'v2.3.137',date:'2026-08-20',cats:['beta-tester','feature','fix','ui'],title:'🧭 Elliot Crane oprowadza po Business District, przelot po miescie dopracowany',
  items:[
@@ -110154,7 +110750,7 @@ function startGame(){
     } else {
       showWelcomePopup(`🎤 Witaj w Trap Simulator, ${name}!`,
         'Sterowanie: <b>WASD/strzałki</b> = ruch · <b>E</b> = interakcja · <b>P</b> = telefon · <b>M</b> = mapa · <b>Esc</b> = pauza<br><br>'+
-        '🎯 <b>Pierwszy krok:</b> idź do pracy dorywczej (Pizzeria/Kurier) lub do Wiktora po zlecenie. Zarabiaj — kupuj sprzęt — odblokuj kariery!');
+        '🎯 <b>Pierwszy krok:</b> idź do pracy dorywczej (Pizzeria/Kurier) lub do Gavina po zlecenie. Zarabiaj — kupuj sprzęt — odblokuj kariery!');
       try{ _introTraphouseFridge(); }catch(e){console.error('intro traphouse:',e);}
     }
   }catch(e){console.error('intro:',e);}
@@ -114997,6 +115593,8 @@ function loop(){
   /* PDF „Maya Voss” §6: zegar AKTYWNEJ rozgrywki (pauza/menu/utrata fokusu go zatrzymują).
      Ten sam licznik obsługuje minutę do intro, 20 minut wariantu przypominającego i minutę do reakcji Mayi. */
   if(typeof window._mayaTick==='function') window._mayaTick(_realDeltaSec);
+  /* PDF GDANSK U62: pięć minut rozgrywki do SMS-a od Silasa liczone tym samym zegarem. */
+  if(typeof window._silesTick==='function') window._silesTick(_realDeltaSec);
   // ── Sync gameMin → G.timeOfDay (pora dnia zmienia się sama bez spania) ──
   // Mapowanie: 06–11=Rano(0) · 12–17=Południe(1) · 18–22=Wieczór(2) · 23–05=Noc(3)
   // Gdy zegar przekroczy 24:00 — odpalamy pełną logikę nextPeriod() raz, by zaliczyć nowy dzień
@@ -115054,6 +115652,9 @@ function loop(){
      ⚠️ Wcześniej rysowała się z dekoracji dzielnicy, czyli PRZED budynkami — fasady zasłaniały ją
      w całości. Wykrył to dopiero obejrzany zrzut ekranu, nie asercja o rezerwacji aktorów. */
   if(currentRoom==='business' && typeof window._bgfDrawStagedScenes==='function') _safe(()=>window._bgfDrawStagedScenes(),'bgfStagedScenes');
+  /* PDF GDANSK U88: zamontowany sprzęt SUBTERRA rysuje się PO obiektach piwnicy — inaczej
+     doniczki, terminal i suszarnia zasłaniałyby część modułów (lekcja z mikroscen przewodników). */
+  if(currentRoom==='plantacja' && typeof window._sbDrawInstalledGear==='function') _safe(()=>window._sbDrawInstalledGear(),'sbInstalledGear');
   _safe(()=>drawPlayerCar(),'drawPlayerCar');
   _safe(()=>drawPlayerCamper(),'drawPlayerCamper'); /* E4b: sprite kampera podczas jazdy */
   _safe(()=>{ if(window._marinaIsPiloting&&window._marinaIsPiloting()) window._marinaDrawPiloting(); },'marinaPilot');

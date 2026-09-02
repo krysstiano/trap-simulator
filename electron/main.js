@@ -8,12 +8,29 @@ const path = require('path');
 const fs = require('fs');
 
 const TEST = process.env.ELECTRON_TEST === '1';
+/* PDF GDANSK U1 — uruchamialny dowod trybu pelnoekranowego:
+     ELECTRON_TEST=1 ELECTRON_TEST_FS=1 npx electron .
+   Okno startuje wtedy tak, jak u gracza (pelny ekran wg zapamietanego ustawienia), a test
+   sprawdza REALNY stan okna oraz to, czy wyjscie z pelnego ekranu zapisuje sie w ustawieniach. */
+const FS_TEST = process.env.ELECTRON_TEST_FS === '1';
 // Spakowany build: ./game/index.html (skopiowany przez tools/prepare.js).
 // Dev/POC: ../index.html (zywy single-source w root repo).
 const INDEX = [
   path.join(__dirname, 'game', 'index.html'),
   path.join(__dirname, '..', 'index.html')
 ].find(p => fs.existsSync(p)) || path.join(__dirname, '..', 'index.html');
+
+/* PDF GDANSK U1: gra startuje w trybie pelnoekranowym, zeby gracz nie musial na wstepie
+   powiekszac okna. Wybor gracza jest zapamietywany — jesli wyjdzie z pelnego ekranu (F11),
+   nastepny start uszanuje te decyzje. Plik ustawien lezy obok zapisow, w katalogu uzytkownika. */
+const PREFS_NAME = 'window-prefs.json';
+function prefsPath() { return path.join(app.getPath('userData'), PREFS_NAME); }
+function readPrefs() {
+  try { return JSON.parse(fs.readFileSync(prefsPath(), 'utf8')) || {}; } catch (_) { return {}; }
+}
+function writePrefs(p) {
+  try { fs.mkdirSync(path.dirname(prefsPath()), { recursive: true }); fs.writeFileSync(prefsPath(), JSON.stringify(p)); } catch (_) {}
+}
 
 let failed = false;
 function die(msg) {
@@ -25,10 +42,15 @@ function die(msg) {
 function createWindow() {
   if (!fs.existsSync(INDEX)) { die('brak pliku ' + INDEX); return; }
 
+  const prefs = readPrefs();
+  /* domyslnie pelny ekran; w trybie testowym okno zostaje male i ukryte */
+  const wantFullscreen = (TEST && !FS_TEST) ? false : (prefs.fullscreen !== false);
+
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
-    show: !TEST,                 // w tescie nie pokazuj okna
+    fullscreen: wantFullscreen,  // PDF GDANSK U1: start w pelnym ekranie
+    show: !TEST || FS_TEST,      // w tescie nie pokazuj okna (wyjatek: test pelnego ekranu)
     title: 'Trap Simulator',
     icon: path.join(__dirname, 'icon.png'),
     backgroundColor: '#000000',
@@ -40,6 +62,18 @@ function createWindow() {
   });
 
   win.setMenuBarVisibility(false);
+
+  /* PDF GDANSK U1: F11 przelacza pelny ekran (menu jest ukryte, wiec skrot obslugujemy sami),
+     a Esc wychodzi z pelnego ekranu bez zamykania gry. Kazda zmiana zapisuje sie w ustawieniach. */
+  win.webContents.on('before-input-event', (e, input) => {
+    if (input.type !== 'keyDown') return;
+    if (input.key === 'F11') {
+      e.preventDefault();
+      win.setFullScreen(!win.isFullScreen());
+    }
+  });
+  win.on('enter-full-screen', () => writePrefs(Object.assign(readPrefs(), { fullscreen: true })));
+  win.on('leave-full-screen', () => writePrefs(Object.assign(readPrefs(), { fullscreen: false })));
 
   const wc = win.webContents;
 
@@ -82,6 +116,22 @@ function createWindow() {
       }))()`);
       console.log('POC-PROBE: ' + JSON.stringify(probe));
 
+      if (FS_TEST) {
+        const fsOn = win.isFullScreen();
+        console.log('FS-PROBE: ' + JSON.stringify({ want: wantFullscreen, isFullScreen: fsOn }));
+        if (!fsOn) return die('okno NIE wystartowalo w trybie pelnoekranowym');
+        /* wyjscie z pelnego ekranu (to samo, co robi F11) musi zapisac wybor gracza */
+        win.setFullScreen(false);
+        await new Promise(r => setTimeout(r, 400));
+        const afterOff = readPrefs().fullscreen;
+        win.setFullScreen(true);
+        await new Promise(r => setTimeout(r, 400));
+        const afterOn = readPrefs().fullscreen;
+        console.log('FS-PREFS: ' + JSON.stringify({ afterOff: afterOff, afterOn: afterOn }));
+        if (afterOff !== false) return die('wyjscie z pelnego ekranu nie zapisalo sie w ustawieniach');
+        if (afterOn !== true) return die('powrot do pelnego ekranu nie zapisal sie w ustawieniach');
+        console.log('FS-OK: start w pelnym ekranie + zapamietany wybor gracza');
+      }
       if (!probe.hasCanvas) return die('brak elementu <canvas> po zaladowaniu');
       if (probe.bodyLen < 1000) return die('body podejrzanie puste (' + probe.bodyLen + ' znakow)');
 
@@ -94,7 +144,8 @@ function createWindow() {
       await new Promise(r => setTimeout(r, 300));
       const upd = await wc.executeJavaScript(`(() => { var c=document.getElementById('uw-update-card'); return { disp: c?c.style.display:'(brak)', btn: c?c.querySelector('#uw-upd-btn').style.display:'(brak)' }; })()`);
       console.log('UPDATE-UI-PROBE: ' + JSON.stringify(upd));
-      if (upd.disp !== 'block' || upd.btn !== 'block') return die('okienko aktualizacji nie pokazalo sie po evencie z main (' + JSON.stringify(upd) + ')');
+      /* karta uzywa ukladu flex (od v2.3.132) — liczy sie WIDOCZNOSC, nie konkretna wartosc display */
+      if (upd.disp === 'none' || upd.disp === '(brak)' || upd.btn !== 'block') return die('okienko aktualizacji nie pokazalo sie po evencie z main (' + JSON.stringify(upd) + ')');
       console.log('UPDATE-UI-OK: main->preload->renderer dziala (karta + przycisk restart widoczne)');
 
       // app.asar jest read-only w paczce — screenshot do zapisywalnego temp
