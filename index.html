@@ -4202,6 +4202,26 @@ function drawObjects(room){
       X.restore();
     }
     /* v2.1.959 (PDF l.48, Vegan): podświetlenie lodówki w intro tutorialu głodu/energii — bursztynowa pulsująca aura PRZYCIĄGA gracza do lodówki (aż ją otworzy). Działa też gdy gracz NIE jest jeszcze blisko (nearId!=fridge). */
+    /* PDF GDANSK 138 U1 (user): drzwi wyjsciowe z Traphouse dostaja TAKA SAMA pomaranczowa
+       poswiate, jaka ma lodowka na starcie gry — plus zielona strzalka (rysowana nizej). */
+    if(obj.id==='door' && currentRoom==='mieszkanie' && G._exitTutorialGlow && nearId!==obj.id){
+      const dpulse=0.5+0.5*Math.sin(anim*0.10);
+      X.save();
+      X.globalCompositeOperation='lighter';
+      const dcx=sx+obj.w/2,dcy=sy+obj.h/2;
+      const dr=Math.max(obj.w,obj.h)*0.9;
+      const dg=X.createRadialGradient(dcx,dcy,obj.w*0.25,dcx,dcy,dr);
+      dg.addColorStop(0,`rgba(255,210,90,${0.22+dpulse*0.14})`);
+      dg.addColorStop(0.6,`rgba(255,190,70,${0.07+dpulse*0.06})`);
+      dg.addColorStop(1,'rgba(255,190,70,0)');
+      X.fillStyle=dg;X.fillRect(sx-dr/2,sy-dr/2,obj.w+dr,obj.h+dr);
+      X.globalCompositeOperation='source-over';
+      X.shadowColor='#ffd24a';X.shadowBlur=20+12*dpulse;
+      X.strokeStyle=`rgba(255,210,90,${0.5+0.45*dpulse})`;X.lineWidth=2.5;
+      X.strokeRect(sx-3,sy-3,obj.w+6,obj.h+6);
+      X.restore();
+      if(typeof window._drawExitArrow==='function') window._drawExitArrow(sx,sy,obj.w,obj.h);
+    }
     if(obj.id==='fridge' && G._fridgeTutorialGlow && nearId!==obj.id){
       const fpulse=0.5+0.5*Math.sin(anim*0.10);
       X.save();
@@ -4223,6 +4243,58 @@ function drawObjects(room){
   }
 }
 
+/* ═══ PDF GDANSK 138 U1 — WSKAZANIE KIERUNKU (zielona strzalka nad drzwiami) ═══════════════
+   Delikatnie unoszaca sie zielona strzalka wskazujaca w dol, na drzwi wyjsciowe z Traphouse.
+   Rozmiar DWA RAZY wiekszy od zwyklego znacznika kierunku w grze (szerokosc 56 px zamiast 28).
+   Znika na zawsze, gdy gracz pierwszy raz opusci mieszkanie (patrz `_exitTutorialDone`). */
+window._EXIT_ARROW_W = 56;      /* 2x szerokosc zwyklego znacznika (28 px) */
+window._EXIT_ARROW_H = 46;
+window._drawExitArrow=function(sx,sy,w,h){
+  const t=Date.now()/420;
+  const bob=Math.sin(t)*7;                       /* delikatny ruch gora-dol */
+  const pulse=0.5+0.5*Math.sin(t*1.4);
+  const AW=window._EXIT_ARROW_W, AH=window._EXIT_ARROW_H;
+  const cx=sx+w/2, cy=sy-AH-14+bob;              /* nad drzwiami, czubkiem w dol */
+  X.save();
+  X.globalCompositeOperation='lighter';
+  const g=X.createRadialGradient(cx,cy+AH*0.4,4,cx,cy+AH*0.4,AW*0.95);
+  g.addColorStop(0,`rgba(60,220,120,${0.20+pulse*0.16})`);
+  g.addColorStop(1,'rgba(60,220,120,0)');
+  X.fillStyle=g; X.beginPath(); X.arc(cx,cy+AH*0.4,AW*0.95,0,Math.PI*2); X.fill();
+  X.globalCompositeOperation='source-over';
+  X.shadowColor='rgba(46,204,113,.95)'; X.shadowBlur=16+10*pulse;
+  X.beginPath();
+  X.moveTo(cx-AW*0.22, cy);                       /* trzon */
+  X.lineTo(cx+AW*0.22, cy);
+  X.lineTo(cx+AW*0.22, cy+AH*0.46);
+  X.lineTo(cx+AW*0.5,  cy+AH*0.46);               /* grot */
+  X.lineTo(cx,         cy+AH);
+  X.lineTo(cx-AW*0.5,  cy+AH*0.46);
+  X.lineTo(cx-AW*0.22, cy+AH*0.46);
+  X.closePath();
+  const gg=X.createLinearGradient(cx,cy,cx,cy+AH);
+  gg.addColorStop(0,'#8ef2a8'); gg.addColorStop(1,'#1f9d55');
+  X.fillStyle=gg; X.fill();
+  X.shadowBlur=0;
+  X.lineWidth=2; X.strokeStyle=`rgba(240,255,240,${0.55+pulse*0.35})`; X.stroke();
+  X.restore();
+};
+/* Warunek U1: krok poradnika „Pierwsza wyplata” i gracz WCIAZ w mieszkaniu. */
+window._exitTutorialCheck=function(){
+  try{
+    if(typeof G==='undefined') return;
+    if(G._exitTutorialDone){ G._exitTutorialGlow=false; return; }
+    if(currentRoom!=='mieszkanie'){ G._exitTutorialGlow=false; return; }
+    if(typeof TUTORIAL_STEPS==='undefined' || !G._tutorial) return;
+    const idx=(typeof G._tutorial.step==='number')?G._tutorial.step:0;
+    const st=TUTORIAL_STEPS[idx];
+    G._exitTutorialGlow = !!(st && st.title==='Pierwsza wyp\u0142ata');
+  }catch(_){ }
+};
+/* Pierwsze wyjscie z Traphouse gasi strzalke i poswiate NA ZAWSZE. */
+window._exitTutorialMarkLeft=function(){
+  try{ G._exitTutorialDone=true; G._exitTutorialGlow=false; }catch(_){ }
+};
 function drawSprite(id,sx,sy,w,h){
   X.save();
   if(id&&id.indexOf('_mrn_')===0){ if(typeof window._drawMarinaSprite==='function') window._drawMarinaSprite(id,sx,sy,w,h); X.restore(); return; }
@@ -12578,6 +12650,24 @@ function sfxSms(){
   }catch(e){}
 }
 window.sfxSms=sfxSms;
+/* PDF GDANSK 138 U6 (user): OSOBNY dźwięk powiadomienia z aplikacji FrameUp — nowoczesny
+   i równie minimalistyczny co SMS, ale wyraźnie inny: czysta sinusoida (SMS ma trójkątną),
+   dwa dźwięki w kwincie w górę zamiast trzech w górę, plus miękkie niższe podbicie. */
+function sfxFrameUpDm(){
+  if(!_sfxGuard('fudm',220)) return;
+  bgmDuck();
+  if(_muted)return;
+  try{const a=getAudio();if(!a)return;const t=a.currentTime;
+    [[784,0,0.10],[1175,0.10,0.09],[587,0.02,0.045]].forEach(([f,d,v])=>{
+      const o=a.createOscillator();const g=a.createGain();
+      o.type='sine';o.frequency.setValueAtTime(f,t+d);
+      g.gain.setValueAtTime(0,t+d);g.gain.linearRampToValueAtTime(v,t+d+0.012);
+      g.gain.exponentialRampToValueAtTime(0.001,t+d+0.30);
+      o.connect(g);g.connect(_sfxMasterGain||a.destination);o.start(t+d);o.stop(t+d+0.34);
+    });
+  }catch(e){}
+}
+window.sfxFrameUpDm=sfxFrameUpDm;
 // v1.8.15: SFX kasyna
 function sfxSlotSpin(){
   if(!_sfxGuard('slotSpin',180)) return;
@@ -15964,6 +16054,9 @@ function handleAct(act,objId){
       startRoomFade('underground', 240, 480); /* fallback save-safe: brak zapisanej pozycji kampera */
     }
   } else if(act==='apt_exit'){
+    /* PDF GDANSK 138 U1: gracz PIERWSZY RAZ wychodzi z Traphouse — strzałka i poświata
+       drzwi znikają na zawsze i nigdy więcej się nie pojawią. */
+    if(typeof window._exitTutorialMarkLeft==='function') window._exitTutorialMarkLeft();
     // F+ 2026-05-12: spawn przed DRZWIAMI z których gracz wszedł — śledzimy G._lastEnterDoor
     const exitKey=G._lastEnterDoor||G.apartment;
     const sp=APT_EXIT_SPAWNS[exitKey]||APT_EXIT_SPAWNS.traphouse;
@@ -16433,8 +16526,8 @@ function _casinoBuyCokeApply(){
   /* 10% bust chance */
   if(Math.random()<0.10){
     /* Police bust */
-    const fine=Math.min(G.money+1500, 5000);
-    G.money=Math.max(0, G.money-fine+0); /* fine sits on remaining + reservation */
+    const fine=Math.max(0,Math.min(G.money+1500, 5000));
+    G.money=window._walletFloor(G.money-fine+0); /* fine sits on remaining + reservation */
     /* v2.1.353 Faza Q+R2 Strumień A audit fix (reguła #7 ghost penalty): addFame(n) IGNORUJE negative input (L14423 `if(!n||n<=0)return 0`). PRZED: `addFame(-8)` był DEAD CODE — fame NIE obniżał się mimo komunikatu "🚔 -8 sławy". Gracz miał ghost penalty. PO: direct decrement spójny z resztą gry (6 innych miejsc używa G.fame=Math.max(0, G.fame-N) pattern, np. L11913/L14768/L21682). */
     G.fame=Math.max(0,(G.fame||0)-8);
     G.streetRep=Math.max(0,(G.streetRep||0)-10);
@@ -20530,11 +20623,26 @@ const DAILY_TIPS=[
   /* v2.1.228 audit-fix #47: Crew NPC jest na chodniku H2 north (środek miasta, na południe od Sali), NIE obok Sali Koncertowej. */
   {id:'crew',cond:()=>G.fame>=30&&(!G.crew||G.crew.length===0),text:'💡 Rekrutuj ekipę (NPC na chodniku H2 north — środek miasta, na południe od Sali Koncertowej) — DJ, grafik, hype man dają stałe bonusy. (Menadżer to osobny NPC przy Szpitalu.)'},
 ];
+/* PDF GDANSK 138 U3 (user): dwa okna informacyjne („Kup składniki…” i „Siłownia: ławka/wyciąg…”)
+   nie mogą zaczepiać nowego gracza jeszcze w mieszkaniu. Pojawiają się dopiero 30 sekund po
+   ukończeniu przelotu nad miastem (czyli po pierwszym wyjściu z Traphouse). */
+window._U3_DELAYED_TIPS=['pantry','gym'];
+window._u3TipsReady=function(){
+  try{
+    if(typeof G._u3TipsAt==='number') return Date.now()>=G._u3TipsAt;
+    return !!G._cinematicCompleted;   /* stary zapis / gracz dawno po przelocie — zero regresji */
+  }catch(_){ return true; }
+};
+window._u3ArmTips=function(){
+  try{ if(typeof G._u3TipsAt!=='number') G._u3TipsAt=Date.now()+30000; }catch(_){}
+};
 function showDailyTip(){
   if(!G._tipHistory) G._tipHistory={};
   // v1.8.18: zwiększony cooldown 3→7 dni — wcześniej te same tipy wracały zbyt często.
+  const _u3ok=(typeof window._u3TipsReady==='function')?window._u3TipsReady():true;
   const available=DAILY_TIPS.filter(t=>{
     try{
+      if(!_u3ok && window._U3_DELAYED_TIPS.indexOf(t.id)>=0) return false; /* U3: jeszcze nie ich czas */
       if(!t.cond()) return false;
       const last=G._tipHistory[t.id]||-99;
       return G.day-last>=7;
@@ -20910,6 +21018,10 @@ const ACHIEVEMENTS = [
   /* v2.1.501 AO.5 — filter master: użyj wszystkich 5 filtrów IG (kolejnych unique). */
   {id:'ig_filter_master',name:'Filter Master',desc:'Użyj wszystkich 5 filtrów IG (normal/vintage/B&W/vibrant/dark mood)',icon:'🎨',check:()=>{const s=G._igFiltersUsed||{};return ['normal','vintage','bw','vibrant','dark'].every(k=>s[k]);}},
   {id:'ig_tweet_master',name:'ChirpNet Master',desc:'Napisz 30 własnych wpisów (kompozytor)',icon:'💬',check:()=>(G.userTweets?.length||0)>=30},
+  /* PDF GDANSK 138 U19 (user): komplet pięciu aktywności wolontariatu w schronisku.
+     Nagroda 100 zł = domyślny tier osiągnięć (dokładnie kwota z dokumentu). */
+  {id:'super_volunteer',name:'Superwolontariusz',desc:'Wykonaj wszystkie 5 aktywności wolontariatu w schronisku (karmienie, spacery, sprzątanie boksów, socjalizacja, dzień adopcyjny)',icon:'🙌',
+   check:()=>{ const e=Array.isArray(G._volunteerEver)?G._volunteerEver:[]; return ['karmienie','spacery','sprzatanie','socjalizacja','event'].every(k=>e.indexOf(k)>=0); }},
   /* v2.1.397 Faza AQ Etap 2 (user 2026-05-28): pies achievementy */
   /* v2.1.408 Faza AN.4 Etap 2: 5 trap achievementy. */
   /* v2.3.122 (PDF Uspr v2.3.121, BŁĘDY #1): warunkiem jest REALNE, domknięte spotkanie z dealerem
@@ -21606,17 +21718,17 @@ const RANDOM_EVENTS = [
   }},
   /* Mechanik dolicza „ukryte usterki" — wyższy rachunek niż zakładałeś. Tylko gdy masz auto. */
   {name:'Mechanik doliczył', chance:0.005, maxPerDay:1, cond:()=>!!G.car&&(G.money||0)>1500, fn:()=>{
-    const extra=Math.min(G.money,rnd(150,600)); G.money-=extra; G.stress=clamp((G.stress||0)-6,0,100);
+    const extra=Math.max(0,Math.min(G.money,rnd(150,600))); G.money-=extra; G.stress=clamp((G.stress||0)-6,0,100);
     notify(`🔧 Mechanik doliczył „wykryte ukryte usterki" — rachunek wyższy niż zakładałeś. -${extra} zł, -6 nastrój.`,'r',6500);
   }},
   /* Okresowo słony mandat (PDF: „raz mandat wyższy o 100%") — rzadszy i wyższy niż zwykły Police fine. */
   {name:'Słony mandat', chance:0.004, maxPerDay:1, cond:()=>currentRoom==='ulica'&&(G.money||0)>800&&!(typeof window._vehMandateShield==='function'&&window._vehMandateShield()), fn:()=>{ /* v2.3.108 PDF#9 §15: pasy -70% szansy mandatu */
-    const fine=rnd(400,900); const paid=Math.min(G.money,fine); G.money-=paid; G.stress=clamp((G.stress||0)-10,0,100);
+    const fine=rnd(400,900); const paid=Math.max(0,Math.min(G.money,fine)); G.money-=paid; G.stress=clamp((G.stress||0)-10,0,100);
     notify(`🚔 Wyjątkowo słony mandat — dziś bez taryfy ulgowej. -${paid} zł, -10 nastrój.`,'r',7000);
   }},
   {name:'Police fine', chance:0.008, maxPerDay:1, cond:()=>currentRoom==='ulica'&&G.streetRep>50&&!(typeof window._vehMandateShield==='function'&&window._vehMandateShield()), fn:()=>{ /* v2.3.108 PDF#9 §15: pasy -70% szansy mandatu */
     /* v1.9.13: silent fail fixed — pokazujemy realnie pobraną kwotę */
-    const fine=rnd(100,400);const paid=Math.min(G.money,fine);G.money-=paid;G.streetRep=clamp(G.streetRep-5,0,100);
+    const fine=rnd(100,400);const paid=Math.max(0,Math.min(G.money,fine));G.money-=paid;G.streetRep=clamp(G.streetRep-5,0,100);
     notify(`🚔 Mandat! -${paid} zł${paid<fine?' (resztę darowali)':''}. Uważaj na ulicy!`);
   }},
   {name:'Collab invite', chance:0.012, maxPerDay:1, cond:()=>_evHome()&&(G.yt?.subs||0)>=500, fn:()=>{ /* v2.1.132: optional chain */
@@ -21660,14 +21772,14 @@ const RANDOM_EVENTS = [
     notify(`📈 Twój post trafił w trending! +${boost} obserwujących!`);
   }},
   {name:'Unexpected bill', chance:0.007, cond:()=>_evHome()&&G.money>500, fn:()=>{
-    const bill=rnd(100,300);G.money=Math.max(0,G.money-bill);G.stress=clamp(G.stress-10,0,100);
+    const bill=rnd(100,300);G.money=window._walletFloor(G.money-bill);G.stress=clamp(G.stress-10,0,100);
     notify(`📄 Rachunek w skrzynce — niespodziewana opłata -${bill} zł. Stres rośnie.`,'r');
   }},
   // ═══ STREET EVENTS — krótkie immersyjne spotkania w mieście ═══
   {name:'Uliczny grajek', chance:0.018, maxPerDay:2, cond:()=>currentRoom==='ulica'&&G.timeOfDay<=2, fn:()=>{
     G.stress=clamp(G.stress+8,0,100);
     notify('🎻 Uliczny grajek gra fajny utwór. Wrzucasz parę monet — humor poprawia się. +8 nastrój');
-    G.money=Math.max(0,G.money-rnd(2,8));
+    G.money=window._walletFloor(G.money-rnd(2,8));
   }},
   {name:'Pomocna ręka', chance:0.012, maxPerDay:2, cond:()=>currentRoom==='ulica'&&(G.streetRep||0)<80, fn:()=>{
     // v1.8.61: random event rep cap 2-5 → 3-5 (user: random eventy 3-5)
@@ -21682,7 +21794,7 @@ const RANDOM_EVENTS = [
       notify(`🔫 Wyciągnąłeś broń — napastnik uciekł! Zero strat.${_broke?' (Pistolet się zużył i zepsuł.)':' Pozostało użyć: '+G.weapon.durability}`,'g',6000);
       return;
     }
-    const lost=Math.min(G.money,rnd(30,150));G.money-=lost;G.stress=clamp(G.stress-12,0,100);
+    const lost=Math.max(0,Math.min(G.money,rnd(30,150)));G.money-=lost;G.stress=clamp(G.stress-12,0,100);
     notify(`🥷 Ktoś ukradł Ci ${lost} zł! -${lost} zł, -12 nastrój. Uważaj wieczorami!`,'r');
   }},
   /* v2.1.887 (PDF linia 28/31): NAPAD RABUNKOWY — gdy nosisz DUŻO gotówki przy sobie (≥8000) wieczorem na ulicy.
@@ -21721,7 +21833,7 @@ const RANDOM_EVENTS = [
     /* v2.1.999 F9.1: jeśli masz odblokowany trap, możesz spróbować łapówki PRZED kontrolą broni. */
     const _gunBust=()=>{
       if(Math.random()<0.40){
-        const fine=Math.min(G.money||0,2000); G.money=(G.money||0)-fine; G.weapon={owned:false,durability:0};
+        const fine=Math.max(0,Math.min(G.money||0,2000)); G.money=(G.money||0)-fine; G.weapon={owned:false,durability:0};
         if(typeof addDefamation==='function') addDefamation(25);
         notify(`🚨 KONTROLA! Znaleźli broń — konfiskata + mandat −${fine} zł, zniesławienie mocno w górę. Ulica gada (street cred), ale sponsorzy stronią.`,'r',8500);
       } else {
@@ -21863,7 +21975,7 @@ const RANDOM_EVENTS = [
    cond:()=>!!(G.trap?.unlocked)&&((G.trap?.heatCh?.env)||0)>=35&&((typeof _trapWasteBarrels==='function'?_trapWasteBarrels():0)>=3),
    fn:()=>{
      /* PDF 12-II: Sanepid po zgłoszeniu sąsiada. Łapówka inspektorowi albo kara+env-heat. (Joanna „Paragraf" — wsparcie prawne, H4.) */
-     const _proceed=()=>{ const _fine=Math.round(rnd(20000,80000)); G.money=Math.max(0,(G.money||0)-_fine); const _h=Math.round(rnd(8,16)); G.trap.heat=Math.min(100,(G.trap.heat||0)+_h); if(typeof window._trapHeatChAdd==='function') window._trapHeatChAdd('env',_h); if(typeof window._trapAddEvidence==='function') window._trapAddEvidence('physical',5); notify(`🐝 Sanepid wlepił mandat ${_fine.toLocaleString('pl')} zł + protokół (env-heat +${_h}). Lepsze papiery/Joanna „Paragraf" by pomogły.`,'r'); };
+     const _proceed=()=>{ const _fine=Math.round(rnd(20000,80000)); G.money=window._walletFloor((G.money||0)-_fine); const _h=Math.round(rnd(8,16)); G.trap.heat=Math.min(100,(G.trap.heat||0)+_h); if(typeof window._trapHeatChAdd==='function') window._trapHeatChAdd('env',_h); if(typeof window._trapAddEvidence==='function') window._trapAddEvidence('physical',5); notify(`🐝 Sanepid wlepił mandat ${_fine.toLocaleString('pl')} zł + protokół (env-heat +${_h}). Lepsze papiery/Joanna „Paragraf" by pomogły.`,'r'); };
      const _avoid=()=>{ notify(`🐝 Inspektor Sanepidu „zadowolony z dokumentacji" — odpuścił. Kontrola zamknięta.`,'g'); };
      if(typeof window._offerBribe==='function') window._offerBribe('inspektor Sanepidu (osy wchodzą do ula)', _proceed, _avoid); else _proceed();
    }},
@@ -23670,7 +23782,7 @@ window._trapSettleDealer=function(idx){
   const _ps=Math.round(d._pendingSales||0), _pw=Math.round(d._pendingWage||0);
   if(_ps<=0 && _pw<=0){ if(typeof showMsg==='function') showMsg(`💼 ${d.name}: nic do rozliczenia (brak naliczonej sprzedaży ani wypłat).`,'i',4500); return; }
   const _net=_ps-_pw;
-  G.money=Math.max(0,(G.money||0)+_net);
+  G.money=window._walletFloor((G.money||0)+_net);
   if(_ps>0 && typeof window._addDirty==='function') window._addDirty(_ps); /* utarg = brudna gotówka (księgowana przy rozliczeniu) */
   d._pendingSales=0; d._pendingWage=0;
   if(typeof showMsg==='function') showMsg(`💼 Rozliczono ${d.name}: sprzedaż ${_ps.toLocaleString('pl')} zł − wypłaty ${_pw.toLocaleString('pl')} zł = ${_net>=0?'+':''}${_net.toLocaleString('pl')} zł.`,_net>=0?'g':'r',6500);
@@ -23810,7 +23922,7 @@ window._doUseSubstance=function(substanceKey){
   if(typeof sub.onUse==='function') sub.onUse(G);
   /* Overdose risk (cocaine) */
   if(sub.overdoseRisk && Math.random()<sub.overdoseRisk){
-    G.money=Math.max(0,(G.money||0)-2000);
+    G.money=window._walletFloor((G.money||0)-2000);
     G.health=Math.max(10,((typeof G.health==='number'?G.health:100))-30);
     if(typeof showMilestoneCinematic==='function') showMilestoneCinematic({emoji:'🚑',title:'OVERDOSE!',subtitle:'Szpital ratunkowy',tagline:'-2000 zł szpital, -30 HP. Następnym razem ostrożnie!',accentColor:'#e74c3c',accent2:'#1a0808',duration:6000});
     if(typeof addNotif==='function') addNotif('🚑 OVERDOSE! Szpital uratował życie. -2000 zł.');
@@ -24745,7 +24857,7 @@ window._trapSell=function(recipeId){
   if(Math.random()<_adjBust){
     G.trap.busted++;
     G.trap._jailUntilDay=G.day+1;
-    G.money=Math.max(0,(G.money||0)-1000);
+    G.money=window._walletFloor((G.money||0)-1000);
     G.trapInv.products[recipeId]=0; /* skonfiskowano */
     if(typeof showMsg==='function') showMsg(`🚨 BUST! Policja zwinęła ${recipe.name}. -1000 zł + 1 dzień w areszcie.`,'r',6000);
     if(typeof addNotif==='function') addNotif(`🚨 Bust podczas próby sprzedaży ${recipe.name}!`);
@@ -26552,7 +26664,7 @@ window._trapFrontDailyTick=function(){
       const _dirtyRatio=(typeof _dirtyCash==='function')?(_dirtyCash()/Math.max(1,G.money||1)):0;
       const _joannaMult=(typeof _hasLegal==='function'&&_hasLegal('joanna'))?0.55:1; /* v2.3.5 H4: adwokatka tnie kary skarbowe */
       const _fine=Math.round((fr.upkeep||2000)*(2+Math.random()*4)*(1+_dirtyRatio*1.5)*_joannaMult);
-      G.money=Math.max(0,(G.money||0)-_fine);
+      G.money=window._walletFloor((G.money||0)-_fine);
       if(typeof addNotif==='function') addNotif(`🧾 Kontrola skarbowa w „${fr.name}"! ${_dirtyRatio>0.4?'Audytorzy wywęszyli nieczyste przepływy — ':'Drobne nieprawidłowości — '}kara ${_fine.toLocaleString('pl')} zł.`);
       if(G.publicRep){ G.publicRep.sponsorTrust=Math.max(0,(G.publicRep.sponsorTrust||60)-3); }
     }
@@ -26947,7 +27059,7 @@ window._raidMGFinish=function(success){
     const _orgSev=(typeof getOrgMult==='function')?getOrgMult('raidSeverity'):1; /* v2.2.1 D4: pionowa=ostrzej, sieć=łagodniej */
     let _fine=Math.min(120000, Math.max(5000, _caughtVal*0.5*_evMult*_orgSev));
     if(_hasLawyer) _fine=Math.round(_fine*0.5);
-    G.money=Math.max(0,(G.money||0)-_fine);
+    G.money=window._walletFloor((G.money||0)-_fine);
     /* po nalocie część dowodów „skonsumowana" sprawą (reset bliżej zera) */
     if(typeof _trapEvidenceEnsure==='function'){ _trapEvidenceEnsure(); for(const _k in G.trap.evidence) G.trap.evidence[_k]=Math.max(0,G.trap.evidence[_k]*0.4); }
     /* Jail 1-7 dni based na heat + dowody. v2.1.793 prawnik = -1 dzień. */
@@ -27465,7 +27577,7 @@ window._transFinalizeSale=function(playerConfirms){
   if(Math.random()<loc.policeRisk){
     G.trap.busted=(G.trap.busted||0)+1;
     G.trap._jailUntilDay=G.day+1;
-    G.money=Math.max(0,(G.money||0)-1000);
+    G.money=window._walletFloor((G.money||0)-1000);
     G.trapInv.products[mg.recipeId]=0;
     if(typeof showMilestoneCinematic==='function') showMilestoneCinematic({emoji:'🚨',title:'BUST!',subtitle:`Policja w ${loc.name}`,tagline:`-1000 zł kara · 1 dzień areszt · konfiskata ${mg.recipe.name}`,accentColor:'#e74c3c',accent2:'#1a0808',duration:5500});
     if(typeof addNotif==='function') addNotif(`🚨 BUST podczas transakcji ${loc.name}.`);
@@ -27673,7 +27785,7 @@ window._startScalpChartMG=function(coinId){
   if(!_mg||!_mc) return;
   const coin=CRYPTO_COINS.find(c=>c.id===coinId);
   if(!coin) return;
-  const baseAmount=Math.floor(Math.min(G.money*0.05, 1000));
+  const baseAmount=Math.max(0,Math.floor(Math.min(G.money*0.05, 1000)));
   const _speedMult=typeof window._traderScalpSpeedMult==='function'?window._traderScalpSpeedMult():1;
   G._scalpMG={coinId, baseAmount, startTime:Date.now(), endTime:Date.now()+60000, candles:[{p:100,low:100,high:100}], position:null, trades:[], combo:0, comboBonus:1, totalPnl:0, speedMult:_speedMult};
   _mc.innerHTML=`<div style="background:#1a1a05;border:2px solid #f1c40f;border-radius:10px;padding:14px;max-width:560px;margin:0 auto;color:#fff">
@@ -28907,6 +29019,10 @@ window._shelterVolunteer=function(type){
   if(act.fame){ if(typeof addFame==='function') addFame(act.fame); else G.fame=Math.min(500,(G.fame||0)+act.fame); }
   if(act.tip){ if(typeof earn==='function') earn(act.tip,false); else { G.money=(G.money||0)+act.tip; } }
   G._volunteerDone.push(type);
+  /* PDF GDANSK 138 U19: osobny rejestr „kiedykolwiek wykonanych” aktywności — dzienna lista
+     zeruje się co dobę, a osiągnięcie „Superwolontariusz” wymaga kompletu wszystkich pięciu. */
+  if(!Array.isArray(G._volunteerEver)) G._volunteerEver=[];
+  if(G._volunteerEver.indexOf(type)<0) G._volunteerEver.push(type);
   if(typeof checkAchievements==='function') checkAchievements();
   if(typeof showMsg==='function') showMsg(`${act.emoji} ${act.name} — dobra robota! +${act.charity} charity, +${act.respect} szacunku do siebie${act.tip?`, +${act.tip} zł zwrotu`:''}${act.mood?`, +${act.mood} nastroju`:''}.`,'g',4200);
   if(typeof window._openShelter==='function') window._openShelter('volunteer');
@@ -30729,6 +30845,8 @@ window._harnoldGive=function(amount){
   let repAdd = amount>=20?2:1;
   repAdd = Math.min(repAdd, Math.max(0, 10-(h.repGiven||0)));
   if(repAdd>0){ G.streetRep=clamp((G.streetRep||0)+repAdd,0,100); h.repGiven=(h.repGiven||0)+repAdd; }
+  /* PDF GDANSK 138 U13: relacja z Harnoldem ma teraz swoją wartość w aplikacji „🤝 Przyjaźnie z NPC". */
+  if(typeof addFriendship==='function'){ try{ addFriendship('harnold', amount>=20?3:2); }catch(_){} }
   let msg=`🧔 Dałeś Harnoldowi ${amount} zł.${repAdd>0?` +${repAdd} szacunku ulicznego.`:''}`;
   if(h.streak>=h.target && (h.theftFrozenUntil||0) < G.day+14){
     h.theftFrozenUntil=G.day+14; h.streak=0; h.target=0;
@@ -30745,6 +30863,8 @@ window._harnoldGive=function(amount){
 };
 function openNPCDialogue(type){
   const data=NPC_DATA[type];if(!data) return;
+  /* PDF GDANSK 138 U10: zapamiętaj, że gracz rozmawiał z TĄ postacią (drugi RÓŻNY NPC → SMS od TrapInfo). */
+  if(typeof window._gd138MarkNpcMet==='function') window._gd138MarkNpcMet('npc:'+type);
   /* v1.9.79/v1.9.86: zaliczenie pending SMS visit przy podejściu.
      Mapping NPC_DATA → SMS_CONTACTS (vendor=zbyszek, fan=fan, crew=crew, etc.) */
   /* v2.1.116: Wave 4 W35 — dodane mapowanie quest→wiktor (wcześniej SMS od Wiktora nigdy nie firował). */
@@ -31788,7 +31908,7 @@ function nextPeriod(){
         const daysElapsed=G.day-mm.startDay;
         if(daysElapsed>=mm.daysLimit&&totalFans<1000){
           mm.failed=true;
-          G.money=Math.max(0,G.money-2000);
+          G.money=window._walletFloor(G.money-2000);
           G.fame=clamp((G.fame||0)-20,0,500);
           G.followers=Math.floor((G.followers||0)*0.7);
           showMsg('💔 Misja nieudana! Nie zdobyłeś 1000 fanów w 30 dni. -2000 zł, -20 sławy, -30% obserwujących','r');
@@ -32271,7 +32391,7 @@ function applyRobberyConsequences(r){
     else { G.streetCredibility=Math.min(100,(G.streetCredibility||0)+rnd(1,3)); }
     if(r.seen){ G.streetHeat=(G.streetHeat||0)+rnd(3,8); if(typeof addDefamation==='function')addDefamation(rnd(2,5)); G._theft.districtWitness[loc]=(G._theft.districtWitness[loc]||0)+rnd(3,8); }
   } else {
-    const fine=Math.min(G.money||0,rnd(200,800)); G.money=(G.money||0)-fine; r._fine=fine;
+    const fine=Math.max(0,Math.min(G.money||0,rnd(200,800))); G.money=(G.money||0)-fine; r._fine=fine;
     G.streetHeat=(G.streetHeat||0)+rnd(5,12);
     if(typeof addDefamation==='function')addDefamation(r.method==='intimidate'?rnd(5,12):rnd(3,8));
     G.haters=(G.haters||0)+rnd(10,30);
@@ -32321,7 +32441,7 @@ function rollNpcRobberyAgainstPlayer(loc, hour){
   G._theft.robbedAtMs=Date.now(); /* PDF 20.08 U23: znacznik do limitu 1/godzine */
   const pool=NPC_ROBBER_TYPES.slice(0, loc==='underground'?6:4);
   const npc=pool[Math.floor(Math.random()*pool.length)];
-  const cash=Math.min(G.money||0, rnd(npc.cashMin,npc.cashMax));
+  const cash=Math.max(0,Math.min(G.money||0, rnd(npc.cashMin,npc.cashMax)));
   G.money=(G.money||0)-cash;
   if(npc.carDamage && G.car){ G.car.condition=Math.max(0,(G.car.condition==null?100:G.car.condition)-8); }
   G._theft._lastRobbery={npc:npc.id, name:npc.name, emoji:npc.emoji, cash, loc, recoverable:Math.floor(cash*0.6), carDmg:!!npc.carDamage};
@@ -32353,7 +32473,7 @@ window._npcRobberyReact=function(r){
   const _close=()=>{ const m=document.getElementById('mg-job'); if(m){m.classList.remove('on'); const c=document.getElementById('mg-job-content'); if(c)c.innerHTML='';} };
   if(r==='letgo'){ G.stress=Math.max(0,Math.min(100,(G.stress||50)-5)); G.streetCredibility=Math.max(0,(G.streetCredibility||0)-rnd(0,3)); if(typeof notify==='function')notify('😮‍💨 Odpuściłeś. Strata zostaje, ale unikasz eskalacji.','i',5000); }
   else if(r==='chase'){ G.violenceHeat=(G.violenceHeat||0)+rnd(4,10); if(Math.random()<0.45 && rb.recoverable){ G.money=(G.money||0)+rb.recoverable; if(typeof notify==='function')notify('🏃 Dogoniłeś go! Odzyskałeś '+rb.recoverable.toLocaleString('pl')+' zł. (+ryzyko porachunków)','g',5500); } else if(typeof notify==='function')notify('🏃 Uciekł w zaułki. Nic nie odzyskałeś, za to narobiłeś hałasu. (+ryzyko porachunków)','r',5500); }
-  else if(r==='contact'){ const cost=Math.min(G.money||0,rnd(300,1000)); G.money=(G.money||0)-cost; if(Math.random()<0.6 && rb.recoverable){ G.money+=rb.recoverable; if(typeof notify==='function')notify('📞 Ludzie z ulicy namierzyli sprawcę. Koszt '+cost.toLocaleString('pl')+' zł, odzyskano '+rb.recoverable.toLocaleString('pl')+' zł.','g',6000);} else if(typeof notify==='function')notify('📞 Kontakt wziął '+cost.toLocaleString('pl')+' zł, ale trop się urwał. Bywa.','i',5500); }
+  else if(r==='contact'){ const cost=Math.max(0,Math.min(G.money||0,rnd(300,1000))); G.money=(G.money||0)-cost; if(Math.random()<0.6 && rb.recoverable){ G.money+=rb.recoverable; if(typeof notify==='function')notify('📞 Ludzie z ulicy namierzyli sprawcę. Koszt '+cost.toLocaleString('pl')+' zł, odzyskano '+rb.recoverable.toLocaleString('pl')+' zł.','g',6000);} else if(typeof notify==='function')notify('📞 Kontakt wziął '+cost.toLocaleString('pl')+' zł, ale trop się urwał. Bywa.','i',5500); }
   else if(r==='police'){ if(Math.random()<0.5 && rb.recoverable){ G.money=(G.money||0)+Math.floor(rb.recoverable*0.5); } let extra=''; if((G.defamation||0)>20||(G.streetHeat||0)>0||(G.trap&&G.trap.unlocked)){ G.streetHeat=(G.streetHeat||0)+rnd(4,10); extra=' Ale przy Twoim stylu życia służby zaczęły się Tobą interesować (większa uwaga służb).'; } if(typeof notify==='function')notify('🚓 Zgłoszono sprawę służbom.'+extra,'i',6000); }
   else if(r==='protection'){ G.violenceHeat=(G.violenceHeat||0)+rnd(3,8); G._theft.fear=(G._theft.fear||0)+rnd(3,8); if(rb.recoverable){ G.money=(G.money||0)+rb.recoverable; } if(typeof notify==='function')notify('💪 Twoja ekipa odzyskała łup. Strach na ulicy rośnie, ale rośnie też ryzyko porachunków.','g',5500); }
   _close(); if(typeof updateHUD==='function')updateHUD();
@@ -32658,7 +32778,7 @@ window._sellLaunderAsset=function(idx, mode){
   if(appr.audit>0 && Math.random()<auditChance){
     /* WPADKA: kara skarbowa > zysk, evidence + publicRep hit */
     const fine=Math.round(payout*(1.5+Math.random()*1.5));
-    G.money=Math.max(0,(G.money||0)+payout-fine);
+    G.money=window._walletFloor((G.money||0)+payout-fine);
     if(typeof _trapAddEvidence==='function') _trapAddEvidence('financial', appr.evidence);
     if(G.publicRep){ G.publicRep.sponsorTrust=Math.max(0,(G.publicRep.sponsorTrust||60)-6); G.publicRep.brandSafety=Math.max(0,(G.publicRep.brandSafety||60)-5); }
     if(typeof addNotif==='function') addNotif(`🧾 Urząd zakwestionował wycenę „${def.name}"! Wpłata ${payout.toLocaleString('pl')} zł, ale kara ${fine.toLocaleString('pl')} zł + ślad finansowy. Agresywna wycena bez dobrego frontu się nie opłaca.`);
@@ -32989,9 +33109,10 @@ function tickBills(){
 window.payAllBills=()=>{
   if(!G.bills?.pending?.length) return;
   const total=G.bills.pending.reduce((s,b)=>s+b.amount,0);
-  if(G.money<total){if(typeof showMsg==='function')showMsg(`💸 Brak kasy — potrzeba ${total} zł, masz ${G.money}.`,'r');return;}
-  // Spłać wszystkie
-  G.money-=total;
+  /* PDF GDANSK 138 U18: „rachunki do spłat w jednej chwili” mogą wprowadzić portfel w debet. */
+  const _allDebt=G.money<total;
+  if(typeof window._walletCharge==='function') window._walletCharge(total); else G.money-=total;
+  if(_allDebt && typeof showMsg==='function') showMsg('⚠️ Rachunki opłacone na debet — saldo portfela jest ujemne: '+window._walletFmt(G.money)+' zł.','r',6000);
   G.bills.pending.forEach(b=>{b.paid=true;b.paidDay=G.day;G.bills.history.push(b);});
   G.bills.pending=[];
   // v1.8.56: BUG FIX — komunikat "EKSMISJA ZNIESIONA" pokazywał się ZAWSZE po payAllBills (bo evicted był właśnie ustawiony na false).
@@ -33019,8 +33140,10 @@ window.payBill=(billId)=>{
     G.bills.pending=G.bills.pending.filter(x=>x.id!==billId);
     return;
   }
-  if(G.money<b.amount){showMsg(`💸 Brak kasy! Potrzeba ${b.amount} zł, masz ${G.money}.`,'r');return;}
-  G.money-=b.amount;
+  /* PDF GDANSK 138 U18: rachunek można spłacić także wchodząc w debet — saldo schodzi na minus. */
+  const _billDebt=G.money<b.amount;
+  if(typeof window._walletCharge==='function') window._walletCharge(b.amount); else G.money-=b.amount;
+  if(_billDebt) showMsg('⚠️ Rachunek opłacony na debet — saldo portfela jest ujemne: '+window._walletFmt(G.money)+' zł.','r',6000);
   b.paid=true;
   b.paidDay=G.day;
   G.bills.history.push(b);
@@ -33040,24 +33163,46 @@ window.payBill=(billId)=>{
 /* v2.3.116 PRZEBUDOWA (user: „śmierć = instant 100 HP bez efektów; chcę fade-to-black + odrodzenie Nova Cura + ładny rachunek"):
    śmierć to teraz SEKWENCJA — gaśnięcie (fade-to-black + blur świata) → wybudzenie w Nova Cura → okno rachunku szpitalnego. */
 function gameOver(){ _startDeathSequence(); }
-function _startDeathSequence(){
-  if(G._dying) return; G._dying=true;
-  for(const k in K) delete K[k]; P.moving=false;
-  try{ if(typeof sfxLose==='function') sfxLose(); }catch(e){}
+/* PDF GDANSK 138 U15: wspólne klocki sekwencji „gasnący ekran → (teleport) → rozjaśnienie z rozmyciem".
+   Używa ich Śmierć postaci (fade-in + przywrócenie w Nova Cura) ORAZ przegrana bijatyka uliczna —
+   dokument wprost prosi, żeby walka korzystała z JUŻ ISTNIEJĄCEJ funkcji, a nie z kopii. */
+window._blackoutFadeIn=function(innerHtml){
   document.getElementById('death-overlay')?.remove();
   const ov=document.createElement('div'); ov.id='death-overlay';
   ov.style.cssText='position:fixed;inset:0;z-index:99998;background:#000;opacity:0;transition:opacity 1.5s ease;display:flex;align-items:center;justify-content:center;pointer-events:all';
-  ov.innerHTML='<div id="death-msg" style="opacity:0;transition:opacity 1.1s .5s;text-align:center;font-family:inherit"><div style="font-size:48px;margin-bottom:12px;filter:grayscale(1)">🖤</div><div style="font-size:22px;letter-spacing:5px;color:#7a7a7a;font-weight:800">GAŚNIESZ…</div><div style="font-size:12px;color:#555;margin-top:10px">świat rozmywa się i ciemnieje</div></div>';
+  ov.innerHTML='<div id="death-msg" style="opacity:0;transition:opacity 1.1s .5s;text-align:center;font-family:inherit">'+(innerHtml||'')+'</div>';
   document.body.appendChild(ov);
   /* rozmyj + wygaś świat gry pod spodem (blur „fade to black") */
   try{ const wrap=document.getElementById('wrap'); if(wrap){ wrap.style.transition='filter 1.4s ease'; wrap.style.filter='blur(7px) grayscale(0.85) brightness(0.45)'; } }catch(e){}
   requestAnimationFrame(()=>{ ov.style.opacity='1'; const m=document.getElementById('death-msg'); if(m)m.style.opacity='1'; });
+  return ov;
+};
+/* Rozjaśnianie: przez `ms` milisekund rozmycie (gaussian blur) i czerń schodzą do zera. */
+window._blackoutFadeOut=function(ms){
+  const dur=Math.max(300, ms||3000);
+  const ov=document.getElementById('death-overlay');
+  try{
+    const wrap=document.getElementById('wrap');
+    if(wrap){ wrap.style.transition='filter '+(dur/1000)+'s ease'; wrap.style.filter='blur(0px) grayscale(0) brightness(1)'; }
+  }catch(e){}
+  if(ov){
+    ov.style.transition='opacity '+(dur/1000)+'s ease';
+    ov.style.pointerEvents='none';
+    requestAnimationFrame(()=>{ ov.style.opacity='0'; });
+    setTimeout(()=>{ try{ ov.remove(); }catch(_){} const w=document.getElementById('wrap'); if(w) w.style.filter=''; }, dur+120);
+  }
+};
+function _startDeathSequence(){
+  if(G._dying) return; G._dying=true;
+  for(const k in K) delete K[k]; P.moving=false;
+  try{ if(typeof sfxLose==='function') sfxLose(); }catch(e){}
+  window._blackoutFadeIn('<div style="font-size:48px;margin-bottom:12px;filter:grayscale(1)">🖤</div><div style="font-size:22px;letter-spacing:5px;color:#7a7a7a;font-weight:800">GAŚNIESZ…</div><div style="font-size:12px;color:#555;margin-top:10px">świat rozmywa się i ciemnieje</div>');
   setTimeout(()=>{ _novaCuraRevive(); }, 2100);
 }
 function _novaCuraRevive(){
   // Soft reset — wybudzenie w Nova Cura z karą (logika jak dawny gameOver: opłata, regeneracja, doba++ przez nextPeriod)
   const fee=Math.min(500,Math.max(0,G.money));
-  G.money=Math.max(0,G.money-500);
+  G.money=window._walletFloor(G.money-500);
   const bankrupt=(fee<500);
   if(bankrupt){ G.fame=Math.max(0,(G.fame||0)-3); G.streetRep=Math.max(0,(G.streetRep||0)-5); if(typeof addNotif==='function') addNotif('⚠️ Bez kasy na pełne leczenie — Nova Cura odpisała resztę, ale ulica widzi, że jesteś na dnie. −3 sławy, −5 rep uliczna.'); }
   const dayBefore=G.day;
@@ -37717,6 +37862,10 @@ function startStream(){
 }
 function startStreamMG(){
   const panel=document.getElementById('mg-job');panel.style.display='';panel.classList.add('on');_jobPanelSession++;
+  /* PDF GDANSK 138 U7 (user): na czas aktywności „🔴 Live Stream" WSTRZYMUJEMY wszystkie systemy
+     powiadomień i przychodzące SMS-y — aż do zakończenia sesji przez gracza. Nic nie ginie:
+     wiadomości czekają w poczekalni (`_smsHeldInbox`), zielone okna w kolejce `_cinemQueuedMsgs`. */
+  window._streamSessionActive=true;
   // === Stan streamu ===
   // v1.8.68: 60s→40s, 5 faz po 8s (litery S-N-O-W-Y), eventy obsługiwane przez SPACE z licznikiem
   let viewers=0,donations=0,hype=50,timeLeft=40;
@@ -38031,6 +38180,9 @@ function startStreamMG(){
     // followersów i streak. User mógł kliknąć Wyjdź wiele razy i mnożyć nagrody.
     if(over) return;
     over=true;
+    /* PDF GDANSK 138 U7: koniec streamu → powiadomienia i SMS-y wracają (poczekalnia się opróżnia). */
+    window._streamSessionActive=false;
+    if(typeof window._gd138ReleaseHeldUi==='function') window._gd138ReleaseHeldUi();
     document.removeEventListener('keydown',kh);
     clearInterval(tickInterval);clearInterval(chatInterval);clearInterval(eventInterval);
     cancelAnimationFrame(raf);
@@ -38124,6 +38276,9 @@ function startStreamMG(){
       finishStream();
       return; // zostaw panel otwarty żeby gracz mógł przeczytać breakdown — OK button albo auto-close (6s) zamkną
     }
+    /* PDF GDANSK 138 U7: bezpiecznik — zamknięcie panelu zawsze zdejmuje wstrzymanie powiadomień. */
+    window._streamSessionActive=false;
+    if(typeof window._gd138ReleaseHeldUi==='function') window._gd138ReleaseHeldUi();
     const _p=document.getElementById('mg-job');
     if(_p){_p.classList.remove('on');_p.style.display='none';}
     const _pc=document.getElementById('mg-job-content');if(_pc) _pc.innerHTML='';
@@ -41146,7 +41301,7 @@ window.breakLabel=()=>{
   if(!G.label.type) return;
   gameConfirm('Zerwać kontrakt?\n\nKara zostanie pobrana z konta + malus reputacji.\nWytwórnie nie podpiszą z Tobą przez 30 dni gry.', () => {
     const fee=G.label.type==='global'?5000:G.label.type==='major'?2000:1000;
-    G.money=Math.max(0,G.money-fee);
+    G.money=window._walletFloor(G.money-fee);
     G.streetRep=Math.max(0,(G.streetRep||0)-10);
     G.label.brokenAt=G.day;
     G.label.type=null;G.label.advance=0;G.label.contractEndsDay=null;
@@ -41194,6 +41349,22 @@ window.setAptColor=(type,color)=>{
   G.aptColors[type]=color;rebuildAptTile(type,color);renderAptCust();
 };
 
+/* ═══ PDF GDANSK 138 B2 (user) — NOWA GRA NIE DZIEDZICZY WYSTROJU POPRZEDNIEJ ═══════════════
+   BŁĄD: kafle podłogi i ścian mieszkania żyją w GLOBALNYM cache `tiles` (poza obiektem G).
+   `resetG()` zerował `G.aptPurchases`/`G.aptColors`, ale nikt nie przemalowywał kafli — więc
+   nowa gra startowała z dywanem i złotymi ścianami kupionymi w POPRZEDNIM zapisie (dowód:
+   `node dbg_gd138_b2repro.mjs`). To samo dotyczyło obiektu sejfu domowego wstawionego do ROOMS.
+   Ta funkcja to jedno źródło prawdy — wołana i przy wczytaniu zapisu, i przy nowej grze. */
+window._applyApartmentVisuals=function(){
+  try{
+    if(!G.aptColors||typeof G.aptColors!=='object') G.aptColors={floor:'#8a5e30',wall:'#2a3a4a',bed:'#3a5a8a',sofa:'#5a3060'};
+    if(typeof rebuildAptTile==='function'){
+      rebuildAptTile('floor', G.aptColors.floor||'#8a5e30');
+      rebuildAptTile('wall',  G.aptColors.wall ||'#2a3a4a');
+    }
+    if(typeof _syncHomeSafe==='function') _syncHomeSafe();
+  }catch(e){ console.error('_applyApartmentVisuals:',e); }
+};
 function rebuildAptTile(type,color){
   if(type==='floor'){
     makeTile('wood',c=>{
@@ -45280,9 +45451,33 @@ window._camperDriveFromInside=function(){
   else if(typeof showMsg==='function') showMsg('🚐 Wsiadasz za kierownicę pojazdu','i',3000);
   return true;
 };
-/* Dyspozytor przycisku „Jedź kamperem": z wnętrza zaplecza → prowadzenie z wnętrza (U7); z ulicy/dzielnicy → zwykłe wsiadanie. */
+/* ═══ PDF GDANSK 138 U5 (user) — PRZYCISK „🚐 Jedź kamperem (lub klawisz K przy pojeździe)" ═══
+   Warunek działania: gracz JEST w pojeździe (wsiadł na „K", gotowy do jazdy) ALBO stoi w środku
+   zaplecza swojego kampera. W obu przypadkach kliknięcie ma zamknąć CAŁKOWICIE panel „🚐 Kamper"
+   ORAZ smartfon, i oddać sterowanie pojazdem.
+   Gracz POZA kamperem → dotychczasowy komunikat (musi najpierw znaleźć się w kamperze). */
+window._camperCloseUiForDriving=function(){
+  try{ if(typeof closeOverlay==='function') closeOverlay(); }catch(_){}
+  try{ if(typeof closeMG==='function') closeMG(); }catch(_){}
+  try{
+    if(typeof closePhone==='function') closePhone();
+    else { const _ph=document.getElementById('phone'); if(_ph) _ph.classList.remove('on'); }
+  }catch(_){}
+};
 window._camperDriveBtn=function(){
-  if(typeof currentRoom!=='undefined' && currentRoom==='kamper') return window._camperDriveFromInside&&window._camperDriveFromInside();
+  /* (a) gracz siedzi już za kierownicą — przycisk tylko zdejmuje interfejs i wraca do jazdy */
+  if(typeof G!=='undefined' && G._inCamper){
+    window._camperCloseUiForDriving();
+    if(typeof window._subtleMsg==='function') window._subtleMsg('🚐 Wracasz do prowadzenia pojazdu');
+    return true;
+  }
+  /* (b) gracz jest w środku zaplecza — przesiadka do fotela kierowcy + zdjęcie interfejsu */
+  if(typeof currentRoom!=='undefined' && currentRoom==='kamper'){
+    const _ok=window._camperDriveFromInside&&window._camperDriveFromInside();
+    if(_ok) window._camperCloseUiForDriving();
+    return _ok;
+  }
+  /* (c) gracz poza kamperem — komunikat jak dotychczas */
   return window._enterCamper&&window._enterCamper();
 };
 /* E4e: „Pokaż na mapie" — fizyczna pozycja kampera (po E4d kamper MA sprite/pozycję na mapie). */
@@ -45410,10 +45605,11 @@ function renderSalon(){
     <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
       <button class="cbtn" style="font-size:12px;padding:7px 11px" onclick="window._avScopeNames=null;window._avOpenCompare()">⚖️ Porównywarka AutoVista 360</button>
       <button class="cbtn" style="font-size:12px;padding:7px 11px" onclick="window._avScopeNames=null;window._avOpen(G.car?G.car.name:CAR_CATALOG[0].name)">🔄 Podgląd AutoVista 360</button>
-      <button class="cbtn" style="font-size:12px;padding:7px 11px" onclick="window._crownOpen()">💎 Crownline Auto Gallery</button>
     </div>
+    <!-- PDF GDANSK 138 U17 (user): zakładka „💎 Crownline Auto Gallery” USUNIĘTA z salonu CityDrive Motors.
+         Crownline to FIZYCZNY salon z ofertą wyłącznie luksusową w Business District — katalog ogląda się tylko na miejscu. -->
     <div style="background:#1a1508;border-left:3px solid #e8c56a;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#d8c8a0">
-      💎 Marki <b>Kepler, Vantori, Marlowe &amp; Finch i Aethon</b> prowadzi <b>Crownline Auto Gallery</b>. Otworzysz jej katalog przyciskiem powyżej — bez wychodzenia stąd i na tych samych warunkach cenowych co zawsze.
+      💎 Marki <b>Kepler, Vantori, Marlowe &amp; Finch i Aethon</b> prowadzi <b>Crownline Auto Gallery</b> — fizyczny salon w dzielnicy <b>Business District</b>. Oferty tych marek obejrzysz i kupisz wyłącznie na miejscu, w salonie Crownline.
     </div>
     <!-- v2.3.102 (PDF #8-27): pozycja „Bagażnik / schowek auta" USUNIĘTA ze sklepu — schowek jest dostępny tylko w POSIADANYM pojeździe (ekwipunek / panel pojazdu), nie w salonie. -->
     ${G.car?`<div style="background:#0a1220;border-radius:10px;padding:12px;margin-bottom:14px">
@@ -45471,6 +45667,8 @@ window._carCondOf=function(name){
 };
 window._carSellPrice=function(name,cond){ const c=(typeof CAR_CATALOG!=='undefined')?CAR_CATALOG.find(x=>x.name===name):null; if(!c) return 0; return Math.round(c.price*(0.35+0.15*(Math.max(0,Math.min(100,cond))/100))); }; /* round (nie floor) — unika FP-artefaktu 1319 vs 1320 */
 window._sellCarPrompt=function(name){
+  /* PDF GDANSK 138 B1: skonfiskowanego pojazdu nie da się sprzedać — gracz nie ma do niego dostępu. */
+  if(typeof window._vehBlockSaleIfConfiscated==='function' && window._vehBlockSaleIfConfiscated()) return;
   const car=(typeof CAR_CATALOG!=='undefined')?CAR_CATALOG.find(x=>x.name===name):null;
   if(!car){ if(typeof showMsg==='function')showMsg('🚗 Nie znaleziono auta.','r'); return; }
   G._ownedCars=G._ownedCars||[];
@@ -45489,6 +45687,11 @@ window._sellCarPrompt=function(name){
   else _do();
 };
 window._sellCar=function(name){
+  /* PDF GDANSK 138 B1: druga bramka — także przy wywołaniu z pominięciem okna potwierdzenia. */
+  if(typeof window._vehIsConfiscated==='function' && window._vehIsConfiscated()){
+    if(typeof showMsg==='function') showMsg(window._VEH_CONFISCATED_SELL_MSG,'r',6000);
+    return;
+  }
   const car=(typeof CAR_CATALOG!=='undefined')?CAR_CATALOG.find(x=>x.name===name):null; if(!car) return;
   G._ownedCars=G._ownedCars||[]; G._carCond=G._carCond||{};
   const isActive=G.car&&G.car.name===name;
@@ -46682,7 +46885,7 @@ window._prostytutkiVisit=(vibe)=>{
     let msg=`💋 Wieczór z ${o.who} minął spokojnie. +${moodGain} nastrój.`;
     if(roll<0.12){ if(typeof addDefamation==='function')addDefamation(12); msg='💋 Ktoś Cię rozpoznał — plotki ruszyły. +nastrój, ale zniesławienie +12.'; }
     else if(roll<0.24){ G.health=clampStat('health',((typeof G.health==='number'?G.health:100))-15); msg='🤒 Złapałeś coś nieprzyjemnego. +nastrój, ale −15 zdrowia.'; }
-    else if(roll<0.30){ const fine=Math.min(G.money,400); G.money-=fine; msg=`🚔 Trafiłeś na kontrolę/napad. +nastrój, ale −${fine} zł.`; }
+    else if(roll<0.30){ const fine=Math.max(0,Math.min(G.money,400)); G.money-=fine; msg=`🚔 Trafiłeś na kontrolę/napad. +nastrój, ale −${fine} zł.`; }
     if(typeof notify==='function')notify(msg);
     if(typeof updateHUD==='function')updateHUD();
     if(typeof renderProstytutkiPanel==='function'){ renderProstytutkiPanel(); const r=document.getElementById('pros-res'); if(r) r.textContent=msg; }
@@ -50011,7 +50214,7 @@ window._marinaSwimTick=function(){
 window._marinaTriggerRescue=function(){
   _marinaEnsure(); const sw=G.marina.swimming;
   sw.isSwimming=false; sw.staminaWarned=false; sw.distanceFromShore=0; sw._deepWarned=false; sw._farWarned=false;
-  G.money=Math.max(0,(G.money||0)-1200);
+  G.money=window._walletFloor((G.money||0)-1200);
   G.health=(typeof clampStat==='function')?clampStat('health',(typeof G.health==='number'?G.health:100)-15):Math.max(0,(typeof G.health==='number'?G.health:100)-15);
   G.stress=Math.max(0,(G.stress||50)-10);      /* obniż nastrój (stress=mood) */
   G.energy=Math.max(25,(G.energy||0));
@@ -50247,7 +50450,7 @@ function _marinaPoliceCheck(craft, opts){
   risk=Math.max(0, Math.min(45, risk));
   if(Math.random()*100<risk){
     const mandat=_mrnd(1,3)*500;
-    G.money=Math.max(0,(G.money||0)-mandat);
+    G.money=window._walletFloor((G.money||0)-mandat);
     G.defamation=(G.defamation||0)+2;
     if(typeof _smsSend==='function') _smsSend('nolan','Dostaliśmy zgłoszenie o hałasie i ryzykownym zachowaniu na jednostce. Wyluzuj z tym eventem albo wróć do spokojnego trybu — inaczej port zacznie się interesować.',{bypass:true});
     if(typeof showMsg==='function') showMsg(`🚨 Port Security: „Dostaliśmy zgłoszenie o hałasie i ryzykownym zachowaniu na jednostce. Proszę zakończyć event albo wrócić do spokojnego trybu." Mandat ${mandat.toLocaleString('pl')} zł, +zniesławienie.`,'r',6500);
@@ -52000,8 +52203,11 @@ window._policePostReleaseMessages=function(reason){
 /* §21-22 mandaty: płatność + przeterminowanie (z nextPeriod) */
 window._policePayFine=function(fineId){
   _policeEnsure(); const f=G.legal.fines.find(x=>x.id===fineId); if(!f||f.status==='paid') return;
-  if((G.money||0)<f.amount){ if(typeof showMsg==='function') showMsg('Nie masz wystarczająco gotówki na mandat.','r',3500); return; }
-  G.money-=f.amount; f.status='paid';
+  /* PDF GDANSK 138 U18: mandat można spłacić także wchodząc w debet — portfel schodzi na minus. */
+  const _debt=(G.money||0)<f.amount;
+  if(typeof window._walletCharge==='function') window._walletCharge(f.amount); else G.money-=f.amount;
+  f.status='paid';
+  if(_debt && typeof showMsg==='function') showMsg('⚠️ Mandat opłacony na debet — saldo portfela jest ujemne: '+window._walletFmt(G.money)+' zł.','r',6000);
   const inc=G.legal.incidents.find(i=>i.penalty===f.amount && i.status!=='zapłacone'); if(inc) inc.status='zapłacone';
   if(typeof showMsg==='function') showMsg(`✅ Mandat ${f.amount.toLocaleString('pl')} zł zapłacony.`,'g',3500);
   if(typeof updateHUD==='function') updateHUD();
@@ -53600,7 +53806,7 @@ window._skAct=function(act){
   if(act==='party'){ window._skHouseParty(); return true; }
   if(act==='tocamp'){ window._skToCampingInn(); return true; }
   if(act==='yard'){ window._skOpenYard(); return true; }
-  if(act&&act.indexOf('npc:')===0){ window._skTalkNpc(act.slice(4)); return true; }
+  if(act&&act.indexOf('npc:')===0){ if(typeof window._gd138MarkNpcMet==='function') window._gd138MarkNpcMet('sk:'+act.slice(4)); window._skTalkNpc(act.slice(4)); return true; }
   window._skClose(); return true;
 };
 window._skSearchBins=function(){
@@ -54628,7 +54834,7 @@ window._vesperRoomDamageRoll=function(intensity){
   else if(r < intensity*0.6){ cost=_vRound(2000+Math.random()*6000); tier='uszkodzone meble'; v.hotelHeat=_vClamp(v.hotelHeat+4,0,100); }
   else if(r < intensity*0.85){ cost=_vRound(500+Math.random()*1000); tier='mały bałagan'; }
   if(cost>0){
-    G.money=Math.max(0,(G.money||0)-cost);
+    G.money=window._walletFloor((G.money||0)-cost);
     v.incidents.unshift({day:(G.day||0),type:tier,cost:cost}); if(v.incidents.length>30)v.incidents.length=30;
     _vMsg(`💥 Rachunek za ${tier}: ${cost.toLocaleString('pl')} zł. Recepcja to zapamięta.`,'r',5500);
     if(v.hotelHeat>=81 && typeof window._vesperBan==='function') window._vesperBan(7,'poważne zniszczenia i skandal');
@@ -64898,6 +65104,9 @@ window._swSubmitListing=function(vehId, price){
   const s=window._swEnsure();
   const inst=window._vehInstanceById(vehId);
   if(!inst) return {ok:false, code:'NOT_OWNED', msg:'Nie posiadasz tego pojazdu.'};
+  /* PDF GDANSK 138 B1: skonfiskowanego pojazdu nie wolno wystawić na sprzedaż. */
+  if(typeof window._vehIsConfiscated==='function' && window._vehIsConfiscated())
+    return {ok:false, code:'CONFISCATED', msg:window._VEH_CONFISCATED_SELL_MSG};
   const prov=window._swProvenance(vehId);
   if(prov && prov.canListOnSwaply===false) return {ok:false, code:'NOT_LISTABLE', msg:'Tego pojazdu nie da się wystawić na Swaply.'};
   if(window._swListingFor(vehId)) return {ok:false, code:'ALREADY_LISTED', msg:'Ten pojazd ma już aktywne ogłoszenie.'};
@@ -70219,15 +70428,11 @@ window._policeStreetPickpocket=function(){
 /* §7.2 bójka NPC */
 window._policeStreetFight=function(){
   _policeEnsure();
-  showEventChoice('🥊 Awantura na ulicy',
-    'Kilku NPC zaczęło się szarpać tuż obok. Interwencja może skończyć się mandatem, wzrostem heat albo zniesławieniem. Najbezpieczniej odejść.',
-    [
-      {label:'🚶 Odejdź (brak ryzyka)', fn:()=>{ showMsg('🚶 Odsuwasz się w bezpieczne miejsce. Rozsądnie.','g',3500); }},
-      {label:'👀 Obserwuj z dystansu', fn:()=>{ const pull=Math.random()<0.2; if(pull){ window._policeStartCheck('bliskość zdarzenia'); } else { showMsg('👀 Patrzysz z boku. Po chwili przyjeżdża patrol i rozdziela awanturników.','i',4500); } }},
-      {label:'📞 Zadzwoń po służby (+reputacja)', fn:()=>{ G.legal.civicRep=Math.min(100,(G.legal.civicRep||0)+1); showMsg('📞 Zgłosiłeś awanturę. Patrol reaguje szybciej. (+reputacja obywatelska)','g',4500); _policeCityLog('fight'); }},
-      {label:'🤝 Spróbuj rozdzielić (ryzyko)', fn:()=>{ const ok=Math.random()<0.4; if(ok){ G.streetRep=Math.min(999,(G.streetRep||0)+1); showMsg('🤝 Udało się ich rozdzielić bez większych strat. (+szacunek)','g',5000); } else { G.health=(typeof clampStat==='function')?clampStat('health',(typeof G.health==='number'?G.health:100)-10):Math.max(0,(G.health||100)-10); window._policeIssueStreetFine('Udział w bójce', 2500, 5000); } }},
-      {label:'👊 Wejdź w konflikt (wysokie ryzyko)', fn:()=>{ G.health=(typeof clampStat==='function')?clampStat('health',(typeof G.health==='number'?G.health:100)-16):Math.max(0,(G.health||100)-16); G.heat=Math.min(100,(G.heat||0)+8); G.defamation=Math.min(100,(G.defamation||0)+4); window._policeIssueStreetFine('Udział w bójce', 2500, 5000); }},
-    ]);
+  /* PDF GDANSK 138 U14/U15/U16: event przebudowany — zamiast dużego okna wyboru startuje
+     realna scena uliczna (dwie postacie NPC na chodniku, małe okno decyzji, 10 s na wybór).
+     Stara lista pięciu opcji zastąpiona TRZEMA, które dokument wymienia z nazwy. */
+  if(typeof window._brawlStart==='function') return window._brawlStart();
+  return false;
 };
 /* §7.3 awantura po imprezie / pijacka */
 window._policeStreetDrunk=function(){
@@ -70273,6 +70478,875 @@ window._policeIssueStreetFine=function(reason, lo, hi){
   if(typeof updateHUD==='function') updateHUD();
 };
 
+/* ═══════════ STREET BRAWL MODULE START (PDF GDANSK 138 · U14 / U15 / U16) ═══════════════════
+   U14 — event „🥊 Awantura na ulicy" przebudowany wizualnie: małe okno (jak rozmowa z NPC),
+         DWIE realne postacie NPC bijące się 6 metrów od gracza ZAWSZE na chodniku, automatyczne
+         zbliżenie kamery i unieruchomienie gracza do czasu decyzji, 10 sekund na wybór,
+         „Nie mieszaj się" → 15 s dalszej walki, upadek losowego NPC, po 20 s ambulans z dwoma
+         ratownikami i noszami (odjazd na sygnałach do Nova Cura), „Zadzwoń po służby" → po 15 s
+         radiowóz na sygnałach, dwóch policjantów rozdziela i zabiera obu.
+   U15 — „🥊 Wejdź w konflikt (wysokie ryzyko)" otwiera mini-grę walki ulicznej (10 sekwencji,
+         min. 7 trafień; 70% sekwencji z czasem 1,5 s, 30% z czasem 2 s).
+   U16 — zniesławienie rośnie NIEZALEŻNIE od wyniku walki.
+   Stan sceny żyje w zmiennej modułu (NIE w zapisie gry) — to scenka uliczna, nie postęp gracza. */
+
+window._BRAWL_M_PX = 32;                 /* 1 m ≈ 32 px (kafel T=48 px ≈ 1,5 m) */
+window._BRAWL_DIST_PX = 6 * 32;          /* „od gracza 6 metrów dalej" = 192 px */
+window._BRAWL_DECIDE_MS = 10000;         /* 10 s na jakąkolwiek interakcję */
+window._BRAWL_FIGHT_MS = 15000;          /* „jeszcze przed 15-sekund" — walka po „Nie mieszaj się" */
+window._BRAWL_AMBULANCE_MS = 20000;      /* ambulans nadjeżdża 20 s po upadku */
+window._BRAWL_POLICE_MS = 15000;         /* radiowóz po 15 s od zgłoszenia */
+window._brawl = null;
+
+/* ── chodniki: pasy, na których scena MOŻE stanąć (nigdy na jezdni) ───────────────────────── */
+window._BRAWL_CITY_SIDEWALKS = [[288,384],[576,672],[1824,1920],[2112,2208],[2784,2880],[3072,3168]];
+window._brawlRoadBand = function(room){
+  if(room === 'ulica') return null;      /* miasto ma pasy chodników, nie jedną jezdnię */
+  if(typeof DISTRICT_ROAD_Y === 'undefined') return null;
+  const y = DISTRICT_ROAD_Y[room]; if(y == null) return null;
+  const half = ((typeof DISTRICT_ROAD_HALF !== 'undefined' && DISTRICT_ROAD_HALF[room]) || 32);
+  return [y - half, y + half];
+};
+/* Czy punkt (środek postaci) leży na chodniku danego pokoju? */
+window._brawlOnSidewalk = function(room, cx, cy){
+  if(room === 'ulica'){
+    return window._BRAWL_CITY_SIDEWALKS.some(function(b){ return cy >= b[0] + 10 && cy <= b[1] - 10; });
+  }
+  const band = window._brawlRoadBand(room);
+  if(!band) return true;                 /* dzielnica bez jezdni (np. Marina) — cały teren pieszy */
+  return cy < band[0] - 26 || cy > band[1] + 26;
+};
+/* Najbliższy bezpieczny „y" chodnika dla podanej wysokości. */
+window._brawlSnapSidewalkY = function(room, cy){
+  if(room === 'ulica'){
+    let best = null, bestD = 1e9;
+    for(const b of window._BRAWL_CITY_SIDEWALKS){
+      const mid = (b[0] + b[1]) / 2;
+      const d = Math.abs(mid - cy);
+      if(d < bestD){ bestD = d; best = mid; }
+    }
+    return best == null ? cy : best;
+  }
+  const band = window._brawlRoadBand(room);
+  if(!band) return cy;
+  if(cy >= band[0] - 26 && cy <= band[1] + 26) return band[0] - 48;   /* zejdź z jezdni na chodnik */
+  return cy;
+};
+/* Punkt sceny: 6 m od gracza, zawsze na chodniku, w granicach pokoju. */
+window._brawlPickSpot = function(){
+  const room = currentRoom;
+  const R = (typeof ROOMS !== 'undefined') ? ROOMS[room] : null;
+  const wW = R ? R.wT * 48 : 4320, wH = R ? R.hT * 48 : 3600;
+  const pcx = (P.wx || 0) + (P.w || 28) / 2, pcy = (P.wy || 0) + (P.h || 44) / 2;
+  const y = window._brawlSnapSidewalkY(room, pcy);
+  const tries = [window._BRAWL_DIST_PX, -window._BRAWL_DIST_PX];
+  for(const dx of tries){
+    const x = pcx + dx;
+    if(x < 140 || x > wW - 140) continue;
+    if(y < 90 || y > wH - 90) continue;
+    if(!window._brawlOnSidewalk(room, x, y)) continue;
+    return { x: x, y: y };
+  }
+  /* awaryjnie: ten sam pas, po stronie o większym zapasie miejsca */
+  const x = (pcx > wW / 2) ? Math.max(160, pcx - window._BRAWL_DIST_PX) : Math.min(wW - 160, pcx + window._BRAWL_DIST_PX);
+  return { x: x, y: Math.max(100, Math.min(wH - 100, y)) };
+};
+
+/* ── start sceny ──────────────────────────────────────────────────────────────────────────── */
+window._brawlActive = function(){ return !!(window._brawl && window._brawl.phase !== 'done'); };
+window._brawlStart = function(){
+  if(window._brawlActive()) return false;
+  const spot = window._brawlPickSpot();
+  const now = Date.now();
+  window._brawl = {
+    room: currentRoom, x: spot.x, y: spot.y,
+    clock: 0, last: now, phase: 'decide', decided: false,
+    beat: 0,
+    a: { dx: -17, seed: 1 + Math.random() * 7, punch: 0, hurt: 0, blood: 0, down: false },
+    b: { dx: 17, seed: 3 + Math.random() * 7, punch: 0, hurt: 0, blood: 0, down: false },
+    loserIsA: Math.random() < 0.5,
+    fightEndAt: 0, ambulanceAt: 0, policeAt: 0,
+    ambu: null, cops: null, zoom: 1
+  };
+  window._brawlDialog();
+  window._brawlLoop();
+  if(typeof showMsg === 'function') showMsg('🥊 Tuż obok wybuchła awantura — dwóch ludzi bije się na chodniku.', 'r', 3200);
+  return true;
+};
+
+/* ── małe okno decyzji (ten sam prostokąt, co rozmowa z NPC — U14) ────────────────────────── */
+window._brawlDialog = function(){
+  const s = window._brawl; if(!s) return;
+  const opts = [
+    { text: '🚶 Nie mieszaj się', fn: function(){ window._brawlChoose('ignore'); } },
+    { text: '📞 Zadzwoń po służby', fn: function(){ window._brawlChoose('police'); } },
+    { text: '🥊 Wejdź w konflikt (wysokie ryzyko)', fn: function(){ window._brawlChoose('fight'); } }
+  ];
+  const txt = 'Dwóch ludzi bije się na chodniku kilka kroków od Ciebie. Masz chwilę, żeby zdecydować, co robisz.';
+  if(typeof window._uwShowDlg === 'function') window._uwShowDlg(txt, opts, { name: '🥊 Awantura na ulicy', emoji: '🥊' });
+  else if(typeof showEventChoice === 'function') showEventChoice('🥊 Awantura na ulicy', txt, opts.map(function(o){ return { label: o.text, fn: o.fn }; }));
+};
+
+/* ── decyzja gracza ───────────────────────────────────────────────────────────────────────── */
+window._brawlChoose = function(kind){
+  const s = window._brawl; if(!s || s.decided) return;
+  s.decided = true;
+  if(typeof closeNPCDlg === 'function'){ try { closeNPCDlg(); } catch(_){} }
+  const _ec = document.getElementById('event-choice'); if(_ec) _ec.remove();
+  if(kind === 'fight'){
+    s.phase = 'minigame';
+    window._brawlFightMG();
+    return;
+  }
+  if(kind === 'police'){
+    s.phase = 'calling';
+    s.policeAt = s.clock + window._BRAWL_POLICE_MS;
+    if(typeof G !== 'undefined' && G.legal) G.legal.civicRep = Math.min(100, (G.legal.civicRep || 0) + 1);
+    if(typeof _policeCityLog === 'function'){ try { _policeCityLog('fight'); } catch(_){} }
+    if(typeof showMsg === 'function') showMsg('📞 Zgłosiłeś awanturę. Patrol jest w drodze. (+reputacja obywatelska)', 'g', 4500);
+    return;
+  }
+  /* „Nie mieszaj się" — biją się jeszcze 15 sekund */
+  s.phase = 'fight';
+  s.fightEndAt = s.clock + window._BRAWL_FIGHT_MS;
+  if(typeof showMsg === 'function') showMsg('🚶 Odsuwasz się. Nie Twój cyrk, nie Twoje małpy.', 'i', 3500);
+};
+
+/* ── pętla sceny (własny zegar; pauza i przelot zatrzymują odliczanie) ────────────────────── */
+window._brawlLoop = function(){
+  const s = window._brawl;
+  if(!s || s.phase === 'done'){ window._brawlRaf = null; return; }
+  const now = Date.now();
+  const dt = Math.max(0, Math.min(120, now - s.last));
+  s.last = now;
+  const frozen = (typeof _paused !== 'undefined' && _paused) || (typeof G !== 'undefined' && G._cinematicActive);
+  if(!frozen) s.clock += dt;
+  try { window._brawlTick(dt, frozen); } catch(e){ console.error('brawlTick:', e); }
+  window._brawlRaf = requestAnimationFrame(window._brawlLoop);
+};
+
+window._brawlTick = function(dt, frozen){
+  const s = window._brawl; if(!s) return;
+  /* gracz opuścił dzielnicę — scena znika bez śladu */
+  if(currentRoom !== s.room){ window._brawlEnd(); return; }
+  if(frozen) return;
+
+  /* wymiana ciosow: wspolny rytm — raz bije lewy, raz prawy (nigdy obaj naraz) */
+  if(!s.a.down && !s.b.down && !s.a.held && !s.b.held){
+    s.beat = (s.beat + dt / 760) % 2;
+    const pa = s.beat < 1 ? Math.sin(s.beat * Math.PI) : 0;
+    const pb = s.beat >= 1 ? Math.sin((s.beat - 1) * Math.PI) : 0;
+    s.a.punch = pa; s.b.punch = pb;
+    /* obronca dostaje w momencie szczytu ciosu — drgniecie + rosnaca krew */
+    s.a.hurt = pb > 0.86 ? 1 : Math.max(0, s.a.hurt - dt / 260);
+    s.b.hurt = pa > 0.86 ? 1 : Math.max(0, s.b.hurt - dt / 260);
+    if(pa > 0.9) s.b.blood = Math.min(0.7, s.b.blood + dt / 9000);
+    if(pb > 0.9) s.a.blood = Math.min(0.7, s.a.blood + dt / 9000);
+  }
+
+  /* U14: zbliżenie i unieruchomienie gracza TYLKO do momentu decyzji */
+  if(s.phase === 'decide'){
+    s.zoom += (1.35 - s.zoom) * 0.06;
+    if(typeof cam !== 'undefined') cam.zoom = s.zoom;
+    if(s.clock >= window._BRAWL_DECIDE_MS) window._brawlChoose('ignore');
+    return;
+  }
+  if(typeof cam !== 'undefined' && cam.zoom !== 1){
+    cam.zoom += (1 - cam.zoom) * 0.08;
+    if(Math.abs(cam.zoom - 1) < 0.006) cam.zoom = 1;
+  }
+
+  if(s.phase === 'fight'){
+    if(s.clock >= s.fightEndAt){
+      const loser = s.loserIsA ? s.a : s.b;
+      loser.down = true; loser.blood = 1;
+      s.phase = 'down';
+      s.ambulanceAt = s.clock + window._BRAWL_AMBULANCE_MS;
+      if(typeof showMsg === 'function') showMsg('🩸 Jeden z nich upadł na chodnik i nie wstaje. Ktoś już wezwał pomoc.', 'r', 5000);
+      if(typeof addNotif === 'function') addNotif('🚑 Awantura na ulicy — poszkodowany leży na chodniku, jedzie ambulans.');
+    }
+    return;
+  }
+
+  if(s.phase === 'down'){
+    /* zwycięzca odchodzi w bok i wtapia się w ruch pieszych */
+    /* ambulans nadjezdza z LEWEJ, wiec zwyciezca odchodzi w PRAWO — zero nakladania sie sylwetek */
+    const w = s.loserIsA ? s.b : s.a;
+    w.leaving = true;                    /* poza spacerowa — koniec gardy */
+    w.dx += dt * 0.05;
+    if(w.dx > 250 && !w.gone){
+      w.gone = true;
+      /* dokument: druga postac „przejmuje funkcje standardowego NPC, poruszajacego sie po
+         chodniku miasta tak, jak kazdy inny wygenerowany NPC” — realnie dopisujemy ja do puli. */
+      window._brawlHandOverToCityPed(s.x + w.dx, s.y, w.seed);
+    }
+    if(s.clock >= s.ambulanceAt){
+      s.phase = 'ambulance';
+      s.ambu = { x: -420, phase: 'arrive', t: 0, medics: [], loaded: false, stretcher: 0 };
+    }
+    return;
+  }
+
+  if(s.phase === 'ambulance'){ window._brawlAmbulanceTick(dt); return; }
+  if(s.phase === 'calling'){
+    if(s.clock >= s.policeAt){
+      s.phase = 'police';
+      s.cops = { x: -420, phase: 'arrive', t: 0, taken: false, men: [] };
+    }
+    return;
+  }
+  if(s.phase === 'police'){ window._brawlPoliceTick(dt); return; }
+};
+
+/* ── ambulans: dojazd → ratownicy → nosze → załadunek → odjazd na sygnałach ───────────────── */
+window._brawlAmbulanceTick = function(dt){
+  const s = window._brawl, A = s.ambu; if(!A) return;
+  A.t += dt;
+  if(A.phase === 'arrive'){
+    A.x += dt * 0.42;
+    if(A.x >= -70){
+      A.x = -70; A.phase = 'out'; A.t = 0;
+      A.medics = [{ dx: -60, dy: 6 }, { dx: -52, dy: 14 }];
+      if(typeof addNotif === 'function') addNotif('🚑 Ambulans na miejscu — ratownicy wyjmują nosze z tylnych drzwi.');
+    }
+    return;
+  }
+  if(A.phase === 'out'){
+    /* ratownicy podchodzą do leżącego z noszami wyjętymi z tylnych drzwi */
+    A.stretcher = Math.min(1, A.stretcher + dt / 900);
+    const loser = s.loserIsA ? s.a : s.b;
+    let arrived = 0;
+    for(let i = 0; i < A.medics.length; i++){
+      const m = A.medics[i];
+      const tx = loser.dx + (i === 0 ? -16 : 16);
+      m.dx += Math.sign(tx - m.dx) * Math.min(Math.abs(tx - m.dx), dt * 0.075);
+      if(Math.abs(tx - m.dx) < 3) arrived++;
+    }
+    if(arrived >= 2 && A.stretcher >= 1){ A.phase = 'load'; A.t = 0; }
+    return;
+  }
+  if(A.phase === 'load'){
+    if(A.t > 1500){
+      A.loaded = true; A.phase = 'back'; A.t = 0;
+      /* poszkodowany jest JUZ na noszach — znika z chodnika (inaczej ambulans odjezdzal,
+         a cialo dalej lezalo na plycie; wykryl to obejrzany zrzut, nie asercja) */
+      const _l = s.loserIsA ? s.a : s.b; _l.gone = true;
+    }
+    return;
+  }
+  if(A.phase === 'back'){
+    /* ratownicy wracają do ambulansu, wsuwając nosze przez tylne drzwi */
+    let home = 0;
+    for(const m of A.medics){
+      const tx = -60;
+      m.dx += Math.sign(tx - m.dx) * Math.min(Math.abs(tx - m.dx), dt * 0.075);
+      if(Math.abs(tx - m.dx) < 4) home++;
+    }
+    if(home >= 2){ A.phase = 'leave'; A.t = 0; }
+    return;
+  }
+  if(A.phase === 'leave'){
+    A.x += dt * 0.45;
+    if(A.x > 900){
+      if(typeof addNotif === 'function') addNotif('🏥 Ambulans odjechał na sygnałach do placówki medycznej Nova Cura.');
+      if(typeof _policeCityLog === 'function'){ try { _policeCityLog('fight'); } catch(_){} }
+      window._brawlEnd();
+    }
+  }
+};
+
+/* ── radiowóz: dojazd → dwóch policjantów rozdziela → obu do radiowozu → odjazd ───────────── */
+window._brawlPoliceTick = function(dt){
+  const s = window._brawl, C = s.cops; if(!C) return;
+  C.t += dt;
+  const goTo = function(o, tx){ o.dx += Math.sign(tx - o.dx) * Math.min(Math.abs(tx - o.dx), dt * 0.08); return Math.abs(tx - o.dx) < 5; };
+  if(C.phase === 'arrive'){
+    C.x += dt * 0.45;
+    if(C.x >= -80){ C.x = -80; C.phase = 'split'; C.t = 0; C.men = [{ dx: -62 }, { dx: -54 }];
+      if(typeof addNotif === 'function') addNotif('🚔 Radiowóz na miejscu — funkcjonariusze rozdzielają awanturników.'); }
+    return;
+  }
+  if(C.phase === 'split'){
+    let at = 0;
+    const targets = [s.a.dx - 14, s.b.dx + 14];
+    for(let i = 0; i < C.men.length; i++){ if(goTo(C.men[i], targets[i])) at++; }
+    if(at >= 2){ C.phase = 'cuff'; C.t = 0; s.a.held = true; s.b.held = true; }
+    return;
+  }
+  if(C.phase === 'cuff'){
+    if(C.t > 1400){ C.phase = 'walk'; C.t = 0; }
+    return;
+  }
+  if(C.phase === 'walk'){
+    /* obaj bijący się idą razem z funkcjonariuszami do tylnych drzwi radiowozu */
+    const h1 = goTo(C.men[0], -66), h2 = goTo(C.men[1], -58);
+    const p1 = goTo(s.a, -64), p2 = goTo(s.b, -56);
+    if(h1 && h2 && p1 && p2){ C.taken = true; s.a.gone = true; s.b.gone = true; C.phase = 'leave'; C.t = 0; }
+    return;
+  }
+  if(C.phase === 'leave'){
+    C.x += dt * 0.42;
+    if(C.x > 900){
+      if(typeof addNotif === 'function') addNotif('🚔 Patrol zabrał obu awanturników — po sprawie.');
+      window._brawlEnd();
+    }
+  }
+};
+
+/* Zwyciezca walki wtapia sie w ruch pieszych miasta — od tej chwili jest zwyklym NPC. */
+window._brawlHandOverToCityPed = function(wx, wy, seed){
+  try{
+    if(currentRoom !== 'ulica') return false;
+    if(typeof cityPeds === 'undefined' || !Array.isArray(cityPeds)) return false;
+    const rnd01 = (k) => { const v = Math.sin((seed || 1) * k) * 43758.5453; return v - Math.floor(v); };
+    const SK = ['#f4d3a8', '#e0a870', '#c07840', '#a06030', '#d4905a'];
+    const CL = ['#2f4a76', '#5a2a2a', '#2a5a3a', '#4a3a70', '#6a4a1a'];
+    const AC = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6'];
+    const spd = 0.55 + rnd01(3.1) * 0.35;
+    cityPeds.push({
+      wx: wx, wy: wy,
+      baseSpd: spd, dx: spd, dy: 0,
+      phase: Math.floor(rnd01(5.7) * 60), anim: Math.floor(rnd01(7.3) * 100), idleTimer: 0, idleType: 0,
+      type: 'casual',
+      _colors: {
+        sc: SK[Math.floor(rnd01(12.9898) * SK.length) % SK.length],
+        cc: CL[Math.floor(rnd01(78.233) * CL.length) % CL.length],
+        scarfC: AC[Math.floor(rnd01(21.7) * AC.length) % AC.length],
+        hatC: AC[Math.floor(rnd01(33.4) * AC.length) % AC.length],
+        hairC: '#2a2018', hasHat: false, height: 1
+      },
+      _fromBrawl: true
+    });
+    if(typeof cityPeds.forEach === 'function') cityPeds.forEach(function(p, i){ p._rank = i; });
+    return true;
+  }catch(e){ return false; }
+};
+
+window._brawlEnd = function(){
+  if(window._brawlRaf){ cancelAnimationFrame(window._brawlRaf); window._brawlRaf = null; }
+  if(window._brawl) window._brawl.phase = 'done';
+  window._brawl = null;
+  if(typeof cam !== 'undefined' && cam.zoom !== 1) cam.zoom = 1;
+};
+
+/* ── rysowanie sceny ──────────────────────────────────────────────────────────────────────── */
+window._brawlDrawFighter = function(sx, sy, f, seed){
+  const t = Date.now() / 200;
+  const _v = Math.sin(seed * 12.9898) * 43758.5453; const r1 = _v - Math.floor(_v);
+  const _v2 = Math.sin(seed * 78.233 + 1.7) * 12543.19; const r2 = _v2 - Math.floor(_v2);
+  const SKINS = ['#f4d3a8', '#e0a870', '#c07840', '#a06030', '#d4905a'];
+  const CLOTHS = ['#2f4a76', '#5a2a2a', '#2a5a3a', '#4a3a70', '#6a4a1a'];
+  const skin = SKINS[Math.floor(r1 * SKINS.length) % SKINS.length];
+  const cloth = CLOTHS[Math.floor(r2 * CLOTHS.length) % CLOTHS.length];
+  X.save(); X.translate(sx, sy);
+  if(f.down){
+    /* LEZY NA CHODNIKU — sylwetka pozioma tuz przy ziemi, kaluza krwi pod glowa */
+    X.fillStyle = 'rgba(120,12,12,.42)'; X.beginPath(); X.ellipse(-16, 20, 15, 5, 0, 0, Math.PI * 2); X.fill();
+    X.fillStyle = 'rgba(0,0,0,0.26)'; X.beginPath(); X.ellipse(0, 22, 26, 5, 0, 0, Math.PI * 2); X.fill();
+    X.fillStyle = '#1a2030'; X.fillRect(6, 12, 18, 5); X.fillRect(6, 18, 18, 5);
+    X.fillStyle = '#0a0d14'; X.fillRect(23, 12, 5, 4); X.fillRect(23, 18, 5, 4);
+    X.fillStyle = cloth; X.beginPath(); X.roundRect(-10, 10, 18, 13, 4); X.fill();
+    X.strokeStyle = skin; X.lineWidth = 3; X.lineCap = 'round';
+    X.beginPath(); X.moveTo(-4, 11); X.lineTo(2, 4); X.stroke();
+    X.beginPath(); X.moveTo(2, 22); X.lineTo(9, 26); X.stroke();
+    X.fillStyle = skin; X.beginPath(); X.arc(-16, 16, 6.5, 0, Math.PI * 2); X.fill();
+    X.fillStyle = '#2a2018'; X.beginPath(); X.arc(-17, 13, 6, Math.PI * 0.9, Math.PI * 1.9); X.fill();
+    if(f.blood > 0){
+      X.fillStyle = 'rgba(165,20,20,.9)';
+      X.beginPath(); X.arc(-13, 17, 2.2, 0, Math.PI * 2); X.fill();
+      X.beginPath(); X.ellipse(-17, 19, 3, 1.5, .3, 0, Math.PI * 2); X.fill();
+    }
+    X.restore(); return;
+  }
+  const p = f.held ? 0 : Math.max(0, f.punch || 0);      /* 0..1 — wyprowadzenie ciosu */
+  const flinch = f.hurt > 0 ? Math.sin(f.hurt * Math.PI) * 3.2 : 0;
+  const bob = Math.abs(Math.sin(t + seed)) * 1.6;
+  const dir = f.dx < 0 ? 1 : -1;                          /* zwrot na przeciwnika */
+  X.fillStyle = 'rgba(0,0,0,0.24)'; X.beginPath(); X.ellipse(0, 22, 11, 3.5, 0, 0, Math.PI * 2); X.fill();
+  X.translate(-flinch * dir, -bob);
+  X.fillStyle = '#1a2030'; X.fillRect(-6 - 2 * dir, 6, 5, 15); X.fillRect(1 + 2 * dir, 6, 5, 15);
+  X.fillStyle = '#0a0d14'; X.fillRect(-7 - 2 * dir, 20, 6, 3); X.fillRect(1 + 2 * dir, 20, 6, 3);
+  X.fillStyle = cloth; X.beginPath(); X.roundRect(-8, -9, 16, 17, 3); X.fill();
+  X.strokeStyle = skin; X.lineWidth = 3.4; X.lineCap = 'round';
+  X.fillStyle = skin;
+  if(f.leaving){
+    /* odchodzi w swoja strone — zwykly chod, rece wzdluz ciala */
+    const sw = Math.sin(t * 1.6) * 3;
+    X.beginPath(); X.moveTo(-6, -5); X.lineTo(-8, 7 + sw); X.moveTo(6, -5); X.lineTo(8, 7 - sw); X.stroke();
+  } else if(f.held){
+    /* zatrzymany przez patrol — rece opuszczone i zlaczone z przodu */
+    X.beginPath(); X.moveTo(-6, -5); X.lineTo(-2, 6); X.moveTo(6, -5); X.lineTo(2, 6); X.stroke();
+    X.beginPath(); X.arc(0, 7, 3, 0, Math.PI * 2); X.fill();
+  } else {
+    /* reka w GARDZIE — zawsze uniesiona przy twarzy */
+    const gx = -5 * dir, gy = -19;
+    X.beginPath(); X.moveTo(-4 * dir, -5); X.lineTo(gx, gy + 3); X.stroke();
+    X.beginPath(); X.arc(gx, gy, 3.4, 0, Math.PI * 2); X.fill();
+    /* druga reka: garda albo CIOS na wysokosci glowy przeciwnika */
+    const reach = 6 + p * 18;
+    const fx = reach * dir, fy = -18 + p * 2;
+    X.beginPath(); X.moveTo(4 * dir, -6); X.lineTo(fx, fy); X.stroke();
+    X.beginPath(); X.arc(fx, fy, 3.6, 0, Math.PI * 2); X.fill();
+    /* blysk trafienia w szczycie ciosu */
+    if(p > 0.86){
+      X.save(); X.globalCompositeOperation = 'lighter';
+      X.fillStyle = 'rgba(255,214,120,' + ((p - 0.86) * 2.6).toFixed(2) + ')';
+      X.beginPath(); X.arc(fx + 3 * dir, fy, 3.4, 0, Math.PI * 2); X.fill();
+      X.strokeStyle = 'rgba(255,236,180,' + ((p - 0.86) * 2.4).toFixed(2) + ')'; X.lineWidth = 1.2;
+      for(let i = 0; i < 4; i++){
+        const an = i * 1.57 + 0.4;
+        X.beginPath(); X.moveTo(fx + 3 * dir + Math.cos(an) * 3.5, fy + Math.sin(an) * 3.5);
+        X.lineTo(fx + 3 * dir + Math.cos(an) * 7, fy + Math.sin(an) * 7); X.stroke();
+      }
+      X.restore();
+    }
+  }
+  X.fillStyle = skin; X.beginPath(); X.arc(0, -16, 6.5, 0, Math.PI * 2); X.fill();
+  X.fillStyle = '#2a2018'; X.beginPath(); X.arc(0, -19, 6, Math.PI, 0); X.fill();
+  if(f.blood > 0){
+    X.fillStyle = 'rgba(170,25,25,' + Math.min(0.9, 0.4 + f.blood).toFixed(2) + ')';
+    X.beginPath(); X.arc(3 * dir, -14, 1.9, 0, Math.PI * 2); X.fill();
+  }
+  X.restore();
+};
+
+window._brawlDrawAmbulance = function(sx, sy, dir){
+  const t = Date.now(); const flash = window._reduceFlashing ? 1 : (Math.floor(t / 260) % 2);
+  X.save(); X.translate(sx, sy); if(dir < 0) X.scale(-1, 1);
+  X.fillStyle = 'rgba(0,0,0,0.30)'; X.beginPath(); X.ellipse(0, 16, 34, 7, 0, 0, Math.PI * 2); X.fill();
+  X.fillStyle = '#15151a'; X.fillRect(-26, -13, 9, 7); X.fillRect(17, -13, 9, 7); X.fillRect(-26, 11, 9, 7); X.fillRect(17, 11, 9, 7);
+  X.fillStyle = '#f2f5f8'; X.beginPath(); X.roundRect(-32, -14, 64, 28, 5); X.fill();     /* biała karetka */
+  X.fillStyle = '#dde4ea'; X.fillRect(6, -14, 26, 28);                                    /* przedział sanitarny */
+  X.fillStyle = '#0f1a2a'; X.fillRect(-28, -9, 15, 12);                                   /* kabina/okna */
+  X.fillStyle = '#8fb0e0'; X.fillRect(-28, -9, 15, 3);
+  X.fillStyle = '#d63c3c'; X.fillRect(-6, -2, 22, 4); X.fillRect(3, -11, 4, 22);          /* czerwony krzyż */
+  X.fillStyle = '#d63c3c'; X.fillRect(-32, 2, 64, 3);                                     /* pas boczny */
+  X.fillStyle = flash ? '#e8352a' : '#3a86ff'; X.fillRect(-10, -17, 9, 4);
+  X.fillStyle = flash ? '#3a86ff' : '#e8352a'; X.fillRect(2, -17, 9, 4);
+  X.save(); X.globalCompositeOperation = 'lighter';
+  X.fillStyle = window._reduceFlashing ? 'rgba(120,120,150,0.16)' : (flash ? 'rgba(232,53,42,0.30)' : 'rgba(58,134,255,0.30)');
+  X.beginPath(); X.arc(0, -19, 11, 0, Math.PI * 2); X.fill(); X.restore();
+  X.fillStyle = '#1a3a6a'; X.font = 'bold 4.5px Arial'; X.textAlign = 'center'; X.fillText('NOVA CURA', 18, 11); X.textAlign = 'left';
+  X.restore();
+};
+
+window._brawlDrawMedic = function(sx, sy, carry){
+  const t = Date.now() / 240;
+  X.save(); X.translate(sx, sy);
+  X.fillStyle = 'rgba(0,0,0,0.22)'; X.beginPath(); X.ellipse(0, 21, 9, 3.2, 0, 0, Math.PI * 2); X.fill();
+  X.fillStyle = '#1c2a3a'; X.fillRect(-5, 6, 4, 14); X.fillRect(1, 6, 4, 14);
+  X.fillStyle = '#0a1018'; X.fillRect(-6, 19, 5, 3); X.fillRect(1, 19, 5, 3);
+  X.fillStyle = '#f2c53d'; X.beginPath(); X.roundRect(-7, -9, 14, 16, 3); X.fill();   /* odblaskowa kurtka */
+  X.fillStyle = '#e8eef5'; X.fillRect(-7, -1, 14, 2.4);
+  X.strokeStyle = '#e0b088'; X.lineWidth = 2.8; X.lineCap = 'round';
+  const arm = carry ? 8 : Math.sin(t) * 2.2;
+  X.beginPath(); X.moveTo(-7, -4); X.lineTo(-10, 6 + arm * 0.2); X.moveTo(7, -4); X.lineTo(10, 6 - arm * 0.2); X.stroke();
+  X.fillStyle = '#e0b088'; X.beginPath(); X.arc(0, -15, 6, 0, Math.PI * 2); X.fill();
+  X.fillStyle = '#e8eef5'; X.fillRect(-6, -21, 12, 5);                                /* czapka ratownika */
+  X.fillStyle = '#d63c3c'; X.fillRect(-1.5, -20, 3, 3);
+  X.restore();
+};
+
+window._brawlDrawStretcher = function(sx, sy, withPatient){
+  X.save(); X.translate(sx, sy);
+  X.fillStyle = 'rgba(0,0,0,0.20)'; X.beginPath(); X.ellipse(0, 10, 22, 4, 0, 0, Math.PI * 2); X.fill();
+  X.fillStyle = '#b9c4cf'; X.fillRect(-22, 0, 44, 4);                                  /* rama noszy */
+  X.fillStyle = '#8b98a6'; X.fillRect(-20, 4, 3, 6); X.fillRect(17, 4, 3, 6);
+  X.fillStyle = '#e9eef3'; X.fillRect(-20, -5, 40, 6);                                 /* materac */
+  if(withPatient){
+    X.fillStyle = '#2f3b4c'; X.fillRect(-17, -9, 34, 5);                               /* koc */
+    X.fillStyle = '#e0b088'; X.beginPath(); X.arc(-19, -8, 4.4, 0, Math.PI * 2); X.fill();
+    X.fillStyle = 'rgba(150,20,20,.7)'; X.beginPath(); X.arc(-18, -9, 1.5, 0, Math.PI * 2); X.fill();
+  }
+  X.restore();
+};
+
+window._brawlDraw = function(){
+  const s = window._brawl; if(!s || s.phase === 'done') return;
+  if(currentRoom !== s.room) return;
+  const bx = wx2sx(s.x), by = wy2sy(s.y);
+  /* delikatna poświata sceny — gracz od razu wie, gdzie patrzeć */
+  if(s.phase === 'decide' || s.phase === 'fight'){
+    X.save(); X.globalCompositeOperation = 'lighter';
+    const g = X.createRadialGradient(bx, by, 6, bx, by, 92);
+    g.addColorStop(0, 'rgba(220,70,60,.16)'); g.addColorStop(1, 'rgba(220,70,60,0)');
+    X.fillStyle = g; X.beginPath(); X.arc(bx, by, 92, 0, Math.PI * 2); X.fill(); X.restore();
+  }
+  /* pojazd służb stoi na chodniku ZA postaciami */
+  if(s.phase === 'ambulance' && s.ambu) window._brawlDrawAmbulance(bx + s.ambu.x, by - 6, 1);
+  if(s.phase === 'police' && s.cops && typeof _drawPatrolCar === 'function') _drawPatrolCar(bx + s.cops.x, by - 6, 1, true);
+  if(!s.a.gone) window._brawlDrawFighter(bx + s.a.dx, by, s.a, s.a.seed);
+  if(!s.b.gone) window._brawlDrawFighter(bx + s.b.dx, by, s.b, s.b.seed);
+  if(s.phase === 'ambulance' && s.ambu){
+    const loser = s.loserIsA ? s.a : s.b;
+    if(s.ambu.stretcher > 0 && !s.ambu.loaded){
+      const stx = bx + (-60 + (loser.dx + 60) * Math.min(1, s.ambu.stretcher));
+      window._brawlDrawStretcher(stx, by + 12, false);
+    }
+    if(s.ambu.loaded && s.ambu.phase === 'back' && s.ambu.medics.length){
+      window._brawlDrawStretcher(bx + s.ambu.medics[0].dx + 14, by + 12, true);
+    }
+    for(const m of (s.ambu.medics || [])) window._brawlDrawMedic(bx + m.dx, by + (m.dy || 0), s.ambu.loaded);
+  }
+  if(s.phase === 'police' && s.cops && s.cops.men && typeof _drawCop === 'function'){
+    for(let i = 0; i < s.cops.men.length; i++){
+      _drawCop(bx + s.cops.men[i].dx, by + (i ? 8 : 0), s.cops.phase !== 'cuff', 11 + i);
+    }
+  }
+  /* licznik 10 sekund na decyzję */
+  if(s.phase === 'decide'){
+    const left = Math.max(0, Math.ceil((window._BRAWL_DECIDE_MS - s.clock) / 1000));
+    X.save();
+    X.font = 'bold 13px "Segoe UI", Arial'; X.textAlign = 'center';
+    X.fillStyle = 'rgba(0,0,0,.55)'; X.fillRect(bx - 30, by - 64, 60, 20);
+    X.fillStyle = left <= 3 ? '#ff6b6b' : '#ffd24a'; X.fillText('⏱ ' + left + ' s', bx, by - 50);
+    X.textAlign = 'left'; X.restore();
+  }
+};
+/* ═══════════ STREET BRAWL MODULE END ═══════════════════════════════════════════════════════ */
+/* ═══════════ STREET BRAWL — MINI-GRA WALKI (PDF GDANSK 138 · U15 / U16) ═════════════════════
+   Ustawienie jak w Tekkenie / Mortal Kombat: postać gracza po lewej, uliczny NPC po prawej,
+   oba przy skrajnych stronach panelu, ale bardzo blisko siebie. Mechanika jak w aktywności
+   „🏆 Turniej": system podpowiada klawisz, gracz musi go wcisnąć w krótkim czasie, a znacznik
+   pojawia się w LOSOWYM miejscu obok postaci gracza.
+   • 10 sekwencji (OBRONA / ATAK / KONTRATAK), do wygranej trzeba trafić minimum 7.
+   • Czas reakcji: 1,5 s w 70% sekwencji, 2 s w pozostałych 30%.
+   • Przegrana: upadek gracza → po 2 s napis „Przegrana. Zostałeś pobity." → po 5 s przyciemnienie
+     ekranu, teleport przy ciemnym ekranie na chodnik pod Nova Cura i 3-sekundowe rozjaśnianie
+     z rozmyciem (ta sama sekwencja, co po śmierci postaci) + utrata 300–2000 zł.
+   • Wygrana: przeciwnik pada z wyraźnie zakrwawioną twarzą, gracz z rękami w górze, a potem
+     opcjonalne przeszukanie leżącego (pełna kwota 30–300 zł, bez części dziesiętnych).
+   • U16: zniesławienie rośnie w OBU przypadkach. */
+
+window._BRAWL_MG_ROUNDS = 10;
+window._BRAWL_MG_WIN_HITS = 7;
+window._BRAWL_MG_KEYS = ['Q', 'W', 'E', 'R', 'A', 'S', 'D', 'F'];
+window._BRAWL_MG_ACTIONS = [
+  { id: 'obrona',    label: 'OBRONA',    color: '#3aa0e8' },
+  { id: 'atak',      label: 'ATAK',      color: '#e8552a' },
+  { id: 'kontratak', label: 'KONTRATAK', color: '#f1c40f' }
+];
+/* Kwota utracona po przegranej: nigdy mniej niż 300 zł i nigdy więcej niż 2000 zł,
+   a w tych widełkach zależna od gotówki, którą gracz miał przy sobie w chwili starcia. */
+window._brawlLossAmount = function(money){
+  const m = Math.max(0, Math.round(money || 0));
+  return Math.max(300, Math.min(2000, Math.round(m * 0.2)));
+};
+/* Łup z nieprzytomnego przeciwnika — PEŁNA wartość 30–300 zł (bez części dziesiętnych). */
+window._brawlLootAmount = function(){ return 30 + Math.floor(Math.random() * 271); };
+
+window._brawlFightMG = function(){
+  const panel = document.getElementById('mg-job');
+  if(!panel){ if(typeof showMsg === 'function') showMsg('⚠️ Nie można otworzyć panelu walki.', 'r'); return; }
+  if(typeof window._ensureMgJob === 'function'){ try { window._ensureMgJob(); } catch(_){} }
+  panel.style.display = ''; panel.classList.add('on');
+
+  const S = {
+    round: 0, hits: 0, misses: 0, over: false,
+    waitKey: null, act: null, limit: 1500, keyStart: 0,
+    tx: 0, ty: 0, raf: null, to: null,
+    pAnim: 'idle', eAnim: 'idle', animT: 0,
+    pHurt: 0, eHurt: 0, eBlood: 0, ended: false, result: null,
+    flash: 0, flashCol: '#27ae60', msg: ''
+  };
+  window._brawlMG = S;
+
+  const content = document.getElementById('mg-job-content') || panel;
+  content.innerHTML =
+    '<div style="display:flex;flex-direction:column;align-items:center;gap:9px;width:100%;max-width:680px">'
+    + '<h2 style="color:#e8552a;margin:0;font-size:19px">🥊 Walka uliczna</h2>'
+    + '<div style="color:#c9b;font-size:12.5px;margin:0;text-align:center;line-height:1.5">Wciśnij klawisz, który pojawi się obok Twojej postaci.<br>Trafisz <b>minimum 7 z 10</b> — wygrywasz starcie.</div>'
+    + '<div style="display:flex;gap:20px;font-size:14px;color:#aaa">'
+    + '<span>✅ <b id="bmg-hits" style="color:#7ec87e">0</b>/' + window._BRAWL_MG_WIN_HITS + '</span>'
+    + '<span>🎯 <b id="bmg-round">1/' + window._BRAWL_MG_ROUNDS + '</b></span>'
+    + '<span>❌ <b id="bmg-miss" style="color:#e8552a">0</b></span>'
+    + '</div>'
+    + '<canvas id="bmg-cv" width="720" height="330" style="border:2px solid #3a1a1a;border-radius:8px;background:#0a0708;max-width:100%"></canvas>'
+    + '<div id="bmg-msg" style="font-size:15px;font-weight:700;min-height:22px;color:#e8552a"></div>'
+    + '</div>';
+
+  const cv = document.getElementById('bmg-cv'); const ctx = cv.getContext('2d');
+  const W = 720, H = 330, GROUND = 258;
+  const PX = 288, EX = 432;                 /* skrajne strony sylwetek, ale bardzo blisko siebie */
+
+  /* ── sylwetka bojowa (wspólna dla gracza i przeciwnika) ── */
+  function fighter(cx, face, pose, opt){
+    opt = opt || {};
+    const t = Date.now() / 200;
+    ctx.save(); ctx.translate(cx, GROUND);
+    ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(0, 6, 30, 8, 0, 0, Math.PI * 2); ctx.fill();
+    if(pose === 'down'){
+      /* LEZY NA CHODNIKU — sylwetka pozioma tuz przy ziemi (rotacja sprawiala, ze postac
+         wygladala, jakby wisiala w powietrzu; wykryl to obejrzany zrzut). */
+      const hd = -face;                       /* glowa po stronie przeciwnika */
+      if(opt.blood){ ctx.fillStyle = 'rgba(130,10,10,.45)'; ctx.beginPath(); ctx.ellipse(38 * hd, 4, 26, 8, 0, 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillStyle = '#151b26'; ctx.fillRect(-34 * hd + (hd > 0 ? 0 : -8), -12, 34, 10); ctx.fillRect(-34 * hd + (hd > 0 ? 0 : -8), 0, 34, 10);
+      ctx.fillStyle = opt.cloth; ctx.beginPath(); ctx.roundRect(hd > 0 ? -2 : -32, -18, 34, 30, 7); ctx.fill();
+      ctx.strokeStyle = opt.skin; ctx.lineWidth = 7; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(10 * hd, -16); ctx.lineTo(20 * hd, -30); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(6 * hd, 10); ctx.lineTo(18 * hd, 16); ctx.stroke();
+      ctx.fillStyle = opt.skin; ctx.beginPath(); ctx.arc(38 * hd, -6, 16, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#241c14'; ctx.beginPath(); ctx.arc(41 * hd, -12, 15, Math.PI * 0.85, Math.PI * 1.95); ctx.fill();
+      if(opt.blood){
+        ctx.fillStyle = 'rgba(175,20,20,.92)';
+        ctx.beginPath(); ctx.arc(44 * hd, -3, 4.6, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(36 * hd, 3, 7, 3.2, .3, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(40 * hd, -12, 2.6, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore(); return;
+    }
+    const lunge = (pose === 'atak' || pose === 'kontratak') ? 12 : 0;
+    const guard = (pose === 'obrona');
+    const win = (pose === 'win');
+    const flinch = opt.hurt ? Math.sin(opt.hurt * Math.PI) * 6 * -face : 0;
+    ctx.translate(lunge * face + flinch, -Math.abs(Math.sin(t)) * 2);
+    ctx.fillStyle = '#151b26'; ctx.fillRect(-13, 8, 10, 44); ctx.fillRect(4, 8, 10, 44);           /* nogi */
+    ctx.fillStyle = '#0a0d14'; ctx.fillRect(-15, 50, 12, 7); ctx.fillRect(3, 50, 12, 7);           /* buty */
+    ctx.fillStyle = opt.cloth; ctx.beginPath(); ctx.roundRect(-18, -26, 36, 38, 7); ctx.fill();    /* korpus */
+    ctx.strokeStyle = opt.skin; ctx.lineWidth = 8; ctx.lineCap = 'round';
+    if(win){
+      ctx.beginPath(); ctx.moveTo(-14, -18); ctx.lineTo(-26, -52); ctx.moveTo(14, -18); ctx.lineTo(26, -52); ctx.stroke();
+    } else if(guard){
+      ctx.beginPath(); ctx.moveTo(-10 * face, -16); ctx.lineTo(-4 * face, -40); ctx.moveTo(10 * face, -16); ctx.lineTo(6 * face, -40); ctx.stroke();
+    } else {
+      const reach = (pose === 'atak') ? 62 : (pose === 'kontratak' ? 52 : 14);
+      ctx.beginPath(); ctx.moveTo(-8 * face, -16); ctx.lineTo(-2 * face, -36); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(8 * face, -18); ctx.lineTo((8 + reach) * face, -24); ctx.stroke();
+      ctx.fillStyle = opt.skin; ctx.beginPath(); ctx.arc((8 + reach) * face, -24, 7, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = opt.skin; ctx.beginPath(); ctx.arc(0, -44, 17, 0, Math.PI * 2); ctx.fill();    /* głowa */
+    ctx.fillStyle = '#241c14'; ctx.beginPath(); ctx.arc(0, -50, 16, Math.PI, 0); ctx.fill();       /* włosy */
+    if(opt.blood){ ctx.fillStyle = 'rgba(170,25,25,.85)'; ctx.beginPath(); ctx.arc(6 * face, -40, 4, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+  }
+
+  function draw(){
+    if(!document.getElementById('bmg-cv')){ if(S.raf) cancelAnimationFrame(S.raf); return; }
+    ctx.clearRect(0, 0, W, H);
+    /* zaułek: mur, latarnia, chodnik */
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#2a2028'); g.addColorStop(.62, '#3a2c31'); g.addColorStop(1, '#463539');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    /* mur z cegly */
+    ctx.strokeStyle = 'rgba(0,0,0,.22)'; ctx.lineWidth = 1;
+    for(let y = 22; y < GROUND - 6; y += 22){
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+      const off = ((y / 22) % 2) ? 30 : 0;
+      for(let x = off; x < W; x += 60){ ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 22); ctx.stroke(); }
+    }
+    /* graffiti + latarnia, zeby zaulek nie byl pusta plama */
+    ctx.save(); ctx.globalAlpha = .35;
+    ctx.fillStyle = '#7a3ad0'; ctx.font = 'bold 30px "Arial Black", Arial'; ctx.fillText('TRAP', 34, 92);
+    ctx.fillStyle = '#d0a03a'; ctx.font = 'bold 22px "Arial Black", Arial'; ctx.fillText('CITY', W - 118, 74);
+    ctx.restore();
+    ctx.fillStyle = '#1a1418'; ctx.fillRect(W / 2 - 4, 0, 8, GROUND - 96);
+    ctx.fillStyle = '#2a2228'; ctx.beginPath(); ctx.roundRect(W / 2 - 22, GROUND - 108, 44, 14, 4); ctx.fill();
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const lamp = ctx.createRadialGradient(W / 2, GROUND - 96, 4, W / 2, GROUND - 96, 190);
+    lamp.addColorStop(0, 'rgba(255,205,130,.22)'); lamp.addColorStop(1, 'rgba(255,205,130,0)');
+    ctx.fillStyle = lamp; ctx.fillRect(0, 0, W, H); ctx.restore();
+    /* chodnik */
+    ctx.fillStyle = '#5a4f52'; ctx.fillRect(0, GROUND + 6, W, H - GROUND - 6);
+    ctx.strokeStyle = 'rgba(0,0,0,.30)';
+    for(let x = 0; x < W; x += 64){ ctx.beginPath(); ctx.moveTo(x, GROUND + 6); ctx.lineTo(x, H); ctx.stroke(); }
+    ctx.beginPath(); ctx.moveTo(0, GROUND + 6); ctx.lineTo(W, GROUND + 6); ctx.stroke();
+
+    fighter(PX, 1, S.pAnim, { skin: '#e8c39a', cloth: '#2f4a76', hurt: S.pHurt, blood: 0 });
+    fighter(EX, -1, S.eAnim, { skin: '#c98d63', cloth: '#5a2a2a', hurt: S.eHurt, blood: S.eBlood });
+
+    if(S.waitKey && !S.over){
+      const el = (Date.now() - S.keyStart) / S.limit;
+      const ring = Math.max(0, 1 - el);
+      const col = S.act.color;
+      ctx.strokeStyle = 'rgba(255,255,255,' + (0.35 + ring * 0.5) + ')'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(S.tx, S.ty, 30 + ring * 20, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.beginPath(); ctx.arc(S.tx, S.ty, 26, 0, Math.PI * 2); ctx.fill();
+      ctx.font = 'bold 34px "Arial Black", Arial'; ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+      ctx.shadowBlur = 10; ctx.shadowColor = col; ctx.fillText(S.waitKey, S.tx, S.ty + 12); ctx.shadowBlur = 0;
+      const lw = ctx.measureText(S.act.label).width + 18;
+      ctx.fillStyle = 'rgba(8,6,10,.82)';
+      ctx.beginPath(); ctx.roundRect(S.tx - lw / 2, S.ty - 62, lw, 19, 6); ctx.fill();
+      ctx.strokeStyle = col; ctx.lineWidth = 1.4; ctx.stroke();
+      ctx.font = 'bold 12px "Segoe UI", Arial'; ctx.fillStyle = col;
+      ctx.fillText(S.act.label, S.tx, S.ty - 48);
+      ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(S.tx - 30, S.ty + 30, 60, 6);
+      ctx.fillStyle = col; ctx.fillRect(S.tx - 30, S.ty + 30, 60 * ring, 6);
+      ctx.textAlign = 'left';
+    }
+    if(S.flash > 0){
+      ctx.fillStyle = S.flashCol + Math.floor(S.flash / 22 * 40).toString(16).padStart(2, '0');
+      ctx.fillRect(0, 0, W, H); S.flash--;
+    }
+    if(S.ended && S.msg){
+      ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(0, H / 2 - 34, W, 68);
+      ctx.font = 'bold 26px "Segoe UI", Arial'; ctx.textAlign = 'center';
+      ctx.fillStyle = S.result === 'win' ? '#f1c40f' : '#e8552a';
+      ctx.fillText(S.msg, W / 2, H / 2 + 9); ctx.textAlign = 'left';
+    }
+    S.raf = requestAnimationFrame(draw);
+  }
+
+  function setLabels(){
+    const h = document.getElementById('bmg-hits'); if(h) h.textContent = S.hits;
+    const r = document.getElementById('bmg-round'); if(r) r.textContent = Math.min(window._BRAWL_MG_ROUNDS, S.round + 1) + '/' + window._BRAWL_MG_ROUNDS;
+    const m = document.getElementById('bmg-miss'); if(m) m.textContent = S.misses;
+  }
+  function say(t, c){ const el = document.getElementById('bmg-msg'); if(el){ el.textContent = t; el.style.color = c || '#e8552a'; } }
+
+  function nextRound(){
+    if(S.over) return;
+    if(S.round >= window._BRAWL_MG_ROUNDS){ finish(); return; }
+    S.act = window._BRAWL_MG_ACTIONS[Math.floor(Math.random() * window._BRAWL_MG_ACTIONS.length)];
+    S.waitKey = window._BRAWL_MG_KEYS[Math.floor(Math.random() * window._BRAWL_MG_KEYS.length)];
+    /* 70% sekwencji z czasem 1,5 s, pozostałe 30% z czasem 2 s */
+    S.limit = (Math.random() < 0.70) ? 1500 : 2000;
+    if(S.limit === 1500) S.fast = (S.fast || 0) + 1; else S.slow = (S.slow || 0) + 1;
+    /* znacznik pojawia się w LOSOWYM miejscu OBOK postaci gracza */
+    S.tx = PX + (Math.random() < 0.5 ? -1 : 1) * (54 + Math.random() * 74);
+    S.tx = Math.max(46, Math.min(EX - 72, S.tx));
+    S.ty = (GROUND - 128) + Math.random() * 108;   /* na wysokosci postaci gracza */
+    S.keyStart = Date.now();
+    S.pAnim = (S.act.id === 'obrona') ? 'obrona' : 'idle';
+    S.eAnim = (S.act.id === 'obrona') ? 'atak' : (S.act.id === 'kontratak' ? 'kontratak' : 'obrona');
+    setLabels();
+    if(S.to) clearTimeout(S.to);
+    S.to = setTimeout(function(){ resolve(false); }, S.limit + 40);
+  }
+
+  function resolve(hit){
+    if(S.over || !S.waitKey) return;
+    if(S.to){ clearTimeout(S.to); S.to = null; }
+    S.waitKey = null;
+    if(hit){
+      S.hits++; S.flash = 20; S.flashCol = '#27ae60';
+      S.pAnim = (S.act.id === 'obrona') ? 'obrona' : S.act.id;
+      S.eAnim = (S.act.id === 'obrona') ? 'atak' : 'idle';
+      if(S.act.id !== 'obrona'){ S.eHurt = 1; S.eBlood = Math.min(1, S.eBlood + 0.34); }
+      say('✔ ' + S.act.label + ' — trafione!', '#7ec87e');
+    } else {
+      S.misses++; S.flash = 16; S.flashCol = '#e8552a';
+      S.pHurt = 1; S.pAnim = 'idle'; S.eAnim = 'atak';
+      say('✖ ' + S.act.label + ' — dostajesz cios!', '#e8552a');
+    }
+    setTimeout(function(){ S.pHurt = 0; S.eHurt = 0; }, 260);
+    S.round++;
+    setLabels();
+    setTimeout(function(){ if(!S.over) nextRound(); }, 340);
+  }
+
+  const kh = function(e){
+    if(S.over || !S.waitKey) return;
+    const k = (e.key || '').toUpperCase();
+    if(window._BRAWL_MG_KEYS.indexOf(k) < 0) return;
+    e.preventDefault();
+    resolve(k === S.waitKey);
+  };
+  document.addEventListener('keydown', kh);
+
+  function cleanupInput(){
+    document.removeEventListener('keydown', kh);
+    if(S.to){ clearTimeout(S.to); S.to = null; }
+  }
+
+  function finish(){
+    if(S.over) return;
+    S.over = true; S.ended = true; S.waitKey = null;
+    cleanupInput();
+    const won = S.hits >= window._BRAWL_MG_WIN_HITS;
+    S.result = won ? 'win' : 'lose';
+    say(won ? 'Trafienia: ' + S.hits + '/' + window._BRAWL_MG_ROUNDS + ' — wygrywasz starcie.'
+            : 'Trafienia: ' + S.hits + '/' + window._BRAWL_MG_ROUNDS + ' — za malo, przegrywasz.', won ? '#7ec87e' : '#e8552a');
+    /* U16: zniesławienie rośnie NIEZALEŻNIE od wyniku starcia. */
+    if(typeof addDefamation === 'function'){ try { addDefamation(won ? 6 : 8); } catch(_){} }
+    else if(typeof G !== 'undefined') G.defamation = Math.min(100, (G.defamation || 0) + (won ? 6 : 8));
+    if(typeof G !== 'undefined') G.heat = Math.min(100, (G.heat || 0) + 6);
+    if(won) window._brawlMGWin(S); else window._brawlMGLose(S);
+  }
+
+  window._jobMgCleanup = function(){
+    S.over = true; cleanupInput();
+    if(S.raf) cancelAnimationFrame(S.raf);
+    const p = document.getElementById('mg-job');
+    if(p){ p.classList.remove('on'); p.style.display = 'none'; p.innerHTML = '<div id="mg-job-content"></div>'; }
+    if(typeof window._brawlEnd === 'function') window._brawlEnd();
+  };
+
+  setLabels();
+  draw();
+  say('Gotów? Zaczynamy!', '#f1c40f');
+  setTimeout(nextRound, 700);
+};
+
+/* ── WYGRANA: przeciwnik pada zakrwawiony, gracz z rękami w górze, opcjonalne przeszukanie ── */
+window._brawlMGWin = function(S){
+  S.eAnim = 'down'; S.eBlood = 1; S.pAnim = 'win'; S.msg = '';
+  const loot = window._brawlLootAmount();
+  if(typeof G !== 'undefined') G.streetRep = Math.min(100, (G.streetRep || 0) + 2);
+  setTimeout(function(){
+    S.msg = 'WYGRANA! Przeciwnik leży.';
+    const c = document.getElementById('mg-job-content'); if(!c) return;
+    const box = document.createElement('div');
+    box.style.cssText = 'width:100%;max-width:640px;margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center';
+    box.innerHTML =
+      '<div style="width:100%;text-align:center;color:#cdd;font-size:12.5px;line-height:1.5;margin-bottom:4px">Napastnik jest nieprzytomny. Możesz przeszukać jego kieszenie albo po prostu odejść.</div>'
+      + '<button class="cbtn" id="bmg-loot" style="width:auto;flex:0 1 auto;color:#f1c40f;border-color:#a8850c">💰 Przeszukaj kieszenie</button>'
+      + '<button class="cbtn" id="bmg-leave" style="width:auto;flex:0 1 auto">🚶 Odejdź</button>';
+    c.appendChild(box);
+    const bl = document.getElementById('bmg-loot');
+    if(bl) bl.onclick = function(){
+      bl.disabled = true;
+      if(typeof G !== 'undefined'){ G.money = (G.money || 0) + loot; }
+      if(typeof addDefamation === 'function'){ try { addDefamation(3); } catch(_){} }
+      if(typeof G !== 'undefined') G.heat = Math.min(100, (G.heat || 0) + 4);
+      if(typeof updateHUD === 'function') updateHUD();
+      if(typeof showMsg === 'function') showMsg('💰 Zabrałeś ' + loot + ' zł z kieszeni nieprzytomnego napastnika. Ktoś mógł to widzieć.', 'i', 6000);
+      setTimeout(function(){ if(window._jobMgCleanup) window._jobMgCleanup(); }, 900);
+    };
+    const bv = document.getElementById('bmg-leave');
+    if(bv) bv.onclick = function(){
+      if(typeof showMsg === 'function') showMsg('🚶 Zostawiasz go i odchodzisz. Ulica zapamięta, kto tu wygrał.', 'g', 5000);
+      setTimeout(function(){ if(window._jobMgCleanup) window._jobMgCleanup(); }, 500);
+    };
+  }, 900);
+};
+
+/* ── PRZEGRANA: upadek → napis → przyciemnienie → teleport pod Nova Cura → rozjaśnienie ───── */
+window._brawlMGLose = function(S){
+  S.pAnim = 'down'; S.msg = '';
+  const loss = window._brawlLossAmount((typeof G !== 'undefined') ? G.money : 0);
+  /* 2 sekundy po upadku pojawia się napis o przegranej */
+  setTimeout(function(){ S.msg = 'Przegrana. Zostałeś pobity.'; }, 2000);
+  /* 5 sekund po napisie ekran gaśnie, a gracz budzi się pod Nova Cura */
+  setTimeout(function(){
+    if(typeof G !== 'undefined'){
+      if(typeof window._walletCharge === 'function') window._walletCharge(loss);
+      else G.money = (G.money || 0) - loss;
+      G.health = (typeof clampStat === 'function') ? clampStat('health', (typeof G.health === 'number' ? G.health : 100) - 30) : Math.max(1, (G.health || 100) - 30);
+    }
+    if(window._jobMgCleanup) window._jobMgCleanup();
+    if(typeof window._brawlKnockoutSequence === 'function') window._brawlKnockoutSequence(loss);
+  }, 7000);
+};
+
+/* Sekwencja „gasnący ekran → teleport → rozjaśnienie z rozmyciem" — te same klocki, z których
+   korzysta prawdziwa śmierć postaci i przywrócenie jej do życia przed obiektem Nova Cura. */
+window._brawlKnockoutSequence = function(loss){
+  if(typeof window._blackoutFadeIn === 'function'){
+    window._blackoutFadeIn('<div style="font-size:44px;margin-bottom:10px;filter:grayscale(1)">🥊</div>'
+      + '<div style="font-size:20px;letter-spacing:4px;color:#8a7a7a;font-weight:800">TRACISZ PRZYTOMNOŚĆ…</div>'
+      + '<div style="font-size:12px;color:#555;margin-top:10px">ktoś odprowadza Cię pod centrum medyczne</div>');
+  }
+  setTimeout(function(){
+    /* teleport wykonujemy przy CIEMNYM ekranie — gracz nic nie widzi */
+    try { if(typeof changeRoom === 'function') changeRoom('ulica', 1980, 820); } catch(_){}
+    if(typeof window._blackoutFadeOut === 'function') window._blackoutFadeOut(3000);
+    if(typeof showMsg === 'function') showMsg('🥊 Przegrałeś uliczne starcie. Ocknąłeś się pod Nova Cura. Straciłeś ' + (loss || 0).toLocaleString('pl') + ' zł.', 'r', 8000);
+    if(typeof addNotif === 'function') addNotif('🥊 Przegrana bójka uliczna — utrata ' + (loss || 0).toLocaleString('pl') + ' zł i part zdrowia.');
+    if(typeof updateHUD === 'function') updateHUD();
+    if(typeof saveGameSilent === 'function') saveGameSilent();
+  }, 2000);
+};
+/* ═══════════ STREET BRAWL — MINI-GRA WALKI: KONIEC ══════════════════════════════════════════ */
 /* rejestracja eventów policyjnych w CHOICE_EVENTS (miasto żyje) */
 (function _policeRegisterEvents(){
   if(typeof CHOICE_EVENTS==='undefined' || !Array.isArray(CHOICE_EVENTS)) return;
@@ -73679,6 +74753,8 @@ window._ownedScrapableVehicles=function(){
 window._canScrapVehicle=function(veh){
   if(!veh) return {ok:false, reason:'none'};
   window._metalValleyEnsure();
+  /* PDF GDANSK 138 B1: skonfiskowany pojazd nie może trafić na rozbiórkę — to też zbycie. */
+  if(typeof window._vehIsConfiscated==='function' && window._vehIsConfiscated()) return {ok:false, reason:'confiscated'};
   if(G.metalValley.pending.some(p=>p.status==='pending' && p.vehKind===veh.kind && p.vehId===veh.id)) return {ok:false, reason:'already'};
   if(G.metalValley.activeScrapCount>=2) return {ok:false, reason:'limit'};
   if(veh.kind==='camper'){
@@ -73756,7 +74832,9 @@ window._scrapBlockMsg=function(reason,veh){
     reason==='limit'?'🚗 Rysiek: „Masz już dwa tematy na placu. Najpierw odbierz rozliczenie, potem przywoź kolejne."':
     reason==='pending'?'🔧 Pojazd jest w trakcie sprzedaży.':
     reason==='quest'?'🔧 Ten pojazd jest powiązany z aktywnym wątkiem i nie może zostać oddany do rozbiórki.':
-    reason==='stolen'?'🔧 Skradzionego pojazdu nie przyjmę.':'🔧 Tego pojazdu nie można oddać do rozbiórki.';
+    reason==='stolen'?'🔧 Skradzionego pojazdu nie przyjmę.':
+    /* PDF GDANSK 138 B1: dosłowna treść odmowy z dokumentu. */
+    reason==='confiscated'?(window._VEH_CONFISCATED_SELL_MSG||'Sprzedaż niedostępna: pojazd jest obecnie skonfiskowany.'):'🔧 Tego pojazdu nie można oddać do rozbiórki.';
 };
 /* §23: wybór pojazdu do wyceny. */
 window._metalValleyScrapMenu=function(){
@@ -73772,7 +74850,7 @@ window._metalValleyScrapMenu=function(){
   const rows=vehs.map(v=>{
     const chk=window._canScrapVehicle(v);
     const nm=(v.kind==='camper'?'🚐 ':'🚗 ')+((v.kind==='car'&&typeof carDisplayName==='function')?carDisplayName(v.name):v.name);/* v2.3.115 (PDF Uspr): fikcyjna nazwa auta w wycenie rozbiórki */
-    const reason=chk.reason==='backroom'?'zaplecze/proces aktywny':chk.reason==='driving'?'wysiądź najpierw':chk.reason==='already'?'już w rozbiórce':chk.reason==='limit'?'limit 2 rozbiórek':chk.reason==='pending'?'w trakcie sprzedaży':chk.reason==='quest'?'wątek fabularny':'';
+    const reason=chk.reason==='backroom'?'zaplecze/proces aktywny':chk.reason==='driving'?'wysiądź najpierw':chk.reason==='already'?'już w rozbiórce':chk.reason==='limit'?'limit 2 rozbiórek':chk.reason==='pending'?'w trakcie sprzedaży':chk.reason==='quest'?'wątek fabularny':chk.reason==='confiscated'?'pojazd skonfiskowany':'';
     /* v2.3.110 FIX (user „klikam i nic się nie dzieje"): id pojazdu w SINGLE-quotes + escape.
        Było ${JSON.stringify(v.id)} → wstrzykiwało PODWÓJNE cudzysłowy do atrybutu onclick="..."
        (nazwy aut mają spacje, np. „Volkswagen Golf") → atrybut urywał się przedwcześnie → klik = SyntaxError = nic. */
@@ -77389,6 +78467,75 @@ window._openFrameUpDM=function(box){
   const mgJob=document.getElementById('mg-job'), mgContent=document.getElementById('mg-job-content');
   if(mgJob&&mgContent){ mgContent.innerHTML=html; mgJob.classList.add('on'); }
 };
+/* ═══ PDF GDANSK 138 U6 (user) — POWIADOMIENIE O NOWEJ WIADOMOŚCI FrameUp Direct ═══════════
+   Osobne okno, wyraźnie inne od okna SMS: pełna szerokość karty u GÓRY ekranu (SMS wchodzi
+   w prawym dolnym rogu), fioletowa identyfikacja FrameUp, w NAGŁÓWKU wprost napisane, że
+   wiadomość pochodzi z aplikacji FrameUp, kafelek nadawcy z uchwytem (@handle) oraz własny
+   dźwięk (`sfxFrameUpDm`). Kliknięcie otwiera KONKRETNY wątek.
+   U7: gdy powiadomienia są wstrzymane (stream/pauza/przelot/freestyle) — czeka w poczekalni. */
+window._fuDmPendingNotify=window._fuDmPendingNotify||[];
+window._fuDmNotify=function(thread){
+  try{
+    if(!thread) return false;
+    if(typeof window._smsHeld==='function' && window._smsHeld()){
+      window._fuDmPendingNotify.push(thread.id);
+      if(window._fuDmPendingNotify.length>10) window._fuDmPendingNotify.shift();
+      return false;
+    }
+    return window._fuDmShowNotifyNow(thread);
+  }catch(_){ return false; }
+};
+window._fuDmFlushPendingNotify=function(){
+  try{
+    if(!Array.isArray(window._fuDmPendingNotify)||!window._fuDmPendingNotify.length) return 0;
+    if(typeof window._smsHeld==='function' && window._smsHeld()) return 0;
+    window._frameUpDMEnsure(); const D=G.frameUpDM;
+    const ids=window._fuDmPendingNotify.splice(0,window._fuDmPendingNotify.length);
+    const id=ids[ids.length-1];
+    const t=(D.threads||[]).find(x=>x&&x.id===id);
+    if(t) window._fuDmShowNotifyNow(t);
+    return ids.length;
+  }catch(_){ return 0; }
+};
+window._fuDmShowNotifyNow=function(thread){
+  const _esc=v=>String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  if(!document.getElementById('fudm-popup-style')){
+    const st=document.createElement('style'); st.id='fudm-popup-style';
+    st.textContent='@keyframes fuDmIn{from{transform:translate(-50%,-26px);opacity:0}to{transform:translate(-50%,0);opacity:1}}';
+    document.head.appendChild(st);
+  }
+  document.getElementById('fudm-popup')?.remove();
+  const body=(thread.messages&&thread.messages.length)?String(thread.messages[thread.messages.length-1].text||''):'';
+  const prev=body.slice(0,110)+(body.length>110?'…':'');
+  const el=document.createElement('div'); el.id='fudm-popup';
+  el.style.cssText='position:fixed;left:50%;top:112px;transform:translate(-50%,0);z-index:241;width:380px;max-width:92vw;'
+    +'background:linear-gradient(150deg,rgba(26,14,46,.985),rgba(14,10,26,.985));border:1px solid #7a5ad0;'
+    +'border-radius:16px;overflow:hidden;box-shadow:0 12px 34px rgba(122,90,208,.35),0 0 0 1px rgba(0,0,0,.45);'
+    +'cursor:pointer;font-family:inherit;animation:fuDmIn .34s cubic-bezier(.22,1,.36,1);pointer-events:all';
+  el.innerHTML=
+     '<div style="display:flex;align-items:center;gap:8px;padding:7px 12px;background:linear-gradient(90deg,#3a1f6e,#6a3fa8);">'
+    +'<span style="font-size:14px">📸</span>'
+    +'<span style="font-size:11px;font-weight:800;letter-spacing:.6px;color:#f2ecff">FrameUp · Direct Message</span>'
+    +'<span style="margin-left:auto;font-size:9.5px;color:#d9caff;opacity:.9">nowa wiadomość w aplikacji FrameUp</span>'
+    +'</div>'
+    +'<div style="display:flex;gap:11px;padding:11px 13px 12px">'
+    +'<div style="flex:0 0 auto;width:40px;height:40px;border-radius:12px;background:linear-gradient(145deg,#5a3aa0,#2a1a4a);border:1px solid #8a6ae0;display:flex;align-items:center;justify-content:center;font-size:19px">✉️</div>'
+    +'<div style="flex:1;min-width:0">'
+    +'<div style="font-size:13px;font-weight:800;color:#e8dcff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+_esc(thread.senderDisplayName||'Nieznany')+'</div>'
+    +'<div style="font-size:10px;color:#a996d0;margin-bottom:3px">'+_esc(thread.senderHandle||'')+'</div>'
+    +'<div style="font-size:11.5px;color:#cfc4e6;line-height:1.4;max-height:34px;overflow:hidden">'+_esc(prev)+'</div>'
+    +'</div></div>'
+    +'<div style="font-size:9px;color:#9a8ac0;padding:0 13px 9px;text-align:right">👉 Kliknij — otwórz w FrameUp Direct</div>';
+  el.onclick=()=>{
+    el.remove();
+    try{ if(typeof closeOverlay==='function') closeOverlay(); }catch(_){}
+    try{ if(typeof window._openFrameUpDMThread==='function') window._openFrameUpDMThread(thread.id); }catch(_){}
+  };
+  document.body.appendChild(el);
+  if(typeof sfxFrameUpDm==='function'){ try{ sfxFrameUpDm(); }catch(_){} }
+  setTimeout(()=>{ try{ if(document.getElementById('fudm-popup')===el){ el.style.transition='opacity .4s,transform .4s'; el.style.opacity='0'; el.style.transform='translate(-50%,-16px)'; setTimeout(()=>{try{el.remove();}catch(_){}},420); } }catch(_){} }, 8000);
+  return true;
+};
 window._openFrameUpDMThread=function(threadId){
   window._frameUpDMEnsure(); const D=G.frameUpDM;
   const t=D.threads.find(x=>x&&x.id===threadId)||D.archivedThreads.find(x=>x&&x.id===threadId);
@@ -77454,6 +78601,8 @@ window._generateGhostwritingOffer=function(force){
   D.unreadCount=(D.unreadCount||0)+1;
   GW.lastOfferDay=G.day;
   if(typeof addNotif==='function') addNotif(`✉️ Nowa wiadomość na FrameUp Direct od ${client.name} (${client.handle}).`);
+  /* PDF GDANSK 138 U6: własne okno powiadomienia FrameUp + własny dźwięk. */
+  if(typeof window._fuDmNotify==='function') window._fuDmNotify(thread);
   return thread;
 };
 /* ── 2H (§13): panel oferty w wątku ── */
@@ -77822,6 +78971,8 @@ window._fudmMakeThread=function(o){
     unread:true, messageType:o.messageType||'dm', createdDay:G.day, createdTime:(G.timeOfDay||0),
     messages:[{from:'them',text:o.text||''}], replyOptions:o.replyOptions||null, dealPayload:o.dealPayload||null}, {});
   D.threads.unshift(t); D.unreadCount=(D.unreadCount||0)+1; if(t.isSpam) D.spamUnreadCount=(D.spamUnreadCount||0)+1;
+  /* PDF GDANSK 138 U6: każda nowa wiadomość DM daje osobne powiadomienie FrameUp (inne okno i dźwięk niż SMS). */
+  if(typeof window._fuDmNotify==='function') window._fuDmNotify(t);
   return t;
 };
 /* ── 2W (§25): spam score ── */
@@ -78524,7 +79675,7 @@ window._eclipseVipAct=function(type){
   else if(type==='invite'){ c.reputation=Math.min(100,(c.reputation||0)+2); G.fame=(G.fame||0)+2;
     resp= roll(40)?'„Wpadnę na Twój set. Lubię odkrywać, zanim zrobi się głośno." <b style="color:#7ec87e">(VIP przyjdzie na koncert)</b>':'„Zobaczymy, co z grafikiem." <span style="color:#9a90b0">(niepewne)</span>'; }
   else if(type==='invest'){
-    if(vip.lead==='risk' || vip.gossip>=40){ if(roll(35)){ const loss=Math.min(G.money||0,500+Math.floor((G.fame||0))); G.money=Math.max(0,(G.money||0)-loss); resp=`„Pewna sprawa, tylko wejście na start…" — znika z Twoją zaliczką. <span style="color:#c0392b">(scam −${loss} zł)</span>`; } else { resp='„Odezwę się z papierami." <span style="color:#9a90b0">(mętny temat, na razie nic)</span>'; } }
+    if(vip.lead==='risk' || vip.gossip>=40){ if(roll(35)){ const loss=Math.max(0,Math.min(G.money||0,500+Math.floor((G.fame||0)))); G.money=window._walletFloor((G.money||0)-loss); resp=`„Pewna sprawa, tylko wejście na start…" — znika z Twoją zaliczką. <span style="color:#c0392b">(scam −${loss} zł)</span>`; } else { resp='„Odezwę się z papierami." <span style="color:#9a90b0">(mętny temat, na razie nic)</span>'; } }
     else { G._eclipseInvestLead=(G._eclipseInvestLead||0)+1; resp='„Mam legalny temat inwestycyjny. Podeślę szczegóły." <b style="color:#7ec87e">(kontakt biznesowy)</b>'; }
   }
   else if(type==='flirt'){ G.stress=(typeof clamp==='function')?clamp((G.stress||0)+4,0,100):Math.min(100,(G.stress||0)+4); c.atmosphere.paparazziRisk=Math.min(100,(c.atmosphere.paparazziRisk||0)+vip.gossip*0.1);
@@ -78878,8 +80029,8 @@ window._eclipseClubTheft=function(force){
   /* wysokie upojenie → sam obrywasz; inaczej jesteś świadkiem */
   const victim=(c.nightlife&&(c.nightlife.intoxication||0)>=45);
   if(victim){
-    const lost=Math.min(G.money||0, 200+Math.floor((G.fame||0)));
-    G.money=Math.max(0,(G.money||0)-lost); if(typeof updateHUD==='function')updateHUD();
+    const lost=Math.max(0,Math.min(G.money||0, 200+Math.floor((G.fame||0))));
+    G.money=window._walletFloor((G.money||0)-lost); if(typeof updateHUD==='function')updateHUD();
     document.getElementById('mg-job-content').innerHTML=`
       <div style="background:#0a0810;border:2px solid #c0392b;border-radius:10px;padding:16px;max-width:450px;margin:0 auto;color:#fff;width:100%;text-align:center">
         <h3 style="margin-top:0;color:#e74c3c">🕵️ Ktoś Cię okradł!</h3>
@@ -79649,7 +80800,7 @@ window._aureumLeadPick=function(choice){
       const success=((Math.floor((gameMin||0)*2+(bn.investorTrust||0))%100) >= risk);
       if(success){ const gain=lead.ret||Math.round(lead.cap*1.3); if(gain>0) G.money=(G.money||0)+gain; bn.businessCredibility=Math.min(100,(bn.businessCredibility||0)+2); bn.sharkPotential=Math.min(100,(bn.sharkPotential||0)+1); if(lead.type==='white_collar_shadow') bn.whiteCollarShadow=Math.min(100,(bn.whiteCollarShadow||0)+2);
         msg=`Temat wypalił. ${gain>0?'<b style="color:#7ec87e">+'+gain.toLocaleString('pl')+' zł</b> i ':''}rośnie Twoja pozycja.`; type='g'; }
-      else { const loss=Math.min(G.money||0, Math.round(lead.cap*0.6)+500); G.money=Math.max(0,(G.money||0)-loss); bn.riskReading=Math.min(100,(bn.riskReading||0)+2); if(risk>=60){ G.heat=Math.min(100,(G.heat||0)+5); }
+      else { const loss=Math.max(0,Math.min(G.money||0, Math.round(lead.cap*0.6)+500)); G.money=window._walletFloor((G.money||0)-loss); bn.riskReading=Math.min(100,(bn.riskReading||0)+2); if(risk>=60){ G.heat=Math.min(100,(G.heat||0)+5); }
         msg=`Pułapka. Straciłeś kapitał (−${loss.toLocaleString('pl')} zł)${risk>=60?' i ściągnąłeś na siebie uwagę':''}. Następnym razem czytaj ryzyko uważniej.`; type='r'; }
       G._aureumLead=null;
     }
@@ -80152,6 +81303,28 @@ window._vehCanDrive=function(){
   return true;
 };
 window._vehDrivingBanDaysLeft=function(){ window._vehTrafficEnsure(); const t=G.traffic; return (t.drivingBanUntilDay!=null)?Math.max(0,(t.drivingBanUntilDay)-(G.day||0)):0; };
+/* ═══ PDF GDANSK 138 B1 (user) — SKONFISKOWANY POJAZD JEST NIEZBYWALNY ═══════════════════════
+   BŁĄD: po przekroczeniu progu zdarzeń nadzwyczajnych pojazd zostaje skonfiskowany (gracz nie ma
+   do niego dostępu), a mimo to można było go SPRZEDAĆ — w salonie, na Swaply i na Metal Valley Yard.
+   Teraz każdy kanał zbytu odmawia z tą samą, dosłowną treścią z dokumentu. */
+window._VEH_CONFISCATED_SELL_MSG='Sprzedaż niedostępna: pojazd jest obecnie skonfiskowany.';
+window._vehIsConfiscated=function(){
+  try{
+    if(typeof G==='undefined') return false;
+    if(typeof window._vehTrafficEnsure==='function') window._vehTrafficEnsure();
+    const t=G.traffic; if(!t) return false;
+    return (t.confiscationUntilDay!=null) && (G.day||0) < t.confiscationUntilDay;
+  }catch(_){ return false; }
+};
+window._vehConfiscationDaysLeft=function(){
+  try{ const t=G.traffic; return (t&&t.confiscationUntilDay!=null)?Math.max(0,t.confiscationUntilDay-(G.day||0)):0; }catch(_){ return 0; }
+};
+/* Zwraca true i pokazuje komunikat, gdy sprzedaż jest zablokowana konfiskatą. */
+window._vehBlockSaleIfConfiscated=function(){
+  if(!window._vehIsConfiscated()) return false;
+  if(typeof showMsg==='function') showMsg(window._VEH_CONFISCATED_SELL_MSG,'r',6000);
+  return true;
+};
 /* §28 mandat przy konfiskacie (5000-10000). */
 window._vehConfiscationFine=function(){
   window._vehTrafficEnsure(); const t=G.traffic;
@@ -80173,6 +81346,9 @@ window._vehConfiscateVehicle=function(){
   window._vehTrafficEnsure(); const t=G.traffic;
   t.vehicleConfiscations=(t.vehicleConfiscations||0)+1;
   t.drivingBanUntilDay=(G.day||0)+3;
+  /* PDF GDANSK 138 B1: osobne okno KONFISKATY (nie tylko zakazu jazdy) — przez te dni pojazdu
+     nie można też sprzedać, oddac do rozbiórki ani wystawić na Swaply. */
+  t.confiscationUntilDay=(G.day||0)+3;
   const fine=window._vehConfiscationFine();
   window._vehIssueFine('Konfiskata pojazdu po serii niebezpiecznych incydentów', fine);
   if(typeof window._uwAddStat==='function'){ try{ window._uwAddStat('street_heat',20); }catch(_){} }
@@ -80384,7 +81560,8 @@ window._vehInsuranceTick=function(){
       if(per>=2 && !p.warned12h){ p.warned12h=true; if(typeof window._vehUninsuredDialog==='function') window._vehUninsuredDialog(k); }
       if(per>=4 && (p.lastPenaltyDay==null || (G.day||0)>p.lastPenaltyDay)){
         p.lastPenaltyDay=(G.day||0);
-        const pen=5000; G.money=Math.max(0,(G.money||0)-pen); if(typeof spent==='function'){try{spent(pen);}catch(_){}}
+        /* PDF GDANSK 138 U18: kara przymusowa — może wprowadzić portfel w debet (pełna kwota, bez „umorzenia”). */
+        const pen=5000; if(typeof window._walletCharge==='function') window._walletCharge(pen); else { G.money=(G.money||0)-pen; if(typeof spent==='function'){try{spent(pen);}catch(_){}} }
         if(typeof addNotif==='function') addNotif('⚠️ Kara za brak ubezpieczenia ('+window._vehKindName(k)+'): −5 000 zł/dzień. Wykup polisę w Garage 77, żeby przestała naliczać.');
         if(typeof showMsg==='function') showMsg('⚠️ −5 000 zł: brak polisy na '+window._vehKindName(k)+'. Ubezpiecz go w Garage 77, aby zatrzymać karę.','r',6000);
       }
@@ -81092,9 +82269,10 @@ window._vehDrawFlames=function(sx,sy){
 window._vehIssueFine=function(reason, amount){
   window._vehTrafficEnsure();
   amount=Math.max(0,Math.round(amount||0));
-  const paid=Math.min(G.money||0, amount);
-  G.money=(G.money||0)-paid; if(typeof spent==='function'){ try{ spent(paid); }catch(_){} }
-  G.trafficFines.push({ id:'tf'+(G.day||0)+'_'+G.trafficFines.length, day:(G.day||0), amount, paid, reason, status:(paid>=amount?'paid':'partial'), ts:Date.now() });
+  /* PDF GDANSK 138 U18 (user): mandat ściągany jest w CAŁOŚCI — jeśli gracza nie stać, portfel
+     schodzi na minus (debet), zamiast po cichu „umorzyć” część kary. */
+  const paid=(typeof window._walletCharge==='function') ? window._walletCharge(amount) : (function(){ const p=Math.min(G.money||0,amount); G.money=(G.money||0)-p; return p; })();
+  G.trafficFines.push({ id:'tf'+(G.day||0)+'_'+G.trafficFines.length, day:(G.day||0), amount, paid, reason, status:'paid', ts:Date.now() });
   if(typeof notify==='function') notify('🚔 Mandat: '+reason+' −'+paid.toLocaleString('pl')+' zł','r',7000); else if(typeof showMsg==='function') showMsg('🚔 Mandat −'+paid.toLocaleString('pl')+' zł','r',5000);
   return paid;
 };
@@ -82620,7 +83798,8 @@ function renderPhoneApp(app){
     ph.innerHTML=`<div class="ph-screen">
       <div style="background:#0a1a2a;border-radius:8px;padding:14px;margin-bottom:12px">
         <div style="font-size:12px;color:#3498db;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Konto główne</div>
-        <div style="font-size:26px;color:#fff;font-weight:700">${G.money.toLocaleString('pl')} zł</div>
+        <!-- PDF GDANSK 138 U18: ujemne saldo — jasnoczerwona czcionka. -->
+        <div style="font-size:26px;color:${(G.money||0)<0?window.WALLET_NEGATIVE_COLOR:'#fff'};font-weight:700">${window._walletFmt(G.money)} zł</div>
         ${G.managementDeal?'<div style="font-size:12px;color:#7ec87e;margin-top:4px">Menadżer aktywny: x1.2 zarobki</div>':''}
       </div>
       ${G.bank.loan>0?`<div style="background:#1a0a0a;border-radius:8px;padding:12px;margin-bottom:10px"><div style="color:#e74c3c;font-size:14px">Kredyt: ${G.bank.loan} zł do spłaty</div><button class="bbtn" onclick="repayLoan()" style="margin-top:8px">Spłać 100 zł</button></div>`:''}
@@ -82723,7 +83902,8 @@ function renderPhoneApp(app){
               <div style="font-size:14px;color:#f1c40f;font-weight:900">${b.amount} zł</div>
             </div>
             <div style="font-size:11px;color:${statusColor};margin-bottom:6px">${statusText} · wystawiony Dz.${b.issuedDay}</div>
-            <button onclick="window.payBill('${b.id}')" ${G.money<b.amount?'disabled':''} style="width:100%;background:${G.money>=b.amount?'#0a3a1a':'#1a1a1a'};border:1px solid ${G.money>=b.amount?'#27ae60':'#444'};color:${G.money>=b.amount?'#7ec87e':'#556'};padding:7px;border-radius:6px;cursor:${G.money>=b.amount?'pointer':'not-allowed'};font-family:inherit;font-size:12px;font-weight:700">${G.money>=b.amount?'💰 Zapłać '+b.amount+' zł':'💸 Brak kasy'}</button>
+            <!-- PDF GDANSK 138 U18: rachunek da się zapłacić także na debet — przycisk aktywny, ale uprzedza o ujemnym saldzie. -->
+            <button onclick="window.payBill('${b.id}')" style="width:100%;background:${G.money>=b.amount?'#0a3a1a':'#3a1a0a'};border:1px solid ${G.money>=b.amount?'#27ae60':'#c07a2a'};color:${G.money>=b.amount?'#7ec87e':'#e8b070'};padding:7px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">${G.money>=b.amount?'💰 Zapłać '+b.amount+' zł':'⚠️ Zapłać '+b.amount+' zł (debet)'}</button>
           </div>`;
         }).join('')}
       </div>`}
@@ -84493,8 +85673,24 @@ window._smsHoldReason=function(){
     if(typeof _paused!=='undefined' && _paused) return 'pause';
     if(typeof G!=='undefined' && G && G._cinematicActive) return 'flyover';
     if(window._fsSessionActive) return 'freestyle';
+    /* PDF GDANSK 138 U7: streaming na komputerze PC wstrzymuje całą korespondencję. */
+    if(window._streamSessionActive) return 'stream';
   }catch(_){}
   return null;
+};
+/* PDF GDANSK 138 U7: po zakończeniu streamu wypuszczamy zarówno SMS-y z poczekalni,
+   jak i zielone okna informacyjne odlożone na czas sesji. */
+window._gd138ReleaseHeldUi=function(){
+  try{ if(typeof window._smsReleaseHeld==='function') window._smsReleaseHeld(); }catch(_){}
+  try{ if(typeof window._smsPopupFlush==='function') window._smsPopupFlush(); }catch(_){}
+  try{ if(typeof window._fuDmFlushPendingNotify==='function') window._fuDmFlushPendingNotify(); }catch(_){}
+  try{
+    if(window._cinemQueuedMsgs && window._cinemQueuedMsgs.length>0){
+      const _q=window._cinemQueuedMsgs.slice(); window._cinemQueuedMsgs=[];
+      /* Każde okno wchodzi przez showMsg, więc działa normalna kolejka (odstęp 5 s, zero nakładania). */
+      setTimeout(()=>{ for(const _m of _q){ try{ if(typeof showMsg==='function') showMsg(_m.t,_m.type,_m.duration); }catch(_){} } }, 1200);
+    }
+  }catch(_){}
 };
 window._smsHeld=function(){ return !!window._smsHoldReason(); };
 window._smsHeldEnsure=function(){
@@ -84731,6 +85927,42 @@ window._trapInfoTipSchedule=function(key,triggerId,textFn,guardFn,delayMs){
     }catch(_){}
   };
   window._trapInfoTipTimers[key]=setTimeout(_fire, _d);
+};
+/* ═══ PDF GDANSK 138 U8/U10/U11 — TRZY NOWE WSKAZÓWKI OD 🛈 TrapInfo ══════════════
+   U8  — po ukończeniu 9-krokowego poradnika ORAZ po zebraniu 3 tyś. zł: informacja o pożyczce w Banku.
+   U10 — po interakcji [E] z DWOMA RÓŻNYMI NPC (dwa razy ten sam się nie liczy): odsyłacz do Mapy NPC.
+   U11 — gdy gracz ma przy sobie ≥ 50 tys. zł gotówki: informacja o sejfie domowym z NorthRoom.
+   Wszystkie trzy idą przez `_smsTriggerOnce` — więc każda przychodzi dokładnie raz w grze. */
+window.GD138_TIP_BANK='🎯 Wskazówka: Potrzebujesz dodatkowego finansowania? W aplikacji Bank dostępna jest funkcja pożyczki, umożliwiająca pozyskanie dodatkowych środków na bieżące wydatki i inwestycje. Dostępne warunki zależą od Twojej aktualnej sytuacji finansowej. Zajrzyj: Telefon → Finanse → Bank.';
+window.GD138_TIP_NPCMAP='🎯 Wskazówka: Zaczynasz poznawać ludzi! Sprawdź ich profile, dostępne informacje i lokalizacje na mapie: Telefon → NPC → Mapa NPC.';
+window.GD138_TIP_SAFE='🎯 Wskazówka: Przy większej ilości gotówki warto zadbać o jej bezpieczeństwo. Sejf domowy dostępny w NorthRoom pozwala przechowywać pieniądze poza zasięgiem złodziei i napastników. Gotówka w portfelu pozostaje narażona na napad.';
+/* U10: rejestr RÓŻNYCH NPC, z którymi gracz realnie rozmawiał. */
+window._gd138MarkNpcMet=function(npcId){
+  try{
+    if(!npcId) return;
+    if(!Array.isArray(G._gd138MetNpcs)) G._gd138MetNpcs=[];
+    if(G._gd138MetNpcs.indexOf(npcId)<0){
+      G._gd138MetNpcs.push(npcId);
+      if(G._gd138MetNpcs.length>40) G._gd138MetNpcs.shift();
+    }
+    if(typeof window._gd138TipsTick==='function') window._gd138TipsTick();
+  }catch(_){}
+};
+window._gd138TipsTick=function(){
+  try{
+    if(typeof G==='undefined' || typeof window._smsTriggerOnce!=='function') return;
+    if(!window._gameStarted) return;
+    /* U8 — poradnik ukończony + 3 000 zł przychodu/gotówki */
+    const _tutOk=(typeof window._tutorialDone==='function')?window._tutorialDone():false;
+    if(_tutOk && (((G.totalEarned||0)>=3000) || ((G.money||0)>=3000)))
+      window._smsTriggerOnce('gd138_bank_loan','trapinfo',window.GD138_TIP_BANK,{bypass:true});
+    /* U10 — dwie różne postacie NPC */
+    if(Array.isArray(G._gd138MetNpcs) && G._gd138MetNpcs.length>=2)
+      window._smsTriggerOnce('gd138_npc_map','trapinfo',window.GD138_TIP_NPCMAP,{bypass:true});
+    /* U11 — 50 tys. zł w portfelu */
+    if((G.money||0)>=50000)
+      window._smsTriggerOnce('gd138_home_safe','trapinfo',window.GD138_TIP_SAFE,{bypass:true});
+  }catch(_){}
 };
 // Trigger SMS tylko raz w grze (dla milestone-based events)
 window._smsTriggerOnce=function(triggerId,contactId,text,opts){
@@ -85695,7 +86927,9 @@ const LEAD_TYPES=[
   {id:'radio_local',fameMin:10,   fameMax:80,   fromCid:'label',   emoji:'📻', songsReq:5,  payoutMin:150,  payoutMax:600,   fameMin_reward:1, fameMax_reward:3,  fans:300,  ddMin:2, ddMax:5, desc:'Lokalna stacja chce wywiad + freestyle live. 30 min.'},
   {id:'radio_national',fameMin:80,fameMax:300,  fromCid:'label',   emoji:'📡', songsReq:12,  payoutMin:600,  payoutMax:1800,  fameMin_reward:3, fameMax_reward:7,  fans:800,  ddMin:3, ddMax:7, desc:'Antyradio + Radio Eska szukają interview. 60 min na żywo.'},
   /* v2.3.32 (Vegan: „sponsor odzieżowy pisał po 2 freestyle'ach przy 120 obserwujących"): oferty sponsorskie IG wymagają realnego ZASIĘGU (followersReq) — marka płaci za widoczność posta, więc nie zaczepia konta z ~setką obserwujących. Spójne z drugim torem ofert IG (_checkIgSponsorshipOffer: 5000+). */
-  {id:'sponsor_drip',fameMin:25,  fameMax:150,  followersReq:1500, fromCid:'sponsor', emoji:'👔', songsReq:0,  payoutMin:500,  payoutMax:2200,  fameMin_reward:0, fameMax_reward:2,  fans:100,  ddMin:4, ddMax:8, desc:'Marka odzieżowa chce 1 post IG + zdjęcie w ich ciuchach.'},
+  /* PDF GDANSK 138 U4 (user): oferta odzieżowa pisze do gracza po ludzku (własny szablon SMS zamiast suchego „OFERTA: …”). */
+  {id:'sponsor_drip',fameMin:25,  fameMax:150,  followersReq:1500, fromCid:'sponsor', emoji:'👔', songsReq:0,  payoutMin:500,  payoutMax:2200,  fameMin_reward:0, fameMax_reward:2,  fans:100,  ddMin:4, ddMax:8, desc:'Marka odzieżowa chce 1 post IG + zdjęcie w ich ciuchach.',
+   smsTpl:(payout,deadline)=>`👔 Cześć! Chcielibyśmy zaproponować Ci współpracę przy promocji naszej odzieży. Przygotuj post na IG i pokaż się w naszych ciuchach. Za dobrze wykonaną współpracę możesz dostać nawet ${payout} zł. Oferta czeka w Telefon → 📩 Oferty. Termin upływa ${deadline}. dnia.`},
   {id:'sponsor_drink',fameMin:50, fameMax:250,  followersReq:3000, fromCid:'sponsor', emoji:'🥤', songsReq:0,  payoutMin:1200, payoutMax:4500,  fameMin_reward:1, fameMax_reward:4,  fans:300,  ddMin:5, ddMax:10,desc:'Brand napoju energetycznego — kampania 7-dniowa, 3 posty.'},
   /* v2.1.314 polish: wedding+private mają niski fame_reward (cisza w mediach), ale dostają altReward (merchBonus/dripBonus) za inne wartości */
   {id:'wedding',    fameMin:15,   fameMax:100,  fromCid:'fan',     emoji:'💒', songsReq:5,  payoutMin:400,  payoutMax:1500,  fameMin_reward:0, fameMax_reward:1,  fans:0,    ddMin:6, ddMax:14,desc:'Wesele kuzyna fan-a. "Stary Twoja muzyka mi pomogła!" Zagrasz?', altReward:{type:'mood', amount:15, label:'+15 nastrój (good vibes z weselem)'}},
@@ -85735,7 +86969,10 @@ window._maybeGenerateLead=function(){
   G._lastLeadDay=G.day;
   /* SMS notification z linkiem do oferty */
   if(typeof _smsSend==='function'){
-    _smsSend(lt.fromCid, `${lt.emoji} OFERTA: ${lt.desc} Do ${payout} zł — wypłata zależy od występu. Deadline dz. ${deadline}. Sprawdź Telefon → 📩 Oferty.`);
+    /* PDF GDANSK 138 U4: typ oferty może mieć WŁASNY szablon wiadomości (smsTpl) — wtedy on wygrywa. */
+    _smsSend(lt.fromCid, (typeof lt.smsTpl==='function')
+      ? lt.smsTpl(payout, deadline)
+      : `${lt.emoji} OFERTA: ${lt.desc} Do ${payout} zł — wypłata zależy od występu. Deadline dz. ${deadline}. Sprawdź Telefon → 📩 Oferty.`);
   }
   if(typeof addNotif==='function') addNotif(`📩 Nowa oferta od ${lt.fromCid}: do ${payout} zł (deadline dz. ${deadline})`);
 };
@@ -87259,6 +88496,8 @@ window._smsPendingTick=function(){
   }
   /* Wznowienie — najpierw dochodza wiadomosci przetrzymane w poczekalni. */
   if(typeof window._smsReleaseHeld==='function'){ try{ window._smsReleaseHeld(); }catch(_){} }
+  /* PDF GDANSK 138 U6/U7: tak samo wraca odlożone powiadomienie z aplikacji FrameUp. */
+  if(typeof window._fuDmFlushPendingNotify==='function'){ try{ window._fuDmFlushPendingNotify(); }catch(_){} }
   const q=window._smsPendingEnsure(); if(!q||!q.length) return;
   for(let i=0;i<q.length;i++){
     const it=q[i];
@@ -87842,6 +89081,9 @@ window.renderPhoneFriendships=function(){
     {id:'marcin',em:'🎤',name:'Marcin',role:'Organizator koncertów',loc:'Chodnik H1 south — obok Sali Koncertowej',bonus:'+15% zarobki z koncertów (kombinuje z Crew, cap 2×)'},
     {id:'fan',em:'🎤',name:'Wierny fan',role:'Najwierniejszy fan',loc:'Chodnik H3 south — fani Drip',bonus:'Częstsze donacje, autografy'}, /* v2.1.243: regresja v2.1.79 naprawiona — singular "Wierny fan" (1 NPC, nie "Fani hardcore" plural) + emoji 🎤. PLAN_NOC Faza 11 audit. */
     {id:'kamil',em:'💬',name:'Ryan (Stary kumpel)',role:'Wsparcie SMS',loc:'📞 Tylko SMS (brak obecności w mieście)',bonus:'Wsparcie i wiadomości w storyline'},
+    /* PDF GDANSK 138 U13 (user): Harnold — opis dokładnie w układzie podanym w dokumencie
+       („Wsparcie uliczne", „Supermarket ValuePoint", „Regularne wsparcie: +szacunek uliczny, pomoc przeciw złodziejom"). */
+    {id:'harnold',em:'💬',name:'Harnold',role:'Wsparcie uliczne',loc:'Supermarket ValuePoint',bonus:'Regularne wsparcie: +szacunek uliczny, pomoc przeciw złodziejom'},
   ];
   document.getElementById('ph-title')&&(document.getElementById('ph-title').textContent='🤝 Przyjaźnie z NPC');
   const tiers=[
@@ -87903,8 +89145,14 @@ window.renderPhoneNPCMap=function(highlightId){
     {id:'manager',  em:'🤵',name:'Manager (Marcus)',wx:1950,wy:596,desc:'Chodnik H1 south — przed Szpitalem'},
     {id:'zbyszek',  em:'🌮',name:'Frankie',        wx:1545,wy:748, desc:'Centrum — Kebab Kingpin'},
     {id:'crew',     em:'🎧',name:'Crew',           wx:2499,wy:1781,desc:'Chodnik H2 north — wschód od V2 (centrum miasta)'}, /* v2.1.202 [Amper]: sync z ROOMS.ulica.objects npc_crew (2400,1860)→(2499,1781) */
-    {id:'marcin',   em:'🎤',name:'Marcin',         wx:2937,wy:624, desc:'Chodnik H1 south — obok Sali Koncertowej'},
+    {id:'marcin',   em:'🎤',name:'Marcin (Organizator)',wx:2937,wy:624, desc:'Chodnik H1 south — przy Sali Koncertowej; na miejscu stoją też Spencer (Booking Agent) i Cassie (Promotor Sali)'},
     {id:'fan',      em:'🎤',name:'Fan',            wx:1217,wy:3120,desc:'Chodnik H3 south — fan przy Drip District'},
+    /* PDF GDANSK 138 U12 (user): mapa uwzględnia teraz TAKŻE nowe i niedawno wdrożone, stałe postacie NPC
+       — z Harnoldem na czele. Wcześniej apka pokazywała tylko siedmiu „historycznych" bohaterów. */
+    {id:'harnold',  em:'🧔',name:'Harnold',        wx:480, wy:2150,desc:'Chodnik przy supermarkecie ValuePoint — wsparcie uliczne'},
+    {id:'dj',       em:'📻',name:'DJ Tola',        wx:3680,wy:308, desc:'Chodnik H1 north — przed Radio Street'},
+    {id:'audio',    em:'🎛',name:'Andre Carter',   wx:1180,wy:308, desc:'Chodnik H1 north — przed sklepem muzycznym BeatPoint'},
+    {id:'casino_promo',em:'🎰',name:'Promotor kasyna',wx:1820,wy:3110,desc:'Chodnik H3 — przed Royal Casino'},
   ];
   /* PDF GDANSK U20/U31: cel „park" dopisujemy TYLKO wtedy, gdy to on jest wskazywany — lista
      kontaktów NPC nie może się przez to rozrosnąć przy zwykłym otwarciu mapy. */
@@ -87916,6 +89164,19 @@ window.renderPhoneNPCMap=function(highlightId){
      Zmniejszone do 280px. SH skaluje proporcjonalnie: 280×3600/4320 = 233px. */
   const SW=280, SH=Math.round(SW*mapH/mapW);
   const SCALE_X=SW/mapW, SCALE_Y=SH/mapH;
+  /* PDF GDANSK 138 U12: po dopisaniu nowych postaci kilka pinezek mogłoby na siebie nachodzić.
+     Licząc pozycje na podglądzie rozsuwamy kolizje w pionie — współrzędne świata zostają bez zmian. */
+  window._npcMapPinOffsets=function(list, sxF, syF){
+    const out=[]; const placed=[]; const byId={};
+    for(const l of list){
+      let px=Math.round(l.wx*sxF), py=Math.round(l.wy*syF);
+      let guard=0;
+      while(placed.some(p=>Math.abs(p.x-px)<18 && Math.abs(p.y-py)<18) && guard<8){ py+=20; guard++; }
+      placed.push({x:px,y:py}); out.push({loc:l, px, py}); byId[l.id]={px,py};
+    }
+    window._npcMapPinPos=byId;   /* trasa do podswietlonego NPC ma konczyc sie DOKLADNIE na pinezce */
+    return out;
+  };
   const _hl=highlightId && LOCS.find(l=>l.id===highlightId)?highlightId:null;
   const _hlNpc=_hl?LOCS.find(l=>l.id===_hl):null;
   /* PDF GDANSK U20/U31: przy celu „park" baner mówi o aktywnościach, nie o wizycie u NPC. */
@@ -87931,9 +89192,10 @@ window.renderPhoneNPCMap=function(highlightId){
       <div style="position:relative;width:${SW}px;height:${SH}px;margin:0 auto;border:2px solid #c8a520;border-radius:10px;overflow:hidden;box-shadow:inset 0 0 20px rgba(0,0,0,.6)">
         <canvas id="npc-minimap" width="${SW}" height="${SH}" style="display:block"></canvas>
         <canvas id="npc-minimap-route" width="${SW}" height="${SH}" style="display:block;position:absolute;left:0;top:0;pointer-events:none;z-index:2"></canvas>
-        ${LOCS.map(l=>{
-          const sx=Math.round(l.wx*SCALE_X);
-          const sy=Math.round(l.wy*SCALE_Y);
+        ${window._npcMapPinOffsets(LOCS,SCALE_X,SCALE_Y).map(_p=>{
+          const l=_p.loc;
+          const sx=_p.px;
+          const sy=_p.py;
           const v=G.npcFriendship?.[l.id]||0;
           const isHl=l.id===_hl;
           const extra=isHl?'animation:pulsePin 1.2s ease-in-out infinite;z-index:5;background:linear-gradient(135deg,#e91e8c,#f1c40f);border:3px solid #fff':'';
@@ -88048,7 +89310,8 @@ window.renderPhoneNPCMap=function(highlightId){
       if(cvR){
         const cR=cvR.getContext('2d');
         const px=Math.round((P.wx||0)*sx), py=Math.round((P.wy||0)*sy);
-        const nx=Math.round(_hlNpc.wx*sx), ny=Math.round(_hlNpc.wy*sy);
+        const _pp=(window._npcMapPinPos||{})[_hlNpc.id];
+        const nx=_pp?_pp.px:Math.round(_hlNpc.wx*sx), ny=_pp?_pp.py:Math.round(_hlNpc.wy*sy);
         cR.clearRect(0,0,SW,SH);
         cR.save();
         /* Pulsująca linia żółto-różowa, dashowana */
@@ -88073,7 +89336,8 @@ window.renderPhoneNPCMap=function(highlightId){
             c2.setLineDash([6,4]);c2.lineDashOffset=-_t2%10;
             c2.strokeStyle='rgba(241,196,15,.85)';c2.lineWidth=2;
             const _px=Math.round((P.wx||0)*sx), _py=Math.round((P.wy||0)*sy);
-            const _nx=Math.round(_hlNpc.wx*sx), _ny=Math.round(_hlNpc.wy*sy);
+            const _pp2=(window._npcMapPinPos||{})[_hlNpc.id];
+            const _nx=_pp2?_pp2.px:Math.round(_hlNpc.wx*sx), _ny=_pp2?_pp2.py:Math.round(_hlNpc.wy*sy);
             c2.beginPath();c2.moveTo(_px,_py);c2.lineTo(_nx,_ny);c2.stroke();
             c2.setLineDash([]);c2.strokeStyle='rgba(0,0,0,.4)';c2.lineWidth=4;
             c2.globalCompositeOperation='destination-over';
@@ -88236,7 +89500,7 @@ function renderPhoneStats(){
       <!-- Finance -->
       <div style="background:#060e18;border:1px solid #1a2535;border-radius:8px;padding:10px 12px;margin-bottom:8px">
         <div style="font-size:11px;color:#99a;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Finanse</div>
-        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px"><span style="color:#aaa">💰 Portfel</span><span style="color:#f1c40f;font-weight:700">${G.money.toLocaleString('pl')} zł</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px"><span style="color:#aaa">💰 Portfel</span><span style="color:${(G.money||0)<0?window.WALLET_NEGATIVE_COLOR:'#f1c40f'};font-weight:700">${window._walletFmt(G.money)} zł</span></div>
         <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px"><span style="color:#aaa">💵 Łącznie zarobione</span><span style="color:#27ae60;font-weight:700">${(G.totalEarned||0).toLocaleString('pl')} zł</span></div>
         <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#aaa">🎤 Koncerty</span><span style="color:#7ec8e3;font-weight:700">${G.events.performed}</span></div>
         ${G.crew.length>0?`<div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px"><span style="color:#aaa">👥 Ekipa</span><span style="color:#7ec8e3;font-size:12px">${G.crew.map(c=>c.name).join(', ')}</span></div>`:''}
@@ -90868,7 +92132,7 @@ function showGymTutorialCinematic(){
   ov.innerHTML = `
     <div style="max-width:680px;width:100%;text-align:center;animation:fadeInScale 0.6s ease-out">
       <div style="font-size:64px;margin-bottom:12px;text-shadow:0 0 30px #e67e22aa">💪</div>
-      <h1 style="font-size:34px;background:linear-gradient(135deg,#e67e22,#c0392b);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:4px;margin:0 0 8px 0;font-family:'Russo One',Impact,sans-serif">WITAJ NA SILOWNI</h1>
+      <h1 style="font-size:34px;background:linear-gradient(135deg,#e67e22,#c0392b);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:4px;margin:0 0 8px 0;font-family:'Russo One',Impact,sans-serif">WITAJ NA SIŁOWNI</h1>
       <p style="color:#aac;font-size:14px;margin:0 0 20px 0;font-style:italic">Twoj rozwoj fizyczny zaczyna sie tutaj</p>
 
       <div style="text-align:left;background:rgba(20,30,50,0.5);border:1px solid #2a3a4a;border-radius:10px;padding:16px;margin-bottom:14px">
@@ -91073,7 +92337,7 @@ window._showCinematicOffer=()=>{
       <h2 style="color:#c8a520;margin:0 0 14px;font-size:24px;letter-spacing:2px">PRZELOT KAMERĄ PO MIEŚCIE</h2>
       <p style="color:#d8d8e8;font-size:14px;line-height:1.6;margin-bottom:20px">Nie odbyłeś jeszcze przelotu po mieście. Pokażemy Ci kluczowe lokacje z lotu ptaka: gdzie mieszkasz, gdzie pracujesz, gdzie kupisz lepsze mieszkania, jak wygląda Drip District, Kasyno i wiele więcej.<br><br><span style="color:#7ec87e;font-size:13px">💡 Trwa około 2 minuty. Możesz pominąć w każdej chwili.</span></p>
       <button onclick="document.getElementById('cinem-offer').remove();window.openCinematicFlythrough();" style="background:linear-gradient(135deg,#c8a520,#f1c40f);color:#000;border:none;padding:14px 28px;font-size:16px;font-weight:800;border-radius:10px;cursor:pointer;margin:0 8px;letter-spacing:1px;font-family:inherit">▶ URUCHOM PRZELOT</button>
-      <button onclick="document.getElementById('cinem-offer').remove();G._cinematicCompleted=true;if(typeof saveGameSilent==='function')saveGameSilent();if(window._cinemQueuedMsgs&&window._cinemQueuedMsgs.length>0){var _lq=window._cinemQueuedMsgs[window._cinemQueuedMsgs.length-1];window._cinemQueuedMsgs=[];setTimeout(function(){if(typeof showMsg==='function')showMsg(_lq.t,_lq.type,_lq.duration);},1500);}" style="background:transparent;color:#aac;border:1px solid #3a4a5a;padding:14px 24px;font-size:14px;border-radius:10px;cursor:pointer;margin:0 8px;font-family:inherit">Pomiń (już nie pytaj)</button>
+      <button onclick="document.getElementById('cinem-offer').remove();G._cinematicCompleted=true;if(window._u3ArmTips)window._u3ArmTips();if(typeof saveGameSilent==='function')saveGameSilent();if(window._cinemQueuedMsgs&&window._cinemQueuedMsgs.length>0){var _lq=window._cinemQueuedMsgs[window._cinemQueuedMsgs.length-1];window._cinemQueuedMsgs=[];setTimeout(function(){if(typeof showMsg==='function')showMsg(_lq.t,_lq.type,_lq.duration);},1500);}" style="background:transparent;color:#aac;border:1px solid #3a4a5a;padding:14px 24px;font-size:14px;border-radius:10px;cursor:pointer;margin:0 8px;font-family:inherit">Pomiń (już nie pytaj)</button>
     </div>`;
   document.body.appendChild(m);
 };
@@ -91812,6 +93076,8 @@ window.openCinematicFlythrough=(scenario)=>{
   window._closeCinematic=()=>{
     G._cinematicActive=false;
     G._cinematicCompleted=true;
+    /* PDF GDANSK 138 U3: od tej chwili odliczamy 30 s do dwóch odroczonych okien informacyjnych. */
+    if(typeof window._u3ArmTips==='function') window._u3ArmTips();
     /* PDF 20.08 U22: przelot dobiegł końca — od tej chwili zapis działa normalnie, a stan po
        zakończeniu trybu utrwalamy po cichu (bez komunikatów na ekranie). */
     if(typeof window._flyoverDisarmRollback==='function') window._flyoverDisarmRollback();
@@ -91972,7 +93238,8 @@ window.openIntroduction=()=>{
       /* v2.3.11 FIX: gracz kończy Wprowadzenie w mieszkaniu (od v959 cutscena traphouse+lodówka) — NIE da się
          tu odpalić przelotu nad miastem (wymaga 'ulica'). Odraczamy: odpali się gdy wyjdzie na ulicę (changeRoom). */
       G._pendingIntroFlythrough=true;
-      if(typeof showMsg==='function') showMsg('🎬 Wyjdź z mieszkania (drzwi na dole) — zobaczysz przelot po mieście.','f',6000);
+      /* PDF GDANSK 138 U2 (user): komunikat „Wyjdź z mieszkania (drzwi na dole) — zobaczysz przelot po mieście.”
+         USUNIĘTY. Kierunek wyjścia pokazuje teraz zielona strzałka + poświata drzwi (U1), nie kolejne zielone okno. */
     } else if(typeof showMsg==='function'){
       showMsg('💡 Możesz uruchomić Wprowadzenie ponownie w telefonie (app 🎬)','f',5000);
     }
@@ -92411,6 +93678,38 @@ window.renderPhoneGoals=function(){
   <div style="padding:8px 14px"><button class="cbtn" style="width:100%" onclick="renderPhoneHome()">← Wróć</button></div>`;
 };
 
+/* ═══ PDF GDANSK 138 U18 (user) — DEBET I UJEMNE SALDO PORTFELA ═══════════════════════════════
+   Mandaty, kary i rachunki mogą zejść poniżej zera („2000 zł − 8460 zł = -6 460 zł”).
+   Kwota na ujemnym saldzie wyświetla się JASNOCZERWONYM kolorem zamiast domyślnego złotego.
+   Zakupy dobrowolne działają jak dotychczas — na debet można zejść tylko przez obciążenia przymusowe
+   (i przez świadomą spłatę zaległości, która i tak zmniejsza dług). */
+window.WALLET_NEGATIVE_COLOR='#ff6b6b';
+window._walletCharge=function(amount){
+  const amt=Math.max(0,Math.round(amount||0));
+  if(!amt) return 0;
+  G.money=(G.money||0)-amt;
+  if(typeof spent==='function'){ try{ spent(amt); }catch(_){} }
+  if(typeof updateHUD==='function'){ try{ updateHUD(); }catch(_){} }
+  return amt;
+};
+window._walletIsNegative=function(){ try{ return (G.money||0)<0; }catch(_){ return false; } };
+/* Zamiennik dla `Math.max(0, ...)` przy przypisaniach do G.money. Gdy saldo jest DODATNIE — dziala
+   dokladnie jak dotad (nie schodzi ponizej zera). Gdy saldo jest JUZ ujemne — zwraca wartosc surowa,
+   zeby zadne obciazenie ani wplata nie kasowaly dlugu przez sztuczne podniesienie do zera. */
+window._walletFloor=function(raw){
+  try{
+    const prev=(typeof G!=='undefined' && typeof G.money==='number')?G.money:0;
+    const v=Number(raw)||0;
+    return (prev<0) ? v : Math.max(0, v);
+  }catch(_){ return Math.max(0, Number(raw)||0); }
+};
+/* Format kwoty portfela z minusem i separatorem tysięcy („-6 460 zł”). */
+window._walletFmt=function(v){
+  const n=Math.round(Number(v)||0);
+  /* separator tysiecy TAKZE dla kwot czterocyfrowych (dokument: „-6 460 zl”) */
+  const grouped=String(Math.abs(n)).replace(/\B(?=(\d{3})+(?!\d))/g,' ');
+  return (n<0?'-':'')+grouped;
+};
 function updateHUD(){
   // Sprawdź milestone'y misji co 60 klatek
   if(++_missionTick>=60){_missionTick=0;checkMissionMilestones();
@@ -92418,6 +93717,10 @@ function updateHUD(){
     try{ if(typeof _updateOnboarding==='function') _updateOnboarding(); }catch(e){}
     /* v2.1.552 P4.2: reveal nowych apek telefonu gdy odblokowane (Crypto/Prestige). */
     try{ if(typeof _checkAppReveals==='function') _checkAppReveals(); }catch(e){}
+    /* PDF GDANSK 138 U8/U11: progi gotówki i ukończenia poradnika sprawdzamy raz na sekundę. */
+    try{ if(typeof window._gd138TipsTick==='function') window._gd138TipsTick(); }catch(e){}
+    /* PDF GDANSK 138 U1: czy pokazać zieloną strzałkę na drzwiach Traphouse. */
+    try{ if(typeof window._exitTutorialCheck==='function') window._exitTutorialCheck(); }catch(e){}
   }
   /* v2.1.195: REBALANS PRĘDKOŚCI — additive formula, cap 3.3, FAKTYCZNE max levels skilli (Bieg max 3 NIE 5).
      - Baza 2.0
@@ -92530,7 +93833,10 @@ function updateHUD(){
   // v1.8.20: num-tick animacja gdy kasa rośnie
   const _hmoney=document.getElementById('hmoney');
   const _prevMoney=window._prevHudMoney||0;
-  _hmoney.innerHTML='💰 '+fmtBig(Math.floor(G.money))+' zł';
+  /* PDF GDANSK 138 U18: ujemne saldo — pełna kwota z minusem i JASNOCZERWONA czcionka. */
+  const _neg=(G.money||0)<0;
+  _hmoney.innerHTML='💰 '+(_neg?window._walletFmt(G.money):fmtBig(Math.floor(G.money)))+' zł';
+  _hmoney.style.color=_neg?window.WALLET_NEGATIVE_COLOR:'#f1c40f';
   if(G.money>_prevMoney+5){
     _hmoney.classList.remove('num-tick');
     void _hmoney.offsetWidth; // restart animation
@@ -94559,6 +95865,31 @@ window._s9AfterDeal=function(npcId,priceTier){
   window._s9AfterRoom();
 };
 const PATCH_NOTES = [
+ {
+ ver:'v2.3.139',date:'2026-09-02',cats:['beta-tester','feature','fix','ui'],title:'🥊 Awantura na ulicy z prawdziwa bijatyka, debet w portfelu i wskazanie drogi na starcie',
+ items:[
+  {t:'fix',d:'🚗 Skonfiskowanego pojazdu nie da sie juz sprzedac. Dopoki sluzby go trzymaja, skup w salonie, ogloszenie na Swaply i rozbiorka na Metal Valley Yard odmawiaja z komunikatem, ze sprzedaz jest niedostepna. Po zakonczeniu konfiskaty wszystko wraca do normy.'},
+  {t:'fix',d:'🛋 Nowa gra zaczyna sie od pustego, podstawowego mieszkania. Wczesniej podloga, kolory scian i dodatki kupione w poprzedniej rozgrywce potrafily przeniesc sie do swiezo rozpoczetej gry.'},
+  {t:'new',d:'🥊 Uliczna awantura to teraz prawdziwa scena, a nie samo okno z wyborem. Kilka krokow od Ciebie staja dwie postacie, ktore realnie wymieniaja ciosy, kamera robi zblizenie i masz dziesiec sekund na decyzje. Okno wyboru jest male, takie jak przy rozmowie z mieszkancem miasta.'},
+  {t:'new',d:'🚑 Jesli sie nie wmieszasz, bijatyka trwa dalej i konczy sie tym, ze jeden z awanturnikow zostaje na chodniku. Po chwili przyjezdza karetka na sygnalach: dwoch ratownikow wyjmuje nosze, zabiera poszkodowanego i odjezdza do centrum medycznego. Drugi uczestnik odchodzi i miesza sie ze zwyklymi przechodniami.'},
+  {t:'new',d:'🚓 Zgloszenie awantury sciaga patrol. Radiowoz podjezdza na sygnalach, dwoch funkcjonariuszy rozdziela bijacych sie, pakuje obu do srodka i odjezdza.'},
+  {t:'new',d:'👊 Mozesz tez wejsc w konflikt — wtedy zaczyna sie osobna walka uliczna. Stoicie naprzeciw siebie, a gra podaje klawisze do obrony, ataku i kontrataku. Trafisz co najmniej siedem z dziesieciu — wygrywasz. Wygrana konczy sie mozliwoscia przeszukania lezacego, przegrana — utrata czesci gotowki i ocknieciem sie pod centrum medycznym.'},
+  {t:'change',d:'📉 Po ulicznej bijatyce Twoje zniesławienie rosnie niezaleznie od tego, czy wygrales, czy przegrales.'},
+  {t:'new',d:'🟩 Na starcie nowej gry, gdy poradnik doprowadzi Cie do pierwszej wyplaty, przy drzwiach wyjsciowych Traphouse pojawia sie zielona strzalka, a same drzwi dostaja pomaranczowa poswiate — taka sama, jaka na poczatku ma lodowka. Po pierwszym wyjsciu na ulice podpowiedz znika na dobre.'},
+  {t:'change',d:'💬 Poczatek gry jest spokojniejszy. Zniknely dwa okna o szukaniu drzwi i przelocie po miescie, a pierwszym, co czytasz, jest powitanie w Traphouse z prosba o cos do jedzenia. Wskazowki o skladnikach na gotowanie i o silowni przychodza dopiero pol minuty po przelocie nad miastem — jedna po drugiej, bez nakladania sie na siebie.'},
+  {t:'change',d:'💸 Portfel moze wejsc na minus. Mandaty, kary i rachunki sciagane sa w calosci, a ujemne saldo wyswietla sie jasnoczerwona czcionka — wiec od razu widac, ze masz dlug do splaty.'},
+  {t:'new',d:'🛈 TrapInfo przysyla trzy nowe wskazowki: o pozyczce w Banku (po ukonczeniu poradnika i zebraniu trzech tysiecy), o mapie znajomych (po rozmowie z dwiema roznymi postaciami) oraz o sejfie domowym (gdy nosisz przy sobie 50 tysiecy).'},
+  {t:'new',d:'✉️ Nowa wiadomosc na FrameUp Direct ma wlasne powiadomienie — osobne okno u gory ekranu z nazwa aplikacji w naglowku i wlasnym, spokojnym dzwiekiem, innym niz przy SMS.'},
+  {t:'change',d:'🔴 Na czas transmisji na zywo gra milknie: zadne powiadomienie ani SMS nie wchodzi Ci w kadr. Wszystko czeka i dochodzi po zakonczeniu streamu.'},
+  {t:'change',d:'🚐 Przycisk jazdy kamperem dziala tak, jak powinien. Gdy siedzisz za kierownica albo jestes w zapleczu, zamyka panel i caly telefon i oddaje sterowanie pojazdem. Gdy jestes gdzie indziej — dostajesz zwykla informacje, ze najpierw trzeba wsiasc.'},
+  {t:'change',d:'👕 Marka odziezowa pisze do Ciebie po ludzku — zamiast suchego ogloszenia dostajesz normalna propozycje wspolpracy z kwota i terminem.'},
+  {t:'ui',d:'📍 Mapa znajomych w telefonie pokazuje wreszcie komplet stalych postaci — doszli miedzy innymi Harnold spod supermarketu, prowadzaca audycje w radiu, konsultant w sklepie muzycznym i promotor kasyna. Pinezki, ktore lezaly na sobie, sa teraz rozsuniete.'},
+  {t:'new',d:'🤝 Harnold ma wlasna karte w panelu przyjazni: widac jego role, miejsce, w ktorym stoi, i co daje regularne wsparcie. Datki realnie buduja z nim relacje.'},
+  {t:'change',d:'💎 Katalog luksusowych aut ogladasz wylacznie w fizycznym salonie Crownline w dzielnicy biznesowej — skrot z salonu miejskiego zostal usuniety.'},
+  {t:'new',d:'🙌 Nowe osiagniecie „Superwolontariusz" za wykonanie wszystkich pieciu form pomocy w schronisku, z nagroda 100 zl.'},
+  {t:'ui',d:'💪 Naglowek powitania na silowni ma wreszcie poprawna polska pisownie.'},
+ ]
+ },
  {
  ver:'v2.3.138',date:'2026-09-02',cats:['beta-tester','feature','fix','ui'],title:'🏢 Wlasna przestrzen w VANTAGE WORKS, sprzet widoczny w piwnicy i porzadek w telefonie',
  items:[
@@ -107001,7 +108332,8 @@ function showMsg(t,type,duration){
   /* PDF GDANSK U32 (user): podczas aktywnosci „Freestyle" zielone prostokaty z podpowiedziami nie
      moga rozpraszac gracza. Kolejka wznawia sie DOPIERO po przycisku „Wyjdz" — wybor „Jeszcze raz"
      trzyma ja wstrzymana dalej (dokument wprost). Uzywamy tej samej poczekalni, co przelot. */
-  if(window._fsSessionActive){
+  /* PDF GDANSK 138 U7: podczas aktywności „Live Stream" żadne powiadomienie nie wchodzi graczowi w kadr. */
+  if(window._fsSessionActive || window._streamSessionActive){
     if(!window._cinemQueuedMsgs) window._cinemQueuedMsgs=[];
     window._cinemQueuedMsgs.push({t,type,duration});
     if(window._cinemQueuedMsgs.length>12) window._cinemQueuedMsgs.shift();
@@ -107172,7 +108504,7 @@ function openAdminPanel(){
 }
 function applyAdmin(){
   const v=id=>parseInt(document.getElementById(id).value)||0;
-  G.money=Math.max(0,v('adm-money'));
+  G.money=window._walletFloor(v('adm-money'));
   /* v2.1.31: G.followers ustawiamy NA KOŃCU (po fans.hardcore/casual) — setter aktualizuje casual żeby suma = wartość z UI */
   G.health=clamp(v('adm-health'),0,100);
   G.energy=clamp(v('adm-energy'),0,100);
@@ -107812,7 +109144,7 @@ function merchDailyTick(){
   const HARD_DAILY_CAP=21400; /* v2.1.835: cap 50000→35000. v2.1.856: 35000→22000. v2.1.865 (rebalans Vegan merch −0.3%, redystrybucja→trap/kariery): 22000→21400 */
   if(totalRevenue>HARD_DAILY_CAP){
     const excess=totalRevenue-HARD_DAILY_CAP;
-    G.money=Math.max(0,G.money-excess);
+    G.money=window._walletFloor(G.money-excess);
     G.totalEarned=Math.max(0,(G.totalEarned||0)-excess);
     totalRevenue=HARD_DAILY_CAP;
     addNotif(`⚖️ Merch — dzienny limit zysku ${HARD_DAILY_CAP.toLocaleString('pl')} zł osiągnięty.`);
@@ -107829,7 +109161,7 @@ function merchDailyTick(){
   // Koszty utrzymania
   const opCost=merchDailyOperatingCost();
   if(opCost>0){
-    G.money=Math.max(0,G.money-opCost);
+    G.money=window._walletFloor(G.money-opCost);
     totalRevenue-=opCost;
   }
   ms.history.push({day:G.day,totalSold,totalRevenue,products:ms.products.length,opCost,breakdown});
@@ -110196,7 +111528,7 @@ function loadGame(){
     G._econVersion=2;
   }
   /* v2.1.101: post-load clamping (Wave 8 K80 — tampered save może mieć negative xp/money/level) */
-  G.money=Math.max(0,Math.min(999999999999,G.money||0));
+  G.money=window._walletFloor(Math.min(999999999999,G.money||0));
   G.xp=Math.max(0,G.xp||0);
   G.level=Math.max(1,Math.min(100,G.level||1));
   G.followers=Math.max(0,Math.min(9999999999,G.followers||0));
@@ -110380,7 +111712,12 @@ function loadGame(){
       }
     }
   }catch(e){/* ignore — trash cleanup best-effort */}
-  rebuildAptTile('floor',G.aptColors.floor);rebuildAptTile('wall',G.aptColors.wall);
+  /* PDF GDANSK 138 B2: wystrój przez wspólną funkcję (kafle + sejf) — identycznie jak przy nowej grze. */
+  if(typeof window._applyApartmentVisuals==='function') window._applyApartmentVisuals();
+  else { rebuildAptTile('floor',G.aptColors.floor);rebuildAptTile('wall',G.aptColors.wall); }
+  /* PDF GDANSK 138 U14/U7: stany przejściowe (scena uliczna, wstrzymanie powiadomień) nie przenoszą się przez wczytanie. */
+  if(typeof window._brawlEnd==='function'){ try{ window._brawlEnd(); }catch(_){} }
+  window._streamSessionActive=false;
   cityPeds.length=0;cityCars.length=0;dashingAnimals.length=0;initCityLife();initParkLife();
   document.getElementById('menu').style.display='none';
   /* v2.1.333 Faza W fix EXPLOIT F5 (user 2026-05-27 "Miałem niecałe 200 fanów, nacisnąłem F5, wczytałem save i nagle mam 1000 fanów + pieniędzy też więcej"): natychmiast utrwal migracje (np. `G.fans += G.followers` jednorazowa migracja v2.1.38 + flag _fansMergedV21_38) przez explicit saveGameSilent(). PRZED: gracz robił loadGame → migracja boost → F5 zanim auto-save zapisał stan → load znowu → re-trigger migracji = boost ponowny. PO: utrwalamy migracje natychmiast, kolejny F5 wczytuje stan POST-migration (flag = true → NIE re-trigger).
@@ -110691,9 +112028,11 @@ function _introTraphouseFridge(){
     if(currentRoom==='mieszkanie'){ P.wx=618; P.wy=235; try{updateCamera();}catch(_){} }
     else if(typeof startRoomFade==='function'){ startRoomFade('mieszkanie',618,235); }
     else { currentRoom='mieszkanie'; P.wx=618; P.wy=235; try{updateCamera();}catch(_){} }
-    setTimeout(()=>{ try{ if(typeof showMsg==='function') showMsg('🏠 Witaj w swoim traphouse! Po podróży burczy Ci w brzuchu (głód 30) i brakuje sił (energia 60). 🧊 Podejdź do podświetlonej lodówki i naciśnij [E] — zjedz lub wypij coś.'); }catch(e){} }, 1100);
-    /* v2.3.12 (UX-B): drugi toast — gdzie jest wyjście (drzwi 'Wyjście z budynku' wx655,wy600 = DÓŁ pokoju; spawn w kuchni u góry). Pomaga nowemu graczowi nie błądzić. */
-    setTimeout(()=>{ try{ if(typeof showMsg==='function' && currentRoom==='mieszkanie') showMsg('🚪 Gdy zechcesz wyjść w miasto — drzwi „Wyjście z budynku" są na DOLE pokoju (zejdź w dół i [E]). Na zewnątrz czeka przelot po mieście.','f',6000); }catch(e){} }, 5200);
+    /* PDF GDANSK 138 U2 (user): to jest PIERWSZE okno informacyjne nowej gry — treść zaktualizowana dosłownie wg dokumentu. */
+    setTimeout(()=>{ try{ if(typeof showMsg==='function') showMsg('Witaj w swoim Traphouse! Po długiej podróży na pewno przyda Ci się coś do jedzenia i picia. Podejdź do podświetlonej lodówki i naciśnij [E], aby z niej skorzystać. Zjedz lub wypij coś, żeby odzyskać siły przed rozpoczęciem swojej przygody.'); }catch(e){} }, 1100);
+    /* PDF GDANSK 138 U2 (user): drugi toast „Gdy zechcesz wyjść w miasto …” USUNIĘTY — zastępuje go
+       zielona strzałka na drzwiach wyjściowych i ich pomarańczowa poświata (U1). Pierwszym oknem, jakie
+       czyta gracz, jest teraz wyłącznie powitanie w Traphouse. */
   }catch(e){console.error('introTraphouse:',e);}
 }
 function startGame(){
@@ -110711,6 +112050,12 @@ function startGame(){
   const name=_rawName.length>=2?_rawName:'Traper'; /* fallback if pusty lub <2 chars */
   resetG();
   G._econVersion=2;
+  /* PDF GDANSK 138 U14: scena awantury ulicznej jest stanem PRZEJŚCIOWYM — nowa gra ma ją zdjąć. */
+  if(typeof window._brawlEnd==='function'){ try{ window._brawlEnd(); }catch(_){} }
+  window._streamSessionActive=false;
+  /* PDF GDANSK 138 B2 (user): świeża gra = świeży wystrój. Bez tego kafle podłogi/ścian oraz obiekt
+     sejfu zostawały z POPRZEDNIEJ rozgrywki (globalny cache `tiles` i tablica ROOMS żyją poza G). */
+  if(typeof window._applyApartmentVisuals==='function') window._applyApartmentVisuals();
   if(typeof window._underworldEnsure==='function') window._underworldEnsure(); /* v2.3.38: init stat modułu „Numer zastrzeżony" po resetG (nowa gra) */
   if(typeof window._newpdfEnsure==='function') window._newpdfEnsure(); /* v2.3.97: init SMS Kamil/Fani + turnieje breakdance/skate po resetG (nowa gra) */
   if(typeof window._sanitizePlayerLists==='function') window._sanitizePlayerLists(); /* v2.3.108 TIER-F fix: init ensure'ów (kamper/vehState/metalValley) na starcie NOWEJ GRY — jak loadGame. KRYTYCZNE: ustawia G._pdf10Migrated=true ZANIM gracz odblokuje Trapa, więc nowa gra NIE dostaje darmowego legacy-kampera (anti-exploit #1). */
@@ -115681,6 +117026,9 @@ function loop(){
   /* PDF GDANSK U88: zamontowany sprzęt SUBTERRA rysuje się PO obiektach piwnicy — inaczej
      doniczki, terminal i suszarnia zasłaniałyby część modułów (lekcja z mikroscen przewodników). */
   if(currentRoom==='plantacja' && typeof window._sbDrawInstalledGear==='function') _safe(()=>window._sbDrawInstalledGear(),'sbInstalledGear');
+  /* PDF GDANSK 138 U14: scena awantury ulicznej (bijący się NPC, ambulans, radiowóz) rysowana PO
+     obiektach pokoju — inaczej fasady i dekoracje zasłoniłyby ją w całości (lekcja z mikroscen przewodników). */
+  _safe(()=>{ if(typeof window._brawlDraw==='function') window._brawlDraw(); },'brawlScene');
   _safe(()=>drawPlayerCar(),'drawPlayerCar');
   _safe(()=>drawPlayerCamper(),'drawPlayerCamper'); /* E4b: sprite kampera podczas jazdy */
   _safe(()=>{ if(window._marinaIsPiloting&&window._marinaIsPiloting()) window._marinaDrawPiloting(); },'marinaPilot');
