@@ -33,12 +33,71 @@ console.log('patchnotes.json zapisany:', arr.length, 'wpisów, top =', arr[0].ve
 // ── WEB-DEMO: skopiuj single-source index.html do website/play/ (grywalna wersja w przeglądarce) ──
 // Generowane przy KAŻDYM deployu (GitHub Actions → Cloudflare Pages) → nigdy się nie zestarzeje względem gry (zero ręcznych kopii,
 // szanuje „single source = index.html"). Gra wykrywa brak window.electronUpdater → moduł auto-update bezczynny.
+// ⚠️ Cloudflare Pages ma TWARDY limit 25 MiB NA PLIK. Po dołożeniu czwartego słownika (pt)
+// index.html urósł do ~28,5 MiB i deploy strony padał na kroku „Deploy to Cloudflare Pages"
+// (v2.3.142, run 34637491471). Dlatego web-demo dostaje słowniki w OSOBNYCH plikach obok siebie:
+// sam index.html schodzi wtedy do ~10 MiB, a każdy słownik to ~4,5 MiB — wszystko pod limitem.
+// Gra (index.html w repo, Electron) zostaje NIETKNIĘTA — podział robimy tylko dla kopii webowej.
+const CF_FILE_LIMIT = 25 * 1024 * 1024;
+
+function splitDictsForWeb(src) {
+  const MARK = 'window.__I18N_DATA={';
+  const i = src.indexOf(MARK);
+  if (i < 0) return null;                                   // brak bloku — nie ma czego dzielić
+  const sOpen = src.lastIndexOf('<script>', i);
+  const sClose = src.indexOf('</script>', i);               // literały mają <\/script, więc to nasz tag
+  if (sOpen < 0 || sClose < 0) return null;
+  const files = [], tags = [];
+  let p = i + MARK.length;
+  for (;;) {
+    while (p < src.length && (src[p] === ',' || src[p] === ' ' || src[p] === '\n')) p++;
+    if (src[p] === '}') break;
+    if (src[p] !== '"') return null;                        // nieznany kształt — lepiej nie ruszać
+    let q = p + 1, key = '';
+    while (q < src.length && src[q] !== '"') key += src[q++];
+    if (src[q] !== '"' || src[q + 1] !== ':' || src[q + 2] !== '"') return null;
+    q += 2;
+    const vs = q;                                           // literał wartości (JSON-owy string)
+    q++;
+    while (q < src.length) {
+      if (src[q] === '\\') { q += 2; continue; }
+      if (src[q] === '"') { q++; break; }
+      q++;
+    }
+    const name = 'i18n-' + key + '.js';
+    files.push({ name, body: 'window.__I18N_DATA=window.__I18N_DATA||{};window.__I18N_DATA[' + JSON.stringify(key) + ']=' + src.slice(vs, q) + ';' });
+    tags.push('<script src="' + name + '"></script>');      // klasyczne <script> = kolejność zachowana
+    p = q;
+  }
+  if (!files.length) return null;
+  return { html: src.slice(0, sOpen) + tags.join('') + src.slice(sClose + '</script>'.length), files };
+}
+
 try {
   const playDir = path.join(__dirname, 'play');
   fs.mkdirSync(playDir, { recursive: true });
-  fs.writeFileSync(path.join(playDir, 'index.html'), html);
-  console.log('web-demo zapisany: website/play/index.html (' + (html.length / 1048576).toFixed(1) + ' MB)');
+  for (const f of fs.readdirSync(playDir)) if (/^i18n-[a-z]{2}\.js$/.test(f)) fs.unlinkSync(path.join(playDir, f));
+
+  let demo = html, extra = [];
+  if (html.length > CF_FILE_LIMIT) {
+    const split = splitDictsForWeb(html);
+    if (!split) throw new Error('index.html > 25 MiB, a bloku slownikow nie da sie rozdzielic');
+    demo = split.html; extra = split.files;
+  }
+  const tooBig = [{ name: 'index.html', size: demo.length }, ...extra.map(f => ({ name: f.name, size: Buffer.byteLength(f.body) }))]
+    .filter(f => f.size > CF_FILE_LIMIT);
+  if (tooBig.length) throw new Error('plik(i) nadal ponad limit 25 MiB: ' + tooBig.map(f => f.name + ' ' + (f.size / 1048576).toFixed(1) + ' MiB').join(', '));
+
+  for (const f of extra) fs.writeFileSync(path.join(playDir, f.name), f.body);
+  fs.writeFileSync(path.join(playDir, 'index.html'), demo);
+  console.log('web-demo zapisany: website/play/index.html (' + (demo.length / 1048576).toFixed(1) + ' MB)' +
+    (extra.length ? ' + slowniki osobno: ' + extra.map(f => f.name + ' ' + (Buffer.byteLength(f.body) / 1048576).toFixed(1) + ' MB').join(', ') : ''));
 } catch (e) {
   // NIE-fatalne: kopia web-demo NIE może blokować deployu strony (changelog/wideo/FAQ ważniejsze).
+  // Usuwamy niepełną kopię, żeby na Pages nie poszedł plik ponad limit i nie wywalil calego deployu.
+  try {
+    const playDir = path.join(__dirname, 'play');
+    for (const f of fs.readdirSync(playDir)) if (/^(index\.html|i18n-[a-z]{2}\.js)$/.test(f)) fs.unlinkSync(path.join(playDir, f));
+  } catch (e2) { }
   console.error('web-demo copy pominięte (nie blokuje deployu):', e.message);
 }
