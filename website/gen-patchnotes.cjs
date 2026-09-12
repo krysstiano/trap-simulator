@@ -30,6 +30,52 @@ if (!Array.isArray(arr) || !arr.length) { console.error('PATCH_NOTES nie jest ni
 fs.writeFileSync(path.join(__dirname, 'patchnotes.json'), JSON.stringify(arr, null, 1));
 console.log('patchnotes.json zapisany:', arr.length, 'wpisów, top =', arr[0].ver);
 
+// ── PDF v2.3.140 U6: ANGIELSKA historia aktualizacji dla przełącznika języka na stronie ──
+// Tłumaczenia bierzemy z tego samego słownika, który jest wbudowany w index.html i którego
+// używa gra (window.__I18N_DATA.en). Dzięki temu changelog na stronie nigdy nie rozjedzie się
+// z tłumaczeniem w grze i nie trzeba tłumaczyć niczego drugi raz.
+function _enDict(src) {
+  const MARK = 'window.__I18N_DATA=';
+  const i = src.indexOf(MARK);
+  if (i < 0) return null;
+  const open = src.indexOf('{', i);
+  if (open < 0) return null;
+  let d = 0, end = -1, inStr = false, esc = false;
+  for (let p = open; p < src.length; p++) {
+    const c = src[p];
+    if (esc) { esc = false; continue; }
+    if (inStr) { if (c === String.fromCharCode(92)) esc = true; else if (c === '"') inStr = false; continue; }
+    if (c === '"') { inStr = true; continue; }
+    if (c === '{') d++;
+    else if (c === '}') { d--; if (!d) { end = p + 1; break; } }
+  }
+  if (end < 0) return null;
+  let obj;
+  try { obj = JSON.parse(src.slice(open, end)); } catch (e) { return null; }
+  if (!obj || typeof obj.en !== 'string') return null;
+  try { return JSON.parse(obj.en); } catch (e) { return null; }
+}
+
+try {
+  const en = _enDict(html);
+  if (!en) throw new Error('brak slownika angielskiego w index.html');
+  let hit = 0, miss = 0;
+  const t = (v) => {
+    if (typeof v !== 'string' || !v) return v;
+    if (Object.prototype.hasOwnProperty.call(en, v)) { hit++; return en[v]; }
+    miss++; return v;
+  };
+  const arrEn = arr.map(g => Object.assign({}, g, {
+    title: t(g.title),
+    items: Array.isArray(g.items) ? g.items.map(it => Object.assign({}, it, { d: t(it.d) })) : g.items,
+  }));
+  fs.writeFileSync(path.join(__dirname, 'patchnotes-en.json'), JSON.stringify(arrEn, null, 1));
+  console.log('patchnotes-en.json zapisany:', arrEn.length, 'wpisów · przetłumaczonych', hit, '· bez tłumaczenia', miss);
+} catch (e) {
+  // NIE-fatalne: brak wersji angielskiej nie może zablokować deployu strony.
+  console.error('patchnotes-en.json pominięty (nie blokuje deployu):', e.message);
+}
+
 // ── WEB-DEMO: skopiuj single-source index.html do website/play/ (grywalna wersja w przeglądarce) ──
 // Generowane przy KAŻDYM deployu (GitHub Actions → Cloudflare Pages) → nigdy się nie zestarzeje względem gry (zero ręcznych kopii,
 // szanuje „single source = index.html"). Gra wykrywa brak window.electronUpdater → moduł auto-update bezczynny.

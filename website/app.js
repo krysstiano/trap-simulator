@@ -1,9 +1,9 @@
 /* ===================================================================
-   TRAP SIMULATOR — landing page logic
+   TRAP SIMULATOR - landing page logic
    - reveal-on-scroll
    - patch notes: fetch + render (paginated), search, type filter
    Bezpieczeństwo: opisy z patchnotes.json renderujemy przez textContent
-   (NIGDY innerHTML z surowych danych) — chroni przed XSS i łamaniem HTML.
+   (NIGDY innerHTML z surowych danych) - chroni przed XSS i łamaniem HTML.
    =================================================================== */
 (function () {
   'use strict';
@@ -33,7 +33,7 @@
   var PAGE_SIZE = 15;
 
   var listEl = document.getElementById('pnList');
-  var loadingEl = document.getElementById('pnLoading');
+  var loadingEl = document.getElementById('pnLoading');   /* podmieniane przy zmianie jezyka (U6) */
   var moreBtn = document.getElementById('pnMore');
   var metaEl = document.getElementById('pnMeta');
   var searchEl = document.getElementById('pnSearch');
@@ -50,7 +50,7 @@
     gameplay: 'Rozgrywka', change: 'Zmiana', audit: 'Audyt', info: 'Info'
   };
 
-  // Beta-testerzy — subtelny podpis
+  // Beta-testerzy - subtelny podpis
   var BETA_TESTERS = { Vegan: true, Amper: true };
 
   var ALL = [];          // wszystkie wpisy (z patchnotes.json)
@@ -79,7 +79,7 @@
 
     var ver = document.createElement('span');
     ver.className = 'pn-ver';
-    ver.textContent = entry.ver || '—';
+    ver.textContent = entry.ver || '-';
     head.appendChild(ver);
 
     if (entry.date) {
@@ -253,7 +253,23 @@
   /* ---------- start ---------- */
   moreBtn.addEventListener('click', renderNextPage);
 
-  fetch('patchnotes.json', { cache: 'no-cache' })
+  /* PDF v2.3.140 U6: po przelaczeniu strony na angielski historia aktualizacji tez ma byc
+     po angielsku - plik z tlumaczeniami powstaje przy generowaniu strony z tego samego
+     slownika, ktorego uzywa gra, wiec nigdy sie nie rozjedzie z trescia wpisow. */
+  function _pnFile() { return (window.siteLang === 'en') ? 'patchnotes-en.json' : 'patchnotes.json'; }
+  document.addEventListener('sitelangchange', function () {
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    var wait = document.createElement('p');
+    wait.className = 'pn-loading';
+    wait.textContent = (window.siteLang === 'en') ? 'Loading updates…' : 'Wczytywanie aktualizacji…';
+    listEl.appendChild(wait);
+    loadingEl = wait;
+    _loadPatchNotes();
+  });
+
+  function _loadPatchNotes() {
+  fetch(_pnFile(), { cache: 'no-cache' })
     .then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
@@ -262,10 +278,10 @@
       if (!Array.isArray(data)) throw new Error('Nieprawidłowy format danych');
       if (loadingEl) loadingEl.remove();
       prepare(data);
-      // Dynamiczny badge wersji — zawsze najnowszy wpis (nigdy się nie zestarzeje).
+      // Dynamiczny badge wersji - zawsze najnowszy wpis (nigdy się nie zestarzeje).
       var _topVer = (data[0] && data[0].ver) ? data[0].ver : null;
       if (_topVer) { var _vb = document.querySelectorAll('.badge-ver'); for (var _i = 0; _i < _vb.length; _i++) _vb[_i].textContent = _topVer; }
-      // Licznik aktualizacji w pasku statystyk — zaokrąglony w dół do setki (np. 1372 → "1300+"),
+      // Licznik aktualizacji w pasku statystyk - zaokrąglony w dół do setki (np. 1372 → "1300+"),
       // liczba pobierana z danych, więc nigdy się nie zestarzeje.
       var _su = document.getElementById('statUpdates');
       if (_su && data.length) {
@@ -276,7 +292,7 @@
         if (window.__observeStat) window.__observeStat(_su); // teraz animuj do realnej liczby
       }
       buildFilters();
-      initSearch();
+      if (!searchEl.__inited) { initSearch(); searchEl.__inited = true; }
       applyFilters();
     })
     .catch(function (err) {
@@ -317,18 +333,20 @@
       moreBtn.hidden = true;
       metaEl.textContent = '';
     });
+  }
+  _loadPatchNotes();
 })();
 
 /* ===================== LIGHTBOX ZRZUTOW ===================== */
 (function () {
   var imgs = [
-    { src: 'screeny/01-mieszkanie.png', cap: 'Mieszkanie — wnętrze traphouse' },
-    { src: 'screeny/02-studio.png',     cap: 'Studio nagrań — mikser i produkcja' },
-    { src: 'screeny/03-kasyno.png',     cap: 'Kasyno — piętro high-roller' },
-    { src: 'screeny/04-park.png',       cap: 'Park miejski — życie ulicy' },
-    { src: 'screeny/05-miasto.png',     cap: 'Miasto — sklepy i sala koncertowa' },
-    { src: 'screeny/06-ulica.png',      cap: 'Ulica — usługi i kariera' },
-    { src: 'screeny/07-marina.png',     cap: 'Marina Coast — nadmorska dzielnica: łodzie, jachty i imprezy na wodzie' }
+    { src: 'screeny/01-mieszkanie.png', cap: 'Mieszkanie - wnętrze traphouse' },
+    { src: 'screeny/02-studio.png',     cap: 'Studio nagrań - mikser i produkcja' },
+    { src: 'screeny/03-kasyno.png',     cap: 'Kasyno - piętro high-roller' },
+    { src: 'screeny/04-park.png',       cap: 'Park miejski - życie ulicy' },
+    { src: 'screeny/05-miasto.png',     cap: 'Miasto - sklepy i sala koncertowa' },
+    { src: 'screeny/06-ulica.png',      cap: 'Ulica - usługi i kariera' },
+    { src: 'screeny/07-marina.png',     cap: 'Marina Coast - nadmorska dzielnica: łodzie, jachty i imprezy na wodzie' }
   ];
   var lb = document.getElementById('lb');
   if (!lb) return;
@@ -338,7 +356,7 @@
     cur = (i + imgs.length) % imgs.length;
     lbImg.style.backgroundImage = "url('" + imgs[cur].src + "')";
     lbImg.setAttribute('aria-label', imgs[cur].cap);
-    lbCounter.textContent = (cur + 1) + ' / ' + imgs.length + ' — ' + imgs[cur].cap;
+    lbCounter.textContent = (cur + 1) + ' / ' + imgs.length + ' - ' + imgs[cur].cap;
   }
   function open(i) { show(i); lb.hidden = false; lb.setAttribute('aria-hidden', 'false'); document.body.style.overflow = 'hidden'; }
   function close() { lb.hidden = true; lb.setAttribute('aria-hidden', 'true'); document.body.style.overflow = ''; }
@@ -400,7 +418,7 @@
     vlb.hidden = false; vlb.setAttribute('aria-hidden', 'false'); document.body.style.overflow = 'hidden';
     try { teaser && teaser.pause(); } catch (e) {}
     try { vid.currentTime = 0; } catch (e) {}
-    vid.muted = false;            // odcisz — muzyka jest w pliku, więc sync jest perfekcyjny zawsze
+    vid.muted = false;            // odcisz - muzyka jest w pliku, więc sync jest perfekcyjny zawsze
     vid.play().catch(function () { vid.muted = true; vid.play().catch(function () {}); });
   }
   function closeLb() {
@@ -416,7 +434,7 @@
 })();
 
 /* ===================================================================
-   v2.3.48 — efekty interaktywne (reflektor hero, count-up, tilt 3D)
+   v2.3.48 - efekty interaktywne (reflektor hero, count-up, tilt 3D)
    Wszystko wyłączane przy prefers-reduced-motion.
    =================================================================== */
 (function interactive() {
@@ -451,7 +469,7 @@
     requestAnimationFrame(step);
   }
   // Jeden obserwator; liczniki z [data-defer] (np. aktualizacje) startują dopiero gdy fetch
-  // ustawi realną wartość — inaczej animowały się do 0 i blokowały na "0+".
+  // ustawi realną wartość - inaczej animowały się do 0 i blokowały na "0+".
   var statIO = null;
   function getIO() {
     if (statIO || !('IntersectionObserver' in window)) return statIO;
