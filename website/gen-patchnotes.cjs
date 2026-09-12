@@ -56,13 +56,58 @@ function _enDict(src) {
   try { return JSON.parse(obj.en); } catch (e) { return null; }
 }
 
+// Napis z historii zmian potrafi zawierac znaczniki (<b>, <br>) - wtedy plaski odczyt ze
+// slownika nie wystarczy, bo gra sklada taki wpis z kilku segmentow. Dlatego uruchamiamy
+// TEN SAM silnik warstwy jezykowej (i18n/runtime.js) w piaskownicy Node: strona dostaje
+// doslownie to samo tlumaczenie, co gracz w grze. Gdyby silnik nie wystartowal, zostaje
+// plaski odczyt ze slownika (deploy strony nigdy nie moze na tym polec).
+/* zrodlo silnika: najpierw plik roboczy, a gdy go nie ma (CI) - blok wbudowany w index.html */
+function _runtimeSrc(src) {
+  try {
+    const p = path.join(__dirname, '..', 'i18n', 'runtime.js');
+    if (fs.existsSync(p)) return fs.readFileSync(p, 'utf8');
+  } catch (e) { }
+  const a = src.indexOf('I18N START'), b = src.indexOf('I18N END');
+  if (a < 0 || b < a) return null;
+  const k = src.indexOf('function translateSegment', a);
+  if (k < 0 || k > b) return null;
+  const st = src.lastIndexOf('<script>', k);
+  const en = src.indexOf('</' + 'script>', k);
+  if (st < 0 || en < 0) return null;
+  return src.slice(st + '<script>'.length, en);
+}
+
+function _engine(dict) {
+  const vm = require('vm');
+  const rtSrc = _runtimeSrc(html);
+  if (!rtSrc) return null;
+  const store = { snowy_lang: 'en' };
+  const el = { style: {}, appendChild() {}, setAttribute() {}, addEventListener() {}, innerHTML: '', textContent: '' };
+  const doc = { readyState: 'complete', body: null, documentElement: el, addEventListener() {},
+    createElement() { return Object.assign({}, el); }, createTreeWalker() { return { nextNode() { return null; } }; },
+    querySelectorAll() { return []; }, querySelector() { return null; }, getElementById() { return null; } };
+  const win = { __I18N_DATA: { en: dict }, document: doc,
+    localStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } },
+    navigator: { language: 'en' }, setTimeout, clearTimeout, setInterval, clearInterval,
+    Node: function () {}, NodeFilter: { SHOW_TEXT: 4 }, Element: function () {}, HTMLElement: function () {},
+    HTMLInputElement: { prototype: {} }, HTMLTextAreaElement: { prototype: {} }, HTMLImageElement: { prototype: {} },
+    CanvasRenderingContext2D: undefined, Object: Object, console: console,
+    MutationObserver: function () { this.observe = function () {}; this.disconnect = function () {}; this.takeRecords = function () { return []; }; } };
+  win.window = win; win.self = win;
+  vm.runInContext(rtSrc, vm.createContext(win), { filename: 'i18n/runtime.js' });
+  return (win.__I18N && typeof win.__I18N.t === 'function') ? win.__I18N : null;
+}
+
 try {
   const en = _enDict(html);
   if (!en) throw new Error('brak slownika angielskiego w index.html');
+  let eng = null;
+  try { eng = _engine(en); } catch (e) { console.error('silnik warstwy jezykowej pominiety:', e.message); }
   let hit = 0, miss = 0;
   const t = (v) => {
     if (typeof v !== 'string' || !v) return v;
     if (Object.prototype.hasOwnProperty.call(en, v)) { hit++; return en[v]; }
+    if (eng) { const r = eng.t(v); if (typeof r === 'string' && r !== v) { hit++; return r; } }
     miss++; return v;
   };
   const arrEn = arr.map(g => Object.assign({}, g, {
